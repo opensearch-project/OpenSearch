@@ -128,11 +128,6 @@ public class ProtobufNodeClient extends ProtobufAbstractClient {
         return transportAction;
     }
 
-    @Override
-    public ProtobufClient getRemoteClusterClient(String clusterAlias) {
-        return remoteClusterService.getRemoteClusterClientProtobuf(threadPool(), clusterAlias);
-    }
-
     public NamedWriteableRegistry getNamedWriteableRegistry() {
         return namedWriteableRegistry;
     }

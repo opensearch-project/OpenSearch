@@ -40,7 +40,6 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 
 import com.google.protobuf.CodedInputStream;
-import com.google.protobuf.CodedOutputStream;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -51,7 +50,7 @@ import java.util.function.Predicate;
  *
  * @opensearch.internal
  */
-public class ClusterName implements Writeable, ProtobufWriteable {
+public class ClusterName implements Writeable {
 
     public static final Setting<ClusterName> CLUSTER_NAME_SETTING = new Setting<>("cluster.name", "opensearch", (s) -> {
         if (s.isEmpty()) {
@@ -86,11 +85,6 @@ public class ClusterName implements Writeable, ProtobufWriteable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(value);
-    }
-
-    @Override
-    public void writeTo(CodedOutputStream out) throws IOException {
-        out.writeStringNoTag(value);
     }
 
     @Override

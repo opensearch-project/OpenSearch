@@ -32,8 +32,6 @@
 
 package org.opensearch.cluster;
 
-import com.google.protobuf.CodedInputStream;
-import com.google.protobuf.CodedOutputStream;
 
 import org.opensearch.cluster.block.ClusterBlock;
 import org.opensearch.cluster.block.ClusterBlocks;
@@ -56,8 +54,6 @@ import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.common.io.stream.ProtobufStreamInput;
-import org.opensearch.common.io.stream.ProtobufStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.VersionedNamedWriteable;
@@ -104,7 +100,7 @@ import static org.opensearch.cluster.coordination.Coordinator.ZEN1_BWC_TERM;
  *
  * @opensearch.internal
  */
-public class ClusterState implements ToXContentFragment, Diffable<ClusterState>, ProtobufDiffable<ClusterState> {
+public class ClusterState implements ToXContentFragment, Diffable<ClusterState> {
 
     public static final ClusterState EMPTY_STATE = builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).build();
 
@@ -753,11 +749,6 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState>,
         return new ClusterStateDiff(previousState, this);
     }
 
-    @Override
-    public ProtobufDiff<ClusterState> protobufDiff(ClusterState previousState) {
-        return new ClusterStateDiffProtobuf(previousState, this);
-    }
-
     public static Diff<ClusterState> readDiffFrom(StreamInput in, DiscoveryNode localNode) throws IOException {
         return new ClusterStateDiff(in, localNode);
     }
@@ -777,25 +768,6 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState>,
             builder.putCustom(customIndexMetadata.getWriteableName(), customIndexMetadata);
         }
         builder.minimumClusterManagerNodesOnPublishingClusterManager = in.readVInt();
-        return builder.build();
-    }
-
-    public static ClusterState readFrom(CodedInputStream in, DiscoveryNode localNode) throws IOException {
-        ProtobufStreamInput protobufStreamInput = new ProtobufStreamInput(in);
-        ClusterName clusterName = new ClusterName(in);
-        Builder builder = new Builder(clusterName);
-        builder.version = in.readInt64();
-        builder.uuid = in.readString();
-        // builder.metadata = Metadata.readFrom(in);
-        // builder.routingTable = RoutingTable.readFrom(in);
-        builder.nodes = DiscoveryNodes.readFromProtobuf(in, localNode);
-        // builder.blocks = ClusterBlocks.readFrom(in);
-        int customSize = in.readInt32();
-        // for (int i = 0; i < customSize; i++) {
-        //     Custom customIndexMetadata = protobufStreamInput.readNamedWriteable(Custom.class);
-        //     builder.putCustom(customIndexMetadata.getWriteableName(), customIndexMetadata);
-        // }
-        builder.minimumClusterManagerNodesOnPublishingClusterManager = in.readInt32();
         return builder.build();
     }
 
@@ -822,32 +794,6 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState>,
             }
         }
         out.writeVInt(minimumClusterManagerNodesOnPublishingClusterManager);
-    }
-
-     @Override
-    public void writeTo(CodedOutputStream out) throws IOException {
-        ProtobufStreamOutput protobufStreamOutput = new ProtobufStreamOutput(out);
-        clusterName.writeTo(out);
-        out.writeInt64NoTag(version);
-        out.writeStringNoTag(stateUUID);
-        // metadata.writeTo(out);
-        // routingTable.writeTo(out);
-        nodes.writeTo(out);
-        // blocks.writeTo(out);
-        // filter out custom states not supported by the other node
-        int numberOfCustoms = 0;
-        // for (final ObjectCursor<Custom> cursor : customs.values()) {
-        //     if (FeatureAware.shouldSerialize(out, cursor.value)) {
-        //         numberOfCustoms++;
-        //     }
-        // }
-        out.writeInt32NoTag(numberOfCustoms);
-        // for (final ObjectCursor<Custom> cursor : customs.values()) {
-        //     if (FeatureAware.shouldSerialize(out, cursor.value)) {
-        //         protobufStreamOutput.writeNamedWriteable(cursor.value);
-        //     }
-        // }
-        out.writeInt32NoTag(minimumClusterManagerNodesOnPublishingClusterManager);
     }
 
     /**
@@ -915,107 +861,6 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState>,
             blocks.writeTo(out);
             customs.writeTo(out);
             out.writeVInt(minimumClusterManagerNodesOnPublishingClusterManager);
-        }
-
-        @Override
-        public ClusterState apply(ClusterState state) {
-            Builder builder = new Builder(clusterName);
-            if (toUuid.equals(state.stateUUID)) {
-                // no need to read the rest - cluster state didn't change
-                return state;
-            }
-            if (fromUuid.equals(state.stateUUID) == false) {
-                throw new IncompatibleClusterStateVersionException(state.version, state.stateUUID, toVersion, fromUuid);
-            }
-            builder.stateUUID(toUuid);
-            builder.version(toVersion);
-            builder.routingTable(routingTable.apply(state.routingTable));
-            builder.nodes(nodes.apply(state.nodes));
-            builder.metadata(metadata.apply(state.metadata));
-            builder.blocks(blocks.apply(state.blocks));
-            builder.customs(customs.apply(state.customs));
-            builder.minimumClusterManagerNodesOnPublishingClusterManager(minimumClusterManagerNodesOnPublishingClusterManager);
-            builder.fromDiff(true);
-            return builder.build();
-        }
-    }
-
-    /**
-     * The cluster state diff.
-    *
-    * @opensearch.internal
-    */
-    private static class ClusterStateDiffProtobuf implements ProtobufDiff<ClusterState> {
-
-        private final long toVersion;
-
-        private final String fromUuid;
-
-        private final String toUuid;
-
-        private final ClusterName clusterName;
-
-        private final ProtobufDiff<RoutingTable> routingTable;
-
-        private final ProtobufDiff<DiscoveryNodes> nodes;
-
-        private final ProtobufDiff<Metadata> metadata;
-
-        private final ProtobufDiff<ClusterBlocks> blocks;
-
-        private final ProtobufDiff<ImmutableOpenMap<String, Custom>> customs;
-
-        private final int minimumClusterManagerNodesOnPublishingClusterManager;
-
-        ClusterStateDiffProtobuf(ClusterState before, ClusterState after) {
-            fromUuid = before.stateUUID;
-            toUuid = after.stateUUID;
-            toVersion = after.version;
-            clusterName = after.clusterName;
-            routingTable = null;
-            nodes = after.nodes.protobufDiff(before.nodes);;
-            metadata = null;
-            blocks = null;
-            // customs = ProtobufDiffableUtils.diff(
-            //     before.customs,
-            //     after.customs,
-            //     ProtobufDiffableUtils.getStringKeySerializer(),
-            //     CUSTOM_VALUE_SERIALIZER
-            // );
-            customs = null;
-            minimumClusterManagerNodesOnPublishingClusterManager = after.minimumClusterManagerNodesOnPublishingClusterManager;
-        }
-
-        ClusterStateDiffProtobuf(CodedInputStream in, DiscoveryNode localNode) throws IOException {
-            clusterName = new ClusterName(in);
-            fromUuid = in.readString();
-            toUuid = in.readString();
-            toVersion = in.readInt64();
-            routingTable = null;
-            nodes = DiscoveryNodes.readDiffFrom(in, localNode);
-            metadata = null;
-            blocks = null;
-            // customs = ProtobufDiffableUtils.readImmutableOpenMapDiff(
-            //     in,
-            //     ProtobufDiffableUtils.getStringKeySerializer(),
-            //     CUSTOM_VALUE_SERIALIZER
-            // );
-            customs = null;
-            minimumClusterManagerNodesOnPublishingClusterManager = in.readInt32();
-        }
-
-        @Override
-        public void writeTo(CodedOutputStream out) throws IOException {
-            clusterName.writeTo(out);
-            out.writeStringNoTag(fromUuid);
-            out.writeStringNoTag(toUuid);
-            out.writeInt64NoTag(toVersion);
-            // routingTable.writeTo(out);
-            nodes.writeTo(out);
-            // metadata.writeTo(out);
-            // blocks.writeTo(out);
-            // customs.writeTo(out);
-            // out.writeVInt(minimumClusterManagerNodesOnPublishingClusterManager);
         }
 
         @Override

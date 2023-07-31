@@ -16,10 +16,8 @@ import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.tasks.proto.TaskResourceStatsProto;
 
-import com.google.protobuf.CodedOutputStream;
-import com.google.protobuf.CodedInputStream;
-
 import java.io.IOException;
+import java.io.OutputStream;
 import java.util.Map;
 
 /**
@@ -40,8 +38,8 @@ public class ProtobufTaskResourceStats implements ProtobufWriteable, ToXContentF
     /**
      * Read from a stream.
     */
-    public ProtobufTaskResourceStats(CodedInputStream in) throws IOException {
-        this.taskResourceStats = TaskResourceStatsProto.TaskResourceStats.parseFrom(in.readByteArray());
+    public ProtobufTaskResourceStats(byte[] in) throws IOException {
+        this.taskResourceStats = TaskResourceStatsProto.TaskResourceStats.parseFrom(in);
     }
 
     public Map<String, TaskResourceStatsProto.TaskResourceStats.TaskResourceUsage> getResourceUsageInfo() {
@@ -49,8 +47,8 @@ public class ProtobufTaskResourceStats implements ProtobufWriteable, ToXContentF
     }
 
     @Override
-    public void writeTo(CodedOutputStream out) throws IOException {
-        this.taskResourceStats.writeTo(out);
+    public void writeTo(OutputStream out) throws IOException {
+        out.write(this.taskResourceStats.toByteArray());
     }
 
     @Override

@@ -35,12 +35,9 @@ package org.opensearch.transport;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.common.lifecycle.LifecycleComponent;
 import org.opensearch.common.transport.BoundTransportAddress;
-// import org.opensearch.common.transport.ProtobufBoundTransportAddress;
-// import org.opensearch.common.transport.ProtobufTransportAddress;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
@@ -103,22 +100,6 @@ public interface Transport extends LifecycleComponent {
      */
     TransportAddress[] addressesFromString(String address) throws UnknownHostException;
 
-    // /**
-    //  * The address the transport is bound on.
-    // */
-    // ProtobufBoundTransportAddress boundProtobufAddress();
-
-    // /**
-    //  * Further profile bound addresses
-    // * @return <code>null</code> iff profiles are unsupported, otherwise a map with name of profile and its bound transport address
-    // */
-    // Map<String, ProtobufBoundTransportAddress> profileProtobufBoundAddresses();
-
-    // /**
-    //  * Returns an address from its string representation.
-    // */
-    // ProtobufTransportAddress[] addressesFromStringProtobuf(String address) throws UnknownHostException;
-
     /**
      * Returns a list of all local addresses for this transport
      */
@@ -130,25 +111,11 @@ public interface Transport extends LifecycleComponent {
      */
     void openConnection(DiscoveryNode node, ConnectionProfile profile, ActionListener<Transport.Connection> listener);
 
-    // /**
-    //  * Opens a new connection to the given node. When the connection is fully connected, the listener is called.
-    //  * The ActionListener will be called on the calling thread or the generic thread pool.
-    //  */
-    // void openProtobufConnection(
-    //     DiscoveryNode node,
-    //     ProtobufConnectionProfile profile,
-    //     ActionListener<Transport.Connection> listener
-    // );
-
     TransportStats getStats();
 
     ResponseHandlers getResponseHandlers();
 
     RequestHandlers getRequestHandlers();
-
-    ProtobufTransportStats getProtobufStats();
-
-    // ProtobufResponseHandlers getProtobufResponseHandlers();
 
     ProtobufRequestHandlers getProtobufRequestHandlers();
 

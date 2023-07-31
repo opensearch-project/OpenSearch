@@ -58,7 +58,6 @@ import org.opensearch.core.common.logging.LoggerMessageFormat;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.transport.ProtobufTransportException;
 import org.opensearch.transport.TransportChannel;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportRequestHandler;
@@ -230,18 +229,6 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
                         }
 
                         @Override
-                        public Response read(CodedInputStream in) throws IOException {
-                            // TODO Auto-generated method stub
-                            throw new UnsupportedOperationException("Unimplemented method 'read'");
-                        }
-
-                        @Override
-                        public void handleExceptionProtobuf(ProtobufTransportException exp) {
-                            // TODO Auto-generated method stub
-                            throw new UnsupportedOperationException("Unimplemented method 'handleExceptionProtobuf'");
-                        }
-
-                        @Override
                         public Response read(byte[] in) throws IOException {
                             // TODO Auto-generated method stub
                             throw new UnsupportedOperationException("Unimplemented method 'read'");
@@ -324,18 +311,6 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
                         @Override
                         public void handleException(TransportException exp) {
                             onFailure(finalShardRouting, exp);
-                        }
-
-                        @Override
-                        public Response read(CodedInputStream in) throws IOException {
-                            // TODO Auto-generated method stub
-                            throw new UnsupportedOperationException("Unimplemented method 'read'");
-                        }
-
-                        @Override
-                        public void handleExceptionProtobuf(ProtobufTransportException exp) {
-                            // TODO Auto-generated method stub
-                            throw new UnsupportedOperationException("Unimplemented method 'handleExceptionProtobuf'");
                         }
 
                         @Override

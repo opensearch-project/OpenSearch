@@ -37,9 +37,6 @@ import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportResponseHandler;
 
-import com.google.protobuf.CodedInputStream;
-
-import org.opensearch.transport.ProtobufTransportException;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportResponse;
 
@@ -91,18 +88,6 @@ public class ActionListenerResponseHandler<Response extends TransportResponse> i
     @Override
     public String toString() {
         return super.toString() + "/" + listener;
-    }
-
-    @Override
-    public Response read(CodedInputStream in) throws IOException {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'read'");
-    }
-
-    @Override
-    public void handleExceptionProtobuf(ProtobufTransportException exp) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'handleExceptionProtobuf'");
     }
 
     @Override

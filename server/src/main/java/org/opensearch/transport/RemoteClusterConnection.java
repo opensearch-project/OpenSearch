@@ -174,18 +174,6 @@ final class RemoteClusterConnection implements Closeable {
                         }
 
                         @Override
-                        public ClusterStateResponse read(CodedInputStream in) throws IOException {
-                            // TODO Auto-generated method stub
-                            throw new UnsupportedOperationException("Unimplemented method 'read'");
-                        }
-
-                        @Override
-                        public void handleExceptionProtobuf(ProtobufTransportException exp) {
-                            // TODO Auto-generated method stub
-                            throw new UnsupportedOperationException("Unimplemented method 'handleExceptionProtobuf'");
-                        }
-
-                        @Override
                         public ClusterStateResponse read(byte[] in) throws IOException {
                             // TODO Auto-generated method stub
                             throw new UnsupportedOperationException("Unimplemented method 'read'");

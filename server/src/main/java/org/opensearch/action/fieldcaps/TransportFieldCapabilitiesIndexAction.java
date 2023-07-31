@@ -69,7 +69,6 @@ import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.transport.ProtobufTransportException;
 import org.opensearch.transport.TransportChannel;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportRequestHandler;
@@ -341,18 +340,6 @@ public class TransportFieldCapabilitiesIndexAction extends HandledTransportActio
                         @Override
                         public void handleException(TransportException exp) {
                             onFailure(shardRouting, exp);
-                        }
-
-                        @Override
-                        public FieldCapabilitiesIndexResponse read(CodedInputStream in) throws IOException {
-                            // TODO Auto-generated method stub
-                            throw new UnsupportedOperationException("Unimplemented method 'read'");
-                        }
-
-                        @Override
-                        public void handleExceptionProtobuf(ProtobufTransportException exp) {
-                            // TODO Auto-generated method stub
-                            throw new UnsupportedOperationException("Unimplemented method 'handleExceptionProtobuf'");
                         }
 
                         @Override

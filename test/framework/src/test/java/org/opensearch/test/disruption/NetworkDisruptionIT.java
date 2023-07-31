@@ -45,7 +45,6 @@ import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.disruption.NetworkDisruption.TwoPartitions;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.transport.ProtobufTransportException;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportResponse;
 import org.opensearch.transport.TransportResponseHandler;
@@ -222,12 +221,6 @@ public class NetworkDisruptionIT extends OpenSearchIntegTestCase {
                 public TransportResponse read(CodedInputStream in) throws IOException {
                     // TODO Auto-generated method stub
                     throw new UnsupportedOperationException("Unimplemented method 'read'");
-                }
-
-                @Override
-                public void handleExceptionProtobuf(ProtobufTransportException exp) {
-                    // TODO Auto-generated method stub
-                    throw new UnsupportedOperationException("Unimplemented method 'handleExceptionProtobuf'");
                 }
             }
         );

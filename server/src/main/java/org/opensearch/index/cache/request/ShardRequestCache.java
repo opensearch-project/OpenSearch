@@ -52,10 +52,6 @@ public final class ShardRequestCache {
         return new RequestCacheStats(totalMetric.count(), evictionsMetric.count(), hitCount.count(), missCount.count());
     }
 
-    public ProtobufRequestCacheStats protobufStats() {
-        return new ProtobufRequestCacheStats(totalMetric.count(), evictionsMetric.count(), hitCount.count(), missCount.count());
-    }
-
     public void onHit() {
         hitCount.inc();
     }

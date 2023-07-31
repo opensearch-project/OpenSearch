@@ -68,7 +68,7 @@ import java.util.Set;
  *
  * @opensearch.internal
  */
-public class IndexTemplateMetadata extends AbstractDiffable<IndexTemplateMetadata, IndexTemplateMetadata> {
+public class IndexTemplateMetadata extends AbstractDiffable<IndexTemplateMetadata> {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(IndexTemplateMetadata.class);
 
@@ -542,12 +542,6 @@ public class IndexTemplateMetadata extends AbstractDiffable<IndexTemplateMetadat
 
             return null;
         }
-    }
-
-    @Override
-    public void writeTo(CodedOutputStream out) throws IOException {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'writeTo'");
     }
 
 }

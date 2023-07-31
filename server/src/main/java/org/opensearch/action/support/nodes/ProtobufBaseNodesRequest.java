@@ -19,8 +19,6 @@ import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.ProtobufActionRequest;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.common.io.stream.ProtobufStreamInput;
-import org.opensearch.common.io.stream.ProtobufStreamOutput;
 import org.opensearch.common.unit.TimeValue;
 
 import java.io.IOException;
@@ -52,16 +50,7 @@ public abstract class ProtobufBaseNodesRequest<Request extends ProtobufBaseNodes
 
     private TimeValue timeout;
 
-    protected ProtobufBaseNodesRequest(CodedInputStream in) throws IOException {
-        super(in);
-        ProtobufStreamInput protobufStreamInput = new ProtobufStreamInput(in);
-        nodesIds = protobufStreamInput.readStringArray();
-        concreteNodes = protobufStreamInput.readOptionalArray(DiscoveryNode::new, DiscoveryNode[]::new);
-        timeout = protobufStreamInput.readOptionalTimeValue();
-    }
-
     protected ProtobufBaseNodesRequest(byte[] data) throws IOException {
-        // this(CodedInputStream.newInstance(data));
     }
 
     protected ProtobufBaseNodesRequest(String... nodesIds) {
@@ -110,14 +99,5 @@ public abstract class ProtobufBaseNodesRequest<Request extends ProtobufBaseNodes
     @Override
     public ActionRequestValidationException validate() {
         return null;
-    }
-
-    @Override
-    public void writeTo(CodedOutputStream out) throws IOException {
-        super.writeTo(out);
-        ProtobufStreamOutput protobufStreamOutput = new ProtobufStreamOutput(out);
-        protobufStreamOutput.writeStringArrayNullable(nodesIds);
-        protobufStreamOutput.writeOptionalArray((o, v) -> v.writeTo(o), concreteNodes);
-        protobufStreamOutput.writeOptionalTimeValue(timeout);
     }
 }

@@ -26,7 +26,7 @@ import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.ingest.IngestService;
-import org.opensearch.monitor.ProtobufMonitorService;
+import org.opensearch.monitor.MonitorService;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.script.ScriptService;
 import org.opensearch.search.aggregations.support.AggregationUsageService;
@@ -47,7 +47,7 @@ import java.util.concurrent.TimeUnit;
 public class ProtobufNodeService implements Closeable {
     private final Settings settings;
     private final ThreadPool threadPool;
-    private final ProtobufMonitorService monitorService;
+    private final MonitorService monitorService;
     private final TransportService transportService;
     private final IndicesService indicesService;
     private final PluginsService pluginService;
@@ -69,7 +69,7 @@ public class ProtobufNodeService implements Closeable {
     ProtobufNodeService(
         Settings settings,
         ThreadPool threadPool,
-        ProtobufMonitorService monitorService,
+        MonitorService monitorService,
         Discovery discovery,
         TransportService transportService,
         IndicesService indicesService,
@@ -131,37 +131,37 @@ public class ProtobufNodeService implements Closeable {
             builder.setSettings(settingsFilter.filter(this.settings));
         }
         if (os) {
-            builder.setOs(monitorService.osService().protobufInfo());
+            builder.setOs(monitorService.osService().info());
         }
         if (process) {
-            builder.setProcess(monitorService.processService().protobufInfo());
+            builder.setProcess(monitorService.processService().info());
         }
         if (jvm) {
-            builder.setJvm(monitorService.jvmService().protobufInfo());
+            builder.setJvm(monitorService.jvmService().info());
         }
         if (threadPool) {
-            builder.setThreadPool(this.threadPool.protobufInfo());
+            builder.setThreadPool(this.threadPool.info());
         }
         if (transport) {
-            builder.setTransport(transportService.protobufInfo());
+            builder.setTransport(transportService.info());
         }
         if (http && httpServerTransport != null) {
-            builder.setHttp(httpServerTransport.protobufInfo());
+            builder.setHttp(httpServerTransport.info());
         }
         // if (plugin && pluginService != null) {
         // builder.setPlugins(pluginService.info());
         // }
         if (ingest && ingestService != null) {
-            builder.setIngest(ingestService.protobufInfo());
+            builder.setIngest(ingestService.info());
         }
         if (aggs && aggregationUsageService != null) {
-            builder.setAggsInfo(aggregationUsageService.protobufInfo());
+            builder.setAggsInfo(aggregationUsageService.info());
         }
         if (indices) {
             builder.setTotalIndexingBuffer(indicesService.getTotalIndexingBufferBytes());
         }
         if (searchPipeline && searchPipelineService != null) {
-            builder.setProtobufSearchPipelineInfo(searchPipelineService.protobufInfo());
+            builder.setProtobufSearchPipelineInfo(searchPipelineService.info());
         }
         return builder.build();
     }
@@ -193,19 +193,19 @@ public class ProtobufNodeService implements Closeable {
         return new ProtobufNodeStats(
             transportService.getLocalNode(),
             System.currentTimeMillis(),
-            indices.anySet() ? indicesService.protobufStats(indices) : null,
+            indices.anySet() ? indicesService.stats(indices) : null,
             os ? monitorService.osService().stats() : null,
             process ? monitorService.processService().stats() : null,
             jvm ? monitorService.jvmService().stats() : null,
-            threadPool ? this.threadPool.protobufStats() : null,
+            threadPool ? this.threadPool.stats() : null,
             fs ? monitorService.fsService().stats() : null,
-            transport ? transportService.protobufStats() : null,
-            http ? (httpServerTransport == null ? null : httpServerTransport.protobufStats()) : null,
-            circuitBreaker ? circuitBreakerService.protobufStats() : null,
-            script ? scriptService.protobufStats() : null,
-            discoveryStats ? discovery.protobufStats() : null,
-            ingest ? ingestService.protobufStats() : null,
-            adaptiveSelection ? responseCollectorService.getProtobufAdaptiveStats(searchTransportService.getPendingSearchRequests()) : null
+            transport ? transportService.stats() : null,
+            http ? (httpServerTransport == null ? null : httpServerTransport.stats()) : null,
+            circuitBreaker ? circuitBreakerService.stats() : null,
+            script ? scriptService.stats() : null,
+            discoveryStats ? discovery.stats() : null,
+            ingest ? ingestService.stats() : null,
+            adaptiveSelection ? responseCollectorService.getAdaptiveStats(searchTransportService.getPendingSearchRequests()) : null
             // scriptCache ? scriptService.cacheStats() : null,
             // indexingPressure ? this.indexingPressureService.nodeStats() : null,
             // shardIndexingPressure ? this.indexingPressureService.shardStats(indices) : null,
@@ -220,7 +220,7 @@ public class ProtobufNodeService implements Closeable {
         return ingestService;
     }
 
-    public ProtobufMonitorService getMonitorService() {
+    public MonitorService getMonitorService() {
         return monitorService;
     }
 

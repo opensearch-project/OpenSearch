@@ -65,7 +65,6 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.transport.ProtobufTransportException;
 import org.opensearch.transport.TransportChannel;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportRequest;
@@ -353,18 +352,6 @@ public class IndicesStore implements ClusterStateListener, Closeable {
                         e
                     )
                 );
-        }
-
-        @Override
-        public ShardActiveResponse read(CodedInputStream in) throws IOException {
-            // TODO Auto-generated method stub
-            throw new UnsupportedOperationException("Unimplemented method 'read'");
-        }
-
-        @Override
-        public void handleExceptionProtobuf(ProtobufTransportException exp) {
-            // TODO Auto-generated method stub
-            throw new UnsupportedOperationException("Unimplemented method 'handleExceptionProtobuf'");
         }
 
         @Override

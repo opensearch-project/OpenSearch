@@ -13,14 +13,8 @@
 
 package org.opensearch.action.support.clustermanager;
 
-import com.google.protobuf.CodedInputStream;
-import com.google.protobuf.CodedOutputStream;
 import org.opensearch.action.ProtobufActionRequest;
-import org.opensearch.common.io.stream.ProtobufStreamInput;
-import org.opensearch.common.io.stream.ProtobufStreamOutput;
 import org.opensearch.common.unit.TimeValue;
-
-import java.io.IOException;
 
 /**
  * A protobuf request for cluster-manager based operation.
@@ -43,19 +37,6 @@ public abstract class ProtobufClusterManagerNodeRequest<Request extends Protobuf
     protected TimeValue masterNodeTimeout = clusterManagerNodeTimeout;
 
     protected ProtobufClusterManagerNodeRequest() {}
-
-    protected ProtobufClusterManagerNodeRequest(CodedInputStream in) throws IOException {
-        super(in);
-        ProtobufStreamInput protobufStreamInput = new ProtobufStreamInput(in);
-        clusterManagerNodeTimeout = protobufStreamInput.readTimeValue();
-    }
-
-    @Override
-    public void writeTo(CodedOutputStream out) throws IOException {
-        super.writeTo(out);
-        ProtobufStreamOutput protobufStreamOutput = new ProtobufStreamOutput(out);
-        protobufStreamOutput.writeTimeValue(clusterManagerNodeTimeout);
-    }
 
     /**
      * A timeout value in case the cluster-manager has not been discovered yet or disconnected.

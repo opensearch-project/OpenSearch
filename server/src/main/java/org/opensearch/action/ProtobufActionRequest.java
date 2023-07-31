@@ -13,11 +13,10 @@
 
 package org.opensearch.action;
 
-import com.google.protobuf.CodedInputStream;
-import com.google.protobuf.CodedOutputStream;
 import org.opensearch.transport.TransportRequest;
 
 import java.io.IOException;
+import java.io.OutputStream;
 
 /**
  * Base action request implemented by plugins.
@@ -33,7 +32,7 @@ public abstract class ProtobufActionRequest extends TransportRequest {
         // this.listenerThreaded = request.listenerThreaded();
     }
 
-    public ProtobufActionRequest(CodedInputStream in) throws IOException {
+    public ProtobufActionRequest(byte[] in) throws IOException {
         super(in);
     }
 
@@ -47,7 +46,7 @@ public abstract class ProtobufActionRequest extends TransportRequest {
     }
 
     @Override
-    public void writeTo(CodedOutputStream out) throws IOException {
+    public void writeTo(OutputStream out) throws IOException {
         super.writeTo(out);
     }
 }

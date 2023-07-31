@@ -45,8 +45,6 @@ import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.MapperService;
 
-import com.google.protobuf.CodedOutputStream;
-
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collections;
@@ -60,7 +58,7 @@ import static org.opensearch.common.xcontent.support.XContentMapValues.nodeBoole
  *
  * @opensearch.internal
  */
-public class MappingMetadata extends AbstractDiffable<MappingMetadata, MappingMetadata> {
+public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
     public static final MappingMetadata EMPTY_MAPPINGS = new MappingMetadata(MapperService.SINGLE_MAPPING_NAME, Collections.emptyMap());
 
     private final String type;
@@ -194,9 +192,4 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata, MappingMe
         return readDiffFrom(MappingMetadata::new, in);
     }
 
-    @Override
-    public void writeTo(CodedOutputStream out) throws IOException {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'writeTo'");
-    }
 }

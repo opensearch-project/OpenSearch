@@ -1081,35 +1081,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         return requestHandlers;
     }
 
-    // @Override
-    // public void setMessageListenerProtobuf(ProtobufTransportMessageListener listener) {
-    //     outboundHandler.setProtobufMessageListener(listener);
-    //     inboundHandler.setProtobufMessageListener(listener);
-    // }
-
-    // @Override
-    // public TransportAddress[] addressesFromStringProtobuf(String address) throws UnknownHostException {
-    //     // TODO Auto-generated method stub
-    //     throw new UnsupportedOperationException("Unimplemented method 'addressesFromStringProtobuf'");
-    // }
-
-    // @Override
-    // public void openProtobufConnection(DiscoveryNode node, ProtobufConnectionProfile profile, ActionListener<Connection> listener) {
-    //     // TODO Auto-generated method stub
-    //     throw new UnsupportedOperationException("Unimplemented method 'openProtobufConnection'");
-    // }
-
-    @Override
-    public ProtobufTransportStats getProtobufStats() {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'getProtobufStats'");
-    }
-
-    // @Override
-    // public ProtobufResponseHandlers getProtobufResponseHandlers() {
-    //     return protobufResponseHandlers;
-    // }
-
     @Override
     public ProtobufRequestHandlers getProtobufRequestHandlers() {
         return protobufRequestHandlers;

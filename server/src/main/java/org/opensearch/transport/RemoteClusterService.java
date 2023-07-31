@@ -39,10 +39,8 @@ import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.support.GroupedActionListener;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.client.Client;
-import org.opensearch.client.ProtobufClient;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
-import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.Strings;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
@@ -153,7 +151,6 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     private final Map<String, RemoteClusterConnection> remoteClusters = ConcurrentCollections.newConcurrentMap();
 
     private final TransportService TransportService;
-    private final Map<String, ProtobufRemoteClusterConnection> remoteClustersProtobuf = ConcurrentCollections.newConcurrentMap();
 
     RemoteClusterService(Settings settings, TransportService transportService) {
         super(settings);
@@ -162,25 +159,11 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         this.TransportService = null;
     }
 
-    // RemoteClusterService(Settings settings, TransportService transportService) {
-    //     super(settings);
-    //     this.enabled = DiscoveryNode.isRemoteClusterClient(settings);
-    //     this.TransportService = transportService;
-    //     this.transportService = null;
-    // }
-
     /**
      * Returns <code>true</code> if at least one remote cluster is configured
      */
     public boolean isCrossClusterSearchEnabled() {
         return remoteClusters.isEmpty() == false;
-    }
-
-    /**
-     * Returns <code>true</code> if at least one remote cluster is configured
-     */
-    public boolean isCrossClusterSearchEnabledProtobuf() {
-        return remoteClustersProtobuf.isEmpty() == false;
     }
 
     boolean isRemoteNodeConnected(final String remoteCluster, final DiscoveryNode node) {
@@ -189,7 +172,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
 
     public Map<String, OriginalIndices> groupIndices(IndicesOptions indicesOptions, String[] indices, Predicate<String> indexExists) {
         Map<String, OriginalIndices> originalIndicesMap = new HashMap<>();
-        if (isCrossClusterSearchEnabled() || isCrossClusterSearchEnabledProtobuf()) {
+        if (isCrossClusterSearchEnabled()) {
             final Map<String, List<String>> groupedIndices = groupClusterIndices(getRemoteClusterNames(), indices, indexExists);
             if (groupedIndices.isEmpty()) {
                 // search on _all in the local cluster if neither local indices nor remote indices were specified
@@ -231,15 +214,6 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         return getRemoteClusterConnection(cluster).getConnection(node);
     }
 
-    // /**
-    //  * Returns a connection to the given node on the given remote cluster
-    //  *
-    //  * @throws IllegalArgumentException if the remote cluster is unknown
-    //  */
-    // public Transport.ProtobufConnection getConnectionProtobuf(DiscoveryNode node, String cluster) {
-    //     return getRemoteClusterConnectionProtobuf(cluster).getConnection(node);
-    // }
-
     /**
      * Ensures that the given cluster alias is connected. If the cluster is connected this operation
      * will invoke the listener immediately.
@@ -259,10 +233,6 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         return getRemoteClusterConnection(cluster).getConnection();
     }
 
-    // public Transport.ProtobufConnection getConnectionProtobuf(String cluster) {
-    //     return getRemoteClusterConnectionProtobuf(cluster).getConnection();
-    // }
-
     RemoteClusterConnection getRemoteClusterConnection(String cluster) {
         if (enabled == false) {
             throw new IllegalArgumentException(
@@ -270,19 +240,6 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
             );
         }
         RemoteClusterConnection connection = remoteClusters.get(cluster);
-        if (connection == null) {
-            throw new NoSuchRemoteClusterException(cluster);
-        }
-        return connection;
-    }
-
-    ProtobufRemoteClusterConnection getRemoteClusterConnectionProtobuf(String cluster) {
-        if (enabled == false) {
-            throw new IllegalArgumentException(
-                "this node does not have the " + DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName() + " role"
-            );
-        }
-        ProtobufRemoteClusterConnection connection = remoteClustersProtobuf.get(cluster);
         if (connection == null) {
             throw new NoSuchRemoteClusterException(cluster);
         }
@@ -462,25 +419,6 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
             throw new NoSuchRemoteClusterException(clusterAlias);
         }
         return new RemoteClusterAwareClient(settings, threadPool, transportService, clusterAlias);
-    }
-
-    /**
-     * Returns a client to the remote cluster if the given cluster alias exists.
-    *
-    * @param threadPool   the {@link ThreadPool} for the client
-    * @param clusterAlias the cluster alias the remote cluster is registered under
-    * @throws IllegalArgumentException if the given clusterAlias doesn't exist
-    */
-    public ProtobufClient getRemoteClusterClientProtobuf(ThreadPool threadPool, String clusterAlias) {
-        if (TransportService.getRemoteClusterService().isEnabled() == false) {
-            throw new IllegalArgumentException(
-                "this node does not have the " + DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName() + " role"
-            );
-        }
-        if (TransportService.getRemoteClusterService().getRemoteClusterNames().contains(clusterAlias) == false) {
-            throw new NoSuchRemoteClusterException(clusterAlias);
-        }
-        return new ProtobufRemoteClusterAwareClient(settings, threadPool, TransportService, clusterAlias);
     }
 
     Collection<RemoteClusterConnection> getConnections() {

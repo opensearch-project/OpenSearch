@@ -60,7 +60,6 @@ import org.opensearch.node.NodeClosedException;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskId;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.transport.ProtobufTransportException;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
@@ -169,18 +168,6 @@ public class RetentionLeaseBackgroundSyncAction extends TransportReplicationActi
                             return;
                         }
                         getLogger().warn(new ParameterizedMessage("{} retention lease background sync failed", shardId), e);
-                    }
-
-                    @Override
-                    public ReplicationResponse read(CodedInputStream in) throws IOException {
-                        // TODO Auto-generated method stub
-                        throw new UnsupportedOperationException("Unimplemented method 'read'");
-                    }
-
-                    @Override
-                    public void handleExceptionProtobuf(ProtobufTransportException exp) {
-                        // TODO Auto-generated method stub
-                        throw new UnsupportedOperationException("Unimplemented method 'handleExceptionProtobuf'");
                     }
 
                     @Override

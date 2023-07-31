@@ -8,8 +8,6 @@
 
 package org.opensearch.transport;
 
-import com.google.protobuf.CodedInputStream;
-
 import java.io.IOException;
 
 import org.opensearch.common.io.stream.StreamInput;
@@ -34,15 +32,7 @@ public class ProtobufEmptyTransportResponseHandler implements TransportResponseH
     }
 
     @Override
-    public TransportResponse.Empty read(CodedInputStream in) {
-        return TransportResponse.Empty.INSTANCE;
-    }
-
-    @Override
     public void handleResponse(TransportResponse.Empty response) {}
-
-    @Override
-    public void handleExceptionProtobuf(ProtobufTransportException exp) {}
 
     @Override
     public String executor() {

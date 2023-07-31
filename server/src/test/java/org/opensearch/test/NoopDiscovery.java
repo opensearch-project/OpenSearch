@@ -37,7 +37,6 @@ import org.opensearch.common.lifecycle.Lifecycle;
 import org.opensearch.common.lifecycle.LifecycleListener;
 import org.opensearch.discovery.Discovery;
 import org.opensearch.discovery.DiscoveryStats;
-import org.opensearch.discovery.ProtobufDiscoveryStats;
 
 public class NoopDiscovery implements Discovery {
 
@@ -79,9 +78,4 @@ public class NoopDiscovery implements Discovery {
 
     @Override
     public void close() {}
-
-    @Override
-    public ProtobufDiscoveryStats protobufStats() {
-        return null;
-    }
 }

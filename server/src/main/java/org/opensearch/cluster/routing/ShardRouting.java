@@ -36,8 +36,6 @@ import org.opensearch.cluster.routing.RecoverySource.ExistingStoreRecoverySource
 import org.opensearch.cluster.routing.RecoverySource.PeerRecoverySource;
 import org.opensearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.io.stream.ProtobufStreamInput;
-import org.opensearch.common.io.stream.ProtobufStreamOutput;
 import org.opensearch.common.io.stream.ProtobufWriteable;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -60,7 +58,7 @@ import java.util.List;
  *
  * @opensearch.internal
  */
-public class ShardRouting implements Writeable, ToXContentObject, ProtobufWriteable {
+public class ShardRouting implements Writeable, ToXContentObject {
 
     /**
      * Used if shard size is not available
@@ -329,32 +327,7 @@ public class ShardRouting implements Writeable, ToXContentObject, ProtobufWritea
         targetRelocatingShard = initializeTargetRelocatingShard();
     }
 
-    public ShardRouting(ShardId shardId, CodedInputStream in) throws IOException {
-        ProtobufStreamInput protobufStreamInput = new ProtobufStreamInput(in);
-        this.shardId = shardId;
-        currentNodeId = protobufStreamInput.readOptionalString();
-        relocatingNodeId = protobufStreamInput.readOptionalString();
-        primary = in.readBool();
-        state = ShardRoutingState.fromValue(in.readRawByte());
-        recoverySource = null;
-        unassignedInfo = protobufStreamInput.readOptionalWriteable(UnassignedInfo::new);
-        allocationId = protobufStreamInput.readOptionalWriteable(AllocationId::new);
-        final long shardSize;
-        if (state == ShardRoutingState.RELOCATING || state == ShardRoutingState.INITIALIZING) {
-            shardSize = in.readInt64();
-        } else {
-            shardSize = UNAVAILABLE_EXPECTED_SHARD_SIZE;
-        }
-        expectedShardSize = shardSize;
-        asList = Collections.singletonList(this);
-        targetRelocatingShard = initializeTargetRelocatingShard();
-    }
-
     public ShardRouting(StreamInput in) throws IOException {
-        this(new ShardId(in), in);
-    }
-
-    public ShardRouting(CodedInputStream in) throws IOException {
         this(new ShardId(in), in);
     }
 
@@ -379,36 +352,8 @@ public class ShardRouting implements Writeable, ToXContentObject, ProtobufWritea
         }
     }
 
-    /**
-     * Writes shard information to without writing index name and shard id
-     *
-     * @param out to write shard information to
-     * @throws IOException if something happens during write
-     */
-    public void writeToThin(CodedOutputStream out) throws IOException {
-        ProtobufStreamOutput protobufStreamOutput = new ProtobufStreamOutput(out);
-        protobufStreamOutput.writeOptionalString(currentNodeId);
-        protobufStreamOutput.writeOptionalString(relocatingNodeId);
-        out.writeBoolNoTag(primary);
-        out.write(state.value());
-        // if (state == ShardRoutingState.UNASSIGNED || state == ShardRoutingState.INITIALIZING) {
-        // recoverySource.writeTo(out);
-        // }
-        protobufStreamOutput.writeOptionalWriteable(unassignedInfo);
-        protobufStreamOutput.writeOptionalWriteable(allocationId);
-        if (state == ShardRoutingState.RELOCATING || state == ShardRoutingState.INITIALIZING) {
-            out.writeInt64NoTag(expectedShardSize);
-        }
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        shardId.writeTo(out);
-        writeToThin(out);
-    }
-
-    @Override
-    public void writeTo(CodedOutputStream out) throws IOException {
         shardId.writeTo(out);
         writeToThin(out);
     }

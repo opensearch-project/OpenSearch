@@ -35,7 +35,6 @@ package org.opensearch.http;
 import org.opensearch.common.lifecycle.LifecycleComponent;
 import org.opensearch.common.transport.BoundTransportAddress;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.node.ProtobufReportingService;
 import org.opensearch.node.ReportingService;
 import org.opensearch.rest.RestChannel;
 import org.opensearch.rest.RestRequest;
@@ -45,7 +44,7 @@ import org.opensearch.rest.RestRequest;
  *
  * @opensearch.internal
  */
-public interface HttpServerTransport extends LifecycleComponent, ReportingService<HttpInfo>, ProtobufReportingService<ProtobufHttpInfo> {
+public interface HttpServerTransport extends LifecycleComponent, ReportingService<HttpInfo> {
 
     String HTTP_SERVER_WORKER_THREAD_NAME_PREFIX = "http_server_worker";
 
@@ -54,12 +53,7 @@ public interface HttpServerTransport extends LifecycleComponent, ReportingServic
     @Override
     HttpInfo info();
 
-    @Override
-    ProtobufHttpInfo protobufInfo();
-
     HttpStats stats();
-
-    ProtobufHttpStats protobufStats();
 
     /**
      * Dispatches HTTP requests.

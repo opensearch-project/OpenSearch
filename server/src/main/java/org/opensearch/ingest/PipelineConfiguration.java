@@ -60,7 +60,7 @@ import java.util.Objects;
  *
  * @opensearch.internal
  */
-public final class PipelineConfiguration extends AbstractDiffable<PipelineConfiguration, PipelineConfiguration> implements ToXContentObject {
+public final class PipelineConfiguration extends AbstractDiffable<PipelineConfiguration> implements ToXContentObject {
 
     private static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>("pipeline_config", true, Builder::new);
     static {
@@ -187,9 +187,4 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
         return result;
     }
 
-    @Override
-    public void writeTo(CodedOutputStream out) throws IOException {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'writeTo'");
-    }
 }

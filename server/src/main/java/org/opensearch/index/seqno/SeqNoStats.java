@@ -32,15 +32,11 @@
 
 package org.opensearch.index.seqno;
 
-import org.opensearch.common.io.stream.ProtobufWriteable;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
-
-import com.google.protobuf.CodedInputStream;
-import com.google.protobuf.CodedOutputStream;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -50,7 +46,7 @@ import java.util.Objects;
  *
  * @opensearch.internal
  */
-public class SeqNoStats implements ToXContentFragment, Writeable, ProtobufWriteable {
+public class SeqNoStats implements ToXContentFragment, Writeable {
 
     private static final String SEQ_NO = "seq_no";
     private static final String MAX_SEQ_NO = "max_seq_no";
@@ -74,10 +70,6 @@ public class SeqNoStats implements ToXContentFragment, Writeable, ProtobufWritea
         this(in.readZLong(), in.readZLong(), in.readZLong());
     }
 
-    public SeqNoStats(CodedInputStream in) throws IOException {
-        this(in.readInt64(), in.readInt64(), in.readInt64());
-    }
-
     /** the maximum sequence number seen so far */
     public long getMaxSeqNo() {
         return maxSeqNo;
@@ -97,13 +89,6 @@ public class SeqNoStats implements ToXContentFragment, Writeable, ProtobufWritea
         out.writeZLong(maxSeqNo);
         out.writeZLong(localCheckpoint);
         out.writeZLong(globalCheckpoint);
-    }
-
-    @Override
-    public void writeTo(CodedOutputStream out) throws IOException {
-        out.writeInt64NoTag(maxSeqNo);
-        out.writeInt64NoTag(localCheckpoint);
-        out.writeInt64NoTag(globalCheckpoint);
     }
 
     @Override

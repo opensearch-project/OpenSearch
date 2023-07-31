@@ -10,19 +10,21 @@ package org.opensearch.action.admin.cluster.node.stats;
 
 import com.google.protobuf.CodedInputStream;
 import com.google.protobuf.CodedOutputStream;
-import org.opensearch.action.ProtobufFailedNodeException;
+
+import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.support.nodes.ProtobufBaseNodesResponse;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.common.Strings;
-import org.opensearch.common.io.stream.ProtobufStreamInput;
-import org.opensearch.common.io.stream.ProtobufStreamOutput;
+import org.opensearch.common.io.stream.TryWriteable;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.server.proto.NodesStatsResponseProto;
+import org.opensearch.server.proto.NodesInfoResponseProto;
 import org.opensearch.server.proto.NodesStatsProto.NodesStats;
 import org.opensearch.common.xcontent.XContentFactory;
 
 import java.io.IOException;
+import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -33,16 +35,17 @@ import java.util.Map;
 *
 * @opensearch.internal
 */
-public class ProtobufNodesStatsResponse extends ProtobufBaseNodesResponse<ProtobufNodeStats> implements ToXContentFragment {
+public class ProtobufNodesStatsResponse extends ProtobufBaseNodesResponse<ProtobufNodeStats> implements ToXContentFragment, TryWriteable {
 
     private NodesStatsResponseProto.NodesStatsRes nodesStatsRes;
     private Map<String, NodesStats> nodesMap = new HashMap<>();
 
-    public ProtobufNodesStatsResponse(CodedInputStream in) throws IOException {
-        super(in);
+    public ProtobufNodesStatsResponse(byte[] data) throws IOException {
+        super(data);
+        this.nodesStatsRes = NodesStatsResponseProto.NodesStatsRes.parseFrom(data);
     }
 
-    public ProtobufNodesStatsResponse(ClusterName clusterName, List<ProtobufNodeStats> nodes, List<ProtobufFailedNodeException> failures) {
+    public ProtobufNodesStatsResponse(ClusterName clusterName, List<ProtobufNodeStats> nodes, List<FailedNodeException> failures) {
         super(clusterName, nodes, failures);
         List<NodesStats> nodesStats = new ArrayList<>();
         for (ProtobufNodeStats nodeStats : nodes) {
@@ -53,18 +56,6 @@ public class ProtobufNodesStatsResponse extends ProtobufBaseNodesResponse<Protob
             .setClusterName(clusterName.value())
             .addAllNodesStats(nodesStats)
             .build();
-    }
-
-    @Override
-    protected List<ProtobufNodeStats> readNodesFrom(CodedInputStream in) throws IOException {
-        ProtobufStreamInput protobufStreamInput = new ProtobufStreamInput(in);
-        return protobufStreamInput.readList(ProtobufNodeStats::new);
-    }
-
-    @Override
-    protected void writeNodesTo(CodedOutputStream out, List<ProtobufNodeStats> nodes) throws IOException {
-        ProtobufStreamOutput protobufStreamOutput = new ProtobufStreamOutput(out);
-        protobufStreamOutput.writeCollection(nodes, (o, v) -> v.writeTo(o));
     }
 
     @Override
@@ -101,5 +92,10 @@ public class ProtobufNodesStatsResponse extends ProtobufBaseNodesResponse<Protob
 
     public Map<String, NodesStats> nodesMap() {
         return nodesMap;
+    }
+
+    @Override
+    public void writeTo(OutputStream out) throws IOException {
+        out.write(this.nodesStatsRes.toByteArray());
     }
 }

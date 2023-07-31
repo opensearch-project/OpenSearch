@@ -9,12 +9,10 @@
 package org.opensearch.action;
 
 import com.google.protobuf.CodedInputStream;
-import org.opensearch.common.io.stream.ProtobufWriteable;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.TryWriteable;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportResponseHandler;
-import org.opensearch.transport.ProtobufTransportException;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportResponse;
 
@@ -55,19 +53,13 @@ public class ProtobufActionListenerResponseHandler<Response extends TransportRes
     }
 
     @Override
-    public void handleExceptionProtobuf(ProtobufTransportException e) {
+    public void handleException(TransportException e) {
         listener.onFailure(e);
     }
 
     @Override
     public String executor() {
         return executor;
-    }
-
-    @Override
-    public Response read(CodedInputStream in) throws IOException {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'read'");
     }
 
     @Override
@@ -79,11 +71,6 @@ public class ProtobufActionListenerResponseHandler<Response extends TransportRes
     public Response read(StreamInput in) throws IOException {
         // TODO Auto-generated method stub
         throw new UnsupportedOperationException("Unimplemented method 'read'");
-    }
-
-    @Override
-    public void handleException(TransportException exp) {
-        listener.onFailure(exp);
     }
 
     @Override

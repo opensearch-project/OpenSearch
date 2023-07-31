@@ -38,8 +38,6 @@ import org.opensearch.common.UUIDs;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.common.io.stream.ProtobufStreamInput;
-import org.opensearch.common.io.stream.ProtobufStreamOutput;
 import org.opensearch.common.io.stream.ProtobufWriteable;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.ToXContentObject;
@@ -63,7 +61,7 @@ import java.util.Objects;
  *
  * @opensearch.internal
  */
-public class AllocationId implements ToXContentObject, Writeable, ProtobufWriteable {
+public class AllocationId implements ToXContentObject, Writeable {
     private static final String ID_KEY = "id";
     private static final String RELOCATION_ID_KEY = "relocation_id";
 
@@ -100,23 +98,10 @@ public class AllocationId implements ToXContentObject, Writeable, ProtobufWritea
         this.relocationId = in.readOptionalString();
     }
 
-    AllocationId(CodedInputStream in) throws IOException {
-        ProtobufStreamInput protobufStreamInput = new ProtobufStreamInput(in);
-        this.id = in.readString();
-        this.relocationId = protobufStreamInput.readOptionalString();
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(this.id);
         out.writeOptionalString(this.relocationId);
-    }
-
-    @Override
-    public void writeTo(CodedOutputStream out) throws IOException {
-        ProtobufStreamOutput protobufStreamOutput = new ProtobufStreamOutput(out);
-        out.writeStringNoTag(this.id);
-        protobufStreamOutput.writeOptionalString(this.relocationId);
     }
 
     private AllocationId(String id, String relocationId) {

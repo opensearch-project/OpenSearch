@@ -59,7 +59,7 @@ import java.util.Objects;
  *
  * @opensearch.internal
  */
-public class ComponentTemplate extends AbstractDiffable<ComponentTemplate, ComponentTemplate> implements ToXContentObject {
+public class ComponentTemplate extends AbstractDiffable<ComponentTemplate> implements ToXContentObject {
     private static final ParseField TEMPLATE = new ParseField("template");
     private static final ParseField VERSION = new ParseField("version");
     private static final ParseField METADATA = new ParseField("_meta");
@@ -171,9 +171,4 @@ public class ComponentTemplate extends AbstractDiffable<ComponentTemplate, Compo
         return builder;
     }
 
-    @Override
-    public void writeTo(CodedOutputStream out) throws IOException {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'writeTo'");
-    }
 }

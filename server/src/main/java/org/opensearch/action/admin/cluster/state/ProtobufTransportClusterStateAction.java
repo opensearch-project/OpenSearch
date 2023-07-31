@@ -80,11 +80,6 @@ public class ProtobufTransportClusterStateAction extends ProtobufTransportCluste
     }
 
     @Override
-    protected ProtobufClusterStateResponse read(CodedInputStream in) throws IOException {
-        return new ProtobufClusterStateResponse(in);
-    }
-
-    @Override
     protected ClusterBlockException checkBlock(ProtobufClusterStateRequest request, ClusterState state) {
         // cluster state calls are done also on a fully blocked cluster to figure out what is going
         // on in the cluster. For example, which nodes have joined yet the recovery has not yet kicked

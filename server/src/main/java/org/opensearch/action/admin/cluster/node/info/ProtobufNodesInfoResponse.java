@@ -34,31 +34,22 @@ package org.opensearch.action.admin.cluster.node.info;
 
 import com.google.protobuf.CodedInputStream;
 import com.google.protobuf.CodedOutputStream;
-import org.opensearch.action.ProtobufFailedNodeException;
+
+import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.support.nodes.ProtobufBaseNodesResponse;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.common.Strings;
-import org.opensearch.common.io.stream.ProtobufStreamInput;
-import org.opensearch.common.io.stream.ProtobufStreamOutput;
+import org.opensearch.common.io.stream.TryWriteable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.core.xcontent.ToXContent.Params;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.http.ProtobufHttpInfo;
-import org.opensearch.ingest.ProtobufIngestInfo;
-import org.opensearch.monitor.jvm.JvmInfo;
-import org.opensearch.monitor.os.ProtobufOsInfo;
-import org.opensearch.monitor.process.ProtobufProcessInfo;
-import org.opensearch.search.aggregations.support.ProtobufAggregationInfo;
-import org.opensearch.search.pipeline.ProtobufSearchPipelineInfo;
 import org.opensearch.server.proto.NodesInfoResponseProto;
+import org.opensearch.server.proto.ClusterStateResponseProto;
 import org.opensearch.server.proto.NodesInfoProto.NodesInfo;
-import org.opensearch.threadpool.ProtobufThreadPoolInfo;
-import org.opensearch.transport.ProtobufTransportInfo;
-
 import java.io.IOException;
+import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -69,16 +60,12 @@ import java.util.Map;
 *
 * @opensearch.internal
 */
-public class ProtobufNodesInfoResponse extends ProtobufBaseNodesResponse<ProtobufNodeInfo> implements ToXContentFragment {
+public class ProtobufNodesInfoResponse extends ProtobufBaseNodesResponse<ProtobufNodeInfo> implements ToXContentFragment, TryWriteable {
 
     private NodesInfoResponseProto.NodesInfoRes nodesInfoRes;
     private Map<String, NodesInfo> nodesMap = new HashMap<>();
 
-    public ProtobufNodesInfoResponse(CodedInputStream in) throws IOException {
-        super(in);
-    }
-
-    public ProtobufNodesInfoResponse(ClusterName clusterName, List<ProtobufNodeInfo> nodes, List<ProtobufFailedNodeException> failures) {
+    public ProtobufNodesInfoResponse(ClusterName clusterName, List<ProtobufNodeInfo> nodes, List<FailedNodeException> failures) {
         super(clusterName, nodes, failures);
         List<NodesInfo> nodesInfo = new ArrayList<>();
         for (ProtobufNodeInfo nodeInfo : nodes) {
@@ -89,18 +76,6 @@ public class ProtobufNodesInfoResponse extends ProtobufBaseNodesResponse<Protobu
             .setClusterName(clusterName.value())
             .addAllNodesInfo(nodesInfo)
             .build();
-    }
-
-    @Override
-    protected List<ProtobufNodeInfo> readNodesFrom(CodedInputStream in) throws IOException {
-        ProtobufStreamInput protobufStreamInput = new ProtobufStreamInput(in);
-        return protobufStreamInput.readList(ProtobufNodeInfo::new);
-    }
-
-    @Override
-    protected void writeNodesTo(CodedOutputStream out, List<ProtobufNodeInfo> nodes) throws IOException {
-        ProtobufStreamOutput protobufStreamOutput = new ProtobufStreamOutput(out);
-        protobufStreamOutput.writeCollection(nodes, (o, v) -> v.writeTo(o));
     }
 
     @Override
@@ -142,37 +117,6 @@ public class ProtobufNodesInfoResponse extends ProtobufBaseNodesResponse<Protobu
                 builder.endObject();
             }
 
-            if (nodeInfo.getInfo(ProtobufOsInfo.class) != null) {
-                nodeInfo.getInfo(ProtobufOsInfo.class).toXContent(builder, params);
-            }
-            if (nodeInfo.getInfo(ProtobufProcessInfo.class) != null) {
-                nodeInfo.getInfo(ProtobufProcessInfo.class).toXContent(builder, params);
-            }
-            if (nodeInfo.getInfo(JvmInfo.class) != null) {
-                nodeInfo.getInfo(JvmInfo.class).toXContent(builder, params);
-            }
-            if (nodeInfo.getInfo(ProtobufThreadPoolInfo.class) != null) {
-                nodeInfo.getInfo(ProtobufThreadPoolInfo.class).toXContent(builder, params);
-            }
-            if (nodeInfo.getInfo(ProtobufTransportInfo.class) != null) {
-                nodeInfo.getInfo(ProtobufTransportInfo.class).toXContent(builder, params);
-            }
-            if (nodeInfo.getInfo(ProtobufHttpInfo.class) != null) {
-                nodeInfo.getInfo(ProtobufHttpInfo.class).toXContent(builder, params);
-            }
-            if (nodeInfo.getInfo(ProtobufPluginsAndModules.class) != null) {
-                nodeInfo.getInfo(ProtobufPluginsAndModules.class).toXContent(builder, params);
-            }
-            if (nodeInfo.getInfo(ProtobufIngestInfo.class) != null) {
-                nodeInfo.getInfo(ProtobufIngestInfo.class).toXContent(builder, params);
-            }
-            if (nodeInfo.getInfo(ProtobufAggregationInfo.class) != null) {
-                nodeInfo.getInfo(ProtobufAggregationInfo.class).toXContent(builder, params);
-            }
-            if (nodeInfo.getInfo(ProtobufSearchPipelineInfo.class) != null) {
-                nodeInfo.getInfo(ProtobufSearchPipelineInfo.class).toXContent(builder, params);
-            }
-
             builder.endObject();
         }
         builder.endObject();
@@ -198,5 +142,15 @@ public class ProtobufNodesInfoResponse extends ProtobufBaseNodesResponse<Protobu
 
     public Map<String, NodesInfo> nodesMap() {
         return nodesMap;
+    }
+
+    public ProtobufNodesInfoResponse(byte[] data) throws IOException {
+        super(data);
+        this.nodesInfoRes = NodesInfoResponseProto.NodesInfoRes.parseFrom(data);
+    }
+
+    @Override
+    public void writeTo(OutputStream out) throws IOException {
+        out.write(this.nodesInfoRes.toByteArray());
     }
 }

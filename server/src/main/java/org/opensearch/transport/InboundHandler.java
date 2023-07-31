@@ -51,7 +51,6 @@ import org.opensearch.common.collect.Tuple;
 import org.opensearch.core.common.io.stream.ByteBufferStreamInput;
 import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.common.io.stream.ProtobufStreamInput;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.transport.TransportAddress;
@@ -235,34 +234,18 @@ public class InboundHandler {
                 }
                 // ignore if its null, the service logs it
                 if (handler != null) {
-                    if (handler.toString().contains("Protobuf")) {
-                        final CodedInputStream streamInput;
-                        if (message.getContentLength() > 0 || header.getVersion().equals(Version.CURRENT) == false) {
-                            StreamInput streamInput1 = namedWriteableStream(message.openOrGetStreamInput());
-                            streamInput = CodedInputStream.newInstance(streamInput1);
-                            if (header.isError()) {
-                                handlerResponseErrorProtobuf(requestId, streamInput, handler);
-                            } else {
-                                handleResponseProtobuf(requestId, remoteAddress, streamInput, handler);
-                            }
+                    final StreamInput streamInput;
+                    if (message.getContentLength() > 0 || header.getVersion().equals(Version.CURRENT) == false) {
+                        streamInput = namedWriteableStream(message.openOrGetStreamInput());
+                        assertRemoteVersion(streamInput, header.getVersion());
+                        if (header.isError()) {
+                            handlerResponseError(requestId, streamInput, handler);
                         } else {
-                            assert header.isError() == false;
-                            handleResponseProtobuf(requestId, remoteAddress, EMPTY_CODED_INPUT_STREAM, handler);
+                            handleResponse(requestId, remoteAddress, streamInput, handler);
                         }
                     } else {
-                        final StreamInput streamInput;
-                        if (message.getContentLength() > 0 || header.getVersion().equals(Version.CURRENT) == false) {
-                            streamInput = namedWriteableStream(message.openOrGetStreamInput());
-                            assertRemoteVersion(streamInput, header.getVersion());
-                            if (header.isError()) {
-                                handlerResponseError(requestId, streamInput, handler);
-                            } else {
-                                handleResponse(requestId, remoteAddress, streamInput, handler);
-                            }
-                        } else {
-                            assert header.isError() == false;
-                            handleResponse(requestId, remoteAddress, EMPTY_STREAM_INPUT, handler);
-                        }
+                        assert header.isError() == false;
+                        handleResponse(requestId, remoteAddress, EMPTY_STREAM_INPUT, handler);
                     }
                 }
             }
@@ -414,49 +397,24 @@ public class InboundHandler {
                 if (message.isShortCircuit()) {
                     sendErrorResponse(action, transportChannel, message.getException());
                 } else {
-                    try {
-                        final StreamInput stream = namedWriteableStream(message.openOrGetStreamInput());
-                        assertRemoteVersion(stream, header.getVersion());
-                        final RequestHandlerRegistry<T> reg = requestHandlers.getHandler(action);
-                        assert reg != null;
+                    final StreamInput stream = namedWriteableStream(message.openOrGetStreamInput());
+                    assertRemoteVersion(stream, header.getVersion());
+                    final RequestHandlerRegistry<T> reg = requestHandlers.getHandler(action);
+                    assert reg != null;
 
-                        final T request = newRequest(requestId, action, stream, reg);
-                        request.remoteAddress(new TransportAddress(channel.getRemoteAddress()));
-                        checkStreamIsFullyConsumed(requestId, action, stream);
+                    final T request = newRequest(requestId, action, stream, reg);
+                    request.remoteAddress(new TransportAddress(channel.getRemoteAddress()));
+                    checkStreamIsFullyConsumed(requestId, action, stream);
 
-                        final String executor = reg.getExecutor();
-                        if (ThreadPool.Names.SAME.equals(executor)) {
-                            try {
-                                reg.processMessageReceived(request, transportChannel);
-                            } catch (Exception e) {
-                                sendErrorResponse(reg.getAction(), transportChannel, e);
-                            }
-                        } else {
-                            threadPool.executor(executor).execute(new RequestHandler<>(reg, request, transportChannel));
+                    final String executor = reg.getExecutor();
+                    if (ThreadPool.Names.SAME.equals(executor)) {
+                        try {
+                            reg.processMessageReceived(request, transportChannel);
+                        } catch (Exception e) {
+                            sendErrorResponse(reg.getAction(), transportChannel, e);
                         }
-                    } catch (Exception e) {
-                        // final CodedInputStream stream = message.openOrGetProtobufCodedInput();
-                        // final StreamInput stream = namedWriteableStream(message.openOrGetStreamInput());
-                        // assertRemoteVersion(stream, header.getVersion());
-                        final StreamInput stream = namedWriteableStream(message.openOrGetStreamInput());
-                        CodedInputStream codedInputStream = CodedInputStream.newInstance(stream);
-                        final ProtobufRequestHandlerRegistry<T> reg = protobufRequestHandlers.getHandler(action);
-                        assert reg != null;
-
-                        final T request = newRequestProtobuf(requestId, action, codedInputStream, reg);
-                        request.remoteAddress(new TransportAddress(channel.getRemoteAddress()));
-                        // checkStreamIsFullyConsumed(requestId, action, stream);
-
-                        final String executor = reg.getExecutor();
-                        if (ThreadPool.Names.SAME.equals(executor)) {
-                            try {
-                                reg.processMessageReceived(request, transportChannel);
-                            } catch (Exception exp) {
-                                sendErrorResponse(reg.getAction(), transportChannel, exp);
-                            }
-                        } else {
-                            // threadPool.executor(executor).execute(new RequestHandler<>(reg, request, transportChannel));
-                        }
+                    } else {
+                        threadPool.executor(executor).execute(new RequestHandler<>(reg, request, transportChannel));
                     }
                 }
             } catch (Exception e) {
@@ -482,28 +440,6 @@ public class InboundHandler {
         final String action,
         final StreamInput stream,
         final RequestHandlerRegistry<T> reg
-    ) throws IOException {
-        try {
-            return reg.newRequest(stream);
-        } catch (final EOFException e) {
-            // Another favor of (de)serialization issues is when stream contains less bytes than
-            // the request handler needs to deserialize the payload.
-            throw new IllegalStateException(
-                "Message fully read (request) but more data is expected for requestId ["
-                    + requestId
-                    + "], action ["
-                    + action
-                    + "]; resetting",
-                e
-            );
-        }
-    }
-
-    private <T extends TransportRequest> T newRequestProtobuf(
-        final long requestId,
-        final String action,
-        final CodedInputStream stream,
-        final ProtobufRequestHandlerRegistry<T> reg
     ) throws IOException {
         try {
             return reg.newRequest(stream);
@@ -671,35 +607,6 @@ public class InboundHandler {
         }
     }
 
-    private <T extends TransportResponse> void handleResponseProtobuf(
-        final long requestId,
-        InetSocketAddress remoteAddress,
-        final CodedInputStream stream,
-        final TransportResponseHandler<T> handler
-    ) throws IOException {
-        System.out.println(stream.readTag());
-        final T response;
-        try {
-            response = handler.read(stream);
-            response.remoteAddress(new TransportAddress(remoteAddress));
-            // checkStreamIsFullyConsumed(requestId, handler, stream, false);
-        } catch (Exception e) {
-            final Exception serializationException = new TransportSerializationException(
-                "Failed to deserialize response from handler [" + handler + "]",
-                e
-            );
-            logger.warn(new ParameterizedMessage("Failed to deserialize response from [{}]", remoteAddress), serializationException);
-            handleException(handler, serializationException);
-            return;
-        }
-        final String executor = handler.executor();
-        if (ThreadPool.Names.SAME.equals(executor)) {
-            doHandleResponse(handler, response);
-        } else {
-            threadPool.executor(executor).execute(() -> doHandleResponse(handler, response));
-        }
-    }
-
     private <T extends TransportResponse> void doHandleResponse(TransportResponseHandler<T> handler, T response) {
         try {
             handler.handleResponse(response);
@@ -713,21 +620,6 @@ public class InboundHandler {
         try {
             error = stream.readException();
             checkStreamIsFullyConsumed(requestId, handler, stream, true);
-        } catch (Exception e) {
-            error = new TransportSerializationException(
-                "Failed to deserialize exception response from stream for handler [" + handler + "]",
-                e
-            );
-        }
-        handleException(handler, error);
-    }
-
-    private void handlerResponseErrorProtobuf(final long requestId, CodedInputStream stream, final TransportResponseHandler<?> handler) {
-        Exception error;
-        try {
-            ProtobufStreamInput protobufStreamInput = new ProtobufStreamInput(stream);
-            error = protobufStreamInput.readException();
-            // checkStreamIsFullyConsumed(requestId, handler, stream, true);
         } catch (Exception e) {
             error = new TransportSerializationException(
                 "Failed to deserialize exception response from stream for handler [" + handler + "]",

@@ -50,7 +50,7 @@ import java.io.IOException;
  *
  * @opensearch.internal
  */
-public class BoundTransportAddress implements Writeable, ProtobufWriteable {
+public class BoundTransportAddress implements Writeable {
 
     private TransportAddress[] boundAddresses;
 
@@ -64,16 +64,6 @@ public class BoundTransportAddress implements Writeable, ProtobufWriteable {
         }
         publishAddress = new TransportAddress(in);
     }
-
-    public BoundTransportAddress(CodedInputStream in) throws IOException {
-        int boundAddressLength = in.readInt32();
-        boundAddresses = new TransportAddress[boundAddressLength];
-        for (int i = 0; i < boundAddressLength; i++) {
-            boundAddresses[i] = new TransportAddress(in);
-        }
-        publishAddress = new TransportAddress(in);
-    }
-
 
     public BoundTransportAddress(TransportAddress[] boundAddresses, TransportAddress publishAddress) {
         if (boundAddresses == null || boundAddresses.length < 1) {
@@ -94,15 +84,6 @@ public class BoundTransportAddress implements Writeable, ProtobufWriteable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeInt(boundAddresses.length);
-        for (TransportAddress address : boundAddresses) {
-            address.writeTo(out);
-        }
-        publishAddress.writeTo(out);
-    }
-
-    @Override
-    public void writeTo(CodedOutputStream out) throws IOException {
-        out.writeInt32NoTag(boundAddresses.length);
         for (TransportAddress address : boundAddresses) {
             address.writeTo(out);
         }

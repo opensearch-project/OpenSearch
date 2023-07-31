@@ -22,7 +22,6 @@ import org.opensearch.action.support.ProtobufHandledTransportAction;
 import org.opensearch.action.support.RetryableAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateObserver;
-import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.ClusterManagerNodeChangePredicate;
 import org.opensearch.cluster.NotClusterManagerException;
 import org.opensearch.cluster.block.ClusterBlockException;
@@ -30,7 +29,6 @@ import org.opensearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.ProcessClusterEventTimeoutException;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterManagerThrottlingException;
@@ -42,8 +40,8 @@ import org.opensearch.node.NodeClosedException;
 import org.opensearch.tasks.ProtobufTask;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.ConnectTransportException;
-import org.opensearch.transport.ProtobufRemoteTransportException;
-import org.opensearch.transport.ProtobufTransportException;
+import org.opensearch.transport.RemoteTransportException;
+import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
@@ -98,8 +96,6 @@ public abstract class ProtobufTransportClusterManagerNodeAction<
     }
 
     protected abstract String executor();
-
-    protected abstract Response read(CodedInputStream in) throws IOException;
 
     protected abstract Response read(byte[] in) throws IOException;
 
@@ -199,8 +195,8 @@ public abstract class ProtobufTransportClusterManagerNodeAction<
             // If remote address is not null, i.e request is generated from remote node and received on this master node on transport layer
             // in that case we would want throttling retry to perform on remote node only not on this master node.
             if (request.remoteAddress() == null) {
-                if (e instanceof ProtobufTransportException) {
-                    return ((ProtobufTransportException) e).unwrapCause() instanceof ClusterManagerThrottlingException;
+                if (e instanceof TransportException) {
+                    return ((TransportException) e).unwrapCause() instanceof ClusterManagerThrottlingException;
                 }
                 return e instanceof ClusterManagerThrottlingException;
             }
@@ -273,10 +269,10 @@ public abstract class ProtobufTransportClusterManagerNodeAction<
                                 ProtobufTransportClusterManagerNodeAction.this::read
                             ) {
                                 @Override
-                                public void handleExceptionProtobuf(final ProtobufTransportException exp) {
+                                public void handleException(final TransportException exp) {
                                     Throwable cause = exp.unwrapCause();
                                     if (cause instanceof ConnectTransportException
-                                        || (exp instanceof ProtobufRemoteTransportException && cause instanceof NodeClosedException)) {
+                                        || (exp instanceof RemoteTransportException && cause instanceof NodeClosedException)) {
                                         // we want to retry here a bit to see if a new cluster-manager is elected
                                         logger.debug(
                                             "connection exception while trying to forward request with action name [{}] to "

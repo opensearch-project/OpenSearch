@@ -21,7 +21,6 @@ import org.opensearch.extensions.AcknowledgedResponse;
 import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.ActionNotFoundTransportException;
-import org.opensearch.transport.ProtobufTransportException;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportResponse;
 import org.opensearch.transport.TransportResponseHandler;
@@ -224,18 +223,6 @@ public class ExtensionTransportActionsHandler {
                 }
 
                 @Override
-                public ExtensionActionResponse read(CodedInputStream in) throws IOException {
-                    // TODO Auto-generated method stub
-                    throw new UnsupportedOperationException("Unimplemented method 'read'");
-                }
-
-                @Override
-                public void handleExceptionProtobuf(ProtobufTransportException exp) {
-                    // TODO Auto-generated method stub
-                    throw new UnsupportedOperationException("Unimplemented method 'handleExceptionProtobuf'");
-                }
-
-                @Override
                 public ExtensionActionResponse read(byte[] in) throws IOException {
                     // TODO Auto-generated method stub
                     throw new UnsupportedOperationException("Unimplemented method 'read'");
@@ -303,18 +290,6 @@ public class ExtensionTransportActionsHandler {
                 @Override
                 public String executor() {
                     return ThreadPool.Names.GENERIC;
-                }
-
-                @Override
-                public RemoteExtensionActionResponse read(CodedInputStream in) throws IOException {
-                    // TODO Auto-generated method stub
-                    throw new UnsupportedOperationException("Unimplemented method 'read'");
-                }
-
-                @Override
-                public void handleExceptionProtobuf(ProtobufTransportException exp) {
-                    // TODO Auto-generated method stub
-                    throw new UnsupportedOperationException("Unimplemented method 'handleExceptionProtobuf'");
                 }
 
                 @Override

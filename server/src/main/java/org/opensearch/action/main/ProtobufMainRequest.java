@@ -8,7 +8,6 @@
 
 package org.opensearch.action.main;
 
-import com.google.protobuf.CodedInputStream;
 import org.opensearch.action.ProtobufActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
 
@@ -23,7 +22,7 @@ public class ProtobufMainRequest extends ProtobufActionRequest {
 
     public ProtobufMainRequest() {}
 
-    ProtobufMainRequest(CodedInputStream in) throws IOException {
+    ProtobufMainRequest(byte[] in) throws IOException {
         super(in);
     }
 

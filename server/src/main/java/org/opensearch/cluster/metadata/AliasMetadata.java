@@ -66,7 +66,7 @@ import static java.util.Collections.emptySet;
  *
  * @opensearch.internal
  */
-public class AliasMetadata extends AbstractDiffable<AliasMetadata, AliasMetadata> implements ToXContentFragment {
+public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements ToXContentFragment {
 
     private final String alias;
 
@@ -434,9 +434,4 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata, AliasMetadata
         }
     }
 
-    @Override
-    public void writeTo(CodedOutputStream out) throws IOException {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'writeTo'");
-    }
 }

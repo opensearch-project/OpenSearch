@@ -72,18 +72,6 @@ public class EmptyTransportResponseHandler implements TransportResponseHandler<T
     }
 
     @Override
-    public Empty read(CodedInputStream in) throws IOException {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'read'");
-    }
-
-    @Override
-    public void handleExceptionProtobuf(ProtobufTransportException exp) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'handleExceptionProtobuf'");
-    }
-
-    @Override
     public Empty read(byte[] in) throws IOException {
         // TODO Auto-generated method stub
         throw new UnsupportedOperationException("Unimplemented method 'read'");

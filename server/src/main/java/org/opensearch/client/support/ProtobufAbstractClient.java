@@ -16,12 +16,10 @@ import org.opensearch.action.ProtobufActionRequest;
 import org.opensearch.action.ProtobufActionResponse;
 import org.opensearch.action.ProtobufActionType;
 import org.opensearch.action.admin.cluster.node.info.ProtobufNodesInfoAction;
-import org.opensearch.action.admin.cluster.node.info.ProtobufNodesInfoRequestBuilder;
 import org.opensearch.action.admin.cluster.node.info.ProtobufNodesInfoRequest;
 import org.opensearch.action.admin.cluster.node.info.ProtobufNodesInfoResponse;
 import org.opensearch.action.admin.cluster.node.stats.ProtobufNodesStatsAction;
 import org.opensearch.action.admin.cluster.node.stats.ProtobufNodesStatsRequest;
-import org.opensearch.action.admin.cluster.node.stats.ProtobufNodesStatsRequestBuilder;
 import org.opensearch.action.admin.cluster.node.stats.ProtobufNodesStatsResponse;
 import org.opensearch.action.admin.cluster.state.ProtobufClusterStateAction;
 import org.opensearch.action.admin.cluster.state.ProtobufClusterStateRequestBuilder;
@@ -29,15 +27,12 @@ import org.opensearch.action.admin.cluster.state.ProtobufClusterStateRequest;
 import org.opensearch.action.admin.cluster.state.ProtobufClusterStateResponse;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.client.ProtobufClient;
-import org.opensearch.client.ProtobufFilterClient;
 import org.opensearch.client.ProtobufAdminClient;
 import org.opensearch.client.ProtobufClusterAdminClient;
 import org.opensearch.client.ProtobufOpenSearchClient;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.threadpool.ThreadPool;
 
-import java.util.Map;
 
 /**
  * Base client used to create concrete client implementations
@@ -172,11 +167,6 @@ public abstract class ProtobufAbstractClient implements ProtobufClient {
         }
 
         @Override
-        public ProtobufNodesInfoRequestBuilder prepareNodesInfo(String... nodesIds) {
-            return new ProtobufNodesInfoRequestBuilder(this, ProtobufNodesInfoAction.INSTANCE).setNodesIds(nodesIds);
-        }
-
-        @Override
         public ActionFuture<ProtobufNodesStatsResponse> nodesStats(final ProtobufNodesStatsRequest request) {
             return execute(ProtobufNodesStatsAction.INSTANCE, request);
         }
@@ -185,27 +175,5 @@ public abstract class ProtobufAbstractClient implements ProtobufClient {
         public void nodesStats(final ProtobufNodesStatsRequest request, final ActionListener<ProtobufNodesStatsResponse> listener) {
             execute(ProtobufNodesStatsAction.INSTANCE, request, listener);
         }
-
-        @Override
-        public ProtobufNodesStatsRequestBuilder prepareNodesStats(String... nodesIds) {
-            return new ProtobufNodesStatsRequestBuilder(this, ProtobufNodesStatsAction.INSTANCE).setNodesIds(nodesIds);
-        }
-    }
-
-    @Override
-    public ProtobufClient filterWithHeader(Map<String, String> headers) {
-        return new ProtobufFilterClient(this) {
-            @Override
-            protected <Request extends ProtobufActionRequest, Response extends ProtobufActionResponse> void doExecute(
-                ProtobufActionType<Response> action,
-                Request request,
-                ActionListener<Response> listener
-            ) {
-                ThreadContext threadContext = threadPool().getThreadContext();
-                try (ThreadContext.StoredContext ctx = threadContext.stashAndMergeHeaders(headers)) {
-                    super.doExecute(action, request, listener);
-                }
-            }
-        };
     }
 }

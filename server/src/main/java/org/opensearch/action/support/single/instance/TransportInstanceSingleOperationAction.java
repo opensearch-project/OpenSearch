@@ -58,7 +58,6 @@ import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.threadpool.ThreadPool.Names;
 import org.opensearch.transport.ConnectTransportException;
-import org.opensearch.transport.ProtobufTransportException;
 import org.opensearch.transport.TransportChannel;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportRequestHandler;
@@ -247,18 +246,6 @@ public abstract class TransportInstanceSingleOperationAction<
                     } else {
                         listener.onFailure(exp);
                     }
-                }
-
-                @Override
-                public Response read(CodedInputStream in) throws IOException {
-                    // TODO Auto-generated method stub
-                    throw new UnsupportedOperationException("Unimplemented method 'read'");
-                }
-
-                @Override
-                public void handleExceptionProtobuf(ProtobufTransportException exp) {
-                    // TODO Auto-generated method stub
-                    throw new UnsupportedOperationException("Unimplemented method 'handleExceptionProtobuf'");
                 }
 
                 @Override

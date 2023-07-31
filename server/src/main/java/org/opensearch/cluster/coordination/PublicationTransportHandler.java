@@ -48,7 +48,6 @@ import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.BytesTransportRequest;
-import org.opensearch.transport.ProtobufTransportException;
 import org.opensearch.transport.TransportChannel;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportRequestOptions;
@@ -157,14 +156,6 @@ public class PublicationTransportHandler {
 
     public PublishClusterStateStats stats() {
         return new PublishClusterStateStats(
-            fullClusterStateReceivedCount.get(),
-            incompatibleClusterStateDiffReceivedCount.get(),
-            compatibleClusterStateDiffReceivedCount.get()
-        );
-    }
-
-    public ProtobufPublishClusterStateStats protobufStats() {
-        return new ProtobufPublishClusterStateStats(
             fullClusterStateReceivedCount.get(),
             incompatibleClusterStateDiffReceivedCount.get(),
             compatibleClusterStateDiffReceivedCount.get()
@@ -394,18 +385,6 @@ public class PublicationTransportHandler {
                     }
 
                     @Override
-                    public Empty read(CodedInputStream in) throws IOException {
-                        // TODO Auto-generated method stub
-                        throw new UnsupportedOperationException("Unimplemented method 'read'");
-                    }
-
-                    @Override
-                    public void handleExceptionProtobuf(ProtobufTransportException exp) {
-                        // TODO Auto-generated method stub
-                        throw new UnsupportedOperationException("Unimplemented method 'handleExceptionProtobuf'");
-                    }
-
-                    @Override
                     public Empty read(byte[] in) throws IOException {
                         // TODO Auto-generated method stub
                         throw new UnsupportedOperationException("Unimplemented method 'read'");
@@ -480,18 +459,6 @@ public class PublicationTransportHandler {
                     @Override
                     public String executor() {
                         return ThreadPool.Names.GENERIC;
-                    }
-
-                    @Override
-                    public PublishWithJoinResponse read(CodedInputStream in) throws IOException {
-                        // TODO Auto-generated method stub
-                        throw new UnsupportedOperationException("Unimplemented method 'read'");
-                    }
-
-                    @Override
-                    public void handleExceptionProtobuf(ProtobufTransportException exp) {
-                        // TODO Auto-generated method stub
-                        throw new UnsupportedOperationException("Unimplemented method 'handleExceptionProtobuf'");
                     }
 
                     @Override

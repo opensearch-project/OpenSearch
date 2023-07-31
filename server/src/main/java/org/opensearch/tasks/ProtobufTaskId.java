@@ -18,6 +18,7 @@ import org.opensearch.common.io.stream.ProtobufWriteable;
 import org.opensearch.tasks.proto.TaskIdProto;
 
 import java.io.IOException;
+import java.io.OutputStream;
 
 /**
  * Task id that consists of node id and id of the task on the node
@@ -63,21 +64,13 @@ public final class ProtobufTaskId implements ProtobufWriteable {
      * Read a {@linkplain ProtobufTaskId} from a stream. {@linkplain ProtobufTaskId} has this rather than the usual constructor that takes a
     * {@linkplain CodedInputStream} so we can return the {@link #EMPTY_TASK_ID} without allocating.
     */
-    public static ProtobufTaskId readFromStream(CodedInputStream in) throws IOException {
-        String nodeId = in.readString();
-        if (nodeId.isEmpty()) {
-            /*
-            * The only TaskId allowed to have the empty string as its nodeId is the EMPTY_TASK_ID and there is only ever one of it and it
-            * never writes its taskId to save bytes on the wire because it is by far the most common TaskId.
-            */
-            return EMPTY_TASK_ID;
-        }
-        return new ProtobufTaskId(nodeId, in.readInt64());
+    public ProtobufTaskId(byte[] in) throws IOException {
+        this.taskId = TaskIdProto.TaskId.parseFrom(in);
     }
 
     @Override
-    public void writeTo(CodedOutputStream out) throws IOException {
-        this.taskId.writeTo(out);
+    public void writeTo(OutputStream out) throws IOException {
+        out.write(this.taskId.toByteArray());
     }
 
     public String getNodeId() {

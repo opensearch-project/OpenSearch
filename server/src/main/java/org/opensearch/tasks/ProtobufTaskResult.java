@@ -17,7 +17,6 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.client.Requests;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.io.stream.ProtobufStreamInput;
 import org.opensearch.common.io.stream.ProtobufWriteable;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.ToXContentObject;
@@ -26,6 +25,7 @@ import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
 
 import java.io.IOException;
+import java.io.OutputStream;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
@@ -45,8 +45,6 @@ public final class ProtobufTaskResult implements ProtobufWriteable, ToXContentOb
     private final BytesReference error;
     @Nullable
     private final BytesReference response;
-
-    private ProtobufStreamInput protobufStreamInput;
 
     /**
      * Construct a {@linkplain TaskResult} for a task for which we don't have a result or error. That usually means that the task
@@ -75,25 +73,6 @@ public final class ProtobufTaskResult implements ProtobufWriteable, ToXContentOb
         this.task = requireNonNull(task, "task is required");
         this.error = error;
         this.response = result;
-    }
-
-    /**
-    * Read from a stream.
-    */
-    public ProtobufTaskResult(CodedInputStream in) throws IOException {
-        protobufStreamInput = new ProtobufStreamInput(in);
-        completed = in.readBool();
-        task = new ProtobufTaskInfo(in);
-        error = protobufStreamInput.readOptionalBytesReference();
-        response = protobufStreamInput.readOptionalBytesReference();
-    }
-
-    @Override
-    public void writeTo(CodedOutputStream out) throws IOException {
-        out.writeBoolNoTag(completed);
-        task.writeTo(out);
-        out.writeByteArrayNoTag(BytesReference.toBytes(error));
-        out.writeByteArrayNoTag(BytesReference.toBytes(response));
     }
 
     /**
@@ -173,5 +152,11 @@ public final class ProtobufTaskResult implements ProtobufWriteable, ToXContentOb
             builder.endObject();
             return BytesReference.bytes(builder);
         }
+    }
+
+    @Override
+    public void writeTo(OutputStream out) throws IOException {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'writeTo'");
     }
 }

@@ -13,12 +13,8 @@
 
 package org.opensearch.action.support.nodes;
 
-import com.google.protobuf.CodedInputStream;
-import com.google.protobuf.CodedOutputStream;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.transport.TransportResponse;
-
-import java.io.IOException;
 
 /**
  * A base class for node level operations.
@@ -28,11 +24,6 @@ import java.io.IOException;
 public abstract class ProtobufBaseNodeResponse extends TransportResponse {
 
     private DiscoveryNode node;
-
-    protected ProtobufBaseNodeResponse(CodedInputStream in) throws IOException {
-        super(in);
-        node = new DiscoveryNode(in);
-    }
 
     protected ProtobufBaseNodeResponse(byte[] data) {
         
@@ -50,8 +41,4 @@ public abstract class ProtobufBaseNodeResponse extends TransportResponse {
         return node;
     }
 
-    @Override
-    public void writeTo(CodedOutputStream out) throws IOException {
-        node.writeTo(out);
-    }
 }

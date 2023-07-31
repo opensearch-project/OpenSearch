@@ -14,14 +14,13 @@ package org.opensearch.tasks;
 import com.google.protobuf.CodedInputStream;
 import com.google.protobuf.CodedOutputStream;
 import org.opensearch.Version;
-import org.opensearch.common.io.stream.ProtobufStreamInput;
-import org.opensearch.common.io.stream.ProtobufStreamOutput;
 import org.opensearch.common.io.stream.ProtobufWriteable;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.io.OutputStream;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -60,10 +59,6 @@ public final class ProtobufTaskInfo implements ProtobufWriteable, ToXContentFrag
 
     private final ProtobufTaskResourceStats resourceStats;
 
-    private ProtobufStreamInput protobufStreamInput;
-
-    private ProtobufStreamOutput protobufStreamOutput;
-
     public ProtobufTaskInfo(
         ProtobufTaskId taskId,
         String type,
@@ -93,60 +88,6 @@ public final class ProtobufTaskInfo implements ProtobufWriteable, ToXContentFrag
         this.parentTaskId = parentTaskId;
         this.headers = headers;
         this.resourceStats = resourceStats;
-    }
-
-    /**
-     * Read from a stream.
-    */
-    @SuppressWarnings("unchecked")
-    public ProtobufTaskInfo(CodedInputStream in) throws IOException {
-        protobufStreamInput = new ProtobufStreamInput(in);
-        taskId = ProtobufTaskId.readFromStream(in);
-        type = in.readString();
-        action = in.readString();
-        description = protobufStreamInput.readOptionalString();
-        // TODO: fix this
-        status = null;
-        startTime = in.readInt64();
-        runningTimeNanos = in.readInt64();
-        cancellable = in.readBool();
-        if (protobufStreamInput.getVersion().onOrAfter(Version.V_2_0_0)) {
-            cancelled = in.readBool();
-        } else {
-            cancelled = false;
-        }
-        if (cancellable == false && cancelled == true) {
-            throw new IllegalArgumentException("task cannot be cancelled");
-        }
-        parentTaskId = ProtobufTaskId.readFromStream(in);
-        headers = protobufStreamInput.readMap(CodedInputStream::readString, CodedInputStream::readString);
-        if (protobufStreamInput.getVersion().onOrAfter(Version.V_2_1_0)) {
-            resourceStats = protobufStreamInput.readOptionalWriteable(ProtobufTaskResourceStats::new);
-        } else {
-            resourceStats = null;
-        }
-    }
-
-    @Override
-    public void writeTo(CodedOutputStream out) throws IOException {
-        protobufStreamOutput = new ProtobufStreamOutput(out);
-        taskId.writeTo(out);
-        out.writeStringNoTag(type);
-        out.writeStringNoTag(action);
-        out.writeStringNoTag(description);
-        // TODO: fix this
-        // out.writeOptionalNamedWriteable(status);
-        out.writeInt64NoTag(startTime);
-        out.writeInt64NoTag(runningTimeNanos);
-        out.writeBoolNoTag(cancellable);
-        if (protobufStreamOutput.getVersion().onOrAfter(Version.V_2_0_0)) {
-            out.writeBoolNoTag(cancelled);
-        }
-        parentTaskId.writeTo(out);
-        protobufStreamOutput.writeMap(headers, CodedOutputStream::writeStringNoTag, CodedOutputStream::writeStringNoTag);
-        if (protobufStreamOutput.getVersion().onOrAfter(Version.V_2_1_0)) {
-            protobufStreamOutput.writeOptionalWriteable(resourceStats);
-        }
     }
 
     public ProtobufTaskId getTaskId() {
@@ -259,5 +200,11 @@ public final class ProtobufTaskInfo implements ProtobufWriteable, ToXContentFrag
             builder.endObject();
         }
         return builder;
+    }
+
+    @Override
+    public void writeTo(OutputStream out) throws IOException {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'writeTo'");
     }
 }

@@ -12,7 +12,7 @@ import com.google.protobuf.CodedInputStream;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRunnable;
-import org.opensearch.action.ProtobufFailedNodeException;
+import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.support.ProtobufActionFilters;
 import org.opensearch.action.support.ProtobufHandledTransportAction;
 import org.opensearch.cluster.ClusterState;
@@ -25,7 +25,6 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.NodeShouldNotConnectException;
 import org.opensearch.transport.TransportChannel;
 import org.opensearch.transport.TransportException;
-import org.opensearch.transport.ProtobufTransportException;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.ProtobufTransportRequestHandler;
 import org.opensearch.transport.TransportRequestOptions;
@@ -132,7 +131,7 @@ public abstract class ProtobufTransportNodesAction<
     }
 
     /**
-     * Map the responses into {@code nodeResponseClass} responses and {@link ProtobufFailedNodeException}s.
+     * Map the responses into {@code nodeResponseClass} responses and {@link FailedNodeException}s.
     *
     * @param request The associated request.
     * @param nodesResponses All node-level responses
@@ -142,13 +141,13 @@ public abstract class ProtobufTransportNodesAction<
     */
     protected NodesResponse newResponse(NodesRequest request, AtomicReferenceArray<?> nodesResponses) {
         final List<NodeResponse> responses = new ArrayList<>();
-        final List<ProtobufFailedNodeException> failures = new ArrayList<>();
+        final List<FailedNodeException> failures = new ArrayList<>();
 
         for (int i = 0; i < nodesResponses.length(); ++i) {
             Object response = nodesResponses.get(i);
 
-            if (response instanceof ProtobufFailedNodeException) {
-                failures.add((ProtobufFailedNodeException) response);
+            if (response instanceof FailedNodeException) {
+                failures.add((FailedNodeException) response);
             } else {
                 responses.add(nodeResponseClass.cast(response));
             }
@@ -169,12 +168,10 @@ public abstract class ProtobufTransportNodesAction<
     protected abstract NodesResponse newResponse(
         NodesRequest request,
         List<NodeResponse> responses,
-        List<ProtobufFailedNodeException> failures
+        List<FailedNodeException> failures
     );
 
     protected abstract NodeRequest newNodeRequest(NodesRequest request);
-
-    protected abstract NodeResponse newNodeResponse(CodedInputStream in) throws IOException;
 
     protected abstract NodeResponse newNodeResponse(byte[] in) throws IOException;
 
@@ -252,18 +249,8 @@ public abstract class ProtobufTransportNodesAction<
                         builder.build(),
                         new TransportResponseHandler<NodeResponse>() {
                             @Override
-                            public NodeResponse read(CodedInputStream in) throws IOException {
-                                return newNodeResponse(in);
-                            }
-
-                            @Override
                             public void handleResponse(NodeResponse response) {
                                 onOperation(idx, response);
-                            }
-
-                            @Override
-                            public void handleExceptionProtobuf(ProtobufTransportException exp) {
-                                onFailure(idx, node.getId(), exp);
                             }
 
                             @Override
@@ -305,7 +292,7 @@ public abstract class ProtobufTransportNodesAction<
             if (logger.isDebugEnabled() && !(t instanceof NodeShouldNotConnectException)) {
                 logger.debug(new ParameterizedMessage("failed to execute on node [{}]", nodeId), t);
             }
-            responses.set(idx, new ProtobufFailedNodeException(nodeId, "Failed node [" + nodeId + "]", t));
+            responses.set(idx, new FailedNodeException(nodeId, "Failed node [" + nodeId + "]", t));
             if (counter.incrementAndGet() == responses.length()) {
                 finishHim();
             }

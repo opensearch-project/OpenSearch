@@ -22,13 +22,14 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.ProtobufEmptyTransportResponseHandler;
 import org.opensearch.transport.TransportChannel;
-import org.opensearch.transport.ProtobufTransportException;
+import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.ProtobufTransportRequestHandler;
 import org.opensearch.transport.TransportResponse;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
+import java.io.OutputStream;
 import java.util.Collection;
 import java.util.List;
 
@@ -131,7 +132,7 @@ public class ProtobufTaskCancellationService {
                     }
 
                     @Override
-                    public void handleExceptionProtobuf(ProtobufTransportException exp) {
+                    public void handleException(TransportException exp) {
                         assert ExceptionsHelper.unwrapCause(exp) instanceof OpenSearchSecurityException == false;
                         logger.warn("Cannot send ban for tasks with the parent [{}] to the node [{}]", taskId, node);
                         groupedListener.onFailure(exp);
@@ -153,7 +154,7 @@ public class ProtobufTaskCancellationService {
                 request,
                 new ProtobufEmptyTransportResponseHandler(ThreadPool.Names.SAME) {
                     @Override
-                    public void handleExceptionProtobuf(ProtobufTransportException exp) {
+                    public void handleException(TransportException exp) {
                         assert ExceptionsHelper.unwrapCause(exp) instanceof OpenSearchSecurityException == false;
                         logger.info("failed to remove the parent ban for task {} on node {}", request.parentTaskId, node);
                     }
@@ -191,23 +192,17 @@ public class ProtobufTaskCancellationService {
             this.waitForCompletion = false;
         }
 
-        private BanParentTaskRequest(CodedInputStream in) throws IOException {
+        private BanParentTaskRequest(byte[] in) throws IOException {
             super(in);
-            parentTaskId = ProtobufTaskId.readFromStream(in);
-            ban = in.readBool();
-            reason = ban ? in.readString() : null;
-            waitForCompletion = in.readBool();
+            parentTaskId = null;
+            ban = false;
+            reason = null;
+            waitForCompletion = false;
         }
 
         @Override
-        public void writeTo(CodedOutputStream out) throws IOException {
+        public void writeTo(OutputStream out) throws IOException {
             super.writeTo(out);
-            parentTaskId.writeTo(out);
-            out.writeBoolNoTag(ban);
-            if (ban) {
-                out.writeStringNoTag(reason);
-            }
-            out.writeBoolNoTag(waitForCompletion);
         }
     }
 

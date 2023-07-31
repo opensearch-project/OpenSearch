@@ -179,7 +179,6 @@ import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.store.IndicesStore;
 import org.opensearch.ingest.IngestService;
 import org.opensearch.monitor.MonitorService;
-import org.opensearch.monitor.ProtobufMonitorService;
 import org.opensearch.monitor.fs.FsHealthService;
 import org.opensearch.monitor.jvm.JvmInfo;
 import org.opensearch.persistent.PersistentTasksClusterService;
@@ -646,12 +645,6 @@ public class Node implements Closeable {
             initializeFileCache(settings, circuitBreakerService.getBreaker(CircuitBreaker.REQUEST));
             final FileCacheCleaner fileCacheCleaner = new FileCacheCleaner(nodeEnvironment, fileCache);
             final MonitorService monitorService = new MonitorService(settings, nodeEnvironment, threadPool, fileCache);
-            final ProtobufMonitorService protobufMonitorService = new ProtobufMonitorService(
-                settings,
-                nodeEnvironment,
-                threadPool,
-                fileCache
-            );
 
             pluginsService.filterPlugins(CircuitBreakerPlugin.class).forEach(plugin -> {
                 CircuitBreaker breaker = circuitBreakerService.getBreaker(plugin.getCircuitBreaker(settings).getName());
@@ -1059,7 +1052,7 @@ public class Node implements Closeable {
             this.protobufNodeService = new ProtobufNodeService(
                 settings,
                 threadPool,
-                protobufMonitorService,
+                monitorService,
                 discoveryModule.getDiscovery(),
                 transportService,
                 indicesService,

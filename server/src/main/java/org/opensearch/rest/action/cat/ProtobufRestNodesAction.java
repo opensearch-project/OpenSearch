@@ -8,10 +8,8 @@
 
 package org.opensearch.rest.action.cat;
 
-import org.opensearch.action.admin.cluster.node.info.ProtobufNodeInfo;
 import org.opensearch.action.admin.cluster.node.info.ProtobufNodesInfoRequest;
 import org.opensearch.action.admin.cluster.node.info.ProtobufNodesInfoResponse;
-import org.opensearch.action.admin.cluster.node.stats.ProtobufNodeStats;
 import org.opensearch.action.admin.cluster.node.stats.ProtobufNodesStatsRequest;
 import org.opensearch.action.admin.cluster.node.stats.ProtobufNodesStatsResponse;
 import org.opensearch.action.admin.cluster.state.ProtobufClusterStateRequest;
@@ -20,34 +18,12 @@ import org.opensearch.client.node.ProtobufNodeClient;
 import org.opensearch.common.Strings;
 import org.opensearch.common.Table;
 import org.opensearch.common.logging.DeprecationLogger;
-import org.opensearch.common.network.NetworkAddress;
-import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.http.ProtobufHttpInfo;
-import org.opensearch.index.cache.query.ProtobufQueryCacheStats;
-import org.opensearch.index.cache.request.ProtobufRequestCacheStats;
-import org.opensearch.index.engine.ProtobufSegmentsStats;
-import org.opensearch.index.fielddata.ProtobufFieldDataStats;
-import org.opensearch.index.flush.ProtobufFlushStats;
-import org.opensearch.index.get.ProtobufGetStats;
-import org.opensearch.index.merge.ProtobufMergeStats;
-import org.opensearch.index.refresh.ProtobufRefreshStats;
-import org.opensearch.index.search.stats.ProtobufSearchStats;
-import org.opensearch.index.shard.ProtobufIndexingStats;
-import org.opensearch.indices.ProtobufNodeIndicesStats;
-import org.opensearch.monitor.fs.ProtobufFsInfo;
-import org.opensearch.monitor.jvm.JvmInfo;
-import org.opensearch.monitor.jvm.ProtobufJvmStats;
-import org.opensearch.monitor.os.ProtobufOsStats;
-import org.opensearch.monitor.process.ProtobufProcessInfo;
-import org.opensearch.monitor.process.ProtobufProcessStats;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.action.RestActionListener;
 import org.opensearch.rest.action.RestResponseListener;
-import org.opensearch.script.ProtobufScriptStats;
-import org.opensearch.search.suggest.completion.ProtobufCompletionStats;
 import org.opensearch.server.proto.ClusterStateResponseProto;
 import org.opensearch.server.proto.NodesInfoProto.NodesInfo;
 import org.opensearch.server.proto.NodesStatsProto.NodesStats;
@@ -113,9 +89,8 @@ public class ProtobufRestNodesAction extends ProtobufAbstractCatAction {
                 @Override
                 public void processResponse(final ProtobufClusterStateResponse clusterStateResponse) {
                     ProtobufNodesInfoRequest nodesInfoRequest = new ProtobufNodesInfoRequest();
-                    nodesInfoRequest.timeout(request.param("timeout"));
-                    nodesInfoRequest.clear()
-                        .addMetrics(
+                    nodesInfoRequest.addMetrics(
+                            request.param("timeout"),
                             ProtobufNodesInfoRequest.Metric.JVM.metricName(),
                             ProtobufNodesInfoRequest.Metric.OS.metricName(),
                             ProtobufNodesInfoRequest.Metric.PROCESS.metricName(),
@@ -352,13 +327,6 @@ public class ProtobufRestNodesAction extends ProtobufAbstractCatAction {
             NodesInfo info = nodesInfo.nodesMap().get(node.getNodeId());
             NodesStats stats = nodesStats.nodesMap().get(node.getNodeId());
 
-            // JvmInfo jvmInfo = info == null ? null : info.getInfo(JvmInfo.class);
-            // ProtobufJvmStats jvmStats = stats == null ? null : stats.getJvm();
-            // ProtobufFsInfo fsInfo = stats == null ? null : stats.getFs();
-            // ProtobufOsStats osStats = stats == null ? null : stats.getOs();
-            // ProtobufProcessStats processStats = stats == null ? null : stats.getProcess();
-            // ProtobufNodeIndicesStats indicesStats = stats == null ? null : stats.getIndices();
-
             table.startRow();
 
             table.addCell(fullId ? node.getNodeId() : Strings.substring(node.getNodeId(), 0, 4));
@@ -366,13 +334,6 @@ public class ProtobufRestNodesAction extends ProtobufAbstractCatAction {
             table.addCell(node.getHostAddress());
             table.addCell(node.getTransportAddress());
             table.addCell(info == null ? null : info.getAddress());
-            // final ProtobufHttpInfo httpInfo = info == null ? null : info.getInfo(ProtobufHttpInfo.class);
-            // if (httpInfo != null) {
-            //     TransportAddress transportAddress = httpInfo.getAddress().publishAddress();
-            //     table.addCell(NetworkAddress.format(transportAddress.address()));
-            // } else {
-            //     table.addCell("-");
-            // }
 
             table.addCell(node.getVersion().toString());
             table.addCell(info == null ? null : info.getDisplayName());
@@ -385,15 +346,6 @@ public class ProtobufRestNodesAction extends ProtobufAbstractCatAction {
             double diskUsedRatio = diskTotal.getBytes() == 0 ? 1.0 : (double) diskUsed.getBytes() / diskTotal.getBytes();
             String diskUsedPercent = String.format(Locale.ROOT, "%.2f", 100.0 * diskUsedRatio);
             
-            // String diskUsedPercent = null;
-            // if (fsInfo != null) {
-            //     diskTotal = stats.getDiskTotal();
-            //     diskAvailable = fsInfo.getTotal().getAvailable();
-            //     diskUsed = new ByteSizeValue(diskTotal.getBytes() - diskAvailable.getBytes());
-
-            //     double diskUsedRatio = diskTotal.getBytes() == 0 ? 1.0 : (double) diskUsed.getBytes() / diskTotal.getBytes();
-            //     diskUsedPercent = String.format(Locale.ROOT, "%.2f", 100.0 * diskUsedRatio);
-            // }
             table.addCell(diskTotal);
             table.addCell(diskUsed);
             table.addCell(diskAvailable);
@@ -448,10 +400,8 @@ public class ProtobufRestNodesAction extends ProtobufAbstractCatAction {
             table.addCell(clusterManagerId == null ? "x" : clusterManagerId.equals(node.getNodeId()) ? "*" : "-");
             table.addCell(node.getNodeName());
 
-            // ProtobufCompletionStats completionStats = indicesStats == null ? null : stats.getIndices().getCompletion();
             table.addCell(stats.getCompletionStats() == null ? null : stats.getCompletionStats().getSize());
 
-            // ProtobufFieldDataStats fdStats = indicesStats == null ? null : stats.getIndices().getFieldData();
             table.addCell(stats.getFieldDataStats() == null ? null : stats.getFieldDataStats().getMemSize());
             table.addCell(stats.getFieldDataStats() == null ? null : stats.getFieldDataStats().getEvictions());
 

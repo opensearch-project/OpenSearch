@@ -13,8 +13,6 @@
 
 package org.opensearch.action.admin.cluster.node.info;
 
-import com.google.protobuf.CodedInputStream;
-import com.google.protobuf.CodedOutputStream;
 import com.google.protobuf.InvalidProtocolBufferException;
 
 import org.opensearch.Build;
@@ -22,23 +20,20 @@ import org.opensearch.Version;
 import org.opensearch.action.support.nodes.ProtobufBaseNodeResponse;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.io.stream.ProtobufStreamInput;
-import org.opensearch.common.io.stream.ProtobufStreamOutput;
 import org.opensearch.common.io.stream.TryWriteable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeValue;
-import org.opensearch.http.ProtobufHttpInfo;
-import org.opensearch.ingest.ProtobufIngestInfo;
+import org.opensearch.http.HttpInfo;
+import org.opensearch.ingest.IngestInfo;
 import org.opensearch.monitor.jvm.JvmInfo;
 import org.opensearch.monitor.os.OsInfo;
-import org.opensearch.monitor.os.ProtobufOsInfo;
-import org.opensearch.monitor.process.ProtobufProcessInfo;
+import org.opensearch.monitor.process.ProcessInfo;
 import org.opensearch.node.ProtobufReportingService;
-import org.opensearch.search.aggregations.support.ProtobufAggregationInfo;
-import org.opensearch.search.pipeline.ProtobufSearchPipelineInfo;
+import org.opensearch.search.aggregations.support.AggregationInfo;
+import org.opensearch.search.pipeline.SearchPipelineInfo;
 import org.opensearch.server.proto.NodesInfoProto;
-import org.opensearch.threadpool.ProtobufThreadPoolInfo;
-import org.opensearch.transport.ProtobufTransportInfo;
+import org.opensearch.threadpool.ThreadPoolInfo;
+import org.opensearch.transport.TransportInfo;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -70,33 +65,6 @@ public class ProtobufNodeInfo extends ProtobufBaseNodeResponse implements TryWri
     @Nullable
     private ByteSizeValue totalIndexingBuffer;
 
-    public ProtobufNodeInfo(CodedInputStream in) throws IOException {
-        super(in);
-        ProtobufStreamInput protobufStreamInput = new ProtobufStreamInput(in);
-        version = Version.readVersionProtobuf(in);
-        build = Build.readBuildProtobuf(in);
-        if (in.readBool()) {
-            totalIndexingBuffer = new ByteSizeValue(in.readInt64());
-        } else {
-            totalIndexingBuffer = null;
-        }
-        if (in.readBool()) {
-            settings = Settings.readSettingsFromStreamProtobuf(in);
-        }
-        addInfoIfNonNull(ProtobufOsInfo.class, protobufStreamInput.readOptionalWriteable(ProtobufOsInfo::new));
-        addInfoIfNonNull(ProtobufProcessInfo.class, protobufStreamInput.readOptionalWriteable(ProtobufProcessInfo::new));
-        addInfoIfNonNull(JvmInfo.class, protobufStreamInput.readOptionalWriteable(JvmInfo::new));
-        addInfoIfNonNull(ProtobufThreadPoolInfo.class, protobufStreamInput.readOptionalWriteable(ProtobufThreadPoolInfo::new));
-        addInfoIfNonNull(ProtobufTransportInfo.class, protobufStreamInput.readOptionalWriteable(ProtobufTransportInfo::new));
-        addInfoIfNonNull(ProtobufHttpInfo.class, protobufStreamInput.readOptionalWriteable(ProtobufHttpInfo::new));
-        addInfoIfNonNull(ProtobufPluginsAndModules.class, protobufStreamInput.readOptionalWriteable(ProtobufPluginsAndModules::new));
-        addInfoIfNonNull(ProtobufIngestInfo.class, protobufStreamInput.readOptionalWriteable(ProtobufIngestInfo::new));
-        addInfoIfNonNull(ProtobufAggregationInfo.class, protobufStreamInput.readOptionalWriteable(ProtobufAggregationInfo::new));
-        if (protobufStreamInput.getVersion().onOrAfter(Version.V_2_7_0)) {
-            addInfoIfNonNull(ProtobufSearchPipelineInfo.class, protobufStreamInput.readOptionalWriteable(ProtobufSearchPipelineInfo::new));
-        }
-    }
-
     public ProtobufNodeInfo(byte[] data) throws InvalidProtocolBufferException {
         super(data);
         this.nodesInfoResponse = NodesInfoProto.NodesInfo.parseFrom(data);
@@ -107,32 +75,22 @@ public class ProtobufNodeInfo extends ProtobufBaseNodeResponse implements TryWri
         Build build,
         DiscoveryNode node,
         @Nullable Settings settings,
-        @Nullable ProtobufOsInfo os,
-        @Nullable ProtobufProcessInfo process,
+        @Nullable OsInfo os,
+        @Nullable ProcessInfo process,
         @Nullable JvmInfo jvm,
-        @Nullable ProtobufThreadPoolInfo threadPool,
-        @Nullable ProtobufTransportInfo transport,
-        @Nullable ProtobufHttpInfo http,
-        @Nullable ProtobufPluginsAndModules plugins,
-        @Nullable ProtobufIngestInfo ingest,
-        @Nullable ProtobufAggregationInfo aggsInfo,
+        @Nullable ThreadPoolInfo threadPool,
+        @Nullable TransportInfo transport,
+        @Nullable HttpInfo http,
+        @Nullable PluginsAndModules plugins,
+        @Nullable IngestInfo ingest,
+        @Nullable AggregationInfo aggsInfo,
         @Nullable ByteSizeValue totalIndexingBuffer,
-        @Nullable ProtobufSearchPipelineInfo ProtobufSearchPipelineInfo
+        @Nullable SearchPipelineInfo searchPipelineInfo
     ) {
         super(node);
         this.version = version;
         this.build = build;
         this.settings = settings;
-        addInfoIfNonNull(ProtobufOsInfo.class, os);
-        addInfoIfNonNull(ProtobufProcessInfo.class, process);
-        addInfoIfNonNull(JvmInfo.class, jvm);
-        addInfoIfNonNull(ProtobufThreadPoolInfo.class, threadPool);
-        addInfoIfNonNull(ProtobufTransportInfo.class, transport);
-        addInfoIfNonNull(ProtobufHttpInfo.class, http);
-        addInfoIfNonNull(ProtobufPluginsAndModules.class, plugins);
-        addInfoIfNonNull(ProtobufIngestInfo.class, ingest);
-        addInfoIfNonNull(ProtobufAggregationInfo.class, aggsInfo);
-        addInfoIfNonNull(ProtobufSearchPipelineInfo.class, ProtobufSearchPipelineInfo);
         this.totalIndexingBuffer = totalIndexingBuffer;
         this.nodesInfoResponse = NodesInfoProto.NodesInfo.newBuilder()
             .setNodeId(node.getId())
@@ -204,38 +162,6 @@ public class ProtobufNodeInfo extends ProtobufBaseNodeResponse implements TryWri
         }
     }
 
-    @Override
-    public void writeTo(CodedOutputStream out) throws IOException {
-        super.writeTo(out);
-        ProtobufStreamOutput protobufStreamOutput = new ProtobufStreamOutput(out);
-        out.writeInt32NoTag(version.id);
-        Build.writeBuildProtobuf(build, out);
-        if (totalIndexingBuffer == null) {
-            out.writeBoolNoTag(false);
-        } else {
-            out.writeBoolNoTag(true);
-            out.writeInt64NoTag(totalIndexingBuffer.getBytes());
-        }
-        if (settings == null) {
-            out.writeBoolNoTag(false);
-        } else {
-            out.writeBoolNoTag(true);
-            Settings.writeSettingsToStreamProtobuf(settings, out);
-        }
-        protobufStreamOutput.writeOptionalWriteable(getInfo(ProtobufOsInfo.class));
-        protobufStreamOutput.writeOptionalWriteable(getInfo(ProtobufProcessInfo.class));
-        protobufStreamOutput.writeOptionalWriteable(getInfo(JvmInfo.class));
-        protobufStreamOutput.writeOptionalWriteable(getInfo(ProtobufThreadPoolInfo.class));
-        protobufStreamOutput.writeOptionalWriteable(getInfo(ProtobufTransportInfo.class));
-        protobufStreamOutput.writeOptionalWriteable(getInfo(ProtobufHttpInfo.class));
-        protobufStreamOutput.writeOptionalWriteable(getInfo(ProtobufPluginsAndModules.class));
-        protobufStreamOutput.writeOptionalWriteable(getInfo(ProtobufIngestInfo.class));
-        protobufStreamOutput.writeOptionalWriteable(getInfo(ProtobufAggregationInfo.class));
-        if (protobufStreamOutput.getVersion().onOrAfter(Version.V_2_7_0)) {
-            protobufStreamOutput.writeOptionalWriteable(getInfo(ProtobufSearchPipelineInfo.class));
-        }
-    }
-
     public static ProtobufNodeInfo.Builder builder(Version version, Build build, DiscoveryNode node) {
         return new Builder(version, build, node);
     }
@@ -255,29 +181,29 @@ public class ProtobufNodeInfo extends ProtobufBaseNodeResponse implements TryWri
         }
 
         private Settings settings;
-        private ProtobufOsInfo os;
-        private ProtobufProcessInfo process;
+        private OsInfo os;
+        private ProcessInfo process;
         private JvmInfo jvm;
-        private ProtobufThreadPoolInfo threadPool;
-        private ProtobufTransportInfo transport;
-        private ProtobufHttpInfo http;
-        private ProtobufPluginsAndModules plugins;
-        private ProtobufIngestInfo ingest;
-        private ProtobufAggregationInfo aggsInfo;
+        private ThreadPoolInfo threadPool;
+        private TransportInfo transport;
+        private HttpInfo http;
+        private PluginsAndModules plugins;
+        private IngestInfo ingest;
+        private AggregationInfo aggsInfo;
         private ByteSizeValue totalIndexingBuffer;
-        private ProtobufSearchPipelineInfo ProtobufSearchPipelineInfo;
+        private SearchPipelineInfo searchPipelineInfo;
 
         public Builder setSettings(Settings settings) {
             this.settings = settings;
             return this;
         }
 
-        public Builder setOs(ProtobufOsInfo os) {
+        public Builder setOs(OsInfo os) {
             this.os = os;
             return this;
         }
 
-        public Builder setProcess(ProtobufProcessInfo process) {
+        public Builder setProcess(ProcessInfo process) {
             this.process = process;
             return this;
         }
@@ -287,32 +213,32 @@ public class ProtobufNodeInfo extends ProtobufBaseNodeResponse implements TryWri
             return this;
         }
 
-        public Builder setThreadPool(ProtobufThreadPoolInfo threadPool) {
+        public Builder setThreadPool(ThreadPoolInfo threadPool) {
             this.threadPool = threadPool;
             return this;
         }
 
-        public Builder setTransport(ProtobufTransportInfo transport) {
+        public Builder setTransport(TransportInfo transport) {
             this.transport = transport;
             return this;
         }
 
-        public Builder setHttp(ProtobufHttpInfo http) {
+        public Builder setHttp(HttpInfo http) {
             this.http = http;
             return this;
         }
 
-        public Builder setPlugins(ProtobufPluginsAndModules plugins) {
+        public Builder setPlugins(PluginsAndModules plugins) {
             this.plugins = plugins;
             return this;
         }
 
-        public Builder setIngest(ProtobufIngestInfo ingest) {
+        public Builder setIngest(IngestInfo ingest) {
             this.ingest = ingest;
             return this;
         }
 
-        public Builder setAggsInfo(ProtobufAggregationInfo aggsInfo) {
+        public Builder setAggsInfo(AggregationInfo aggsInfo) {
             this.aggsInfo = aggsInfo;
             return this;
         }
@@ -322,8 +248,8 @@ public class ProtobufNodeInfo extends ProtobufBaseNodeResponse implements TryWri
             return this;
         }
 
-        public Builder setProtobufSearchPipelineInfo(ProtobufSearchPipelineInfo ProtobufSearchPipelineInfo) {
-            this.ProtobufSearchPipelineInfo = ProtobufSearchPipelineInfo;
+        public Builder setProtobufSearchPipelineInfo(SearchPipelineInfo searchPipelineInfo) {
+            this.searchPipelineInfo = searchPipelineInfo;
             return this;
         }
 
@@ -343,7 +269,7 @@ public class ProtobufNodeInfo extends ProtobufBaseNodeResponse implements TryWri
                 ingest,
                 aggsInfo,
                 totalIndexingBuffer,
-                ProtobufSearchPipelineInfo
+                searchPipelineInfo
             );
         }
 

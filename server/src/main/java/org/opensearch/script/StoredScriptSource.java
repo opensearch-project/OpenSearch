@@ -72,7 +72,7 @@ import java.util.Objects;
  *
  * @opensearch.internal
  */
-public class StoredScriptSource extends AbstractDiffable<StoredScriptSource, StoredScriptSource> implements Writeable, ToXContentObject {
+public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> implements Writeable, ToXContentObject {
 
     /**
      * Standard deprecation logger for used to deprecate allowance of empty templates.
@@ -388,16 +388,6 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource, Sto
         @SuppressWarnings("unchecked")
         Map<String, Object> options = (Map<String, Object>) (Map) this.options;
         out.writeMap(options);
-    }
-
-    /**
-     * Writes a {@link StoredScriptSource} to a stream. Will write
-     * all of the lang, source, and options parameters.
-     */
-    @Override
-    public void writeTo(CodedOutputStream out) throws IOException {
-         // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'writeTo'");
     }
 
     /**

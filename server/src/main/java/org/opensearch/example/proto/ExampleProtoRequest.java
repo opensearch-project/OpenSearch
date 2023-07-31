@@ -36,13 +36,6 @@ public class ExampleProtoRequest extends TransportRequest implements TryWriteabl
         this.request = ExampleRequest.newBuilder().setId(id).setMessage(message).build();
     }
 
-    public ExampleProtoRequest(CodedInputStream in) throws IOException {
-        super(in);
-        System.out.println("ExampleProtoRequest constructor");
-        System.out.println("in: " + in);
-        this.request = ExampleRequest.parseFrom(in);
-    }
-
     public ExampleProtoRequest(byte[] data) throws InvalidProtocolBufferException {
         this.request = ExampleRequest.parseFrom(data);
     }

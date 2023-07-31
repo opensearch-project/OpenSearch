@@ -10,11 +10,9 @@ package org.opensearch.client;
 
 import org.opensearch.action.ActionFuture;
 import org.opensearch.action.ActionListener;
-import org.opensearch.action.admin.cluster.node.info.ProtobufNodesInfoRequestBuilder;
 import org.opensearch.action.admin.cluster.node.info.ProtobufNodesInfoRequest;
 import org.opensearch.action.admin.cluster.node.info.ProtobufNodesInfoResponse;
 import org.opensearch.action.admin.cluster.node.stats.ProtobufNodesStatsRequest;
-import org.opensearch.action.admin.cluster.node.stats.ProtobufNodesStatsRequestBuilder;
 import org.opensearch.action.admin.cluster.node.stats.ProtobufNodesStatsResponse;
 import org.opensearch.action.admin.cluster.state.ProtobufClusterStateRequest;
 import org.opensearch.action.admin.cluster.state.ProtobufClusterStateRequestBuilder;
@@ -71,11 +69,6 @@ public interface ProtobufClusterAdminClient extends ProtobufOpenSearchClient {
     void nodesInfo(ProtobufNodesInfoRequest request, ActionListener<ProtobufNodesInfoResponse> listener);
 
     /**
-     * Nodes info of the cluster.
-    */
-    ProtobufNodesInfoRequestBuilder prepareNodesInfo(String... nodesIds);
-
-    /**
      * Nodes stats of the cluster.
     *
     * @param request The nodes stats request
@@ -92,9 +85,4 @@ public interface ProtobufClusterAdminClient extends ProtobufOpenSearchClient {
     * @see org.opensearch.client.Requests#nodesStatsRequest(String...)
     */
     void nodesStats(ProtobufNodesStatsRequest request, ActionListener<ProtobufNodesStatsResponse> listener);
-
-    /**
-     * Nodes stats of the cluster.
-    */
-    ProtobufNodesStatsRequestBuilder prepareNodesStats(String... nodesIds);
 }

@@ -56,7 +56,7 @@ import java.util.Objects;
  *
  * @opensearch.internal
  */
-public class RolloverInfo extends AbstractDiffable<RolloverInfo, RolloverInfo> implements Writeable, ToXContentFragment {
+public class RolloverInfo extends AbstractDiffable<RolloverInfo> implements Writeable, ToXContentFragment {
 
     public static final ParseField CONDITION_FIELD = new ParseField("met_conditions");
     public static final ParseField TIME_FIELD = new ParseField("time");
@@ -154,9 +154,4 @@ public class RolloverInfo extends AbstractDiffable<RolloverInfo, RolloverInfo> i
         return Strings.toString(XContentType.JSON, this);
     }
 
-    @Override
-    public void writeTo(CodedOutputStream out) throws IOException {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'writeTo'");
-    }
 }

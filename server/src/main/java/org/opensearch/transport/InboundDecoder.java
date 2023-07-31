@@ -40,8 +40,6 @@ import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.common.lease.Releasable;
 
-import com.google.protobuf.CodedInputStream;
-
 import java.io.IOException;
 import java.util.function.Consumer;
 
@@ -204,26 +202,6 @@ public class InboundDecoder implements Releasable {
             }
             return header;
         }
-    }
-
-    static Header readHeaderProtobuf(Version version, int networkMessageSize, BytesReference bytesReference) throws IOException {
-        CodedInputStream streamInput = bytesReference.protobufInput();
-
-        streamInput.skipRawBytes(TcpHeader.BYTES_REQUIRED_FOR_MESSAGE_SIZE);
-        long requestId = streamInput.readInt64();
-        byte status = streamInput.readRawByte();
-        Version remoteVersion = Version.fromId(streamInput.readInt32());
-        Header header = new Header(networkMessageSize, requestId, status, remoteVersion);
-        final IllegalStateException invalidVersion = ensureVersionCompatibility(remoteVersion, version, header.isHandshake());
-        if (invalidVersion != null) {
-            throw invalidVersion;
-        } else {
-            // Skip since we already have ensured enough data available
-            streamInput.readInt32();
-            header.finishParsingHeaderProtobuf(streamInput);
-        }
-        return header;
-        
     }
 
     private boolean isOnHeader() {

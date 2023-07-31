@@ -48,7 +48,7 @@ import java.io.IOException;
  *
  * @opensearch.internal
  */
-public abstract class AbstractDiffable<T extends Diffable<T>, V extends ProtobufDiffable<V>> implements Diffable<T>, ProtobufDiffable<V> {
+public abstract class AbstractDiffable<T extends Diffable<T>> implements Diffable<T> {
 
     private static final Diff<?> EMPTY = new CompleteDiff<>();
 
@@ -63,29 +63,11 @@ public abstract class AbstractDiffable<T extends Diffable<T>, V extends Protobuf
     }
 
     @SuppressWarnings("unchecked")
-    @Override
-    public ProtobufDiff<V> protobufDiff(V previousState) {
-        if (this.equals(previousState)) {
-            return (ProtobufDiff<V>) EMPTY;
-        } else {
-            return new CompleteDiffProtobuf<>((V) this);
-        }
-    }
-
-    @SuppressWarnings("unchecked")
     public static <T extends Diffable<T>> Diff<T> readDiffFrom(Reader<T> reader, StreamInput in) throws IOException {
         if (in.readBoolean()) {
             return new CompleteDiff<>(reader.read(in));
         }
         return (Diff<T>) EMPTY;
-    }
-
-    @SuppressWarnings("unchecked")
-    public static <V extends ProtobufDiffable<V>> ProtobufDiff<V> readDiffFromProtobuf(ProtobufWriteable.Reader<V> reader, CodedInputStream in) throws IOException {
-        if (in.readBool()) {
-            return new CompleteDiffProtobuf<>(reader.read(in));
-        }
-        return (ProtobufDiff<V>) EMPTY;
     }
 
     /**
@@ -132,47 +114,4 @@ public abstract class AbstractDiffable<T extends Diffable<T>, V extends Protobuf
         }
     }
 
-    /**
-     * A complete diff.
-    *
-    * @opensearch.internal
-    */
-    private static class CompleteDiffProtobuf<T extends ProtobufDiffable<T>> implements ProtobufDiff<T> {
-
-        @Nullable
-        private final T part;
-
-        /**
-         * Creates simple diff with changes
-        */
-        CompleteDiffProtobuf(T part) {
-            this.part = part;
-        }
-
-        /**
-         * Creates simple diff without changes
-        */
-        CompleteDiffProtobuf() {
-            this.part = null;
-        }
-
-        @Override
-        public void writeTo(CodedOutputStream out) throws IOException {
-            if (part != null) {
-                out.writeBoolNoTag(true);
-                part.writeTo(out);
-            } else {
-                out.writeBoolNoTag(false);
-            }
-        }
-
-        @Override
-        public T apply(T part) {
-            if (this.part != null) {
-                return this.part;
-            } else {
-                return part;
-            }
-        }
-    }
 }

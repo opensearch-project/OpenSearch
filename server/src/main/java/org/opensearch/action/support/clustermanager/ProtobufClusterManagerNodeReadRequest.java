@@ -13,10 +13,8 @@
 
 package org.opensearch.action.support.clustermanager;
 
-import com.google.protobuf.CodedInputStream;
-import com.google.protobuf.CodedOutputStream;
-
 import java.io.IOException;
+import java.io.OutputStream;
 
 /**
  * Base request for cluster-manager based read operations that allows to read the cluster state from the local node if needed
@@ -30,15 +28,13 @@ public abstract class ProtobufClusterManagerNodeReadRequest<Request extends Prot
 
     protected ProtobufClusterManagerNodeReadRequest() {}
 
-    protected ProtobufClusterManagerNodeReadRequest(CodedInputStream in) throws IOException {
-        super(in);
-        local = in.readBool();
+    protected ProtobufClusterManagerNodeReadRequest(byte[] in) throws IOException {
+        
     }
 
     @Override
-    public void writeTo(CodedOutputStream out) throws IOException {
-        super.writeTo(out);
-        out.writeBoolNoTag(local);
+    public void writeTo(OutputStream out) throws IOException {
+        
     }
 
     @SuppressWarnings("unchecked")

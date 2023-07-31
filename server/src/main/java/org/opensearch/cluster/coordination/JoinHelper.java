@@ -62,7 +62,6 @@ import org.opensearch.monitor.StatusInfo;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.threadpool.ThreadPool.Names;
 import org.opensearch.transport.BytesTransportRequest;
-import org.opensearch.transport.ProtobufTransportException;
 import org.opensearch.transport.RemoteTransportException;
 import org.opensearch.transport.TransportChannel;
 import org.opensearch.transport.TransportException;
@@ -418,18 +417,6 @@ public class JoinHelper {
                     }
 
                     @Override
-                    public Empty read(CodedInputStream in) throws IOException {
-                        // TODO Auto-generated method stub
-                        throw new UnsupportedOperationException("Unimplemented method 'read'");
-                    }
-
-                    @Override
-                    public void handleExceptionProtobuf(ProtobufTransportException exp) {
-                        // TODO Auto-generated method stub
-                        throw new UnsupportedOperationException("Unimplemented method 'handleExceptionProtobuf'");
-                    }
-
-                    @Override
                     public Empty read(byte[] in) throws IOException {
                         // TODO Auto-generated method stub
                         throw new UnsupportedOperationException("Unimplemented method 'read'");
@@ -463,18 +450,6 @@ public class JoinHelper {
             @Override
             public String executor() {
                 return ThreadPool.Names.SAME;
-            }
-
-            @Override
-            public Empty read(CodedInputStream in) throws IOException {
-                // TODO Auto-generated method stub
-                throw new UnsupportedOperationException("Unimplemented method 'read'");
-            }
-
-            @Override
-            public void handleExceptionProtobuf(ProtobufTransportException exp) {
-                // TODO Auto-generated method stub
-                throw new UnsupportedOperationException("Unimplemented method 'handleExceptionProtobuf'");
             }
 
             @Override

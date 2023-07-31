@@ -13,13 +13,9 @@
 
 package org.opensearch.action.admin.cluster.node.info;
 
-import com.google.protobuf.CodedInputStream;
-import com.google.protobuf.CodedOutputStream;
 import org.opensearch.action.support.nodes.ProtobufBaseNodesRequest;
-import org.opensearch.common.io.stream.ProtobufStreamInput;
-import org.opensearch.common.io.stream.ProtobufStreamOutput;
-import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.TryWriteable;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.server.proto.NodesInfoRequestProto.NodesInfoReq;
 import org.opensearch.server.proto.NodesInfoRequestProto;
 
@@ -39,21 +35,8 @@ import java.util.stream.Collectors;
  */
 public class ProtobufNodesInfoRequest extends ProtobufBaseNodesRequest<ProtobufNodesInfoRequest> implements TryWriteable {
 
-    private Set<String> requestedMetrics = Metric.allMetrics();
     private NodesInfoRequestProto.NodesInfoReq nodesInfoRequest;
-
-    /**
-     * Create a new NodeInfoRequest from a {@link StreamInput} object.
-     *
-     * @param in A stream input object.
-     * @throws IOException if the stream cannot be deserialized.
-     */
-    public ProtobufNodesInfoRequest(CodedInputStream in) throws IOException {
-        super(in);
-        ProtobufStreamInput protobufStreamInput = new ProtobufStreamInput(in);
-        requestedMetrics.clear();
-        requestedMetrics.addAll(Arrays.asList(protobufStreamInput.readStringArray()));
-    }
+    private final TimeValue DEFAULT_TIMEOUT_SECS = TimeValue.timeValueSeconds(30);
 
     /**
      * Get information from nodes based on the nodes ids specified. If none are passed, information
@@ -61,23 +44,6 @@ public class ProtobufNodesInfoRequest extends ProtobufBaseNodesRequest<ProtobufN
      */
     public ProtobufNodesInfoRequest(String... nodesIds) {
         super(nodesIds);
-        all();
-    }
-
-    /**
-     * Clears all info flags.
-     */
-    public ProtobufNodesInfoRequest clear() {
-        requestedMetrics.clear();
-        return this;
-    }
-
-    /**
-     * Sets to return all the data.
-     */
-    public ProtobufNodesInfoRequest all() {
-        requestedMetrics.addAll(Metric.allMetrics());
-        return this;
     }
 
     /**
@@ -88,47 +54,17 @@ public class ProtobufNodesInfoRequest extends ProtobufBaseNodesRequest<ProtobufN
     }
 
     /**
-     * Add metric
-     */
-    public ProtobufNodesInfoRequest addMetric(String metric) {
-        if (Metric.allMetrics().contains(metric) == false) {
-            throw new IllegalStateException("Used an illegal metric: " + metric);
-        }
-        requestedMetrics.add(metric);
-        return this;
-    }
-
-    /**
      * Add multiple metrics
      */
-    public ProtobufNodesInfoRequest addMetrics(String... metrics) {
+    public ProtobufNodesInfoRequest addMetrics(String timeout, String... metrics) {
         SortedSet<String> metricsSet = new TreeSet<>(Arrays.asList(metrics));
         if (Metric.allMetrics().containsAll(metricsSet) == false) {
             metricsSet.removeAll(Metric.allMetrics());
             String plural = metricsSet.size() == 1 ? "" : "s";
             throw new IllegalStateException("Used illegal metric" + plural + ": " + metricsSet);
         }
-        this.nodesInfoRequest = NodesInfoRequestProto.NodesInfoReq.newBuilder().addAllRequestedMetrics(metricsSet).build();
-        requestedMetrics.addAll(metricsSet);
+        this.nodesInfoRequest = NodesInfoRequestProto.NodesInfoReq.newBuilder().addAllRequestedMetrics(metricsSet).setTimeout(DEFAULT_TIMEOUT_SECS.toString()).build();
         return this;
-    }
-
-    /**
-     * Remove metric
-     */
-    public ProtobufNodesInfoRequest removeMetric(String metric) {
-        if (Metric.allMetrics().contains(metric) == false) {
-            throw new IllegalStateException("Used an illegal metric: " + metric);
-        }
-        requestedMetrics.remove(metric);
-        return this;
-    }
-
-    @Override
-    public void writeTo(CodedOutputStream out) throws IOException {
-        super.writeTo(out);
-        ProtobufStreamOutput protobufStreamOutput = new ProtobufStreamOutput(out);
-        protobufStreamOutput.writeStringArray(requestedMetrics.toArray(new String[0]));
     }
 
     public ProtobufNodesInfoRequest(byte[] data) throws IOException {

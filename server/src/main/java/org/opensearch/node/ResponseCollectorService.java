@@ -8,8 +8,6 @@
 
 package org.opensearch.node;
 
-import com.google.protobuf.CodedInputStream;
-import com.google.protobuf.CodedOutputStream;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterStateListener;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -81,20 +79,8 @@ public final class ResponseCollectorService implements ClusterStateListener {
         return nodeStats;
     }
 
-    public Map<String, ProtobufComputedNodeStats> getAllNodeStatisticsProtobuf() {
-        final int clientNum = nodeIdToStats.size();
-        // Transform the mutable object internally used for accounting into the computed version
-        Map<String, ProtobufComputedNodeStats> nodeStats = new HashMap<>(nodeIdToStats.size());
-        nodeIdToStats.forEach((k, v) -> { nodeStats.put(k, new ProtobufComputedNodeStats(clientNum, v)); });
-        return nodeStats;
-    }
-
     public AdaptiveSelectionStats getAdaptiveStats(Map<String, Long> clientSearchConnections) {
         return new AdaptiveSelectionStats(clientSearchConnections, getAllNodeStatistics());
-    }
-
-    public ProtobufAdaptiveSelectionStats getProtobufAdaptiveStats(Map<String, Long> clientSearchConnections) {
-        return new ProtobufAdaptiveSelectionStats(clientSearchConnections, getAllNodeStatisticsProtobuf());
     }
 
     /**
@@ -159,109 +145,6 @@ public final class ResponseCollectorService implements ClusterStateListener {
             out.writeInt(this.queueSize);
             out.writeDouble(this.responseTime);
             out.writeDouble(this.serviceTime);
-        }
-
-        /**
-         * Rank this copy of the data, according to the adaptive replica selection formula from the C3 paper
-         * https://www.usenix.org/system/files/conference/nsdi15/nsdi15-paper-suresh.pdf
-         */
-        private double innerRank(long outstandingRequests) {
-            // the concurrency compensation is defined as the number of
-            // outstanding requests from the client to the node times the number
-            // of clients in the system
-            double concurrencyCompensation = outstandingRequests * clientNum;
-
-            // Cubic queue adjustment factor. The paper chose 3 though we could
-            // potentially make this configurable if desired.
-            int queueAdjustmentFactor = 3;
-
-            // EWMA of queue size
-            double qBar = queueSize;
-            double qHatS = 1 + concurrencyCompensation + qBar;
-
-            // EWMA of response time
-            double rS = responseTime / FACTOR;
-            // EWMA of service time
-            double muBarS = serviceTime / FACTOR;
-
-            // The final formula
-            double rank = rS - (1.0 / muBarS) + (Math.pow(qHatS, queueAdjustmentFactor) / muBarS);
-            return rank;
-        }
-
-        public double rank(long outstandingRequests) {
-            if (cachedRank == 0) {
-                cachedRank = innerRank(outstandingRequests);
-            }
-            return cachedRank;
-        }
-
-        @Override
-        public String toString() {
-            StringBuilder sb = new StringBuilder("ComputedNodeStats[");
-            sb.append(nodeId).append("](");
-            sb.append("nodes: ").append(clientNum);
-            sb.append(", queue: ").append(queueSize);
-            sb.append(", response time: ").append(String.format(Locale.ROOT, "%.1f", responseTime));
-            sb.append(", service time: ").append(String.format(Locale.ROOT, "%.1f", serviceTime));
-            sb.append(", rank: ").append(String.format(Locale.ROOT, "%.1f", rank(1)));
-            sb.append(")");
-            return sb.toString();
-        }
-    }
-
-    /**
-     * Struct-like class encapsulating a point-in-time snapshot of a particular
-     * node's statistics. This includes the EWMA of queue size, response time,
-     * and service time.
-     */
-    public static class ProtobufComputedNodeStats implements ProtobufWriteable {
-        // We store timestamps with nanosecond precision, however, the
-        // formula specifies milliseconds, therefore we need to convert
-        // the values so the times don't unduely weight the formula
-        private final double FACTOR = 1000000.0;
-        private final int clientNum;
-
-        private double cachedRank = 0;
-
-        public final String nodeId;
-        public final int queueSize;
-        public final double responseTime;
-        public final double serviceTime;
-
-        public ProtobufComputedNodeStats(String nodeId, int clientNum, int queueSize, double responseTime, double serviceTime) {
-            this.nodeId = nodeId;
-            this.clientNum = clientNum;
-            this.queueSize = queueSize;
-            this.responseTime = responseTime;
-            this.serviceTime = serviceTime;
-        }
-
-        ProtobufComputedNodeStats(int clientNum, NodeStatistics nodeStats) {
-            this(
-                nodeStats.nodeId,
-                clientNum,
-                (int) nodeStats.queueSize.getAverage(),
-                nodeStats.responseTime.getAverage(),
-                nodeStats.serviceTime
-            );
-        }
-
-        ProtobufComputedNodeStats(CodedInputStream in) throws IOException {
-            this.nodeId = in.readString();
-            this.clientNum = in.readInt32();
-            this.queueSize = in.readInt32();
-            this.responseTime = in.readDouble();
-            this.serviceTime = in.readDouble();
-        }
-
-        @Override
-        public void writeTo(CodedOutputStream out) throws IOException {
-            out.writeStringNoTag(this.nodeId);
-            out.writeInt32NoTag(this.clientNum);
-            out.writeInt32NoTag(this.queueSize);
-            out.writeDoubleNoTag(this.responseTime);
-            out.writeDoubleNoTag(this.serviceTime);
         }
 
         /**

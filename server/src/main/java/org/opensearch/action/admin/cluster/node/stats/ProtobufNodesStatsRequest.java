@@ -12,8 +12,6 @@ import com.google.protobuf.CodedInputStream;
 import com.google.protobuf.CodedOutputStream;
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
 import org.opensearch.action.support.nodes.ProtobufBaseNodesRequest;
-import org.opensearch.common.io.stream.ProtobufStreamInput;
-import org.opensearch.common.io.stream.ProtobufStreamOutput;
 import org.opensearch.common.io.stream.TryWriteable;
 import org.opensearch.server.proto.NodesStatsRequestProto.NodesStatsReq;
 import org.opensearch.server.proto.NodesStatsRequestProto;
@@ -40,15 +38,6 @@ public class ProtobufNodesStatsRequest extends ProtobufBaseNodesRequest<Protobuf
 
     public ProtobufNodesStatsRequest() {
         super((String[]) null);
-    }
-
-    public ProtobufNodesStatsRequest(CodedInputStream in) throws IOException {
-        super(in);
-
-        indices = new CommonStatsFlags(in);
-        requestedMetrics.clear();
-        ProtobufStreamInput protobufStreamInput = new ProtobufStreamInput(in);
-        requestedMetrics.addAll(protobufStreamInput.readList(CodedInputStream::readString));
     }
 
     /**
@@ -153,14 +142,6 @@ public class ProtobufNodesStatsRequest extends ProtobufBaseNodesRequest<Protobuf
         }
         requestedMetrics.remove(metric);
         return this;
-    }
-
-    @Override
-    public void writeTo(CodedOutputStream out) throws IOException {
-        super.writeTo(out);
-        indices.writeTo(out);
-        ProtobufStreamOutput protobufStreamOutput = new ProtobufStreamOutput(out);
-        protobufStreamOutput.writeStringArray(requestedMetrics.toArray(new String[0]));
     }
 
     public ProtobufNodesStatsRequest(byte[] data) throws IOException {

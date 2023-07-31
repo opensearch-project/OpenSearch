@@ -56,7 +56,7 @@ public final class ProtobufRequestHandlerRegistry<Request extends TransportReque
         return action;
     }
 
-    public Request newRequest(CodedInputStream in) throws IOException {
+    public Request newRequest(byte[] in) throws IOException {
         return requestReader.read(in);
     }
 

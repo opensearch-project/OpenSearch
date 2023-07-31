@@ -39,8 +39,6 @@ import org.opensearch.action.support.ContextPreservingActionListener;
 import org.opensearch.client.OriginSettingClient;
 import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.common.collect.Tuple;
-import org.opensearch.common.io.stream.ProtobufStreamInput;
-import org.opensearch.common.io.stream.ProtobufStreamOutput;
 import org.opensearch.common.io.stream.ProtobufWriteable;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -104,7 +102,7 @@ import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_MAX_WARNING
  *
  * @opensearch.internal
  */
-public final class ThreadContext implements Writeable, ProtobufWriteable {
+public final class ThreadContext implements Writeable {
 
     public static final String PREFIX = "request.headers";
     public static final Setting<Settings> DEFAULT_HEADERS_SETTING = Setting.groupSetting(PREFIX + ".", Property.NodeScope);
@@ -199,14 +197,6 @@ public final class ThreadContext implements Writeable, ProtobufWriteable {
             final Map<String, String> propagatedHeaders = propagateHeaders(context.transientHeaders);
             context.writeTo(out, defaultHeader, propagatedHeaders);
         };
-    }
-
-    /**
-     * Captures the current thread context as writeable, allowing it to be serialized out later
-     */
-    public ProtobufWriteable captureAsProtobufWriteable() {
-        final ThreadContextStruct context = threadLocal.get();
-        return out -> context.writeTo(out, defaultHeader);
     }
 
     /**
@@ -371,29 +361,6 @@ public final class ThreadContext implements Writeable, ProtobufWriteable {
         final Map<String, String> requestHeaders = in.readMap(StreamInput::readString, StreamInput::readString);
         final Map<String, Set<String>> responseHeaders = in.readMap(StreamInput::readString, input -> {
             final int size = input.readVInt();
-            if (size == 0) {
-                return Collections.emptySet();
-            } else if (size == 1) {
-                return Collections.singleton(input.readString());
-            } else {
-                // use a linked hash set to preserve order
-                final LinkedHashSet<String> values = new LinkedHashSet<>(size);
-                for (int i = 0; i < size; i++) {
-                    final String value = input.readString();
-                    final boolean added = values.add(value);
-                    assert added : value;
-                }
-                return values;
-            }
-        });
-        return new Tuple<>(requestHeaders, responseHeaders);
-    }
-
-    public static Tuple<Map<String, String>, Map<String, Set<String>>> readHeadersFromStreamProtobuf(CodedInputStream in) throws IOException {
-        ProtobufStreamInput streamInput = new ProtobufStreamInput(in);
-        final Map<String, String> requestHeaders = streamInput.readMap(CodedInputStream::readString, CodedInputStream::readString);
-        final Map<String, Set<String>> responseHeaders = streamInput.readMap(CodedInputStream::readString, input -> {
-            final int size = in.readInt32();
             if (size == 0) {
                 return Collections.emptySet();
             } else if (size == 1) {
@@ -646,7 +613,6 @@ public final class ThreadContext implements Writeable, ProtobufWriteable {
         private final boolean isSystemContext;
         // saving current warning headers' size not to recalculate the size with every new warning header
         private final long warningHeadersSize;
-        private ProtobufStreamOutput protobufStreamOutput;
 
         private ThreadContextStruct setSystemContext() {
             if (isSystemContext) {
@@ -876,30 +842,6 @@ public final class ThreadContext implements Writeable, ProtobufWriteable {
 
             out.writeMap(responseHeaders, StreamOutput::writeString, StreamOutput::writeStringCollection);
         }
-
-        private void writeTo(CodedOutputStream out, Map<String, String> defaultHeaders) throws IOException {
-            final Map<String, String> requestHeaders;
-            if (defaultHeaders.isEmpty()) {
-                requestHeaders = this.requestHeaders;
-            } else {
-                requestHeaders = new HashMap<>(defaultHeaders);
-                requestHeaders.putAll(this.requestHeaders);
-            }
-
-            out.writeInt32NoTag(requestHeaders.size());
-            for (Map.Entry<String, String> entry : requestHeaders.entrySet()) {
-                out.writeStringNoTag(entry.getKey());
-                out.writeStringNoTag(entry.getValue());
-            }
-
-            protobufStreamOutput = new ProtobufStreamOutput(out);
-            protobufStreamOutput.writeMap(responseHeaders, CodedOutputStream::writeStringNoTag, (o, v) -> {
-                o.writeInt32NoTag(v.size());
-                for (String s : v) {
-                    o.writeStringNoTag(s);
-                }
-            });
-        }
     }
 
     /**
@@ -1030,11 +972,6 @@ public final class ThreadContext implements Writeable, ProtobufWriteable {
         public Set<Characteristics> characteristics() {
             return CHARACTERISTICS;
         }
-    }
-
-    @Override
-    public void writeTo(CodedOutputStream out) throws IOException {
-        threadLocal.get().writeTo(out, defaultHeader);
     }
 
 }

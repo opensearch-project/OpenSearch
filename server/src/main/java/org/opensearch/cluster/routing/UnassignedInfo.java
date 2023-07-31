@@ -38,8 +38,6 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
 import org.opensearch.cluster.routing.allocation.decider.Decision;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.io.stream.ProtobufStreamInput;
-import org.opensearch.common.io.stream.ProtobufStreamOutput;
 import org.opensearch.common.io.stream.ProtobufWriteable;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -71,7 +69,7 @@ import java.util.function.Predicate;
  *
  * @opensearch.internal
  */
-public final class UnassignedInfo implements ToXContentFragment, Writeable, ProtobufWriteable {
+public final class UnassignedInfo implements ToXContentFragment, Writeable {
 
     public static final DateFormatter DATE_TIME_FORMATTER = DateFormatter.forPattern("date_optional_time").withZone(ZoneOffset.UTC);
 
@@ -166,7 +164,7 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable, Prot
      *
      * @opensearch.internal
      */
-    public enum AllocationStatus implements Writeable, ProtobufWriteable {
+    public enum AllocationStatus implements Writeable {
         /**
          * The shard was denied allocation to a node because the allocation deciders all returned a NO decision
          */
@@ -202,11 +200,6 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable, Prot
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeByte(id);
-        }
-
-        @Override
-        public void writeTo(CodedOutputStream out) throws IOException {
-            out.write(id);
         }
 
         public static AllocationStatus readFrom(StreamInput in) throws IOException {
@@ -348,21 +341,6 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable, Prot
         this.failedNodeIds = Collections.unmodifiableSet(in.readSet(StreamInput::readString));
     }
 
-    public UnassignedInfo(CodedInputStream in) throws IOException {
-        ProtobufStreamInput protobufStreamInput = new ProtobufStreamInput(in);
-        this.reason = Reason.values()[(int) in.readRawByte()];
-        this.unassignedTimeMillis = in.readInt64();
-        // As System.nanoTime() cannot be compared across different JVMs, reset it to now.
-        // This means that in cluster-manager fail-over situations, elapsed delay time is forgotten.
-        this.unassignedTimeNanos = System.nanoTime();
-        this.delayed = in.readBool();
-        this.message = protobufStreamInput.readOptionalString();
-        this.failure = protobufStreamInput.readException();
-        this.failedAllocations = in.readInt32();
-        this.lastAllocationStatus = AllocationStatus.readFrom(in);
-        this.failedNodeIds = protobufStreamInput.readCollection(CodedInputStream::readString, HashSet::new, Collections.emptySet());
-    }
-
     public void writeTo(StreamOutput out) throws IOException {
         out.writeByte((byte) reason.ordinal());
         out.writeLong(unassignedTimeMillis);
@@ -373,19 +351,6 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable, Prot
         out.writeVInt(failedAllocations);
         lastAllocationStatus.writeTo(out);
         out.writeCollection(failedNodeIds, StreamOutput::writeString);
-    }
-
-    public void writeTo(CodedOutputStream out) throws IOException {
-        ProtobufStreamOutput protobufStreamOutput = new ProtobufStreamOutput(out);
-        out.write((byte) reason.ordinal());
-        out.writeInt64NoTag(unassignedTimeMillis);
-        // Do not serialize unassignedTimeNanos as System.nanoTime() cannot be compared across different JVMs
-        out.writeBoolNoTag(delayed);
-        protobufStreamOutput.writeOptionalString(message);
-        protobufStreamOutput.writeException(failure);
-        out.writeInt32NoTag(failedAllocations);
-        lastAllocationStatus.writeTo(out);
-        protobufStreamOutput.writeCollection(failedNodeIds, CodedOutputStream::writeStringNoTag);
     }
 
     /**

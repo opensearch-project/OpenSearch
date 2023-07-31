@@ -50,7 +50,6 @@ import org.opensearch.monitor.StatusInfo;
 import org.opensearch.threadpool.ThreadPool.Names;
 import org.opensearch.transport.ConnectTransportException;
 import org.opensearch.transport.NodeDisconnectedException;
-import org.opensearch.transport.ProtobufTransportException;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportConnectionListener;
 import org.opensearch.transport.TransportException;
@@ -342,18 +341,6 @@ public class LeaderChecker {
                     @Override
                     public String executor() {
                         return Names.SAME;
-                    }
-
-                    @Override
-                    public Empty read(CodedInputStream in) throws IOException {
-                        // TODO Auto-generated method stub
-                        throw new UnsupportedOperationException("Unimplemented method 'read'");
-                    }
-
-                    @Override
-                    public void handleExceptionProtobuf(ProtobufTransportException exp) {
-                        // TODO Auto-generated method stub
-                        throw new UnsupportedOperationException("Unimplemented method 'handleExceptionProtobuf'");
                     }
 
                     @Override

@@ -33,16 +33,12 @@
 package org.opensearch.core.index.shard;
 
 import org.opensearch.core.common.Strings;
-import org.opensearch.common.io.stream.ProtobufWriteable;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.index.Index;
-
-import com.google.protobuf.CodedInputStream;
-import com.google.protobuf.CodedOutputStream;
 
 import java.io.IOException;
 
@@ -51,7 +47,7 @@ import java.io.IOException;
  *
  * @opensearch.internal
  */
-public class ShardId implements Comparable<ShardId>, ToXContentFragment, Writeable, ProtobufWriteable {
+public class ShardId implements Comparable<ShardId>, ToXContentFragment, Writeable {
 
     private final Index index;
     private final int shardId;
@@ -73,22 +69,10 @@ public class ShardId implements Comparable<ShardId>, ToXContentFragment, Writeab
         hashCode = computeHashCode();
     }
 
-    public ShardId(CodedInputStream in) throws IOException {
-        index = new Index(in);
-        shardId = in.readInt32();
-        hashCode = computeHashCode();
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         index.writeTo(out);
         out.writeVInt(shardId);
-    }
-
-    @Override
-    public void writeTo(CodedOutputStream out) throws IOException {
-        index.writeTo(out);
-        out.writeInt32NoTag(shardId);
     }
 
     public Index getIndex() {

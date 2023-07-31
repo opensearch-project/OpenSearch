@@ -168,7 +168,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
          *
          * @opensearch.internal
          */
-        public static class DataStreamInfo extends AbstractDiffable<DataStreamInfo, DataStreamInfo> implements ToXContentObject {
+        public static class DataStreamInfo extends AbstractDiffable<DataStreamInfo> implements ToXContentObject {
 
             public static final ParseField STATUS_FIELD = new ParseField("status");
             public static final ParseField INDEX_TEMPLATE_FIELD = new ParseField("template");
@@ -238,11 +238,6 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 return Objects.hash(dataStream, dataStreamStatus, indexTemplate);
             }
 
-            @Override
-            public void writeTo(CodedOutputStream out) throws IOException {
-                // TODO Auto-generated method stub
-                throw new UnsupportedOperationException("Unimplemented method 'writeTo'");
-            }
         }
 
         private final List<DataStreamInfo> dataStreams;

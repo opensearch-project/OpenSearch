@@ -32,8 +32,6 @@
 
 package org.opensearch.cluster.routing;
 
-import com.google.protobuf.CodedInputStream;
-import com.google.protobuf.CodedOutputStream;
 
 import org.apache.lucene.util.CollectionUtil;
 import org.opensearch.cluster.AbstractDiffable;
@@ -80,7 +78,7 @@ import java.util.function.Predicate;
  *
  * @opensearch.internal
  */
-public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable, IndexRoutingTable> implements Iterable<IndexShardRoutingTable> {
+public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> implements Iterable<IndexShardRoutingTable> {
 
     private final Index index;
     private final ShardShuffler shuffler;
@@ -343,18 +341,6 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable, Index
         Builder builder = new Builder(index);
 
         int size = in.readVInt();
-        for (int i = 0; i < size; i++) {
-            builder.addIndexShard(IndexShardRoutingTable.Builder.readFromThin(in, index));
-        }
-
-        return builder.build();
-    }
-
-    public static IndexRoutingTable readFrom(CodedInputStream in) throws IOException {
-        Index index = new Index(in);
-        Builder builder = new Builder(index);
-
-        int size = in.readInt32();
         for (int i = 0; i < size; i++) {
             builder.addIndexShard(IndexShardRoutingTable.Builder.readFromThin(in, index));
         }
@@ -675,12 +661,6 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable, Index
             }
         }
         return sb.toString();
-    }
-
-    @Override
-    public void writeTo(CodedOutputStream out) throws IOException {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'writeTo'");
     }
 
 }

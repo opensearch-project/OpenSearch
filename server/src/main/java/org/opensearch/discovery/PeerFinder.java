@@ -50,7 +50,6 @@ import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.threadpool.ThreadPool.Names;
-import org.opensearch.transport.ProtobufTransportException;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportRequestOptions;
 import org.opensearch.transport.TransportResponseHandler;
@@ -506,18 +505,6 @@ public abstract class PeerFinder {
                 @Override
                 public String executor() {
                     return Names.GENERIC;
-                }
-
-                @Override
-                public PeersResponse read(CodedInputStream in) throws IOException {
-                    // TODO Auto-generated method stub
-                    throw new UnsupportedOperationException("Unimplemented method 'read'");
-                }
-
-                @Override
-                public void handleExceptionProtobuf(ProtobufTransportException exp) {
-                    // TODO Auto-generated method stub
-                    throw new UnsupportedOperationException("Unimplemented method 'handleExceptionProtobuf'");
                 }
 
                 @Override

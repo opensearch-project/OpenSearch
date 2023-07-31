@@ -384,18 +384,6 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
         return builder.build();
     }
 
-    public static RoutingTable readFrom(CodedInputStream in) throws IOException {
-        Builder builder = new Builder();
-        builder.version = in.readInt64();
-        int size = in.readInt32();
-        for (int i = 0; i < size; i++) {
-            IndexRoutingTable index = IndexRoutingTable.readFrom(in);
-            builder.add(index);
-        }
-
-        return builder.build();
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeLong(version);

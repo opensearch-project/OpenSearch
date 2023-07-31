@@ -21,6 +21,7 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.io.OutputStream;
 import java.util.Objects;
 
 /**
@@ -39,13 +40,8 @@ public class ProtobufMainResponse extends ProtobufActionResponse implements ToXC
 
     ProtobufMainResponse() {}
 
-    ProtobufMainResponse(CodedInputStream in) throws IOException {
+    ProtobufMainResponse(byte[] in) throws IOException {
         super(in);
-        nodeName = in.readString();
-        version = Version.readVersionProtobuf(in);
-        clusterName = new ClusterName(in);
-        clusterUuid = in.readString();
-        build = Build.readBuildProtobuf(in);
     }
 
     public ProtobufMainResponse(String nodeName, Version version, ClusterName clusterName, String clusterUuid, Build build) {
@@ -77,12 +73,8 @@ public class ProtobufMainResponse extends ProtobufActionResponse implements ToXC
     }
 
     @Override
-    public void writeTo(CodedOutputStream out) throws IOException {
-        out.writeStringNoTag(nodeName);
-        out.writeInt32NoTag(version.id);
-        clusterName.writeTo(out);
-        out.writeStringNoTag(clusterUuid);
-        Build.writeBuildProtobuf(build, out);
+    public void writeTo(OutputStream out) throws IOException {
+        
     }
 
     @Override

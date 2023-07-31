@@ -24,7 +24,6 @@ import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestRequest.Method;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.transport.ProtobufTransportException;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
@@ -240,18 +239,6 @@ public class RestSendToExtensionAction extends BaseRestHandler {
             @Override
             public String executor() {
                 return ThreadPool.Names.GENERIC;
-            }
-
-            @Override
-            public RestExecuteOnExtensionResponse read(CodedInputStream in) throws IOException {
-                // TODO Auto-generated method stub
-                throw new UnsupportedOperationException("Unimplemented method 'read'");
-            }
-
-            @Override
-            public void handleExceptionProtobuf(ProtobufTransportException exp) {
-                // TODO Auto-generated method stub
-                throw new UnsupportedOperationException("Unimplemented method 'handleExceptionProtobuf'");
             }
 
             @Override

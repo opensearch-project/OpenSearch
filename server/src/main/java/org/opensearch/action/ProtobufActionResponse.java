@@ -27,7 +27,7 @@ public abstract class ProtobufActionResponse extends TransportResponse {
 
     public ProtobufActionResponse() {}
 
-    public ProtobufActionResponse(CodedInputStream in) throws IOException {
+    public ProtobufActionResponse(byte[] in) throws IOException {
         super(in);
     }
 }

@@ -50,20 +50,4 @@ public interface ProtobufClient extends ProtobufOpenSearchClient, Releasable {
      * Returns this clients settings
     */
     Settings settings();
-
-    /**
-     * Returns a new lightweight ProtobufClient that applies all given headers to each of the requests
-    * issued from it.
-    */
-    ProtobufClient filterWithHeader(Map<String, String> headers);
-
-    /**
-     * Returns a client to a remote cluster with the given cluster alias.
-    *
-    * @throws IllegalArgumentException if the given clusterAlias doesn't exist
-    * @throws UnsupportedOperationException if this functionality is not available on this client.
-    */
-    default ProtobufClient getRemoteClusterClient(String clusterAlias) {
-        throw new UnsupportedOperationException("this client doesn't support remote cluster connections");
-    }
 }

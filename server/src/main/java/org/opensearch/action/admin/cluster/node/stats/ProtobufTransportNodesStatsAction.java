@@ -10,7 +10,8 @@ package org.opensearch.action.admin.cluster.node.stats;
 
 import com.google.protobuf.CodedInputStream;
 import com.google.protobuf.CodedOutputStream;
-import org.opensearch.action.ProtobufFailedNodeException;
+
+import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.admin.cluster.node.info.ProtobufNodeInfo;
 import org.opensearch.action.support.ProtobufActionFilters;
 import org.opensearch.action.support.nodes.ProtobufTransportNodesAction;
@@ -67,7 +68,7 @@ public class ProtobufTransportNodesStatsAction extends ProtobufTransportNodesAct
     protected ProtobufNodesStatsResponse newResponse(
         ProtobufNodesStatsRequest request,
         List<ProtobufNodeStats> responses,
-        List<ProtobufFailedNodeException> failures
+        List<FailedNodeException> failures
     ) {
         return new ProtobufNodesStatsResponse(new ClusterName(clusterService.getClusterName().value()), responses, failures);
     }
@@ -75,11 +76,6 @@ public class ProtobufTransportNodesStatsAction extends ProtobufTransportNodesAct
     @Override
     protected NodeStatsRequest newNodeRequest(ProtobufNodesStatsRequest request) {
         return new NodeStatsRequest(request);
-    }
-
-    @Override
-    protected ProtobufNodeStats newNodeResponse(CodedInputStream in) throws IOException {
-        return new ProtobufNodeStats(in);
     }
 
     @Override
@@ -120,23 +116,12 @@ public class ProtobufTransportNodesStatsAction extends ProtobufTransportNodesAct
 
         ProtobufNodesStatsRequest request;
 
-        public NodeStatsRequest(CodedInputStream in) throws IOException {
-            super(in);
-            request = new ProtobufNodesStatsRequest(in);
-        }
-
         public NodeStatsRequest(byte[] data) throws IOException {
             request = new ProtobufNodesStatsRequest(data);
         }
 
         public NodeStatsRequest(ProtobufNodesStatsRequest request) {
             this.request = request;
-        }
-
-        @Override
-        public void writeTo(CodedOutputStream out) throws IOException {
-            super.writeTo(out);
-            request.writeTo(out);
         }
 
         public ProtobufNodesStatsRequest request() {

@@ -41,7 +41,6 @@ import org.opensearch.gateway.GatewayService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.AnalysisRegistry;
 import org.opensearch.ingest.ConfigurationUtils;
-import org.opensearch.ingest.ProtobufProcessorInfo;
 import org.opensearch.node.ProtobufReportingService;
 import org.opensearch.node.ReportingService;
 import org.opensearch.plugins.SearchPipelinePlugin;
@@ -68,8 +67,7 @@ import java.util.stream.Collectors;
 public class SearchPipelineService
     implements
         ClusterStateApplier,
-        ReportingService<SearchPipelineInfo>,
-        ProtobufReportingService<ProtobufSearchPipelineInfo> {
+        ReportingService<SearchPipelineInfo> {
 
     public static final String SEARCH_PIPELINE_ORIGIN = "search_pipeline";
     public static final String AD_HOC_PIPELINE_ID = "_ad_hoc_pipeline";
@@ -449,15 +447,6 @@ public class SearchPipelineService
             pipeline.populateStats(builder);
         }
         return builder.build();
-    }
-
-    @Override
-    public ProtobufSearchPipelineInfo protobufInfo() {
-        List<ProtobufProcessorInfo> processorInfoList = new ArrayList<>();
-        for (Map.Entry<String, Processor.Factory> entry : processorFactories.entrySet()) {
-            processorInfoList.add(new ProtobufProcessorInfo(entry.getKey()));
-        }
-        return new ProtobufSearchPipelineInfo(processorInfoList);
     }
 
     public static List<PipelineConfiguration> getPipelines(ClusterState clusterState, String... ids) {

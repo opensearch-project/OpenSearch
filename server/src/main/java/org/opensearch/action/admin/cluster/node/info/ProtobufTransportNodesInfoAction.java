@@ -10,7 +10,8 @@ package org.opensearch.action.admin.cluster.node.info;
 
 import com.google.protobuf.CodedInputStream;
 import com.google.protobuf.CodedOutputStream;
-import org.opensearch.action.ProtobufFailedNodeException;
+
+import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.support.ProtobufActionFilters;
 import org.opensearch.action.support.nodes.ProtobufTransportNodesAction;
 import org.opensearch.cluster.ClusterName;
@@ -66,7 +67,7 @@ public class ProtobufTransportNodesInfoAction extends ProtobufTransportNodesActi
     protected ProtobufNodesInfoResponse newResponse(
         ProtobufNodesInfoRequest nodesInfoRequest,
         List<ProtobufNodeInfo> responses,
-        List<ProtobufFailedNodeException> failures
+        List<FailedNodeException> failures
     ) {
         return new ProtobufNodesInfoResponse(new ClusterName(clusterService.getClusterName().value()), responses, failures);
     }
@@ -74,11 +75,6 @@ public class ProtobufTransportNodesInfoAction extends ProtobufTransportNodesActi
     @Override
     protected NodeInfoRequest newNodeRequest(ProtobufNodesInfoRequest request) {
         return new NodeInfoRequest(request);
-    }
-
-    @Override
-    protected ProtobufNodeInfo newNodeResponse(CodedInputStream in) throws IOException {
-        return new ProtobufNodeInfo(in);
     }
 
     @Override
@@ -111,23 +107,12 @@ public class ProtobufTransportNodesInfoAction extends ProtobufTransportNodesActi
 
         ProtobufNodesInfoRequest request;
 
-        public NodeInfoRequest(CodedInputStream in) throws IOException {
-            super(in);
-            request = new ProtobufNodesInfoRequest(in);
-        }
-
         public NodeInfoRequest(byte[] data) throws IOException {
             request = new ProtobufNodesInfoRequest(data);
         }
 
         public NodeInfoRequest(ProtobufNodesInfoRequest request) {
             this.request = request;
-        }
-
-        @Override
-        public void writeTo(CodedOutputStream out) throws IOException {
-            super.writeTo(out);
-            request.writeTo(out);
         }
 
         public ProtobufNodesInfoRequest request() {

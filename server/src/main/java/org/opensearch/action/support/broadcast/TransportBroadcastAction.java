@@ -54,7 +54,6 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.transport.ProtobufTransportException;
 import org.opensearch.transport.TransportChannel;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportRequestHandler;
@@ -231,18 +230,6 @@ public abstract class TransportBroadcastAction<
                                 @Override
                                 public void handleException(TransportException e) {
                                     onOperation(shard, shardIt, shardIndex, e);
-                                }
-
-                                @Override
-                                public ShardResponse read(CodedInputStream in) throws IOException {
-                                    // TODO Auto-generated method stub
-                                    throw new UnsupportedOperationException("Unimplemented method 'read'");
-                                }
-
-                                @Override
-                                public void handleExceptionProtobuf(ProtobufTransportException exp) {
-                                    // TODO Auto-generated method stub
-                                    throw new UnsupportedOperationException("Unimplemented method 'handleExceptionProtobuf'");
                                 }
 
                                 @Override

@@ -39,6 +39,7 @@ import com.google.protobuf.CodedInputStream;
 import com.google.protobuf.CodedOutputStream;
 
 import java.io.IOException;
+import java.io.OutputStream;
 
 /**
  * Response over the transport interface
@@ -66,12 +67,12 @@ public abstract class TransportResponse extends TransportMessage {
     * currently a no-op. However, this exists to allow extenders to call <code>super(in)</code>
     * so that reading can mirror writing where we often call <code>super.writeTo(out)</code>.
     */
-    public TransportResponse(CodedInputStream in) throws IOException {
+    public TransportResponse(byte[] in) throws IOException {
         super(in);
     }
 
     @Override
-    public void writeTo(CodedOutputStream out) throws IOException {}
+    public void writeTo(OutputStream out) throws IOException {}
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {}
@@ -93,6 +94,6 @@ public abstract class TransportResponse extends TransportMessage {
         public void writeTo(StreamOutput out) throws IOException {}
 
         @Override
-        public void writeTo(CodedOutputStream out) throws IOException {}
+        public void writeTo(OutputStream out) throws IOException {}
     }
 }

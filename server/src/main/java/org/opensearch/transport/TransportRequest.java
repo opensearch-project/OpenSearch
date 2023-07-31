@@ -46,6 +46,7 @@ import com.google.protobuf.CodedInputStream;
 import com.google.protobuf.CodedOutputStream;
 
 import java.io.IOException;
+import java.io.OutputStream;
 
 /**
  * A transport request
@@ -69,7 +70,7 @@ public abstract class TransportRequest extends TransportMessage implements TaskA
             super(in);
         }
 
-        public Empty(CodedInputStream in) throws IOException {
+        public Empty(byte[] in) throws IOException {
             super(in);
         }
     }
@@ -94,8 +95,8 @@ public abstract class TransportRequest extends TransportMessage implements TaskA
         parentTaskId = TaskId.readFromStream(in);
     }
 
-    public TransportRequest(CodedInputStream in) throws IOException {
-        protobufParentTaskId = ProtobufTaskId.readFromStream(in);
+    public TransportRequest(byte[] in) throws IOException {
+        protobufParentTaskId = new ProtobufTaskId(in);
     }
 
     /**
@@ -136,7 +137,7 @@ public abstract class TransportRequest extends TransportMessage implements TaskA
     }
 
     @Override
-    public void writeTo(CodedOutputStream out) throws IOException {
+    public void writeTo(OutputStream out) throws IOException {
         protobufParentTaskId.writeTo(out);
     }
 

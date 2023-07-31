@@ -32,14 +32,9 @@
 
 package org.opensearch.cluster.node;
 
-import com.google.protobuf.CodedInputStream;
-import com.google.protobuf.CodedOutputStream;
-
 import org.opensearch.Version;
 import org.opensearch.cluster.AbstractDiffable;
 import org.opensearch.cluster.Diff;
-import org.opensearch.cluster.ProtobufAbstractDiffable;
-import org.opensearch.cluster.ProtobufDiff;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.Nullable;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -48,8 +43,6 @@ import org.opensearch.common.regex.Regex;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.common.Strings;
-import org.opensearch.discovery.Discovery;
-
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -70,7 +63,7 @@ import java.util.stream.StreamSupport;
  *
  * @opensearch.internal
  */
-public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes, DiscoveryNodes> implements Iterable<DiscoveryNode> {
+public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements Iterable<DiscoveryNode> {
 
     public static final DiscoveryNodes EMPTY_NODES = builder().build();
 
@@ -703,19 +696,6 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes, DiscoveryNo
         }
     }
 
-    public void writeTo(CodedOutputStream out) throws IOException {
-        if (clusterManagerNodeId == null) {
-            out.writeBoolNoTag(false);
-        } else {
-            out.writeBoolNoTag(true);
-            out.writeStringNoTag(clusterManagerNodeId);
-        }
-        out.writeInt32NoTag(nodes.size());
-        for (DiscoveryNode node : this) {
-            node.writeTo(out);
-        }
-    }
-
     public static DiscoveryNodes readFrom(StreamInput in, DiscoveryNode localNode) throws IOException {
         Builder builder = new Builder();
         if (in.readBoolean()) {
@@ -739,35 +719,8 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes, DiscoveryNo
         return builder.build();
     }
 
-    public static DiscoveryNodes readFromProtobuf(CodedInputStream in, DiscoveryNode localNode) throws IOException {
-        Builder builder = new Builder();
-        if (in.readBool()) {
-            builder.clusterManagerNodeId(in.readString());
-        }
-        if (localNode != null) {
-            builder.localNodeId(localNode.getId());
-        }
-        int size = in.readInt32();
-        for (int i = 0; i < size; i++) {
-            DiscoveryNode node = new DiscoveryNode(in);
-            if (localNode != null && node.getId().equals(localNode.getId())) {
-                // reuse the same instance of our address and local node id for faster equality
-                node = localNode;
-            }
-            // some one already built this and validated it's OK, skip the n2 scans
-            assert builder.validateAdd(node) == null : "building disco nodes from network doesn't pass preflight: "
-                + builder.validateAdd(node);
-            builder.putUnsafe(node);
-        }
-        return builder.build();
-    }
-
     public static Diff<DiscoveryNodes> readDiffFrom(StreamInput in, DiscoveryNode localNode) throws IOException {
         return AbstractDiffable.readDiffFrom(in1 -> readFrom(in1, localNode), in);
-    }
-
-    public static ProtobufDiff<DiscoveryNodes> readDiffFrom(CodedInputStream in, DiscoveryNode localNode) throws IOException {
-        return AbstractDiffable.readDiffFromProtobuf(in1 -> readFromProtobuf(in1, localNode), in);
     }
 
     public static Builder builder() {

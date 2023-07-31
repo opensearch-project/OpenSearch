@@ -80,7 +80,6 @@ import org.opensearch.discovery.DiscoveryModule;
 import org.opensearch.discovery.DiscoveryStats;
 import org.opensearch.discovery.HandshakingTransportAddressConnector;
 import org.opensearch.discovery.PeerFinder;
-import org.opensearch.discovery.ProtobufDiscoveryStats;
 import org.opensearch.discovery.SeedHostsProvider;
 import org.opensearch.discovery.SeedHostsResolver;
 import org.opensearch.monitor.NodeHealthService;
@@ -862,11 +861,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     @Override
     public DiscoveryStats stats() {
         return new DiscoveryStats(new PendingClusterStateStats(0, 0, 0), publicationHandler.stats());
-    }
-
-    @Override
-    public ProtobufDiscoveryStats protobufStats() {
-        return new ProtobufDiscoveryStats(new ProtobufPendingClusterStateStats(0, 0, 0), publicationHandler.protobufStats());
     }
 
     @Override

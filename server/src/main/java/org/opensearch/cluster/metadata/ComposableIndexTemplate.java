@@ -67,7 +67,7 @@ import static java.util.Collections.unmodifiableMap;
  *
  * @opensearch.internal
  */
-public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTemplate, ComposableIndexTemplate> implements ToXContentObject {
+public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTemplate> implements ToXContentObject {
     private static final ParseField INDEX_PATTERNS = new ParseField("index_patterns");
     private static final ParseField TEMPLATE = new ParseField("template");
     private static final ParseField PRIORITY = new ParseField("priority");
@@ -361,9 +361,4 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
         }
     }
 
-    @Override
-    public void writeTo(CodedOutputStream out) throws IOException {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'writeTo'");
-    }
 }

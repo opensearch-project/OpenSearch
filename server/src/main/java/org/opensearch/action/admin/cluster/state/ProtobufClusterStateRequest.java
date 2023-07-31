@@ -57,15 +57,6 @@ public class ProtobufClusterStateRequest extends ProtobufClusterManagerNodeReadR
                                         .build();               
     }
     
-    public ProtobufClusterStateRequest(CodedInputStream in) throws IOException {
-        super(in);
-    }
-
-    @Override
-    public void writeTo(CodedOutputStream out) throws IOException {
-        super.writeTo(out);
-    }
-
     @Override
     public ActionRequestValidationException validate() {
         return null;

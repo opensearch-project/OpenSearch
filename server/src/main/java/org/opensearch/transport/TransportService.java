@@ -45,8 +45,6 @@ import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
-import org.opensearch.common.io.stream.ProtobufStreamInput;
-import org.opensearch.common.io.stream.ProtobufStreamOutput;
 import org.opensearch.common.io.stream.ProtobufWriteable;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -66,7 +64,6 @@ import org.opensearch.common.lease.Releasable;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.node.NodeClosedException;
-import org.opensearch.node.ProtobufNodeClosedException;
 import org.opensearch.node.ProtobufReportingService;
 import org.opensearch.node.ReportingService;
 import org.opensearch.tasks.Task;
@@ -104,7 +101,6 @@ public class TransportService extends AbstractLifecycleComponent
     implements
         ReportingService<TransportInfo>,
         TransportMessageListener,
-        ProtobufReportingService<ProtobufTransportInfo>,
         TransportConnectionListener {
     private static final Logger logger = LogManager.getLogger(TransportService.class);
 
@@ -407,21 +403,8 @@ public class TransportService extends AbstractLifecycleComponent
         return new TransportInfo(boundTransportAddress, transport.profileBoundAddresses());
     }
 
-    @Override
-    public ProtobufTransportInfo protobufInfo() {
-        BoundTransportAddress boundTransportAddress = boundAddress();
-        if (boundTransportAddress == null) {
-            return null;
-        }
-        return new ProtobufTransportInfo(boundTransportAddress, transport.profileBoundAddresses());
-    }
-
     public TransportStats stats() {
         return transport.getStats();
-    }
-
-    public ProtobufTransportStats protobufStats() {
-        return transport.getProtobufStats();
     }
 
     public boolean isTransportSecure() {
@@ -448,7 +431,7 @@ public class TransportService extends AbstractLifecycleComponent
      *
      * @param node the node to connect to
      */
-    public void connectToNode(DiscoveryNode node) throws ConnectTransportException, ProtobufConnectTransportException {
+    public void connectToNode(DiscoveryNode node) throws ConnectTransportException {
         connectToNode(node, (ConnectionProfile) null);
     }
 
@@ -500,11 +483,11 @@ public class TransportService extends AbstractLifecycleComponent
      * @param node the node to connect to
      * @param listener the action listener to notify
      */
-    public void connectToNode(DiscoveryNode node, ActionListener<Void> listener) throws ConnectTransportException, ProtobufConnectTransportException {
+    public void connectToNode(DiscoveryNode node, ActionListener<Void> listener) throws ConnectTransportException {
         connectToNode(node, null, listener);
     }
 
-    public void connectToExtensionNode(DiscoveryNode node, ActionListener<Void> listener) throws ConnectTransportException, ProtobufConnectTransportException {
+    public void connectToExtensionNode(DiscoveryNode node, ActionListener<Void> listener) throws ConnectTransportException {
         connectToExtensionNode(node, null, listener);
     }
 
@@ -745,7 +728,7 @@ public class TransportService extends AbstractLifecycleComponent
             super(in);
         }
 
-        HandshakeRequest(CodedInputStream in) throws IOException {
+        HandshakeRequest(byte[] in) throws IOException {
             super(in);
         }
 
@@ -774,22 +757,6 @@ public class TransportService extends AbstractLifecycleComponent
             discoveryNode = in.readOptionalWriteable(DiscoveryNode::new);
             clusterName = new ClusterName(in);
             version = in.readVersion();
-        }
-
-        public HandshakeResponse(CodedInputStream in) throws IOException {
-            super(in);
-            ProtobufStreamInput protobufStreamInput = new ProtobufStreamInput(in);
-            discoveryNode = protobufStreamInput.readOptionalWriteable(DiscoveryNode::new);
-            clusterName = new ClusterName(in);
-            version = Version.readVersionProtobuf(in);
-        }
-
-        @Override
-        public void writeTo(CodedOutputStream out) throws IOException {
-            ProtobufStreamOutput protobufStreamOutput = new ProtobufStreamOutput(out);
-            protobufStreamOutput.writeOptionalWriteable(discoveryNode);
-            clusterName.writeTo(out);
-            out.writeInt32NoTag(version.id);
         }
 
         @Override
@@ -942,16 +909,6 @@ public class TransportService extends AbstractLifecycleComponent
                     @Override
                     public String toString() {
                         return getClass().getName() + "/[" + action + "]:" + handler.toString();
-                    }
-
-                    @Override
-                    public T read(CodedInputStream in) throws IOException {
-                        return handler.read(in);
-                    }
-
-                    @Override
-                    public void handleExceptionProtobuf(ProtobufTransportException exp) {
-                        handler.handleExceptionProtobuf(exp);
                     }
 
                     @Override
@@ -1672,25 +1629,9 @@ public class TransportService extends AbstractLifecycleComponent
         }
 
         @Override
-        public T read(CodedInputStream in) throws IOException {
-            return delegate.read(in);
-        }
-
-        @Override
         public T read(byte[] in) throws IOException {
             return delegate.read(in);
         }
-
-        @Override
-        public void handleExceptionProtobuf(ProtobufTransportException exp) {
-            if (handler != null) {
-                handler.cancel();
-            }
-            try (ThreadContext.StoredContext ignore = contextSupplier.get()) {
-                delegate.handleExceptionProtobuf(exp);
-            }
-        }
-
     }
 
     /**
