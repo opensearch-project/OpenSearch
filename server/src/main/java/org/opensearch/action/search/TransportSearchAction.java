@@ -972,9 +972,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             indexRoutings = routingMap;
         }
         final GroupShardsIterator<SearchShardIterator> shardIterators = mergeShardsIterators(localShardIterators, remoteShardIterators);
-
         failIfOverShardCountLimit(clusterService, shardIterators.size());
-
         Map<String, Float> concreteIndexBoosts = resolveIndexBoosts(searchRequest, clusterState);
         // optimize search type for cases where there is only one shard group to search on
         if (shardIterators.size() == 1) {
@@ -1009,7 +1007,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             concreteLocalIndices,
             localShardIterators.size() + remoteShardIterators.size()
         );
-        AbstractSearchAsyncAction<? extends SearchPhaseResult> action = searchAsyncActionProvider.asyncSearchAction(
+        searchAsyncActionProvider.asyncSearchAction(
             task,
             searchRequest,
             asyncSearchExecutor,
@@ -1024,8 +1022,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             preFilterSearchShards,
             threadPool,
             clusters
-        );
-        action.start();
+        ).start();
     }
 
     Executor asyncSearchExecutor(final String[] indices, final ClusterState clusterState) {

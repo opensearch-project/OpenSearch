@@ -123,9 +123,9 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
 
     private SearchRequestOperationsListener searchRequestOperationsListener;
     private List<SearchRequestOperationsListener> searchListenersList;
-    Map<String, Runnable> instanceStartMap = new HashMap<String, Runnable>();
-    Map<String, Runnable> instanceEndMap = new HashMap<String, Runnable>();
-    Map<String, Runnable> instanceFailMap = new HashMap<String, Runnable>();
+    Map<String, Runnable> searchPhaseStartTrackingMap = new HashMap<String, Runnable>();
+    Map<String, Runnable> searchPhaseEndTrackingMap = new HashMap<String, Runnable>();
+    Map<String, Runnable> searchPhaseFailureTrackingMap = new HashMap<String, Runnable>();
 
     AbstractSearchAsyncAction(
         String name,
@@ -184,65 +184,73 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         if (searchListenersList != null) {
             this.searchListenersList = searchListenersList;
             this.searchRequestOperationsListener = new SearchRequestOperationsListener.CompositeListener(this.searchListenersList, logger);
-
-            instanceStartMap.put("dfs", () -> searchRequestOperationsListener.onDFSPreQueryPhaseStart(this));
-            instanceStartMap.put("can_match", () -> searchRequestOperationsListener.onCanMatchPhaseStart(this));
-            instanceStartMap.put("dfs_query", () -> searchRequestOperationsListener.onQueryPhaseStart(this));
-            instanceStartMap.put("query", () -> searchRequestOperationsListener.onQueryPhaseStart(this));
-            instanceStartMap.put("fetch", () -> searchRequestOperationsListener.onFetchPhaseStart(this));
-            instanceStartMap.put("expand", () -> searchRequestOperationsListener.onExpandSearchPhaseStart(this));
-
-            instanceEndMap.put(
-                "dfs",
-                () -> searchRequestOperationsListener.onDFSPreQueryPhaseEnd(
-                    this,
-                    TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - this.getCurrentPhase().getStartTime())
-                )
-            );
-            instanceEndMap.put(
-                "can_match",
-                () -> searchRequestOperationsListener.onCanMatchPhaseEnd(
-                    this,
-                    TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - this.getCurrentPhase().getStartTime())
-                )
-            );
-            instanceEndMap.put(
-                "dfs_query",
-                () -> searchRequestOperationsListener.onQueryPhaseEnd(
-                    this,
-                    TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - this.getCurrentPhase().getStartTime())
-                )
-            );
-            instanceEndMap.put(
-                "query",
-                () -> searchRequestOperationsListener.onQueryPhaseEnd(
-                    this,
-                    TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - this.getCurrentPhase().getStartTime())
-                )
-            );
-            instanceEndMap.put(
-                "fetch",
-                () -> searchRequestOperationsListener.onFetchPhaseEnd(
-                    this,
-                    TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - this.getCurrentPhase().getStartTime())
-                )
-            );
-            instanceEndMap.put(
-                "expand",
-                () -> searchRequestOperationsListener.onExpandSearchPhaseEnd(
-                    this,
-                    TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - this.getCurrentPhase().getStartTime())
-                )
-            );
-
-            instanceFailMap.put("dfs", () -> searchRequestOperationsListener.onDFSPreQueryPhaseFailure(this));
-            instanceFailMap.put("can_match", () -> searchRequestOperationsListener.onCanMatchPhaseFailure(this));
-            instanceFailMap.put("dfs_query", () -> searchRequestOperationsListener.onQueryPhaseFailure(this));
-            instanceFailMap.put("query", () -> searchRequestOperationsListener.onQueryPhaseFailure(this));
-            instanceFailMap.put("fetch", () -> searchRequestOperationsListener.onFetchPhaseFailure(this));
-            instanceFailMap.put("expand", () -> searchRequestOperationsListener.onExpandSearchPhaseFailure(this));
-
+            instantiateStartMap();
+            instantiateEndMap();
+            instantiateFailMap();
         }
+    }
+
+    private void instantiateStartMap() {
+        searchPhaseStartTrackingMap.put(SearchPhaseName.DFS_PRE_QUERY.getName(), () -> searchRequestOperationsListener.onDFSPreQueryPhaseStart(this));
+        searchPhaseStartTrackingMap.put(SearchPhaseName.CAN_MATCH.getName(), () -> searchRequestOperationsListener.onCanMatchPhaseStart(this));
+        searchPhaseStartTrackingMap.put(SearchPhaseName.FETCH.getName(), () -> searchRequestOperationsListener.onQueryPhaseStart(this));
+        searchPhaseStartTrackingMap.put(SearchPhaseName.QUERY.getName(), () -> searchRequestOperationsListener.onQueryPhaseStart(this));
+        searchPhaseStartTrackingMap.put(SearchPhaseName.FETCH.getName(), () -> searchRequestOperationsListener.onFetchPhaseStart(this));
+        searchPhaseStartTrackingMap.put(SearchPhaseName.EXPAND.getName(), () -> searchRequestOperationsListener.onExpandSearchPhaseStart(this));
+    }
+
+    private void instantiateEndMap() {
+        searchPhaseEndTrackingMap.put(
+                SearchPhaseName.DFS_PRE_QUERY.getName(),
+                () -> searchRequestOperationsListener.onDFSPreQueryPhaseEnd(
+                        this,
+                        TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - this.getCurrentPhase().getStartTime())
+                )
+        );
+        searchPhaseEndTrackingMap.put(
+                SearchPhaseName.CAN_MATCH.getName(),
+                () -> searchRequestOperationsListener.onCanMatchPhaseEnd(
+                        this,
+                        TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - this.getCurrentPhase().getStartTime())
+                )
+        );
+        searchPhaseEndTrackingMap.put(
+                SearchPhaseName.DFS_QUERY.getName(),
+                () -> searchRequestOperationsListener.onQueryPhaseEnd(
+                        this,
+                        TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - this.getCurrentPhase().getStartTime())
+                )
+        );
+        searchPhaseEndTrackingMap.put(
+                SearchPhaseName.QUERY.getName(),
+                () -> searchRequestOperationsListener.onQueryPhaseEnd(
+                        this,
+                        TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - this.getCurrentPhase().getStartTime())
+                )
+        );
+        searchPhaseEndTrackingMap.put(
+                SearchPhaseName.FETCH.getName(),
+                () -> searchRequestOperationsListener.onFetchPhaseEnd(
+                        this,
+                        TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - this.getCurrentPhase().getStartTime())
+                )
+        );
+        searchPhaseEndTrackingMap.put(
+                SearchPhaseName.EXPAND.getName(),
+                () -> searchRequestOperationsListener.onExpandSearchPhaseEnd(
+                        this,
+                        TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - this.getCurrentPhase().getStartTime())
+                )
+        );
+    }
+
+    private void instantiateFailMap () {
+        searchPhaseFailureTrackingMap.put(SearchPhaseName.DFS_PRE_QUERY.getName(), () -> searchRequestOperationsListener.onDFSPreQueryPhaseFailure(this));
+        searchPhaseFailureTrackingMap.put(SearchPhaseName.CAN_MATCH.getName(), () -> searchRequestOperationsListener.onCanMatchPhaseFailure(this));
+        searchPhaseFailureTrackingMap.put(SearchPhaseName.DFS_QUERY.getName(), () -> searchRequestOperationsListener.onQueryPhaseFailure(this));
+        searchPhaseFailureTrackingMap.put(SearchPhaseName.QUERY.getName(), () -> searchRequestOperationsListener.onQueryPhaseFailure(this));
+        searchPhaseFailureTrackingMap.put(SearchPhaseName.FETCH.getName(), () -> searchRequestOperationsListener.onFetchPhaseFailure(this));
+        searchPhaseFailureTrackingMap.put(SearchPhaseName.EXPAND.getName(), () -> searchRequestOperationsListener.onExpandSearchPhaseFailure(this));
     }
 
     @Override
@@ -501,7 +509,9 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         if (searchRequestOperationsListener == null) {
             return;
         }
-        instanceEndMap.get(searchPhaseContext.getCurrentPhase().getName()).run();
+        if (searchPhaseEndTrackingMap.containsKey(searchPhaseContext.getCurrentPhase().getName())) {
+            searchPhaseEndTrackingMap.get(searchPhaseContext.getCurrentPhase().getName()).run();
+        }
     }
 
     private void onPhaseStart(SearchPhase phase, SearchPhaseContext searchPhaseContext) {
@@ -510,7 +520,9 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         if (searchRequestOperationsListener == null) {
             return;
         }
-        instanceStartMap.get(searchPhaseContext.getCurrentPhase().getName()).run();
+        if (searchPhaseStartTrackingMap.containsKey(searchPhaseContext.getCurrentPhase().getName())) {
+            searchPhaseStartTrackingMap.get(searchPhaseContext.getCurrentPhase().getName()).run();
+        }
     }
 
     private void executePhase(SearchPhase phase) {
@@ -776,7 +788,9 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     @Override
     public final void onPhaseFailure(SearchPhase phase, String msg, Throwable cause) {
         if (searchRequestOperationsListener != null) {
-            instanceFailMap.get(this.getCurrentPhase().getName()).run();
+            if (searchPhaseFailureTrackingMap.containsKey(this.getCurrentPhase().getName())) {
+                searchPhaseFailureTrackingMap.get(this.getCurrentPhase().getName()).run();
+            }
         }
         raisePhaseFailure(new SearchPhaseExecutionException(phase.getName(), msg, cause, buildShardFailures()));
     }

@@ -15,7 +15,7 @@ import org.opensearch.common.metrics.MeanMetric;
 import java.util.function.Consumer;
 
 /**
- * Request level search stats
+ * Request level search stats to track coordinator level node search latencies
  *
  * @opensearch.internal
  */

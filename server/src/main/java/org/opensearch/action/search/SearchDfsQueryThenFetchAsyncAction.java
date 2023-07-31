@@ -80,7 +80,7 @@ final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction
         List<SearchRequestOperationsListener> searchListenersList
     ) {
         super(
-            "dfs",
+            SearchPhaseName.DFS_PRE_QUERY.getName(),
             logger,
             searchTransportService,
             nodeIdToConnection,
