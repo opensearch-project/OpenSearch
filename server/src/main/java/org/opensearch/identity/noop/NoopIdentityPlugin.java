@@ -48,7 +48,6 @@ public class NoopIdentityPlugin implements IdentityPlugin {
     }
 
     @Override
-    public void setIdentityContext(Principal principal  ){
-    };
+    public void setIdentityContext(Principal principal) {};
 
 }

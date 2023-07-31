@@ -67,8 +67,7 @@ public class IdentityService {
         try {
             setPrincipal(principal);
             action.accept(client);
-        }
-        finally {
+        } finally {
             setPrincipal(currentPrincipal);
         }
     }

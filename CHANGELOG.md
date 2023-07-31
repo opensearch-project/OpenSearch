@@ -11,7 +11,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Add events correlation engine plugin ([#6854](https://github.com/opensearch-project/OpenSearch/issues/6854))
 - Add support for ignoring missing Javadoc on generated code using annotation ([#7604](https://github.com/opensearch-project/OpenSearch/pull/7604))
 - Add partial results support for concurrent segment search ([#8306](https://github.com/opensearch-project/OpenSearch/pull/8306))
-- - Introduce Service Accounts for Plugins ([#8526](https://github.com/opensearch-project/OpenSearch/pull/8526))
+- Introduce Service Accounts for Plugins ([#8526](https://github.com/opensearch-project/OpenSearch/pull/8526))
 
 ### Dependencies
 - Bump `log4j-core` from 2.18.0 to 2.19.0
