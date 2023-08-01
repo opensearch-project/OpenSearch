@@ -38,7 +38,7 @@ import org.opensearch.OpenSearchParseException;
 import org.opensearch.core.ParseField;
 import org.opensearch.common.Strings;
 import org.opensearch.common.lucene.Lucene;
-import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;

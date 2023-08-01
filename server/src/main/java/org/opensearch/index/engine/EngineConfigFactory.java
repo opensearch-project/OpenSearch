@@ -30,7 +30,7 @@ import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.TranslogConfig;
 import org.opensearch.index.translog.TranslogDeletionPolicyFactory;
 import org.opensearch.index.translog.TranslogFactory;
-import org.opensearch.indices.breaker.CircuitBreakerService;
+import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.plugins.EnginePlugin;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.threadpool.ThreadPool;

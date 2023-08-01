@@ -58,7 +58,7 @@ import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.env.TestEnvironment;
-import org.opensearch.indices.breaker.NoneCircuitBreakerService;
+import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.node.Node;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;

@@ -45,7 +45,7 @@ import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.http.netty4.Netty4HttpServerTransport;
-import org.opensearch.indices.breaker.CircuitBreakerService;
+import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.plugins.NetworkPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.threadpool.ThreadPool;

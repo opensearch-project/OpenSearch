@@ -32,7 +32,7 @@
 package org.opensearch.common.util.concurrent;
 
 import org.apache.logging.log4j.Logger;
-import org.opensearch.common.component.Lifecycle;
+import org.opensearch.common.lifecycle.Lifecycle;
 
 import java.util.Objects;
 

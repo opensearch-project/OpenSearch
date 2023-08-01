@@ -66,7 +66,7 @@ import org.opensearch.extensions.rest.RegisterRestActionsRequest;
 import org.opensearch.extensions.settings.RegisterCustomSettingsRequest;
 import org.opensearch.extensions.ExtensionsSettings.Extension;
 import org.opensearch.identity.IdentityService;
-import org.opensearch.indices.breaker.NoneCircuitBreakerService;
+import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.plugins.ExtensionAwarePlugin;
 import org.opensearch.rest.RestController;
 import org.opensearch.test.FeatureFlagSetter;

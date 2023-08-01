@@ -288,14 +288,6 @@ public final class OpenSearchServerException {
         );
         registerExceptionHandle(
             new OpenSearchExceptionHandle(
-                org.opensearch.OpenSearchParseException.class,
-                org.opensearch.OpenSearchParseException::new,
-                35,
-                UNKNOWN_VERSION_ADDED
-            )
-        );
-        registerExceptionHandle(
-            new OpenSearchExceptionHandle(
                 org.opensearch.search.SearchException.class,
                 org.opensearch.search.SearchException::new,
                 36,
@@ -915,14 +907,6 @@ public final class OpenSearchServerException {
                 org.opensearch.index.engine.FlushFailedEngineException.class,
                 org.opensearch.index.engine.FlushFailedEngineException::new,
                 132,
-                UNKNOWN_VERSION_ADDED
-            )
-        );
-        registerExceptionHandle(
-            new OpenSearchExceptionHandle(
-                org.opensearch.common.breaker.CircuitBreakingException.class,
-                org.opensearch.common.breaker.CircuitBreakingException::new,
-                133,
                 UNKNOWN_VERSION_ADDED
             )
         );
