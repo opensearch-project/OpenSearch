@@ -30,7 +30,7 @@
  * GitHub history for details.
  */
 
-package org.opensearch.common.component;
+package org.opensearch.common.lifecycle;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;

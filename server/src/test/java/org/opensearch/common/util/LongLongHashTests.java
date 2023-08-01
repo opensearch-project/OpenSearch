@@ -33,7 +33,7 @@
 package org.opensearch.common.util;
 
 import org.opensearch.common.settings.Settings;
-import org.opensearch.indices.breaker.NoneCircuitBreakerService;
+import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;

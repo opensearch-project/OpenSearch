@@ -34,13 +34,13 @@ package org.opensearch.cluster.routing.allocation;
 
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
-import org.opensearch.common.Strings;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.RatioValue;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.common.Strings;
 
 import java.util.Arrays;
 import java.util.Iterator;
@@ -400,13 +400,13 @@ public class DiskThresholdSettings {
 
     String describeLowThreshold() {
         return freeBytesThresholdLow.equals(ByteSizeValue.ZERO)
-            ? Strings.format1Decimals(100.0 - freeDiskThresholdLow, "%")
+            ? org.opensearch.core.common.Strings.format1Decimals(100.0 - freeDiskThresholdLow, "%")
             : freeBytesThresholdLow.toString();
     }
 
     String describeHighThreshold() {
         return freeBytesThresholdHigh.equals(ByteSizeValue.ZERO)
-            ? Strings.format1Decimals(100.0 - freeDiskThresholdHigh, "%")
+            ? org.opensearch.core.common.Strings.format1Decimals(100.0 - freeDiskThresholdHigh, "%")
             : freeBytesThresholdHigh.toString();
     }
 
