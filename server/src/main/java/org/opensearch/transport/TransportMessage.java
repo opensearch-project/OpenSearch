@@ -37,8 +37,6 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.common.transport.TransportAddress;
 
-import com.google.protobuf.CodedInputStream;
-
 /**
  * Message over the transport interface
  *
@@ -68,7 +66,7 @@ public abstract class TransportMessage implements Writeable, ProtobufWriteable {
     public TransportMessage(StreamInput in) {}
 
      /**
-     * Constructs a new transport message with the data from the {@link CodedInputStream}. This is
+     * Constructs a new transport message with the data from the {@link byte[]}. This is
     * currently a no-op
     */
     public TransportMessage(byte[] in) {}

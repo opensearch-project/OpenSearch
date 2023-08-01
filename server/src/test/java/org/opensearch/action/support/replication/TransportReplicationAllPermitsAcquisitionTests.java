@@ -68,14 +68,11 @@ import org.opensearch.indices.IndicesService;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.test.transport.MockTransport;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.transport.ProtobufTransportException;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportMessageListener;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
-
-import com.google.protobuf.CodedInputStream;
 
 import org.junit.After;
 import org.junit.Before;
@@ -229,16 +226,11 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
                         }
 
                         @Override
-                        public ReplicaResponse read(CodedInputStream in) throws IOException {
+                        public ReplicaResponse read(byte[] in) throws IOException {
                             // TODO Auto-generated method stub
                             throw new UnsupportedOperationException("Unimplemented method 'read'");
                         }
 
-                        @Override
-                        public void handleExceptionProtobuf(ProtobufTransportException exp) {
-                            // TODO Auto-generated method stub
-                            throw new UnsupportedOperationException("Unimplemented method 'handleExceptionProtobuf'");
-                        }
                     }
                 );
             }

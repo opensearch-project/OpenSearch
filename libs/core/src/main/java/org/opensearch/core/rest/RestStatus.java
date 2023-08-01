@@ -32,8 +32,6 @@
 
 package org.opensearch.core.rest;
 
-import com.google.protobuf.CodedInputStream;
-import com.google.protobuf.CodedOutputStream;
 import org.opensearch.core.action.ShardOperationFailedException;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -533,14 +531,6 @@ public enum RestStatus {
 
     public static void writeTo(StreamOutput out, RestStatus status) throws IOException {
         out.writeString(status.name());
-    }
-
-    public static RestStatus readFromProtobuf(CodedInputStream in) throws IOException {
-        return RestStatus.valueOf(in.readString());
-    }
-
-    public static void writeToProtobuf(CodedOutputStream out, RestStatus status) throws IOException {
-        out.writeStringNoTag(status.name());
     }
 
     public static RestStatus status(int successfulShards, int totalShards, ShardOperationFailedException... failures) {

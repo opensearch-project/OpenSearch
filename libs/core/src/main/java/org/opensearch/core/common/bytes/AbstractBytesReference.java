@@ -37,8 +37,6 @@ import org.apache.lucene.util.UnicodeUtil;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.xcontent.XContentBuilder;
 
-import com.google.protobuf.CodedInputStream;
-
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -73,13 +71,6 @@ public abstract class AbstractBytesReference implements BytesReference {
     @Override
     public StreamInput streamInput() throws IOException {
         return new BytesReferenceStreamInput();
-    }
-
-    @Override
-    public CodedInputStream protobufInput() throws IOException {
-        return CodedInputStream.newInstance(streamInput());
-        // TODO Auto-generated method stub
-        // throw new UnsupportedOperationException("Unimplemented method 'protobufInput'");
     }
 
     @Override

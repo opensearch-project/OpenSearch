@@ -8,7 +8,6 @@
 
 package org.opensearch.action.support.nodes;
 
-import com.google.protobuf.CodedInputStream;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRunnable;

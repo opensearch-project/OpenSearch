@@ -60,8 +60,6 @@ import org.opensearch.transport.TransportRequestHandler;
 import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
 
-import com.google.protobuf.CodedInputStream;
-
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;

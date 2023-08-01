@@ -64,8 +64,6 @@ import org.opensearch.core.index.Index;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
-import com.google.protobuf.CodedOutputStream;
-
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;

@@ -31,7 +31,6 @@
 
 package org.opensearch.cluster.metadata;
 
-import com.google.protobuf.CodedOutputStream;
 
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.cluster.AbstractDiffable;

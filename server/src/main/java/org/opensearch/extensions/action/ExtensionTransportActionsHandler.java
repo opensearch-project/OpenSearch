@@ -26,8 +26,6 @@ import org.opensearch.transport.TransportResponse;
 import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
 
-import com.google.protobuf.CodedInputStream;
-
 import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;

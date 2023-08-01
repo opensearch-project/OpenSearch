@@ -32,14 +32,10 @@
 
 package org.opensearch.common.transport;
 
-import org.opensearch.common.io.stream.ProtobufWriteable;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.common.network.InetAddresses;
-
-import com.google.protobuf.CodedInputStream;
-import com.google.protobuf.CodedOutputStream;
 
 import java.io.IOException;
 

@@ -8,8 +8,6 @@
 
 package org.opensearch.action.main;
 
-import com.google.protobuf.CodedInputStream;
-import com.google.protobuf.CodedOutputStream;
 import org.opensearch.Build;
 import org.opensearch.Version;
 import org.opensearch.action.ProtobufActionResponse;

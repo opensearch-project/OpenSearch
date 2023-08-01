@@ -50,8 +50,6 @@ import org.opensearch.transport.TransportResponse;
 import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
 
-import com.google.protobuf.CodedInputStream;
-
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
@@ -218,10 +216,11 @@ public class NetworkDisruptionIT extends OpenSearchIntegTestCase {
                 }
 
                 @Override
-                public TransportResponse read(CodedInputStream in) throws IOException {
+                public TransportResponse read(byte[] in) throws IOException {
                     // TODO Auto-generated method stub
                     throw new UnsupportedOperationException("Unimplemented method 'read'");
                 }
+
             }
         );
     }

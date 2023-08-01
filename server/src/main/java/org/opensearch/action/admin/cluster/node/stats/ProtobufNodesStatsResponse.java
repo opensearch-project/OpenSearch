@@ -8,18 +8,13 @@
 
 package org.opensearch.action.admin.cluster.node.stats;
 
-import com.google.protobuf.CodedInputStream;
-import com.google.protobuf.CodedOutputStream;
-
 import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.support.nodes.ProtobufBaseNodesResponse;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.common.Strings;
-import org.opensearch.common.io.stream.TryWriteable;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.server.proto.NodesStatsResponseProto;
-import org.opensearch.server.proto.NodesInfoResponseProto;
 import org.opensearch.server.proto.NodesStatsProto.NodesStats;
 import org.opensearch.common.xcontent.XContentFactory;
 
@@ -35,7 +30,7 @@ import java.util.Map;
 *
 * @opensearch.internal
 */
-public class ProtobufNodesStatsResponse extends ProtobufBaseNodesResponse<ProtobufNodeStats> implements ToXContentFragment, TryWriteable {
+public class ProtobufNodesStatsResponse extends ProtobufBaseNodesResponse<ProtobufNodeStats> implements ToXContentFragment {
 
     private NodesStatsResponseProto.NodesStatsRes nodesStatsRes;
     private Map<String, NodesStats> nodesMap = new HashMap<>();

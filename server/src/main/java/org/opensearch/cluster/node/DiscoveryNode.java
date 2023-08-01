@@ -34,7 +34,6 @@ package org.opensearch.cluster.node;
 
 import org.opensearch.Version;
 import org.opensearch.common.UUIDs;
-import org.opensearch.common.io.stream.ProtobufWriteable;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -44,9 +43,6 @@ import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.node.Node;
-
-import com.google.protobuf.CodedInputStream;
-import com.google.protobuf.CodedOutputStream;
 
 import java.io.IOException;
 import java.util.Collections;

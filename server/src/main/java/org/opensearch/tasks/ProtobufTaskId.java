@@ -11,8 +11,6 @@
 
 package org.opensearch.tasks;
 
-import com.google.protobuf.CodedInputStream;
-import com.google.protobuf.CodedOutputStream;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.ProtobufWriteable;
 import org.opensearch.tasks.proto.TaskIdProto;

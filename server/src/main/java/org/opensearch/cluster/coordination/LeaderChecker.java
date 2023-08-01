@@ -61,8 +61,6 @@ import org.opensearch.transport.TransportResponse.Empty;
 import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
 
-import com.google.protobuf.CodedInputStream;
-
 import java.io.IOException;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;

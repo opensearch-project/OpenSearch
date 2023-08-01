@@ -14,7 +14,6 @@
 package org.opensearch.action.admin.cluster.node.info;
 
 import org.opensearch.action.support.nodes.ProtobufBaseNodesRequest;
-import org.opensearch.common.io.stream.TryWriteable;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.server.proto.NodesInfoRequestProto.NodesInfoReq;
 import org.opensearch.server.proto.NodesInfoRequestProto;
@@ -33,7 +32,7 @@ import java.util.stream.Collectors;
  *
  * @opensearch.internal
  */
-public class ProtobufNodesInfoRequest extends ProtobufBaseNodesRequest<ProtobufNodesInfoRequest> implements TryWriteable {
+public class ProtobufNodesInfoRequest extends ProtobufBaseNodesRequest<ProtobufNodesInfoRequest> {
 
     private NodesInfoRequestProto.NodesInfoReq nodesInfoRequest;
     private final TimeValue DEFAULT_TIMEOUT_SECS = TimeValue.timeValueSeconds(30);

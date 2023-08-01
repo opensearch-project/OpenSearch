@@ -31,8 +31,6 @@
 
 package org.opensearch.action.support;
 
-import com.google.protobuf.CodedInputStream;
-import com.google.protobuf.CodedOutputStream;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.io.stream.StreamInput;

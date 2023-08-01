@@ -129,10 +129,7 @@ public class TransportClusterStateAction extends TransportClusterManagerNodeRead
             : acceptableClusterStatePredicate.or(clusterState -> clusterState.nodes().isLocalNodeElectedClusterManager() == false);
 
         if (acceptableClusterStatePredicate.test(state)) {
-            long startTime = System.nanoTime();
             ActionListener.completeWith(listener, () -> buildResponse(request, state));
-            long endTime = System.nanoTime();
-            System.out.println("Time taken to build response: " + (endTime - startTime));
         } else {
             assert acceptableClusterStateOrNotMasterPredicate.test(state) == false;
             new ClusterStateObserver(state, clusterService, request.waitForTimeout(), logger, threadPool.getThreadContext())

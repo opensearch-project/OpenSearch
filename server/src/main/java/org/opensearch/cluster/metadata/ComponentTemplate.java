@@ -45,8 +45,6 @@ import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 
-import com.google.protobuf.CodedOutputStream;
-
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;

@@ -323,7 +323,7 @@ public class ProtobufRestNodesAction extends ProtobufAbstractCatAction {
         ClusterStateResponseProto.ClusterStateRes.ClusterState.DiscoveryNodes nodes = state.response().getClusterState().getNodes();
         String clusterManagerId = nodes.getClusterManagerNodeId();
         Table table = getTableWithHeader(req);
-        for (ClusterStateResponseProto.ClusterStateRes.ClusterState.DiscoveryNodes.Node node : nodes.getAllNodesMap().values()) {
+        for (ClusterStateResponseProto.ClusterStateRes.ClusterState.DiscoveryNodes.Node node : nodes.getAllNodesList()) {
             NodesInfo info = nodesInfo.nodesMap().get(node.getNodeId());
             NodesStats stats = nodesStats.nodesMap().get(node.getNodeId());
 

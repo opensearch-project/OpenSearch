@@ -13,14 +13,11 @@
 
 package org.opensearch.action.admin.cluster.state;
 
-import com.google.protobuf.CodedInputStream;
-import com.google.protobuf.CodedOutputStream;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.clustermanager.ProtobufClusterManagerNodeReadRequest;
 import org.opensearch.common.Strings;
-import org.opensearch.common.io.stream.TryWriteable;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.server.proto.ClusterStateRequestProto;
 import org.opensearch.server.proto.ClusterStateRequestProto.ClusterStateReq;
@@ -37,7 +34,7 @@ import java.util.List;
 */
 public class ProtobufClusterStateRequest extends ProtobufClusterManagerNodeReadRequest<ProtobufClusterStateRequest>
     implements
-        IndicesRequest.Replaceable, TryWriteable {
+        IndicesRequest.Replaceable {
 
     public static final TimeValue DEFAULT_WAIT_FOR_NODE_TIMEOUT = TimeValue.timeValueMinutes(1);
     private ClusterStateRequestProto.ClusterStateReq clusterStateRequest;

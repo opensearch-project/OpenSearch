@@ -33,13 +33,10 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.CapturingTransport;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.transport.ProtobufTransportException;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportResponse;
 import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
-
-import com.google.protobuf.CodedInputStream;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -223,16 +220,11 @@ public class SegmentReplicationSourceServiceTests extends OpenSearchTestCase {
                 }
 
                 @Override
-                public CheckpointInfoResponse read(CodedInputStream in) throws IOException {
+                public CheckpointInfoResponse read(byte[] in) throws IOException {
                     // TODO Auto-generated method stub
                     throw new UnsupportedOperationException("Unimplemented method 'read'");
                 }
 
-                @Override
-                public void handleExceptionProtobuf(ProtobufTransportException exp) {
-                    // TODO Auto-generated method stub
-                    throw new UnsupportedOperationException("Unimplemented method 'handleExceptionProtobuf'");
-                }
             }
         );
     }
@@ -264,16 +256,11 @@ public class SegmentReplicationSourceServiceTests extends OpenSearchTestCase {
                 }
 
                 @Override
-                public GetSegmentFilesResponse read(CodedInputStream in) throws IOException {
+                public GetSegmentFilesResponse read(byte[] in) throws IOException {
                     // TODO Auto-generated method stub
                     throw new UnsupportedOperationException("Unimplemented method 'read'");
                 }
 
-                @Override
-                public void handleExceptionProtobuf(ProtobufTransportException exp) {
-                    // TODO Auto-generated method stub
-                    throw new UnsupportedOperationException("Unimplemented method 'handleExceptionProtobuf'");
-                }
             }
         );
     }

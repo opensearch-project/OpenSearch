@@ -32,7 +32,6 @@
 
 package org.opensearch.cluster.block;
 
-import com.google.protobuf.CodedOutputStream;
 
 import org.opensearch.cluster.AbstractDiffable;
 import org.opensearch.cluster.Diff;

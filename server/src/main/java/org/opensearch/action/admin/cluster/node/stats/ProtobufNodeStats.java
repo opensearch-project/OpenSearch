@@ -8,15 +8,12 @@
 
 package org.opensearch.action.admin.cluster.node.stats;
 
-import com.google.protobuf.CodedInputStream;
-import com.google.protobuf.CodedOutputStream;
 import com.google.protobuf.InvalidProtocolBufferException;
 
 import org.opensearch.action.support.nodes.ProtobufBaseNodeResponse;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.io.stream.TryWriteable;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.discovery.DiscoveryStats;
@@ -46,7 +43,7 @@ import java.util.stream.Collectors;
 *
 * @opensearch.internal
 */
-public class ProtobufNodeStats extends ProtobufBaseNodeResponse implements ToXContentFragment, TryWriteable {
+public class ProtobufNodeStats extends ProtobufBaseNodeResponse implements ToXContentFragment {
 
     private long timestamp;
 

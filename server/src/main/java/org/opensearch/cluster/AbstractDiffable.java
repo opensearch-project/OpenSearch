@@ -33,12 +33,8 @@
 package org.opensearch.cluster;
 
 import org.opensearch.common.Nullable;
-import org.opensearch.common.io.stream.ProtobufWriteable;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-
-import com.google.protobuf.CodedInputStream;
-import com.google.protobuf.CodedOutputStream;
 
 import java.io.IOException;
 

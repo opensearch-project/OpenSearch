@@ -48,15 +48,12 @@ import org.opensearch.test.transport.CapturingTransport;
 import org.opensearch.test.transport.MockTransport;
 import org.opensearch.threadpool.ThreadPool.Names;
 import org.opensearch.transport.ConnectTransportException;
-import org.opensearch.transport.ProtobufTransportException;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportResponse;
 import org.opensearch.transport.TransportResponse.Empty;
 import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
-
-import com.google.protobuf.CodedInputStream;
 
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -544,16 +541,11 @@ public class LeaderCheckerTests extends OpenSearchTestCase {
         }
 
         @Override
-        public Empty read(CodedInputStream in) throws IOException {
+        public Empty read(byte[] in) throws IOException {
             // TODO Auto-generated method stub
             throw new UnsupportedOperationException("Unimplemented method 'read'");
         }
 
-        @Override
-        public void handleExceptionProtobuf(ProtobufTransportException exp) {
-            // TODO Auto-generated method stub
-            throw new UnsupportedOperationException("Unimplemented method 'handleExceptionProtobuf'");
-        }
     }
 
     public void testLeaderCheckRequestEqualsHashcodeSerialization() {

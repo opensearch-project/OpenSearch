@@ -8,11 +8,8 @@
 
 package org.opensearch.action.admin.cluster.node.stats;
 
-import com.google.protobuf.CodedInputStream;
-import com.google.protobuf.CodedOutputStream;
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
 import org.opensearch.action.support.nodes.ProtobufBaseNodesRequest;
-import org.opensearch.common.io.stream.TryWriteable;
 import org.opensearch.server.proto.NodesStatsRequestProto.NodesStatsReq;
 import org.opensearch.server.proto.NodesStatsRequestProto;
 
@@ -30,7 +27,7 @@ import java.util.stream.Collectors;
 *
 * @opensearch.internal
 */
-public class ProtobufNodesStatsRequest extends ProtobufBaseNodesRequest<ProtobufNodesStatsRequest> implements TryWriteable {
+public class ProtobufNodesStatsRequest extends ProtobufBaseNodesRequest<ProtobufNodesStatsRequest> {
 
     private CommonStatsFlags indices = new CommonStatsFlags();
     private final Set<String> requestedMetrics = new HashSet<>();

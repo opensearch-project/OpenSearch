@@ -38,7 +38,6 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
 import org.opensearch.cluster.routing.allocation.decider.Decision;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.io.stream.ProtobufWriteable;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -50,14 +49,10 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 
-import com.google.protobuf.CodedInputStream;
-import com.google.protobuf.CodedOutputStream;
-
 import java.io.IOException;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -204,26 +199,6 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
 
         public static AllocationStatus readFrom(StreamInput in) throws IOException {
             byte id = in.readByte();
-            switch (id) {
-                case 0:
-                    return DECIDERS_NO;
-                case 1:
-                    return NO_VALID_SHARD_COPY;
-                case 2:
-                    return DECIDERS_THROTTLED;
-                case 3:
-                    return FETCHING_SHARD_DATA;
-                case 4:
-                    return DELAYED_ALLOCATION;
-                case 5:
-                    return NO_ATTEMPT;
-                default:
-                    throw new IllegalArgumentException("Unknown AllocationStatus value [" + id + "]");
-            }
-        }
-
-        public static AllocationStatus readFrom(CodedInputStream in) throws IOException {
-            byte id = in.readRawByte();
             switch (id) {
                 case 0:
                     return DECIDERS_NO;

@@ -13,7 +13,6 @@
 
 package org.opensearch.action;
 
-import com.google.protobuf.CodedInputStream;
 import org.opensearch.transport.TransportResponse;
 
 import java.io.IOException;

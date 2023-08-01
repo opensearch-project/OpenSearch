@@ -32,7 +32,6 @@
 
 package org.opensearch.snapshots;
 
-import com.google.protobuf.CodedInputStream;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;

@@ -17,8 +17,6 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportResponseHandler;
 
-import com.google.protobuf.CodedInputStream;
-
 /**
  * Response handler for {@link UpdateSettingsRequest}
  *

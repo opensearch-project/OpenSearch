@@ -79,12 +79,8 @@ public abstract class ProtobufBaseRestHandler implements ProtobufRestHandler {
     public final void handleRequest(RestRequest request, RestChannel channel, ProtobufNodeClient client) throws Exception {
         logger.info("ProtobufBaseRestHandler.handleRequest {}", request);
         // prepare the request for execution; has the side effect of touching the request parameters
-        long startTime = System.nanoTime();
         final RestChannelConsumer action = prepareRequest(request, client);
-        long endTime = System.nanoTime();
-        System.out.println("Preparing request took: " + (endTime-startTime));
         logger.info("ProtobufBaseRestHandler.handleRequest action: {}", action.getClass().getName());
-        System.out.println("Action: " + action);
 
         // validate unconsumed params, but we must exclude params used to format the response
         // use a sorted set so the unconsumed parameters appear in a reliable sorted order

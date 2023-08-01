@@ -13,13 +13,15 @@
 
 package org.opensearch.action.admin.cluster.state;
 
+import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.opensearch.action.ProtobufActionResponse;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.metadata.AliasMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.cluster.routing.RoutingNode;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.common.collect.ImmutableOpenMap;
-import org.opensearch.common.io.stream.TryWriteable;
 import org.opensearch.server.proto.ClusterStateResponseProto;
 import org.opensearch.server.proto.ClusterStateResponseProto.ClusterStateRes;
 
@@ -38,88 +40,44 @@ import java.util.Set;
 *
 * @opensearch.internal
 */
-public class ProtobufClusterStateResponse extends ProtobufActionResponse implements TryWriteable {
+public class ProtobufClusterStateResponse extends ProtobufActionResponse {
 
     private ClusterStateResponseProto.ClusterStateRes clusterStateRes;
 
-    // public ProtobufClusterStateResponse(ClusterName clusterName, ClusterState clusterState, boolean waitForTimedOut) {
-    //     ClusterStateResponseProto.ClusterStateRes.ClusterState.DiscoveryNodes.Builder discoveryNodesBuilder = ClusterStateResponseProto.ClusterStateRes.ClusterState.DiscoveryNodes.newBuilder();
-    //     DiscoveryNodes nodes = clusterState.getNodes();
-    //     ImmutableOpenMap<String, DiscoveryNode> allNodes = nodes.getNodes();
-
-    //     Map<String, ClusterStateResponseProto.ClusterStateRes.ClusterState.DiscoveryNodes.Node> allNodesMap = convertNodes(allNodes);
-    //     discoveryNodesBuilder.putAllAllNodes(allNodesMap).setClusterManagerNodeId(nodes.getClusterManagerNodeId()).setLocalNodeId(nodes.getLocalNodeId()).setMinNonClientNodeVersion(nodes.getSmallestNonClientNodeVersion().toString()).setMaxNonClientNodeVersion(nodes.getLargestNonClientNodeVersion().toString()).setMinNodeVersion(nodes.getMinNodeVersion().toString()).setMaxNodeVersion(nodes.getMaxNodeVersion().toString());
-
-    //     ClusterStateResponseProto.ClusterStateRes.ClusterState.Builder clusterStateBuilder = ClusterStateResponseProto.ClusterStateRes.ClusterState.newBuilder();
-    //     clusterStateBuilder.setClusterName(clusterState.getClusterName().value())
-    //         .setVersion(clusterState.version())
-    //         .setStateUUID(clusterState.stateUUID())
-    //         .setNodes(discoveryNodesBuilder.build());
-    //     this.clusterStateRes = ClusterStateResponseProto.ClusterStateRes.newBuilder()
-    //                                         .setClusterName(clusterName.value())
-    //                                         .setClusterState(clusterStateBuilder.build())
-    //                                         .setWaitForTimedOut(waitForTimedOut)
-    //                                         .build();
-    // }
-
     public ProtobufClusterStateResponse(String clusterName, DiscoveryNodes nodes, long version, String stateUUID, boolean waitForTimedOut) {
-        long startTime = System.nanoTime();
         ClusterStateResponseProto.ClusterStateRes.ClusterState.DiscoveryNodes.Builder discoveryNodesBuilder = ClusterStateResponseProto.ClusterStateRes.ClusterState.DiscoveryNodes.newBuilder();
-        // ImmutableOpenMap<String, DiscoveryNode> allNodes = nodes.getNodes();
 
-        long startTime1 = System.nanoTime();
-        Map<String, ClusterStateResponseProto.ClusterStateRes.ClusterState.DiscoveryNodes.Node> allNodesMap = convertNodes(nodes.getNodes());
-        long endTime1 = System.nanoTime();
-        System.out.println("Time taken to convert nodes: " + (endTime1 - startTime1) + " ns");
-        long startTime2 = System.nanoTime();
-        discoveryNodesBuilder.putAllAllNodes(allNodesMap).setClusterManagerNodeId(nodes.getClusterManagerNodeId()).setLocalNodeId(nodes.getLocalNodeId()).setMinNonClientNodeVersion(nodes.getSmallestNonClientNodeVersion().toString()).setMaxNonClientNodeVersion(nodes.getLargestNonClientNodeVersion().toString()).setMinNodeVersion(nodes.getMinNodeVersion().toString()).setMaxNodeVersion(nodes.getMaxNodeVersion().toString());
-        long endTime2 = System.nanoTime();
-        System.out.println("Time taken to discover nodes: " + (endTime2 - startTime2) + " ns");
-
-        long startTime3 = System.nanoTime();
+        List<ClusterStateResponseProto.ClusterStateRes.ClusterState.DiscoveryNodes.Node> allNodes = convertNodes(nodes);
+        discoveryNodesBuilder.addAllAllNodes(allNodes).setClusterManagerNodeId(nodes.getClusterManagerNodeId()).setLocalNodeId(nodes.getLocalNodeId()).setMinNonClientNodeVersion(nodes.getSmallestNonClientNodeVersion().toString()).setMaxNonClientNodeVersion(nodes.getLargestNonClientNodeVersion().toString()).setMinNodeVersion(nodes.getMinNodeVersion().toString()).setMaxNodeVersion(nodes.getMaxNodeVersion().toString());
         ClusterStateResponseProto.ClusterStateRes.ClusterState.Builder clusterStateBuilder = ClusterStateResponseProto.ClusterStateRes.ClusterState.newBuilder();
         clusterStateBuilder.setClusterName(clusterName)
             .setVersion(version)
             .setStateUUID(stateUUID)
             .setNodes(discoveryNodesBuilder.build());
-        long endTime3 = System.nanoTime();
-        System.out.println("Time taken to build cluster state: " + (endTime3 - startTime3) + " ns");
-
-        long startTime4 = System.nanoTime();
         this.clusterStateRes = ClusterStateResponseProto.ClusterStateRes.newBuilder()
                                             .setClusterName(clusterName)
                                             .setClusterState(clusterStateBuilder.build())
                                             .setWaitForTimedOut(waitForTimedOut)
                                             .build();
-        long endTime4 = System.nanoTime();
-        System.out.println("Time taken to build protobuf response: " + (endTime4 - startTime4) + " ns");
-        long endTime = System.nanoTime();
-        System.out.println("Time taken to build protobuf response: " + (endTime - startTime) + " ns");
     }
 
-    private Map<String, ClusterStateResponseProto.ClusterStateRes.ClusterState.DiscoveryNodes.Node> convertNodes(ImmutableOpenMap<String, DiscoveryNode> nodes) {
-        Map<String, ClusterStateResponseProto.ClusterStateRes.ClusterState.DiscoveryNodes.Node> convertedNodes = new HashMap<>();
-        if (nodes.isEmpty()) {
+    private List<ClusterStateResponseProto.ClusterStateRes.ClusterState.DiscoveryNodes.Node> convertNodes(DiscoveryNodes nodes) {
+        List<ClusterStateResponseProto.ClusterStateRes.ClusterState.DiscoveryNodes.Node> convertedNodes = new ArrayList<>();
+        if (nodes.getNodes().isEmpty()) {
             return convertedNodes;
         }
-        long startTime = System.nanoTime();
-        Iterator<String> keysIt = nodes.keysIt();
-        while(keysIt.hasNext()) {
-            String key = keysIt.next();
-            DiscoveryNode node = nodes.get(key);
+        for (ObjectCursor<DiscoveryNode> node : nodes.getNodes().values()) {
             List<ClusterStateResponseProto.ClusterStateRes.ClusterState.DiscoveryNodes.Node.NodeRole> nodeRoles = new ArrayList<>();
-            node.getRoles().forEach(role -> {
+            node.value.getRoles().forEach(role -> {
                 ClusterStateResponseProto.ClusterStateRes.ClusterState.DiscoveryNodes.Node.NodeRole.Builder nodeRoleBuilder = ClusterStateResponseProto.ClusterStateRes.ClusterState.DiscoveryNodes.Node.NodeRole.newBuilder();
                 nodeRoleBuilder.setIsKnownRole(role.isKnownRole()).setIsDynamicRole(role.isDynamicRole()).setRoleName(role.roleName()).setRoleNameAbbreviation(role.roleNameAbbreviation()).setCanContainData(role.canContainData()).build();
                 nodeRoles.add(nodeRoleBuilder.build());
             });
             ClusterStateResponseProto.ClusterStateRes.ClusterState.DiscoveryNodes.Node.Builder nodeBuilder = ClusterStateResponseProto.ClusterStateRes.ClusterState.DiscoveryNodes.Node.newBuilder();
-            nodeBuilder.setNodeName(node.getName()).setNodeId(node.getId()).setEphemeralId(node.getEphemeralId()).setHostName(node.getHostName())
-            .setHostAddress(node.getHostAddress()).setTransportAddress(node.getAddress().toString()).putAllAttributes(node.getAttributes()).addAllRoles(nodeRoles).setVersion(node.getVersion().toString()).build();
-            convertedNodes.put(key, nodeBuilder.build());
+            nodeBuilder.setNodeName(node.value.getName()).setNodeId(node.value.getId()).setEphemeralId(node.value.getEphemeralId()).setHostName(node.value.getHostName())
+            .setHostAddress(node.value.getHostAddress()).setTransportAddress(node.value.getAddress().toString()).putAllAttributes(node.value.getAttributes()).addAllRoles(nodeRoles).setVersion(node.value.getVersion().toString()).build();
+            convertedNodes.add(nodeBuilder.build());
         }
-        long endTime = System.nanoTime();
-        System.out.println("Time taken to convert nodes in method: " + (endTime - startTime) + " ns");
         return convertedNodes;
     }
 

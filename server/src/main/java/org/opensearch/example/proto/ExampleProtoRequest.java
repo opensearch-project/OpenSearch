@@ -13,7 +13,6 @@
 
 package org.opensearch.example.proto;
 
-import com.google.protobuf.CodedInputStream;
 import com.google.protobuf.InvalidProtocolBufferException;
 
 import org.opensearch.common.io.stream.TryWriteable;

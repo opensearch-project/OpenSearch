@@ -47,8 +47,6 @@ import org.opensearch.test.transport.MockTransport;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportResponse.Empty;
 
-import com.google.protobuf.CodedInputStream;
-
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
@@ -137,16 +135,11 @@ public class TransportServiceDeserializationFailureTests extends OpenSearchTestC
                     }
 
                     @Override
-                    public Empty read(CodedInputStream in) throws IOException {
+                    public Empty read(byte[] in) throws IOException {
                         // TODO Auto-generated method stub
                         throw new UnsupportedOperationException("Unimplemented method 'read'");
                     }
 
-                    @Override
-                    public void handleExceptionProtobuf(ProtobufTransportException exp) {
-                        // TODO Auto-generated method stub
-                        throw new UnsupportedOperationException("Unimplemented method 'handleExceptionProtobuf'");
-                    }
                 }
             );
 
@@ -205,16 +198,11 @@ public class TransportServiceDeserializationFailureTests extends OpenSearchTestC
                     }
 
                     @Override
-                    public Empty read(CodedInputStream in) throws IOException {
+                    public Empty read(byte[] in) throws IOException {
                         // TODO Auto-generated method stub
                         throw new UnsupportedOperationException("Unimplemented method 'read'");
                     }
 
-                    @Override
-                    public void handleExceptionProtobuf(ProtobufTransportException exp) {
-                        // TODO Auto-generated method stub
-                        throw new UnsupportedOperationException("Unimplemented method 'handleExceptionProtobuf'");
-                    }
                 }
             );
 

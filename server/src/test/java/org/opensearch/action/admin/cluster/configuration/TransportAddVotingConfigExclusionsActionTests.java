@@ -60,12 +60,9 @@ import org.opensearch.test.transport.MockTransport;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.threadpool.ThreadPool.Names;
-import org.opensearch.transport.ProtobufTransportException;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
-
-import com.google.protobuf.CodedInputStream;
 
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -689,16 +686,11 @@ public class TransportAddVotingConfigExclusionsActionTests extends OpenSearchTes
             }
 
             @Override
-            public AddVotingConfigExclusionsResponse read(CodedInputStream in) throws IOException {
+            public AddVotingConfigExclusionsResponse read(byte[] in) throws IOException {
                 // TODO Auto-generated method stub
                 throw new UnsupportedOperationException("Unimplemented method 'read'");
             }
 
-            @Override
-            public void handleExceptionProtobuf(ProtobufTransportException exp) {
-                // TODO Auto-generated method stub
-                throw new UnsupportedOperationException("Unimplemented method 'handleExceptionProtobuf'");
-            }
         };
     }
 

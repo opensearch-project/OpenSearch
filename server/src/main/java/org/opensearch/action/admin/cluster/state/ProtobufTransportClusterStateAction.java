@@ -8,7 +8,6 @@
 
 package org.opensearch.action.admin.cluster.state;
 
-import com.google.protobuf.CodedInputStream;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -103,10 +102,7 @@ public class ProtobufTransportClusterStateAction extends ProtobufTransportCluste
             : acceptableClusterStatePredicate.or(clusterState -> clusterState.nodes().isLocalNodeElectedClusterManager() == false);
 
         if (acceptableClusterStatePredicate.test(state)) {
-            long startTime = System.nanoTime();
             ActionListener.completeWith(listener, () -> buildResponse(request, state));
-            long endTime = System.nanoTime();
-            System.out.println("Time taken to build response: " + (endTime - startTime));
         } else {
             assert acceptableClusterStateOrNotMasterPredicate.test(state) == false;
             new ClusterStateObserver(state, clusterService, request.waitForTimeout(), logger, threadPool.getThreadContext())

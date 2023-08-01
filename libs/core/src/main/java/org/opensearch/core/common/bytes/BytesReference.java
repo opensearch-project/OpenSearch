@@ -41,8 +41,6 @@ import org.opensearch.core.common.util.ByteArray;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 
-import com.google.protobuf.CodedInputStream;
-
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -184,11 +182,6 @@ public interface BytesReference extends Comparable<BytesReference>, ToXContentFr
      * A stream input of the bytes.
      */
     StreamInput streamInput() throws IOException;
-
-    /**
-     * A stream input of the bytes.
-     */
-    CodedInputStream protobufInput() throws IOException;
 
     /**
      * Writes the bytes directly to the output stream.

@@ -11,8 +11,6 @@
 
 package org.opensearch.tasks;
 
-import com.google.protobuf.CodedInputStream;
-import com.google.protobuf.CodedOutputStream;
 import org.opensearch.OpenSearchException;
 import org.opensearch.client.Requests;
 import org.opensearch.common.Nullable;

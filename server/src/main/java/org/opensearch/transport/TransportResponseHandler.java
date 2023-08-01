@@ -34,7 +34,6 @@ package org.opensearch.transport;
 
 import org.opensearch.common.io.stream.ProtobufWriteable;
 import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.TryWriteable;
 import org.opensearch.core.common.io.stream.Writeable;
 
 import java.io.IOException;
@@ -86,7 +85,7 @@ public interface TransportResponseHandler<T extends TransportResponse> extends W
 
     default <Q extends TransportResponse> TransportResponseHandler<Q> wrapProtobuf(
         Function<Q, T> converter,
-        TryWriteable.Reader<Q> reader
+        ProtobufWriteable.Reader<Q> reader
     ) {
         final TransportResponseHandler<T> self = this;
         return new TransportResponseHandler<Q>() {

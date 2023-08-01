@@ -576,10 +576,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                     }
                 } else {
                     if (rawPath.contains("protobuf")) {
-                        long startTime = System.nanoTime();
                         dispatchProtobufRequest(request, channel, protobufHandler);
-                        long endTime = System.nanoTime();      
-                        System.out.println("Elapsed Time in nano seconds for protobuf: "+ (endTime-startTime));
                     } else {
                     if (FeatureFlags.isEnabled(FeatureFlags.IDENTITY)) {
                         if (!handleAuthenticateUser(request, channel)) {
@@ -588,8 +585,6 @@ public class RestController implements HttpServerTransport.Dispatcher {
                     }
                         long startTime = System.nanoTime();
                         dispatchRequest(request, channel, handler);
-                        long endTime = System.nanoTime();      
-                        System.out.println("Elapsed Time in nano seconds for original: "+ (endTime-startTime));
                     }
                     return;
                 }

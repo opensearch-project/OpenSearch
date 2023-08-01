@@ -13,8 +13,6 @@
 
 package org.opensearch.action.support.nodes;
 
-import com.google.protobuf.CodedInputStream;
-import com.google.protobuf.CodedOutputStream;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.ProtobufActionRequest;
 import org.opensearch.cluster.node.DiscoveryNodes;

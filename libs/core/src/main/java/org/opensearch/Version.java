@@ -32,7 +32,6 @@
 
 package org.opensearch;
 
-import com.google.protobuf.CodedInputStream;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -95,10 +94,6 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public static final Version V_2_10_0 = new Version(2100099, org.apache.lucene.util.Version.LUCENE_9_7_0);
     public static final Version V_3_0_0 = new Version(3000099, org.apache.lucene.util.Version.LUCENE_9_8_0);
     public static final Version CURRENT = V_3_0_0;
-
-    public static Version readVersionProtobuf(CodedInputStream in) throws IOException {
-        return fromId(in.readInt32());
-    }
 
     public static Version fromId(int id) {
         final Version known = LegacyESVersion.idToVersion.get(id);

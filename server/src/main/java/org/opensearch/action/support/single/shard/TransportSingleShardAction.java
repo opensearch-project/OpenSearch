@@ -64,8 +64,6 @@ import org.opensearch.transport.TransportRequestHandler;
 import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
 
-import com.google.protobuf.CodedInputStream;
-
 import java.io.IOException;
 
 import static org.opensearch.action.support.TransportActions.isShardNotAvailableException;

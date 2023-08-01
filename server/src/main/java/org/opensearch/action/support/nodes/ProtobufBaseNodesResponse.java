@@ -13,9 +13,6 @@
 
 package org.opensearch.action.support.nodes;
 
-import com.google.protobuf.CodedInputStream;
-import com.google.protobuf.CodedOutputStream;
-
 import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.ProtobufActionResponse;
 import org.opensearch.cluster.ClusterName;

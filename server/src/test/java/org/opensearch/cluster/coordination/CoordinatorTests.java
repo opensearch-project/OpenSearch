@@ -58,8 +58,6 @@ import org.opensearch.gateway.GatewayService;
 import org.opensearch.monitor.StatusInfo;
 import org.opensearch.test.MockLogAppender;
 
-import com.google.protobuf.CodedOutputStream;
-
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -1467,12 +1465,6 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             return builder;
-        }
-
-        @Override
-        public void writeTo(CodedOutputStream out) throws IOException {
-            // TODO Auto-generated method stub
-            throw new UnsupportedOperationException("Unimplemented method 'writeTo'");
         }
 
     }

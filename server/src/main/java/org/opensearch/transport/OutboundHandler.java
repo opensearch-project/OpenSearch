@@ -136,36 +136,27 @@ final class OutboundHandler {
         );
 
         ActionListener<Void> listener = ActionListener.wrap(() -> messageListener.onRequestSent(node, requestId, action, request, options));
-        long startTime = System.nanoTime();
-        if (request.getClass().getCanonicalName().contains("ProtobufClusterState")) {
-            // ExampleProtoRequest exampleProtoRequest = new ExampleProtoRequest(1, "message");
+        String canonicalName = request.getClass().getCanonicalName();
+        if (canonicalName.contains("ProtobufClusterState")) {
             ProtobufClusterStateRequest protobufClusterStateRequest = (ProtobufClusterStateRequest) request;
             byte[] bytes = new byte[1];
             bytes[0] = 0;
             ProtobufOutboundMessage protobufMessage = new ProtobufOutboundMessage(requestId, bytes, Version.CURRENT, threadPool.getThreadContext(), protobufClusterStateRequest.request(), features, action);
             sendProtobufMessage(channel, protobufMessage, listener);
-            long endTime = System.nanoTime();
-            System.out.println("Time for sending protobuf cluster state req: " + (endTime-startTime));
-        } else if (request.getClass().getCanonicalName().contains("ProtobufTransportNodesInfo")) {
+        } else if (canonicalName.contains("ProtobufTransportNodesInfo")) {
             NodeInfoRequest protobufNodesInfoRequest = (NodeInfoRequest) request;
             byte[] bytes = new byte[1];
             bytes[0] = 0;
             ProtobufOutboundMessage protobufMessage = new ProtobufOutboundMessage(requestId, bytes, Version.CURRENT, threadPool.getThreadContext(), protobufNodesInfoRequest.request().request(), features, action);
             sendProtobufMessage(channel, protobufMessage, listener);
-            long endTime = System.nanoTime();
-            System.out.println("Time for sending protobuf node info req: " + (endTime-startTime));
-        } else if (request.getClass().getCanonicalName().contains("ProtobufTransportNodesStats")) {
+        } else if (canonicalName.contains("ProtobufTransportNodesStats")) {
             NodeStatsRequest protobufNodesStatsRequest = (NodeStatsRequest) request;
             byte[] bytes = new byte[1];
             bytes[0] = 0;
             ProtobufOutboundMessage protobufMessage = new ProtobufOutboundMessage(requestId, bytes, Version.CURRENT, threadPool.getThreadContext(), protobufNodesStatsRequest.request().request(), features, action);
             sendProtobufMessage(channel, protobufMessage, listener);
-            long endTime = System.nanoTime();
-            System.out.println("Time for sending protobuf node stats req: " + (endTime-startTime));
         } else {
             sendMessage(channel, message, listener);
-            long endTime = System.nanoTime();
-            System.out.println("Time for sending normal req: " + (endTime-startTime));
         }
     }
 
@@ -223,20 +214,21 @@ final class OutboundHandler {
             compress
         );
         ActionListener<Void> listener = ActionListener.wrap(() -> messageListener.onResponseSent(requestId, action, response));
-        if (response.getClass().getCanonicalName().contains("ProtobufClusterState")) {
+        String canonicalName = response.getClass().getCanonicalName();
+        if (canonicalName.contains("ProtobufClusterState")) {
             // ExampleProtoRequest exampleProtoRequest = new ExampleProtoRequest(1, "message");
             ProtobufClusterStateResponse protobufClusterStateResponse = (ProtobufClusterStateResponse) response;
             byte[] bytes = new byte[1];
             bytes[0] = 1;
             ProtobufOutboundMessage protobufMessage = new ProtobufOutboundMessage(requestId, bytes, Version.CURRENT, threadPool.getThreadContext(), protobufClusterStateResponse.response(), features, action);
             sendProtobufMessage(channel, protobufMessage, listener);
-        } else if (response.getClass().getCanonicalName().contains("ProtobufNodeInfo")) {
+        } else if (canonicalName.contains("ProtobufNodeInfo")) {
             ProtobufNodeInfo protobufNodeInfo = (ProtobufNodeInfo) response;
             byte[] bytes = new byte[1];
             bytes[0] = 1;
             ProtobufOutboundMessage protobufMessage = new ProtobufOutboundMessage(requestId, bytes, Version.CURRENT, threadPool.getThreadContext(), protobufNodeInfo.response(), features, action);
             sendProtobufMessage(channel, protobufMessage, listener);
-        } else if (response.getClass().getCanonicalName().contains("ProtobufNodeStats")) {
+        } else if (canonicalName.contains("ProtobufNodeStats")) {
             ProtobufNodeStats protobufNodeStats = (ProtobufNodeStats) response;
             byte[] bytes = new byte[1];
             bytes[0] = 1;

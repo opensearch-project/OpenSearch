@@ -38,8 +38,6 @@ import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 
-import com.google.protobuf.CodedInputStream;
-
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.function.Function;

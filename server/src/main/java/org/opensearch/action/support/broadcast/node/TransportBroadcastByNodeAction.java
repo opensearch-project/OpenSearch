@@ -67,8 +67,6 @@ import org.opensearch.transport.TransportResponse;
 import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
 
-import com.google.protobuf.CodedInputStream;
-
 import org.opensearch.transport.TransportRequestOptions;
 
 import java.io.IOException;

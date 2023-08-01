@@ -20,7 +20,6 @@ import org.opensearch.Version;
 import org.opensearch.action.support.nodes.ProtobufBaseNodeResponse;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.io.stream.TryWriteable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.http.HttpInfo;
@@ -45,7 +44,7 @@ import java.util.Map;
 *
 * @opensearch.internal
 */
-public class ProtobufNodeInfo extends ProtobufBaseNodeResponse implements TryWriteable {
+public class ProtobufNodeInfo extends ProtobufBaseNodeResponse {
 
     private Version version;
     private Build build;

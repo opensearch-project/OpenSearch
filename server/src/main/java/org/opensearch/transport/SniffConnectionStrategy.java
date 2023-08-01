@@ -57,8 +57,6 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.threadpool.ThreadPool;
 
-import com.google.protobuf.CodedInputStream;
-
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.Arrays;

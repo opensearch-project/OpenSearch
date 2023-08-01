@@ -49,8 +49,6 @@ import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.mapper.MapperService;
 
-import com.google.protobuf.CodedOutputStream;
-
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;

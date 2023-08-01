@@ -38,8 +38,6 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportResponse.Empty;
 
-import com.google.protobuf.CodedInputStream;
-
 /**
  * Handler for empty transport response
  *

@@ -45,8 +45,6 @@ import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.threadpool.ThreadPool;
 
-import com.google.protobuf.CodedInputStream;
-
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.function.Function;

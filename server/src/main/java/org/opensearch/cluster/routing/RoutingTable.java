@@ -32,7 +32,6 @@
 
 package org.opensearch.cluster.routing;
 
-import com.google.protobuf.CodedInputStream;
 
 import org.opensearch.cluster.Diff;
 import org.opensearch.cluster.Diffable;

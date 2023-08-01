@@ -31,15 +31,12 @@
 
 package org.opensearch.common.util.concurrent;
 
-import com.google.protobuf.CodedInputStream;
-import com.google.protobuf.CodedOutputStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.support.ContextPreservingActionListener;
 import org.opensearch.client.OriginSettingClient;
 import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.common.collect.Tuple;
-import org.opensearch.common.io.stream.ProtobufWriteable;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;

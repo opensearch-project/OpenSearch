@@ -42,9 +42,6 @@ import org.opensearch.tasks.ProtobufTaskId;
 import org.opensearch.tasks.TaskAwareRequest;
 import org.opensearch.tasks.TaskId;
 
-import com.google.protobuf.CodedInputStream;
-import com.google.protobuf.CodedOutputStream;
-
 import java.io.IOException;
 import java.io.OutputStream;
 

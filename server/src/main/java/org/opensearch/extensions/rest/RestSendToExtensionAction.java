@@ -28,8 +28,6 @@ import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
 
-import com.google.protobuf.CodedInputStream;
-
 import org.opensearch.http.HttpRequest;
 
 import java.io.IOException;

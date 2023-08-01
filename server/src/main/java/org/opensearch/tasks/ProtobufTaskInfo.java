@@ -11,9 +11,6 @@
 
 package org.opensearch.tasks;
 
-import com.google.protobuf.CodedInputStream;
-import com.google.protobuf.CodedOutputStream;
-import org.opensearch.Version;
 import org.opensearch.common.io.stream.ProtobufWriteable;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.xcontent.ToXContentFragment;

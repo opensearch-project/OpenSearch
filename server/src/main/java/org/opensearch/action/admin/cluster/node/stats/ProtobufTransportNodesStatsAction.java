@@ -8,17 +8,12 @@
 
 package org.opensearch.action.admin.cluster.node.stats;
 
-import com.google.protobuf.CodedInputStream;
-import com.google.protobuf.CodedOutputStream;
-
 import org.opensearch.action.FailedNodeException;
-import org.opensearch.action.admin.cluster.node.info.ProtobufNodeInfo;
 import org.opensearch.action.support.ProtobufActionFilters;
 import org.opensearch.action.support.nodes.ProtobufTransportNodesAction;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
-import org.opensearch.common.io.stream.TryWriteable;
 import org.opensearch.node.ProtobufNodeService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportRequest;
@@ -112,7 +107,7 @@ public class ProtobufTransportNodesStatsAction extends ProtobufTransportNodesAct
     *
     * @opensearch.internal
     */
-    public static class NodeStatsRequest extends TransportRequest implements TryWriteable {
+    public static class NodeStatsRequest extends TransportRequest {
 
         ProtobufNodesStatsRequest request;
 

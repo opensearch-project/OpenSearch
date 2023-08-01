@@ -36,17 +36,12 @@ import org.apache.lucene.util.Constants;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.io.PathUtils;
-import org.opensearch.common.io.stream.ProtobufWriteable;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.node.ProtobufReportingService;
 import org.opensearch.node.ReportingService;
-
-import com.google.protobuf.CodedInputStream;
-import com.google.protobuf.CodedOutputStream;
 
 import java.io.IOException;
 import java.lang.management.GarbageCollectorMXBean;
