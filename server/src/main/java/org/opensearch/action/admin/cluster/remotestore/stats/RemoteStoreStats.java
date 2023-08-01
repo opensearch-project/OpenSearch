@@ -54,7 +54,7 @@ public class RemoteStoreStats implements Writeable, ToXContentFragment {
         builder.startObject(Fields.SEGMENT);
         builder.startObject(SubFields.DOWNLOAD);
         // Ensuring that we are not showing 0 metrics to the user
-        if (remoteSegmentShardStats.directoryFileTransferTrackerStats.downloadBytesStarted != 0) {
+        if (remoteSegmentShardStats.directoryFileTransferTrackerStats.transferredBytesStarted != 0) {
             buildDownloadStats(builder);
         }
         builder.endObject();
@@ -107,19 +107,19 @@ public class RemoteStoreStats implements Writeable, ToXContentFragment {
     private void buildDownloadStats(XContentBuilder builder) throws IOException {
         builder.field(
             DownloadStatsFields.LAST_SYNC_TIMESTAMP,
-            remoteSegmentShardStats.directoryFileTransferTrackerStats.lastDownloadTimestampMs
+            remoteSegmentShardStats.directoryFileTransferTrackerStats.lastTransferTimestampMs
         );
         builder.startObject(DownloadStatsFields.TOTAL_DOWNLOADS_IN_BYTES)
-            .field(SubFields.STARTED, remoteSegmentShardStats.directoryFileTransferTrackerStats.downloadBytesStarted)
-            .field(SubFields.SUCCEEDED, remoteSegmentShardStats.directoryFileTransferTrackerStats.downloadBytesSucceeded)
-            .field(SubFields.FAILED, remoteSegmentShardStats.directoryFileTransferTrackerStats.downloadBytesFailed);
+            .field(SubFields.STARTED, remoteSegmentShardStats.directoryFileTransferTrackerStats.transferredBytesStarted)
+            .field(SubFields.SUCCEEDED, remoteSegmentShardStats.directoryFileTransferTrackerStats.transferredBytesSucceeded)
+            .field(SubFields.FAILED, remoteSegmentShardStats.directoryFileTransferTrackerStats.transferredBytesFailed);
         builder.endObject();
         builder.startObject(DownloadStatsFields.DOWNLOAD_SIZE_IN_BYTES)
-            .field(SubFields.LAST_SUCCESSFUL, remoteSegmentShardStats.directoryFileTransferTrackerStats.lastSuccessfulSegmentDownloadBytes)
-            .field(SubFields.MOVING_AVG, remoteSegmentShardStats.directoryFileTransferTrackerStats.downloadBytesMovingAverage);
+            .field(SubFields.LAST_SUCCESSFUL, remoteSegmentShardStats.directoryFileTransferTrackerStats.lastSuccessfulTransferInBytes)
+            .field(SubFields.MOVING_AVG, remoteSegmentShardStats.directoryFileTransferTrackerStats.transferredBytesMovingAverage);
         builder.endObject();
         builder.startObject(DownloadStatsFields.DOWNLOAD_SPEED_IN_BYTES_PER_SEC)
-            .field(SubFields.MOVING_AVG, remoteSegmentShardStats.directoryFileTransferTrackerStats.downloadBytesPerSecMovingAverage);
+            .field(SubFields.MOVING_AVG, remoteSegmentShardStats.directoryFileTransferTrackerStats.transferredBytesPerSecMovingAverage);
         builder.endObject();
     }
 

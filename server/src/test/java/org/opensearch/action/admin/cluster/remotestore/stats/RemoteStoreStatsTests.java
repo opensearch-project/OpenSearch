@@ -103,11 +103,11 @@ public class RemoteStoreStatsTests extends OpenSearchTestCase {
                 assertEquals(stats.getStats().uploadBytesPerSecMovingAverage, deserializedStats.uploadBytesPerSecMovingAverage, 0);
                 assertEquals(stats.getStats().uploadTimeMovingAverage, deserializedStats.uploadTimeMovingAverage, 0);
                 assertEquals(stats.getStats().bytesLag, deserializedStats.bytesLag);
-                assertEquals(0, deserializedStats.directoryFileTransferTrackerStats.downloadBytesStarted);
-                assertEquals(0, deserializedStats.directoryFileTransferTrackerStats.downloadBytesFailed);
-                assertEquals(0, deserializedStats.directoryFileTransferTrackerStats.downloadBytesSucceeded);
-                assertEquals(0, deserializedStats.directoryFileTransferTrackerStats.lastSuccessfulSegmentDownloadBytes);
-                assertEquals(0, deserializedStats.directoryFileTransferTrackerStats.lastDownloadTimestampMs);
+                assertEquals(0, deserializedStats.directoryFileTransferTrackerStats.transferredBytesStarted);
+                assertEquals(0, deserializedStats.directoryFileTransferTrackerStats.transferredBytesFailed);
+                assertEquals(0, deserializedStats.directoryFileTransferTrackerStats.transferredBytesSucceeded);
+                assertEquals(0, deserializedStats.directoryFileTransferTrackerStats.lastSuccessfulTransferInBytes);
+                assertEquals(0, deserializedStats.directoryFileTransferTrackerStats.lastTransferTimestampMs);
             }
         }
     }
@@ -132,33 +132,33 @@ public class RemoteStoreStatsTests extends OpenSearchTestCase {
                 assertEquals(0, deserializedStats.consecutiveFailuresCount);
                 assertEquals(0, deserializedStats.bytesLag);
                 assertEquals(
-                    stats.getStats().directoryFileTransferTrackerStats.downloadBytesStarted,
-                    deserializedStats.directoryFileTransferTrackerStats.downloadBytesStarted
+                    stats.getStats().directoryFileTransferTrackerStats.transferredBytesStarted,
+                    deserializedStats.directoryFileTransferTrackerStats.transferredBytesStarted
                 );
                 assertEquals(
-                    stats.getStats().directoryFileTransferTrackerStats.downloadBytesFailed,
-                    deserializedStats.directoryFileTransferTrackerStats.downloadBytesFailed
+                    stats.getStats().directoryFileTransferTrackerStats.transferredBytesFailed,
+                    deserializedStats.directoryFileTransferTrackerStats.transferredBytesFailed
                 );
                 assertEquals(
-                    stats.getStats().directoryFileTransferTrackerStats.downloadBytesSucceeded,
-                    deserializedStats.directoryFileTransferTrackerStats.downloadBytesSucceeded
+                    stats.getStats().directoryFileTransferTrackerStats.transferredBytesSucceeded,
+                    deserializedStats.directoryFileTransferTrackerStats.transferredBytesSucceeded
                 );
                 assertEquals(
-                    stats.getStats().directoryFileTransferTrackerStats.lastSuccessfulSegmentDownloadBytes,
-                    deserializedStats.directoryFileTransferTrackerStats.lastSuccessfulSegmentDownloadBytes
+                    stats.getStats().directoryFileTransferTrackerStats.lastSuccessfulTransferInBytes,
+                    deserializedStats.directoryFileTransferTrackerStats.lastSuccessfulTransferInBytes
                 );
                 assertEquals(
-                    stats.getStats().directoryFileTransferTrackerStats.lastDownloadTimestampMs,
-                    deserializedStats.directoryFileTransferTrackerStats.lastDownloadTimestampMs
+                    stats.getStats().directoryFileTransferTrackerStats.lastTransferTimestampMs,
+                    deserializedStats.directoryFileTransferTrackerStats.lastTransferTimestampMs
                 );
                 assertEquals(
-                    stats.getStats().directoryFileTransferTrackerStats.downloadBytesPerSecMovingAverage,
-                    deserializedStats.directoryFileTransferTrackerStats.downloadBytesPerSecMovingAverage,
+                    stats.getStats().directoryFileTransferTrackerStats.transferredBytesPerSecMovingAverage,
+                    deserializedStats.directoryFileTransferTrackerStats.transferredBytesPerSecMovingAverage,
                     0
                 );
                 assertEquals(
-                    stats.getStats().directoryFileTransferTrackerStats.downloadBytesMovingAverage,
-                    deserializedStats.directoryFileTransferTrackerStats.downloadBytesMovingAverage,
+                    stats.getStats().directoryFileTransferTrackerStats.transferredBytesMovingAverage,
+                    deserializedStats.directoryFileTransferTrackerStats.transferredBytesMovingAverage,
                     0
                 );
             }
@@ -188,33 +188,33 @@ public class RemoteStoreStatsTests extends OpenSearchTestCase {
                 assertEquals(stats.getStats().uploadTimeMovingAverage, deserializedStats.uploadTimeMovingAverage, 0);
                 assertEquals(stats.getStats().bytesLag, deserializedStats.bytesLag);
                 assertEquals(
-                    stats.getStats().directoryFileTransferTrackerStats.downloadBytesStarted,
-                    deserializedStats.directoryFileTransferTrackerStats.downloadBytesStarted
+                    stats.getStats().directoryFileTransferTrackerStats.transferredBytesStarted,
+                    deserializedStats.directoryFileTransferTrackerStats.transferredBytesStarted
                 );
                 assertEquals(
-                    stats.getStats().directoryFileTransferTrackerStats.downloadBytesFailed,
-                    deserializedStats.directoryFileTransferTrackerStats.downloadBytesFailed
+                    stats.getStats().directoryFileTransferTrackerStats.transferredBytesFailed,
+                    deserializedStats.directoryFileTransferTrackerStats.transferredBytesFailed
                 );
                 assertEquals(
-                    stats.getStats().directoryFileTransferTrackerStats.downloadBytesSucceeded,
-                    deserializedStats.directoryFileTransferTrackerStats.downloadBytesSucceeded
+                    stats.getStats().directoryFileTransferTrackerStats.transferredBytesSucceeded,
+                    deserializedStats.directoryFileTransferTrackerStats.transferredBytesSucceeded
                 );
                 assertEquals(
-                    stats.getStats().directoryFileTransferTrackerStats.lastSuccessfulSegmentDownloadBytes,
-                    deserializedStats.directoryFileTransferTrackerStats.lastSuccessfulSegmentDownloadBytes
+                    stats.getStats().directoryFileTransferTrackerStats.lastSuccessfulTransferInBytes,
+                    deserializedStats.directoryFileTransferTrackerStats.lastSuccessfulTransferInBytes
                 );
                 assertEquals(
-                    stats.getStats().directoryFileTransferTrackerStats.lastDownloadTimestampMs,
-                    deserializedStats.directoryFileTransferTrackerStats.lastDownloadTimestampMs
+                    stats.getStats().directoryFileTransferTrackerStats.lastTransferTimestampMs,
+                    deserializedStats.directoryFileTransferTrackerStats.lastTransferTimestampMs
                 );
                 assertEquals(
-                    stats.getStats().directoryFileTransferTrackerStats.downloadBytesPerSecMovingAverage,
-                    deserializedStats.directoryFileTransferTrackerStats.downloadBytesPerSecMovingAverage,
+                    stats.getStats().directoryFileTransferTrackerStats.transferredBytesPerSecMovingAverage,
+                    deserializedStats.directoryFileTransferTrackerStats.transferredBytesPerSecMovingAverage,
                     0
                 );
                 assertEquals(
-                    stats.getStats().directoryFileTransferTrackerStats.downloadBytesMovingAverage,
-                    deserializedStats.directoryFileTransferTrackerStats.downloadBytesMovingAverage,
+                    stats.getStats().directoryFileTransferTrackerStats.transferredBytesMovingAverage,
+                    deserializedStats.directoryFileTransferTrackerStats.transferredBytesMovingAverage,
                     0
                 );
             }

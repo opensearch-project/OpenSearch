@@ -22,112 +22,120 @@ import java.io.IOException;
  */
 public class DirectoryFileTransferTracker {
     /**
-     * Cumulative size of files (in bytes) attempted to be copied over from the source {@link org.apache.lucene.store.Directory}
+     * Cumulative size of files (in bytes) attempted to be transferred over from the source {@link org.apache.lucene.store.Directory}
      */
-    private volatile long downloadBytesStarted;
+    private volatile long transferredBytesStarted;
 
     /**
-     * Cumulative size of files (in bytes) successfully copied over from the source {@link org.apache.lucene.store.Directory}
+     * Cumulative size of files (in bytes) successfully transferred over from the source {@link org.apache.lucene.store.Directory}
      */
-    private volatile long downloadBytesFailed;
+    private volatile long transferredBytesFailed;
 
     /**
-     * Cumulative size of files (in bytes) failed in copying over from the source {@link org.apache.lucene.store.Directory}
+     * Cumulative size of files (in bytes) failed in transfer over from the source {@link org.apache.lucene.store.Directory}
      */
-    private volatile long downloadBytesSucceeded;
+    private volatile long transferredBytesSucceeded;
 
     /**
-     * Time in milliseconds for the last successful copy operation from the source {@link org.apache.lucene.store.Directory}
+     * Time in milliseconds for the last successful transfer from the source {@link org.apache.lucene.store.Directory}
      */
-    private volatile long lastDownloadTimestampMs;
+    private volatile long lastTransferTimestampMs;
 
     /**
-     * Provides moving average over the last N total size in bytes of files downloaded from the source {@link org.apache.lucene.store.Directory}.
+     * Provides moving average over the last N total size in bytes of files transferred from the source {@link org.apache.lucene.store.Directory}.
      * N is window size
      */
-    private volatile MovingAverage downloadBytesMovingAverageReference;
+    private volatile MovingAverage transferredBytesMovingAverageReference;
 
-    private volatile long lastSuccessfulSegmentDownloadBytes;
+    private volatile long lastSuccessfulTransferInBytes;
 
     /**
-     * Provides moving average over the last N upload speed (in bytes/s) of segment files downloaded from the source {@link org.apache.lucene.store.Directory}.
+     * Provides moving average over the last N transfer speed (in bytes/s) of segment files transferred from the source {@link org.apache.lucene.store.Directory}.
      * N is window size
      */
-    private volatile MovingAverage downloadBytesPerSecMovingAverageReference;
+    private volatile MovingAverage transferredBytesPerSecMovingAverageReference;
 
     private final int DIRECTORY_FILES_TRANSFER_DEFAULT_WINDOW_SIZE = 20;
 
-    public long getDownloadBytesStarted() {
-        return downloadBytesStarted;
+    public long getTransferredBytesStarted() {
+        return transferredBytesStarted;
     }
 
-    public void addDownloadBytesStarted(long size) {
-        downloadBytesStarted += size;
+    public void addTransferredBytesStarted(long size) {
+        transferredBytesStarted += size;
     }
 
-    public long getDownloadBytesFailed() {
-        return downloadBytesFailed;
+    public long getTransferredBytesFailed() {
+        return transferredBytesFailed;
     }
 
-    public void addDownloadBytesFailed(long size) {
-        downloadBytesFailed += size;
+    public void addTransferredBytesFailed(long size) {
+        transferredBytesFailed += size;
     }
 
-    public long getDownloadBytesSucceeded() {
-        return downloadBytesSucceeded;
+    public long getTransferredBytesSucceeded() {
+        return transferredBytesSucceeded;
     }
 
-    public void addDownloadBytesSucceeded(long size) {
-        downloadBytesSucceeded += size;
+    public void addTransferredBytesSucceeded(long size, long startTimeInMs) {
+        transferredBytesSucceeded += size;
+        updateLastSuccessfulTransferSize(size);
+        long currentTimeInMs = System.currentTimeMillis();
+        updateLastTransferTimestampMs(currentTimeInMs);
+        long timeTakenInMS = Math.max(1, currentTimeInMs - startTimeInMs);
+        addTransferredBytesPerSec((size * 1_000L) / timeTakenInMS);
     }
 
-    public boolean isDownloadBytesPerSecAverageReady() {
-        return downloadBytesPerSecMovingAverageReference.isReady();
+    public boolean isTransferredBytesPerSecAverageReady() {
+        return transferredBytesPerSecMovingAverageReference.isReady();
     }
 
-    public double getDownloadBytesPerSecAverage() {
-        return downloadBytesPerSecMovingAverageReference.getAverage();
+    public double getTransferredBytesPerSecAverage() {
+        return transferredBytesPerSecMovingAverageReference.getAverage();
     }
 
-    public void addDownloadBytesPerSec(long bytesPerSec) {
-        this.downloadBytesPerSecMovingAverageReference.record(bytesPerSec);
+    // Visible for testing
+    public void addTransferredBytesPerSec(long bytesPerSec) {
+        this.transferredBytesPerSecMovingAverageReference.record(bytesPerSec);
     }
 
-    public boolean isDownloadBytesAverageReady() {
-        return downloadBytesMovingAverageReference.isReady();
+    public boolean isTransferredBytesAverageReady() {
+        return transferredBytesMovingAverageReference.isReady();
     }
 
-    public double getDownloadBytesAverage() {
-        return downloadBytesMovingAverageReference.getAverage();
+    public double getTransferredBytesAverage() {
+        return transferredBytesMovingAverageReference.getAverage();
     }
 
-    public void updateLastDownloadedSegmentSize(long size) {
-        lastSuccessfulSegmentDownloadBytes = size;
-        this.downloadBytesMovingAverageReference.record(size);
+    // Visible for testing
+    public void updateLastSuccessfulTransferSize(long size) {
+        lastSuccessfulTransferInBytes = size;
+        this.transferredBytesMovingAverageReference.record(size);
     }
 
-    public long getLastDownloadTimestampMs() {
-        return lastDownloadTimestampMs;
+    public long getLastTransferTimestampMs() {
+        return lastTransferTimestampMs;
     }
 
-    public void updateLastDownloadTimestampMs(long downloadTimestampInMs) {
-        this.lastDownloadTimestampMs = downloadTimestampInMs;
+    // Visible for testing
+    public void updateLastTransferTimestampMs(long downloadTimestampInMs) {
+        this.lastTransferTimestampMs = downloadTimestampInMs;
     }
 
     public DirectoryFileTransferTracker() {
-        downloadBytesMovingAverageReference = new MovingAverage(DIRECTORY_FILES_TRANSFER_DEFAULT_WINDOW_SIZE);
-        downloadBytesPerSecMovingAverageReference = new MovingAverage(DIRECTORY_FILES_TRANSFER_DEFAULT_WINDOW_SIZE);
+        transferredBytesMovingAverageReference = new MovingAverage(DIRECTORY_FILES_TRANSFER_DEFAULT_WINDOW_SIZE);
+        transferredBytesPerSecMovingAverageReference = new MovingAverage(DIRECTORY_FILES_TRANSFER_DEFAULT_WINDOW_SIZE);
     }
 
     public DirectoryFileTransferTracker.Stats stats() {
         return new Stats(
-            downloadBytesStarted,
-            downloadBytesFailed,
-            downloadBytesSucceeded,
-            lastDownloadTimestampMs,
-            downloadBytesMovingAverageReference.getAverage(),
-            lastSuccessfulSegmentDownloadBytes,
-            downloadBytesPerSecMovingAverageReference.getAverage()
+            transferredBytesStarted,
+            transferredBytesFailed,
+            transferredBytesSucceeded,
+            lastTransferTimestampMs,
+            transferredBytesMovingAverageReference.getAverage(),
+            lastSuccessfulTransferInBytes,
+            transferredBytesPerSecMovingAverageReference.getAverage()
         );
     }
 
@@ -137,51 +145,51 @@ public class DirectoryFileTransferTracker {
      * @opensearch.internal
      */
     public static class Stats implements Writeable {
-        public final long downloadBytesStarted;
-        public final long downloadBytesFailed;
-        public final long downloadBytesSucceeded;
-        public final long lastDownloadTimestampMs;
-        public final double downloadBytesMovingAverage;
-        public final long lastSuccessfulSegmentDownloadBytes;
-        public final double downloadBytesPerSecMovingAverage;
+        public final long transferredBytesStarted;
+        public final long transferredBytesFailed;
+        public final long transferredBytesSucceeded;
+        public final long lastTransferTimestampMs;
+        public final double transferredBytesMovingAverage;
+        public final long lastSuccessfulTransferInBytes;
+        public final double transferredBytesPerSecMovingAverage;
 
         public Stats(
-            long downloadBytesStarted,
-            long downloadBytesFailed,
+            long transferredBytesStarted,
+            long transferredBytesFailed,
             long downloadBytesSucceeded,
-            long lastDownloadTimestampMs,
-            double downloadBytesMovingAverage,
-            long lastSuccessfulSegmentDownloadBytes,
-            double downloadBytesPerSecMovingAverage
+            long lastTransferTimestampMs,
+            double transferredBytesMovingAverage,
+            long lastSuccessfulTransferInBytes,
+            double transferredBytesPerSecMovingAverage
         ) {
-            this.downloadBytesStarted = downloadBytesStarted;
-            this.downloadBytesFailed = downloadBytesFailed;
-            this.downloadBytesSucceeded = downloadBytesSucceeded;
-            this.lastDownloadTimestampMs = lastDownloadTimestampMs;
-            this.downloadBytesMovingAverage = downloadBytesMovingAverage;
-            this.lastSuccessfulSegmentDownloadBytes = lastSuccessfulSegmentDownloadBytes;
-            this.downloadBytesPerSecMovingAverage = downloadBytesPerSecMovingAverage;
+            this.transferredBytesStarted = transferredBytesStarted;
+            this.transferredBytesFailed = transferredBytesFailed;
+            this.transferredBytesSucceeded = downloadBytesSucceeded;
+            this.lastTransferTimestampMs = lastTransferTimestampMs;
+            this.transferredBytesMovingAverage = transferredBytesMovingAverage;
+            this.lastSuccessfulTransferInBytes = lastSuccessfulTransferInBytes;
+            this.transferredBytesPerSecMovingAverage = transferredBytesPerSecMovingAverage;
         }
 
         public Stats(StreamInput in) throws IOException {
-            this.downloadBytesStarted = in.readLong();
-            this.downloadBytesFailed = in.readLong();
-            this.downloadBytesSucceeded = in.readLong();
-            this.lastDownloadTimestampMs = in.readLong();
-            this.downloadBytesMovingAverage = in.readDouble();
-            this.lastSuccessfulSegmentDownloadBytes = in.readLong();
-            this.downloadBytesPerSecMovingAverage = in.readDouble();
+            this.transferredBytesStarted = in.readLong();
+            this.transferredBytesFailed = in.readLong();
+            this.transferredBytesSucceeded = in.readLong();
+            this.lastTransferTimestampMs = in.readLong();
+            this.transferredBytesMovingAverage = in.readDouble();
+            this.lastSuccessfulTransferInBytes = in.readLong();
+            this.transferredBytesPerSecMovingAverage = in.readDouble();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeLong(downloadBytesStarted);
-            out.writeLong(downloadBytesFailed);
-            out.writeLong(downloadBytesSucceeded);
-            out.writeLong(lastDownloadTimestampMs);
-            out.writeDouble(downloadBytesMovingAverage);
-            out.writeLong(lastSuccessfulSegmentDownloadBytes);
-            out.writeDouble(downloadBytesPerSecMovingAverage);
+            out.writeLong(transferredBytesStarted);
+            out.writeLong(transferredBytesFailed);
+            out.writeLong(transferredBytesSucceeded);
+            out.writeLong(lastTransferTimestampMs);
+            out.writeDouble(transferredBytesMovingAverage);
+            out.writeLong(lastSuccessfulTransferInBytes);
+            out.writeDouble(transferredBytesPerSecMovingAverage);
         }
     }
 }
