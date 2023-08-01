@@ -963,18 +963,24 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         }
     }
 
+    public DirectoryFileTransferTracker getDirectoryFileTransferTracker() {
+        return directory.getDirectoryFileTransferTracker();
+    }
+
     /**
      * A store directory
      *
      * @opensearch.internal
      */
     static final class StoreDirectory extends FilterDirectory {
-
         private final Logger deletesLogger;
+
+        public final DirectoryFileTransferTracker directoryFileTransferTracker;
 
         StoreDirectory(ByteSizeCachingDirectory delegateDirectory, Logger deletesLogger) {
             super(delegateDirectory);
             this.deletesLogger = deletesLogger;
+            this.directoryFileTransferTracker = new DirectoryFileTransferTracker();
         }
 
         /** Estimate the cumulative size of all files in this directory in bytes. */
@@ -1011,6 +1017,52 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             // FilterDirectory.getPendingDeletions does not delegate, working around it here.
             // to be removed once fixed in FilterDirectory.
             return unwrap(this).getPendingDeletions();
+        }
+
+        public DirectoryFileTransferTracker getDirectoryFileTransferTracker() {
+            return directoryFileTransferTracker;
+        }
+
+        @Override
+        public void copyFrom(Directory from, String src, String dest, IOContext context) throws IOException {
+            long fileSize = from.fileLength(src);
+            beforeDownload(fileSize);
+            boolean success = false;
+            try {
+                long startTime = System.currentTimeMillis();
+                super.copyFrom(from, src, dest, context);
+                success = true;
+                afterDownload(fileSize, startTime);
+            } finally {
+                if (!success) {
+                    downloadFailed(fileSize);
+                }
+            }
+        }
+
+        /**
+         * Updates the amount of bytes attempted for download
+         */
+        private void beforeDownload(long fileSize) {
+            directoryFileTransferTracker.addTransferredBytesStarted(fileSize);
+        }
+
+        /**
+         * Updates
+         * - The amount of bytes that has been successfully downloaded from the source store
+         * - The last successful download completion timestamp
+         * - The last successfully downloaded file
+         * - Download speed (in bytes/sec)
+         */
+        private void afterDownload(long fileSize, long startTimeInMs) {
+            directoryFileTransferTracker.addTransferredBytesSucceeded(fileSize, startTimeInMs);
+        }
+
+        /**
+         * Updates the amount of bytes failed in download
+         */
+        private void downloadFailed(long fileSize) {
+            directoryFileTransferTracker.addTransferredBytesFailed(fileSize);
         }
     }
 
