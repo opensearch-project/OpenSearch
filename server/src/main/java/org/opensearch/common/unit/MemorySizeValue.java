@@ -33,11 +33,13 @@
 package org.opensearch.common.unit;
 
 import org.opensearch.OpenSearchParseException;
+import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.monitor.jvm.JvmInfo;
 
 import java.util.Objects;
 
-import static org.opensearch.common.unit.ByteSizeValue.parseBytesSizeValue;
+import static org.opensearch.core.common.unit.ByteSizeValue.parseBytesSizeValue;
 
 /**
  * Utility methods to get memory sizes.

@@ -30,24 +30,36 @@
  * GitHub history for details.
  */
 
-package org.opensearch.common.component;
-
-import org.opensearch.common.lease.Releasable;
+package org.opensearch.common.lifecycle;
 
 /**
- * Base interface for a lifecycle component.
+ * Base lifecycle listener.
  *
  * @opensearch.internal
  */
-public interface LifecycleComponent extends Releasable {
+public abstract class LifecycleListener {
 
-    Lifecycle.State lifecycleState();
+    public void beforeStart() {
 
-    void addLifecycleListener(LifecycleListener listener);
+    }
 
-    void removeLifecycleListener(LifecycleListener listener);
+    public void afterStart() {
 
-    void start();
+    }
 
-    void stop();
+    public void beforeStop() {
+
+    }
+
+    public void afterStop() {
+
+    }
+
+    public void beforeClose() {
+
+    }
+
+    public void afterClose() {
+
+    }
 }

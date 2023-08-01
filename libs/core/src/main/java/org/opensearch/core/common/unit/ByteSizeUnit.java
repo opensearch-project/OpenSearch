@@ -30,7 +30,7 @@
  * GitHub history for details.
  */
 
-package org.opensearch.common.unit;
+package org.opensearch.core.common.unit;
 
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;

@@ -38,7 +38,7 @@ import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResp
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.client.Client;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.unit.ByteSizeUnit;
+import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.plugin.repository.url.URLRepositoryModulePlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.fs.FsRepository;

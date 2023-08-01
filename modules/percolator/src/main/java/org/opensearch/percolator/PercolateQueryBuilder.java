@@ -71,6 +71,8 @@ import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.xcontent.ConstructingObjectParser;
+import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
@@ -90,8 +92,8 @@ import org.opensearch.index.query.QueryRewriteContext;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.QueryShardException;
 import org.opensearch.index.query.Rewriteable;
-import org.opensearch.indices.breaker.CircuitBreakerService;
-import org.opensearch.indices.breaker.NoneCircuitBreakerService;
+import org.opensearch.core.indices.breaker.CircuitBreakerService;
+import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -123,7 +125,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
     private final String field;
     private String name;
     private final List<BytesReference> documents;
-    private final XContentType documentXContentType;
+    private final MediaType documentXContentType;
 
     private final String indexedDocumentIndex;
     private final String indexedDocumentId;
@@ -150,7 +152,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
      * @param documents                  The binary blob containing document to percolate
      * @param documentXContentType      The content type of the binary blob containing the document to percolate
      */
-    public PercolateQueryBuilder(String field, List<BytesReference> documents, XContentType documentXContentType) {
+    public PercolateQueryBuilder(String field, List<BytesReference> documents, MediaType documentXContentType) {
         if (field == null) {
             throw new IllegalArgumentException("[field] is a required argument");
         }
@@ -252,7 +254,11 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         }
         documents = in.readList(StreamInput::readBytesReference);
         if (documents.isEmpty() == false) {
-            documentXContentType = in.readEnum(XContentType.class);
+            if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+                documentXContentType = in.readMediaType();
+            } else {
+                documentXContentType = in.readEnum(XContentType.class);
+            }
         } else {
             documentXContentType = null;
         }
@@ -298,7 +304,11 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
             out.writeBytesReference(document);
         }
         if (documents.isEmpty() == false) {
-            out.writeEnum(documentXContentType);
+            if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+                documentXContentType.writeTo(out);
+            } else {
+                out.writeEnum((XContentType) documentXContentType);
+            }
         }
     }
 
@@ -432,7 +442,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
                 PercolateQueryBuilder rewritten = new PercolateQueryBuilder(
                     field,
                     Collections.singletonList(source),
-                    XContentHelper.xContentType(source)
+                    MediaTypeRegistry.xContentType(source)
                 );
                 if (name != null) {
                     rewritten.setName(name);
@@ -560,7 +570,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
     }
 
     // pkg-private for testing
-    XContentType getXContentType() {
+    MediaType getXContentType() {
         return documentXContentType;
     }
 

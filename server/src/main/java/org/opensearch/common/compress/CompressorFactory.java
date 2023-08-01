@@ -34,8 +34,8 @@ package org.opensearch.common.compress;
 
 import org.opensearch.common.Nullable;
 import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.common.compress.NotXContentException;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -67,14 +67,14 @@ public class CompressorFactory {
             // bytes should be either detected as compressed or as xcontent,
             // if we have bytes that can be either detected as compressed or
             // as a xcontent, we have a problem
-            assert XContentHelper.xContentType(bytes) == null;
+            assert MediaTypeRegistry.xContentType(bytes) == null;
             return DEFLATE_COMPRESSOR;
         } else if (ZSTD_COMPRESSOR.isCompressed(bytes)) {
-            assert XContentHelper.xContentType(bytes) == null;
+            assert MediaTypeRegistry.xContentType(bytes) == null;
             return ZSTD_COMPRESSOR;
         }
 
-        if (XContentHelper.xContentType(bytes) == null) {
+        if (MediaTypeRegistry.xContentType(bytes) == null) {
             throw new NotXContentException("Compressor detection can only be called on some xcontent bytes or compressed xcontent bytes");
         }
 

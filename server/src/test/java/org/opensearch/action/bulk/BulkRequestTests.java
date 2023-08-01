@@ -39,14 +39,14 @@ import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.support.WriteRequest.RefreshPolicy;
 import org.opensearch.action.update.UpdateRequest;
 import org.opensearch.client.Requests;
+import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.ParsingException;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.script.Script;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -340,7 +340,7 @@ public class BulkRequestTests extends OpenSearchTestCase {
         XContentType xContentType = XContentType.SMILE;
         BytesReference data;
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            try (XContentBuilder builder = XContentFactory.contentBuilder(xContentType, out)) {
+            try (XContentBuilder builder = MediaTypeRegistry.contentBuilder(xContentType, out)) {
                 builder.startObject();
                 builder.startObject("index");
                 builder.field("_index", "index");
@@ -349,7 +349,7 @@ public class BulkRequestTests extends OpenSearchTestCase {
                 builder.endObject();
             }
             out.write(xContentType.xContent().streamSeparator());
-            try (XContentBuilder builder = XContentFactory.contentBuilder(xContentType, out)) {
+            try (XContentBuilder builder = MediaTypeRegistry.contentBuilder(xContentType, out)) {
                 builder.startObject();
                 builder.field("field", "value");
                 builder.endObject();
@@ -375,7 +375,7 @@ public class BulkRequestTests extends OpenSearchTestCase {
         XContentType xContentType = XContentType.SMILE;
         BytesReference data;
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            try (XContentBuilder builder = XContentFactory.contentBuilder(xContentType, out)) {
+            try (XContentBuilder builder = MediaTypeRegistry.contentBuilder(xContentType, out)) {
                 builder.startObject();
                 builder.startObject("update");
                 builder.field("_index", "index");
@@ -386,7 +386,7 @@ public class BulkRequestTests extends OpenSearchTestCase {
                 builder.endObject();
             }
             out.write(xContentType.xContent().streamSeparator());
-            try (XContentBuilder builder = XContentFactory.contentBuilder(xContentType, out)) {
+            try (XContentBuilder builder = MediaTypeRegistry.contentBuilder(xContentType, out)) {
                 builder.startObject();
                 builder.startObject("doc").endObject();
                 Map<String, Object> values = new HashMap<>();

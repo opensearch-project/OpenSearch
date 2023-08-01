@@ -6,5 +6,10 @@
  * compatible open source license.
  */
 
-/** Base Lifecycle Component package. */
-package org.opensearch.common.component;
+package org.opensearch.gradle;
+
+public enum JavaPackageType {
+    NONE,
+    JRE,
+    JDK
+}

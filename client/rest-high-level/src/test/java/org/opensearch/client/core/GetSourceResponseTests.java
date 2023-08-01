@@ -35,9 +35,9 @@ package org.opensearch.client.core;
 import org.opensearch.client.AbstractResponseTestCase;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 
@@ -61,7 +61,7 @@ public final class GetSourceResponseTests extends AbstractResponseTestCase<GetSo
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             // this implementation copied from RestGetSourceAction.RestGetSourceResponseListener::buildResponse
             try (InputStream stream = source.streamInput()) {
-                builder.rawValue(stream, XContentHelper.xContentType(source));
+                builder.rawValue(stream, MediaTypeRegistry.xContentType(source));
             }
             return builder;
         }

@@ -49,6 +49,7 @@ import org.opensearch.core.common.text.Text;
 import org.opensearch.common.unit.DistanceUnit;
 import org.opensearch.common.util.CollectionUtils;
 import org.opensearch.core.xcontent.DeprecationHandler;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedObjectNotFoundException;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContent;
@@ -865,7 +866,7 @@ public abstract class BaseXContentTestCase extends OpenSearchTestCase {
             generator.writeEndObject();
         }
         byte[] data = os.toByteArray();
-        assertEquals(xcontentType(), XContentFactory.xContentType(data));
+        assertEquals(xcontentType(), MediaTypeRegistry.xContent(data));
     }
 
     public void testMissingEndObject() throws IOException {
