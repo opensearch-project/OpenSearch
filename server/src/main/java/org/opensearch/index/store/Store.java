@@ -390,7 +390,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     public static RecoveryDiff segmentReplicationDiff(Map<String, StoreFileMetadata> source, Map<String, StoreFileMetadata> target) {
         final List<StoreFileMetadata> identical = new ArrayList<>();
         final List<StoreFileMetadata> different = new ArrayList<>();
-        List<StoreFileMetadata> missing = new ArrayList<>();
+        final List<StoreFileMetadata> missing = new ArrayList<>();
         for (StoreFileMetadata value : source.values()) {
             if (value.name().startsWith(IndexFileNames.SEGMENTS)) {
                 continue;
