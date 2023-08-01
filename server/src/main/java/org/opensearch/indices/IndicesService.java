@@ -256,7 +256,7 @@ public class IndicesService extends AbstractLifecycleComponent
     /**
      * Used to specify default repo to use for segment upload for remote store backed indices
      */
-    public static final Setting<String> CLUSTER_REMOTE_STORE_REPOSITORY_SETTING = Setting.simpleString(
+    public static final Setting<String> CLUSTER_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING = Setting.simpleString(
         "cluster.remote_store.segment.repository",
         "",
         Property.NodeScope,

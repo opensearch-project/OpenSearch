@@ -32,6 +32,7 @@ import org.opensearch.index.remote.RemoteRefreshSegmentPressureService;
 import org.opensearch.index.remote.RemoteSegmentTransferTracker;
 import org.opensearch.index.shard.IndexShardTestCase;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.FeatureFlagSetter;
 import org.opensearch.test.transport.MockTransport;
 import org.opensearch.transport.TransportService;
@@ -45,6 +46,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUID;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_ENABLED;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY;
 
@@ -70,6 +72,7 @@ public class TransportRemoteStoreStatsActionTests extends IndexShardTestCase {
         remoteStoreIndexMetadata = IndexMetadata.builder(INDEX.getName())
             .settings(
                 settings(Version.CURRENT).put(SETTING_INDEX_UUID, INDEX.getUUID())
+                    .put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
                     .put(SETTING_REMOTE_STORE_ENABLED, true)
                     .put(SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, "my-test-repo")
                     .build()
