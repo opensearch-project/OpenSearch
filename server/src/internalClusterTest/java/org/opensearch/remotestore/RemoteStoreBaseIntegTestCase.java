@@ -29,11 +29,15 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.opensearch.indices.IndicesService.CLUSTER_REPLICATION_TYPE_SETTING;
+import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_STORE_ENABLED_SETTING;
+import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING;
+import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
-    protected static final String REPOSITORY_NAME = "test-remore-store-repo";
-    protected static final String REPOSITORY_2_NAME = "test-remore-store-repo-2";
+    protected static final String REPOSITORY_NAME = "test-remote-store-repo";
+    protected static final String REPOSITORY_2_NAME = "test-remote-store-repo-2";
     protected static final int SHARD_COUNT = 1;
     protected static final int REPLICA_COUNT = 1;
     protected Path absolutePath;
@@ -52,6 +56,14 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
     }
 
     @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal))
+            .put(remoteStoreClusterSettings(REPOSITORY_NAME, REPOSITORY_2_NAME, true))
+            .build();
+    }
+
+    @Override
     protected Settings featureFlagSettings() {
         return Settings.builder()
             .put(super.featureFlagSettings())
@@ -64,21 +76,41 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
         return defaultIndexSettings();
     }
 
-    IndexResponse indexSingleDoc(String indexName) {
+    protected IndexResponse indexSingleDoc(String indexName) {
         return client().prepareIndex(indexName)
             .setId(UUIDs.randomBase64UUID())
             .setSource(documentKeys.get(randomIntBetween(0, documentKeys.size() - 1)), randomAlphaOfLength(5))
             .get();
     }
 
+    public static Settings remoteStoreClusterSettings(String segmentRepoName) {
+        return remoteStoreClusterSettings(segmentRepoName, segmentRepoName);
+    }
+
+    public static Settings remoteStoreClusterSettings(
+        String segmentRepoName,
+        String translogRepoName,
+        boolean randomizeSameRepoForRSSAndRTS
+    ) {
+        return remoteStoreClusterSettings(
+            segmentRepoName,
+            randomizeSameRepoForRSSAndRTS ? (randomBoolean() ? translogRepoName : segmentRepoName) : translogRepoName
+        );
+    }
+
+    public static Settings remoteStoreClusterSettings(String segmentRepoName, String translogRepoName) {
+        return Settings.builder()
+            .put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT)
+            .put(CLUSTER_REMOTE_STORE_ENABLED_SETTING.getKey(), true)
+            .put(CLUSTER_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING.getKey(), segmentRepoName)
+            .put(CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING.getKey(), translogRepoName)
+            .build();
+    }
+
     private Settings defaultIndexSettings() {
-        boolean sameRepoForRSSAndRTS = randomBoolean();
         return Settings.builder()
             .put(super.indexSettings())
             .put(IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING.getKey(), false)
-            .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
-            .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, REPOSITORY_NAME)
-            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, sameRepoForRSSAndRTS ? REPOSITORY_NAME : REPOSITORY_2_NAME)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, SHARD_COUNT)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, REPLICA_COUNT)
             .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "300s")

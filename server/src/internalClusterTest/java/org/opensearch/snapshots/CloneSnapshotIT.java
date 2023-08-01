@@ -54,6 +54,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
+import static org.opensearch.remotestore.RemoteStoreBaseIntegTestCase.remoteStoreClusterSettings;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
 
@@ -162,7 +163,8 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
     public void testCloneShallowSnapshotIndex() throws Exception {
         disableRepoConsistencyCheck("This test uses remote store repository");
         FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
-        internalCluster().startClusterManagerOnlyNode();
+        final String remoteStoreRepoName = "remote-store-repo-name";
+        internalCluster().startClusterManagerOnlyNode(remoteStoreClusterSettings(remoteStoreRepoName));
         internalCluster().startDataOnlyNode();
 
         final String snapshotRepoName = "snapshot-repo-name";
@@ -174,14 +176,13 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         createRepository(shallowSnapshotRepoName, "fs", snapshotRepoSettingsForShallowCopy(shallowSnapshotRepoPath));
 
         final Path remoteStoreRepoPath = randomRepoPath();
-        final String remoteStoreRepoName = "remote-store-repo-name";
         createRepository(remoteStoreRepoName, "fs", remoteStoreRepoPath);
 
         final String indexName = "index-1";
         createIndexWithRandomDocs(indexName, randomIntBetween(5, 10));
 
         final String remoteStoreEnabledIndexName = "remote-index-1";
-        final Settings remoteStoreEnabledIndexSettings = getRemoteStoreBackedIndexSettings(remoteStoreRepoName);
+        final Settings remoteStoreEnabledIndexSettings = getRemoteStoreBackedIndexSettings();
         createIndex(remoteStoreEnabledIndexName, remoteStoreEnabledIndexSettings);
         indexRandomDocs(remoteStoreEnabledIndexName, randomIntBetween(5, 10));
 
@@ -209,7 +210,10 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
     public void testShallowCloneNameAvailability() throws Exception {
         disableRepoConsistencyCheck("This test uses remote store repository");
         FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
-        internalCluster().startClusterManagerOnlyNode(LARGE_SNAPSHOT_POOL_SETTINGS);
+        final String remoteStoreRepoName = "remote-store-repo-name";
+        internalCluster().startClusterManagerOnlyNode(
+            Settings.builder().put(LARGE_SNAPSHOT_POOL_SETTINGS).put(remoteStoreClusterSettings(remoteStoreRepoName)).build()
+        );
         internalCluster().startDataOnlyNode();
 
         final String shallowSnapshotRepoName = "shallow-snapshot-repo-name";
@@ -217,14 +221,13 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         createRepository(shallowSnapshotRepoName, "fs", snapshotRepoSettingsForShallowCopy(shallowSnapshotRepoPath));
 
         final Path remoteStoreRepoPath = randomRepoPath();
-        final String remoteStoreRepoName = "remote-store-repo-name";
         createRepository(remoteStoreRepoName, "fs", remoteStoreRepoPath);
 
         final String indexName = "index-1";
         createIndexWithRandomDocs(indexName, randomIntBetween(5, 10));
 
         final String remoteStoreEnabledIndexName = "remote-index-1";
-        final Settings remoteStoreEnabledIndexSettings = getRemoteStoreBackedIndexSettings(remoteStoreRepoName);
+        final Settings remoteStoreEnabledIndexSettings = getRemoteStoreBackedIndexSettings();
         createIndex(remoteStoreEnabledIndexName, remoteStoreEnabledIndexSettings);
         indexRandomDocs(remoteStoreEnabledIndexName, randomIntBetween(5, 10));
 
@@ -244,7 +247,8 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
     public void testCloneAfterRepoShallowSettingEnabled() throws Exception {
         disableRepoConsistencyCheck("This test uses remote store repository");
         FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
-        internalCluster().startClusterManagerOnlyNode();
+        final String remoteStoreRepoName = "remote-store-repo-name";
+        internalCluster().startClusterManagerOnlyNode(remoteStoreClusterSettings(remoteStoreRepoName));
         internalCluster().startDataOnlyNode();
 
         final String snapshotRepoName = "snapshot-repo-name";
@@ -252,14 +256,13 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         createRepository(snapshotRepoName, "fs", snapshotRepoPath);
 
         final Path remoteStoreRepoPath = randomRepoPath();
-        final String remoteStoreRepoName = "remote-store-repo-name";
         createRepository(remoteStoreRepoName, "fs", remoteStoreRepoPath);
 
         final String indexName = "index-1";
         createIndexWithRandomDocs(indexName, randomIntBetween(5, 10));
 
         final String remoteStoreEnabledIndexName = "remote-index-1";
-        final Settings remoteStoreEnabledIndexSettings = getRemoteStoreBackedIndexSettings(remoteStoreRepoName);
+        final Settings remoteStoreEnabledIndexSettings = getRemoteStoreBackedIndexSettings();
         createIndex(remoteStoreEnabledIndexName, remoteStoreEnabledIndexSettings);
         indexRandomDocs(remoteStoreEnabledIndexName, randomIntBetween(5, 10));
 
@@ -281,7 +284,8 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
     public void testCloneAfterRepoShallowSettingDisabled() throws Exception {
         disableRepoConsistencyCheck("This test uses remote store repository");
         FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
-        internalCluster().startClusterManagerOnlyNode();
+        final String remoteStoreRepoName = "remote-store-repo-name";
+        internalCluster().startClusterManagerOnlyNode(remoteStoreClusterSettings(remoteStoreRepoName));
         internalCluster().startDataOnlyNode();
 
         final String snapshotRepoName = "snapshot-repo-name";
@@ -289,14 +293,13 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         createRepository(snapshotRepoName, "fs", snapshotRepoSettingsForShallowCopy(snapshotRepoPath));
 
         final Path remoteStoreRepoPath = randomRepoPath();
-        final String remoteStoreRepoName = "remote-store-repo-name";
         createRepository(remoteStoreRepoName, "fs", remoteStoreRepoPath);
 
         final String indexName = "index-1";
         createIndexWithRandomDocs(indexName, randomIntBetween(5, 10));
 
         final String remoteStoreEnabledIndexName = "remote-index-1";
-        final Settings remoteStoreEnabledIndexSettings = getRemoteStoreBackedIndexSettings(remoteStoreRepoName);
+        final Settings remoteStoreEnabledIndexSettings = getRemoteStoreBackedIndexSettings();
         createIndex(remoteStoreEnabledIndexName, remoteStoreEnabledIndexSettings);
         indexRandomDocs(remoteStoreEnabledIndexName, randomIntBetween(5, 10));
 
