@@ -75,6 +75,8 @@ public enum Recyclers {
     /**
      * Wrap the provided recycler so that calls to {@link Recycler#obtain()} and {@link Recycler.V#close()} are protected by
      * a lock.
+     *
+     * @opensearch.internal
      */
     public static <T> Recycler<T> locked(final Recycler<T> recycler) {
         return new FilterRecycler<T>() {
@@ -140,7 +142,7 @@ public enum Recyclers {
             private final Recycler<T>[] recyclers;
 
             {
-                @SuppressWarnings("unchecked")
+                @SuppressWarnings({ "rawtypes", "unchecked" })
                 final Recycler<T>[] recyclers = new Recycler[concurrencyLevel];
                 this.recyclers = recyclers;
                 for (int i = 0; i < concurrencyLevel; ++i) {
