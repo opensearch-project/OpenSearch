@@ -38,7 +38,7 @@ import org.opensearch.common.xcontent.smile.SmileXContent;
 import org.opensearch.common.xcontent.yaml.YamlXContent;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.MediaType;
-import org.opensearch.core.xcontent.MediaTypeParserRegistry;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContent;
 
 import java.io.IOException;
@@ -133,7 +133,7 @@ public enum XContentType implements MediaType {
 
     static {
         /** a parser of media types */
-        MediaTypeParserRegistry.register(XContentType.values(), Map.of("application/*", JSON, "application/x-ndjson", JSON));
+        MediaTypeRegistry.register(XContentType.values(), Map.of("application/*", JSON, "application/x-ndjson", JSON));
     }
 
     private int index;
