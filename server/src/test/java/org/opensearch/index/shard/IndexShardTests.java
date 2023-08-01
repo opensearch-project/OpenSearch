@@ -3762,7 +3762,8 @@ public class IndexShardTests extends IndexShardTestCase {
      * here we are passing null in place of SegmentReplicationCheckpointPublisher and testing  on index shard if CheckpointRefreshListener is not added to the InternalrefreshListerners List
      */
     public void testCheckpointRefreshListenerWithNull() throws IOException {
-        IndexShard shard = newStartedShard(p -> newShard(null), true);
+        final SegmentReplicationCheckpointPublisher publisher = null;
+        IndexShard shard = newStartedShard(p -> newShard(true, publisher), true);
         List<ReferenceManager.RefreshListener> refreshListeners = shard.getEngine().config().getInternalRefreshListener();
         assertFalse(refreshListeners.stream().anyMatch(e -> e instanceof CheckpointRefreshListener));
         closeShards(shard);
