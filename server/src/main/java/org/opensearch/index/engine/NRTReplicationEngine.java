@@ -452,7 +452,7 @@ public class NRTReplicationEngine extends Engine {
         final SegmentInfos latestSegmentInfos = getLatestSegmentInfos();
         // incref all files
         try {
-            final Collection<String> files = latestSegmentInfos.files(true);
+            final Collection<String> files = latestSegmentInfos.files(false);
             store.incRefFileDeleter(files);
             return new GatedCloseable<>(latestSegmentInfos, () -> store.decRefFileDeleter(files));
         } catch (IOException e) {

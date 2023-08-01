@@ -824,10 +824,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             try {
                 directory.deleteFile(reason, existingFile);
             } catch (IOException ex) {
-                if (ex instanceof NoSuchFileException) {
-                    // file doesn't exist, nothing to do.
-                    return;
-                }
                 if (existingFile.startsWith(IndexFileNames.SEGMENTS) || existingFile.startsWith(CORRUPTED_MARKER_NAME_PREFIX)) {
                     // TODO do we need to also fail this if we can't delete the pending commit file?
                     // if one of those files can't be deleted we better fail the cleanup otherwise we might leave an old commit

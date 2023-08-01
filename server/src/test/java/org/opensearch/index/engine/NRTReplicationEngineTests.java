@@ -385,12 +385,7 @@ public class NRTReplicationEngineTests extends EngineTestCase {
             final Store nrtEngineStore = createStore(REMOTE_STORE_INDEX_SETTINGS, newDirectory());
             final NRTReplicationEngine nrtEngine = buildNrtReplicaEngine(globalCheckpoint, nrtEngineStore, settings)
         ) {
-            List<Engine.Operation> operations = generateHistoryOnReplica(
-                between(10, 20),
-                randomBoolean(),
-                randomBoolean(),
-                randomBoolean()
-            );
+            List<Engine.Operation> operations = generateHistoryOnReplica(between(5, 10), randomBoolean(), randomBoolean(), randomBoolean());
             for (Engine.Operation op : operations) {
                 applyOperation(engine, op);
                 applyOperation(nrtEngine, op);
@@ -405,12 +400,12 @@ public class NRTReplicationEngineTests extends EngineTestCase {
             nrtEngine.updateSegments(engine.getLatestSegmentInfos());
             assertEquals(engine.getLatestSegmentInfos(), nrtEngine.getLatestSegmentInfos());
             final GatedCloseable<SegmentInfos> snapshot = nrtEngine.getSegmentInfosSnapshot();
-            final Collection<String> replica_snapshotFiles = snapshot.get().files(true);
+            final Collection<String> replica_snapshotFiles = snapshot.get().files(false);
             List<String> replicaFiles = List.of(nrtEngine.store.directory().listAll());
 
             // merge primary down to 1 segment
             engine.forceMerge(true, 1, false, false, false, UUIDs.randomBase64UUID());
-            final Collection<String> files = engine.getLatestSegmentInfos().files(true);
+            final Collection<String> files = engine.getLatestSegmentInfos().files(false);
 
             // copy new segments in and load reader.
             for (String file : files) {

@@ -678,10 +678,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                 assert newRouting.primary() && currentRouting.primary() == false;
                                 resetEngineToGlobalCheckpoint();
                             }
+
                             replicationTracker.activatePrimaryMode(getLocalCheckpoint());
 
-                            if (indexSettings.isSegRepEnabled()) {
-                                // force publish a checkpoint now that shard is in primary mode.
+                            if (checkpointPublisher != null) {
+                                // force publish a checkpoint once in primary mode so that replicas not caught up to previous primary
+                                // are brought up to date.
                                 checkpointPublisher.publish(this, getLatestReplicationCheckpoint());
                             }
 
