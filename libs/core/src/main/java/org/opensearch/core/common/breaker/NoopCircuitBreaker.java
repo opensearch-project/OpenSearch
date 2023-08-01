@@ -30,7 +30,7 @@
  * GitHub history for details.
  */
 
-package org.opensearch.common.breaker;
+package org.opensearch.core.common.breaker;
 
 /**
  * A CircuitBreaker that doesn't increment or adjust, and all operations are

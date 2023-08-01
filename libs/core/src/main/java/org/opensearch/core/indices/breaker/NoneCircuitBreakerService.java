@@ -15,7 +15,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *    http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -30,36 +30,37 @@
  * GitHub history for details.
  */
 
-package org.opensearch.common.component;
+package org.opensearch.core.indices.breaker;
+
+import org.opensearch.core.common.breaker.CircuitBreaker;
+import org.opensearch.core.common.breaker.NoopCircuitBreaker;
 
 /**
- * Base lifecycle listener.
+ * Class that returns a breaker that never breaks
  *
  * @opensearch.internal
  */
-public abstract class LifecycleListener {
+public class NoneCircuitBreakerService extends CircuitBreakerService {
 
-    public void beforeStart() {
+    private final CircuitBreaker breaker = new NoopCircuitBreaker(CircuitBreaker.FIELDDATA);
 
+    public NoneCircuitBreakerService() {
+        super();
     }
 
-    public void afterStart() {
-
+    @Override
+    public CircuitBreaker getBreaker(String name) {
+        return breaker;
     }
 
-    public void beforeStop() {
-
+    @Override
+    public AllCircuitBreakerStats stats() {
+        return new AllCircuitBreakerStats(new CircuitBreakerStats[] { stats(CircuitBreaker.FIELDDATA) });
     }
 
-    public void afterStop() {
-
+    @Override
+    public CircuitBreakerStats stats(String name) {
+        return new CircuitBreakerStats(CircuitBreaker.FIELDDATA, -1, -1, 0, 0);
     }
 
-    public void beforeClose() {
-
-    }
-
-    public void afterClose() {
-
-    }
 }

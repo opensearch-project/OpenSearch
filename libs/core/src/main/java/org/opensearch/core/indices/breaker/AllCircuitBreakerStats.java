@@ -30,7 +30,7 @@
  * GitHub history for details.
  */
 
-package org.opensearch.indices.breaker;
+package org.opensearch.core.indices.breaker;
 
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;

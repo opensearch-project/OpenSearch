@@ -29,7 +29,7 @@
  * GitHub history for details.
  */
 
-package org.opensearch.common.breaker;
+package org.opensearch.core.common.breaker;
 
 import org.opensearch.OpenSearchException;
 import org.opensearch.core.common.io.stream.StreamInput;
