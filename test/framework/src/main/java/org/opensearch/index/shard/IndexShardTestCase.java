@@ -91,6 +91,7 @@ import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.EngineFactory;
 import org.opensearch.index.engine.EngineTestCase;
 import org.opensearch.index.engine.InternalEngineFactory;
+import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.SourceToParse;
 import org.opensearch.index.remote.RemoteRefreshSegmentPressureService;
@@ -523,6 +524,52 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             SegmentReplicationCheckpointPublisher.EMPTY,
             remoteStore,
             listeners
+        );
+    }
+
+    /**
+     * creates a new initializing shard. The shard will be put in its proper path under the
+     * current node id the shard is assigned to.
+     * @param checkpointPublisher               Segment Replication Checkpoint Publisher to publish checkpoint
+     */
+    protected IndexShard newShard(boolean primary, SegmentReplicationCheckpointPublisher checkpointPublisher) throws IOException {
+        final ShardId shardId = new ShardId("index", "_na_", 0);
+        final ShardRouting shardRouting = TestShardRouting.newShardRouting(
+            shardId,
+            randomAlphaOfLength(10),
+            primary,
+            ShardRoutingState.INITIALIZING,
+            primary ? RecoverySource.EmptyStoreRecoverySource.INSTANCE : RecoverySource.PeerRecoverySource.INSTANCE
+        );
+        final NodeEnvironment.NodePath nodePath = new NodeEnvironment.NodePath(createTempDir());
+        ShardPath shardPath = new ShardPath(false, nodePath.resolve(shardId), nodePath.resolve(shardId), shardId);
+
+        Settings indexSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, "SEGMENT")
+            .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), between(0, 1000))
+            .put(Settings.EMPTY)
+            .build();
+        IndexMetadata metadata = IndexMetadata.builder(shardRouting.getIndexName())
+            .settings(indexSettings)
+            .primaryTerm(0, primaryTerm)
+            .putMapping("{ \"properties\": {} }")
+            .build();
+        return newShard(
+            shardRouting,
+            shardPath,
+            metadata,
+            null,
+            null,
+            new NRTReplicationEngineFactory(),
+            new EngineConfigFactory(new IndexSettings(metadata, metadata.getSettings())),
+            () -> {},
+            RetentionLeaseSyncer.EMPTY,
+            EMPTY_EVENT_LISTENER,
+            checkpointPublisher,
+            null
         );
     }
 

@@ -84,6 +84,7 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
     private IndicesService indicesService;
 
     private SegmentReplicationState state;
+    private ReplicationCheckpoint initialCheckpoint;
 
     private static final long TRANSPORT_TIMEOUT = 30000;// 30sec
 
@@ -276,24 +277,22 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
             }
         };
         final SegmentReplicationTarget target = spy(
-            new SegmentReplicationTarget(replicaShard, source, mock(SegmentReplicationTargetService.SegmentReplicationListener.class))
+            new SegmentReplicationTarget(
+                replicaShard,
+                primaryShard.getLatestReplicationCheckpoint(),
+                source,
+                mock(SegmentReplicationTargetService.SegmentReplicationListener.class)
+            )
         );
+
+        final SegmentReplicationTargetService spy = spy(sut);
+        doReturn(false).when(spy).processLatestReceivedCheckpoint(eq(replicaShard), any());
         // Start first round of segment replication.
-        sut.startReplication(target);
+        spy.startReplication(target);
 
         // Start second round of segment replication, this should fail to start as first round is still in-progress
-        sut.startReplication(replicaShard, new SegmentReplicationTargetService.SegmentReplicationListener() {
-            @Override
-            public void onReplicationDone(SegmentReplicationState state) {
-                Assert.fail("Should not succeed");
-            }
-
-            @Override
-            public void onReplicationFailure(SegmentReplicationState state, ReplicationFailedException e, boolean sendShardFailure) {
-                assertEquals("Shard " + replicaShard.shardId() + " is already replicating", e.getMessage());
-                assertFalse(sendShardFailure);
-            }
-        });
+        spy.onNewCheckpoint(newPrimaryCheckpoint, replicaShard);
+        verify(spy, times(1)).processLatestReceivedCheckpoint(eq(replicaShard), any());
         blockGetCheckpointMetadata.countDown();
     }
 

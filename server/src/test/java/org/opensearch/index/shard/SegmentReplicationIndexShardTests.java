@@ -19,6 +19,7 @@ import org.opensearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingHelper;
 import org.opensearch.common.collect.Tuple;
@@ -422,7 +423,38 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
     /**
      * here we are starting a new primary shard in PrimaryMode and testing if the shard publishes checkpoint after refresh.
      */
-    public void testPublishCheckpointOnPrimaryMode() throws IOException {
+    public void testPublishCheckpointOnPrimaryMode() throws IOException, InterruptedException {
+        final SegmentReplicationCheckpointPublisher mock = mock(SegmentReplicationCheckpointPublisher.class);
+        IndexShard shard = newStartedShard(p -> newShard(false, mock), false);
+
+        final ShardRouting shardRouting = shard.routingEntry();
+        promoteReplica(
+            shard,
+            Collections.singleton(shardRouting.allocationId().getId()),
+            new IndexShardRoutingTable.Builder(shardRouting.shardId()).addShard(shardRouting).build()
+        );
+
+        final CountDownLatch latch = new CountDownLatch(1);
+        shard.acquirePrimaryOperationPermit(new ActionListener<Releasable>() {
+            @Override
+            public void onResponse(Releasable releasable) {
+                releasable.close();
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                throw new RuntimeException(e);
+            }
+        }, ThreadPool.Names.GENERIC, "");
+
+        latch.await();
+        // verify checkpoint is published
+        verify(mock, times(1)).publish(any(), any());
+        closeShards(shard);
+    }
+
+    public void testPublishCheckpointPostFailover() throws IOException {
         final SegmentReplicationCheckpointPublisher mock = mock(SegmentReplicationCheckpointPublisher.class);
         IndexShard shard = newStartedShard(true);
         CheckpointRefreshListener refreshListener = new CheckpointRefreshListener(shard, mock);
