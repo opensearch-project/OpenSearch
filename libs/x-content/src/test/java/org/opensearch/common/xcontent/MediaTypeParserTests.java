@@ -32,7 +32,7 @@
 
 package org.opensearch.common.xcontent;
 
-import org.opensearch.core.xcontent.MediaTypeParser;
+import org.opensearch.core.xcontent.MediaTypeParserRegistry;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Collections;
@@ -44,42 +44,42 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class MediaTypeParserTests extends OpenSearchTestCase {
 
-    @SuppressWarnings("unchecked")
-    MediaTypeParser<XContentType> mediaTypeParser = XContentType.getMediaTypeParser();
-
     public void testJsonWithParameters() throws Exception {
         String mediaType = "application/json";
-        assertThat(mediaTypeParser.parseMediaType(mediaType).getParameters(), equalTo(Collections.emptyMap()));
-        assertThat(mediaTypeParser.parseMediaType(mediaType + ";").getParameters(), equalTo(Collections.emptyMap()));
-        assertThat(mediaTypeParser.parseMediaType(mediaType + "; charset=UTF-8").getParameters(), equalTo(Map.of("charset", "utf-8")));
+        assertThat(MediaTypeParserRegistry.parseMediaType(mediaType).getParameters(), equalTo(Collections.emptyMap()));
+        assertThat(MediaTypeParserRegistry.parseMediaType(mediaType + ";").getParameters(), equalTo(Collections.emptyMap()));
         assertThat(
-            mediaTypeParser.parseMediaType(mediaType + "; custom=123;charset=UTF-8").getParameters(),
+            MediaTypeParserRegistry.parseMediaType(mediaType + "; charset=UTF-8").getParameters(),
+            equalTo(Map.of("charset", "utf-8"))
+        );
+        assertThat(
+            MediaTypeParserRegistry.parseMediaType(mediaType + "; custom=123;charset=UTF-8").getParameters(),
             equalTo(Map.of("charset", "utf-8", "custom", "123"))
         );
     }
 
     public void testWhiteSpaceInTypeSubtype() {
         String mediaType = " application/json ";
-        assertThat(mediaTypeParser.parseMediaType(mediaType).getMediaType(), equalTo(XContentType.JSON));
+        assertThat(MediaTypeParserRegistry.parseMediaType(mediaType).getMediaType(), equalTo(XContentType.JSON));
 
         assertThat(
-            mediaTypeParser.parseMediaType(mediaType + "; custom=123; charset=UTF-8").getParameters(),
+            MediaTypeParserRegistry.parseMediaType(mediaType + "; custom=123; charset=UTF-8").getParameters(),
             equalTo(Map.of("charset", "utf-8", "custom", "123"))
         );
         assertThat(
-            mediaTypeParser.parseMediaType(mediaType + "; custom=123;\n charset=UTF-8").getParameters(),
+            MediaTypeParserRegistry.parseMediaType(mediaType + "; custom=123;\n charset=UTF-8").getParameters(),
             equalTo(Map.of("charset", "utf-8", "custom", "123"))
         );
 
         mediaType = " application / json ";
-        assertThat(mediaTypeParser.parseMediaType(mediaType), is(nullValue()));
+        assertThat(MediaTypeParserRegistry.parseMediaType(mediaType), is(nullValue()));
     }
 
     public void testInvalidParameters() {
         String mediaType = "application/json";
-        assertThat(mediaTypeParser.parseMediaType(mediaType + "; keyvalueNoEqualsSign"), is(nullValue()));
+        assertThat(MediaTypeParserRegistry.parseMediaType(mediaType + "; keyvalueNoEqualsSign"), is(nullValue()));
 
-        assertThat(mediaTypeParser.parseMediaType(mediaType + "; key = value"), is(nullValue()));
-        assertThat(mediaTypeParser.parseMediaType(mediaType + "; key="), is(nullValue()));
+        assertThat(MediaTypeParserRegistry.parseMediaType(mediaType + "; key = value"), is(nullValue()));
+        assertThat(MediaTypeParserRegistry.parseMediaType(mediaType + "; key="), is(nullValue()));
     }
 }

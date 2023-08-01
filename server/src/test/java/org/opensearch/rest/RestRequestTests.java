@@ -203,12 +203,12 @@ public class RestRequestTests extends OpenSearchTestCase {
             Map<String, List<String>> map = new HashMap<>();
             map.put("Content-Type", Collections.singletonList(xContentType.mediaType()));
             RestRequest restRequest = contentRestRequest("", Collections.emptyMap(), map);
-            assertEquals(xContentType, restRequest.getXContentType());
+            assertEquals(xContentType, restRequest.getMediaType());
 
             map = new HashMap<>();
             map.put("Content-Type", Collections.singletonList(xContentType.mediaTypeWithoutParameters()));
             restRequest = contentRestRequest("", Collections.emptyMap(), map);
-            assertEquals(xContentType, restRequest.getXContentType());
+            assertEquals(xContentType, restRequest.getMediaType());
         }
     }
 
@@ -221,7 +221,7 @@ public class RestRequestTests extends OpenSearchTestCase {
                 Collections.singletonList(randomFrom("text/plain", "text/plain; charset=utf-8", "text/plain;charset=utf-8"))
             )
         );
-        assertNull(restRequest.getXContentType());
+        assertNull(restRequest.getMediaType());
     }
 
     public void testMalformedContentTypeHeader() {
@@ -237,7 +237,7 @@ public class RestRequestTests extends OpenSearchTestCase {
 
     public void testNoContentTypeHeader() {
         RestRequest contentRestRequest = contentRestRequest("", Collections.emptyMap(), Collections.emptyMap());
-        assertNull(contentRestRequest.getXContentType());
+        assertNull(contentRestRequest.getMediaType());
     }
 
     public void testMultipleContentTypeHeaders() {
