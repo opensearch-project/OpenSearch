@@ -15,6 +15,7 @@ import org.opensearch.common.util.MovingAverage;
 import org.opensearch.common.util.Streak;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.store.DirectoryFileTransferTracker;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -30,7 +31,7 @@ import java.util.stream.Collectors;
  *
  * @opensearch.internal
  */
-public class RemoteRefreshSegmentTracker {
+public class RemoteSegmentTransferTracker {
 
     /**
      * ShardId for which this instance tracks the remote segment upload metadata.
@@ -169,8 +170,14 @@ public class RemoteRefreshSegmentTracker {
 
     private final Object uploadTimeMsMutex = new Object();
 
-    public RemoteRefreshSegmentTracker(
+    /**
+     * {@link org.opensearch.index.store.Store.StoreDirectory} level file transfer tracker, used to show download stats
+     */
+    private final DirectoryFileTransferTracker directoryFileTransferTracker;
+
+    public RemoteSegmentTransferTracker(
         ShardId shardId,
+        DirectoryFileTransferTracker directoryFileTransferTracker,
         int uploadBytesMovingAverageWindowSize,
         int uploadBytesPerSecMovingAverageWindowSize,
         int uploadTimeMsMovingAverageWindowSize
@@ -188,6 +195,7 @@ public class RemoteRefreshSegmentTracker {
         uploadTimeMsMovingAverageReference = new AtomicReference<>(new MovingAverage(uploadTimeMsMovingAverageWindowSize));
 
         latestLocalFileNameLengthMap = new HashMap<>();
+        this.directoryFileTransferTracker = directoryFileTransferTracker;
     }
 
     ShardId getShardId() {
@@ -472,8 +480,12 @@ public class RemoteRefreshSegmentTracker {
         }
     }
 
-    public RemoteRefreshSegmentTracker.Stats stats() {
-        return new RemoteRefreshSegmentTracker.Stats(
+    public DirectoryFileTransferTracker getDirectoryFileTransferTracker() {
+        return directoryFileTransferTracker;
+    }
+
+    public RemoteSegmentTransferTracker.Stats stats() {
+        return new RemoteSegmentTransferTracker.Stats(
             shardId,
             localRefreshClockTimeMs,
             remoteRefreshClockTimeMs,
@@ -492,7 +504,8 @@ public class RemoteRefreshSegmentTracker {
             uploadBytesMovingAverageReference.get().getAverage(),
             uploadBytesPerSecMovingAverageReference.get().getAverage(),
             uploadTimeMsMovingAverageReference.get().getAverage(),
-            getBytesLag()
+            getBytesLag(),
+            directoryFileTransferTracker.stats()
         );
     }
 
@@ -522,6 +535,7 @@ public class RemoteRefreshSegmentTracker {
         public final double uploadBytesPerSecMovingAverage;
         public final double uploadTimeMovingAverage;
         public final long bytesLag;
+        public final DirectoryFileTransferTracker.Stats directoryFileTransferTrackerStats;
 
         public Stats(
             ShardId shardId,
@@ -542,7 +556,8 @@ public class RemoteRefreshSegmentTracker {
             double uploadBytesMovingAverage,
             double uploadBytesPerSecMovingAverage,
             double uploadTimeMovingAverage,
-            long bytesLag
+            long bytesLag,
+            DirectoryFileTransferTracker.Stats directoryFileTransferTrackerStats
         ) {
             this.shardId = shardId;
             this.localRefreshClockTimeMs = localRefreshClockTimeMs;
@@ -563,6 +578,7 @@ public class RemoteRefreshSegmentTracker {
             this.uploadBytesPerSecMovingAverage = uploadBytesPerSecMovingAverage;
             this.uploadTimeMovingAverage = uploadTimeMovingAverage;
             this.bytesLag = bytesLag;
+            this.directoryFileTransferTrackerStats = directoryFileTransferTrackerStats;
         }
 
         public Stats(StreamInput in) throws IOException {
@@ -586,6 +602,7 @@ public class RemoteRefreshSegmentTracker {
                 this.uploadBytesPerSecMovingAverage = in.readDouble();
                 this.uploadTimeMovingAverage = in.readDouble();
                 this.bytesLag = in.readLong();
+                this.directoryFileTransferTrackerStats = in.readOptionalWriteable(DirectoryFileTransferTracker.Stats::new);
             } catch (IOException e) {
                 throw e;
             }
@@ -612,7 +629,7 @@ public class RemoteRefreshSegmentTracker {
             out.writeDouble(uploadBytesPerSecMovingAverage);
             out.writeDouble(uploadTimeMovingAverage);
             out.writeLong(bytesLag);
+            out.writeOptionalWriteable(directoryFileTransferTrackerStats);
         }
     }
-
 }
