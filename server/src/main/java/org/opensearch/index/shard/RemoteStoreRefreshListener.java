@@ -28,7 +28,7 @@ import org.opensearch.common.util.UploadListener;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.engine.InternalEngine;
-import org.opensearch.index.remote.RemoteRefreshSegmentTracker;
+import org.opensearch.index.remote.RemoteSegmentTransferTracker;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
@@ -87,7 +87,7 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
     private final IndexShard indexShard;
     private final Directory storeDirectory;
     private final RemoteSegmentStoreDirectory remoteDirectory;
-    private final RemoteRefreshSegmentTracker segmentTracker;
+    private final RemoteSegmentTransferTracker segmentTracker;
     private final Map<String, String> localSegmentChecksumMap;
     private long primaryTerm;
     private volatile Iterator<TimeValue> backoffDelayIterator;
@@ -104,7 +104,7 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
     public RemoteStoreRefreshListener(
         IndexShard indexShard,
         SegmentReplicationCheckpointPublisher checkpointPublisher,
-        RemoteRefreshSegmentTracker segmentTracker
+        RemoteSegmentTransferTracker segmentTracker
     ) {
         super(indexShard.getThreadPool());
         logger = Loggers.getLogger(getClass(), indexShard.shardId());
