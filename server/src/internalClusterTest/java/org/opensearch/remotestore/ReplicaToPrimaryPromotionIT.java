@@ -39,11 +39,7 @@ public class ReplicaToPrimaryPromotionIT extends RemoteStoreBaseIntegTestCase {
 
     @Override
     public Settings indexSettings() {
-        return Settings.builder()
-            .put(super.indexSettings())
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, shard_count)
-            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, REPOSITORY_NAME)
-            .build();
+        return Settings.builder().put(super.indexSettings()).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, shard_count).build();
     }
 
     public void testPromoteReplicaToPrimary() throws Exception {

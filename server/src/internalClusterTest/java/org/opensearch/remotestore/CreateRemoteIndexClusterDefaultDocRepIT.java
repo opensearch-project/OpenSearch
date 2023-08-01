@@ -16,12 +16,16 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
+import java.util.Locale;
+
 import static org.hamcrest.Matchers.containsString;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_ENABLED;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
 import static org.opensearch.indices.IndicesService.CLUSTER_REPLICATION_TYPE_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST)
-public class CreateRemoteIndexClusterDefaultDocRep extends CreateRemoteIndexIT {
+public class CreateRemoteIndexClusterDefaultDocRepIT extends CreateRemoteIndexIT {
 
     @Override
     protected Settings nodeSettings(int nodeOriginal) {
@@ -44,7 +48,15 @@ public class CreateRemoteIndexClusterDefaultDocRep extends CreateRemoteIndexIT {
         );
         assertThat(
             exc.getMessage(),
-            containsString("Cannot enable [index.remote_store.enabled] when [index.replication.type] is DOCUMENT")
+            containsString(
+                String.format(
+                    Locale.ROOT,
+                    "To enable %s, %s should be set to %s",
+                    SETTING_REMOTE_STORE_ENABLED,
+                    SETTING_REPLICATION_TYPE,
+                    ReplicationType.SEGMENT
+                )
+            )
         );
     }
 

@@ -47,6 +47,7 @@ import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.translog.transfer.BlobStoreTransferService;
 import org.opensearch.indices.recovery.RecoverySettings;
+import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.repositories.blobstore.BlobStoreTestUtil;
 import org.opensearch.repositories.fs.FsRepository;
@@ -182,6 +183,7 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
             // only randomize between nog age retention and a long one, so failures will have a chance of reproducing
             .put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), randomBoolean() ? "-1ms" : "1h")
             .put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), randomIntBetween(-1, 2048) + "b")
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
             .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
             .build();
         return getTranslogConfig(path, settings);
