@@ -36,6 +36,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING;
 import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_STORE_ENABLED_SETTING;
@@ -252,6 +254,12 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
         });
 
         return filesExisting.get();
+    }
+
+    public List<String> getFilesInPath(Path path) throws IOException {
+        try (Stream<Path> stream = Files.list(path)) {
+            return stream.filter(file -> !Files.isDirectory(file)).map(Path::getFileName).map(Path::toString).collect(Collectors.toList());
+        }
     }
 
 }

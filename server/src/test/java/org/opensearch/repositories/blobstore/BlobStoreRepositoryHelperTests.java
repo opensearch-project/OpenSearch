@@ -8,6 +8,7 @@
 
 package org.opensearch.repositories.blobstore;
 
+import org.apache.lucene.tests.mockfile.ExtrasFS;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -48,6 +49,28 @@ public class BlobStoreRepositoryHelperTests extends OpenSearchSingleNodeTestCase
         return Arrays.asList(FsLikeRepoPlugin.class);
     }
 
+    protected void deleteExtraFSFilesIfAny(String remoteStoreIndex, String remoteStoreRepository) throws IOException {
+        String indexUUID = client().admin()
+            .indices()
+            .prepareGetSettings(remoteStoreIndex)
+            .get()
+            .getSetting(remoteStoreIndex, IndexMetadata.SETTING_INDEX_UUID);
+        final RepositoriesService repositoriesService = getInstanceFromNode(RepositoriesService.class);
+        final BlobStoreRepository remoteStorerepository = (BlobStoreRepository) repositoriesService.repository(remoteStoreRepository);
+        BlobPath shardLevelBlobPath = remoteStorerepository.basePath().add(indexUUID).add("0").add("segments").add("lock_files");
+        BlobContainer blobContainer = remoteStorerepository.blobStore().blobContainer(shardLevelBlobPath);
+        try (RemoteBufferedOutputDirectory lockDirectory = new RemoteBufferedOutputDirectory(blobContainer)) {
+            // extra0 file is added as a part of
+            // https://lucene.apache.org/core/7_2_1/test-framework/org/apache/lucene/mockfile/ExtrasFS.html
+            // Safe to remove without impacting the test
+            for (String file : lockDirectory.listAll()) {
+                if (ExtrasFS.isExtra(file)) {
+                    lockDirectory.deleteFile(file);
+                }
+            }
+        }
+    }
+
     protected String[] getLockFilesInRemoteStore(String remoteStoreIndex, String remoteStoreRepository) throws IOException {
         String indexUUID = client().admin()
             .indices()
@@ -86,10 +109,14 @@ public class BlobStoreRepositoryHelperTests extends OpenSearchSingleNodeTestCase
     }
 
     protected void createRepository(Client client, String repoName) {
+        createRepository(client, repoName, REPO_TYPE);
+    }
+
+    protected void createRepository(Client client, String repoName, String repoType) {
         AcknowledgedResponse putRepositoryResponse = client.admin()
             .cluster()
             .preparePutRepository(repoName)
-            .setType(REPO_TYPE)
+            .setType(repoType)
             .setSettings(
                 Settings.builder().put(node().settings()).put("location", OpenSearchIntegTestCase.randomRepoPath(node().settings()))
             )
@@ -98,10 +125,14 @@ public class BlobStoreRepositoryHelperTests extends OpenSearchSingleNodeTestCase
     }
 
     protected void createRepository(Client client, String repoName, Settings repoSettings) {
+        createRepository(client, repoName, repoSettings, REPO_TYPE);
+    }
+
+    protected void createRepository(Client client, String repoName, Settings repoSettings, String repoType) {
         AcknowledgedResponse putRepositoryResponse = client.admin()
             .cluster()
             .preparePutRepository(repoName)
-            .setType(REPO_TYPE)
+            .setType(repoType)
             .setSettings(repoSettings)
             .get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));

@@ -13,6 +13,7 @@ import org.junit.Before;
 import org.opensearch.action.DocWriteResponse;
 import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStoreRequest;
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
+import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.opensearch.action.admin.indices.get.GetIndexRequest;
 import org.opensearch.action.admin.indices.get.GetIndexResponse;
@@ -28,6 +29,7 @@ import org.opensearch.core.rest.RestStatus;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.snapshots.AbstractSnapshotIntegTestCase;
+import org.opensearch.snapshots.SnapshotRestoreException;
 import org.opensearch.snapshots.SnapshotState;
 import org.opensearch.test.InternalTestCluster;
 
@@ -528,4 +530,223 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertDocsPresentInIndex(client, restoredIndexName1, numDocsInIndex1 + 2);
     }
 
+    public void testShallowCloneRestore() {
+        testShallowCloneRestore(false);
+    }
+
+    public void testShallowCloneRestoreAfterDeleteOriginal() {
+        testShallowCloneRestore(true);
+    }
+
+    private void testShallowCloneRestore(boolean deleteOriginalSnapshot) {
+        internalCluster().startClusterManagerOnlyNode();
+        internalCluster().startDataOnlyNode();
+        String indexName1 = "testindex1";
+        String indexName2 = "testindex2";
+        String snapshotRepoName = "test-restore-snapshot-repo";
+        String remoteStoreRepoName = "test-rs-repo" + TEST_REMOTE_STORE_REPO_SUFFIX;
+        String snapshotName = "test-restore-snapshot";
+        String snapshotCloneName = "test-restore-snapshot-clone";
+        Path absolutePath1 = randomRepoPath().toAbsolutePath();
+        Path absolutePath2 = randomRepoPath().toAbsolutePath();
+        String restoredIndexName1 = indexName1 + "-restored";
+
+        createRepository(snapshotRepoName, "fs", getRepositorySettings(absolutePath1, true));
+        createRepository(remoteStoreRepoName, "fs", absolutePath2);
+
+        Client client = client();
+        Settings indexSettings = getIndexSettings(1, 0).build();
+        createIndex(indexName1, indexSettings);
+
+        Settings indexSettings2 = getIndexSettings(1, 0).build();
+        createIndex(indexName2, indexSettings2);
+
+        final int numDocsInIndex1 = 5;
+        final int numDocsInIndex2 = 6;
+        indexDocuments(client, indexName1, numDocsInIndex1);
+        indexDocuments(client, indexName2, numDocsInIndex2);
+        ensureGreen(indexName1, indexName2);
+
+        internalCluster().startDataOnlyNode();
+        logger.info("--> create shallow copy snapshot");
+        CreateSnapshotResponse createSnapshotResponse = client.admin()
+            .cluster()
+            .prepareCreateSnapshot(snapshotRepoName, snapshotName)
+            .setWaitForCompletion(true)
+            .setIndices(indexName1, indexName2)
+            .get();
+        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
+        assertThat(
+            createSnapshotResponse.getSnapshotInfo().successfulShards(),
+            equalTo(createSnapshotResponse.getSnapshotInfo().totalShards())
+        );
+        assertThat(createSnapshotResponse.getSnapshotInfo().state(), equalTo(SnapshotState.SUCCESS));
+
+        logger.info("--> clone shallow snapshot");
+        assertAcked(
+            client.admin()
+                .cluster()
+                .prepareCloneSnapshot(snapshotRepoName, snapshotName, snapshotCloneName)
+                .setIndices(indexName1, indexName2)
+                .get()
+        );
+
+        if (deleteOriginalSnapshot) {
+            logger.info("--> delete shallow snapshot");
+            assertAcked(client().admin().cluster().prepareDeleteSnapshot(snapshotRepoName, snapshotName).get());
+        }
+
+        logger.info("--> restore using clone snapshot");
+        RestoreSnapshotResponse restoreSnapshotResponse = client.admin()
+            .cluster()
+            .prepareRestoreSnapshot(snapshotRepoName, snapshotCloneName)
+            .setWaitForCompletion(true)
+            .setIndices(indexName1)
+            .setRenamePattern(indexName1)
+            .setRenameReplacement(restoredIndexName1)
+            .get();
+        assertTrue(restoreSnapshotResponse.getRestoreInfo().failedShards() == 0);
+
+        logger.info("--> validate no of docs still match");
+        ensureGreen(restoredIndexName1);
+        assertDocsPresentInIndex(client, restoredIndexName1, numDocsInIndex1);
+    }
+
+    public void testRestoreDownloadFromRemoteStore() {
+        internalCluster().startClusterManagerOnlyNode();
+        internalCluster().startDataOnlyNode();
+        String indexName1 = "testindex1";
+        String indexName2 = "testindex2";
+        String snapshotRepoName = "test-restore-snapshot-repo";
+        String remoteStoreRepoName = "test-rs-repo" + TEST_REMOTE_STORE_REPO_SUFFIX;
+        String snapshotName1 = "test-restore-snapshot1";
+        Path absolutePath1 = randomRepoPath().toAbsolutePath();
+        Path absolutePath2 = randomRepoPath().toAbsolutePath();
+        String restoredIndexName1 = indexName1 + "-restored";
+
+        createRepository(snapshotRepoName, "fs", getRepositorySettings(absolutePath1, true));
+        createRepository(remoteStoreRepoName, "mock", getRepositorySettings(absolutePath2, false));
+
+        Client client = client();
+        Settings indexSettings = getIndexSettings(1, 0).build();
+        createIndex(indexName1, indexSettings);
+
+        Settings indexSettings2 = getIndexSettings(1, 0).build();
+        createIndex(indexName2, indexSettings2);
+
+        final int numDocsInIndex1 = 5;
+        final int numDocsInIndex2 = 6;
+        indexDocuments(client, indexName1, numDocsInIndex1);
+        indexDocuments(client, indexName2, numDocsInIndex2);
+        ensureGreen(indexName1, indexName2);
+
+        logger.info("--> snapshot");
+        CreateSnapshotResponse createSnapshotResponse = client.admin()
+            .cluster()
+            .prepareCreateSnapshot(snapshotRepoName, snapshotName1)
+            .setWaitForCompletion(true)
+            .setIndices(indexName1, indexName2)
+            .get();
+        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
+        assertThat(
+            createSnapshotResponse.getSnapshotInfo().successfulShards(),
+            equalTo(createSnapshotResponse.getSnapshotInfo().totalShards())
+        );
+        assertThat(createSnapshotResponse.getSnapshotInfo().state(), equalTo(SnapshotState.SUCCESS));
+
+        logger.info("--> blocking all data nodes for repository [{}]", remoteStoreRepoName);
+        blockAllDataNodes(remoteStoreRepoName);
+        createRepository(
+            remoteStoreRepoName,
+            "mock",
+            getRepositorySettings(absolutePath2, false).putList("regexes_to_fail_io", ".si").put("max_failure_number", 6L)
+        );
+        // we retry IO 5 times, keeping it 6 so that first read for single segment file will fail
+
+        RestoreSnapshotResponse restoreSnapshotResponse = client.admin()
+            .cluster()
+            .prepareRestoreSnapshot(snapshotRepoName, snapshotName1)
+            .setWaitForCompletion(true)
+            .setIndices(indexName1)
+            .setRenamePattern(indexName1)
+            .setRenameReplacement(restoredIndexName1)
+            .get();
+
+        logger.info("--> unblocking repository [{}]", remoteStoreRepoName);
+        unblockAllDataNodes(remoteStoreRepoName);
+
+        ensureRed(restoredIndexName1);
+        assertEquals(1, restoreSnapshotResponse.getRestoreInfo().failedShards());
+
+        assertAcked(client().admin().indices().prepareClose(restoredIndexName1).get());
+        restoreSnapshotResponse = client.admin()
+            .cluster()
+            .prepareRestoreSnapshot(snapshotRepoName, snapshotName1)
+            .setWaitForCompletion(true)
+            .setIndices(indexName1)
+            .setRenamePattern(indexName1)
+            .setRenameReplacement(restoredIndexName1)
+            .get();
+
+        ensureGreen(restoredIndexName1);
+        assertEquals(0, restoreSnapshotResponse.getRestoreInfo().failedShards());
+    }
+
+    public void testRestoreShallowCopyAsSearchable() {
+        internalCluster().startClusterManagerOnlyNode();
+        internalCluster().startDataOnlyNode();
+        String indexName1 = "testindex1";
+        String indexName2 = "testindex2";
+        String snapshotRepoName = "test-restore-snapshot-repo";
+        String remoteStoreRepoName = "test-rs-repo" + TEST_REMOTE_STORE_REPO_SUFFIX;
+        String snapshotName1 = "test-restore-snapshot1";
+        Path absolutePath1 = randomRepoPath().toAbsolutePath();
+        Path absolutePath2 = randomRepoPath().toAbsolutePath();
+        String restoredIndexName1 = indexName1 + "-restored";
+
+        createRepository(snapshotRepoName, "fs", getRepositorySettings(absolutePath1, true));
+        createRepository(remoteStoreRepoName, "mock", getRepositorySettings(absolutePath2, false));
+
+        Client client = client();
+        Settings indexSettings = getIndexSettings(1, 0).build();
+        createIndex(indexName1, indexSettings);
+
+        Settings indexSettings2 = getIndexSettings(1, 0).build();
+        createIndex(indexName2, indexSettings2);
+
+        final int numDocsInIndex1 = 5;
+        final int numDocsInIndex2 = 6;
+        indexDocuments(client, indexName1, numDocsInIndex1);
+        indexDocuments(client, indexName2, numDocsInIndex2);
+        ensureGreen(indexName1, indexName2);
+
+        logger.info("--> snapshot");
+        CreateSnapshotResponse createSnapshotResponse = client.admin()
+            .cluster()
+            .prepareCreateSnapshot(snapshotRepoName, snapshotName1)
+            .setWaitForCompletion(true)
+            .setIndices(indexName1, indexName2)
+            .get();
+        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
+        assertThat(
+            createSnapshotResponse.getSnapshotInfo().successfulShards(),
+            equalTo(createSnapshotResponse.getSnapshotInfo().totalShards())
+        );
+        assertThat(createSnapshotResponse.getSnapshotInfo().state(), equalTo(SnapshotState.SUCCESS));
+        logger.info("--> restore indices as 'remote_snapshot'");
+        try {
+            client.admin()
+                .cluster()
+                .prepareRestoreSnapshot(snapshotRepoName, snapshotName1)
+                .setRenamePattern("(.+)")
+                .setRenameReplacement("$1-copy")
+                .setStorageType(RestoreSnapshotRequest.StorageType.REMOTE_SNAPSHOT)
+                .setWaitForCompletion(true)
+                .execute()
+                .actionGet();
+            fail("Restore of Shallow Copy as searchable snapshot should fail");
+        } catch (SnapshotRestoreException e) {
+            assertTrue(e.getMessage().contains("Shallow copy snapshot cannot be restored as searchable snapshot"));
+        }
+    }
 }

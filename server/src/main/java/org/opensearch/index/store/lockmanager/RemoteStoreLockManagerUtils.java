@@ -15,7 +15,7 @@ package org.opensearch.index.store.lockmanager;
  */
 public class RemoteStoreLockManagerUtils {
     static final String FILE_TO_LOCK_NAME = "file_to_lock";
-    static final String SEPARATOR = "___";
+    public static final String SEPARATOR = "____";
     static final String LOCK_FILE_EXTENSION = ".lock";
     static final String ACQUIRER_ID = "acquirer_id";
     public static final String NO_TTL = "-1";
