@@ -117,7 +117,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 import java.util.zip.CRC32;
 import java.util.zip.Checksum;
 
@@ -389,20 +388,11 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * </ul>
      */
     public static RecoveryDiff segmentReplicationDiff(Map<String, StoreFileMetadata> source, Map<String, StoreFileMetadata> target) {
-        return segmentReplicationDiff(source, target, false, null);
-    }
-
-    public static RecoveryDiff segmentReplicationDiff(
-        Map<String, StoreFileMetadata> source,
-        Map<String, StoreFileMetadata> target,
-        boolean includeSegmentNFile,
-        Collection<String> ignoreAdditionalFiles
-    ) {
         final List<StoreFileMetadata> identical = new ArrayList<>();
         final List<StoreFileMetadata> different = new ArrayList<>();
         List<StoreFileMetadata> missing = new ArrayList<>();
         for (StoreFileMetadata value : source.values()) {
-            if (includeSegmentNFile == false && value.name().startsWith(IndexFileNames.SEGMENTS)) {
+            if (value.name().startsWith(IndexFileNames.SEGMENTS)) {
                 continue;
             }
             if (target.containsKey(value.name()) == false) {
@@ -416,11 +406,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                     different.add(value);
                 }
             }
-        }
-        if (ignoreAdditionalFiles != null) {
-            missing = missing.stream()
-                .filter(metadata -> ignoreAdditionalFiles.contains(metadata.name()) == false)
-                .collect(Collectors.toList());
         }
         return new RecoveryDiff(
             Collections.unmodifiableList(identical),

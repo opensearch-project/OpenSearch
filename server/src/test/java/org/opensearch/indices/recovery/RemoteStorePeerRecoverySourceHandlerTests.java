@@ -48,16 +48,19 @@ public class RemoteStorePeerRecoverySourceHandlerTests extends OpenSearchIndexLe
             shards.startPrimary();
             final IndexShard primary = shards.getPrimary();
             int numDocs = shards.indexDocs(randomIntBetween(10, 20));
+            logger.info("--> Index numDocs {} and flush", numDocs);
             shards.flush();
 
             // Step 2 - Start replica for recovery to happen, check both has same number of docs
             final IndexShard replica1 = shards.addReplica(remoteDir);
+            logger.info("--> Added and started replica {}", replica1.routingEntry());
             shards.startAll();
             assertEquals(getDocIdAndSeqNos(primary), getDocIdAndSeqNos(replica1));
 
             // Step 3 - Index more docs, run segment replication, check both have same number of docs
             int moreDocs = shards.indexDocs(randomIntBetween(10, 20));
             primary.refresh("test");
+            logger.info("--> Index more docs {} and replicate segments", moreDocs);
             replicateSegments(primary, shards.getReplicas());
             assertEquals(getDocIdAndSeqNos(primary), getDocIdAndSeqNos(replica1));
 
@@ -71,6 +74,7 @@ public class RemoteStorePeerRecoverySourceHandlerTests extends OpenSearchIndexLe
 
             // Step 6 - Start new replica, recovery happens, and check that new replica has all docs
             final IndexShard replica2 = shards.addReplica(remoteDir);
+            logger.info("--> Added and started replica {}", replica2.routingEntry());
             shards.startAll();
             shards.assertAllEqual(numDocs + moreDocs);
 

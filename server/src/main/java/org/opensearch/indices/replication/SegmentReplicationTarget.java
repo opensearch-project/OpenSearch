@@ -32,7 +32,6 @@ import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
 import org.opensearch.indices.replication.common.ReplicationTarget;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -167,12 +166,7 @@ public class SegmentReplicationTarget extends ReplicationTarget {
     private List<StoreFileMetadata> getFiles(CheckpointInfoResponse checkpointInfo) throws IOException {
         cancellableThreads.checkForCancel();
         state.setStage(SegmentReplicationState.Stage.FILE_DIFF);
-        final Store.RecoveryDiff diff = Store.segmentReplicationDiff(
-            checkpointInfo.getMetadataMap(),
-            indexShard.getSegmentMetadataMap(),
-            indexShard.indexSettings().isRemoteStoreEnabled(),
-            List.of(indexShard.store().directory().listAll())
-        );
+        final Store.RecoveryDiff diff = Store.segmentReplicationDiff(checkpointInfo.getMetadataMap(), indexShard.getSegmentMetadataMap());
         logger.trace(() -> new ParameterizedMessage("Replication diff for checkpoint {} {}", checkpointInfo.getCheckpoint(), diff));
         /*
          * Segments are immutable. So if the replica has any segments with the same name that differ from the one in the incoming
@@ -209,11 +203,9 @@ public class SegmentReplicationTarget extends ReplicationTarget {
             store.incRef();
             Map<String, String> tempFileNames;
             if (this.indexShard.indexSettings().isRemoteStoreEnabled() == true) {
-                tempFileNames = getSegmentFilesResponse.getFiles() != null
-                    ? getSegmentFilesResponse.getFiles()
-                        .stream()
-                        .collect(Collectors.toMap(StoreFileMetadata::name, StoreFileMetadata::name))
-                    : Collections.emptyMap();
+                tempFileNames = getSegmentFilesResponse.getFiles()
+                    .stream()
+                    .collect(Collectors.toMap(StoreFileMetadata::name, StoreFileMetadata::name));
             } else {
                 tempFileNames = multiFileWriter.getTempFileNames();
             }

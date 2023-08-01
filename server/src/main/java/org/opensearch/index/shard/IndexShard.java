@@ -198,10 +198,9 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.EnumSet;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -1988,7 +1987,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final Optional<SequenceNumbers.CommitInfo> safeCommit;
         final long globalCheckpoint;
         try {
-            final String translogUUID = store.readLastCommittedSegmentsInfo().getUserData().get(Translog.TRANSLOG_UUID_KEY);
+            final String translogUUID = store.readLastCommittedSegmentsInfo().getUserData().get(TRANSLOG_UUID_KEY);
             globalCheckpoint = Translog.readGlobalCheckpoint(translogConfig.getTranslogPath(), translogUUID);
             safeCommit = store.findSafeIndexCommit(globalCheckpoint);
         } catch (org.apache.lucene.index.IndexNotFoundException e) {
@@ -2088,7 +2087,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         try {
             seqNo = Long.parseLong(store.readLastCommittedSegmentsInfo().getUserData().get(MAX_SEQ_NO));
         } catch (org.apache.lucene.index.IndexNotFoundException e) {
-            logger.error("skip local recovery as no index commit found", e);
+            logger.error("skip local recovery as no index commit found");
             return UNASSIGNED_SEQ_NO;
         } catch (Exception e) {
             logger.error("skip local recovery as failed to find the safe commit", e);
@@ -2242,7 +2241,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // we have to set it before we open an engine and recover from the translog because
         // acquiring a snapshot from the translog causes a sync which causes the global checkpoint to be pulled in,
         // and an engine can be forced to close in ctor which also causes the global checkpoint to be pulled in.
-        final String translogUUID = store.readLastCommittedSegmentsInfo().getUserData().get(Translog.TRANSLOG_UUID_KEY);
+        final String translogUUID = store.readLastCommittedSegmentsInfo().getUserData().get(TRANSLOG_UUID_KEY);
         final long globalCheckpoint = Translog.readGlobalCheckpoint(translogConfig.getTranslogPath(), translogUUID);
         replicationTracker.updateGlobalCheckpointOnReplica(globalCheckpoint, "read from translog checkpoint");
     }
@@ -4645,7 +4644,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             } else {
                 storeDirectory = store.directory();
             }
-            Set<String> localSegmentFiles = Sets.newHashSet(storeDirectory.listAll());
             copySegmentFiles(storeDirectory, remoteDirectory, null, uploadedSegments, overrideLocal);
 
             if (refreshLevelSegmentSync && remoteSegmentMetadata != null) {
@@ -4659,32 +4657,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         indexInput,
                         remoteSegmentMetadata.getGeneration()
                     );
-                    // Replicas never need a local commit
-                    if (this.shardRouting.primary()) {
-                        long processedLocalCheckpoint = Long.parseLong(infosSnapshot.getUserData().get(LOCAL_CHECKPOINT_KEY));
-                        // Following code block makes sure to use SegmentInfosSnapshot in the remote store if generation differs
-                        // with local filesystem. If local filesystem already has segments_N+2 and infosSnapshot has generation N,
-                        // after commit, there would be 2 files that would be created segments_N+1 and segments_N+2. With the
-                        // policy of preserving only the latest commit, we will delete segments_N+1 which in fact is the part of the
-                        // latest commit.
-                        Optional<String> localMaxSegmentInfos = localSegmentFiles.stream()
-                            .filter(file -> file.startsWith(IndexFileNames.SEGMENTS))
-                            .max(Comparator.comparingLong(SegmentInfos::generationFromSegmentsFileName));
-                        if (localMaxSegmentInfos.isPresent()
-                            && infosSnapshot.getGeneration() < SegmentInfos.generationFromSegmentsFileName(localMaxSegmentInfos.get())
-                                - 1) {
-                            // If remote translog is not enabled, local translog will be created with different UUID.
-                            // This fails in Store.trimUnsafeCommits() as translog UUID of checkpoint and SegmentInfos needs
-                            // to be same. Following code block make sure to have the same UUID.
-                            if (indexSettings.isRemoteTranslogStoreEnabled() == false) {
-                                SegmentInfos localSegmentInfos = store.readLastCommittedSegmentsInfo();
-                                Map<String, String> userData = new HashMap<>(infosSnapshot.getUserData());
-                                userData.put(TRANSLOG_UUID_KEY, localSegmentInfos.userData.get(TRANSLOG_UUID_KEY));
-                                infosSnapshot.setUserData(userData, false);
+                    long processedLocalCheckpoint = Long.parseLong(infosSnapshot.getUserData().get(LOCAL_CHECKPOINT_KEY));
+                    store.commitSegmentInfos(infosSnapshot, processedLocalCheckpoint, processedLocalCheckpoint);
+                    Collection<String> currentInfoFiles = infosSnapshot.files(true);
+                    if (recoveryState.getStage() != RecoveryState.Stage.DONE) {
+                        for (String localFile : storeDirectory.listAll()) {
+                            if (Store.isAutogenerated(localFile) == false && currentInfoFiles.contains(localFile) == false) {
+                                storeDirectory.deleteFile(localFile);
                             }
-                            storeDirectory.deleteFile(localMaxSegmentInfos.get());
                         }
-                        store.commitSegmentInfos(infosSnapshot, processedLocalCheckpoint, processedLocalCheckpoint);
                     }
                 }
             }

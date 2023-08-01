@@ -109,7 +109,7 @@ public class RemoteStoreReplicationSourceTests extends OpenSearchIndexLevelRepli
         } catch (AssertionError | ExecutionException ex) {
             latch.countDown();
             assertTrue(ex instanceof AssertionError);
-            assertEquals("Local store already contains the file", ex.getMessage());
+            assertTrue(ex.getMessage().startsWith("Local store already contains the file"));
         }
         latch.await();
     }

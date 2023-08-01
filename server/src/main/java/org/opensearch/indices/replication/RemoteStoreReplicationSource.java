@@ -60,7 +60,7 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
         // TODO: Need to figure out a way to pass this information for segment metadata via remote store.
         final Version version = indexShard.getSegmentInfosSnapshot().get().getCommitLuceneVersion();
         try {
-            RemoteSegmentMetadata mdFile = remoteDirectory.readLatestMetadataFile();
+            RemoteSegmentMetadata mdFile = remoteDirectory.init();
             // During initial recovery flow, the remote store might not have metadata as primary hasn't uploaded anything yet.
             if (mdFile == null && indexShard.state().equals(IndexShardState.STARTED) == false) {
                 listener.onResponse(new CheckpointInfoResponse(checkpoint, Collections.emptyMap(), null));
@@ -103,7 +103,7 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
             }
             logger.trace("Downloading segments files from remote store {}", filesToFetch);
 
-            RemoteSegmentMetadata remoteSegmentMetadata = remoteDirectory.init();
+            RemoteSegmentMetadata remoteSegmentMetadata = remoteDirectory.readLatestMetadataFile();
             List<StoreFileMetadata> downloadedSegments = new ArrayList<>();
             String segmentNFile = null;
             Collection<String> directoryFiles = List.of(indexShard.store().directory().listAll());
@@ -114,7 +114,7 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
                     final Directory storeDirectory = indexShard.store().directory();
                     for (StoreFileMetadata fileMetadata : filesToFetch) {
                         String file = fileMetadata.name();
-                        assert directoryFiles.contains(file) == false : "Local store already contains the file";
+                        assert directoryFiles.contains(file) == false : "Local store already contains the file " + file;
                         storeDirectory.copyFrom(remoteDirectory, file, file, IOContext.DEFAULT);
                         downloadedSegments.add(fileMetadata);
                         if (file.startsWith(IndexFileNames.SEGMENTS)) {
@@ -122,7 +122,6 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
                             segmentNFile = file;
                         }
                     }
-                    storeDirectory.sync(downloadedSegments.stream().map(metadata -> metadata.name()).collect(Collectors.toList()));
                     logger.trace("Downloaded segments from remote store {}", downloadedSegments);
                 } finally {
                     indexShard.store().decRef();
