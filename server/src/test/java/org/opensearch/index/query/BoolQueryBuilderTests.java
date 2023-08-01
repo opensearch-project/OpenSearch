@@ -37,8 +37,8 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentParseException;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
@@ -181,7 +181,7 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
 
     // https://github.com/elastic/elasticsearch/issues/7240
     public void testEmptyBooleanQuery() throws Exception {
-        XContentBuilder contentBuilder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
+        XContentBuilder contentBuilder = MediaTypeRegistry.contentBuilder(randomFrom(XContentType.values()));
         contentBuilder.startObject().startObject("bool").endObject().endObject();
         try (XContentParser xParser = createParser(contentBuilder)) {
             Query parsedQuery = parseQuery(xParser).toQuery(createShardContext());

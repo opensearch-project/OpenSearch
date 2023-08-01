@@ -38,7 +38,7 @@ import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
@@ -75,7 +75,7 @@ public class SourceFieldMapperTests extends OpenSearchSingleNodeTestCase {
             )
         );
 
-        assertThat(XContentFactory.xContentType(doc.source().toBytesRef().bytes), equalTo(XContentType.JSON));
+        assertThat(MediaTypeRegistry.xContent(doc.source().toBytesRef().bytes), equalTo(XContentType.JSON));
 
         documentMapper = parser.parse("type", new CompressedXContent(mapping));
         doc = documentMapper.parse(
@@ -87,7 +87,7 @@ public class SourceFieldMapperTests extends OpenSearchSingleNodeTestCase {
             )
         );
 
-        assertThat(XContentHelper.xContentType(doc.source()), equalTo(XContentType.SMILE));
+        assertThat(MediaTypeRegistry.xContentType(doc.source()), equalTo(XContentType.SMILE));
     }
 
     public void testIncludes() throws Exception {

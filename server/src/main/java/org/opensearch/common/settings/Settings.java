@@ -48,7 +48,7 @@ import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.MemorySizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
-import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentParserUtils;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.settings.SecureString;
@@ -1081,7 +1081,7 @@ public final class Settings implements ToXContentFragment {
          */
         public Builder loadFromMap(Map<String, ?> map) {
             // TODO: do this without a serialization round-trip
-            try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
+            try (XContentBuilder builder = MediaTypeRegistry.contentBuilder(XContentType.JSON)) {
                 builder.map(map);
                 return loadFromSource(Strings.toString(builder), builder.contentType());
             } catch (IOException e) {
@@ -1094,7 +1094,7 @@ public final class Settings implements ToXContentFragment {
          */
         public Builder loadFromSource(String source, MediaType xContentType) {
             try (
-                XContentParser parser = XContentFactory.xContent(xContentType)
+                XContentParser parser = xContentType.xContent()
                     .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, source)
             ) {
                 this.put(fromXContent(parser, true, true));
@@ -1127,7 +1127,7 @@ public final class Settings implements ToXContentFragment {
             }
             // fromXContent doesn't use named xcontent or deprecation.
             try (
-                XContentParser parser = XContentFactory.xContent(xContentType)
+                XContentParser parser = xContentType.xContent()
                     .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, is)
             ) {
                 if (parser.currentToken() == null) {
