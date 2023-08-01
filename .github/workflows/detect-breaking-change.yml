@@ -1,0 +1,19 @@
+name: "Detect Breaking Changes"
+on: [push, pull_request]
+jobs:
+  detect-breaking-change:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - uses: actions/setup-java@v2
+      with:
+        distribution: temurin # Temurin is a distribution of adoptium
+        java-version: 17
+    - uses: gradle/gradle-build-action@v2
+      with:
+        arguments: japicmp
+        gradle-version: 8.2.1
+        build-root-directory: server
+
+    - if: failure()
+      run: cat server/build/reports/japi.txt
