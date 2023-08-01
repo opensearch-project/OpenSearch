@@ -16,6 +16,7 @@ import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.store.Store;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
@@ -99,7 +100,7 @@ public class RemoteRefreshSegmentPressureServiceTests extends OpenSearchTestCase
         pressureService = new RemoteRefreshSegmentPressureService(clusterService, Settings.EMPTY);
         pressureService.afterIndexShardCreated(indexShard);
 
-        RemoteRefreshSegmentTracker pressureTracker = pressureService.getRemoteRefreshSegmentTracker(shardId);
+        RemoteSegmentTransferTracker pressureTracker = pressureService.getRemoteRefreshSegmentTracker(shardId);
         pressureTracker.updateLocalRefreshSeqNo(6);
 
         // 1. time lag more than dynamic threshold
@@ -152,10 +153,11 @@ public class RemoteRefreshSegmentPressureServiceTests extends OpenSearchTestCase
     private static IndexShard createIndexShard(ShardId shardId, boolean remoteStoreEnabled) {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, String.valueOf(remoteStoreEnabled)).build();
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test_index", settings);
+        Store store = mock(Store.class);
         IndexShard indexShard = mock(IndexShard.class);
         when(indexShard.indexSettings()).thenReturn(indexSettings);
         when(indexShard.shardId()).thenReturn(shardId);
+        when(indexShard.store()).thenReturn(store);
         return indexShard;
     }
-
 }
