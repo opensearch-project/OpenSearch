@@ -66,10 +66,7 @@ import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_TRANSLOG_REPO
 public class BlobStoreRepositoryRemoteIndexTests extends BlobStoreRepositoryHelperTests {
     @Override
     protected Settings featureFlagSettings() {
-        return Settings.builder()
-            .put(super.featureFlagSettings())
-            .put(FeatureFlags.REMOTE_STORE, "true")
-            .build();
+        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.REMOTE_STORE, "true").build();
     }
 
     @Override
