@@ -139,6 +139,7 @@ import org.opensearch.indices.replication.common.ReplicationCollection;
 import org.opensearch.indices.replication.common.ReplicationFailedException;
 import org.opensearch.indices.replication.common.ReplicationListener;
 import org.opensearch.indices.replication.common.ReplicationState;
+import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
@@ -527,12 +528,18 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         );
     }
 
+    protected IndexShard newShard(boolean primary, SegmentReplicationCheckpointPublisher checkpointPublisher) throws IOException {
+        final Settings settings = Settings.builder().put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT).build();
+        return newShard(primary, checkpointPublisher, settings);
+    }
+
     /**
      * creates a new initializing shard. The shard will be put in its proper path under the
      * current node id the shard is assigned to.
      * @param checkpointPublisher               Segment Replication Checkpoint Publisher to publish checkpoint
      */
-    protected IndexShard newShard(boolean primary, SegmentReplicationCheckpointPublisher checkpointPublisher) throws IOException {
+    protected IndexShard newShard(boolean primary, SegmentReplicationCheckpointPublisher checkpointPublisher, Settings settings)
+        throws IOException {
         final ShardId shardId = new ShardId("index", "_na_", 0);
         final ShardRouting shardRouting = TestShardRouting.newShardRouting(
             shardId,
@@ -545,10 +552,10 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         ShardPath shardPath = new ShardPath(false, nodePath.resolve(shardId), nodePath.resolve(shardId), shardId);
 
         Settings indexSettings = Settings.builder()
+            .put(settings)
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_REPLICATION_TYPE, "SEGMENT")
             .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), between(0, 1000))
             .put(Settings.EMPTY)
             .build();
