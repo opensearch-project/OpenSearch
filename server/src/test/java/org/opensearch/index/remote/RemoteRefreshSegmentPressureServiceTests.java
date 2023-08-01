@@ -16,6 +16,7 @@ import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.index.store.Store;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.OpenSearchTestCase;
@@ -151,7 +152,10 @@ public class RemoteRefreshSegmentPressureServiceTests extends OpenSearchTestCase
     }
 
     private static IndexShard createIndexShard(ShardId shardId, boolean remoteStoreEnabled) {
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, String.valueOf(remoteStoreEnabled)).build();
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, String.valueOf(remoteStoreEnabled))
+            .build();
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test_index", settings);
         Store store = mock(Store.class);
         IndexShard indexShard = mock(IndexShard.class);
