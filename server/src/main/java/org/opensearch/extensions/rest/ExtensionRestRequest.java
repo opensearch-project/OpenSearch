@@ -104,7 +104,7 @@ public class ExtensionRestRequest extends TransportRequest {
         params = in.readMap(StreamInput::readString, StreamInput::readString);
         headers = in.readMap(StreamInput::readString, StreamInput::readStringList);
         if (in.readBoolean()) {
-            if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+            if (in.getVersion().onOrAfter(Version.V_2_10_0)) {
                 mediaType = in.readMediaType();
             } else {
                 mediaType = in.readEnum(XContentType.class);
@@ -125,7 +125,7 @@ public class ExtensionRestRequest extends TransportRequest {
         out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeStringCollection);
         out.writeBoolean(mediaType != null);
         if (mediaType != null) {
-            if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+            if (out.getVersion().onOrAfter(Version.V_2_10_0)) {
                 mediaType.writeTo(out);
             } else {
                 out.writeEnum((XContentType) mediaType);
