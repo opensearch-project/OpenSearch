@@ -103,7 +103,10 @@ public class ProtobufTransportClusterStateAction extends ProtobufTransportCluste
             : acceptableClusterStatePredicate.or(clusterState -> clusterState.nodes().isLocalNodeElectedClusterManager() == false);
 
         if (acceptableClusterStatePredicate.test(state)) {
+            long startTime = System.nanoTime();
             ActionListener.completeWith(listener, () -> buildResponse(request, state));
+            long endTime = System.nanoTime();
+            System.out.println("Time taken to build response: " + (endTime - startTime));
         } else {
             assert acceptableClusterStateOrNotMasterPredicate.test(state) == false;
             new ClusterStateObserver(state, clusterService, request.waitForTimeout(), logger, threadPool.getThreadContext())
@@ -130,7 +133,7 @@ public class ProtobufTransportClusterStateAction extends ProtobufTransportCluste
                     @Override
                     public void onTimeout(TimeValue timeout) {
                         try {
-                            listener.onResponse(new ProtobufClusterStateResponse(state.getClusterName(), null, true));
+                            listener.onResponse(new ProtobufClusterStateResponse(state.getClusterName().value(), null, 1, null, true));
                         } catch (Exception e) {
                             listener.onFailure(e);
                         }
@@ -140,68 +143,9 @@ public class ProtobufTransportClusterStateAction extends ProtobufTransportCluste
     }
 
     private ProtobufClusterStateResponse buildResponse(final ProtobufClusterStateRequest request, final ClusterState currentState) {
+        System.out.println("Coming in build response for cluster state");
         logger.trace("Serving cluster state request using version {}", currentState.version());
-        ClusterState.Builder builder = ClusterState.builder(currentState.getClusterName());
-        builder.version(currentState.version());
-        builder.stateUUID(currentState.stateUUID());
-
-        if (request.nodes()) {
-            builder.nodes(currentState.nodes());
-        }
-        if (request.routingTable()) {
-            if (request.indices().length > 0) {
-                RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
-                String[] indices = indexNameExpressionResolver.concreteIndexNames(currentState, request);
-                for (String filteredIndex : indices) {
-                    if (currentState.routingTable().getIndicesRouting().containsKey(filteredIndex)) {
-                        routingTableBuilder.add(currentState.routingTable().getIndicesRouting().get(filteredIndex));
-                    }
-                }
-                builder.routingTable(routingTableBuilder.build());
-            } else {
-                builder.routingTable(currentState.routingTable());
-            }
-        }
-        if (request.blocks()) {
-            builder.blocks(currentState.blocks());
-        }
-
-        Metadata.Builder mdBuilder = Metadata.builder();
-        mdBuilder.clusterUUID(currentState.metadata().clusterUUID());
-        mdBuilder.coordinationMetadata(currentState.coordinationMetadata());
-
-        if (request.metadata()) {
-            if (request.indices().length > 0) {
-                mdBuilder.version(currentState.metadata().version());
-                String[] indices = indexNameExpressionResolver.concreteIndexNames(currentState, request);
-                for (String filteredIndex : indices) {
-                    IndexMetadata indexMetadata = currentState.metadata().index(filteredIndex);
-                    if (indexMetadata != null) {
-                        mdBuilder.put(indexMetadata, false);
-                    }
-                }
-            } else {
-                mdBuilder = Metadata.builder(currentState.metadata());
-            }
-
-            // filter out metadata that shouldn't be returned by the API
-            for (final Map.Entry<String, Custom> custom : currentState.metadata().customs().entrySet()) {
-                if (custom.getValue().context().contains(Metadata.XContentContext.API) == false) {
-                    mdBuilder.removeCustom(custom.getKey());
-                }
-            }
-        }
-        builder.metadata(mdBuilder);
-
-        if (request.customs()) {
-            for (ObjectObjectCursor<String, ClusterState.Custom> custom : currentState.customs()) {
-                if (custom.value.isPrivate() == false) {
-                    builder.putCustom(custom.key, custom.value);
-                }
-            }
-        }
-
-        return new ProtobufClusterStateResponse(currentState.getClusterName(), builder.build(), false);
+        return new ProtobufClusterStateResponse(currentState.getClusterName().value(), currentState.nodes(), currentState.version(), currentState.stateUUID(), false);
     }
 
     @Override

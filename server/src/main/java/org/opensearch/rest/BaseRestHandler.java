@@ -105,8 +105,12 @@ public abstract class BaseRestHandler implements RestHandler {
     public final void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
         logger.info("BaseRestHandler.handleRequest {}", request);
         // prepare the request for execution; has the side effect of touching the request parameters
+        long startTime = System.nanoTime();
         final RestChannelConsumer action = prepareRequest(request, client);
+        long endTime = System.nanoTime();
+        System.out.println("Preparing request took: " + (endTime-startTime));
         logger.info("BaseRestHandler.handleRequest action: {}", action);
+        System.out.println("Action: " + action);
 
         // validate unconsumed params, but we must exclude params used to format the response
         // use a sorted set so the unconsumed parameters appear in a reliable sorted order

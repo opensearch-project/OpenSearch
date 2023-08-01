@@ -136,6 +136,7 @@ final class OutboundHandler {
         );
 
         ActionListener<Void> listener = ActionListener.wrap(() -> messageListener.onRequestSent(node, requestId, action, request, options));
+        long startTime = System.nanoTime();
         if (request.getClass().getCanonicalName().contains("ProtobufClusterState")) {
             // ExampleProtoRequest exampleProtoRequest = new ExampleProtoRequest(1, "message");
             ProtobufClusterStateRequest protobufClusterStateRequest = (ProtobufClusterStateRequest) request;
@@ -143,20 +144,28 @@ final class OutboundHandler {
             bytes[0] = 0;
             ProtobufOutboundMessage protobufMessage = new ProtobufOutboundMessage(requestId, bytes, Version.CURRENT, threadPool.getThreadContext(), protobufClusterStateRequest.request(), features, action);
             sendProtobufMessage(channel, protobufMessage, listener);
+            long endTime = System.nanoTime();
+            System.out.println("Time for sending protobuf cluster state req: " + (endTime-startTime));
         } else if (request.getClass().getCanonicalName().contains("ProtobufTransportNodesInfo")) {
             NodeInfoRequest protobufNodesInfoRequest = (NodeInfoRequest) request;
             byte[] bytes = new byte[1];
             bytes[0] = 0;
             ProtobufOutboundMessage protobufMessage = new ProtobufOutboundMessage(requestId, bytes, Version.CURRENT, threadPool.getThreadContext(), protobufNodesInfoRequest.request().request(), features, action);
             sendProtobufMessage(channel, protobufMessage, listener);
+            long endTime = System.nanoTime();
+            System.out.println("Time for sending protobuf node info req: " + (endTime-startTime));
         } else if (request.getClass().getCanonicalName().contains("ProtobufTransportNodesStats")) {
             NodeStatsRequest protobufNodesStatsRequest = (NodeStatsRequest) request;
             byte[] bytes = new byte[1];
             bytes[0] = 0;
             ProtobufOutboundMessage protobufMessage = new ProtobufOutboundMessage(requestId, bytes, Version.CURRENT, threadPool.getThreadContext(), protobufNodesStatsRequest.request().request(), features, action);
             sendProtobufMessage(channel, protobufMessage, listener);
+            long endTime = System.nanoTime();
+            System.out.println("Time for sending protobuf node stats req: " + (endTime-startTime));
         } else {
             sendMessage(channel, message, listener);
+            long endTime = System.nanoTime();
+            System.out.println("Time for sending normal req: " + (endTime-startTime));
         }
     }
 

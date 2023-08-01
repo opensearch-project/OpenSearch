@@ -62,7 +62,7 @@ public final class ProtobufTaskId implements ProtobufWriteable {
 
     /**
      * Read a {@linkplain ProtobufTaskId} from a stream. {@linkplain ProtobufTaskId} has this rather than the usual constructor that takes a
-    * {@linkplain CodedInputStream} so we can return the {@link #EMPTY_TASK_ID} without allocating.
+    * {@linkplain byte[]} so we can return the {@link #EMPTY_TASK_ID} without allocating.
     */
     public ProtobufTaskId(byte[] in) throws IOException {
         this.taskId = TaskIdProto.TaskId.parseFrom(in);

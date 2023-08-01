@@ -15,7 +15,6 @@ import org.opensearch.action.admin.cluster.node.info.ProtobufNodesInfoResponse;
 import org.opensearch.action.admin.cluster.node.stats.ProtobufNodesStatsRequest;
 import org.opensearch.action.admin.cluster.node.stats.ProtobufNodesStatsResponse;
 import org.opensearch.action.admin.cluster.state.ProtobufClusterStateRequest;
-import org.opensearch.action.admin.cluster.state.ProtobufClusterStateRequestBuilder;
 import org.opensearch.action.admin.cluster.state.ProtobufClusterStateResponse;
 
 /**
@@ -44,11 +43,6 @@ public interface ProtobufClusterAdminClient extends ProtobufOpenSearchClient {
     * @see Requests#clusterStateRequest()
     */
     void state(ProtobufClusterStateRequest request, ActionListener<ProtobufClusterStateResponse> listener);
-
-    /**
-     * The state of the cluster.
-    */
-    ProtobufClusterStateRequestBuilder prepareState();
 
     /**
      * Nodes info of the cluster.

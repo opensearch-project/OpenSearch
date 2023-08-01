@@ -61,8 +61,11 @@ public final class ProtobufRequestHandlerRegistry<Request extends TransportReque
     }
 
     public void processMessageReceived(Request request, TransportChannel channel) throws Exception {
+        long startTime = System.nanoTime();
         final ProtobufTask task = taskManager.registerProtobuf(channel.getChannelType(), action, request);
         ThreadContext.StoredContext contextToRestore = taskManager.protobufTaskExecutionStarted(task);
+        long endTime = System.nanoTime();
+        System.out.println("taskManager.registerProtobuf: " + (endTime - startTime));
 
         Releasable unregisterTask = () -> taskManager.unregisterProtobufTask(task);
         try {

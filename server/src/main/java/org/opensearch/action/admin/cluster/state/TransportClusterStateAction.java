@@ -129,7 +129,10 @@ public class TransportClusterStateAction extends TransportClusterManagerNodeRead
             : acceptableClusterStatePredicate.or(clusterState -> clusterState.nodes().isLocalNodeElectedClusterManager() == false);
 
         if (acceptableClusterStatePredicate.test(state)) {
+            long startTime = System.nanoTime();
             ActionListener.completeWith(listener, () -> buildResponse(request, state));
+            long endTime = System.nanoTime();
+            System.out.println("Time taken to build response: " + (endTime - startTime));
         } else {
             assert acceptableClusterStateOrNotMasterPredicate.test(state) == false;
             new ClusterStateObserver(state, clusterService, request.waitForTimeout(), logger, threadPool.getThreadContext())
@@ -166,6 +169,7 @@ public class TransportClusterStateAction extends TransportClusterManagerNodeRead
     }
 
     private ClusterStateResponse buildResponse(final ClusterStateRequest request, final ClusterState currentState) {
+        System.out.println("Coming in build response for cluster state");
         logger.trace("Serving cluster state request using version {}", currentState.version());
         ClusterState.Builder builder = ClusterState.builder(currentState.getClusterName());
         builder.version(currentState.version());

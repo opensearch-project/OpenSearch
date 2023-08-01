@@ -22,7 +22,6 @@ import org.opensearch.action.admin.cluster.node.stats.ProtobufNodesStatsAction;
 import org.opensearch.action.admin.cluster.node.stats.ProtobufNodesStatsRequest;
 import org.opensearch.action.admin.cluster.node.stats.ProtobufNodesStatsResponse;
 import org.opensearch.action.admin.cluster.state.ProtobufClusterStateAction;
-import org.opensearch.action.admin.cluster.state.ProtobufClusterStateRequestBuilder;
 import org.opensearch.action.admin.cluster.state.ProtobufClusterStateRequest;
 import org.opensearch.action.admin.cluster.state.ProtobufClusterStateResponse;
 import org.opensearch.action.support.PlainActionFuture;
@@ -149,11 +148,6 @@ public abstract class ProtobufAbstractClient implements ProtobufClient {
         @Override
         public void state(final ProtobufClusterStateRequest request, final ActionListener<ProtobufClusterStateResponse> listener) {
             execute(ProtobufClusterStateAction.INSTANCE, request, listener);
-        }
-
-        @Override
-        public ProtobufClusterStateRequestBuilder prepareState() {
-            return new ProtobufClusterStateRequestBuilder(this, ProtobufClusterStateAction.INSTANCE);
         }
 
         @Override
