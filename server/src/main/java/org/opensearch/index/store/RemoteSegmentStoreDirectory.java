@@ -201,7 +201,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         return remoteSegmentMetadata;
     }
 
-    private RemoteSegmentMetadata readMetadataFile(String metadataFilename) throws IOException {S
+    private RemoteSegmentMetadata readMetadataFile(String metadataFilename) throws IOException {
         try (IndexInput indexInput = remoteMetadataDirectory.openInput(metadataFilename, IOContext.DEFAULT)) {
             byte[] metadataBytes = new byte[(int) indexInput.length()];
             indexInput.readBytes(metadataBytes, 0, (int) indexInput.length());
