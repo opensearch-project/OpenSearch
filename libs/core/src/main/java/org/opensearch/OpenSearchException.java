@@ -120,6 +120,14 @@ public class OpenSearchException extends RuntimeException implements Writeable, 
         );
         registerExceptionHandle(
             new OpenSearchExceptionHandle(
+                org.opensearch.OpenSearchParseException.class,
+                org.opensearch.OpenSearchParseException::new,
+                35,
+                UNKNOWN_VERSION_ADDED
+            )
+        );
+        registerExceptionHandle(
+            new OpenSearchExceptionHandle(
                 org.opensearch.core.common.ParsingException.class,
                 org.opensearch.core.common.ParsingException::new,
                 40,
@@ -131,6 +139,14 @@ public class OpenSearchException extends RuntimeException implements Writeable, 
                 org.opensearch.core.common.io.stream.NotSerializableExceptionWrapper.class,
                 org.opensearch.core.common.io.stream.NotSerializableExceptionWrapper::new,
                 62,
+                UNKNOWN_VERSION_ADDED
+            )
+        );
+        registerExceptionHandle(
+            new OpenSearchExceptionHandle(
+                org.opensearch.core.common.breaker.CircuitBreakingException.class,
+                org.opensearch.core.common.breaker.CircuitBreakingException::new,
+                133,
                 UNKNOWN_VERSION_ADDED
             )
         );
