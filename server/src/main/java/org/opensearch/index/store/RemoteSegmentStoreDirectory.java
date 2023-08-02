@@ -837,29 +837,36 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         }
     }
 
+    public void deleteStaleSegmentsAsync(int lastNMetadataFilesToKeep) {
+        deleteStaleSegmentsAsync(lastNMetadataFilesToKeep, ActionListener.wrap(r -> {}, e -> {}));
+    }
+
     /**
      * Delete stale segment and metadata files asynchronously.
      * This method calls {@link RemoteSegmentStoreDirectory#deleteStaleSegments(int)} in an async manner.
      * @param lastNMetadataFilesToKeep number of metadata files to keep
      */
-    public void deleteStaleSegmentsAsync(int lastNMetadataFilesToKeep) {
+    public void deleteStaleSegmentsAsync(int lastNMetadataFilesToKeep, ActionListener<Void> listener) {
         if (canDeleteStaleCommits.compareAndSet(true, false)) {
             try {
                 threadPool.executor(ThreadPool.Names.REMOTE_PURGE).execute(() -> {
                     try {
                         deleteStaleSegments(lastNMetadataFilesToKeep);
+                        listener.onResponse(null);
                     } catch (Exception e) {
-                        logger.info(
+                        logger.error(
                             "Exception while deleting stale commits from remote segment store, will retry delete post next commit",
                             e
                         );
+                        listener.onFailure(e);
                     } finally {
                         canDeleteStaleCommits.set(true);
                     }
                 });
             } catch (Exception e) {
-                logger.info("Exception occurred while scheduling deleteStaleCommits", e);
+                logger.error("Exception occurred while scheduling deleteStaleCommits", e);
                 canDeleteStaleCommits.set(true);
+                listener.onFailure(e);
             }
         }
     }
@@ -891,7 +898,6 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
     }
 
     public void close() throws IOException {
-        deleteStaleSegmentsAsync(0);
-        deleteIfEmpty();
+        deleteStaleSegmentsAsync(0, ActionListener.wrap(r -> deleteIfEmpty(), e -> logger.error("Failed to cleanup remote directory")));
     }
 }
