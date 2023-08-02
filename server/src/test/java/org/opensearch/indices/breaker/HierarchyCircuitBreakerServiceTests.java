@@ -33,13 +33,14 @@
 package org.opensearch.indices.breaker;
 
 import org.opensearch.common.breaker.ChildMemoryCircuitBreaker;
-import org.opensearch.common.breaker.CircuitBreaker;
-import org.opensearch.common.breaker.CircuitBreakingException;
+import org.opensearch.core.common.breaker.CircuitBreaker;
+import org.opensearch.core.common.breaker.CircuitBreakingException;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.unit.ByteSizeUnit;
-import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.monitor.jvm.JvmInfo;
 import org.opensearch.search.aggregations.MultiBucketConsumerService;
 import org.opensearch.test.OpenSearchTestCase;

@@ -487,7 +487,6 @@ subprojects {
         includeClasses.add("org.opensearch.cluster.metadata.IndexGraveyardTests")
         includeClasses.add("org.opensearch.cluster.routing.MovePrimaryFirstTests")
         includeClasses.add("org.opensearch.cluster.routing.allocation.decider.DiskThresholdDeciderIT")
-        includeClasses.add("org.opensearch.cluster.service.MasterServiceTests")
         includeClasses.add("org.opensearch.common.util.concurrent.QueueResizableOpenSearchThreadPoolExecutorTests")
         includeClasses.add("org.opensearch.gateway.RecoveryFromGatewayIT")
         includeClasses.add("org.opensearch.gateway.ReplicaShardAllocatorIT")

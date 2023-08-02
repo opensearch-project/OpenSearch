@@ -55,7 +55,7 @@ import org.opensearch.common.settings.KeyStoreWrapper;
 import org.opensearch.common.settings.SecureSettings;
 import org.opensearch.core.common.settings.SecureString;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.transport.BoundTransportAddress;
+import org.opensearch.core.common.transport.BoundTransportAddress;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.env.Environment;
 import org.opensearch.monitor.jvm.JvmInfo;

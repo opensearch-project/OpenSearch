@@ -36,7 +36,7 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.action.admin.indices.datastream.DataStreamsStatsAction;
 import org.opensearch.core.action.support.DefaultShardOperationFailedException;
 import org.opensearch.client.AbstractResponseTestCase;
-import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 

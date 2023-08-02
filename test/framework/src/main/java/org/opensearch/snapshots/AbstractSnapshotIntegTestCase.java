@@ -55,7 +55,7 @@ import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.compress.CompressorType;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.unit.ByteSizeUnit;
+import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.DeprecationHandler;
@@ -523,7 +523,7 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
         assertDocCount(index, numdocs);
     }
 
-    protected Settings getRemoteStoreBackedIndexSettings(String remoteStoreRepo) {
+    protected Settings getRemoteStoreBackedIndexSettings() {
         return Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "1")
             .put("index.refresh_interval", "300s")
@@ -531,9 +531,6 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
             .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.FS.getSettingsKey())
             .put(IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING.getKey(), false)
             .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
-            .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
-            .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, remoteStoreRepo)
-            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, remoteStoreRepo)
             .build();
     }
 

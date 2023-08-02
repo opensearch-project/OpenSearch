@@ -59,7 +59,7 @@ import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.unit.ByteSizeUnit;
+import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.index.IndexSettings;

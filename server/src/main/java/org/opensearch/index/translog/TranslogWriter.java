@@ -44,7 +44,7 @@ import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.Channels;
 import org.opensearch.common.io.DiskIoBufferPool;
 import org.opensearch.common.io.stream.ReleasableBytesStreamOutput;
-import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.concurrent.ReleasableLock;
 import org.opensearch.common.util.io.IOUtils;

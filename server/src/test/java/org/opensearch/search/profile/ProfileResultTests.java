@@ -56,7 +56,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertToXContent
 
 public class ProfileResultTests extends OpenSearchTestCase {
 
-    public static ProfileResult createTestItem(int depth) {
+    public static ProfileResult createTestItem(int depth, boolean concurrentSegmentSearchEnabled) {
         String type = randomAlphaOfLengthBetween(5, 10);
         String description = randomAlphaOfLengthBetween(5, 10);
         int breakdownsSize = randomIntBetween(0, 5);
@@ -77,13 +77,28 @@ public class ProfileResultTests extends OpenSearchTestCase {
         int childrenSize = depth > 0 ? randomIntBetween(0, 1) : 0;
         List<ProfileResult> children = new ArrayList<>(childrenSize);
         for (int i = 0; i < childrenSize; i++) {
-            children.add(createTestItem(depth - 1));
+            children.add(createTestItem(depth - 1, concurrentSegmentSearchEnabled));
         }
-        return new ProfileResult(type, description, breakdown, debug, randomNonNegativeLong(), children);
+        if (concurrentSegmentSearchEnabled) {
+            return new ProfileResult(
+                type,
+                description,
+                breakdown,
+                debug,
+                randomNonNegativeLong(),
+                children,
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong()
+            );
+        } else {
+            return new ProfileResult(type, description, breakdown, debug, randomNonNegativeLong(), children);
+        }
     }
 
     public void testFromXContent() throws IOException {
-        doFromXContentTestWithRandomFields(false);
+        doFromXContentTestWithRandomFields(false, false);
+        doFromXContentTestWithRandomFields(false, true);
     }
 
     /**
@@ -91,11 +106,12 @@ public class ProfileResultTests extends OpenSearchTestCase {
      * back to be forward compatible with additions to the xContent
      */
     public void testFromXContentWithRandomFields() throws IOException {
-        doFromXContentTestWithRandomFields(true);
+        doFromXContentTestWithRandomFields(true, false);
+        doFromXContentTestWithRandomFields(true, true);
     }
 
-    private void doFromXContentTestWithRandomFields(boolean addRandomFields) throws IOException {
-        ProfileResult profileResult = createTestItem(2);
+    private void doFromXContentTestWithRandomFields(boolean addRandomFields, boolean concurrentSegmentSearchEnabled) throws IOException {
+        ProfileResult profileResult = createTestItem(2, concurrentSegmentSearchEnabled);
         XContentType xContentType = randomFrom(XContentType.values());
         boolean humanReadable = randomBoolean();
         BytesReference originalBytes = toShuffledXContent(profileResult, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
@@ -116,6 +132,9 @@ public class ProfileResultTests extends OpenSearchTestCase {
             assertNull(parser.nextToken());
         }
         assertEquals(profileResult.getTime(), parsed.getTime());
+        assertEquals(profileResult.getMaxSliceTime(), parsed.getMaxSliceTime());
+        assertEquals(profileResult.getMinSliceTime(), parsed.getMinSliceTime());
+        assertEquals(profileResult.getAvgSliceTime(), parsed.getAvgSliceTime());
         assertToXContentEquivalent(originalBytes, toXContent(parsed, xContentType, humanReadable), xContentType);
     }
 
@@ -238,5 +257,72 @@ public class ProfileResultTests extends OpenSearchTestCase {
                 + "}",
             Strings.toString(builder)
         );
+
+        result = new ProfileResult("profileName", "some description", Map.of("key1", 1234L), Map.of(), 1234L, List.of(), 321L, 123L, 222L);
+        builder = XContentFactory.jsonBuilder().prettyPrint();
+        result.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        assertEquals(
+            "{\n"
+                + "  \"type\" : \"profileName\",\n"
+                + "  \"description\" : \"some description\",\n"
+                + "  \"time_in_nanos\" : 1234,\n"
+                + "  \"max_slice_time_in_nanos\" : 321,\n"
+                + "  \"min_slice_time_in_nanos\" : 123,\n"
+                + "  \"avg_slice_time_in_nanos\" : 222,\n"
+                + "  \"breakdown\" : {\n"
+                + "    \"key1\" : 1234\n"
+                + "  }\n"
+                + "}",
+            Strings.toString(builder)
+        );
+
+        result = new ProfileResult(
+            "profileName",
+            "some description",
+            Map.of("key1", 1234567890L),
+            Map.of(),
+            1234567890L,
+            List.of(),
+            87654321L,
+            12345678L,
+            54637281L
+        );
+        builder = XContentFactory.jsonBuilder().prettyPrint().humanReadable(true);
+        result.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        assertEquals(
+            "{\n"
+                + "  \"type\" : \"profileName\",\n"
+                + "  \"description\" : \"some description\",\n"
+                + "  \"time\" : \"1.2s\",\n"
+                + "  \"max_slice_time\" : \"87.6ms\",\n"
+                + "  \"min_slice_time\" : \"12.3ms\",\n"
+                + "  \"avg_slice_time\" : \"54.6ms\",\n"
+                + "  \"time_in_nanos\" : 1234567890,\n"
+                + "  \"max_slice_time_in_nanos\" : 87654321,\n"
+                + "  \"min_slice_time_in_nanos\" : 12345678,\n"
+                + "  \"avg_slice_time_in_nanos\" : 54637281,\n"
+                + "  \"breakdown\" : {\n"
+                + "    \"key1\" : 1234567890\n"
+                + "  }\n"
+                + "}",
+            Strings.toString(builder)
+        );
+
+    }
+
+    public void testRemoveStartTimeFields() {
+        Map<String, Long> breakdown = new HashMap<>();
+        breakdown.put("initialize_start_time", 123456L);
+        breakdown.put("initialize_count", 1L);
+        breakdown.put("initialize", 654321L);
+        Map<String, Long> modifiedBreakdown = new LinkedHashMap<>(breakdown);
+        assertEquals(3, modifiedBreakdown.size());
+        assertEquals(123456L, (long) modifiedBreakdown.get("initialize_start_time"));
+        assertEquals(1L, (long) modifiedBreakdown.get("initialize_count"));
+        assertEquals(654321L, (long) modifiedBreakdown.get("initialize"));
+        ProfileResult.removeStartTimeFields(modifiedBreakdown);
+        assertFalse(modifiedBreakdown.containsKey("initialize_start_time"));
+        assertTrue(modifiedBreakdown.containsKey("initialize_count"));
+        assertTrue(modifiedBreakdown.containsKey("initialize"));
     }
 }
