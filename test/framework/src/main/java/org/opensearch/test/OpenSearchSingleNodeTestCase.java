@@ -45,6 +45,8 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.opensearch.common.Priority;
+import org.opensearch.common.settings.FeatureFlagSettings;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
@@ -246,10 +248,9 @@ public abstract class OpenSearchSingleNodeTestCase extends OpenSearchTestCase {
             .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
             .putList(DISCOVERY_SEED_HOSTS_SETTING.getKey()) // empty list disables a port scan for other nodes
             .putList(INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey(), nodeName)
-            .put(FeatureFlags.TELEMETRY_SETTING.getKey(), true)
-            .put(TelemetrySettings.TRACER_ENABLED_SETTING.getKey(), true);
-        // allow test cases to provide their own settings or override these
-        settingsBuilder.put(nodeSettings());
+            .put(TelemetrySettings.TRACER_ENABLED_SETTING.getKey(), true)
+            .put(nodeSettings()) // allow test cases to provide their own settings or override these
+            .put(featureFlagSettings());
 
         if (Boolean.parseBoolean(settingsBuilder.get(FeatureFlags.CONCURRENT_SEGMENT_SEARCH))
             && (settingsBuilder.get(SearchBootstrapSettings.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_KEY) == null)) {
@@ -420,6 +421,21 @@ public abstract class OpenSearchSingleNodeTestCase extends OpenSearchTestCase {
 
     protected boolean forbidPrivateIndexSettings() {
         return true;
+    }
+
+    /**
+     * Setting all feature flag settings at base IT, which can be overridden later by individual
+     * IT classes.
+     *
+     * @return Feature flag settings.
+     */
+    protected Settings featureFlagSettings() {
+        Settings.Builder featureSettings = Settings.builder();
+        for (Setting builtInFlag : FeatureFlagSettings.BUILT_IN_FEATURE_FLAGS) {
+            featureSettings.put(builtInFlag.getKey(), builtInFlag.getDefaultRaw(Settings.EMPTY));
+        }
+        featureSettings.put(FeatureFlags.TELEMETRY_SETTING.getKey(), true);
+        return featureSettings.build();
     }
 
 }
