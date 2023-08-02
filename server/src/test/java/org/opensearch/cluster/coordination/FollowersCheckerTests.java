@@ -53,8 +53,8 @@ import org.opensearch.threadpool.ThreadPool.Names;
 import org.opensearch.transport.ConnectTransportException;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportRequest;
-import org.opensearch.transport.TransportResponse;
-import org.opensearch.transport.TransportResponse.Empty;
+import org.opensearch.core.transport.TransportResponse;
+import org.opensearch.core.transport.TransportResponse.Empty;
 import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
 

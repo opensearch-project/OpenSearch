@@ -41,7 +41,7 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportChannel;
 import org.opensearch.transport.TransportRequestHandler;
 import org.opensearch.transport.TransportRequestOptions;
-import org.opensearch.transport.TransportResponse;
+import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.transport.TransportService;
 
 import java.util.Map;

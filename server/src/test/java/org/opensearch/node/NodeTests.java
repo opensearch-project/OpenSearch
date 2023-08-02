@@ -41,7 +41,7 @@ import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
-import org.opensearch.common.transport.BoundTransportAddress;
+import org.opensearch.core.common.transport.BoundTransportAddress;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.env.Environment;

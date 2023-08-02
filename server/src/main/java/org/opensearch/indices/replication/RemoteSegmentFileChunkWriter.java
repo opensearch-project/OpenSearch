@@ -20,7 +20,7 @@ import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RetryableTransportClient;
 import org.opensearch.indices.recovery.FileChunkWriter;
 import org.opensearch.transport.TransportRequestOptions;
-import org.opensearch.transport.TransportResponse;
+import org.opensearch.core.transport.TransportResponse;
 
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicLong;

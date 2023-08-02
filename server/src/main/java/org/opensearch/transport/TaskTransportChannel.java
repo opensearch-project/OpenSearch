@@ -34,6 +34,7 @@ package org.opensearch.transport;
 
 import org.opensearch.Version;
 import org.opensearch.common.lease.Releasable;
+import org.opensearch.core.transport.TransportResponse;
 
 import java.io.IOException;
 
