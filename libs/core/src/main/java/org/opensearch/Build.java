@@ -206,30 +206,6 @@ public class Build {
         return date;
     }
 
-    public static Build readBuild(StreamInput in) throws IOException {
-        // the following is new for opensearch: we write the distribution to support any "forks"
-        final String distribution = in.readString();
-        // be lenient when reading on the wire, the enumeration values from other versions might be different than what we know
-        final Type type = Type.fromDisplayName(in.readString(), false);
-        String hash = in.readString();
-        String date = in.readString();
-        boolean snapshot = in.readBoolean();
-        final String version = in.readString();
-        return new Build(type, hash, date, snapshot, version, distribution);
-    }
-
-    public static void writeBuild(Build build, StreamOutput out) throws IOException {
-        // the following is new for opensearch: we write the distribution name to support any "forks" of the code
-        out.writeString(build.distribution);
-
-        final Type buildType = build.type();
-        out.writeString(buildType.displayName());
-        out.writeString(build.hash());
-        out.writeString(build.date());
-        out.writeBoolean(build.isSnapshot());
-        out.writeString(build.getQualifiedVersion());
-    }
-
     /**
      * Get the distribution name (expected to be OpenSearch; empty if legacy; something else if forked)
      * @return distribution name as a string

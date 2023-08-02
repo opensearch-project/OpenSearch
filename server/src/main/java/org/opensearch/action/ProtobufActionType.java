@@ -8,8 +8,8 @@
 
 package org.opensearch.action;
 
-import org.opensearch.common.io.stream.ProtobufWriteable;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.io.stream.ProtobufWriteable;
 import org.opensearch.transport.TransportRequestOptions;
 
 /**
@@ -39,7 +39,7 @@ public class ProtobufActionType<Response extends ProtobufActionResponse> {
     }
 
     /**
-     * Get a reader that can create a new instance of the class from a {@link org.opensearch.common.io.stream.StreamInput}
+     * Get a reader that can create a new instance of the class from a {@link byte[]}
     */
     public ProtobufWriteable.Reader<Response> getResponseReaderTry() {
         return responseReader;

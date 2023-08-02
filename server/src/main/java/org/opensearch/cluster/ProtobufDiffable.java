@@ -13,7 +13,7 @@
 
 package org.opensearch.cluster;
 
-import org.opensearch.common.io.stream.ProtobufWriteable;
+import org.opensearch.core.common.io.stream.ProtobufWriteable;
 
 /**
  * Cluster state part, changes in which can be serialized

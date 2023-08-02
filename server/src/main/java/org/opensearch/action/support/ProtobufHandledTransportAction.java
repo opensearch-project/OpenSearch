@@ -10,7 +10,7 @@ package org.opensearch.action.support;
 
 import org.opensearch.action.ProtobufActionRequest;
 import org.opensearch.action.ProtobufActionResponse;
-import org.opensearch.common.io.stream.ProtobufWriteable;
+import org.opensearch.core.common.io.stream.ProtobufWriteable;
 import org.opensearch.tasks.ProtobufTask;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;

@@ -8,8 +8,8 @@
 
 package org.opensearch.action;
 
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.ProtobufWriteable;
+import org.opensearch.core.common.io.stream.ProtobufWriteable;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportException;

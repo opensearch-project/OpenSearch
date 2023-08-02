@@ -63,9 +63,6 @@ import org.opensearch.common.lease.Releasables;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TcpChannel;
 
-import com.carrotsearch.hppc.ObjectIntHashMap;
-import com.carrotsearch.hppc.ObjectIntMap;
-
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -377,34 +374,6 @@ public class TaskManager implements ClusterStateApplier {
      * If the task is completed or unregistered from TaskManager, then the listener is called immediately.
      */
     public void cancel(CancellableTask task, String reason, Runnable listener) {
-        CancellableTaskHolder holder = cancellableTasks.get(task.getId());
-        List<Exception> exceptions = new ArrayList<>();
-        for (TaskEventListeners taskEventListener : taskEventListeners) {
-            try {
-                taskEventListener.onTaskCancelled(task);
-            } catch (Exception e) {
-                exceptions.add(e);
-            }
-        }
-        // Throwing exception in case any of the cancellation listener results into exception.
-        // Should we just swallow such exceptions?
-        ExceptionsHelper.maybeThrowRuntimeAndSuppress(exceptions);
-        if (holder != null) {
-            logger.trace("cancelling task with id {}", task.getId());
-            holder.cancel(reason, listener);
-        } else {
-            listener.run();
-        }
-    }
-
-    /**
-     * Cancels a task
-    * <p>
-    * After starting cancellation on the parent task, the task manager tries to cancel all children tasks
-    * of the current task. Once cancellation of the children tasks is done, the listener is triggered.
-    * If the task is completed or unregistered from ProtobufTaskManager, then the listener is called immediately.
-    */
-    public void cancelProtobufTask(ProtobufCancellableTask task, String reason, Runnable listener) {
         CancellableTaskHolder holder = cancellableTasks.get(task.getId());
         List<Exception> exceptions = new ArrayList<>();
         for (TaskEventListeners taskEventListener : taskEventListeners) {
@@ -1152,140 +1121,7 @@ public class TaskManager implements ClusterStateApplier {
         private final ProtobufCancellableTask task;
         private boolean finished = false;
         private List<Runnable> cancellationListeners = null;
-        private ObjectIntMap<ProtobufDiscoveryNode> childTasksPerNode = null;
-        private boolean banChildren = false;
-        private List<Runnable> childTaskCompletedListeners = null;
-
-        ProtobufCancellableTaskHolder(ProtobufCancellableTask task) {
-            this.task = task;
-        }
-
-        void cancel(String reason, Runnable listener) {
-            final Runnable toRun;
-            synchronized (this) {
-                if (finished) {
-                    assert cancellationListeners == null;
-                    toRun = listener;
-                } else {
-                    toRun = () -> {};
-                    if (listener != null) {
-                        if (cancellationListeners == null) {
-                            cancellationListeners = new ArrayList<>();
-                        }
-                        cancellationListeners.add(listener);
-                    }
-                }
-            }
-            try {
-                task.cancel(reason);
-            } finally {
-                if (toRun != null) {
-                    toRun.run();
-                }
-            }
-        }
-
-        void cancel(String reason) {
-            task.cancel(reason);
-        }
-
-        /**
-         * Marks task as finished.
-        */
-        public void finish() {
-            final List<Runnable> listeners;
-            synchronized (this) {
-                this.finished = true;
-                if (cancellationListeners != null) {
-                    listeners = cancellationListeners;
-                    cancellationListeners = null;
-                } else {
-                    listeners = Collections.emptyList();
-                }
-            }
-            // We need to call the listener outside of the synchronised section to avoid potential bottle necks
-            // in the listener synchronization
-            notifyListeners(listeners);
-        }
-
-        private void notifyListeners(List<Runnable> listeners) {
-            assert Thread.holdsLock(this) == false;
-            Exception rootException = null;
-            for (Runnable listener : listeners) {
-                try {
-                    listener.run();
-                } catch (RuntimeException inner) {
-                    rootException = ExceptionsHelper.useOrSuppress(rootException, inner);
-                }
-            }
-            ExceptionsHelper.reThrowIfNotNull(rootException);
-        }
-
-        public boolean hasParent(ProtobufTaskId parentTaskId) {
-            return task.getParentTaskId().equals(parentTaskId);
-        }
-
-        public ProtobufCancellableTask getTask() {
-            return task;
-        }
-
-        synchronized void registerChildNode(ProtobufDiscoveryNode node) {
-            if (banChildren) {
-                throw new TaskCancelledException("The parent task was cancelled, shouldn't start any child tasks");
-            }
-            if (childTasksPerNode == null) {
-                childTasksPerNode = new ObjectIntHashMap<>();
-            }
-            childTasksPerNode.addTo(node, 1);
-        }
-
-        void unregisterChildNode(ProtobufDiscoveryNode node) {
-            final List<Runnable> listeners;
-            synchronized (this) {
-                if (childTasksPerNode.addTo(node, -1) == 0) {
-                    childTasksPerNode.remove(node);
-                }
-                if (childTasksPerNode.isEmpty() && this.childTaskCompletedListeners != null) {
-                    listeners = childTaskCompletedListeners;
-                    childTaskCompletedListeners = null;
-                } else {
-                    listeners = Collections.emptyList();
-                }
-            }
-            notifyListeners(listeners);
-        }
-
-        Set<ProtobufDiscoveryNode> startBan(Runnable onChildTasksCompleted) {
-            final Set<ProtobufDiscoveryNode> pendingChildNodes;
-            final Runnable toRun;
-            synchronized (this) {
-                banChildren = true;
-                if (childTasksPerNode == null) {
-                    pendingChildNodes = Collections.emptySet();
-                } else {
-                    pendingChildNodes = Set.copyOf(childTasksPerNode.keySet());
-                }
-                if (pendingChildNodes.isEmpty()) {
-                    assert childTaskCompletedListeners == null;
-                    toRun = onChildTasksCompleted;
-                } else {
-                    toRun = () -> {};
-                    if (childTaskCompletedListeners == null) {
-                        childTaskCompletedListeners = new ArrayList<>();
-                    }
-                    childTaskCompletedListeners.add(onChildTasksCompleted);
-                }
-            }
-            toRun.run();
-            return pendingChildNodes;
-        }
-    }
-
-    private static class ProtobufCancellableTaskHolder {
-        private final ProtobufCancellableTask task;
-        private boolean finished = false;
-        private List<Runnable> cancellationListeners = null;
-        private ObjectIntMap<DiscoveryNode> childTasksPerNode = null;
+        private Map<DiscoveryNode, Integer> childTasksPerNode = null;
         private boolean banChildren = false;
         private List<Runnable> childTaskCompletedListeners = null;
 
@@ -1367,15 +1203,15 @@ public class TaskManager implements ClusterStateApplier {
                 throw new TaskCancelledException("The parent task was cancelled, shouldn't start any child tasks");
             }
             if (childTasksPerNode == null) {
-                childTasksPerNode = new ObjectIntHashMap<>();
+                childTasksPerNode = new HashMap<>();
             }
-            childTasksPerNode.addTo(node, 1);
+            childTasksPerNode.merge(node, 1, Integer::sum);
         }
 
         void unregisterChildNode(DiscoveryNode node) {
             final List<Runnable> listeners;
             synchronized (this) {
-                if (childTasksPerNode.addTo(node, -1) == 0) {
+                if (childTasksPerNode.merge(node, -1, Integer::sum) == 0) {
                     childTasksPerNode.remove(node);
                 }
                 if (childTasksPerNode.isEmpty() && this.childTaskCompletedListeners != null) {

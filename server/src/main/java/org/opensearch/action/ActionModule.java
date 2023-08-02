@@ -555,10 +555,8 @@ public class ActionModule extends AbstractModule {
         this.settingsFilter = settingsFilter;
         this.actionPlugins = actionPlugins;
         this.protobufActionPlugins = new ArrayList<>();
-        ;
         this.protobufActions = new HashMap<String, ProtobufActionPlugin.ActionHandler<?, ?>>();
         this.protobufActionFilters = setupProtobufActionFilters(this.protobufActionPlugins);
-        ;
         this.threadPool = threadPool;
         this.extensionsManager = extensionsManager;
         actions = setupActions(actionPlugins);
@@ -605,7 +603,9 @@ public class ActionModule extends AbstractModule {
         ProtobufNodeClient protobufNodeClient,
         CircuitBreakerService circuitBreakerService,
         UsageService usageService,
-        SystemIndices systemIndices
+        SystemIndices systemIndices,
+        IdentityService identityService,
+        ExtensionsManager extensionsManager
     ) {
         this.settings = settings;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
@@ -614,6 +614,7 @@ public class ActionModule extends AbstractModule {
         this.settingsFilter = settingsFilter;
         this.protobufActionPlugins = protobufActionPlugins;
         this.threadPool = threadPool;
+        this.extensionsManager = extensionsManager;
         this.actionPlugins = actionPlugins;
         actions = setupActions(actionPlugins);
         actionFilters = setupActionFilters(actionPlugins);
@@ -663,7 +664,8 @@ public class ActionModule extends AbstractModule {
             protobufRestWrapper,
             protobufNodeClient,
             circuitBreakerService,
-            usageService
+            usageService,
+            identityService
         );
     }
 

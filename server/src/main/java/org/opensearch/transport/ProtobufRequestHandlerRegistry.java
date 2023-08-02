@@ -8,10 +8,10 @@
 
 package org.opensearch.transport;
 
-import org.opensearch.common.io.stream.ProtobufWriteable;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.core.common.io.stream.ProtobufWriteable;
 import org.opensearch.tasks.ProtobufCancellableTask;
 import org.opensearch.tasks.ProtobufTask;
 import org.opensearch.tasks.TaskManager;

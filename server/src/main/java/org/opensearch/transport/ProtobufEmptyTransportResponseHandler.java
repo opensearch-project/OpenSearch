@@ -10,7 +10,7 @@ package org.opensearch.transport;
 
 import java.io.IOException;
 
-import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportResponse.Empty;
 

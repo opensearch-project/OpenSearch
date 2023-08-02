@@ -18,7 +18,7 @@ import org.opensearch.action.support.ProtobufTransportAction;
 import org.opensearch.client.ProtobufClient;
 import org.opensearch.client.support.ProtobufAbstractClient;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.tasks.ProtobufTask;
 import org.opensearch.tasks.ProtobufTaskListener;

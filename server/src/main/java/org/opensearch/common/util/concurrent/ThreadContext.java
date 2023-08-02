@@ -186,17 +186,6 @@ public final class ThreadContext implements Writeable {
     }
 
     /**
-     * Captures the current thread context as writeable, allowing it to be serialized out later
-     */
-    public ProtobufWriteable captureAsWriteable() {
-        final ThreadContextStruct context = threadLocal.get();
-        return out -> {
-            final Map<String, String> propagatedHeaders = propagateHeaders(context.transientHeaders);
-            context.writeTo(out, defaultHeader, propagatedHeaders);
-        };
-    }
-
-    /**
      * Removes the current context and resets a default context marked with as
      * originating from the supplied string. The removed context can be
      * restored by closing the returned {@link StoredContext}. Callers should

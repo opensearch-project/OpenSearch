@@ -9,7 +9,7 @@
 package org.opensearch.rest;
 
 import org.opensearch.client.node.ProtobufNodeClient;
-import org.opensearch.common.Strings;
+import org.opensearch.core.common.Strings;
 import org.opensearch.common.logging.DeprecationLogger;
 
 import java.util.Objects;

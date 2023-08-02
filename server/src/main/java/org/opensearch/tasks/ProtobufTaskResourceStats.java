@@ -11,7 +11,7 @@
 
 package org.opensearch.tasks;
 
-import org.opensearch.common.io.stream.ProtobufWriteable;
+import org.opensearch.core.common.io.stream.ProtobufWriteable;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.tasks.proto.TaskResourceStatsProto;

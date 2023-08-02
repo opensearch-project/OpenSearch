@@ -11,7 +11,7 @@
 * GitHub history for details.
 */
 
-package org.opensearch.common.io.stream;
+package org.opensearch.core.common.io.stream;
 
 import java.io.IOException;
 import java.io.OutputStream;

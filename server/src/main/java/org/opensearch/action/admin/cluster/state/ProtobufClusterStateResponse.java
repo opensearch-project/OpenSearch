@@ -13,7 +13,6 @@
 
 package org.opensearch.action.admin.cluster.state;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.opensearch.action.ProtobufActionResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.AliasMetadata;
@@ -21,7 +20,6 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.RoutingNode;
 import org.opensearch.cluster.ClusterName;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.server.proto.ClusterStateResponseProto;
 import org.opensearch.server.proto.ClusterStateResponseProto.ClusterStateRes;
 
@@ -66,16 +64,16 @@ public class ProtobufClusterStateResponse extends ProtobufActionResponse {
         if (nodes.getNodes().isEmpty()) {
             return convertedNodes;
         }
-        for (ObjectCursor<DiscoveryNode> node : nodes.getNodes().values()) {
+        for (DiscoveryNode node : nodes.getNodes().values()) {
             List<ClusterStateResponseProto.ClusterStateRes.ClusterState.DiscoveryNodes.Node.NodeRole> nodeRoles = new ArrayList<>();
-            node.value.getRoles().forEach(role -> {
+            node.getRoles().forEach(role -> {
                 ClusterStateResponseProto.ClusterStateRes.ClusterState.DiscoveryNodes.Node.NodeRole.Builder nodeRoleBuilder = ClusterStateResponseProto.ClusterStateRes.ClusterState.DiscoveryNodes.Node.NodeRole.newBuilder();
                 nodeRoleBuilder.setIsKnownRole(role.isKnownRole()).setIsDynamicRole(role.isDynamicRole()).setRoleName(role.roleName()).setRoleNameAbbreviation(role.roleNameAbbreviation()).setCanContainData(role.canContainData()).build();
                 nodeRoles.add(nodeRoleBuilder.build());
             });
             ClusterStateResponseProto.ClusterStateRes.ClusterState.DiscoveryNodes.Node.Builder nodeBuilder = ClusterStateResponseProto.ClusterStateRes.ClusterState.DiscoveryNodes.Node.newBuilder();
-            nodeBuilder.setNodeName(node.value.getName()).setNodeId(node.value.getId()).setEphemeralId(node.value.getEphemeralId()).setHostName(node.value.getHostName())
-            .setHostAddress(node.value.getHostAddress()).setTransportAddress(node.value.getAddress().toString()).putAllAttributes(node.value.getAttributes()).addAllRoles(nodeRoles).setVersion(node.value.getVersion().toString()).build();
+            nodeBuilder.setNodeName(node.getName()).setNodeId(node.getId()).setEphemeralId(node.getEphemeralId()).setHostName(node.getHostName())
+            .setHostAddress(node.getHostAddress()).setTransportAddress(node.getAddress().toString()).putAllAttributes(node.getAttributes()).addAllRoles(nodeRoles).setVersion(node.getVersion().toString()).build();
             convertedNodes.add(nodeBuilder.build());
         }
         return convertedNodes;
