@@ -43,17 +43,20 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.indices.replication.common.ReplicationType;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.rest.yaml.ObjectPath;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.opensearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
 import static org.opensearch.rest.action.search.RestSearchAction.TOTAL_HITS_AS_INT_PARAM;
+import static org.opensearch.test.OpenSearchIntegTestCase.CODECS;
 
 /**
  * Basic test that indexed documents survive the rolling restart. See
@@ -267,7 +270,11 @@ public class IndexingIT extends AbstractRollingTestCase {
                     .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
                     .put(
                         EngineConfig.INDEX_CODEC_SETTING.getKey(),
-                        randomFrom(CodecService.DEFAULT_CODEC, CodecService.BEST_COMPRESSION_CODEC, CodecService.LUCENE_DEFAULT_CODEC)
+                        randomFrom(new ArrayList<>(CODECS) {
+                            {
+                                add(CodecService.LUCENE_DEFAULT_CODEC);
+                            }
+                        })
                     )
                     .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms");
                 createIndex(indexName, settings.build());
