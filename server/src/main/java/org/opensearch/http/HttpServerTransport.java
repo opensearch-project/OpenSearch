@@ -32,7 +32,7 @@
 
 package org.opensearch.http;
 
-import org.opensearch.common.component.LifecycleComponent;
+import org.opensearch.common.lifecycle.LifecycleComponent;
 import org.opensearch.common.transport.BoundTransportAddress;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.node.ReportingService;

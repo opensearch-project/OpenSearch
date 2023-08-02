@@ -33,7 +33,7 @@
 package org.opensearch.common.util;
 
 import org.apache.lucene.store.RateLimiter;
-import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.core.common.unit.ByteSizeValue;
 
 import java.util.concurrent.atomic.AtomicLong;
 

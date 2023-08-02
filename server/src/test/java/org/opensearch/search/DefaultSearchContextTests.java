@@ -65,7 +65,7 @@ import org.opensearch.index.query.ParsedQuery;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.core.index.shard.ShardId;
-import org.opensearch.indices.breaker.NoneCircuitBreakerService;
+import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.search.internal.LegacyReaderContext;
 import org.opensearch.search.internal.PitReaderContext;

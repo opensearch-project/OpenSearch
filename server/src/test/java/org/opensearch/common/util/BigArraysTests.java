@@ -33,15 +33,15 @@
 package org.opensearch.common.util;
 
 import org.apache.lucene.util.BytesRef;
-import org.opensearch.common.breaker.CircuitBreaker;
-import org.opensearch.common.breaker.CircuitBreakingException;
+import org.opensearch.core.common.breaker.CircuitBreaker;
+import org.opensearch.core.common.breaker.CircuitBreakingException;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.unit.ByteSizeUnit;
+import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.util.BigArray;
 import org.opensearch.core.common.util.ByteArray;
 import org.opensearch.indices.breaker.HierarchyCircuitBreakerService;
-import org.opensearch.indices.breaker.NoneCircuitBreakerService;
+import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 

@@ -46,7 +46,7 @@ import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.extensions.action.ExtensionAction;
 import org.opensearch.extensions.action.ExtensionTransportAction;
 import org.opensearch.identity.IdentityService;
-import org.opensearch.indices.breaker.NoneCircuitBreakerService;
+import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.rest.NamedRoute;
 import org.opensearch.rest.RestHandler.Route;
 import org.opensearch.rest.RestRequest.Method;

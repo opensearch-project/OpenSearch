@@ -54,7 +54,7 @@ import org.opensearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSou
 import org.opensearch.index.fielddata.plain.PagedBytesIndexFieldData;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.indices.IndicesService;
-import org.opensearch.indices.breaker.CircuitBreakerService;
+import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.MultiValueMode;
 import org.opensearch.search.aggregations.support.CoreValuesSourceType;

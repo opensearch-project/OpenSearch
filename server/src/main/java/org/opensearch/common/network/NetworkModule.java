@@ -53,7 +53,7 @@ import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.index.shard.PrimaryReplicaSyncer.ResyncTask;
-import org.opensearch.indices.breaker.CircuitBreakerService;
+import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.plugins.NetworkPlugin;
 import org.opensearch.tasks.RawTaskStatus;
 import org.opensearch.tasks.Task;

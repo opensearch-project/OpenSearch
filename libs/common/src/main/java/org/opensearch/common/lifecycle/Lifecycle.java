@@ -30,7 +30,7 @@
  * GitHub history for details.
  */
 
-package org.opensearch.common.component;
+package org.opensearch.common.lifecycle;
 
 /**
  * Lifecycle state. Allows the following transitions:
