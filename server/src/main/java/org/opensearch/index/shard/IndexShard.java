@@ -680,7 +680,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                             }
 
                             replicationTracker.activatePrimaryMode(getLocalCheckpoint());
-
                             if (indexSettings.isSegRepEnabled()) {
                                 // force publish a checkpoint once in primary mode so that replicas not caught up to previous primary
                                 // are brought up to date.

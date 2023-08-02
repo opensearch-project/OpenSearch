@@ -30,6 +30,7 @@ import org.opensearch.test.IndexSettingsModule;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -385,30 +386,39 @@ public class NRTReplicationEngineTests extends EngineTestCase {
             final Store nrtEngineStore = createStore(REMOTE_STORE_INDEX_SETTINGS, newDirectory());
             final NRTReplicationEngine nrtEngine = buildNrtReplicaEngine(globalCheckpoint, nrtEngineStore, settings)
         ) {
-            List<Engine.Operation> operations = generateHistoryOnReplica(between(5, 10), randomBoolean(), randomBoolean(), randomBoolean());
+            // only index 2 docs here, this will create segments _0 and _1 and after forcemerge into _2.
+            final int docCount = 2;
+            List<Engine.Operation> operations = generateHistoryOnReplica(docCount, randomBoolean(), randomBoolean(), randomBoolean());
             for (Engine.Operation op : operations) {
                 applyOperation(engine, op);
                 applyOperation(nrtEngine, op);
                 // refresh to create a lot of segments.
                 engine.refresh("test");
             }
+            assertEquals(2, engine.segmentsStats(false, false).getCount());
             // wipe the nrt directory initially so we can sync with primary.
             Lucene.cleanLuceneIndex(nrtEngineStore.directory());
+            assertFalse(
+                Arrays.stream(nrtEngineStore.directory().listAll())
+                    .anyMatch(file -> file.equals("write.lock") == false && file.equals("extra0") == false)
+            );
             for (String file : engine.getLatestSegmentInfos().files(true)) {
                 nrtEngineStore.directory().copyFrom(store.directory(), file, file, IOContext.DEFAULT);
             }
             nrtEngine.updateSegments(engine.getLatestSegmentInfos());
             assertEquals(engine.getLatestSegmentInfos(), nrtEngine.getLatestSegmentInfos());
             final GatedCloseable<SegmentInfos> snapshot = nrtEngine.getSegmentInfosSnapshot();
-            final Collection<String> replica_snapshotFiles = snapshot.get().files(false);
+            final Collection<String> replicaSnapshotFiles = snapshot.get().files(false);
             List<String> replicaFiles = List.of(nrtEngine.store.directory().listAll());
 
             // merge primary down to 1 segment
             engine.forceMerge(true, 1, false, false, false, UUIDs.randomBase64UUID());
-            final Collection<String> files = engine.getLatestSegmentInfos().files(false);
+            // we expect a 3rd segment to be created after merge.
+            assertEquals(3, engine.segmentsStats(false, false).getCount());
+            final Collection<String> latestPrimaryFiles = engine.getLatestSegmentInfos().files(false);
 
             // copy new segments in and load reader.
-            for (String file : files) {
+            for (String file : latestPrimaryFiles) {
                 if (replicaFiles.contains(file) == false) {
                     nrtEngineStore.directory().copyFrom(store.directory(), file, file, IOContext.DEFAULT);
                 }
@@ -416,13 +426,13 @@ public class NRTReplicationEngineTests extends EngineTestCase {
             nrtEngine.updateSegments(engine.getLatestSegmentInfos());
 
             replicaFiles = List.of(nrtEngine.store.directory().listAll());
-            assertTrue(replicaFiles.containsAll(replica_snapshotFiles));
+            assertTrue(replicaFiles.containsAll(replicaSnapshotFiles));
 
             // close snapshot, files should be cleaned up
             snapshot.close();
 
             replicaFiles = List.of(nrtEngine.store.directory().listAll());
-            assertFalse(replicaFiles.containsAll(replica_snapshotFiles));
+            assertFalse(replicaFiles.containsAll(replicaSnapshotFiles));
 
             // Ensure we still have all the active files. Note - we exclude the infos file here if we aren't committing
             // the nrt reader will still reference segments_n-1 after being loaded until a local commit occurs.
