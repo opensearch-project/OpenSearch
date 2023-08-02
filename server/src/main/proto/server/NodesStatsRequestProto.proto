@@ -14,7 +14,7 @@ package org.opensearch.server.proto;
 
 option java_outer_classname = "NodesStatsRequestProto";
 
-message NodesStatsReq {
+message NodesStatsRequest {
   repeated string requestedMetrics = 1;
   string timeout = 2;
 }

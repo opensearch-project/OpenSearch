@@ -57,13 +57,13 @@ import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.server.proto.ClusterStateRequestProto.ClusterStateReq;
-import org.opensearch.server.proto.ClusterStateResponseProto.ClusterStateRes;
+import org.opensearch.server.proto.ClusterStateRequestProto.ClusterStateRequest;
+import org.opensearch.server.proto.ClusterStateResponseProto.ClusterStateResponse;
 import org.opensearch.server.proto.NodesInfoProto.NodesInfo;
-import org.opensearch.server.proto.NodesInfoRequestProto.NodesInfoReq;
+import org.opensearch.server.proto.NodesInfoRequestProto.NodesInfoRequest;
 import org.opensearch.server.proto.NodesStatsProto.NodesStats;
-import org.opensearch.server.proto.NodesStatsRequestProto.NodesStatsReq;
-import org.opensearch.server.proto.OutboundMessageProto.OutboundMsg;
+import org.opensearch.server.proto.NodesStatsRequestProto.NodesStatsRequest;
+import org.opensearch.server.proto.MessageProto.OutboundInboundMessage;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.EOFException;
@@ -125,14 +125,6 @@ public class InboundHandler {
         }
     }
 
-    // void setProtobufMessageListener(ProtobufTransportMessageListener listener) {
-    //     if (protobufMessageListener == ProtobufTransportMessageListener.NOOP_LISTENER) {
-    //         protobufMessageListener = listener;
-    //     } else {
-    //         throw new IllegalStateException("Cannot set message listener twice");
-    //     }
-    // }
-
     void setSlowLogThreshold(TimeValue slowLogThreshold) {
         this.slowLogThresholdMs = slowLogThreshold.getMillis();
     }
@@ -161,7 +153,7 @@ public class InboundHandler {
 
     private void messageReceivedProtobuf(TcpChannel channel, ProtobufOutboundMessage message, long startTime) throws IOException {
         final InetSocketAddress remoteAddress = channel.getRemoteAddress();
-        final org.opensearch.server.proto.OutboundMessageProto.OutboundMsg.Header header = message.getHeader();
+        final org.opensearch.server.proto.MessageProto.OutboundInboundMessage.Header header = message.getHeader();
 
         ThreadContext threadContext = threadPool.getThreadContext();
         try (ThreadContext.StoredContext existing = threadContext.stashContext()) {
@@ -258,18 +250,18 @@ public class InboundHandler {
         }
     }
 
-    private <T extends TransportRequest> void handleRequestProtobuf(TcpChannel channel, org.opensearch.server.proto.OutboundMessageProto.OutboundMsg.Header header, ProtobufOutboundMessage message) throws IOException {
-        OutboundMsg outboundMsg = message.getMessage();
-        final String action = outboundMsg.getAction();
+    private <T extends TransportRequest> void handleRequestProtobuf(TcpChannel channel, org.opensearch.server.proto.MessageProto.OutboundInboundMessage.Header header, ProtobufOutboundMessage message) throws IOException {
+        OutboundInboundMessage receivedMessage = message.getMessage();
+        final String action = receivedMessage.getAction();
         final long requestId = header.getRequestId();
-        final Version version = Version.fromString(outboundMsg.getVersion());
+        final Version version = Version.fromString(receivedMessage.getVersion());
         final TransportChannel transportChannel = new TcpTransportChannel(
             outboundHandler,
             channel,
             action,
             requestId,
             version,
-            outboundMsg.getFeaturesList().stream().map(String::valueOf).collect(Collectors.toSet()),
+            receivedMessage.getFeaturesList().stream().map(String::valueOf).collect(Collectors.toSet()),
             false,
             false,
             () -> {}
@@ -278,8 +270,8 @@ public class InboundHandler {
             messageListener.onRequestReceived(requestId, action);
             final ProtobufRequestHandlerRegistry<T> reg = protobufRequestHandlers.getHandler(action);
             assert reg != null;
-            if (outboundMsg.hasClusterStateReq()) {
-                final ClusterStateReq clusterStateReq = outboundMsg.getClusterStateReq();
+            if (receivedMessage.hasClusterStateRequest()) {
+                final ClusterStateRequest clusterStateReq = receivedMessage.getClusterStateRequest();
                 ProtobufClusterStateRequest protobufClusterStateRequest = new ProtobufClusterStateRequest(clusterStateReq);
                 final T request = (T) protobufClusterStateRequest;
                 request.remoteAddress(new TransportAddress(channel.getRemoteAddress()));
@@ -293,8 +285,8 @@ public class InboundHandler {
                 } else {
                     threadPool.executor(executor).execute(new ProtobufRequestHandler<>(reg, request, transportChannel));
                 }
-            } else if (outboundMsg.hasNodesInfoReq()) {
-                final NodesInfoReq nodesInfoReq = outboundMsg.getNodesInfoReq();
+            } else if (receivedMessage.hasNodesInfoRequest()) {
+                final NodesInfoRequest nodesInfoReq = receivedMessage.getNodesInfoRequest();
                 try {
                     ProtobufNodesInfoRequest protobufNodesInfoRequest = new ProtobufNodesInfoRequest(nodesInfoReq);
                     final T request = (T) new NodeInfoRequest(protobufNodesInfoRequest);
@@ -310,10 +302,10 @@ public class InboundHandler {
                         threadPool.executor(executor).execute(new ProtobufRequestHandler<>(reg, request, transportChannel));
                     }
                 } catch (Exception e) {
-                    System.out.println("Exception: " + e);
+                    sendErrorResponse(action, transportChannel, e);
                 }             
-            } else if (outboundMsg.hasNodesStatsReq()) {
-                final NodesStatsReq nodesStatsReq = outboundMsg.getNodesStatsReq();
+            } else if (receivedMessage.hasNodesStatsRequest()) {
+                final NodesStatsRequest nodesStatsReq = receivedMessage.getNodesStatsRequest();
                 try {
                     ProtobufNodesStatsRequest protobufNodesStatsRequest = new ProtobufNodesStatsRequest(nodesStatsReq);
                     final T request = (T) new NodeStatsRequest(protobufNodesStatsRequest);
@@ -329,7 +321,7 @@ public class InboundHandler {
                         threadPool.executor(executor).execute(new ProtobufRequestHandler<>(reg, request, transportChannel));
                     }
                 } catch (Exception e) {
-                    System.out.println("Exception: " + e);
+                    sendErrorResponse(action, transportChannel, e);
                 }             
             }
         } catch (Exception e) {
@@ -553,9 +545,9 @@ public class InboundHandler {
         final TransportResponseHandler<T> handler
     ) throws IOException {
         try {
-            OutboundMsg outboundMsg = message.getMessage();
-            if (outboundMsg.hasClusterStateRes()) {
-                final ClusterStateRes clusterStateRes = outboundMsg.getClusterStateRes();
+            OutboundInboundMessage receivedMessage = message.getMessage();
+            if (receivedMessage.hasClusterStateResponse()) {
+                final ClusterStateResponse clusterStateRes = receivedMessage.getClusterStateResponse();
                 ProtobufClusterStateResponse protobufClusterStateResponse = new ProtobufClusterStateResponse(clusterStateRes);
                 final T response = (T) protobufClusterStateResponse;
                 response.remoteAddress(new TransportAddress(remoteAddress));
@@ -566,8 +558,8 @@ public class InboundHandler {
                 } else {
                     threadPool.executor(executor).execute(() -> doHandleResponse(handler, response));
                 }
-            } else if (outboundMsg.hasNodesInfoRes()) {
-                final NodesInfo nodesInfoRes = outboundMsg.getNodesInfoRes();
+            } else if (receivedMessage.hasNodesInfoResponse()) {
+                final NodesInfo nodesInfoRes = receivedMessage.getNodesInfoResponse();
                 ProtobufNodeInfo protobufNodeInfo = new ProtobufNodeInfo(nodesInfoRes);
                 final T response = (T) protobufNodeInfo;
                 response.remoteAddress(new TransportAddress(remoteAddress));
@@ -578,8 +570,8 @@ public class InboundHandler {
                 } else {
                     threadPool.executor(executor).execute(() -> doHandleResponse(handler, response));
                 }
-            } else if (outboundMsg.hasNodesStatsRes()) {
-                final NodesStats nodesStatsRes = outboundMsg.getNodesStatsRes();
+            } else if (receivedMessage.hasNodesStatsResponse()) {
+                final NodesStats nodesStatsRes = receivedMessage.getNodesStatsResponse();
                 ProtobufNodeStats protobufNodeStats = new ProtobufNodeStats(nodesStatsRes);
                 final T response = (T) protobufNodeStats;
                 response.remoteAddress(new TransportAddress(remoteAddress));

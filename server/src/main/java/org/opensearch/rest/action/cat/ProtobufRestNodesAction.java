@@ -320,10 +320,10 @@ public class ProtobufRestNodesAction extends ProtobufAbstractCatAction {
         ProtobufNodesInfoResponse nodesInfo,
         ProtobufNodesStatsResponse nodesStats
     ) {
-        ClusterStateResponseProto.ClusterStateRes.ClusterState.DiscoveryNodes nodes = state.response().getClusterState().getNodes();
+        ClusterStateResponseProto.ClusterStateResponse.ClusterState.DiscoveryNodes nodes = state.response().getClusterState().getNodes();
         String clusterManagerId = nodes.getClusterManagerNodeId();
         Table table = getTableWithHeader(req);
-        for (ClusterStateResponseProto.ClusterStateRes.ClusterState.DiscoveryNodes.Node node : nodes.getAllNodesList()) {
+        for (ClusterStateResponseProto.ClusterStateResponse.ClusterState.DiscoveryNodes.Node node : nodes.getAllNodesList()) {
             NodesInfo info = nodesInfo.nodesMap().get(node.getNodeId());
             NodesStats stats = nodesStats.nodesMap().get(node.getNodeId());
 
@@ -386,14 +386,14 @@ public class ProtobufRestNodesAction extends ProtobufAbstractCatAction {
                 roles = "-";
                 allRoles = "-";
             } else {
-                List<ClusterStateResponseProto.ClusterStateRes.ClusterState.DiscoveryNodes.Node.NodeRole> knownNodeRoles = node.getRolesList()
+                List<ClusterStateResponseProto.ClusterStateResponse.ClusterState.DiscoveryNodes.Node.NodeRole> knownNodeRoles = node.getRolesList()
                     .stream()
-                    .filter(ClusterStateResponseProto.ClusterStateRes.ClusterState.DiscoveryNodes.Node.NodeRole::getIsKnownRole)
+                    .filter(ClusterStateResponseProto.ClusterStateResponse.ClusterState.DiscoveryNodes.Node.NodeRole::getIsKnownRole)
                     .collect(Collectors.toList());
                 roles = knownNodeRoles.size() > 0
-                    ? knownNodeRoles.stream().map(ClusterStateResponseProto.ClusterStateRes.ClusterState.DiscoveryNodes.Node.NodeRole::getRoleNameAbbreviation).sorted().collect(Collectors.joining())
+                    ? knownNodeRoles.stream().map(ClusterStateResponseProto.ClusterStateResponse.ClusterState.DiscoveryNodes.Node.NodeRole::getRoleNameAbbreviation).sorted().collect(Collectors.joining())
                     : "-";
-                allRoles = node.getRolesList().stream().map(ClusterStateResponseProto.ClusterStateRes.ClusterState.DiscoveryNodes.Node.NodeRole::getRoleName).sorted().collect(Collectors.joining(","));
+                allRoles = node.getRolesList().stream().map(ClusterStateResponseProto.ClusterStateResponse.ClusterState.DiscoveryNodes.Node.NodeRole::getRoleName).sorted().collect(Collectors.joining(","));
             }
             table.addCell(roles);
             table.addCell(allRoles);

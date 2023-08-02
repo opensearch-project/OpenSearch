@@ -35,8 +35,6 @@ package org.opensearch.transport;
 import org.opensearch.action.admin.cluster.state.ProtobufClusterStateRequest;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.server.proto.TransportRequestProto;
-import org.opensearch.server.proto.TransportRequestProto.TransportReq;
 import org.opensearch.tasks.ProtobufTaskAwareRequest;
 import org.opensearch.tasks.ProtobufTaskId;
 import org.opensearch.tasks.TaskAwareRequest;
@@ -52,7 +50,6 @@ import java.io.OutputStream;
  */
 public abstract class TransportRequest extends TransportMessage implements TaskAwareRequest, ProtobufTaskAwareRequest {
 
-    private TransportRequestProto.TransportReq transportReq;
     /**
      * Empty transport request
      *
@@ -83,10 +80,6 @@ public abstract class TransportRequest extends TransportMessage implements TaskA
     private ProtobufTaskId protobufParentTaskId = ProtobufTaskId.EMPTY_TASK_ID;
 
     public TransportRequest() {}
-
-    public TransportRequest(ProtobufClusterStateRequest clusterStateRequest) {
-        this.transportReq = TransportReq.newBuilder().setClusterStateRequest(clusterStateRequest.request()).build();
-    }
 
     public TransportRequest(StreamInput in) throws IOException {
         parentTaskId = TaskId.readFromStream(in);
@@ -138,7 +131,4 @@ public abstract class TransportRequest extends TransportMessage implements TaskA
         protobufParentTaskId.writeTo(out);
     }
 
-    public TransportReq transportReq() {
-        return transportReq;
-    }
 }

@@ -10,7 +10,7 @@ package org.opensearch.action.admin.cluster.node.stats;
 
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
 import org.opensearch.action.support.nodes.ProtobufBaseNodesRequest;
-import org.opensearch.server.proto.NodesStatsRequestProto.NodesStatsReq;
+import org.opensearch.server.proto.NodesStatsRequestProto.NodesStatsRequest;
 import org.opensearch.server.proto.NodesInfoRequestProto;
 import org.opensearch.server.proto.NodesStatsRequestProto;
 
@@ -32,7 +32,7 @@ public class ProtobufNodesStatsRequest extends ProtobufBaseNodesRequest<Protobuf
 
     private CommonStatsFlags indices = new CommonStatsFlags();
     private final Set<String> requestedMetrics = new HashSet<>();
-    private NodesStatsRequestProto.NodesStatsReq nodesStatsRequest;
+    private NodesStatsRequestProto.NodesStatsRequest nodesStatsRequest;
 
     public ProtobufNodesStatsRequest() {
         super((String[]) null);
@@ -126,7 +126,7 @@ public class ProtobufNodesStatsRequest extends ProtobufBaseNodesRequest<Protobuf
             String plural = metricsSet.size() == 1 ? "" : "s";
             throw new IllegalStateException("Used illegal metric" + plural + ": " + metricsSet);
         }
-        this.nodesStatsRequest = NodesStatsRequestProto.NodesStatsReq.newBuilder().addAllRequestedMetrics(metricsSet).build();
+        this.nodesStatsRequest = NodesStatsRequestProto.NodesStatsRequest.newBuilder().addAllRequestedMetrics(metricsSet).build();
         requestedMetrics.addAll(metricsSet);
         return this;
     }
@@ -144,10 +144,10 @@ public class ProtobufNodesStatsRequest extends ProtobufBaseNodesRequest<Protobuf
 
     public ProtobufNodesStatsRequest(byte[] data) throws IOException {
         super(data);
-        this.nodesStatsRequest = NodesStatsRequestProto.NodesStatsReq.parseFrom(data);
+        this.nodesStatsRequest = NodesStatsRequestProto.NodesStatsRequest.parseFrom(data);
     }
 
-     public ProtobufNodesStatsRequest(NodesStatsRequestProto.NodesStatsReq nodesStatsRequest) throws IOException {
+     public ProtobufNodesStatsRequest(NodesStatsRequestProto.NodesStatsRequest nodesStatsRequest) throws IOException {
         super(nodesStatsRequest.toByteArray());
         this.nodesStatsRequest = nodesStatsRequest;
     }
@@ -201,7 +201,7 @@ public class ProtobufNodesStatsRequest extends ProtobufBaseNodesRequest<Protobuf
         this.nodesStatsRequest.writeTo(out);
     }
 
-    public NodesStatsReq request() {
+    public NodesStatsRequest request() {
         return this.nodesStatsRequest;
     }
 }

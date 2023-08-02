@@ -160,33 +160,6 @@ final class OutboundHandler {
         }
     }
 
-    // void sendProtobufRequest(
-    //     final DiscoveryNode node,
-    //     final TcpChannel channel,
-    //     final long requestId,
-    //     final String action,
-    //     final TransportRequest request,
-    //     final TransportRequestOptions options,
-    //     final Version channelVersion,
-    //     final boolean compressRequest,
-    //     final boolean isHandshake
-    // ) throws IOException, TransportException {
-    //     Version version = Version.min(this.version, channelVersion);
-
-    //     System.out.println("OutboundHandler.sendProtobufRequest");
-    //     System.out.println("node: " + node);
-    //     System.out.println("channel: " + channel);
-    //     System.out.println("requestId: " + requestId);
-    //     System.out.println("action: " + action);
-    //     System.out.println("request: " + request.toString());
-    //     System.out.println("canonical: " + request.getClass().getCanonicalName());
-    //     ActionListener<Void> listener = ActionListener.wrap(() -> messageListener.onRequestSent(node, requestId, action, request, options));
-    //     byte[] bytes = new byte[1];
-    //     bytes[0] = 0;
-    //     ProtobufOutboundMessage protobufMessage = new ProtobufOutboundMessage(requestId, bytes, Version.CURRENT, threadPool.getThreadContext(), request.transportReq(), features, action);
-    //     sendProtobufMessage(channel, protobufMessage, listener);
-    // }
-
     /**
      * Sends the response to the given channel. This method should be used to send {@link TransportResponse}
      * objects back to the caller.

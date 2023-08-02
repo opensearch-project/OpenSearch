@@ -32,12 +32,12 @@ import java.util.Map;
 */
 public class ProtobufNodesStatsResponse extends ProtobufBaseNodesResponse<ProtobufNodeStats> implements ToXContentFragment {
 
-    private NodesStatsResponseProto.NodesStatsRes nodesStatsRes;
+    private NodesStatsResponseProto.NodesStatsResponse nodesStatsRes;
     private Map<String, NodesStats> nodesMap = new HashMap<>();
 
     public ProtobufNodesStatsResponse(byte[] data) throws IOException {
         super(data);
-        this.nodesStatsRes = NodesStatsResponseProto.NodesStatsRes.parseFrom(data);
+        this.nodesStatsRes = NodesStatsResponseProto.NodesStatsResponse.parseFrom(data);
     }
 
     public ProtobufNodesStatsResponse(ClusterName clusterName, List<ProtobufNodeStats> nodes, List<FailedNodeException> failures) {
@@ -47,7 +47,7 @@ public class ProtobufNodesStatsResponse extends ProtobufBaseNodesResponse<Protob
             nodesStats.add(nodeStats.response());
             this.nodesMap.put(nodeStats.response().getNodeId(), nodeStats.response());
         }
-        this.nodesStatsRes = NodesStatsResponseProto.NodesStatsRes.newBuilder()
+        this.nodesStatsRes = NodesStatsResponseProto.NodesStatsResponse.newBuilder()
             .setClusterName(clusterName.value())
             .addAllNodesStats(nodesStats)
             .build();
@@ -81,7 +81,7 @@ public class ProtobufNodesStatsResponse extends ProtobufBaseNodesResponse<Protob
         }
     }
 
-    public NodesStatsResponseProto.NodesStatsRes response() {
+    public NodesStatsResponseProto.NodesStatsResponse response() {
         return nodesStatsRes;
     }
 

@@ -14,7 +14,7 @@ package org.opensearch.server.proto;
 
 option java_outer_classname = "ClusterStateResponseProto";
 
-message ClusterStateRes {
+message ClusterStateResponse {
   string clusterName = 1;
   ClusterState clusterState = 2;
   bool waitForTimedOut = 3;

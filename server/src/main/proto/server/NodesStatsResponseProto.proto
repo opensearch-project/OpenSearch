@@ -16,7 +16,7 @@ import "server/NodesStatsProto.proto";
 
 option java_outer_classname = "NodesStatsResponseProto";
 
-message NodesStatsRes {
+message NodesStatsResponse {
   string clusterName = 1;
   repeated NodesStats nodesStats = 2;
 }

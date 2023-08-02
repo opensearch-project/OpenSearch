@@ -20,7 +20,7 @@ import org.opensearch.action.support.clustermanager.ProtobufClusterManagerNodeRe
 import org.opensearch.common.Strings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.server.proto.ClusterStateRequestProto;
-import org.opensearch.server.proto.ClusterStateRequestProto.ClusterStateReq;
+import org.opensearch.server.proto.ClusterStateRequestProto.ClusterStateRequest;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -37,13 +37,13 @@ public class ProtobufClusterStateRequest extends ProtobufClusterManagerNodeReadR
         IndicesRequest.Replaceable {
 
     public static final TimeValue DEFAULT_WAIT_FOR_NODE_TIMEOUT = TimeValue.timeValueMinutes(1);
-    private ClusterStateRequestProto.ClusterStateReq clusterStateRequest;
+    private ClusterStateRequestProto.ClusterStateRequest clusterStateRequest;
 
     public ProtobufClusterStateRequest () {}
 
     public ProtobufClusterStateRequest(boolean routingTable, boolean nodes, boolean metadata, boolean blocks,
                                         boolean customs, long waitForMetadataVersion, TimeValue waitForTimeout, List<String> indices) {
-        this.clusterStateRequest = ClusterStateRequestProto.ClusterStateReq.newBuilder().setRoutingTable(routingTable)
+        this.clusterStateRequest = ClusterStateRequestProto.ClusterStateRequest.newBuilder().setRoutingTable(routingTable)
                                         .setNodes(nodes)
                                         .setMetadata(metadata)
                                         .setBlocks(blocks)
@@ -60,7 +60,7 @@ public class ProtobufClusterStateRequest extends ProtobufClusterManagerNodeReadR
     }
 
     public ProtobufClusterStateRequest all() {
-        this.clusterStateRequest = ClusterStateRequestProto.ClusterStateReq.newBuilder().setRoutingTable(true)
+        this.clusterStateRequest = ClusterStateRequestProto.ClusterStateRequest.newBuilder().setRoutingTable(true)
                                         .setNodes(true)
                                         .setMetadata(true)
                                         .setBlocks(true)
@@ -72,7 +72,7 @@ public class ProtobufClusterStateRequest extends ProtobufClusterManagerNodeReadR
     }
 
     public ProtobufClusterStateRequest clear() {
-        this.clusterStateRequest = ClusterStateRequestProto.ClusterStateReq.newBuilder().setRoutingTable(false)
+        this.clusterStateRequest = ClusterStateRequestProto.ClusterStateRequest.newBuilder().setRoutingTable(false)
                                         .setNodes(false)
                                         .setMetadata(false)
                                         .setBlocks(false)
@@ -88,7 +88,7 @@ public class ProtobufClusterStateRequest extends ProtobufClusterManagerNodeReadR
     }
 
     public ProtobufClusterStateRequest routingTable(boolean routingTable) {
-        this.clusterStateRequest = ClusterStateRequestProto.ClusterStateReq.newBuilder().setRoutingTable(routingTable).setWaitForTimeout(DEFAULT_WAIT_FOR_NODE_TIMEOUT.toString()).build();
+        this.clusterStateRequest = ClusterStateRequestProto.ClusterStateRequest.newBuilder().setRoutingTable(routingTable).setWaitForTimeout(DEFAULT_WAIT_FOR_NODE_TIMEOUT.toString()).build();
         return this;
     }
 
@@ -97,7 +97,7 @@ public class ProtobufClusterStateRequest extends ProtobufClusterManagerNodeReadR
     }
 
     public ProtobufClusterStateRequest nodes(boolean nodes) {
-        this.clusterStateRequest = ClusterStateRequestProto.ClusterStateReq.newBuilder().setNodes(nodes).setWaitForTimeout(DEFAULT_WAIT_FOR_NODE_TIMEOUT.toString()).build();
+        this.clusterStateRequest = ClusterStateRequestProto.ClusterStateRequest.newBuilder().setNodes(nodes).setWaitForTimeout(DEFAULT_WAIT_FOR_NODE_TIMEOUT.toString()).build();
         return this;
     }
 
@@ -106,7 +106,7 @@ public class ProtobufClusterStateRequest extends ProtobufClusterManagerNodeReadR
     }
 
     public ProtobufClusterStateRequest metadata(boolean metadata) {
-        this.clusterStateRequest = ClusterStateRequestProto.ClusterStateReq.newBuilder().setMetadata(metadata).setWaitForTimeout(DEFAULT_WAIT_FOR_NODE_TIMEOUT.toString()).build();
+        this.clusterStateRequest = ClusterStateRequestProto.ClusterStateRequest.newBuilder().setMetadata(metadata).setWaitForTimeout(DEFAULT_WAIT_FOR_NODE_TIMEOUT.toString()).build();
         return this;
     }
 
@@ -115,7 +115,7 @@ public class ProtobufClusterStateRequest extends ProtobufClusterManagerNodeReadR
     }
 
     public ProtobufClusterStateRequest blocks(boolean blocks) {
-        this.clusterStateRequest = ClusterStateRequestProto.ClusterStateReq.newBuilder().setWaitForTimeout(DEFAULT_WAIT_FOR_NODE_TIMEOUT.toString()).setBlocks(blocks).build();
+        this.clusterStateRequest = ClusterStateRequestProto.ClusterStateRequest.newBuilder().setWaitForTimeout(DEFAULT_WAIT_FOR_NODE_TIMEOUT.toString()).setBlocks(blocks).build();
         return this;
     }
 
@@ -126,7 +126,7 @@ public class ProtobufClusterStateRequest extends ProtobufClusterManagerNodeReadR
 
     @Override
     public ProtobufClusterStateRequest indices(String... indices) {
-        this.clusterStateRequest = ClusterStateRequestProto.ClusterStateReq.newBuilder().addAllIndices(Arrays.asList(indices)).setWaitForTimeout(DEFAULT_WAIT_FOR_NODE_TIMEOUT.toString()).build();
+        this.clusterStateRequest = ClusterStateRequestProto.ClusterStateRequest.newBuilder().addAllIndices(Arrays.asList(indices)).setWaitForTimeout(DEFAULT_WAIT_FOR_NODE_TIMEOUT.toString()).build();
         return this;
     }
 
@@ -146,7 +146,7 @@ public class ProtobufClusterStateRequest extends ProtobufClusterManagerNodeReadR
     }
 
     public ProtobufClusterStateRequest customs(boolean customs) {
-        this.clusterStateRequest = ClusterStateRequestProto.ClusterStateReq.newBuilder().setCustoms(customs).setWaitForTimeout(DEFAULT_WAIT_FOR_NODE_TIMEOUT.toString()).build();
+        this.clusterStateRequest = ClusterStateRequestProto.ClusterStateRequest.newBuilder().setCustoms(customs).setWaitForTimeout(DEFAULT_WAIT_FOR_NODE_TIMEOUT.toString()).build();
         return this;
     }
 
@@ -162,7 +162,7 @@ public class ProtobufClusterStateRequest extends ProtobufClusterManagerNodeReadR
     }
 
     public ProtobufClusterStateRequest waitForTimeout(TimeValue waitForTimeout) {
-        this.clusterStateRequest = ClusterStateRequestProto.ClusterStateReq.newBuilder().setWaitForTimeout(waitForTimeout.toString()).setWaitForTimeout(DEFAULT_WAIT_FOR_NODE_TIMEOUT.toString()).build();
+        this.clusterStateRequest = ClusterStateRequestProto.ClusterStateRequest.newBuilder().setWaitForTimeout(waitForTimeout.toString()).setWaitForTimeout(DEFAULT_WAIT_FOR_NODE_TIMEOUT.toString()).build();
         return this;
     }
 
@@ -176,7 +176,7 @@ public class ProtobufClusterStateRequest extends ProtobufClusterManagerNodeReadR
                 "provided waitForMetadataVersion should be >= 1, but instead is [" + waitForMetadataVersion + "]"
             );
         }
-        this.clusterStateRequest = ClusterStateRequestProto.ClusterStateReq.newBuilder().setWaitForMetadataVersion(waitForMetadataVersion).setWaitForTimeout(DEFAULT_WAIT_FOR_NODE_TIMEOUT.toString()).build();
+        this.clusterStateRequest = ClusterStateRequestProto.ClusterStateRequest.newBuilder().setWaitForMetadataVersion(waitForMetadataVersion).setWaitForTimeout(DEFAULT_WAIT_FOR_NODE_TIMEOUT.toString()).build();
         return this;
     }
 
@@ -202,10 +202,10 @@ public class ProtobufClusterStateRequest extends ProtobufClusterManagerNodeReadR
     }
 
     public ProtobufClusterStateRequest(byte[] data) throws IOException {
-        this.clusterStateRequest = ClusterStateRequestProto.ClusterStateReq.parseFrom(data);
+        this.clusterStateRequest = ClusterStateRequestProto.ClusterStateRequest.parseFrom(data);
     }
 
-    public ProtobufClusterStateRequest(ClusterStateRequestProto.ClusterStateReq clusterStateRequest) {
+    public ProtobufClusterStateRequest(ClusterStateRequestProto.ClusterStateRequest clusterStateRequest) {
         this.clusterStateRequest = clusterStateRequest;
     }
 
@@ -214,7 +214,7 @@ public class ProtobufClusterStateRequest extends ProtobufClusterManagerNodeReadR
         out.write(this.clusterStateRequest.toByteArray());
     }
 
-    public ClusterStateReq request() {
+    public ClusterStateRequest request() {
         return this.clusterStateRequest;
     }
 }

@@ -15,7 +15,7 @@ package org.opensearch.action.admin.cluster.node.info;
 
 import org.opensearch.action.support.nodes.ProtobufBaseNodesRequest;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.server.proto.NodesInfoRequestProto.NodesInfoReq;
+import org.opensearch.server.proto.NodesInfoRequestProto.NodesInfoRequest;
 import org.opensearch.server.proto.NodesInfoRequestProto;
 
 import java.io.IOException;
@@ -34,7 +34,7 @@ import java.util.stream.Collectors;
  */
 public class ProtobufNodesInfoRequest extends ProtobufBaseNodesRequest<ProtobufNodesInfoRequest> {
 
-    private NodesInfoRequestProto.NodesInfoReq nodesInfoRequest;
+    private NodesInfoRequestProto.NodesInfoRequest nodesInfoRequest;
     private final TimeValue DEFAULT_TIMEOUT_SECS = TimeValue.timeValueSeconds(30);
 
     /**
@@ -62,16 +62,16 @@ public class ProtobufNodesInfoRequest extends ProtobufBaseNodesRequest<ProtobufN
             String plural = metricsSet.size() == 1 ? "" : "s";
             throw new IllegalStateException("Used illegal metric" + plural + ": " + metricsSet);
         }
-        this.nodesInfoRequest = NodesInfoRequestProto.NodesInfoReq.newBuilder().addAllRequestedMetrics(metricsSet).setTimeout(DEFAULT_TIMEOUT_SECS.toString()).build();
+        this.nodesInfoRequest = NodesInfoRequestProto.NodesInfoRequest.newBuilder().addAllRequestedMetrics(metricsSet).setTimeout(DEFAULT_TIMEOUT_SECS.toString()).build();
         return this;
     }
 
     public ProtobufNodesInfoRequest(byte[] data) throws IOException {
         super(data);
-        this.nodesInfoRequest = NodesInfoRequestProto.NodesInfoReq.parseFrom(data);
+        this.nodesInfoRequest = NodesInfoRequestProto.NodesInfoRequest.parseFrom(data);
     }
 
-    public ProtobufNodesInfoRequest(NodesInfoRequestProto.NodesInfoReq nodesInfoRequest) throws IOException {
+    public ProtobufNodesInfoRequest(NodesInfoRequestProto.NodesInfoRequest nodesInfoRequest) throws IOException {
         super(nodesInfoRequest.toByteArray());
         this.nodesInfoRequest = nodesInfoRequest;
     }
@@ -119,7 +119,7 @@ public class ProtobufNodesInfoRequest extends ProtobufBaseNodesRequest<ProtobufN
         this.nodesInfoRequest.writeTo(out);
     }
 
-    public NodesInfoReq request() {
+    public NodesInfoRequest request() {
         return this.nodesInfoRequest;
     }
 }

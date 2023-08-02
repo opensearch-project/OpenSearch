@@ -19,15 +19,15 @@ import java.util.stream.Collectors;
 
 import org.opensearch.Version;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.server.proto.ClusterStateRequestProto.ClusterStateReq;
-import org.opensearch.server.proto.ClusterStateResponseProto.ClusterStateRes;
+import org.opensearch.server.proto.ClusterStateRequestProto.ClusterStateRequest;
+import org.opensearch.server.proto.ClusterStateResponseProto.ClusterStateResponse;
 import org.opensearch.server.proto.NodesInfoProto.NodesInfo;
-import org.opensearch.server.proto.NodesInfoRequestProto.NodesInfoReq;
+import org.opensearch.server.proto.NodesInfoRequestProto.NodesInfoRequest;
 import org.opensearch.server.proto.NodesStatsProto.NodesStats;
-import org.opensearch.server.proto.NodesStatsRequestProto.NodesStatsReq;
-import org.opensearch.server.proto.OutboundMessageProto.OutboundMsg;
-import org.opensearch.server.proto.OutboundMessageProto.OutboundMsg.Header;
-import org.opensearch.server.proto.OutboundMessageProto.OutboundMsg.ResponseHandlersList;
+import org.opensearch.server.proto.NodesStatsRequestProto.NodesStatsRequest;
+import org.opensearch.server.proto.MessageProto.OutboundInboundMessage;
+import org.opensearch.server.proto.MessageProto.OutboundInboundMessage.Header;
+import org.opensearch.server.proto.MessageProto.OutboundInboundMessage.ResponseHandlersList;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
 
@@ -38,10 +38,10 @@ import com.google.protobuf.InvalidProtocolBufferException;
 */
 public class ProtobufOutboundMessage {
 
-    private final OutboundMsg message;
+    private final OutboundInboundMessage message;
     private static final byte[] PREFIX = { (byte) 'E', (byte) 'S' };
 
-    public ProtobufOutboundMessage(long requestId, byte[] status, Version version, ThreadContext threadContext, ClusterStateReq clusterStateReq, String[] features, String action) {
+    public ProtobufOutboundMessage(long requestId, byte[] status, Version version, ThreadContext threadContext, ClusterStateRequest clusterStateReq, String[] features, String action) {
         Header header = Header.newBuilder()
                             .addAllPrefix(Arrays.asList(ByteString.copyFrom(PREFIX)))
                             .setRequestId(requestId)
@@ -59,14 +59,14 @@ public class ProtobufOutboundMessage {
                                                                         .build();
             responseHandlers.put(key, responseHandlersList);
         }
-        this.message = OutboundMsg.newBuilder()
+        this.message = OutboundInboundMessage.newBuilder()
                             .setHeader(header)
                             .putAllRequestHeaders(requestHeaders)
                             .putAllResponseHandlers(responseHandlers)
                             .setVersion(version.toString())
                             .setStatus(ByteString.copyFrom(status))
                             .setRequestId(requestId)
-                            .setClusterStateReq(clusterStateReq)
+                            .setClusterStateRequest(clusterStateReq)
                             .setAction(action)
                             .addAllFeatures(Arrays.asList(features))
                             .setIsProtobuf(true)
@@ -74,7 +74,7 @@ public class ProtobufOutboundMessage {
                             
     }
 
-    public ProtobufOutboundMessage(long requestId, byte[] status, Version version, ThreadContext threadContext, ClusterStateRes clusterStateRes, Set<String> features, String action) {
+    public ProtobufOutboundMessage(long requestId, byte[] status, Version version, ThreadContext threadContext, ClusterStateResponse clusterStateRes, Set<String> features, String action) {
         Header header = Header.newBuilder()
                             .addAllPrefix(Arrays.asList(ByteString.copyFrom(PREFIX)))
                             .setRequestId(requestId)
@@ -92,14 +92,14 @@ public class ProtobufOutboundMessage {
                                                                         .build();
             responseHandlers.put(key, responseHandlersList);
         }
-        this.message = OutboundMsg.newBuilder()
+        this.message = OutboundInboundMessage.newBuilder()
                             .setHeader(header)
                             .putAllRequestHeaders(requestHeaders)
                             .putAllResponseHandlers(responseHandlers)
                             .setVersion(version.toString())
                             .setStatus(ByteString.copyFrom(status))
                             .setRequestId(requestId)
-                            .setClusterStateRes(clusterStateRes)
+                            .setClusterStateResponse(clusterStateRes)
                             .setAction(action)
                             .addAllFeatures(features)
                             .setIsProtobuf(true)
@@ -107,7 +107,7 @@ public class ProtobufOutboundMessage {
                             
     }
 
-    public ProtobufOutboundMessage(long requestId, byte[] status, Version version, ThreadContext threadContext, NodesInfoReq nodesInfoReq, String[] features, String action) {
+    public ProtobufOutboundMessage(long requestId, byte[] status, Version version, ThreadContext threadContext, NodesInfoRequest nodesInfoReq, String[] features, String action) {
         Header header = Header.newBuilder()
                             .addAllPrefix(Arrays.asList(ByteString.copyFrom(PREFIX)))
                             .setRequestId(requestId)
@@ -125,14 +125,14 @@ public class ProtobufOutboundMessage {
                                                                         .build();
             responseHandlers.put(key, responseHandlersList);
         }
-        this.message = OutboundMsg.newBuilder()
+        this.message = OutboundInboundMessage.newBuilder()
                             .setHeader(header)
                             .putAllRequestHeaders(requestHeaders)
                             .putAllResponseHandlers(responseHandlers)
                             .setVersion(version.toString())
                             .setStatus(ByteString.copyFrom(status))
                             .setRequestId(requestId)
-                            .setNodesInfoReq(nodesInfoReq)
+                            .setNodesInfoRequest(nodesInfoReq)
                             .setAction(action)
                             .addAllFeatures(Arrays.asList(features))
                             .setIsProtobuf(true)
@@ -158,14 +158,14 @@ public class ProtobufOutboundMessage {
                                                                         .build();
             responseHandlers.put(key, responseHandlersList);
         }
-        this.message = OutboundMsg.newBuilder()
+        this.message = OutboundInboundMessage.newBuilder()
                             .setHeader(header)
                             .putAllRequestHeaders(requestHeaders)
                             .putAllResponseHandlers(responseHandlers)
                             .setVersion(version.toString())
                             .setStatus(ByteString.copyFrom(status))
                             .setRequestId(requestId)
-                            .setNodesInfoRes(nodesInfoRes)
+                            .setNodesInfoResponse(nodesInfoRes)
                             .setAction(action)
                             .addAllFeatures(features)
                             .setIsProtobuf(true)
@@ -173,7 +173,7 @@ public class ProtobufOutboundMessage {
                             
     }
 
-    public ProtobufOutboundMessage(long requestId, byte[] status, Version version, ThreadContext threadContext, NodesStatsReq nodesStatsReq, String[] features, String action) {
+    public ProtobufOutboundMessage(long requestId, byte[] status, Version version, ThreadContext threadContext, NodesStatsRequest nodesStatsReq, String[] features, String action) {
         Header header = Header.newBuilder()
                             .addAllPrefix(Arrays.asList(ByteString.copyFrom(PREFIX)))
                             .setRequestId(requestId)
@@ -191,14 +191,14 @@ public class ProtobufOutboundMessage {
                                                                         .build();
             responseHandlers.put(key, responseHandlersList);
         }
-        this.message = OutboundMsg.newBuilder()
+        this.message = OutboundInboundMessage.newBuilder()
                             .setHeader(header)
                             .putAllRequestHeaders(requestHeaders)
                             .putAllResponseHandlers(responseHandlers)
                             .setVersion(version.toString())
                             .setStatus(ByteString.copyFrom(status))
                             .setRequestId(requestId)
-                            .setNodesStatsReq(nodesStatsReq)
+                            .setNodesStatsRequest(nodesStatsReq)
                             .setAction(action)
                             .addAllFeatures(Arrays.asList(features))
                             .setIsProtobuf(true)
@@ -224,14 +224,14 @@ public class ProtobufOutboundMessage {
                                                                         .build();
             responseHandlers.put(key, responseHandlersList);
         }
-        this.message = OutboundMsg.newBuilder()
+        this.message = OutboundInboundMessage.newBuilder()
                             .setHeader(header)
                             .putAllRequestHeaders(requestHeaders)
                             .putAllResponseHandlers(responseHandlers)
                             .setVersion(version.toString())
                             .setStatus(ByteString.copyFrom(status))
                             .setRequestId(requestId)
-                            .setNodesStatsRes(nodesStatsRes)
+                            .setNodesStatsResponse(nodesStatsRes)
                             .setAction(action)
                             .addAllFeatures(features)
                             .setIsProtobuf(true)
@@ -240,7 +240,7 @@ public class ProtobufOutboundMessage {
     }
 
     public ProtobufOutboundMessage(byte[] data) throws InvalidProtocolBufferException {
-        this.message = OutboundMsg.parseFrom(data);
+        this.message = OutboundInboundMessage.parseFrom(data);
     }
 
     public void writeTo(OutputStream out) throws IOException {
@@ -248,7 +248,7 @@ public class ProtobufOutboundMessage {
         out.write(this.message.toByteArray());
     }
 
-    public OutboundMsg getMessage() {
+    public OutboundInboundMessage getMessage() {
         return this.message;
     }
 

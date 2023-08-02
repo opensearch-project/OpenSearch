@@ -14,7 +14,7 @@ package org.opensearch.server.proto;
 
 option java_outer_classname = "ClusterStateRequestProto";
 
-message ClusterStateReq {
+message ClusterStateRequest {
   bool routingTable = 1;
   bool nodes = 2;
   bool metadata = 3;

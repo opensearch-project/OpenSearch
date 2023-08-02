@@ -12,8 +12,6 @@
 syntax = "proto3";
 package org.opensearch.server.proto;
 
-import "examples/ExampleRequestProto.proto";
-import "server/TransportRequestProto.proto";
 import "server/ClusterStateRequestProto.proto";
 import "server/ClusterStateResponseProto.proto";
 import "server/NodesInfoRequestProto.proto";
@@ -21,9 +19,9 @@ import "server/NodesInfoProto.proto";
 import "server/NodesStatsRequestProto.proto";
 import "server/NodesStatsProto.proto";
 
-option java_outer_classname = "OutboundMessageProto";
+option java_outer_classname = "MessageProto";
 
-message OutboundMsg {
+message OutboundInboundMessage {
   Header header = 1;
   map<string, string> requestHeaders = 2;
   map<string, ResponseHandlersList> responseHandlers = 3;
@@ -33,12 +31,12 @@ message OutboundMsg {
   string action = 7;
   int64 requestId = 8;
   oneof message {
-    ClusterStateReq clusterStateReq = 9;
-    ClusterStateRes clusterStateRes = 10;
-    NodesInfoReq nodesInfoReq = 11;
-    NodesInfo nodesInfoRes = 12;
-    NodesStatsReq nodesStatsReq = 13;
-    NodesStats nodesStatsRes = 14;
+    ClusterStateRequest clusterStateRequest = 9;
+    ClusterStateResponse clusterStateResponse = 10;
+    NodesInfoRequest nodesInfoRequest = 11;
+    NodesInfo nodesInfoResponse = 12;
+    NodesStatsRequest nodesStatsRequest = 13;
+    NodesStats nodesStatsResponse = 14;
   }
   bool isProtobuf = 15;
   

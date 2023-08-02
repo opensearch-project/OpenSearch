@@ -49,8 +49,6 @@ import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.io.Streams;
-import org.opensearch.example.proto.ExampleProtoRequest;
-import org.opensearch.example.proto.ExampleRequestProto.ExampleRequest;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
@@ -318,86 +316,4 @@ public class OutboundHandlerTests extends OpenSearchTestCase {
         assertEquals("header_value", header.getHeaders().v1().get("header"));
     }
 
-    public void testSendRequestProtobuf() throws IOException {
-        System.out.println("In testSendRequestProtobuf");
-        ThreadContext threadContext = threadPool.getThreadContext();
-        Version version = randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion());
-        String action = "example";
-        long requestId = randomLongBetween(0, 300);
-        boolean isHandshake = false;
-        boolean compress = false;
-        String value = "message";
-        threadContext.putHeader("header", "header_value");
-        ExampleProtoRequest request = new ExampleProtoRequest(1, value);
-
-        AtomicReference<DiscoveryNode> nodeRef = new AtomicReference<>();
-        AtomicLong requestIdRef = new AtomicLong();
-        AtomicReference<String> actionRef = new AtomicReference<>();
-        AtomicReference<TransportRequest> requestRef = new AtomicReference<>();
-        handler.setMessageListener(new TransportMessageListener() {
-            @Override
-            public void onRequestSent(
-                DiscoveryNode node,
-                long requestId,
-                String action,
-                TransportRequest request,
-                TransportRequestOptions options
-            ) {
-                nodeRef.set(node);
-                requestIdRef.set(requestId);
-                actionRef.set(action);
-                requestRef.set(request);
-            }
-        });
-        // handler.sendProtobufRequest(node, channel, requestId, action, request, options, version, compress, isHandshake);
-
-        BytesReference reference = channel.getMessageCaptor().get();
-        ActionListener<Void> sendListener = channel.getListenerCaptor().get();
-        // if (randomBoolean()) {
-            sendListener.onResponse(null);
-        // } else {
-        //     sendListener.onFailure(new IOException("failed"));
-        // }
-        assertEquals(node, nodeRef.get());
-        assertEquals(requestId, requestIdRef.get());
-        assertEquals(action, actionRef.get());
-        assertEquals(request, requestRef.get());
-
-        pipeline.handleBytes(channel, new ReleasableBytesReference(reference, () -> {}));
-        // final Tuple<Header, BytesReference> tuple = message.get();
-        // final Header header = tuple.v1();
-        // final TestRequest message = new TestRequest(tuple.v2().streamInput());
-        final BytesReference reference2 = protobufMessage.get();
-        byte[] incomingBytes = BytesReference.toBytes(reference2);
-        System.out.println("Size of incoming bytes: " + incomingBytes.length);
-        for (int i = 0; i < incomingBytes.length; i++) {
-            System.out.println("Byte " + i + " is: " + incomingBytes[i]);
-        }
-        ProtobufOutboundMessage protobufOutboundMessage = new ProtobufOutboundMessage(incomingBytes);
-        System.out.println("Received protobuf message is: " + protobufOutboundMessage);
-        // ProtobufOutboundMessage protobufOutboundMessage = new ProtobufOutboundMessage(incomingBytes);
-        // System.out.println("Received protobuf message is: " + protobufOutboundMessage);
-        // final Header header = tuple.v1();
-        // final ExampleProtoRequest message = new ExampleProtoRequest(tuple.v2().toBytesRef().bytes);
-        // assertEquals(version, header.getVersion());
-        // assertEquals(requestId, header.getRequestId());
-        // assertTrue(header.isRequest());
-        // assertFalse(header.isResponse());
-        // if (isHandshake) {
-        //     assertTrue(header.isHandshake());
-        // } else {
-        //     assertFalse(header.isHandshake());
-        // }
-        // if (compress) {
-        //     assertTrue(header.isCompressed());
-        // } else {
-        //     assertFalse(header.isCompressed());
-        // }
-
-        // System.out.println("Received request after deserialization is: " + message);
-
-        // assertEquals(value, message.message());
-        // assertEquals(1, message.id());
-        // assertEquals("header_value", header.getHeaders().v1().get("header"));
-    }
 }

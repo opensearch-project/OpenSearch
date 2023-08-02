@@ -16,7 +16,7 @@ import "server/NodesInfoProto.proto";
 
 option java_outer_classname = "NodesInfoResponseProto";
 
-message NodesInfoRes {
+message NodesInfoResponse {
   string clusterName = 1;
   repeated NodesInfo nodesInfo = 2;
 }
