@@ -28,7 +28,7 @@ import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.recovery.FileChunkRequest;
 import org.opensearch.indices.recovery.RecoveryTransportRequest;
 import org.opensearch.transport.TransportChannel;
-import org.opensearch.transport.TransportResponse;
+import org.opensearch.core.transport.TransportResponse;
 
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;

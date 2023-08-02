@@ -10,7 +10,7 @@ package org.opensearch.extensions;
 
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
-import org.opensearch.common.transport.TransportAddress;
+import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.net.InetAddress;

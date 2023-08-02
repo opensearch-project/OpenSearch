@@ -37,6 +37,7 @@ import org.opensearch.cluster.coordination.ElectionStrategy;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.discovery.SeedHostsProvider;
 import org.opensearch.transport.TransportService;
 
@@ -86,7 +87,7 @@ public interface DiscoveryPlugin {
      * (see {@link org.opensearch.discovery.DiscoveryModule#DISCOVERY_SEED_PROVIDERS_SETTING}), and
      * the value is a supplier to construct the host provider when it is selected for use.
      *
-     * @param transportService Use to form the {@link org.opensearch.common.transport.TransportAddress} portion
+     * @param transportService Use to form the {@link TransportAddress} portion
      *                         of a {@link org.opensearch.cluster.node.DiscoveryNode}
      * @param networkService Use to find the publish host address of the current node
      */

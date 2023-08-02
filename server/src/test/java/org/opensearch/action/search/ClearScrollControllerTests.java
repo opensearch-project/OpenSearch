@@ -46,7 +46,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
 import org.opensearch.transport.NodeNotConnectedException;
 import org.opensearch.transport.Transport;
-import org.opensearch.transport.TransportResponse;
+import org.opensearch.core.transport.TransportResponse;
 
 import java.io.IOException;
 import java.util.Arrays;
