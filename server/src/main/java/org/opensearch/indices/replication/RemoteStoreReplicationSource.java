@@ -10,7 +10,6 @@ package org.opensearch.indices.replication;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
@@ -105,7 +104,6 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
 
             RemoteSegmentMetadata remoteSegmentMetadata = remoteDirectory.readLatestMetadataFile();
             List<StoreFileMetadata> downloadedSegments = new ArrayList<>();
-            String segmentNFile = null;
             Collection<String> directoryFiles = List.of(indexShard.store().directory().listAll());
             if (remoteSegmentMetadata != null) {
                 try {
@@ -117,10 +115,6 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
                         assert directoryFiles.contains(file) == false : "Local store already contains the file " + file;
                         storeDirectory.copyFrom(remoteDirectory, file, file, IOContext.DEFAULT);
                         downloadedSegments.add(fileMetadata);
-                        if (file.startsWith(IndexFileNames.SEGMENTS)) {
-                            assert segmentNFile == null : "There should be only one SegmentInfosSnapshot file";
-                            segmentNFile = file;
-                        }
                     }
                     logger.trace("Downloaded segments from remote store {}", downloadedSegments);
                 } finally {
