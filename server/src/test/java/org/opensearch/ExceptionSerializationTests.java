@@ -72,7 +72,7 @@ import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.io.stream.NotSerializableExceptionWrapper;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.common.transport.TransportAddress;
+import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.common.util.CancellableThreadsTests;
 import org.opensearch.common.util.set.Sets;

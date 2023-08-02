@@ -51,7 +51,7 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.breaker.CircuitBreakingException;
-import org.opensearch.common.transport.TransportAddress;
+import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;

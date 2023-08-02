@@ -15,7 +15,7 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.WriteableSetting;
-import org.opensearch.transport.TransportResponse;
+import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.transport.TransportService;
 
 /**

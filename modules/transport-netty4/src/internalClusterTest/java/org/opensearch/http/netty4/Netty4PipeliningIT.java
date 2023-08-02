@@ -35,7 +35,7 @@ package org.opensearch.http.netty4;
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.util.ReferenceCounted;
 import org.opensearch.OpenSearchNetty4IntegTestCase;
-import org.opensearch.common.transport.TransportAddress;
+import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.OpenSearchIntegTestCase.Scope;

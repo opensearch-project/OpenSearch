@@ -53,7 +53,7 @@ import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.transport.TransportAddress;
+import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.MockBigArrays;

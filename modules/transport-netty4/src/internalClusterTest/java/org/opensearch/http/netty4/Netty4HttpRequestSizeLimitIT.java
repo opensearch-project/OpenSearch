@@ -38,7 +38,7 @@ import io.netty.util.ReferenceCounted;
 import org.opensearch.OpenSearchNetty4IntegTestCase;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.transport.TransportAddress;
+import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.http.HttpServerTransport;

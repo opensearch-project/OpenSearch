@@ -42,7 +42,7 @@ import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.ShardSearchFailure;
 import org.opensearch.core.common.ParsingException;
 import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.common.transport.TransportAddress;
+import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
