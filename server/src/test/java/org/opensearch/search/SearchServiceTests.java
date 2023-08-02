@@ -227,7 +227,7 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
 
     @Override
     protected Settings featureFlagSettings() {
-        return Settings.builder().put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, true).build();
+        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
     }
 
     @Override
