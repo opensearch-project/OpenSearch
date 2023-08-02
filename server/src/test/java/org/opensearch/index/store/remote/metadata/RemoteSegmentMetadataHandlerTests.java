@@ -25,6 +25,8 @@ import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
 import org.opensearch.index.store.Store;
+import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
+import org.opensearch.indices.replication.common.ReplicationType;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -38,16 +40,23 @@ public class RemoteSegmentMetadataHandlerTests extends IndexShardTestCase {
     private IndexShard indexShard;
     private SegmentInfos segmentInfos;
 
+    private ReplicationCheckpoint replicationCheckpoint;
+
     @Before
     public void setup() throws IOException {
         remoteSegmentMetadataHandler = new RemoteSegmentMetadataHandler();
 
-        Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT).build();
+        Settings indexSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
+            .build();
 
         indexShard = newStartedShard(false, indexSettings, new NRTReplicationEngineFactory());
         try (Store store = indexShard.store()) {
             segmentInfos = store.readLastCommittedSegmentsInfo();
         }
+        replicationCheckpoint = indexShard.getLatestReplicationCheckpoint();
     }
 
     @After
@@ -61,8 +70,7 @@ public class RemoteSegmentMetadataHandlerTests extends IndexShardTestCase {
         OutputStreamIndexOutput indexOutput = new OutputStreamIndexOutput("dummy bytes", "dummy stream", output, 4096);
         Map<String, String> expectedOutput = getDummyData();
         indexOutput.writeMapOfStrings(expectedOutput);
-        indexOutput.writeLong(1234);
-        indexOutput.writeLong(1234);
+        RemoteSegmentMetadata.writeCheckpointToIndexOutput(replicationCheckpoint, indexOutput);
         indexOutput.writeLong(0);
         indexOutput.writeBytes(new byte[0], 0);
         indexOutput.close();
@@ -70,7 +78,7 @@ public class RemoteSegmentMetadataHandlerTests extends IndexShardTestCase {
             new ByteArrayIndexInput("dummy bytes", BytesReference.toBytes(output.bytes()))
         );
         assertEquals(expectedOutput, metadata.toMapOfStrings());
-        assertEquals(1234, metadata.getGeneration());
+        assertEquals(replicationCheckpoint.getSegmentsGen(), metadata.getGeneration());
     }
 
     public void testReadContentWithSegmentInfos() throws IOException {
@@ -78,8 +86,7 @@ public class RemoteSegmentMetadataHandlerTests extends IndexShardTestCase {
         OutputStreamIndexOutput indexOutput = new OutputStreamIndexOutput("dummy bytes", "dummy stream", output, 4096);
         Map<String, String> expectedOutput = getDummyData();
         indexOutput.writeMapOfStrings(expectedOutput);
-        indexOutput.writeLong(1234);
-        indexOutput.writeLong(1234);
+        RemoteSegmentMetadata.writeCheckpointToIndexOutput(replicationCheckpoint, indexOutput);
         ByteBuffersIndexOutput segmentInfosOutput = new ByteBuffersIndexOutput(new ByteBuffersDataOutput(), "test", "resource");
         segmentInfos.write(segmentInfosOutput);
         byte[] segmentInfosBytes = segmentInfosOutput.toArrayCopy();
@@ -90,7 +97,7 @@ public class RemoteSegmentMetadataHandlerTests extends IndexShardTestCase {
             new ByteArrayIndexInput("dummy bytes", BytesReference.toBytes(output.bytes()))
         );
         assertEquals(expectedOutput, metadata.toMapOfStrings());
-        assertEquals(1234, metadata.getGeneration());
+        assertEquals(replicationCheckpoint.getSegmentsGen(), metadata.getGeneration());
         assertArrayEquals(segmentInfosBytes, metadata.getSegmentInfosBytes());
     }
 
@@ -106,8 +113,7 @@ public class RemoteSegmentMetadataHandlerTests extends IndexShardTestCase {
         RemoteSegmentMetadata remoteSegmentMetadata = new RemoteSegmentMetadata(
             RemoteSegmentMetadata.fromMapOfStrings(expectedOutput),
             segmentInfosBytes,
-            1234,
-            1234
+            indexShard.getLatestReplicationCheckpoint()
         );
         remoteSegmentMetadataHandler.writeContent(indexOutput, remoteSegmentMetadata);
         indexOutput.close();
@@ -116,8 +122,8 @@ public class RemoteSegmentMetadataHandlerTests extends IndexShardTestCase {
             new ByteArrayIndexInput("dummy bytes", BytesReference.toBytes(output.bytes()))
         );
         assertEquals(expectedOutput, metadata.toMapOfStrings());
-        assertEquals(1234, metadata.getGeneration());
-        assertEquals(1234, metadata.getPrimaryTerm());
+        assertEquals(replicationCheckpoint.getSegmentsGen(), metadata.getGeneration());
+        assertEquals(replicationCheckpoint.getPrimaryTerm(), metadata.getPrimaryTerm());
         assertArrayEquals(segmentInfosBytes, metadata.getSegmentInfosBytes());
     }
 

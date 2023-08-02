@@ -44,6 +44,7 @@ import org.opensearch.index.store.lockmanager.RemoteStoreCommitLevelLockManager;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManager;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadataHandler;
+import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.FileNotFoundException;
@@ -603,19 +604,20 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
      * @param segmentFiles segment files that are part of the shard at the time of the latest refresh
      * @param segmentInfosSnapshot SegmentInfos bytes to store as part of metadata file
      * @param storeDirectory instance of local directory to temporarily create metadata file before upload
-     * @param primaryTerm primary term to be used in the name of metadata file
+     * @param translogGeneration translog generation
+     * @param replicationCheckpoint ReplicationCheckpoint of primary shard
      * @throws IOException in case of I/O error while uploading the metadata file
      */
     public void uploadMetadata(
         Collection<String> segmentFiles,
         SegmentInfos segmentInfosSnapshot,
         Directory storeDirectory,
-        long primaryTerm,
-        long translogGeneration
+        long translogGeneration,
+        ReplicationCheckpoint replicationCheckpoint
     ) throws IOException {
         synchronized (this) {
             String metadataFilename = MetadataFilenameUtils.getMetadataFilename(
-                primaryTerm,
+                replicationCheckpoint.getPrimaryTerm(),
                 segmentInfosSnapshot.getGeneration(),
                 translogGeneration,
                 metadataUploadCounter.incrementAndGet(),
@@ -646,8 +648,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
                         new RemoteSegmentMetadata(
                             RemoteSegmentMetadata.fromMapOfStrings(uploadedSegments),
                             segmentInfoSnapshotByteArray,
-                            primaryTerm,
-                            segmentInfosSnapshot.getGeneration()
+                            replicationCheckpoint
                         )
                     );
                 }
