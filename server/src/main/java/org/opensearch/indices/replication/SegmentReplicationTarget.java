@@ -13,10 +13,6 @@ import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.apache.lucene.store.BufferedChecksumIndexInput;
-import org.apache.lucene.store.ByteBuffersDataInput;
-import org.apache.lucene.store.ByteBuffersIndexInput;
-import org.apache.lucene.store.ChecksumIndexInput;
 import org.opensearch.OpenSearchCorruptionException;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
@@ -36,10 +32,10 @@ import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
 import org.opensearch.indices.replication.common.ReplicationTarget;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Represents the target of a replication event.
@@ -54,10 +50,6 @@ public class SegmentReplicationTarget extends ReplicationTarget {
     protected final MultiFileWriter multiFileWriter;
 
     public final static String REPLICATION_PREFIX = "replication.";
-
-    public ReplicationCheckpoint getCheckpoint() {
-        return this.checkpoint;
-    }
 
     public SegmentReplicationTarget(IndexShard indexShard, SegmentReplicationSource source, ReplicationListener listener) {
         super("replication_target", indexShard, new ReplicationLuceneIndex(), listener);
@@ -117,6 +109,10 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         return false;
     }
 
+    public ReplicationCheckpoint getCheckpoint() {
+        return this.checkpoint;
+    }
+
     @Override
     public void writeFileChunk(
         StoreFileMetadata metadata,
@@ -162,7 +158,7 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         }, listener::onFailure);
 
         getFilesListener.whenComplete(response -> {
-            finalizeReplication(checkpointInfoListener.result());
+            finalizeReplication(checkpointInfoListener.result(), getFilesListener.result());
             listener.onResponse(null);
         }, listener::onFailure);
     }
@@ -193,23 +189,34 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         return diff.missing;
     }
 
-    private void finalizeReplication(CheckpointInfoResponse checkpointInfoResponse) throws OpenSearchCorruptionException {
-        // TODO: Refactor the logic so that finalize doesn't have to be invoked for remote store as source
-        if (source instanceof RemoteStoreReplicationSource) {
-            state.setStage(SegmentReplicationState.Stage.FINALIZE_REPLICATION);
-            return;
-        }
+    private void finalizeReplication(CheckpointInfoResponse checkpointInfoResponse, GetSegmentFilesResponse getSegmentFilesResponse)
+        throws OpenSearchCorruptionException {
         cancellableThreads.checkForCancel();
         state.setStage(SegmentReplicationState.Stage.FINALIZE_REPLICATION);
+        // Handle empty SegmentInfos bytes for recovering replicas
+        if (checkpointInfoResponse.getInfosBytes() == null) {
+            return;
+        }
         Store store = null;
         try {
             store = store();
             store.incRef();
+            Map<String, String> tempFileNames;
+            if (this.indexShard.indexSettings().isRemoteStoreEnabled() == true) {
+                tempFileNames = getSegmentFilesResponse.getFiles()
+                    .stream()
+                    .collect(Collectors.toMap(StoreFileMetadata::name, StoreFileMetadata::name));
+            } else {
+                tempFileNames = multiFileWriter.getTempFileNames();
+            }
             store.buildInfosFromBytes(
-                multiFileWriter.getTempFileNames(),
+                tempFileNames,
                 checkpointInfoResponse.getInfosBytes(),
                 checkpointInfoResponse.getCheckpoint().getSegmentsGen(),
-                indexShard::finalizeReplication
+                indexShard::finalizeReplication,
+                this.indexShard.indexSettings().isRemoteStoreEnabled() == true
+                    ? (files) -> {}
+                    : (files) -> indexShard.store().renameTempFilesSafe(files)
             );
         } catch (CorruptIndexException | IndexFormatTooNewException | IndexFormatTooOldException ex) {
             // this is a fatal exception at this stage.
@@ -245,16 +252,6 @@ public class SegmentReplicationTarget extends ReplicationTarget {
                 store.decRef();
             }
         }
-    }
-
-    /**
-     * This method formats our byte[] containing the primary's SegmentInfos into lucene's {@link ChecksumIndexInput} that can be
-     * passed to SegmentInfos.readCommit
-     */
-    private ChecksumIndexInput toIndexInput(byte[] input) {
-        return new BufferedChecksumIndexInput(
-            new ByteBuffersIndexInput(new ByteBuffersDataInput(Arrays.asList(ByteBuffer.wrap(input))), "SegmentInfos")
-        );
     }
 
     /**
