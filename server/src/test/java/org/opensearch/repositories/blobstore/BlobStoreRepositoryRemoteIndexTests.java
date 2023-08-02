@@ -66,10 +66,14 @@ import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_TRANSLOG_REPO
 public class BlobStoreRepositoryRemoteIndexTests extends BlobStoreRepositoryHelperTests {
 
     @Override
+    protected Settings featureFlagSettings() {
+        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.REMOTE_STORE, "true").build();
+    }
+
+    @Override
     protected Settings nodeSettings() {
         return Settings.builder()
             .put(super.nodeSettings())
-            .put(FeatureFlags.REMOTE_STORE, "true")
             .put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT)
             .put(CLUSTER_REMOTE_STORE_ENABLED_SETTING.getKey(), true)
             .put(CLUSTER_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING.getKey(), "test-rs-repo")
