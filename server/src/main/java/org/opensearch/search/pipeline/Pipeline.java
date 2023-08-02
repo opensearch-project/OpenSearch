@@ -25,6 +25,7 @@ import org.opensearch.search.SearchPhaseResult;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.LongSupplier;
 
@@ -119,7 +120,7 @@ class Pipeline {
 
     protected void onResponseProcessorFailed(Processor processor) {}
 
-    void transformRequest(SearchRequest request, ActionListener<SearchRequest> requestListener) throws SearchPipelineProcessingException {
+    void transformRequest(SearchRequest request, ActionListener<SearchRequest> requestListener, Map<String, Object> requestContext) throws SearchPipelineProcessingException {
         if (searchRequestProcessors.isEmpty()) {
             requestListener.onResponse(request);
             return;
@@ -137,7 +138,7 @@ class Pipeline {
             return;
         }
 
-        ActionListener<SearchRequest> finalListener = getTerminalSearchRequestActionListener(requestListener);
+        ActionListener<SearchRequest> finalListener = getTerminalSearchRequestActionListener(requestListener, requestContext);
 
         // Chain listeners back-to-front
         ActionListener<SearchRequest> currentListener = finalListener;
@@ -147,7 +148,7 @@ class Pipeline {
             currentListener = ActionListener.wrap(r -> {
                 long start = relativeTimeSupplier.getAsLong();
                 beforeRequestProcessor(processor);
-                processor.processRequestAsync(r, ActionListener.wrap(rr -> {
+                processor.processRequestAsync(r, requestContext, ActionListener.wrap(rr -> {
                     long took = TimeUnit.NANOSECONDS.toMillis(relativeTimeSupplier.getAsLong() - start);
                     afterRequestProcessor(processor, took);
                     nextListener.onResponse(rr);
@@ -176,13 +177,13 @@ class Pipeline {
         currentListener.onResponse(request);
     }
 
-    private ActionListener<SearchRequest> getTerminalSearchRequestActionListener(ActionListener<SearchRequest> requestListener) {
+    private ActionListener<SearchRequest> getTerminalSearchRequestActionListener(ActionListener<SearchRequest> requestListener, Map<String, Object> requestContext) {
         final long pipelineStart = relativeTimeSupplier.getAsLong();
 
         return ActionListener.wrap(r -> {
             long took = TimeUnit.NANOSECONDS.toMillis(relativeTimeSupplier.getAsLong() - pipelineStart);
             afterTransformRequest(took);
-            requestListener.onResponse(new PipelinedRequest(this, r));
+            requestListener.onResponse(new PipelinedRequest(this, r, requestContext));
         }, e -> {
             long took = TimeUnit.NANOSECONDS.toMillis(relativeTimeSupplier.getAsLong() - pipelineStart);
             afterTransformRequest(took);
@@ -191,7 +192,7 @@ class Pipeline {
         });
     }
 
-    ActionListener<SearchResponse> transformResponseListener(SearchRequest request, ActionListener<SearchResponse> responseListener) {
+    ActionListener<SearchResponse> transformResponseListener(SearchRequest request, ActionListener<SearchResponse> responseListener, Map<String, Object> requestContext) {
         if (searchResponseProcessors.isEmpty()) {
             // No response transformation necessary
             return responseListener;
@@ -219,7 +220,7 @@ class Pipeline {
             responseListener = ActionListener.wrap(r -> {
                 beforeResponseProcessor(processor);
                 final long start = relativeTimeSupplier.getAsLong();
-                processor.processResponseAsync(request, r, ActionListener.wrap(rr -> {
+                processor.processResponseAsync(request, r, requestContext, ActionListener.wrap(rr -> {
                     long took = TimeUnit.NANOSECONDS.toMillis(relativeTimeSupplier.getAsLong() - start);
                     afterResponseProcessor(processor, took);
                     currentFinalListener.onResponse(rr);

@@ -12,6 +12,8 @@ import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.core.action.ActionListener;
 
+import java.util.Map;
+
 /**
  * Interface for a search pipeline processor that modifies a search response.
  */
@@ -28,6 +30,9 @@ public interface SearchResponseProcessor extends Processor {
      */
     SearchResponse processResponse(SearchRequest request, SearchResponse response) throws Exception;
 
+    default SearchResponse processResponse(SearchRequest request, SearchResponse response, Map<String, Object> requestContext) throws Exception {
+        return processResponse(request, response);
+    }
     /**
      * Transform a {@link SearchResponse}, possibly based on the executed {@link SearchRequest}.
      * <p>
@@ -36,9 +41,9 @@ public interface SearchResponseProcessor extends Processor {
      * @param response the current {@link SearchResponse}, possibly modified by earlier processors
      * @param responseListener callback to be invoked on successful processing or on failure
      */
-    default void processResponseAsync(SearchRequest request, SearchResponse response, ActionListener<SearchResponse> responseListener) {
+    default void processResponseAsync(SearchRequest request, SearchResponse response, Map<String, Object> requestContext, ActionListener<SearchResponse> responseListener) {
         try {
-            responseListener.onResponse(processResponse(request, response));
+            responseListener.onResponse(processResponse(request, response, requestContext));
         } catch (Exception e) {
             responseListener.onFailure(e);
         }
