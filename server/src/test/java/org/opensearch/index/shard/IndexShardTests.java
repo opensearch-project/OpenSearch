@@ -214,7 +214,14 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.oneOf;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.never;
+import static org.mockito.internal.verification.VerificationModeFactory.times;
 import static org.opensearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.opensearch.common.lucene.Lucene.cleanLuceneIndex;
 import static org.opensearch.core.xcontent.ToXContent.EMPTY_PARAMS;
@@ -3283,6 +3290,102 @@ public class IndexShardTests extends IndexShardTestCase {
         // Shard should now be active since we did recover:
         assertTrue(shard.isActive());
         closeShards(shard);
+    }
+
+    public void testDocNotParsedOnSegmentReplicationEnabledReplicaShard() throws IOException {
+        IndexShard spyReplicaShard1, spyReplicaShard2, spyReplicaShard3;
+        Settings indexSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            .build();
+
+        // Creating replica shards with segment replication enabled.
+        spyReplicaShard1 = spy(newStartedShard(false, indexSettings, new NRTReplicationEngineFactory()));
+        spyReplicaShard2 = spy(newStartedShard(false, indexSettings, new NRTReplicationEngineFactory()));
+
+        // creating a replica shard without segment replication enabled.
+        spyReplicaShard3 = spy(newStartedShard(false));
+
+        String id = UUID.randomUUID().toString();
+        long seqNo = 2;
+        byte[] source = new BytesArray("{}").array();
+        SourceToParse sourceToParse = new SourceToParse(
+            spyReplicaShard1.shardId().getIndexName(),
+            id,
+            new BytesArray(source),
+            XContentType.JSON
+        );
+
+        // call applyIndexOperationOnReplica() on index shard. This call simulates index operation on replica from TransportBulkShardAction
+        // class.
+        spyReplicaShard1.applyIndexOperationOnReplica(
+            id,
+            seqNo,
+            spyReplicaShard1.getOperationPrimaryTerm(),
+            1,
+            IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
+            false,
+            sourceToParse
+        );
+
+        Translog.Operation indexOperation = new Translog.Index(
+            id,
+            seqNo,
+            spyReplicaShard2.getPendingPrimaryTerm(),
+            1,
+            source,
+            "testRouting",
+            IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP
+        );
+        // call applyTranslogOperation() on replica shard. This call simulates indexing translog operations from RecoveryTarget class during
+        // peer recovery.
+        spyReplicaShard2.applyTranslogOperation(indexOperation, Engine.Operation.Origin.PEER_RECOVERY);
+
+        // Verify getNonParsedIndex() is called once on both replica shards.
+        verify(spyReplicaShard1, times(1)).getNonParsedIndex(anyLong(), anyLong(), anyLong(), anyLong(), anyBoolean(), any(), any(), any());
+        verify(spyReplicaShard2, times(1)).getNonParsedIndex(anyLong(), anyLong(), anyLong(), anyLong(), anyBoolean(), any(), any(), any());
+
+        // Assert that routing value of index operation is null, to verify that document is not parsed
+        assertNull(
+            spyReplicaShard1.getNonParsedIndex(
+                seqNo,
+                spyReplicaShard1.getOperationPrimaryTerm(),
+                1,
+                IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
+                false,
+                Engine.Operation.Origin.REPLICA,
+                sourceToParse,
+                id
+            ).routing()
+        );
+        // Assert that routing value of index operation is null even though we have set routing to testRouting in replicaShard2, to verify
+        // that document is not parsed
+        assertNull(
+            spyReplicaShard1.getNonParsedIndex(
+                seqNo,
+                spyReplicaShard2.getOperationPrimaryTerm(),
+                1,
+                IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
+                false,
+                Engine.Operation.Origin.REPLICA,
+                sourceToParse,
+                id
+            ).routing()
+        );
+
+        // Perform same operations on non segment replication replica shard and verify that call to getNonParsedIndex() is never made.
+        spyReplicaShard3.applyIndexOperationOnReplica(
+            UUID.randomUUID().toString(),
+            0,
+            primaryTerm,
+            1,
+            IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
+            false,
+            new SourceToParse(spyReplicaShard3.shardId().getIndexName(), "id", new BytesArray("{}"), XContentType.JSON)
+        );
+        verify(spyReplicaShard3, never()).getNonParsedIndex(anyLong(), anyLong(), anyLong(), anyLong(), anyBoolean(), any(), any(), any());
+
+        closeShards(spyReplicaShard1, spyReplicaShard2, spyReplicaShard3);
     }
 
     public void testShardActiveDuringPeerRecovery() throws IOException {
