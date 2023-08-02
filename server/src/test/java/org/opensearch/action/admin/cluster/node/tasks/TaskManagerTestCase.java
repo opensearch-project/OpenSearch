@@ -53,7 +53,7 @@ import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.transport.BoundTransportAddress;
+import org.opensearch.core.common.transport.BoundTransportAddress;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;

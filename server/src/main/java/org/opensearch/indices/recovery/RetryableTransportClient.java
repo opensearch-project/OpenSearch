@@ -26,7 +26,7 @@ import org.opensearch.transport.RemoteTransportException;
 import org.opensearch.transport.SendRequestTransportException;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportRequestOptions;
-import org.opensearch.transport.TransportResponse;
+import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.transport.TransportService;
 
 import java.util.Map;
