@@ -199,7 +199,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             SearchPhaseName.CAN_MATCH.getName(),
             () -> searchRequestOperationsListener.onCanMatchPhaseStart(this)
         );
-        searchPhaseStartTrackingMap.put(SearchPhaseName.FETCH.getName(), () -> searchRequestOperationsListener.onQueryPhaseStart(this));
+        searchPhaseStartTrackingMap.put(SearchPhaseName.DFS_QUERY.getName(), () -> searchRequestOperationsListener.onQueryPhaseStart(this));
         searchPhaseStartTrackingMap.put(SearchPhaseName.QUERY.getName(), () -> searchRequestOperationsListener.onQueryPhaseStart(this));
         searchPhaseStartTrackingMap.put(SearchPhaseName.FETCH.getName(), () -> searchRequestOperationsListener.onFetchPhaseStart(this));
         searchPhaseStartTrackingMap.put(
