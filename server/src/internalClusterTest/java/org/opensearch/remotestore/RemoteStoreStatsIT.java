@@ -272,12 +272,12 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
                 assertTrue(
                     replicaStats.directoryFileTransferTrackerStats.transferredBytesStarted > 0
                         && primaryStats.uploadBytesStarted
-                            - zeroStatePrimaryStats.uploadBytesStarted == replicaStats.directoryFileTransferTrackerStats.transferredBytesStarted
+                            - zeroStatePrimaryStats.uploadBytesStarted >= replicaStats.directoryFileTransferTrackerStats.transferredBytesStarted
                 );
                 assertTrue(
                     replicaStats.directoryFileTransferTrackerStats.transferredBytesSucceeded > 0
                         && primaryStats.uploadBytesSucceeded
-                            - zeroStatePrimaryStats.uploadBytesSucceeded == replicaStats.directoryFileTransferTrackerStats.transferredBytesSucceeded
+                            - zeroStatePrimaryStats.uploadBytesSucceeded >= replicaStats.directoryFileTransferTrackerStats.transferredBytesSucceeded
                 );
                 // Assert zero failures
                 assertEquals(0, primaryStats.uploadBytesFailed);
@@ -369,8 +369,8 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
                 assertEquals(0, uploadsFailed);
                 assertEquals(0, uploadBytesFailed);
                 for (int j = 0; j < response.getSuccessfulShards() - 1; j++) {
-                    assertEquals(uploadBytesStarted - zeroStatePrimaryStats.uploadBytesStarted, (long) downloadBytesStarted.get(j));
-                    assertEquals(uploadBytesSucceeded - zeroStatePrimaryStats.uploadBytesSucceeded, (long) downloadBytesSucceeded.get(j));
+                    assertTrue(uploadBytesStarted - zeroStatePrimaryStats.uploadBytesStarted > downloadBytesStarted.get(j));
+                    assertTrue(uploadBytesSucceeded - zeroStatePrimaryStats.uploadBytesSucceeded > downloadBytesSucceeded.get(j));
                     assertEquals(0, (long) downloadBytesFailed.get(j));
                 }
             }, 60, TimeUnit.SECONDS);

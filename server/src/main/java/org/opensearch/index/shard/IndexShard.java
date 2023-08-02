@@ -199,9 +199,7 @@ import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.EnumSet;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -1988,7 +1986,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final Optional<SequenceNumbers.CommitInfo> safeCommit;
         final long globalCheckpoint;
         try {
-            final String translogUUID = store.readLastCommittedSegmentsInfo().getUserData().get(Translog.TRANSLOG_UUID_KEY);
+            final String translogUUID = store.readLastCommittedSegmentsInfo().getUserData().get(TRANSLOG_UUID_KEY);
             globalCheckpoint = Translog.readGlobalCheckpoint(translogConfig.getTranslogPath(), translogUUID);
             safeCommit = store.findSafeIndexCommit(globalCheckpoint);
         } catch (org.apache.lucene.index.IndexNotFoundException e) {
@@ -2088,7 +2086,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         try {
             seqNo = Long.parseLong(store.readLastCommittedSegmentsInfo().getUserData().get(MAX_SEQ_NO));
         } catch (org.apache.lucene.index.IndexNotFoundException e) {
-            logger.error("skip local recovery as no index commit found", e);
+            logger.error("skip local recovery as no index commit found");
             return UNASSIGNED_SEQ_NO;
         } catch (Exception e) {
             logger.error("skip local recovery as failed to find the safe commit", e);
@@ -2242,7 +2240,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // we have to set it before we open an engine and recover from the translog because
         // acquiring a snapshot from the translog causes a sync which causes the global checkpoint to be pulled in,
         // and an engine can be forced to close in ctor which also causes the global checkpoint to be pulled in.
-        final String translogUUID = store.readLastCommittedSegmentsInfo().getUserData().get(Translog.TRANSLOG_UUID_KEY);
+        final String translogUUID = store.readLastCommittedSegmentsInfo().getUserData().get(TRANSLOG_UUID_KEY);
         final long globalCheckpoint = Translog.readGlobalCheckpoint(translogConfig.getTranslogPath(), translogUUID);
         replicationTracker.updateGlobalCheckpointOnReplica(globalCheckpoint, "read from translog checkpoint");
     }
@@ -2326,7 +2324,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             assert currentEngineReference.get() == null : "engine is running";
             verifyNotClosed();
             if (indexSettings.isRemoteStoreEnabled() && syncFromRemote) {
-                syncSegmentsFromRemoteSegmentStore(false, true, true);
+                syncSegmentsFromRemoteSegmentStore(false, true);
             }
             if (indexSettings.isRemoteTranslogStoreEnabled() && shardRouting.primary()) {
                 if (syncFromRemote) {
@@ -4555,7 +4553,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             };
             IOUtils.close(currentEngineReference.getAndSet(readOnlyEngine));
             if (indexSettings.isRemoteStoreEnabled()) {
-                syncSegmentsFromRemoteSegmentStore(false, true, true);
+                syncSegmentsFromRemoteSegmentStore(false, true);
             }
             if (indexSettings.isRemoteTranslogStoreEnabled() && shardRouting.primary()) {
                 syncRemoteTranslogAndUpdateGlobalCheckpoint();
@@ -4616,13 +4614,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Downloads segments from remote segment store.
      * @param overrideLocal flag to override local segment files with those in remote store
      * @param refreshLevelSegmentSync last refresh checkpoint is used if true, commit checkpoint otherwise
-     * @param shouldCommit if the shard requires committing the changes after sync from remote.
      * @throws IOException if exception occurs while reading segments from remote store
      */
-    public void syncSegmentsFromRemoteSegmentStore(boolean overrideLocal, boolean refreshLevelSegmentSync, boolean shouldCommit)
-        throws IOException {
+    public void syncSegmentsFromRemoteSegmentStore(boolean overrideLocal, boolean refreshLevelSegmentSync) throws IOException {
         assert indexSettings.isRemoteStoreEnabled();
-        logger.info("Downloading segments from remote segment store");
+        logger.trace("Downloading segments from remote segment store");
         RemoteSegmentStoreDirectory remoteDirectory = getRemoteDirectory();
         // We need to call RemoteSegmentStoreDirectory.init() in order to get latest metadata of the files that
         // are uploaded to the remote segment store.
@@ -4647,7 +4643,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             } else {
                 storeDirectory = store.directory();
             }
-            Set<String> localSegmentFiles = Sets.newHashSet(storeDirectory.listAll());
             copySegmentFiles(storeDirectory, remoteDirectory, null, uploadedSegments, overrideLocal);
 
             if (refreshLevelSegmentSync && remoteSegmentMetadata != null) {
@@ -4661,37 +4656,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         indexInput,
                         remoteSegmentMetadata.getGeneration()
                     );
-                    // Replicas never need a local commit
-                    if (shouldCommit) {
-                        if (this.shardRouting.primary()) {
-                            long processedLocalCheckpoint = Long.parseLong(infosSnapshot.getUserData().get(LOCAL_CHECKPOINT_KEY));
-                            // Following code block makes sure to use SegmentInfosSnapshot in the remote store if generation differs
-                            // with local filesystem. If local filesystem already has segments_N+2 and infosSnapshot has generation N,
-                            // after commit, there would be 2 files that would be created segments_N+1 and segments_N+2. With the
-                            // policy of preserving only the latest commit, we will delete segments_N+1 which in fact is the part of the
-                            // latest commit.
-                            Optional<String> localMaxSegmentInfos = localSegmentFiles.stream()
-                                .filter(file -> file.startsWith(IndexFileNames.SEGMENTS))
-                                .max(Comparator.comparingLong(SegmentInfos::generationFromSegmentsFileName));
-                            if (localMaxSegmentInfos.isPresent()
-                                && infosSnapshot.getGeneration() < SegmentInfos.generationFromSegmentsFileName(localMaxSegmentInfos.get())
-                                    - 1) {
-                                // If remote translog is not enabled, local translog will be created with different UUID.
-                                // This fails in Store.trimUnsafeCommits() as translog UUID of checkpoint and SegmentInfos needs
-                                // to be same. Following code block make sure to have the same UUID.
-                                if (indexSettings.isRemoteTranslogStoreEnabled() == false) {
-                                    SegmentInfos localSegmentInfos = store.readLastCommittedSegmentsInfo();
-                                    Map<String, String> userData = new HashMap<>(infosSnapshot.getUserData());
-                                    userData.put(TRANSLOG_UUID_KEY, localSegmentInfos.userData.get(TRANSLOG_UUID_KEY));
-                                    infosSnapshot.setUserData(userData, false);
-                                }
-                                storeDirectory.deleteFile(localMaxSegmentInfos.get());
-                            }
-                            store.commitSegmentInfos(infosSnapshot, processedLocalCheckpoint, processedLocalCheckpoint);
-                        }
-                    } else {
-                        finalizeReplication(infosSnapshot);
-                    }
+                    long processedLocalCheckpoint = Long.parseLong(infosSnapshot.getUserData().get(LOCAL_CHECKPOINT_KEY));
+                    store.commitSegmentInfos(infosSnapshot, processedLocalCheckpoint, processedLocalCheckpoint);
                 }
             }
         } catch (IOException e) {
@@ -4716,7 +4682,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         long primaryTerm,
         long commitGeneration
     ) throws IOException {
-        logger.info("Downloading segments from given remote segment store");
+        logger.trace("Downloading segments from given remote segment store");
         RemoteSegmentStoreDirectory remoteDirectory = null;
         if (remoteStore != null) {
             remoteDirectory = getRemoteDirectory();
