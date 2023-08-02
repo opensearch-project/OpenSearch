@@ -41,7 +41,6 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.allocation.AllocationService;
-import org.opensearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.opensearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.opensearch.common.settings.Settings;
 
@@ -149,7 +148,7 @@ public class RoutingNodesTests extends OpenSearchAllocationTestCase {
 
         // Get primary first shard iterator and assert primary shards are iterated over first
         final Iterator<ShardRouting> iterator = this.clusterState.getRoutingNodes()
-            .nodeInterleavedShardIterator(BalancedShardsAllocator.ShardMovementStrategy.PRIMARY_FIRST);
+            .nodeInterleavedShardIterator(ShardMovementStrategy.PRIMARY_FIRST);
         boolean iteratingPrimary = true;
         int shardCount = 0;
         while (iterator.hasNext()) {
@@ -173,7 +172,7 @@ public class RoutingNodesTests extends OpenSearchAllocationTestCase {
         startInitializingShards(TEST_INDEX_2);
 
         final Iterator<ShardRouting> iterator = this.clusterState.getRoutingNodes()
-            .nodeInterleavedShardIterator(BalancedShardsAllocator.ShardMovementStrategy.NO_PREFERENCE);
+            .nodeInterleavedShardIterator(ShardMovementStrategy.NO_PREFERENCE);
         int shardCount = 0;
         while (iterator.hasNext()) {
             final ShardRouting shard = iterator.next();
@@ -192,7 +191,7 @@ public class RoutingNodesTests extends OpenSearchAllocationTestCase {
 
         // Get replica first shard iterator and assert replica shards are iterated over first
         final Iterator<ShardRouting> iterator = this.clusterState.getRoutingNodes()
-            .nodeInterleavedShardIterator(BalancedShardsAllocator.ShardMovementStrategy.REPLICA_FIRST);
+            .nodeInterleavedShardIterator(ShardMovementStrategy.REPLICA_FIRST);
         boolean iteratingReplica = true;
         int shardCount = 0;
         while (iterator.hasNext()) {

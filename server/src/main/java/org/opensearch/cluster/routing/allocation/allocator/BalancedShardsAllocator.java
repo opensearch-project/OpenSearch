@@ -37,6 +37,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.IntroSorter;
 import org.opensearch.cluster.routing.RoutingNode;
 import org.opensearch.cluster.routing.RoutingNodes;
+import org.opensearch.cluster.routing.ShardMovementStrategy;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.cluster.routing.UnassignedInfo.AllocationStatus;
@@ -56,7 +57,6 @@ import org.opensearch.common.settings.Settings;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -111,43 +111,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         Property.NodeScope,
         Property.Deprecated
     );
-
-    /**
-     * ShardMovementStrategy defines the order in which shard movement occurs.
-     * <p>
-     * Allocation settings can have the following values (non-casesensitive):
-     *  <ul>
-     *      <li> <code>NO_PREFERENCE</code> - default behavior in which order of shard movement doesn't matter.
-     *      <li> <code>PRIMARY_FIRST</code> - primary shards are moved first.
-     *      <li> <code>REPLICA_FIRST</code> - replica shards are moved first.
-     *  </ul>
-     * ShardMovementStrategy values or rather their string representation to be used with
-     * {@link BalancedShardsAllocator#SHARD_MOVEMENT_STRATEGY_SETTING} via cluster settings.
-     */
-    public enum ShardMovementStrategy {
-        NO_PREFERENCE,
-        PRIMARY_FIRST,
-        REPLICA_FIRST;
-
-        public static ShardMovementStrategy parse(String strValue) {
-            if (strValue == null) {
-                return null;
-            } else {
-                strValue = strValue.toUpperCase(Locale.ROOT);
-                try {
-                    return ShardMovementStrategy.valueOf(strValue);
-                } catch (IllegalArgumentException e) {
-                    throw new IllegalArgumentException("Illegal allocation.shard_movement_strategy value [" + strValue + "]");
-                }
-            }
-        }
-
-        @Override
-        public String toString() {
-            return name().toLowerCase(Locale.ROOT);
-        }
-
-    }
 
     /**
      * Decides order in which to move shards from node when shards can not stay on node anymore. {@link LocalShardsBalancer#moveShards()}
