@@ -16,7 +16,7 @@ import org.opensearch.plugins.IdentityPlugin;
 import java.util.stream.Collectors;
 
 /**
- * Identity and access control for OpenSearch.
+ * Identity and access control for OpenSearch
  *
  * @opensearch.experimental
  * */
