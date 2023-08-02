@@ -48,6 +48,7 @@ import org.opensearch.common.unit.MemorySizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.codec.CodecService;
+import org.opensearch.index.codec.CodecSettings;
 import org.opensearch.index.mapper.ParsedDocument;
 import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.core.index.shard.ShardId;
@@ -63,6 +64,7 @@ import org.opensearch.threadpool.ThreadPool;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.BooleanSupplier;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
@@ -148,13 +150,52 @@ public final class EngineConfig {
      * Compression Level gives a trade-off between compression ratio and speed. The higher compression level results in higher compression ratio but slower compression and decompression speeds.
      * This setting is <b>not</b> realtime updateable.
      */
-    public static final Setting<Integer> INDEX_CODEC_COMPRESSION_LEVEL_SETTING = Setting.intSetting(
+
+    public static final Setting<Integer> INDEX_CODEC_COMPRESSION_LEVEL_SETTING = new Setting<>(
         "index.codec.compression_level",
-        3,
-        1,
-        6,
+        Integer.toString(3),
+        new Setting.IntegerParser(1, 6, "index.codec.compression_level", false),
         Property.IndexScope
-    );
+    ) {
+        @Override
+        public Set<SettingDependency> getSettingsDependencies(String key) {
+            return Set.of(new SettingDependency() {
+                @Override
+                public Setting<String> getSetting() {
+                    return INDEX_CODEC_SETTING;
+                }
+
+                @Override
+                public void validate(String key, Object value, Object dependency) {
+                    if (!(dependency instanceof String)) {
+                        throw new IllegalArgumentException("Codec should be of string type.");
+                    }
+                    doValidateCodecSettings((String) dependency);
+                }
+            });
+        }
+    };
+
+    private static void doValidateCodecSettings(final String codec) {
+        switch (codec) {
+            case "zstd":
+            case "zstd_no_dict":
+                return;
+            case "best_compression":
+            case "lucene_default":
+            case "default":
+                break;
+            default:
+                if (Codec.availableCodecs().contains(codec)) {
+                    Codec luceneCodec = Codec.forName(codec);
+                    if (luceneCodec instanceof CodecSettings
+                        && ((CodecSettings) luceneCodec).supports(INDEX_CODEC_COMPRESSION_LEVEL_SETTING)) {
+                        return;
+                    }
+                }
+        }
+        throw new IllegalArgumentException("Compression level cannot be set for the " + codec + " codec.");
+    }
 
     /**
      * Configures an index to optimize documents with auto generated ids for append only. If this setting is updated from <code>false</code>
