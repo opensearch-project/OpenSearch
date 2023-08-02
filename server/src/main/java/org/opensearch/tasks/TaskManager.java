@@ -80,7 +80,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 import static org.opensearch.common.unit.TimeValue.timeValueMillis;
 import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_MAX_HEADER_SIZE;
@@ -305,9 +304,17 @@ public class TaskManager implements ClusterStateApplier {
                 headers.put(key, httpHeader);
             }
         }
-        ProtobufTask task = request.createProtobufTask(taskIdGenerator.incrementAndGet(), type, action, request.getProtobufParentTask(), headers);
+        ProtobufTask task = request.createProtobufTask(
+            taskIdGenerator.incrementAndGet(),
+            type,
+            action,
+            request.getProtobufParentTask(),
+            headers
+        );
         Objects.requireNonNull(task);
-        assert task.getParentTaskId().equals(request.getProtobufParentTask()) : "Request [ " + request + "] didn't preserve it parentTaskId";
+        assert task.getParentTaskId().equals(request.getProtobufParentTask()) : "Request [ "
+            + request
+            + "] didn't preserve it parentTaskId";
         if (logger.isTraceEnabled()) {
             logger.trace("register {} [{}] [{}] [{}]", task.getId(), type, action, task.getDescription());
         }
@@ -905,25 +912,25 @@ public class TaskManager implements ClusterStateApplier {
 
     // @Override
     // public void applyProtobufClusterState(ProtobufClusterChangedEvent event) {
-    //     lastDiscoveryNodes = event.state().getNodes();
-    //     if (event.nodesRemoved()) {
-    //         synchronized (banedParentsProtobuf) {
-    //             lastDiscoveryNodes = event.state().getNodes();
-    //             // Remove all bans that were registered by nodes that are no longer in the cluster state
-    //             Iterator<ProtobufTaskId> banIterator = banedParentsProtobuf.keySet().iterator();
-    //             while (banIterator.hasNext()) {
-    //                 ProtobufTaskId taskId = banIterator.next();
-    //                 if (lastDiscoveryNodes.nodeExists(taskId.getNodeId()) == false) {
-    //                     logger.debug(
-    //                         "Removing ban for the parent [{}] on the node [{}], reason: the parent node is gone",
-    //                         taskId,
-    //                         event.state().getNodes().getLocalNode()
-    //                     );
-    //                     banIterator.remove();
-    //                 }
-    //             }
-    //         }
-    //     }
+    // lastDiscoveryNodes = event.state().getNodes();
+    // if (event.nodesRemoved()) {
+    // synchronized (banedParentsProtobuf) {
+    // lastDiscoveryNodes = event.state().getNodes();
+    // // Remove all bans that were registered by nodes that are no longer in the cluster state
+    // Iterator<ProtobufTaskId> banIterator = banedParentsProtobuf.keySet().iterator();
+    // while (banIterator.hasNext()) {
+    // ProtobufTaskId taskId = banIterator.next();
+    // if (lastDiscoveryNodes.nodeExists(taskId.getNodeId()) == false) {
+    // logger.debug(
+    // "Removing ban for the parent [{}] on the node [{}], reason: the parent node is gone",
+    // taskId,
+    // event.state().getNodes().getLocalNode()
+    // );
+    // banIterator.remove();
+    // }
+    // }
+    // }
+    // }
     // }
 
     /**

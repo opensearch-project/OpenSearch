@@ -353,7 +353,7 @@ public class SegmentReplicationWithNodeToNodeIndexShardTests extends SegmentRepl
     /**
      * Verifies that commits on replica engine resulting from engine or reader close does not cleanup the temporary
      * replication files from ongoing round of segment replication
-     * @throws Exception
+     * @throws Exception exception
      */
     public void testTemporaryFilesNotCleanup() throws Exception {
         String mappings = "{ \"" + MapperService.SINGLE_MAPPING_NAME + "\": { \"properties\": { \"foo\": { \"type\": \"keyword\"} }}}";

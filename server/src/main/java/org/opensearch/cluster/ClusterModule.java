@@ -345,7 +345,7 @@ public class ClusterModule extends AbstractModule {
     }
 
     // public ProtobufIndexNameExpressionResolver getProtobufIndexNameExpressionResolver() {
-    //     return protobufIndexNameExpressionResolver;
+    // return protobufIndexNameExpressionResolver;
     // }
 
     // TODO: this is public so allocation benchmark can access the default deciders...can we do that in another way?

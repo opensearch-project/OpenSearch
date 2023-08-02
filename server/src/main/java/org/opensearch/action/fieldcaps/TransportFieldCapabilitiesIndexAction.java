@@ -75,7 +75,6 @@ import org.opensearch.transport.TransportRequestHandler;
 import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
 
-
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;

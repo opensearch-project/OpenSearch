@@ -107,8 +107,7 @@ public abstract class ProtobufTransportClusterManagerNodeAction<
     }
 
     // TODO: Add abstract keyword after removing the deprecated masterOperation()
-    protected void clusterManagerOperation(Request request, ClusterState state, ActionListener<Response> listener)
-        throws Exception {
+    protected void clusterManagerOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
         masterOperation(request, state, listener);
     }
 
@@ -126,12 +125,8 @@ public abstract class ProtobufTransportClusterManagerNodeAction<
      * Override this operation if access to the task parameter is needed
      */
     // TODO: Change the implementation to call 'clusterManagerOperation(request...)' after removing the deprecated masterOperation()
-    protected void clusterManagerOperation(
-        ProtobufTask task,
-        Request request,
-        ClusterState state,
-        ActionListener<Response> listener
-    ) throws Exception {
+    protected void clusterManagerOperation(ProtobufTask task, Request request, ClusterState state, ActionListener<Response> listener)
+        throws Exception {
         masterOperation(task, request, state, listener);
     }
 

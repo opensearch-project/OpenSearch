@@ -322,15 +322,15 @@ public final class NetworkModule {
     // * Registers a new {@link TransportInterceptor}
     // */
     // private void registerTransportInterceptor(TransportInterceptor interceptor) {
-    //     this.TransportInterceptors.add(Objects.requireNonNull(interceptor, "interceptor must not be null"));
+    // this.TransportInterceptors.add(Objects.requireNonNull(interceptor, "interceptor must not be null"));
     // }
 
     // /**
-    //  * Returns a composite {@link TransportInterceptor} containing all registered interceptors
-    //  * @see #registerTransportInterceptor(TransportInterceptor)
-    //  */
+    // * Returns a composite {@link TransportInterceptor} containing all registered interceptors
+    // * @see #registerTransportInterceptor(TransportInterceptor)
+    // */
     // public TransportInterceptor getTransportInterceptor() {
-    //     return new ProtobufCompositeTransportInterceptor(this.TransportInterceptors);
+    // return new ProtobufCompositeTransportInterceptor(this.TransportInterceptors);
     // }
 
     static final class ProtobufCompositeTransportInterceptor implements TransportInterceptor {

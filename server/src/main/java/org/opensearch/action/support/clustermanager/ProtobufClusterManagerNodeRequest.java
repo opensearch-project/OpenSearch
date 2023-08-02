@@ -6,11 +6,6 @@
 * compatible open source license.
 */
 
-/*
-* Modifications Copyright OpenSearch Contributors. See
-* GitHub history for details.
-*/
-
 package org.opensearch.action.support.clustermanager;
 
 import org.opensearch.action.ProtobufActionRequest;

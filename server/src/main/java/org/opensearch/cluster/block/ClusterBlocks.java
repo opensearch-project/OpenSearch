@@ -32,7 +32,6 @@
 
 package org.opensearch.cluster.block;
 
-
 import org.opensearch.cluster.AbstractDiffable;
 import org.opensearch.cluster.Diff;
 import org.opensearch.cluster.metadata.IndexMetadata;

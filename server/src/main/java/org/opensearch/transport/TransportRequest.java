@@ -32,7 +32,6 @@
 
 package org.opensearch.transport;
 
-import org.opensearch.action.admin.cluster.state.ProtobufClusterStateRequest;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.tasks.ProtobufTaskAwareRequest;
@@ -113,8 +112,8 @@ public abstract class TransportRequest extends TransportMessage implements TaskA
         return parentTaskId;
     }
 
-     /**
-     * Get a reference to the task that created this request. Defaults to {@link TaskId#EMPTY_TASK_ID}, meaning "there is no parent".
+    /**
+    * Get a reference to the task that created this request. Defaults to {@link TaskId#EMPTY_TASK_ID}, meaning "there is no parent".
     */
     @Override
     public ProtobufTaskId getProtobufParentTask() {

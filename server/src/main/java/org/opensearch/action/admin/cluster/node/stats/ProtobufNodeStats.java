@@ -98,7 +98,7 @@ public class ProtobufNodeStats extends ProtobufBaseNodeResponse implements ToXCo
             .setHitCount(indices.getRequestCache().getHitCount())
             .setMissCount(indices.getRequestCache().getMissCount())
             .build();
-         NodesStatsProto.NodesStats.FlushStats flushStats = NodesStatsProto.NodesStats.FlushStats.newBuilder()
+        NodesStatsProto.NodesStats.FlushStats flushStats = NodesStatsProto.NodesStats.FlushStats.newBuilder()
             .setTotal(indices.getFlush().getTotal())
             .setPeriodic(indices.getFlush().getPeriodic())
             .setTotalTimeInMillis(indices.getFlush().getTotalTimeInMillis())

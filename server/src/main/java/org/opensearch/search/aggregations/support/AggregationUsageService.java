@@ -32,7 +32,6 @@
 
 package org.opensearch.search.aggregations.support;
 
-import org.opensearch.node.ProtobufReportingService;
 import org.opensearch.node.ReportingService;
 
 import java.util.HashMap;

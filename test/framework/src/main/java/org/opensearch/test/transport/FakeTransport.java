@@ -41,13 +41,10 @@ import org.opensearch.transport.CloseableConnection;
 import org.opensearch.transport.ConnectionProfile;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.Transport;
-import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportMessageListener;
 import org.opensearch.transport.TransportRequestOptions;
 import org.opensearch.transport.TransportStats;
 
-import java.io.IOException;
-import java.net.UnknownHostException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -104,7 +101,7 @@ public class FakeTransport extends AbstractLifecycleComponent implements Transpo
 
             // @Override
             // public void sendRequestProtobuf(long requestId, String action, TransportRequest request,
-            //         TransportRequestOptions options) throws IOException, TransportException {
+            // TransportRequestOptions options) throws IOException, TransportException {
 
             // }
         });

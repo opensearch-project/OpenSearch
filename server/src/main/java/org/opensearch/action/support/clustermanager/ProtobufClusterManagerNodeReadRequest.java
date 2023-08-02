@@ -6,11 +6,6 @@
 * compatible open source license.
 */
 
-/*
-* Modifications Copyright OpenSearch Contributors. See
-* GitHub history for details.
-*/
-
 package org.opensearch.action.support.clustermanager;
 
 import java.io.IOException;
@@ -29,12 +24,12 @@ public abstract class ProtobufClusterManagerNodeReadRequest<Request extends Prot
     protected ProtobufClusterManagerNodeReadRequest() {}
 
     protected ProtobufClusterManagerNodeReadRequest(byte[] in) throws IOException {
-        
+
     }
 
     @Override
     public void writeTo(OutputStream out) throws IOException {
-        
+
     }
 
     @SuppressWarnings("unchecked")

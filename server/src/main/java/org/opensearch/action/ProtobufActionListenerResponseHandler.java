@@ -24,9 +24,7 @@ import java.util.Objects;
 *
 * @opensearch.api
 */
-public class ProtobufActionListenerResponseHandler<Response extends TransportResponse>
-    implements
-        TransportResponseHandler<Response> {
+public class ProtobufActionListenerResponseHandler<Response extends TransportResponse> implements TransportResponseHandler<Response> {
 
     private final ActionListener<? super Response> listener;
     private final ProtobufWriteable.Reader<Response> reader;

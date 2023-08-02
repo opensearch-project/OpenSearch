@@ -39,9 +39,7 @@ import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.NotifyOnceListener;
 import org.opensearch.action.admin.cluster.node.info.ProtobufNodeInfo;
-import org.opensearch.action.admin.cluster.node.info.ProtobufNodesInfoRequest;
 import org.opensearch.action.admin.cluster.node.info.ProtobufTransportNodesInfoAction.NodeInfoRequest;
-import org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.opensearch.action.admin.cluster.node.stats.ProtobufNodeStats;
 import org.opensearch.action.admin.cluster.node.stats.ProtobufTransportNodesStatsAction.NodeStatsRequest;
 import org.opensearch.action.admin.cluster.state.ProtobufClusterStateRequest;
@@ -141,19 +139,43 @@ final class OutboundHandler {
             ProtobufClusterStateRequest protobufClusterStateRequest = (ProtobufClusterStateRequest) request;
             byte[] bytes = new byte[1];
             bytes[0] = 0;
-            ProtobufOutboundMessage protobufMessage = new ProtobufOutboundMessage(requestId, bytes, Version.CURRENT, threadPool.getThreadContext(), protobufClusterStateRequest.request(), features, action);
+            ProtobufOutboundMessage protobufMessage = new ProtobufOutboundMessage(
+                requestId,
+                bytes,
+                Version.CURRENT,
+                threadPool.getThreadContext(),
+                protobufClusterStateRequest.request(),
+                features,
+                action
+            );
             sendProtobufMessage(channel, protobufMessage, listener);
         } else if (canonicalName.contains("ProtobufTransportNodesInfo")) {
             NodeInfoRequest protobufNodesInfoRequest = (NodeInfoRequest) request;
             byte[] bytes = new byte[1];
             bytes[0] = 0;
-            ProtobufOutboundMessage protobufMessage = new ProtobufOutboundMessage(requestId, bytes, Version.CURRENT, threadPool.getThreadContext(), protobufNodesInfoRequest.request().request(), features, action);
+            ProtobufOutboundMessage protobufMessage = new ProtobufOutboundMessage(
+                requestId,
+                bytes,
+                Version.CURRENT,
+                threadPool.getThreadContext(),
+                protobufNodesInfoRequest.request().request(),
+                features,
+                action
+            );
             sendProtobufMessage(channel, protobufMessage, listener);
         } else if (canonicalName.contains("ProtobufTransportNodesStats")) {
             NodeStatsRequest protobufNodesStatsRequest = (NodeStatsRequest) request;
             byte[] bytes = new byte[1];
             bytes[0] = 0;
-            ProtobufOutboundMessage protobufMessage = new ProtobufOutboundMessage(requestId, bytes, Version.CURRENT, threadPool.getThreadContext(), protobufNodesStatsRequest.request().request(), features, action);
+            ProtobufOutboundMessage protobufMessage = new ProtobufOutboundMessage(
+                requestId,
+                bytes,
+                Version.CURRENT,
+                threadPool.getThreadContext(),
+                protobufNodesStatsRequest.request().request(),
+                features,
+                action
+            );
             sendProtobufMessage(channel, protobufMessage, listener);
         } else {
             sendMessage(channel, message, listener);
@@ -193,19 +215,43 @@ final class OutboundHandler {
             ProtobufClusterStateResponse protobufClusterStateResponse = (ProtobufClusterStateResponse) response;
             byte[] bytes = new byte[1];
             bytes[0] = 1;
-            ProtobufOutboundMessage protobufMessage = new ProtobufOutboundMessage(requestId, bytes, Version.CURRENT, threadPool.getThreadContext(), protobufClusterStateResponse.response(), features, action);
+            ProtobufOutboundMessage protobufMessage = new ProtobufOutboundMessage(
+                requestId,
+                bytes,
+                Version.CURRENT,
+                threadPool.getThreadContext(),
+                protobufClusterStateResponse.response(),
+                features,
+                action
+            );
             sendProtobufMessage(channel, protobufMessage, listener);
         } else if (canonicalName.contains("ProtobufNodeInfo")) {
             ProtobufNodeInfo protobufNodeInfo = (ProtobufNodeInfo) response;
             byte[] bytes = new byte[1];
             bytes[0] = 1;
-            ProtobufOutboundMessage protobufMessage = new ProtobufOutboundMessage(requestId, bytes, Version.CURRENT, threadPool.getThreadContext(), protobufNodeInfo.response(), features, action);
+            ProtobufOutboundMessage protobufMessage = new ProtobufOutboundMessage(
+                requestId,
+                bytes,
+                Version.CURRENT,
+                threadPool.getThreadContext(),
+                protobufNodeInfo.response(),
+                features,
+                action
+            );
             sendProtobufMessage(channel, protobufMessage, listener);
         } else if (canonicalName.contains("ProtobufNodeStats")) {
             ProtobufNodeStats protobufNodeStats = (ProtobufNodeStats) response;
             byte[] bytes = new byte[1];
             bytes[0] = 1;
-            ProtobufOutboundMessage protobufMessage = new ProtobufOutboundMessage(requestId, bytes, Version.CURRENT, threadPool.getThreadContext(), protobufNodeStats.response(), features, action);
+            ProtobufOutboundMessage protobufMessage = new ProtobufOutboundMessage(
+                requestId,
+                bytes,
+                Version.CURRENT,
+                threadPool.getThreadContext(),
+                protobufNodeStats.response(),
+                features,
+                action
+            );
             sendProtobufMessage(channel, protobufMessage, listener);
         } else {
             sendMessage(channel, message, listener);
@@ -245,7 +291,8 @@ final class OutboundHandler {
         internalSend(channel, sendContext);
     }
 
-    private void sendProtobufMessage(TcpChannel channel, ProtobufOutboundMessage message, ActionListener<Void> listener) throws IOException {
+    private void sendProtobufMessage(TcpChannel channel, ProtobufOutboundMessage message, ActionListener<Void> listener)
+        throws IOException {
         TryMessageSerializer serializer = new TryMessageSerializer(message, bigArrays);
         SendContext sendContext = new SendContext(channel, serializer, listener, serializer);
         internalSend(channel, sendContext);
@@ -320,12 +367,12 @@ final class OutboundHandler {
         @Override
         public BytesReference get() throws IOException {
             bytesStreamOutput = new ReleasableBytesStreamOutput(bigArrays);
-            BytesReference reference = serialize(bytesStreamOutput); 
+            BytesReference reference = serialize(bytesStreamOutput);
             return reference;
         }
 
         private BytesReference serialize(BytesStreamOutput bytesStream) throws IOException {
-            ByteBuffer byteBuffers = ByteBuffer.wrap(message.getMessage().toByteArray()); 
+            ByteBuffer byteBuffers = ByteBuffer.wrap(message.getMessage().toByteArray());
             message.getMessage().writeTo(bytesStream);
             return BytesReference.fromByteBuffer(byteBuffers);
         }

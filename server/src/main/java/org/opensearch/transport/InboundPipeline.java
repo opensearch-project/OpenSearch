@@ -44,7 +44,6 @@ import org.opensearch.common.lease.Releasables;
 import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
@@ -134,7 +133,7 @@ public class InboundPipeline implements Releasable {
                 forwardFragmentsProtobuf(channel, reference);
             }
         } catch (Exception e) {
-        
+
             channel.getChannelStats().markAccessed(relativeTimeInMillis.getAsLong());
             statsTracker.markBytesRead(reference.length());
             pending.add(reference.retain());

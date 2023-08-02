@@ -32,7 +32,6 @@
 
 package org.opensearch.cluster;
 
-
 import org.opensearch.cluster.block.ClusterBlock;
 import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.coordination.CoordinationMetadata;

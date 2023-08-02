@@ -49,8 +49,6 @@ import org.opensearch.common.lifecycle.Lifecycle;
 import org.opensearch.common.lifecycle.LifecycleListener;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.BoundTransportAddress;
-import org.opensearch.common.transport.BoundTransportAddress;
-import org.opensearch.common.transport.ProtobufTransportAddress;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.MockLogAppender;
@@ -59,21 +57,16 @@ import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.ConnectTransportException;
 import org.opensearch.transport.ConnectionProfile;
-import org.opensearch.transport.ProtobufConnectionProfile;
-// import org.opensearch.transport.ProtobufTransportMessageListener;
 import org.opensearch.transport.TransportRequest;
-import org.opensearch.transport.ProtobufTransportStats;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportMessageListener;
-import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportRequestOptions;
 import org.opensearch.transport.TransportService;
 import org.opensearch.transport.TransportStats;
 import org.junit.After;
 import org.junit.Before;
 
-import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -694,71 +687,6 @@ public class NodeConnectionsServiceTests extends OpenSearchTestCase {
         public RequestHandlers getRequestHandlers() {
             return requestHandlers;
         }
-
-        // @Override
-        // public void setMessageListenerProtobuf(ProtobufTransportMessageListener listener) {}
-
-        // @Override
-        // public BoundTransportAddress boundProtobufAddress() {
-        //     return null;
-        // }
-
-        // @Override
-        // public Map<String, BoundTransportAddress> profileProtobufBoundAddresses() {
-        //     return null;
-        // }
-
-        // @Override
-        // public ProtobufTransportAddress[] addressesFromStringProtobuf(String address) throws UnknownHostException {
-        //     return new ProtobufTransportAddress[0];
-        // }
-
-        // @Override
-        // public void openProtobufConnection(
-        //     DiscoveryNode node,
-        //     ProtobufConnectionProfile profile,
-        //     ActionListener<ProtobufConnection> listener
-        // ) {
-        //     if (profile == null && randomConnectionExceptions && randomBoolean()) {
-        //         threadPool.generic().execute(() -> listener.onFailure(new ConnectTransportException(node, "simulated")));
-        //     } else {
-        //         threadPool.generic().execute(() -> listener.onResponse(new ProtobufConnection() {
-        //             @Override
-        //             public DiscoveryNode getNode() {
-        //                 return node;
-        //             }
-
-        //             @Override
-        //             public void sendRequest(
-        //                 long requestId,
-        //                 String action,
-        //                 TransportRequest request,
-        //                 TransportRequestOptions options
-        //             ) throws TransportException {}
-
-        //             @Override
-        //             public void addCloseListener(ActionListener<Void> listener) {}
-
-        //             @Override
-        //             public void close() {}
-
-        //             @Override
-        //             public boolean isClosed() {
-        //                 return false;
-        //             }
-        //         }));
-        //     }
-        // }
-
-        @Override
-        public ProtobufTransportStats getProtobufStats() {
-            throw new UnsupportedOperationException();
-        }
-
-        // @Override
-        // public ProtobufResponseHandlers getProtobufResponseHandlers() {
-        //     return protobufResponseHandlers;
-        // }
 
         @Override
         public ProtobufRequestHandlers getProtobufRequestHandlers() {

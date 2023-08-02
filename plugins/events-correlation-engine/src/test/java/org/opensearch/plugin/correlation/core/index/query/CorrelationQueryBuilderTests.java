@@ -203,7 +203,7 @@ public class CorrelationQueryBuilderTests extends OpenSearchTestCase {
 
     /**
      * test serialization of Correlation Query Builder
-     * @throws Exception
+     * @throws Exception exception
      */
     public void testSerialization() throws Exception {
         assertSerialization(Optional.empty());

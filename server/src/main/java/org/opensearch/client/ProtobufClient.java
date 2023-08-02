@@ -14,8 +14,6 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 
-import java.util.Map;
-
 /**
  * A client provides a one stop interface for performing actions/operations against the cluster.
 * <p>

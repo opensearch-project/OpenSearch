@@ -32,7 +32,6 @@ import org.opensearch.client.ProtobufOpenSearchClient;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.threadpool.ThreadPool;
 
-
 /**
  * Base client used to create concrete client implementations
 *

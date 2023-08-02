@@ -62,7 +62,10 @@ public class ProtobufNodesInfoRequest extends ProtobufBaseNodesRequest<ProtobufN
             String plural = metricsSet.size() == 1 ? "" : "s";
             throw new IllegalStateException("Used illegal metric" + plural + ": " + metricsSet);
         }
-        this.nodesInfoRequest = NodesInfoRequestProto.NodesInfoRequest.newBuilder().addAllRequestedMetrics(metricsSet).setTimeout(DEFAULT_TIMEOUT_SECS.toString()).build();
+        this.nodesInfoRequest = NodesInfoRequestProto.NodesInfoRequest.newBuilder()
+            .addAllRequestedMetrics(metricsSet)
+            .setTimeout(DEFAULT_TIMEOUT_SECS.toString())
+            .build();
         return this;
     }
 

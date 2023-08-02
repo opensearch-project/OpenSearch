@@ -6,11 +6,6 @@
 * compatible open source license.
 */
 
-/*
-* Modifications Copyright OpenSearch Contributors. See
-* GitHub history for details.
-*/
-
 package org.opensearch.action.support.nodes;
 
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -26,7 +21,7 @@ public abstract class ProtobufBaseNodeResponse extends TransportResponse {
     private DiscoveryNode node;
 
     protected ProtobufBaseNodeResponse(byte[] data) {
-        
+
     }
 
     protected ProtobufBaseNodeResponse(DiscoveryNode node) {

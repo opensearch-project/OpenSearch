@@ -6,11 +6,6 @@
 * compatible open source license.
 */
 
-/*
-* Modifications Copyright OpenSearch Contributors. See
-* GitHub history for details.
-*/
-
 package org.opensearch.core.common.io.stream;
 
 import java.io.IOException;

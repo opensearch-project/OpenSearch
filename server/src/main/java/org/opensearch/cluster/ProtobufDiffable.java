@@ -6,11 +6,6 @@
 * compatible open source license.
 */
 
-/*
-* Modifications Copyright OpenSearch Contributors. See
-* GitHub history for details.
-*/
-
 package org.opensearch.cluster;
 
 import org.opensearch.core.common.io.stream.ProtobufWriteable;

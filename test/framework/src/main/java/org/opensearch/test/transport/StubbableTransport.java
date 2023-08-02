@@ -282,9 +282,9 @@ public class StubbableTransport implements Transport {
 
         // @Override
         // public void sendRequestProtobuf(long requestId, String action, TransportRequest request,
-        //         TransportRequestOptions options) throws IOException, TransportException {
-        //     // TODO Auto-generated method stub
-        //     throw new UnsupportedOperationException("Unimplemented method 'sendRequestProtobuf'");
+        // TransportRequestOptions options) throws IOException, TransportException {
+        // // TODO Auto-generated method stub
+        // throw new UnsupportedOperationException("Unimplemented method 'sendRequestProtobuf'");
         // }
     }
 

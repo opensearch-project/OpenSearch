@@ -232,7 +232,6 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
                             throw new UnsupportedOperationException("Unimplemented method 'read'");
                         }
 
-                        
                     }
                 );
             } else {

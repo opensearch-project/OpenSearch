@@ -97,27 +97,28 @@ public interface TransportInterceptor {
     }
 
     // /**
-    //  * This is called up-front providing the actual low level {@link AsyncSender} that performs the low level send request.
+    // * This is called up-front providing the actual low level {@link AsyncSender} that performs the low level send request.
     // * The returned sender is used to send all requests that come in via
     // * {@link TransportService#sendRequestProtobuf(DiscoveryNode, String, TransportRequest, TransportResponseHandler)} or
-    // * {@link TransportService#sendRequestProtobuf(DiscoveryNode, String, TransportRequest, TransportRequestOptions, TransportResponseHandler)}.
+    // * {@link TransportService#sendRequestProtobuf(DiscoveryNode, String, TransportRequest, TransportRequestOptions,
+    // TransportResponseHandler)}.
     // * This allows plugins to perform actions on each send request including modifying the request context etc.
     // */
     // default AsyncSenderProtobuf interceptSenderProotbuf(AsyncSenderProtobuf sender) {
-    //     return sender;
+    // return sender;
     // }
 
     // /**
-    //  * A simple interface to decorate
+    // * A simple interface to decorate
     // * {@link #sendRequest(Transport.Connection, String, TransportRequest, TransportRequestOptions, TransportResponseHandler)}
     // */
     // interface AsyncSenderProtobuf {
-    //     <T extends TransportResponse> void sendRequest(
-    //         Transport.Connection connection,
-    //         String action,
-    //         TransportRequest request,
-    //         TransportRequestOptions options,
-    //         TransportResponseHandler<T> handler
-    //     );
+    // <T extends TransportResponse> void sendRequest(
+    // Transport.Connection connection,
+    // String action,
+    // TransportRequest request,
+    // TransportRequestOptions options,
+    // TransportResponseHandler<T> handler
+    // );
     // }
 }

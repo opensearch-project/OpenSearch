@@ -32,7 +32,6 @@
 
 package org.opensearch.cluster.routing;
 
-
 import org.apache.lucene.util.CollectionUtil;
 import org.opensearch.cluster.AbstractDiffable;
 import org.opensearch.cluster.Diff;

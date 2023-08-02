@@ -297,7 +297,7 @@ public class DiffableTests extends OpenSearchTestCase {
         };
     }
 
-    public static class TestDiffable extends AbstractDiffable<TestDiffable, TestDiffable> {
+    public static class TestDiffable extends AbstractDiffable<TestDiffable> {
 
         private final String value;
 

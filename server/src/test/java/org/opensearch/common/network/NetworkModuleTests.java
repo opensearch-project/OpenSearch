@@ -45,8 +45,6 @@ import org.opensearch.http.HttpInfo;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.http.HttpStats;
 import org.opensearch.http.NullDispatcher;
-import org.opensearch.http.ProtobufHttpInfo;
-import org.opensearch.http.ProtobufHttpStats;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.plugins.NetworkPlugin;
 import org.opensearch.test.OpenSearchTestCase;
@@ -106,15 +104,6 @@ public class NetworkModuleTests extends OpenSearchTestCase {
             return null;
         }
 
-        @Override
-        public ProtobufHttpInfo protobufInfo() {
-            return null;
-        }
-
-        @Override
-        public ProtobufHttpStats protobufStats() {
-            return null;
-        }
     }
 
     public void testRegisterTransport() {

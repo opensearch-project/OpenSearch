@@ -53,7 +53,6 @@ import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.node.Node;
-import org.opensearch.node.ProtobufReportingService;
 import org.opensearch.node.ReportingService;
 
 import java.io.IOException;

@@ -41,7 +41,6 @@ import org.opensearch.gateway.GatewayService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.AnalysisRegistry;
 import org.opensearch.ingest.ConfigurationUtils;
-import org.opensearch.node.ProtobufReportingService;
 import org.opensearch.node.ReportingService;
 import org.opensearch.plugins.SearchPipelinePlugin;
 import org.opensearch.script.ScriptService;
@@ -64,10 +63,7 @@ import java.util.stream.Collectors;
  * The main entry point for search pipelines. Handles CRUD operations and exposes the API to execute search pipelines
  * against requests and responses.
  */
-public class SearchPipelineService
-    implements
-        ClusterStateApplier,
-        ReportingService<SearchPipelineInfo> {
+public class SearchPipelineService implements ClusterStateApplier, ReportingService<SearchPipelineInfo> {
 
     public static final String SEARCH_PIPELINE_ORIGIN = "search_pipeline";
     public static final String AD_HOC_PIPELINE_ID = "_ad_hoc_pipeline";

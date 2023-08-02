@@ -57,7 +57,7 @@ public class MockHttpTransport extends AbstractLifecycleComponent implements Htt
         new TransportAddress[] { DUMMY_TRANSPORT_ADDRESS },
         DUMMY_TRANSPORT_ADDRESS
     );
-    
+
     private static final HttpInfo DUMMY_HTTP_INFO = new HttpInfo(DUMMY_BOUND_ADDRESS, 0);
     private static final HttpStats DUMMY_HTTP_STATS = new HttpStats(0, 0);
 

@@ -31,7 +31,6 @@
 
 package org.opensearch.cluster.metadata;
 
-
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.cluster.AbstractDiffable;
 import org.opensearch.cluster.Diff;

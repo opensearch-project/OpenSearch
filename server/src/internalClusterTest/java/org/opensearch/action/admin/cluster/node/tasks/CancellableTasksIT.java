@@ -544,6 +544,12 @@ public class CancellableTasksIT extends OpenSearchIntegTestCase {
                                 public TestResponse read(StreamInput in) throws IOException {
                                     return new TestResponse(in);
                                 }
+
+                                @Override
+                                public TestResponse read(byte[] in) throws IOException {
+                                    // TODO Auto-generated method stub
+                                    throw new UnsupportedOperationException("Unimplemented method 'read'");
+                                }
                             }
                         );
                     }

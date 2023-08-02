@@ -65,8 +65,8 @@ public abstract class TransportMessage implements Writeable, ProtobufWriteable {
      */
     public TransportMessage(StreamInput in) {}
 
-     /**
-     * Constructs a new transport message with the data from the {@link byte[]}. This is
+    /**
+    * Constructs a new transport message with the data from the {@link byte[]}. This is
     * currently a no-op
     */
     public TransportMessage(byte[] in) {}

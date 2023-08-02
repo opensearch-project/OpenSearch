@@ -404,12 +404,12 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
     // @Override
     // public BoundTransportAddress boundProtobufAddress() {
-    //     return this.protobufBoundAddress;
+    // return this.protobufBoundAddress;
     // }
 
     // @Override
     // public Map<String, BoundTransportAddress> profileProtobufBoundAddresses() {
-    //     return unmodifiableMap(new HashMap<>(profileProtobufBoundAddresses));
+    // return unmodifiableMap(new HashMap<>(profileProtobufBoundAddresses));
     // }
 
     @Override
@@ -528,40 +528,40 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     }
 
     // private BoundTransportAddress createProtobufBoundTransportAddress(BoundTransportAddress boundTransportAddress) {
-    //     TransportAddress[] transportBoundAddresses = boundTransportAddress.boundAddresses();
-    //     TransportAddress publishAddress = boundTransportAddress.publishAddress();
-    //     TransportAddress[] transportBoundAddressesProtobuf = new TransportAddress[transportBoundAddresses.length];
-    //     for (int i = 0; i < transportBoundAddresses.length; i++) {
-    //         transportBoundAddressesProtobuf[i] = new TransportAddress(transportBoundAddresses[i].address());
-    //     }
-    //     return new BoundTransportAddress(transportBoundAddressesProtobuf, new TransportAddress(publishAddress.address()));
-    //     // String[] boundAddressesHostStrings = new String[boundAddresses.size()];
-    //     // TransportAddress[] transportBoundAddresses = new TransportAddress[boundAddresses.size()];
-    //     // for (int i = 0; i < boundAddresses.size(); i++) {
-    //     // InetSocketAddress boundAddress = boundAddresses.get(i);
-    //     // boundAddressesHostStrings[i] = boundAddress.getHostString();
-    //     // transportBoundAddresses[i] = new TransportAddress(boundAddress);
-    //     // }
+    // TransportAddress[] transportBoundAddresses = boundTransportAddress.boundAddresses();
+    // TransportAddress publishAddress = boundTransportAddress.publishAddress();
+    // TransportAddress[] transportBoundAddressesProtobuf = new TransportAddress[transportBoundAddresses.length];
+    // for (int i = 0; i < transportBoundAddresses.length; i++) {
+    // transportBoundAddressesProtobuf[i] = new TransportAddress(transportBoundAddresses[i].address());
+    // }
+    // return new BoundTransportAddress(transportBoundAddressesProtobuf, new TransportAddress(publishAddress.address()));
+    // // String[] boundAddressesHostStrings = new String[boundAddresses.size()];
+    // // TransportAddress[] transportBoundAddresses = new TransportAddress[boundAddresses.size()];
+    // // for (int i = 0; i < boundAddresses.size(); i++) {
+    // // InetSocketAddress boundAddress = boundAddresses.get(i);
+    // // boundAddressesHostStrings[i] = boundAddress.getHostString();
+    // // transportBoundAddresses[i] = new TransportAddress(boundAddress);
+    // // }
 
-    //     // List<String> publishHosts = profileSettings.publishHosts;
-    //     // if (profileSettings.isDefaultProfile == false && publishHosts.isEmpty()) {
-    //     // publishHosts = Arrays.asList(boundAddressesHostStrings);
-    //     // }
-    //     // if (publishHosts.isEmpty()) {
-    //     // publishHosts = NetworkService.GLOBAL_NETWORK_PUBLISH_HOST_SETTING.get(settings);
-    //     // }
+    // // List<String> publishHosts = profileSettings.publishHosts;
+    // // if (profileSettings.isDefaultProfile == false && publishHosts.isEmpty()) {
+    // // publishHosts = Arrays.asList(boundAddressesHostStrings);
+    // // }
+    // // if (publishHosts.isEmpty()) {
+    // // publishHosts = NetworkService.GLOBAL_NETWORK_PUBLISH_HOST_SETTING.get(settings);
+    // // }
 
-    //     // final InetAddress publishInetAddress;
-    //     // try {
-    //     // publishInetAddress = networkService.resolvePublishHostAddresses(publishHosts.toArray(Strings.EMPTY_ARRAY));
-    //     // } catch (Exception e) {
-    //     // throw new BindTransportException("Failed to resolve publish address", e);
-    //     // }
+    // // final InetAddress publishInetAddress;
+    // // try {
+    // // publishInetAddress = networkService.resolvePublishHostAddresses(publishHosts.toArray(Strings.EMPTY_ARRAY));
+    // // } catch (Exception e) {
+    // // throw new BindTransportException("Failed to resolve publish address", e);
+    // // }
 
-    //     // final int publishPort = resolvePublishPort(profileSettings, boundAddresses, publishInetAddress);
-    //     // final TransportAddress publishAddress = new TransportAddress(new InetSocketAddress(publishInetAddress,
-    //     // publishPort));
-    //     // return new BoundTransportAddress(transportBoundAddresses, publishAddress);
+    // // final int publishPort = resolvePublishPort(profileSettings, boundAddresses, publishInetAddress);
+    // // final TransportAddress publishAddress = new TransportAddress(new InetSocketAddress(publishInetAddress,
+    // // publishPort));
+    // // return new BoundTransportAddress(transportBoundAddresses, publishAddress);
     // }
 
     // package private for tests
@@ -836,6 +836,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             onException(channel, e);
         }
     }
+
     /**
      * Validates the first 6 bytes of the message header and returns the length of the message. If 6 bytes
      * are not available, it returns -1.

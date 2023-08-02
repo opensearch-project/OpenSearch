@@ -32,7 +32,6 @@
 
 package org.opensearch.action.admin.cluster.node.info;
 
-
 import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.support.nodes.ProtobufBaseNodesResponse;
 import org.opensearch.cluster.ClusterName;

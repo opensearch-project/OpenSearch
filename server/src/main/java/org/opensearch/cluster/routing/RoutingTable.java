@@ -32,7 +32,6 @@
 
 package org.opensearch.cluster.routing;
 
-
 import org.opensearch.cluster.Diff;
 import org.opensearch.cluster.Diffable;
 import org.opensearch.cluster.DiffableUtils;

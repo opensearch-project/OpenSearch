@@ -395,6 +395,7 @@ tasks.named("licenseHeaders").configure {
     // Ignore for protobuf generated code
     excludes << 'org/opensearch/extensions/proto/*'
     excludes << 'org/opensearch/tasks/proto/*'
+    excludes << 'org/opensearch/server/proto/*'
 }
 
 tasks.test {

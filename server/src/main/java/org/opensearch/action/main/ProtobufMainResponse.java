@@ -72,7 +72,7 @@ public class ProtobufMainResponse extends ProtobufActionResponse implements ToXC
 
     @Override
     public void writeTo(OutputStream out) throws IOException {
-        
+
     }
 
     @Override

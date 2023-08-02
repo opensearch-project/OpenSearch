@@ -104,7 +104,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
     /**
      * Validates happy path of segment replication where primary index docs which are replicated to replica shards. Assertions
      * made on doc count on both primary and replica.
-     * @throws Exception
+     * @throws Exception exception
      */
     public void testReplication() throws Exception {
         try (ReplicationGroup shards = createGroup(1, getIndexSettings(), indexMapping, new NRTReplicationEngineFactory());) {

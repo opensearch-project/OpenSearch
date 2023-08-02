@@ -17,11 +17,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.NotClusterManagerException;
 import org.opensearch.cluster.block.ClusterBlockException;
-import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
-import org.opensearch.cluster.metadata.Metadata;
-import org.opensearch.cluster.metadata.Metadata.Custom;
-import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.unit.TimeValue;
@@ -31,7 +27,6 @@ import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.function.Predicate;
-import java.util.Map;
 
 /**
  * Transport action for obtaining cluster state
@@ -139,7 +134,13 @@ public class ProtobufTransportClusterStateAction extends ProtobufTransportCluste
 
     private ProtobufClusterStateResponse buildResponse(final ProtobufClusterStateRequest request, final ClusterState currentState) {
         logger.trace("Serving cluster state request using version {}", currentState.version());
-        return new ProtobufClusterStateResponse(currentState.getClusterName().value(), currentState.nodes(), currentState.version(), currentState.stateUUID(), false);
+        return new ProtobufClusterStateResponse(
+            currentState.getClusterName().value(),
+            currentState.nodes(),
+            currentState.version(),
+            currentState.stateUUID(),
+            false
+        );
     }
 
     @Override

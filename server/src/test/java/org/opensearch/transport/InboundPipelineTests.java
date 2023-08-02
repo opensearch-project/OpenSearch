@@ -105,7 +105,14 @@ public class InboundPipelineTests extends OpenSearchTestCase {
         final TestCircuitBreaker circuitBreaker = new TestCircuitBreaker();
         circuitBreaker.startBreaking();
         final InboundAggregator aggregator = new InboundAggregator(() -> circuitBreaker, canTripBreaker);
-        final InboundPipeline pipeline = new InboundPipeline(statsTracker, millisSupplier, decoder, aggregator, messageHandler, messageHandlerProtobuf);
+        final InboundPipeline pipeline = new InboundPipeline(
+            statsTracker,
+            millisSupplier,
+            decoder,
+            aggregator,
+            messageHandler,
+            messageHandlerProtobuf
+        );
         final FakeTcpChannel channel = new FakeTcpChannel();
 
         final int iterations = randomIntBetween(5, 10);
@@ -222,7 +229,14 @@ public class InboundPipelineTests extends OpenSearchTestCase {
         final InboundDecoder decoder = new InboundDecoder(Version.CURRENT, PageCacheRecycler.NON_RECYCLING_INSTANCE);
         final Supplier<CircuitBreaker> breaker = () -> new NoopCircuitBreaker("test");
         final InboundAggregator aggregator = new InboundAggregator(breaker, (Predicate<String>) action -> true);
-        final InboundPipeline pipeline = new InboundPipeline(statsTracker, millisSupplier, decoder, aggregator, messageHandler, messageHandlerProtobuf);
+        final InboundPipeline pipeline = new InboundPipeline(
+            statsTracker,
+            millisSupplier,
+            decoder,
+            aggregator,
+            messageHandler,
+            messageHandlerProtobuf
+        );
 
         try (BytesStreamOutput streamOutput = new BytesStreamOutput()) {
             String actionName = "actionName";
@@ -277,7 +291,14 @@ public class InboundPipelineTests extends OpenSearchTestCase {
         final InboundDecoder decoder = new InboundDecoder(Version.CURRENT, PageCacheRecycler.NON_RECYCLING_INSTANCE);
         final Supplier<CircuitBreaker> breaker = () -> new NoopCircuitBreaker("test");
         final InboundAggregator aggregator = new InboundAggregator(breaker, (Predicate<String>) action -> true);
-        final InboundPipeline pipeline = new InboundPipeline(statsTracker, millisSupplier, decoder, aggregator, messageHandler, messageHandlerProtobuf);
+        final InboundPipeline pipeline = new InboundPipeline(
+            statsTracker,
+            millisSupplier,
+            decoder,
+            aggregator,
+            messageHandler,
+            messageHandlerProtobuf
+        );
 
         try (BytesStreamOutput streamOutput = new BytesStreamOutput()) {
             String actionName = "actionName";

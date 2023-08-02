@@ -534,11 +534,11 @@ public class RestController implements HttpServerTransport.Dispatcher {
                     if (rawPath.contains("protobuf")) {
                         dispatchProtobufRequest(request, channel, protobufHandler);
                     } else {
-                    if (FeatureFlags.isEnabled(FeatureFlags.IDENTITY)) {
-                        if (!handleAuthenticateUser(request, channel)) {
-                            return;
+                        if (FeatureFlags.isEnabled(FeatureFlags.IDENTITY)) {
+                            if (!handleAuthenticateUser(request, channel)) {
+                                return;
+                            }
                         }
-                    }
                         dispatchRequest(request, channel, handler);
                     }
                     return;

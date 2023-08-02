@@ -6,32 +6,18 @@
 * compatible open source license.
 */
 
-/*
-* Modifications Copyright OpenSearch Contributors. See
-* GitHub history for details.
-*/
-
 package org.opensearch.action.admin.cluster.state;
 
 import org.opensearch.action.ProtobufActionResponse;
-import org.opensearch.cluster.ClusterState;
-import org.opensearch.cluster.metadata.AliasMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
-import org.opensearch.cluster.routing.RoutingNode;
-import org.opensearch.cluster.ClusterName;
 import org.opensearch.server.proto.ClusterStateResponseProto;
 import org.opensearch.server.proto.ClusterStateResponseProto.ClusterStateResponse;
 
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 
 /**
  * The response for getting the cluster state.
@@ -43,20 +29,25 @@ public class ProtobufClusterStateResponse extends ProtobufActionResponse {
     private ClusterStateResponseProto.ClusterStateResponse clusterStateRes;
 
     public ProtobufClusterStateResponse(String clusterName, DiscoveryNodes nodes, long version, String stateUUID, boolean waitForTimedOut) {
-        ClusterStateResponseProto.ClusterStateResponse.ClusterState.DiscoveryNodes.Builder discoveryNodesBuilder = ClusterStateResponseProto.ClusterStateResponse.ClusterState.DiscoveryNodes.newBuilder();
+        ClusterStateResponseProto.ClusterStateResponse.ClusterState.DiscoveryNodes.Builder discoveryNodesBuilder =
+            ClusterStateResponseProto.ClusterStateResponse.ClusterState.DiscoveryNodes.newBuilder();
 
         List<ClusterStateResponseProto.ClusterStateResponse.ClusterState.DiscoveryNodes.Node> allNodes = convertNodes(nodes);
-        discoveryNodesBuilder.addAllAllNodes(allNodes).setClusterManagerNodeId(nodes.getClusterManagerNodeId()).setLocalNodeId(nodes.getLocalNodeId()).setMinNonClientNodeVersion(nodes.getSmallestNonClientNodeVersion().toString()).setMaxNonClientNodeVersion(nodes.getLargestNonClientNodeVersion().toString()).setMinNodeVersion(nodes.getMinNodeVersion().toString()).setMaxNodeVersion(nodes.getMaxNodeVersion().toString());
-        ClusterStateResponseProto.ClusterStateResponse.ClusterState.Builder clusterStateBuilder = ClusterStateResponseProto.ClusterStateResponse.ClusterState.newBuilder();
-        clusterStateBuilder.setClusterName(clusterName)
-            .setVersion(version)
-            .setStateUUID(stateUUID)
-            .setNodes(discoveryNodesBuilder.build());
+        discoveryNodesBuilder.addAllAllNodes(allNodes)
+            .setClusterManagerNodeId(nodes.getClusterManagerNodeId())
+            .setLocalNodeId(nodes.getLocalNodeId())
+            .setMinNonClientNodeVersion(nodes.getSmallestNonClientNodeVersion().toString())
+            .setMaxNonClientNodeVersion(nodes.getLargestNonClientNodeVersion().toString())
+            .setMinNodeVersion(nodes.getMinNodeVersion().toString())
+            .setMaxNodeVersion(nodes.getMaxNodeVersion().toString());
+        ClusterStateResponseProto.ClusterStateResponse.ClusterState.Builder clusterStateBuilder =
+            ClusterStateResponseProto.ClusterStateResponse.ClusterState.newBuilder();
+        clusterStateBuilder.setClusterName(clusterName).setVersion(version).setStateUUID(stateUUID).setNodes(discoveryNodesBuilder.build());
         this.clusterStateRes = ClusterStateResponseProto.ClusterStateResponse.newBuilder()
-                                            .setClusterName(clusterName)
-                                            .setClusterState(clusterStateBuilder.build())
-                                            .setWaitForTimedOut(waitForTimedOut)
-                                            .build();
+            .setClusterName(clusterName)
+            .setClusterState(clusterStateBuilder.build())
+            .setWaitForTimedOut(waitForTimedOut)
+            .build();
     }
 
     private List<ClusterStateResponseProto.ClusterStateResponse.ClusterState.DiscoveryNodes.Node> convertNodes(DiscoveryNodes nodes) {
@@ -67,13 +58,28 @@ public class ProtobufClusterStateResponse extends ProtobufActionResponse {
         for (DiscoveryNode node : nodes.getNodes().values()) {
             List<ClusterStateResponseProto.ClusterStateResponse.ClusterState.DiscoveryNodes.Node.NodeRole> nodeRoles = new ArrayList<>();
             node.getRoles().forEach(role -> {
-                ClusterStateResponseProto.ClusterStateResponse.ClusterState.DiscoveryNodes.Node.NodeRole.Builder nodeRoleBuilder = ClusterStateResponseProto.ClusterStateResponse.ClusterState.DiscoveryNodes.Node.NodeRole.newBuilder();
-                nodeRoleBuilder.setIsKnownRole(role.isKnownRole()).setIsDynamicRole(role.isDynamicRole()).setRoleName(role.roleName()).setRoleNameAbbreviation(role.roleNameAbbreviation()).setCanContainData(role.canContainData()).build();
+                ClusterStateResponseProto.ClusterStateResponse.ClusterState.DiscoveryNodes.Node.NodeRole.Builder nodeRoleBuilder =
+                    ClusterStateResponseProto.ClusterStateResponse.ClusterState.DiscoveryNodes.Node.NodeRole.newBuilder();
+                nodeRoleBuilder.setIsKnownRole(role.isKnownRole())
+                    .setIsDynamicRole(role.isDynamicRole())
+                    .setRoleName(role.roleName())
+                    .setRoleNameAbbreviation(role.roleNameAbbreviation())
+                    .setCanContainData(role.canContainData())
+                    .build();
                 nodeRoles.add(nodeRoleBuilder.build());
             });
-            ClusterStateResponseProto.ClusterStateResponse.ClusterState.DiscoveryNodes.Node.Builder nodeBuilder = ClusterStateResponseProto.ClusterStateResponse.ClusterState.DiscoveryNodes.Node.newBuilder();
-            nodeBuilder.setNodeName(node.getName()).setNodeId(node.getId()).setEphemeralId(node.getEphemeralId()).setHostName(node.getHostName())
-            .setHostAddress(node.getHostAddress()).setTransportAddress(node.getAddress().toString()).putAllAttributes(node.getAttributes()).addAllRoles(nodeRoles).setVersion(node.getVersion().toString()).build();
+            ClusterStateResponseProto.ClusterStateResponse.ClusterState.DiscoveryNodes.Node.Builder nodeBuilder =
+                ClusterStateResponseProto.ClusterStateResponse.ClusterState.DiscoveryNodes.Node.newBuilder();
+            nodeBuilder.setNodeName(node.getName())
+                .setNodeId(node.getId())
+                .setEphemeralId(node.getEphemeralId())
+                .setHostName(node.getHostName())
+                .setHostAddress(node.getHostAddress())
+                .setTransportAddress(node.getAddress().toString())
+                .putAllAttributes(node.getAttributes())
+                .addAllRoles(nodeRoles)
+                .setVersion(node.getVersion().toString())
+                .build();
             convertedNodes.add(nodeBuilder.build());
         }
         return convertedNodes;

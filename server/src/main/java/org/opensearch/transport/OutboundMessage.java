@@ -95,7 +95,6 @@ abstract class OutboundMessage extends NetworkMessage {
         writeVariableHeader(bytesStream);
         variableHeaderLength = Math.toIntExact(bytesStream.position() - preHeaderPosition);
 
-
         try (CompressibleBytesOutputStream stream = new CompressibleBytesOutputStream(bytesStream, TransportStatus.isCompress(status))) {
             stream.setVersion(version);
             stream.setFeatures(bytesStream.getFeatures());

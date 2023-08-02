@@ -164,11 +164,7 @@ public abstract class ProtobufTransportNodesAction<
     * @return Never {@code null}.
     * @throws NullPointerException if any parameter is {@code null}.
     */
-    protected abstract NodesResponse newResponse(
-        NodesRequest request,
-        List<NodeResponse> responses,
-        List<FailedNodeException> failures
-    );
+    protected abstract NodesResponse newResponse(NodesRequest request, List<NodeResponse> responses, List<FailedNodeException> failures);
 
     protected abstract NodeRequest newNodeRequest(NodesRequest request);
 

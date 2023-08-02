@@ -6,11 +6,6 @@
 * compatible open source license.
 */
 
-/*
-* Modifications Copyright OpenSearch Contributors. See
-* GitHub history for details.
-*/
-
 package org.opensearch.action.support.nodes;
 
 import org.opensearch.action.ActionRequestValidationException;
@@ -48,8 +43,7 @@ public abstract class ProtobufBaseNodesRequest<Request extends ProtobufBaseNodes
 
     private TimeValue timeout;
 
-    protected ProtobufBaseNodesRequest(byte[] data) throws IOException {
-    }
+    protected ProtobufBaseNodesRequest(byte[] data) throws IOException {}
 
     protected ProtobufBaseNodesRequest(String... nodesIds) {
         this.nodesIds = nodesIds;

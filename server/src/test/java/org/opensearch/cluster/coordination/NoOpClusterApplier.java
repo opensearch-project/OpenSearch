@@ -32,7 +32,6 @@
 package org.opensearch.cluster.coordination;
 
 import org.opensearch.cluster.ClusterState;
-import org.opensearch.cluster.ProtobufClusterState;
 import org.opensearch.cluster.service.ClusterApplier;
 
 import java.util.function.Supplier;

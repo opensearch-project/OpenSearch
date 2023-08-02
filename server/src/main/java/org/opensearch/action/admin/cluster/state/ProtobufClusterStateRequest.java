@@ -6,11 +6,6 @@
 * compatible open source license.
 */
 
-/*
-* Modifications Copyright OpenSearch Contributors. See
-* GitHub history for details.
-*/
-
 package org.opensearch.action.admin.cluster.state;
 
 import org.opensearch.action.ActionRequestValidationException;
@@ -39,47 +34,58 @@ public class ProtobufClusterStateRequest extends ProtobufClusterManagerNodeReadR
     public static final TimeValue DEFAULT_WAIT_FOR_NODE_TIMEOUT = TimeValue.timeValueMinutes(1);
     private ClusterStateRequestProto.ClusterStateRequest clusterStateRequest;
 
-    public ProtobufClusterStateRequest () {}
+    public ProtobufClusterStateRequest() {}
 
-    public ProtobufClusterStateRequest(boolean routingTable, boolean nodes, boolean metadata, boolean blocks,
-                                        boolean customs, long waitForMetadataVersion, TimeValue waitForTimeout, List<String> indices) {
-        this.clusterStateRequest = ClusterStateRequestProto.ClusterStateRequest.newBuilder().setRoutingTable(routingTable)
-                                        .setNodes(nodes)
-                                        .setMetadata(metadata)
-                                        .setBlocks(blocks)
-                                        .setCustoms(customs)
-                                        .setWaitForMetadataVersion(waitForMetadataVersion)
-                                        .setWaitForTimeout(waitForTimeout.toString())
-                                        .addAllIndices(indices)
-                                        .build();               
+    public ProtobufClusterStateRequest(
+        boolean routingTable,
+        boolean nodes,
+        boolean metadata,
+        boolean blocks,
+        boolean customs,
+        long waitForMetadataVersion,
+        TimeValue waitForTimeout,
+        List<String> indices
+    ) {
+        this.clusterStateRequest = ClusterStateRequestProto.ClusterStateRequest.newBuilder()
+            .setRoutingTable(routingTable)
+            .setNodes(nodes)
+            .setMetadata(metadata)
+            .setBlocks(blocks)
+            .setCustoms(customs)
+            .setWaitForMetadataVersion(waitForMetadataVersion)
+            .setWaitForTimeout(waitForTimeout.toString())
+            .addAllIndices(indices)
+            .build();
     }
-    
+
     @Override
     public ActionRequestValidationException validate() {
         return null;
     }
 
     public ProtobufClusterStateRequest all() {
-        this.clusterStateRequest = ClusterStateRequestProto.ClusterStateRequest.newBuilder().setRoutingTable(true)
-                                        .setNodes(true)
-                                        .setMetadata(true)
-                                        .setBlocks(true)
-                                        .setCustoms(true)
-                                        .addAllIndices(Arrays.asList(Strings.EMPTY_ARRAY))
-                                        .setWaitForTimeout(DEFAULT_WAIT_FOR_NODE_TIMEOUT.toString())
-                                        .build();
+        this.clusterStateRequest = ClusterStateRequestProto.ClusterStateRequest.newBuilder()
+            .setRoutingTable(true)
+            .setNodes(true)
+            .setMetadata(true)
+            .setBlocks(true)
+            .setCustoms(true)
+            .addAllIndices(Arrays.asList(Strings.EMPTY_ARRAY))
+            .setWaitForTimeout(DEFAULT_WAIT_FOR_NODE_TIMEOUT.toString())
+            .build();
         return this;
     }
 
     public ProtobufClusterStateRequest clear() {
-        this.clusterStateRequest = ClusterStateRequestProto.ClusterStateRequest.newBuilder().setRoutingTable(false)
-                                        .setNodes(false)
-                                        .setMetadata(false)
-                                        .setBlocks(false)
-                                        .setCustoms(false)
-                                        .addAllIndices(Arrays.asList(Strings.EMPTY_ARRAY))
-                                        .setWaitForTimeout(DEFAULT_WAIT_FOR_NODE_TIMEOUT.toString())
-                                        .build();
+        this.clusterStateRequest = ClusterStateRequestProto.ClusterStateRequest.newBuilder()
+            .setRoutingTable(false)
+            .setNodes(false)
+            .setMetadata(false)
+            .setBlocks(false)
+            .setCustoms(false)
+            .addAllIndices(Arrays.asList(Strings.EMPTY_ARRAY))
+            .setWaitForTimeout(DEFAULT_WAIT_FOR_NODE_TIMEOUT.toString())
+            .build();
         return this;
     }
 
@@ -88,7 +94,10 @@ public class ProtobufClusterStateRequest extends ProtobufClusterManagerNodeReadR
     }
 
     public ProtobufClusterStateRequest routingTable(boolean routingTable) {
-        this.clusterStateRequest = ClusterStateRequestProto.ClusterStateRequest.newBuilder().setRoutingTable(routingTable).setWaitForTimeout(DEFAULT_WAIT_FOR_NODE_TIMEOUT.toString()).build();
+        this.clusterStateRequest = ClusterStateRequestProto.ClusterStateRequest.newBuilder()
+            .setRoutingTable(routingTable)
+            .setWaitForTimeout(DEFAULT_WAIT_FOR_NODE_TIMEOUT.toString())
+            .build();
         return this;
     }
 
@@ -97,7 +106,10 @@ public class ProtobufClusterStateRequest extends ProtobufClusterManagerNodeReadR
     }
 
     public ProtobufClusterStateRequest nodes(boolean nodes) {
-        this.clusterStateRequest = ClusterStateRequestProto.ClusterStateRequest.newBuilder().setNodes(nodes).setWaitForTimeout(DEFAULT_WAIT_FOR_NODE_TIMEOUT.toString()).build();
+        this.clusterStateRequest = ClusterStateRequestProto.ClusterStateRequest.newBuilder()
+            .setNodes(nodes)
+            .setWaitForTimeout(DEFAULT_WAIT_FOR_NODE_TIMEOUT.toString())
+            .build();
         return this;
     }
 
@@ -106,7 +118,10 @@ public class ProtobufClusterStateRequest extends ProtobufClusterManagerNodeReadR
     }
 
     public ProtobufClusterStateRequest metadata(boolean metadata) {
-        this.clusterStateRequest = ClusterStateRequestProto.ClusterStateRequest.newBuilder().setMetadata(metadata).setWaitForTimeout(DEFAULT_WAIT_FOR_NODE_TIMEOUT.toString()).build();
+        this.clusterStateRequest = ClusterStateRequestProto.ClusterStateRequest.newBuilder()
+            .setMetadata(metadata)
+            .setWaitForTimeout(DEFAULT_WAIT_FOR_NODE_TIMEOUT.toString())
+            .build();
         return this;
     }
 
@@ -115,7 +130,10 @@ public class ProtobufClusterStateRequest extends ProtobufClusterManagerNodeReadR
     }
 
     public ProtobufClusterStateRequest blocks(boolean blocks) {
-        this.clusterStateRequest = ClusterStateRequestProto.ClusterStateRequest.newBuilder().setWaitForTimeout(DEFAULT_WAIT_FOR_NODE_TIMEOUT.toString()).setBlocks(blocks).build();
+        this.clusterStateRequest = ClusterStateRequestProto.ClusterStateRequest.newBuilder()
+            .setWaitForTimeout(DEFAULT_WAIT_FOR_NODE_TIMEOUT.toString())
+            .setBlocks(blocks)
+            .build();
         return this;
     }
 
@@ -126,18 +144,21 @@ public class ProtobufClusterStateRequest extends ProtobufClusterManagerNodeReadR
 
     @Override
     public ProtobufClusterStateRequest indices(String... indices) {
-        this.clusterStateRequest = ClusterStateRequestProto.ClusterStateRequest.newBuilder().addAllIndices(Arrays.asList(indices)).setWaitForTimeout(DEFAULT_WAIT_FOR_NODE_TIMEOUT.toString()).build();
+        this.clusterStateRequest = ClusterStateRequestProto.ClusterStateRequest.newBuilder()
+            .addAllIndices(Arrays.asList(indices))
+            .setWaitForTimeout(DEFAULT_WAIT_FOR_NODE_TIMEOUT.toString())
+            .build();
         return this;
     }
 
     // @Override
     // public IndicesOptions indicesOptions() {
-    //     return this.clusterStateRequest.;
+    // return this.clusterStateRequest.;
     // }
 
     // public final ProtobufClusterStateRequest indicesOptions(IndicesOptions indicesOptions) {
-    //     this.indicesOptions = indicesOptions;
-    //     return this;
+    // this.indicesOptions = indicesOptions;
+    // return this;
     // }
 
     @Override
@@ -146,7 +167,10 @@ public class ProtobufClusterStateRequest extends ProtobufClusterManagerNodeReadR
     }
 
     public ProtobufClusterStateRequest customs(boolean customs) {
-        this.clusterStateRequest = ClusterStateRequestProto.ClusterStateRequest.newBuilder().setCustoms(customs).setWaitForTimeout(DEFAULT_WAIT_FOR_NODE_TIMEOUT.toString()).build();
+        this.clusterStateRequest = ClusterStateRequestProto.ClusterStateRequest.newBuilder()
+            .setCustoms(customs)
+            .setWaitForTimeout(DEFAULT_WAIT_FOR_NODE_TIMEOUT.toString())
+            .build();
         return this;
     }
 
@@ -162,7 +186,10 @@ public class ProtobufClusterStateRequest extends ProtobufClusterManagerNodeReadR
     }
 
     public ProtobufClusterStateRequest waitForTimeout(TimeValue waitForTimeout) {
-        this.clusterStateRequest = ClusterStateRequestProto.ClusterStateRequest.newBuilder().setWaitForTimeout(waitForTimeout.toString()).setWaitForTimeout(DEFAULT_WAIT_FOR_NODE_TIMEOUT.toString()).build();
+        this.clusterStateRequest = ClusterStateRequestProto.ClusterStateRequest.newBuilder()
+            .setWaitForTimeout(waitForTimeout.toString())
+            .setWaitForTimeout(DEFAULT_WAIT_FOR_NODE_TIMEOUT.toString())
+            .build();
         return this;
     }
 
@@ -176,7 +203,10 @@ public class ProtobufClusterStateRequest extends ProtobufClusterManagerNodeReadR
                 "provided waitForMetadataVersion should be >= 1, but instead is [" + waitForMetadataVersion + "]"
             );
         }
-        this.clusterStateRequest = ClusterStateRequestProto.ClusterStateRequest.newBuilder().setWaitForMetadataVersion(waitForMetadataVersion).setWaitForTimeout(DEFAULT_WAIT_FOR_NODE_TIMEOUT.toString()).build();
+        this.clusterStateRequest = ClusterStateRequestProto.ClusterStateRequest.newBuilder()
+            .setWaitForMetadataVersion(waitForMetadataVersion)
+            .setWaitForTimeout(DEFAULT_WAIT_FOR_NODE_TIMEOUT.toString())
+            .build();
         return this;
     }
 

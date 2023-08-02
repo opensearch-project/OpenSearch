@@ -90,12 +90,12 @@ public class ProtobufRestNodesAction extends ProtobufAbstractCatAction {
                 public void processResponse(final ProtobufClusterStateResponse clusterStateResponse) {
                     ProtobufNodesInfoRequest nodesInfoRequest = new ProtobufNodesInfoRequest();
                     nodesInfoRequest.addMetrics(
-                            request.param("timeout"),
-                            ProtobufNodesInfoRequest.Metric.JVM.metricName(),
-                            ProtobufNodesInfoRequest.Metric.OS.metricName(),
-                            ProtobufNodesInfoRequest.Metric.PROCESS.metricName(),
-                            ProtobufNodesInfoRequest.Metric.HTTP.metricName()
-                        );
+                        request.param("timeout"),
+                        ProtobufNodesInfoRequest.Metric.JVM.metricName(),
+                        ProtobufNodesInfoRequest.Metric.OS.metricName(),
+                        ProtobufNodesInfoRequest.Metric.PROCESS.metricName(),
+                        ProtobufNodesInfoRequest.Metric.HTTP.metricName()
+                    );
                     client.admin().cluster().nodesInfo(nodesInfoRequest, new RestActionListener<ProtobufNodesInfoResponse>(channel) {
                         @Override
                         public void processResponse(final ProtobufNodesInfoResponse nodesInfoResponse) {
@@ -345,7 +345,7 @@ public class ProtobufRestNodesAction extends ProtobufAbstractCatAction {
             ByteSizeValue diskUsed = new ByteSizeValue(diskTotal.getBytes() - diskAvailable.getBytes());
             double diskUsedRatio = diskTotal.getBytes() == 0 ? 1.0 : (double) diskUsed.getBytes() / diskTotal.getBytes();
             String diskUsedPercent = String.format(Locale.ROOT, "%.2f", 100.0 * diskUsedRatio);
-            
+
             table.addCell(diskTotal);
             table.addCell(diskUsed);
             table.addCell(diskAvailable);
@@ -386,14 +386,24 @@ public class ProtobufRestNodesAction extends ProtobufAbstractCatAction {
                 roles = "-";
                 allRoles = "-";
             } else {
-                List<ClusterStateResponseProto.ClusterStateResponse.ClusterState.DiscoveryNodes.Node.NodeRole> knownNodeRoles = node.getRolesList()
+                List<ClusterStateResponseProto.ClusterStateResponse.ClusterState.DiscoveryNodes.Node.NodeRole> knownNodeRoles = node
+                    .getRolesList()
                     .stream()
                     .filter(ClusterStateResponseProto.ClusterStateResponse.ClusterState.DiscoveryNodes.Node.NodeRole::getIsKnownRole)
                     .collect(Collectors.toList());
                 roles = knownNodeRoles.size() > 0
-                    ? knownNodeRoles.stream().map(ClusterStateResponseProto.ClusterStateResponse.ClusterState.DiscoveryNodes.Node.NodeRole::getRoleNameAbbreviation).sorted().collect(Collectors.joining())
+                    ? knownNodeRoles.stream()
+                        .map(
+                            ClusterStateResponseProto.ClusterStateResponse.ClusterState.DiscoveryNodes.Node.NodeRole::getRoleNameAbbreviation
+                        )
+                        .sorted()
+                        .collect(Collectors.joining())
                     : "-";
-                allRoles = node.getRolesList().stream().map(ClusterStateResponseProto.ClusterStateResponse.ClusterState.DiscoveryNodes.Node.NodeRole::getRoleName).sorted().collect(Collectors.joining(","));
+                allRoles = node.getRolesList()
+                    .stream()
+                    .map(ClusterStateResponseProto.ClusterStateResponse.ClusterState.DiscoveryNodes.Node.NodeRole::getRoleName)
+                    .sorted()
+                    .collect(Collectors.joining(","));
             }
             table.addCell(roles);
             table.addCell(allRoles);

@@ -318,8 +318,9 @@ public abstract class TransportTasksAction<
                                     }
 
                                     @Override
-                                    public TransportTasksAction<OperationTask, TasksRequest, TasksResponse, TaskResponse>.NodeTasksResponse read(
-                                            byte[] in) throws IOException {
+                                    public
+                                        TransportTasksAction<OperationTask, TasksRequest, TasksResponse, TaskResponse>.NodeTasksResponse
+                                        read(byte[] in) throws IOException {
                                         // TODO Auto-generated method stub
                                         throw new UnsupportedOperationException("Unimplemented method 'read'");
                                     }

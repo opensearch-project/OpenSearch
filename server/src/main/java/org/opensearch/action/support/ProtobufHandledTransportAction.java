@@ -12,11 +12,9 @@ import org.opensearch.action.ProtobufActionRequest;
 import org.opensearch.action.ProtobufActionResponse;
 import org.opensearch.core.common.io.stream.ProtobufWriteable;
 import org.opensearch.tasks.ProtobufTask;
-import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.ProtobufTransportRequestHandler;
 import org.opensearch.transport.TransportChannel;
-import org.opensearch.transport.TransportRequestHandler;
 import org.opensearch.transport.TransportService;
 
 /**
@@ -65,7 +63,14 @@ public abstract class ProtobufHandledTransportAction<Request extends ProtobufAct
         String executor
     ) {
         super(actionName, actionFilters, transportService.getTaskManager());
-        transportService.registerRequestHandlerProtobuf(actionName, executor, false, canTripCircuitBreaker, requestReader, new TransportHandler());
+        transportService.registerRequestHandlerProtobuf(
+            actionName,
+            executor,
+            false,
+            canTripCircuitBreaker,
+            requestReader,
+            new TransportHandler()
+        );
     }
 
     /**
