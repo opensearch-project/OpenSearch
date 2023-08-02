@@ -9,6 +9,7 @@
 package org.opensearch.remotestore;
 
 import org.junit.Before;
+import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStoreRequest;
 import org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStats;
 import org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStatsRequestBuilder;
@@ -22,6 +23,7 @@ import org.opensearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.remote.RemoteSegmentTransferTracker;
+import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.io.IOException;
@@ -443,12 +445,19 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
         createIndex(INDEX_NAME, remoteStoreIndexSettings(2, 1));
         ensureGreen(INDEX_NAME);
         indexDocs();
-        int dataNodeCountBeforeStop = client().admin().cluster().prepareHealth().get().getNumberOfDataNodes();
-        internalCluster().stopRandomDataNode();
+        ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth().get();
+        int dataNodeCountBeforeStop = clusterHealthResponse.getNumberOfDataNodes();
+        int nodeCount = clusterHealthResponse.getNumberOfNodes();
+        String nodeToBeStopped = randomBoolean() ? primaryNodeName(INDEX_NAME) : replicaNodeName(INDEX_NAME);
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeToBeStopped));
+        ensureYellowAndNoInitializingShards(INDEX_NAME);
+        ensureStableCluster(nodeCount - 1);
         RemoteStoreStatsResponse response = client().admin().cluster().prepareRemoteStoreStats(INDEX_NAME, "0").get();
         int dataNodeCountAfterStop = client().admin().cluster().prepareHealth().get().getNumberOfDataNodes();
         assertEquals(dataNodeCountBeforeStop, response.getTotalShards());
         assertEquals(dataNodeCountAfterStop, response.getSuccessfulShards());
+        // Indexing docs to ensure that the primary has started
+        indexSingleDoc(INDEX_NAME);
     }
 
     public void testStatsOnRemoteStoreRestore() throws IOException {
