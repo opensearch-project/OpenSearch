@@ -166,7 +166,6 @@ public class TransportClusterStateAction extends TransportClusterManagerNodeRead
     }
 
     private ClusterStateResponse buildResponse(final ClusterStateRequest request, final ClusterState currentState) {
-        System.out.println("Coming in build response for cluster state");
         logger.trace("Serving cluster state request using version {}", currentState.version());
         ClusterState.Builder builder = ClusterState.builder(currentState.getClusterName());
         builder.version(currentState.version());

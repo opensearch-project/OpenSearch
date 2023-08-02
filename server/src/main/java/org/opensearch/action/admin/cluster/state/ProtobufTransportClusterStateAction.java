@@ -139,7 +139,6 @@ public class ProtobufTransportClusterStateAction extends ProtobufTransportCluste
     }
 
     private ProtobufClusterStateResponse buildResponse(final ProtobufClusterStateRequest request, final ClusterState currentState) {
-        System.out.println("Coming in build response for cluster state");
         logger.trace("Serving cluster state request using version {}", currentState.version());
         return new ProtobufClusterStateResponse(currentState.getClusterName().value(), currentState.nodes(), currentState.version(), currentState.stateUUID(), false);
     }

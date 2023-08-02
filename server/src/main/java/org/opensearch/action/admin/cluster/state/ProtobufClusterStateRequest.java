@@ -205,6 +205,10 @@ public class ProtobufClusterStateRequest extends ProtobufClusterManagerNodeReadR
         this.clusterStateRequest = ClusterStateRequestProto.ClusterStateReq.parseFrom(data);
     }
 
+    public ProtobufClusterStateRequest(ClusterStateRequestProto.ClusterStateReq clusterStateRequest) {
+        this.clusterStateRequest = clusterStateRequest;
+    }
+
     @Override
     public void writeTo(OutputStream out) throws IOException {
         out.write(this.clusterStateRequest.toByteArray());

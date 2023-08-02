@@ -280,7 +280,7 @@ public class InboundHandler {
             assert reg != null;
             if (outboundMsg.hasClusterStateReq()) {
                 final ClusterStateReq clusterStateReq = outboundMsg.getClusterStateReq();
-                ProtobufClusterStateRequest protobufClusterStateRequest = new ProtobufClusterStateRequest(clusterStateReq.toByteArray());
+                ProtobufClusterStateRequest protobufClusterStateRequest = new ProtobufClusterStateRequest(clusterStateReq);
                 final T request = (T) protobufClusterStateRequest;
                 request.remoteAddress(new TransportAddress(channel.getRemoteAddress()));
                 final String executor = reg.getExecutor();
@@ -296,7 +296,7 @@ public class InboundHandler {
             } else if (outboundMsg.hasNodesInfoReq()) {
                 final NodesInfoReq nodesInfoReq = outboundMsg.getNodesInfoReq();
                 try {
-                    ProtobufNodesInfoRequest protobufNodesInfoRequest = new ProtobufNodesInfoRequest(nodesInfoReq.toByteArray());
+                    ProtobufNodesInfoRequest protobufNodesInfoRequest = new ProtobufNodesInfoRequest(nodesInfoReq);
                     final T request = (T) new NodeInfoRequest(protobufNodesInfoRequest);
                     request.remoteAddress(new TransportAddress(channel.getRemoteAddress()));
                     final String executor = reg.getExecutor();
@@ -315,7 +315,7 @@ public class InboundHandler {
             } else if (outboundMsg.hasNodesStatsReq()) {
                 final NodesStatsReq nodesStatsReq = outboundMsg.getNodesStatsReq();
                 try {
-                    ProtobufNodesStatsRequest protobufNodesStatsRequest = new ProtobufNodesStatsRequest(nodesStatsReq.toByteArray());
+                    ProtobufNodesStatsRequest protobufNodesStatsRequest = new ProtobufNodesStatsRequest(nodesStatsReq);
                     final T request = (T) new NodeStatsRequest(protobufNodesStatsRequest);
                     request.remoteAddress(new TransportAddress(channel.getRemoteAddress()));
                     final String executor = reg.getExecutor();
@@ -556,7 +556,7 @@ public class InboundHandler {
             OutboundMsg outboundMsg = message.getMessage();
             if (outboundMsg.hasClusterStateRes()) {
                 final ClusterStateRes clusterStateRes = outboundMsg.getClusterStateRes();
-                ProtobufClusterStateResponse protobufClusterStateResponse = new ProtobufClusterStateResponse(clusterStateRes.toByteArray());
+                ProtobufClusterStateResponse protobufClusterStateResponse = new ProtobufClusterStateResponse(clusterStateRes);
                 final T response = (T) protobufClusterStateResponse;
                 response.remoteAddress(new TransportAddress(remoteAddress));
 
@@ -568,7 +568,7 @@ public class InboundHandler {
                 }
             } else if (outboundMsg.hasNodesInfoRes()) {
                 final NodesInfo nodesInfoRes = outboundMsg.getNodesInfoRes();
-                ProtobufNodeInfo protobufNodeInfo = new ProtobufNodeInfo(nodesInfoRes.toByteArray());
+                ProtobufNodeInfo protobufNodeInfo = new ProtobufNodeInfo(nodesInfoRes);
                 final T response = (T) protobufNodeInfo;
                 response.remoteAddress(new TransportAddress(remoteAddress));
 
@@ -580,7 +580,7 @@ public class InboundHandler {
                 }
             } else if (outboundMsg.hasNodesStatsRes()) {
                 final NodesStats nodesStatsRes = outboundMsg.getNodesStatsRes();
-                ProtobufNodeStats protobufNodeStats = new ProtobufNodeStats(nodesStatsRes.toByteArray());
+                ProtobufNodeStats protobufNodeStats = new ProtobufNodeStats(nodesStatsRes);
                 final T response = (T) protobufNodeStats;
                 response.remoteAddress(new TransportAddress(remoteAddress));
 

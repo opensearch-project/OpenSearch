@@ -54,6 +54,11 @@ public class ProtobufNodeStats extends ProtobufBaseNodeResponse implements ToXCo
         this.nodesStatsResponse = NodesStatsProto.NodesStats.parseFrom(data);
     }
 
+    public ProtobufNodeStats(NodesStatsProto.NodesStats nodesStats) throws InvalidProtocolBufferException {
+        super(nodesStats.toByteArray());
+        this.nodesStatsResponse = nodesStats;
+    }
+
     public ProtobufNodeStats(
         DiscoveryNode node,
         long timestamp,

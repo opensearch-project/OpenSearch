@@ -11,6 +11,7 @@ package org.opensearch.action.admin.cluster.node.stats;
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
 import org.opensearch.action.support.nodes.ProtobufBaseNodesRequest;
 import org.opensearch.server.proto.NodesStatsRequestProto.NodesStatsReq;
+import org.opensearch.server.proto.NodesInfoRequestProto;
 import org.opensearch.server.proto.NodesStatsRequestProto;
 
 import java.io.IOException;
@@ -144,6 +145,11 @@ public class ProtobufNodesStatsRequest extends ProtobufBaseNodesRequest<Protobuf
     public ProtobufNodesStatsRequest(byte[] data) throws IOException {
         super(data);
         this.nodesStatsRequest = NodesStatsRequestProto.NodesStatsReq.parseFrom(data);
+    }
+
+     public ProtobufNodesStatsRequest(NodesStatsRequestProto.NodesStatsReq nodesStatsRequest) throws IOException {
+        super(nodesStatsRequest.toByteArray());
+        this.nodesStatsRequest = nodesStatsRequest;
     }
 
     /**

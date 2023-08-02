@@ -71,6 +71,11 @@ public class ProtobufNodesInfoRequest extends ProtobufBaseNodesRequest<ProtobufN
         this.nodesInfoRequest = NodesInfoRequestProto.NodesInfoReq.parseFrom(data);
     }
 
+    public ProtobufNodesInfoRequest(NodesInfoRequestProto.NodesInfoReq nodesInfoRequest) throws IOException {
+        super(nodesInfoRequest.toByteArray());
+        this.nodesInfoRequest = nodesInfoRequest;
+    }
+
     /**
      * An enumeration of the "core" sections of metrics that may be requested
      * from the nodes information endpoint. Eventually this list list will be

@@ -69,6 +69,11 @@ public class ProtobufNodeInfo extends ProtobufBaseNodeResponse {
         this.nodesInfoResponse = NodesInfoProto.NodesInfo.parseFrom(data);
     }
 
+    public ProtobufNodeInfo(NodesInfoProto.NodesInfo nodesInfo) throws InvalidProtocolBufferException {
+        super(nodesInfo.toByteArray());
+        this.nodesInfoResponse = nodesInfo;
+    }
+
     public ProtobufNodeInfo(
         Version version,
         Build build,

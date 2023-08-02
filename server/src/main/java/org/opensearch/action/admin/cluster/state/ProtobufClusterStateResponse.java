@@ -94,6 +94,10 @@ public class ProtobufClusterStateResponse extends ProtobufActionResponse {
         this.clusterStateRes = ClusterStateResponseProto.ClusterStateRes.parseFrom(data);
     }
 
+    public ProtobufClusterStateResponse(ClusterStateResponseProto.ClusterStateRes clusterStateRes) {
+        this.clusterStateRes = clusterStateRes;
+    }
+
     @Override
     public void writeTo(OutputStream out) throws IOException {
         out.write(this.clusterStateRes.toByteArray());

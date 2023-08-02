@@ -93,7 +93,6 @@ import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import static org.opensearch.common.settings.Settings.readSettingsFromStream;
-import static org.opensearch.common.settings.Settings.readSettingsFromStreamProtobuf;
 import static org.opensearch.common.settings.Settings.writeSettingsToStream;
 
 /**
