@@ -48,7 +48,7 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.Table;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.network.NetworkAddress;
-import org.opensearch.common.transport.TransportAddress;
+import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.http.HttpInfo;
 import org.opensearch.index.cache.query.QueryCacheStats;

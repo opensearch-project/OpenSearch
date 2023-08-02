@@ -40,6 +40,7 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.EOFException;

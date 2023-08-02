@@ -43,7 +43,7 @@ import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.network.NetworkUtils;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.transport.TransportAddress;
+import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.MockPageCacheRecycler;
 import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;

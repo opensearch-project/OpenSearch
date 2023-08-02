@@ -36,6 +36,7 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.tasks.ProtobufTaskAwareRequest;
 import org.opensearch.tasks.ProtobufTaskId;
+import org.opensearch.core.transport.TransportMessage;
 import org.opensearch.tasks.TaskAwareRequest;
 import org.opensearch.tasks.TaskId;
 

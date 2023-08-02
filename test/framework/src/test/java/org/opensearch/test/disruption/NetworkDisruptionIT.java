@@ -46,7 +46,7 @@ import org.opensearch.test.disruption.NetworkDisruption.TwoPartitions;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportException;
-import org.opensearch.transport.TransportResponse;
+import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
 

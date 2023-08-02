@@ -55,7 +55,7 @@ import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportRequestOptions;
 import org.opensearch.transport.TransportRequestOptions.Type;
-import org.opensearch.transport.TransportResponse.Empty;
+import org.opensearch.core.transport.TransportResponse.Empty;
 import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
 

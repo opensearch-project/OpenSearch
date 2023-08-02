@@ -35,6 +35,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 

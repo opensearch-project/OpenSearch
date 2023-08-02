@@ -30,7 +30,7 @@
  * GitHub history for details.
  */
 
-package org.opensearch.transport;
+package org.opensearch.core.transport;
 
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;

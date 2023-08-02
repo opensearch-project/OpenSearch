@@ -68,7 +68,7 @@ import org.opensearch.transport.TestTransportChannel;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportRequestOptions;
-import org.opensearch.transport.TransportResponse;
+import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.transport.TransportService;
 import org.junit.After;
 import org.junit.AfterClass;
