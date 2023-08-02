@@ -1275,6 +1275,12 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
                         .getSetting(index, IndexSettings.INDEX_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey())
                 );
                 assertEquals(concurrentSearchEnabled, searchContext.isConcurrentSegmentSearchEnabled());
+                // verify executor nullability with concurrent search enabled/disabled
+                if (concurrentSearchEnabled) {
+                    assertNotNull(searchContext.searcher().getExecutor());
+                } else {
+                    assertNull(searchContext.searcher().getExecutor());
+                }
             }
         }
         // Cleanup
