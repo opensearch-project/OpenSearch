@@ -160,7 +160,11 @@ public class BlobStoreTransferService implements TransferService {
 
     @Override
     public void deleteBlobs(Iterable<String> path, List<String> fileNames) throws IOException {
-        blobStore.blobContainer((BlobPath) path).deleteBlobsIgnoringIfNotExists(fileNames);
+        if (blobStore.blobContainer((BlobPath) path).softDeleteable()) {
+            blobStore.blobContainer((BlobPath) path).softDeleteBlobsIgnoringIfNotExists(fileNames);
+        } else {
+            blobStore.blobContainer((BlobPath) path).deleteBlobsIgnoringIfNotExists(fileNames);
+        }
     }
 
     @Override
@@ -177,7 +181,11 @@ public class BlobStoreTransferService implements TransferService {
 
     @Override
     public void delete(Iterable<String> path) throws IOException {
-        blobStore.blobContainer((BlobPath) path).delete();
+        if (blobStore.blobContainer((BlobPath) path).softDeleteable()) {
+            blobStore.blobContainer((BlobPath) path).softDelete();
+        } else {
+            blobStore.blobContainer((BlobPath) path).delete();
+        }
     }
 
     @Override

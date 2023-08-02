@@ -53,10 +53,14 @@ import software.amazon.awssdk.services.s3.model.ObjectCannedACL;
 import software.amazon.awssdk.services.s3.model.ObjectIdentifier;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectResponse;
+import software.amazon.awssdk.services.s3.model.PutObjectTaggingRequest;
+import software.amazon.awssdk.services.s3.model.PutObjectTaggingResponse;
 import software.amazon.awssdk.services.s3.model.S3Error;
 import software.amazon.awssdk.services.s3.model.S3Object;
 import software.amazon.awssdk.services.s3.model.ServerSideEncryption;
 import software.amazon.awssdk.services.s3.model.StorageClass;
+import software.amazon.awssdk.services.s3.model.Tag;
+import software.amazon.awssdk.services.s3.model.Tagging;
 import software.amazon.awssdk.services.s3.model.UploadPartRequest;
 import software.amazon.awssdk.services.s3.model.UploadPartResponse;
 import software.amazon.awssdk.services.s3.paginators.ListObjectsV2Iterable;
@@ -299,6 +303,107 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         assertEquals(new HashSet<>(listObjectsV2ResponseIterator.getKeysListed()), new HashSet<>(keysDeleted));
     }
 
+    public void testSoftDelete() throws IOException {
+        final String bucketName = randomAlphaOfLengthBetween(1, 10);
+
+        final BlobPath blobPath = new BlobPath();
+
+        final S3BlobStore blobStore = mock(S3BlobStore.class);
+        when(blobStore.bucket()).thenReturn(bucketName);
+        when(blobStore.getStatsMetricPublisher()).thenReturn(new StatsMetricPublisher());
+        when(blobStore.softDeleteEnabled()).thenReturn(true);
+        Tag tag = Tag.builder().key("deletion-mode").value("soft").build();
+        Tagging tagging = Tagging.builder().tagSet(tag).build();
+        when(blobStore.softDeleteTagging()).thenReturn(tagging);
+
+        final S3Client client = mock(S3Client.class);
+        doAnswer(invocation -> new AmazonS3Reference(client)).when(blobStore).clientReference();
+
+        ListObjectsV2Iterable listObjectsV2Iterable = mock(ListObjectsV2Iterable.class);
+        final int totalPageCount = 3;
+        final long s3ObjectSize = ByteSizeUnit.MB.toBytes(5);
+        final int s3ObjectsPerPage = 5;
+        MockListObjectsV2ResponseIterator listObjectsV2ResponseIterator = new MockListObjectsV2ResponseIterator(
+            totalPageCount,
+            s3ObjectsPerPage,
+            s3ObjectSize
+        );
+        when(listObjectsV2Iterable.iterator()).thenReturn(listObjectsV2ResponseIterator);
+        when(client.listObjectsV2Paginator(any(ListObjectsV2Request.class))).thenReturn(listObjectsV2Iterable);
+
+        final List<String> keysDeleted = new ArrayList<>();
+        doAnswer(invocation -> {
+            PutObjectTaggingRequest deleteObjectsRequest = invocation.getArgument(0);
+            keysDeleted.add(deleteObjectsRequest.key());
+            assertEquals(deleteObjectsRequest.tagging().tagSet().size(), 1);
+            assertEquals(tag, deleteObjectsRequest.tagging().tagSet().get(0));
+            return PutObjectTaggingResponse.builder().build();
+        }).when(client).putObjectTagging(any(PutObjectTaggingRequest.class));
+
+        final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
+
+        DeleteResult deleteResult = blobContainer.softDelete();
+        assertEquals(s3ObjectSize * s3ObjectsPerPage * totalPageCount, deleteResult.bytesDeleted());
+        assertEquals(s3ObjectsPerPage * totalPageCount, deleteResult.blobsDeleted());
+        // keysDeleted will not have blobPath
+        assertEquals(listObjectsV2ResponseIterator.getKeysListed().size(), keysDeleted.size());
+        assertFalse(keysDeleted.contains(blobPath.buildAsString()));
+        assertEquals(new HashSet<>(listObjectsV2ResponseIterator.getKeysListed()), new HashSet<>(keysDeleted));
+    }
+
+    public void testSoftDeleteDisabled() throws IOException {
+        final String bucketName = randomAlphaOfLengthBetween(1, 10);
+
+        final BlobPath blobPath = new BlobPath();
+
+        final S3BlobStore blobStore = mock(S3BlobStore.class);
+        when(blobStore.bucket()).thenReturn(bucketName);
+        when(blobStore.softDeleteEnabled()).thenReturn(false);
+        when(blobStore.getStatsMetricPublisher()).thenReturn(new StatsMetricPublisher());
+
+        final S3Client client = mock(S3Client.class);
+        doAnswer(invocation -> new AmazonS3Reference(client)).when(blobStore).clientReference();
+
+        ListObjectsV2Iterable listObjectsV2Iterable = mock(ListObjectsV2Iterable.class);
+        final int totalPageCount = 3;
+        final long s3ObjectSize = ByteSizeUnit.MB.toBytes(5);
+        final int s3ObjectsPerPage = 5;
+        MockListObjectsV2ResponseIterator listObjectsV2ResponseIterator = new MockListObjectsV2ResponseIterator(
+            totalPageCount,
+            s3ObjectsPerPage,
+            s3ObjectSize
+        );
+        when(listObjectsV2Iterable.iterator()).thenReturn(listObjectsV2ResponseIterator);
+        when(client.listObjectsV2Paginator(any(ListObjectsV2Request.class))).thenReturn(listObjectsV2Iterable);
+
+        final List<String> keysDeleted = new ArrayList<>();
+        doAnswer(invocation -> {
+            PutObjectTaggingRequest deleteObjectsRequest = invocation.getArgument(0);
+            keysDeleted.add(deleteObjectsRequest.key());
+            assertEquals(deleteObjectsRequest.tagging().tagSet().size(), 1);
+            Tag tag = deleteObjectsRequest.tagging().tagSet().get(0);
+            assertEquals(Tag.builder().key("deletion-mode").value("soft").build(), tag);
+            return PutObjectResponse.builder().build();
+        }).when(client).putObjectTagging(any(PutObjectTaggingRequest.class));
+
+        doAnswer(invocation -> {
+            DeleteObjectsRequest deleteObjectsRequest = invocation.getArgument(0);
+            keysDeleted.addAll(deleteObjectsRequest.delete().objects().stream().map(ObjectIdentifier::key).collect(Collectors.toList()));
+            return DeleteObjectsResponse.builder().build();
+        }).when(client).deleteObjects(any(DeleteObjectsRequest.class));
+
+        final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
+
+        DeleteResult deleteResult = blobContainer.softDelete();
+        assertEquals(s3ObjectSize * s3ObjectsPerPage * totalPageCount, deleteResult.bytesDeleted());
+        assertEquals(s3ObjectsPerPage * totalPageCount, deleteResult.blobsDeleted());
+        // keysDeleted will have blobPath also
+        assertEquals(listObjectsV2ResponseIterator.getKeysListed().size(), keysDeleted.size() - 1);
+        assertTrue(keysDeleted.contains(blobPath.buildAsString()));
+        keysDeleted.remove(blobPath.buildAsString());
+        assertEquals(new HashSet<>(listObjectsV2ResponseIterator.getKeysListed()), new HashSet<>(keysDeleted));
+    }
+
     public void testDeleteItemLevelErrorsDuringDelete() {
         final String bucketName = randomAlphaOfLengthBetween(1, 10);
 
@@ -362,7 +467,9 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         MockListObjectsV2ResponseIterator listObjectsV2ResponseIterator = new MockListObjectsV2ResponseIterator(
             totalPageCount,
             s3ObjectsPerPage,
-            s3ObjectSize
+            s3ObjectSize,
+            "",
+            true
         );
         when(listObjectsV2Iterable.iterator()).thenReturn(listObjectsV2ResponseIterator);
         when(client.listObjectsV2Paginator(any(ListObjectsV2Request.class))).thenReturn(listObjectsV2Iterable);
@@ -370,6 +477,42 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
 
         assertThrows(IOException.class, blobContainer::delete);
+    }
+
+    public void testSoftDeleteSdkExceptionDuringListOperation() {
+        final String bucketName = randomAlphaOfLengthBetween(1, 10);
+
+        final BlobPath blobPath = new BlobPath();
+
+        final S3BlobStore blobStore = mock(S3BlobStore.class);
+        when(blobStore.bucket()).thenReturn(bucketName);
+        when(blobStore.softDeleteEnabled()).thenReturn(true);
+        when(blobStore.getStatsMetricPublisher()).thenReturn(new StatsMetricPublisher());
+        when(blobStore.softDeleteEnabled()).thenReturn(true);
+        Tag tag = Tag.builder().key("deletion-mode").value("soft").build();
+        Tagging tagging = Tagging.builder().tagSet(tag).build();
+        when(blobStore.softDeleteTagging()).thenReturn(tagging);
+
+        final S3Client client = mock(S3Client.class);
+        doAnswer(invocation -> new AmazonS3Reference(client)).when(blobStore).clientReference();
+
+        ListObjectsV2Iterable listObjectsV2Iterable = mock(ListObjectsV2Iterable.class);
+        final int totalPageCount = 3;
+        final long s3ObjectSize = ByteSizeUnit.MB.toBytes(5);
+        final int s3ObjectsPerPage = 5;
+        MockListObjectsV2ResponseIterator listObjectsV2ResponseIterator = new MockListObjectsV2ResponseIterator(
+            totalPageCount,
+            s3ObjectsPerPage,
+            s3ObjectSize,
+            "",
+            true
+        );
+        when(listObjectsV2Iterable.iterator()).thenReturn(listObjectsV2ResponseIterator);
+        when(client.listObjectsV2Paginator(any(ListObjectsV2Request.class))).thenReturn(listObjectsV2Iterable);
+
+        final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
+
+        assertThrows(IOException.class, blobContainer::softDelete);
     }
 
     public void testDeleteSdkExceptionDuringDeleteOperation() {
@@ -401,6 +544,42 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
 
         assertThrows(IOException.class, blobContainer::delete);
+    }
+
+    public void testSdkExceptionDuringSoftDeleteOperation() {
+        final String bucketName = randomAlphaOfLengthBetween(1, 10);
+
+        final BlobPath blobPath = new BlobPath();
+
+        final S3BlobStore blobStore = mock(S3BlobStore.class);
+        when(blobStore.bucket()).thenReturn(bucketName);
+        when(blobStore.softDeleteEnabled()).thenReturn(true);
+        when(blobStore.getStatsMetricPublisher()).thenReturn(new StatsMetricPublisher());
+        when(blobStore.softDeleteEnabled()).thenReturn(true);
+        Tag tag = Tag.builder().key("deletion-mode").value("soft").build();
+        Tagging tagging = Tagging.builder().tagSet(tag).build();
+        when(blobStore.softDeleteTagging()).thenReturn(tagging);
+
+        final S3Client client = mock(S3Client.class);
+        doAnswer(invocation -> new AmazonS3Reference(client)).when(blobStore).clientReference();
+
+        ListObjectsV2Iterable listObjectsV2Iterable = mock(ListObjectsV2Iterable.class);
+        final int totalPageCount = 3;
+        final long s3ObjectSize = ByteSizeUnit.MB.toBytes(5);
+        final int s3ObjectsPerPage = 5;
+        MockListObjectsV2ResponseIterator listObjectsV2ResponseIterator = new MockListObjectsV2ResponseIterator(
+            totalPageCount,
+            s3ObjectsPerPage,
+            s3ObjectSize
+        );
+        when(listObjectsV2Iterable.iterator()).thenReturn(listObjectsV2ResponseIterator);
+        when(client.listObjectsV2Paginator(any(ListObjectsV2Request.class))).thenReturn(listObjectsV2Iterable);
+
+        when(client.putObjectTagging(any(PutObjectTaggingRequest.class))).thenThrow(SdkException.builder().build());
+
+        final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
+
+        assertThrows(IOException.class, blobContainer::softDelete);
     }
 
     public void testExecuteSingleUpload() throws IOException {

@@ -51,7 +51,6 @@ import java.util.function.LongSupplier;
 public class RemoteFsTranslog extends Translog {
 
     private final Logger logger;
-    private final BlobStoreRepository blobStoreRepository;
     private final TranslogTransferManager translogTransferManager;
     private final FileTransferTracker fileTransferTracker;
     private final BooleanSupplier primaryModeSupplier;
@@ -84,7 +83,6 @@ public class RemoteFsTranslog extends Translog {
     ) throws IOException {
         super(config, translogUUID, deletionPolicy, globalCheckpointSupplier, primaryTermSupplier, persistedSequenceNumberConsumer);
         logger = Loggers.getLogger(getClass(), shardId);
-        this.blobStoreRepository = blobStoreRepository;
         this.primaryModeSupplier = primaryModeSupplier;
         fileTransferTracker = new FileTransferTracker(shardId);
         this.translogTransferManager = buildTranslogTransferManager(blobStoreRepository, threadPool, shardId, fileTransferTracker);

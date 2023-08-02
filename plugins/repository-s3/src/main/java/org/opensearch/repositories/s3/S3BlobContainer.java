@@ -50,6 +50,7 @@ import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.ObjectIdentifier;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.PutObjectTaggingRequest;
 import software.amazon.awssdk.services.s3.model.S3Error;
 import software.amazon.awssdk.services.s3.model.ServerSideEncryption;
 import software.amazon.awssdk.services.s3.model.UploadPartRequest;
@@ -221,8 +222,7 @@ class S3BlobContainer extends AbstractBlobContainer implements VerifyingMultiStr
         writeBlob(blobName, inputStream, blobSize, failIfAlreadyExists);
     }
 
-    @Override
-    public DeleteResult delete() throws IOException {
+    public DeleteResult delete(boolean softDelete) throws IOException {
         final AtomicLong deletedBlobs = new AtomicLong();
         final AtomicLong deletedBytes = new AtomicLong();
         try (AmazonS3Reference clientReference = blobStore.clientReference()) {
@@ -249,17 +249,27 @@ class S3BlobContainer extends AbstractBlobContainer implements VerifyingMultiStr
                     return s3Object.key();
                 }).collect(Collectors.toList());
 
-                if (!listObjectsResponseIterator.hasNext()) {
+                if (!listObjectsResponseIterator.hasNext() && softDelete == false) {
                     blobsToDelete.add(keyPath);
                 }
 
-                doDeleteBlobs(blobsToDelete, false);
+                if (softDelete) {
+                    softDeleteBlobsIgnoringIfNotExists(blobsToDelete, false);
+                } else {
+                    doDeleteBlobs(blobsToDelete, false);
+                }
+
             }
         } catch (SdkException e) {
             throw new IOException("Exception when deleting blob container [" + keyPath + "]", e);
         }
 
         return new DeleteResult(deletedBlobs.get(), deletedBytes.get());
+    }
+
+    @Override
+    public DeleteResult delete() throws IOException {
+        return delete(false);
     }
 
     @Override
@@ -627,4 +637,53 @@ class S3BlobContainer extends AbstractBlobContainer implements VerifyingMultiStr
             return Tuple.tuple(parts + 1, remaining);
         }
     }
+
+    @Override
+    public void softDeleteBlobsIgnoringIfNotExists(List<String> blobNames) throws IOException {
+        softDeleteBlobsIgnoringIfNotExists(blobNames, true);
+    }
+
+    public boolean softDeleteable() {
+        return blobStore.softDeleteEnabled();
+    }
+
+    public void softDeleteBlobsIgnoringIfNotExists(List<String> blobNames, boolean relative) throws IOException {
+        if (softDeleteable() == false) {
+            deleteBlobsIgnoringIfNotExists(blobNames);
+            return;
+        }
+
+        final Set<String> outstanding;
+        if (blobNames.isEmpty()) {
+            return;
+        }
+        if (relative) {
+            outstanding = blobNames.stream().map(this::buildKey).collect(Collectors.toSet());
+        } else {
+            outstanding = new HashSet<>(blobNames);
+        }
+
+        try (AmazonS3Reference clientReference = blobStore.clientReference()) {
+            for (String key : outstanding) {
+                SocketAccess.doPrivilegedVoid(() -> {
+                    PutObjectTaggingRequest putObjectTaggingRequest = PutObjectTaggingRequest.builder()
+                        .bucket(blobStore.bucket())
+                        .key(key)
+                        .tagging(blobStore.softDeleteTagging())
+                        .build();
+                    clientReference.get().putObjectTagging(putObjectTaggingRequest);
+                });
+            }
+        } catch (Exception e) {
+            throw new IOException("Failed to soft delete blobs", e);
+        }
+    }
+
+    @Override
+    public DeleteResult softDelete() throws IOException {
+        if (softDeleteable() == false) {
+            return delete();
+        }
+        return delete(true);
+    };
 }

@@ -34,6 +34,8 @@ package org.opensearch.repositories.s3;
 
 import software.amazon.awssdk.services.s3.model.ObjectCannedACL;
 import software.amazon.awssdk.services.s3.model.StorageClass;
+import software.amazon.awssdk.services.s3.model.Tag;
+import software.amazon.awssdk.services.s3.model.Tagging;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -42,6 +44,7 @@ import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.blobstore.BlobStoreException;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.repositories.s3.async.AsyncExecutorContainer;
 import org.opensearch.repositories.s3.async.AsyncTransferManager;
@@ -76,6 +79,10 @@ class S3BlobStore implements BlobStore {
     private final AsyncExecutorContainer priorityExecutorBuilder;
     private final AsyncExecutorContainer normalExecutorBuilder;
     private final boolean multipartUploadEnabled;
+
+    final Setting<Boolean> SOFT_DELETE_ENABLED = Setting.boolSetting("soft_delete.enabled", false);
+    final Setting<String> SOFT_DELETE_KEY = Setting.simpleString("soft_delete.key", "deletion-mode");
+    final Setting<String> SOFT_DELETE_VALUE = Setting.simpleString("soft_delete.value", "soft");
 
     S3BlobStore(
         S3Service service,
@@ -185,6 +192,18 @@ class S3BlobStore implements BlobStore {
         }
 
         return storageClass;
+    }
+
+    public Tagging softDeleteTagging() {
+        Tag tag = Tag.builder()
+            .key(SOFT_DELETE_KEY.get(repositoryMetadata.settings()))
+            .value(SOFT_DELETE_VALUE.get(repositoryMetadata.settings()))
+            .build();
+        return Tagging.builder().tagSet(tag).build();
+    }
+
+    boolean softDeleteEnabled() {
+        return SOFT_DELETE_ENABLED.get(repositoryMetadata.settings());
     }
 
     /**

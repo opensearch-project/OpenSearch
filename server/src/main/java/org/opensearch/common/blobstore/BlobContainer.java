@@ -157,6 +157,10 @@ public interface BlobContainer {
      */
     DeleteResult delete() throws IOException;
 
+    default DeleteResult softDelete() throws IOException {
+        throw new UnsupportedOperationException();
+    }
+
     /**
      * Deletes the blobs with given names. This method will not throw an exception
      * when one or multiple of the given blobs don't exist and simply ignore this case.
@@ -165,6 +169,10 @@ public interface BlobContainer {
      * @throws  IOException if a subset of blob exists but could not be deleted.
      */
     void deleteBlobsIgnoringIfNotExists(List<String> blobNames) throws IOException;
+
+    default void softDeleteBlobsIgnoringIfNotExists(List<String> blobNames) throws IOException {
+        throw new UnsupportedOperationException();
+    }
 
     /**
      * Lists all blobs in the container.
@@ -238,4 +246,9 @@ public interface BlobContainer {
             listener.onFailure(e);
         }
     }
+
+    default boolean softDeleteable() {
+        return false;
+    }
+
 }

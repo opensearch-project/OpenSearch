@@ -119,7 +119,11 @@ public class RemoteDirectory extends Directory {
     @Override
     public void deleteFile(String name) throws IOException {
         // ToDo: Add a check for file existence
-        blobContainer.deleteBlobsIgnoringIfNotExists(Collections.singletonList(name));
+        if (blobContainer.softDeleteable()) {
+            blobContainer.softDeleteBlobsIgnoringIfNotExists(Collections.singletonList(name));
+        } else {
+            blobContainer.deleteBlobsIgnoringIfNotExists(Collections.singletonList(name));
+        }
     }
 
     /**
@@ -257,6 +261,10 @@ public class RemoteDirectory extends Directory {
     }
 
     public void delete() throws IOException {
-        blobContainer.delete();
+        if (blobContainer.softDeleteable()) {
+            blobContainer.softDelete();
+        } else {
+            blobContainer.delete();
+        }
     }
 }
