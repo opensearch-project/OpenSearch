@@ -403,4 +403,38 @@ public class OngoingSegmentReplicationsTests extends IndexShardTestCase {
         assertEquals(0, replications.cachedCopyStateSize());
         closeShards(replica_2);
     }
+
+    public void testPrepareForReplicationAlreadyReplicating() throws IOException {
+        OngoingSegmentReplications replications = new OngoingSegmentReplications(mockIndicesService, recoverySettings);
+        final String replicaAllocationId = replica.routingEntry().allocationId().getId();
+        final CheckpointInfoRequest request = new CheckpointInfoRequest(1L, replicaAllocationId, primaryDiscoveryNode, testCheckpoint);
+
+        final CopyState copyState = replications.prepareForReplication(request, mock(FileChunkWriter.class));
+
+        final SegmentReplicationSourceHandler handler = replications.getHandlers().get(replicaAllocationId);
+        assertEquals(handler.getCopyState(), copyState);
+        assertEquals(1, copyState.refCount());
+
+        ReplicationCheckpoint secondCheckpoint = new ReplicationCheckpoint(
+            testCheckpoint.getShardId(),
+            testCheckpoint.getPrimaryTerm(),
+            testCheckpoint.getSegmentsGen(),
+            testCheckpoint.getSegmentInfosVersion() + 1,
+            testCheckpoint.getCodec()
+        );
+
+        final CheckpointInfoRequest secondRequest = new CheckpointInfoRequest(
+            1L,
+            replicaAllocationId,
+            primaryDiscoveryNode,
+            secondCheckpoint
+        );
+
+        final CopyState secondCopyState = replications.prepareForReplication(secondRequest, mock(FileChunkWriter.class));
+        final SegmentReplicationSourceHandler secondHandler = replications.getHandlers().get(replicaAllocationId);
+        assertEquals(secondHandler.getCopyState(), secondCopyState);
+        assertEquals("New copy state is incref'd", 1, secondCopyState.refCount());
+        assertEquals("Old copy state is cleaned up", 0, copyState.refCount());
+
+    }
 }

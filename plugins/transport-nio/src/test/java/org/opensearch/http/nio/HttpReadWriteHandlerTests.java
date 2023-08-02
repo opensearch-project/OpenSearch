@@ -49,7 +49,7 @@ import io.netty.handler.codec.http.HttpVersion;
 
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.http.CorsHandler;
 import org.opensearch.http.HttpChannel;

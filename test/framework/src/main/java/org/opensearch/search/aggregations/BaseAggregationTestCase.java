@@ -36,9 +36,9 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.search.aggregations.support.ValuesSourceAggregationBuilder;
@@ -67,7 +67,7 @@ public abstract class BaseAggregationTestCase<AB extends AbstractAggregationBuil
     public void testFromXContent() throws IOException {
         AB testAgg = createTestAggregatorBuilder();
         AggregatorFactories.Builder factoriesBuilder = AggregatorFactories.builder().addAggregator(testAgg);
-        XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
+        XContentBuilder builder = MediaTypeRegistry.contentBuilder(randomFrom(XContentType.values()));
         if (randomBoolean()) {
             builder.prettyPrint();
         }
@@ -91,7 +91,7 @@ public abstract class BaseAggregationTestCase<AB extends AbstractAggregationBuil
             factoriesBuilder.addAggregator(testAgg);
         }
 
-        XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
+        XContentBuilder builder = MediaTypeRegistry.contentBuilder(randomFrom(XContentType.values()));
         if (randomBoolean()) {
             builder.prettyPrint();
         }

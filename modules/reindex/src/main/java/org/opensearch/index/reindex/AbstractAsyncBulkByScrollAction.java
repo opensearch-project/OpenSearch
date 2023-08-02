@@ -53,7 +53,7 @@ import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.support.TransportAction;
 import org.opensearch.client.ParentTaskAssigningClient;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.index.VersionType;

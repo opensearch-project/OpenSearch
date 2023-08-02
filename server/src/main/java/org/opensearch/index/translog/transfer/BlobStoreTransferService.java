@@ -213,17 +213,18 @@ public class BlobStoreTransferService implements TransferService {
         });
     }
 
-    public void listAllInSortedOrder(Iterable<String> path, int limit, ActionListener<List<BlobMetadata>> listener) {
-        blobStore.blobContainer((BlobPath) path).listBlobsByPrefixInSortedOrder("", limit, LEXICOGRAPHIC, listener);
+    public void listAllInSortedOrder(Iterable<String> path, String filenamePrefix, int limit, ActionListener<List<BlobMetadata>> listener) {
+        blobStore.blobContainer((BlobPath) path).listBlobsByPrefixInSortedOrder(filenamePrefix, limit, LEXICOGRAPHIC, listener);
     }
 
     public void listAllInSortedOrderAsync(
         String threadpoolName,
         Iterable<String> path,
+        String filenamePrefix,
         int limit,
         ActionListener<List<BlobMetadata>> listener
     ) {
-        threadPool.executor(threadpoolName).execute(() -> { listAllInSortedOrder(path, limit, listener); });
+        threadPool.executor(threadpoolName).execute(() -> { listAllInSortedOrder(path, filenamePrefix, limit, listener); });
     }
 
 }

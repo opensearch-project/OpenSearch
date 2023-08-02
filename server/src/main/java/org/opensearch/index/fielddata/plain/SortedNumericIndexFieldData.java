@@ -53,7 +53,7 @@ import org.opensearch.index.fielddata.SortedBinaryDocValues;
 import org.opensearch.index.fielddata.SortedNumericDoubleValues;
 import org.opensearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
 import org.opensearch.index.mapper.DocValueFetcher;
-import org.opensearch.indices.breaker.CircuitBreakerService;
+import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.MultiValueMode;

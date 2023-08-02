@@ -17,7 +17,10 @@ import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Remote Store stats response
@@ -26,49 +29,71 @@ import java.util.List;
  */
 public class RemoteStoreStatsResponse extends BroadcastResponse {
 
-    private final RemoteStoreStats[] shards;
+    private final RemoteStoreStats[] remoteStoreStats;
 
     public RemoteStoreStatsResponse(StreamInput in) throws IOException {
         super(in);
-        shards = in.readArray(RemoteStoreStats::new, RemoteStoreStats[]::new);
+        remoteStoreStats = in.readArray(RemoteStoreStats::new, RemoteStoreStats[]::new);
     }
 
     public RemoteStoreStatsResponse(
-        RemoteStoreStats[] shards,
+        RemoteStoreStats[] remoteStoreStats,
         int totalShards,
         int successfulShards,
         int failedShards,
         List<DefaultShardOperationFailedException> shardFailures
     ) {
         super(totalShards, successfulShards, failedShards, shardFailures);
-        this.shards = shards;
+        this.remoteStoreStats = remoteStoreStats;
     }
 
-    public RemoteStoreStats[] getShards() {
-        return this.shards;
+    public RemoteStoreStats[] getRemoteStoreStats() {
+        return this.remoteStoreStats;
     }
 
-    public RemoteStoreStats getAt(int position) {
-        return shards[position];
+    public Map<String, Map<Integer, List<RemoteStoreStats>>> groupByIndexAndShards() {
+        Map<String, Map<Integer, List<RemoteStoreStats>>> indexWiseStats = new HashMap<>();
+        for (RemoteStoreStats shardStat : remoteStoreStats) {
+            indexWiseStats.computeIfAbsent(shardStat.getShardRouting().getIndexName(), k -> new HashMap<>())
+                .computeIfAbsent(shardStat.getShardRouting().getId(), k -> new ArrayList<>())
+                .add(shardStat);
+        }
+        return indexWiseStats;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeArray(shards);
+        out.writeArray(remoteStoreStats);
     }
 
     @Override
     protected void addCustomXContentFields(XContentBuilder builder, Params params) throws IOException {
-        builder.startArray("stats");
-        for (RemoteStoreStats shard : shards) {
-            shard.toXContent(builder, params);
+        Map<String, Map<Integer, List<RemoteStoreStats>>> indexWiseStats = groupByIndexAndShards();
+        builder.startObject(Fields.INDICES);
+        for (String indexName : indexWiseStats.keySet()) {
+            builder.startObject(indexName);
+            builder.startObject(Fields.SHARDS);
+            for (int shardId : indexWiseStats.get(indexName).keySet()) {
+                builder.startArray(Integer.toString(shardId));
+                for (RemoteStoreStats shardStat : indexWiseStats.get(indexName).get(shardId)) {
+                    shardStat.toXContent(builder, params);
+                }
+                builder.endArray();
+            }
+            builder.endObject();
+            builder.endObject();
         }
-        builder.endArray();
+        builder.endObject();
     }
 
     @Override
     public String toString() {
         return Strings.toString(XContentType.JSON, this, true, false);
+    }
+
+    static final class Fields {
+        static final String SHARDS = "shards";
+        static final String INDICES = "indices";
     }
 }

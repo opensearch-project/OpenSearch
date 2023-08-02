@@ -16,7 +16,7 @@ import org.apache.lucene.search.ReferenceManager;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
-import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ReleasableLock;
 import org.opensearch.common.util.io.IOUtils;
@@ -77,9 +77,10 @@ public class NRTReplicationEngine extends Engine {
             this.completionStatsCache = new CompletionStatsCache(() -> acquireSearcher("completion_stats"));
             this.readerManager = readerManager;
             this.readerManager.addListener(completionStatsCache);
-            for (ReferenceManager.RefreshListener listener : engineConfig.getExternalRefreshListener()) {
-                this.readerManager.addListener(listener);
-            }
+            // NRT Replicas do not have a concept of Internal vs External reader managers.
+            // We also do not want to wire up refresh listeners for waitFor & pending refresh location.
+            // which are the current external listeners set from IndexShard.
+            // Only wire up the internal listeners.
             for (ReferenceManager.RefreshListener listener : engineConfig.getInternalRefreshListener()) {
                 this.readerManager.addListener(listener);
             }
@@ -322,22 +323,12 @@ public class NRTReplicationEngine extends Engine {
 
     @Override
     public void refresh(String source) throws EngineException {
-        maybeRefresh(source);
+        // Refresh on this engine should only ever happen in the reader after new segments arrive.
     }
 
     @Override
     public boolean maybeRefresh(String source) throws EngineException {
-        ensureOpen();
-        try {
-            return readerManager.maybeRefresh();
-        } catch (IOException e) {
-            try {
-                failEngine("refresh failed source[" + source + "]", e);
-            } catch (Exception inner) {
-                e.addSuppressed(inner);
-            }
-            throw new RefreshFailedEngineException(shardId, e);
-        }
+        return false;
     }
 
     @Override

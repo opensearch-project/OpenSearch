@@ -45,9 +45,9 @@ import org.apache.lucene.index.MultiTerms;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.lucene.BytesRefs;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.search.SearchModule;
@@ -101,7 +101,7 @@ public abstract class SmoothingModelTestCase extends OpenSearchTestCase {
      */
     public void testFromXContent() throws IOException {
         SmoothingModel testModel = createTestModel();
-        XContentBuilder contentBuilder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
+        XContentBuilder contentBuilder = MediaTypeRegistry.contentBuilder(randomFrom(XContentType.values()));
         if (randomBoolean()) {
             contentBuilder.prettyPrint();
         }

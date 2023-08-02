@@ -49,14 +49,14 @@ public class PutPipelineRequestTests extends OpenSearchTestCase {
 
     public void testSerializationWithXContent() throws IOException {
         PutPipelineRequest request = new PutPipelineRequest("1", new BytesArray("{}".getBytes(StandardCharsets.UTF_8)), XContentType.JSON);
-        assertEquals(XContentType.JSON, request.getXContentType());
+        assertEquals(XContentType.JSON, request.getMediaType());
 
         BytesStreamOutput output = new BytesStreamOutput();
         request.writeTo(output);
         StreamInput in = StreamInput.wrap(output.bytes().toBytesRef().bytes);
 
         PutPipelineRequest serialized = new PutPipelineRequest(in);
-        assertEquals(XContentType.JSON, serialized.getXContentType());
+        assertEquals(XContentType.JSON, serialized.getMediaType());
         assertEquals("{}", serialized.getSource().utf8ToString());
     }
 
