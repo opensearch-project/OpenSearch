@@ -8,6 +8,7 @@
 
 package org.opensearch.remotestore;
 
+import org.junit.After;
 import org.junit.Before;
 import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStoreRequest;
 import org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStats;
@@ -44,6 +45,11 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
     @Before
     public void setup() {
         setupRepo();
+    }
+
+    @After
+    public void removeAllIndices() {
+        assertAcked(client().admin().indices().prepareDelete("*").get());
     }
 
     public void testStatsResponseFromAllNodes() {
@@ -432,22 +438,32 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
         assertEquals(destinationNode, replicaShardStat.getShardRouting().currentNodeId());
     }
 
-    public void testStatsOnShardUnassigned() throws IOException {
+    public void testStatsOnShardUnassigned() throws Exception {
         // Scenario:
-        // - Create index with single primary and two replica shard
+        // - Create index with single primary and N-1 replica shard (N = number of data nodes)
         // - Index documents
         // - Stop one data node
         // - Assert:
         // a. Total shard Count in the response object is equal to the previous node count
         // b. Successful shard count in the response object is equal to the new node count
-        createIndex(INDEX_NAME, remoteStoreIndexSettings(2, 1));
+        int initialDataNodeCount = client().admin().cluster().prepareHealth().get().getNumberOfDataNodes();
+        createIndex(INDEX_NAME, remoteStoreIndexSettings(initialDataNodeCount - 1, 1));
         ensureGreen(INDEX_NAME);
         indexDocs();
-        int dataNodeCountBeforeStop = client().admin().cluster().prepareHealth().get().getNumberOfDataNodes();
-        internalCluster().stopRandomDataNode();
+
+        // Recording stats before stopping node
         RemoteStoreStatsResponse response = client().admin().cluster().prepareRemoteStoreStats(INDEX_NAME, "0").get();
+        int totalShardsBeforeStop = response.getTotalShards();
+
+        // Stop one data node
+        internalCluster().stopRandomDataNode();
+        ensureYellowAndNoInitializingShards(INDEX_NAME);
         int dataNodeCountAfterStop = client().admin().cluster().prepareHealth().get().getNumberOfDataNodes();
-        assertEquals(dataNodeCountBeforeStop, response.getTotalShards());
+        assertEquals(initialDataNodeCount - 1, dataNodeCountAfterStop);
+
+        // Recording stats again
+        response = client().admin().cluster().prepareRemoteStoreStats(INDEX_NAME, "0").get();
+        assertEquals(totalShardsBeforeStop, response.getTotalShards());
         assertEquals(dataNodeCountAfterStop, response.getSuccessfulShards());
     }
 
