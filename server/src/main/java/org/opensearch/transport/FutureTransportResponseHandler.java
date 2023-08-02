@@ -32,6 +32,7 @@
 
 package org.opensearch.transport;
 
+import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.threadpool.ThreadPool;
 
 /**

@@ -41,7 +41,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.transport.TransportAddress;
+import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.gateway.GatewayMetaState;
 import org.opensearch.monitor.StatusInfo;
 import org.opensearch.test.OpenSearchTestCase;

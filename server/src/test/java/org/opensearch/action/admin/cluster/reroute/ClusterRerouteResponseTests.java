@@ -45,7 +45,7 @@ import org.opensearch.cluster.routing.allocation.command.AllocateReplicaAllocati
 import org.opensearch.cluster.routing.allocation.decider.Decision;
 import org.opensearch.common.Strings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.transport.TransportAddress;
+import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.json.JsonXContent;

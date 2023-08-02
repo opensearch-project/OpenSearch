@@ -30,12 +30,12 @@
  * GitHub history for details.
  */
 
-package org.opensearch.common.transport;
+package org.opensearch.core.common.transport;
 
+import org.opensearch.common.network.InetAddresses;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.common.network.InetAddresses;
 
 import java.io.IOException;
 
