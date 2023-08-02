@@ -39,10 +39,10 @@ import org.opensearch.action.support.IndicesOptions.WildcardStates;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContent.MapParams;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.test.OpenSearchTestCase;
@@ -430,7 +430,7 @@ public class IndicesOptionsTests extends OpenSearchTestCase {
         final boolean allowNoIndices = randomBoolean();
 
         BytesReference xContentBytes;
-        try (XContentBuilder builder = XContentFactory.contentBuilder(type)) {
+        try (XContentBuilder builder = MediaTypeRegistry.contentBuilder(type)) {
             builder.startObject();
             builder.field("expand_wildcards", "all");
             builder.field("ignore_unavailable", ignoreUnavailable);
@@ -449,7 +449,7 @@ public class IndicesOptionsTests extends OpenSearchTestCase {
         assertTrue(fromXContentOptions.expandWildcardsHidden());
         assertTrue(fromXContentOptions.expandWildcardsOpen());
 
-        try (XContentBuilder builder = XContentFactory.contentBuilder(type)) {
+        try (XContentBuilder builder = MediaTypeRegistry.contentBuilder(type)) {
             builder.startObject();
             builder.field("expand_wildcards", "none");
             builder.field("ignore_unavailable", ignoreUnavailable);
@@ -469,7 +469,7 @@ public class IndicesOptionsTests extends OpenSearchTestCase {
     }
 
     private BytesReference toXContentBytes(IndicesOptions indicesOptions, XContentType type) throws IOException {
-        try (XContentBuilder builder = XContentFactory.contentBuilder(type)) {
+        try (XContentBuilder builder = MediaTypeRegistry.contentBuilder(type)) {
             builder.startObject();
             indicesOptions.toXContent(builder, new MapParams(Collections.emptyMap()));
             builder.endObject();

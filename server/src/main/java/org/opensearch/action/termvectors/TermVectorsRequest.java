@@ -41,6 +41,7 @@ import org.opensearch.action.ValidateActions;
 import org.opensearch.action.get.MultiGetRequest;
 import org.opensearch.action.support.single.shard.SingleShardRequest;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
@@ -49,10 +50,9 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.mapper.MapperService;
 
@@ -95,7 +95,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
 
     private BytesReference doc;
 
-    private XContentType xContentType;
+    private MediaType mediaType;
 
     private String routing;
 
@@ -187,7 +187,11 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
 
         if (in.readBoolean()) {
             doc = in.readBytesReference();
-            xContentType = in.readEnum(XContentType.class);
+            if (in.getVersion().onOrAfter(Version.V_2_10_0)) {
+                mediaType = in.readMediaType();
+            } else {
+                mediaType = in.readEnum(XContentType.class);
+            }
         }
         routing = in.readOptionalString();
 
@@ -240,7 +244,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
         this.id = other.id();
         if (other.doc != null) {
             this.doc = new BytesArray(other.doc().toBytesRef(), true);
-            this.xContentType = other.xContentType;
+            this.mediaType = other.mediaType;
         }
         this.flagsEnum = other.getFlags().clone();
         this.preference = other.preference();
@@ -290,8 +294,8 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
         return doc;
     }
 
-    public XContentType xContentType() {
-        return xContentType;
+    public MediaType xContentType() {
+        return mediaType;
     }
 
     /**
@@ -307,19 +311,19 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
      */
     @Deprecated
     public TermVectorsRequest doc(BytesReference doc, boolean generateRandomId) {
-        return this.doc(doc, generateRandomId, XContentHelper.xContentType(doc));
+        return this.doc(doc, generateRandomId, MediaTypeRegistry.xContentType(doc));
     }
 
     /**
      * Sets an artificial document from which term vectors are requested for.
      */
-    public TermVectorsRequest doc(BytesReference doc, boolean generateRandomId, MediaType xContentType) {
+    public TermVectorsRequest doc(BytesReference doc, boolean generateRandomId, MediaType mediaType) {
         // assign a random id to this artificial document, for routing
         if (generateRandomId) {
             this.id(String.valueOf(randomInt.getAndAdd(1)));
         }
         this.doc = doc;
-        this.xContentType = XContentType.fromMediaType(xContentType);
+        this.mediaType = mediaType;
         return this;
     }
 
@@ -539,7 +543,11 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
         out.writeBoolean(doc != null);
         if (doc != null) {
             out.writeBytesReference(doc);
-            out.writeEnum(xContentType);
+            if (out.getVersion().onOrAfter(Version.V_2_10_0)) {
+                mediaType.writeTo(out);
+            } else {
+                out.writeEnum((XContentType) mediaType);
+            }
         }
         out.writeOptionalString(routing);
         if (out.getVersion().before(LegacyESVersion.V_7_0_0)) {

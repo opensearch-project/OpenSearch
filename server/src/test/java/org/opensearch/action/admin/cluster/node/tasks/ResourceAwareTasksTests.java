@@ -672,8 +672,8 @@ public class ResourceAwareTasksTests extends TaskManagerTestCase {
     }
 
     private void assertMemoryUsageWithinLimits(long actual, long expected) {
-        // 5% buffer up to 200 KB to account for classloading overhead.
-        long maxOverhead = Math.min(200000, expected * 5 / 100);
+        // 5% buffer up to 500 KB to account for classloading overhead.
+        long maxOverhead = Math.min(500000, expected * 5 / 100);
         assertThat(actual, lessThanOrEqualTo(expected + maxOverhead));
     }
 

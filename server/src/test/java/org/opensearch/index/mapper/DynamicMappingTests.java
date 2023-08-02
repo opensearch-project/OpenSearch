@@ -367,9 +367,7 @@ public class DynamicMappingTests extends MapperServiceTestCase {
                 .field("quux", "3.2") // float detected through numeric detection
                 .endObject()
         );
-        ParsedDocument parsedDocument = mapper.parse(
-            new SourceToParse("index", "id", source, XContentType.fromMediaType(builder.contentType()))
-        );
+        ParsedDocument parsedDocument = mapper.parse(new SourceToParse("index", "id", source, builder.contentType()));
         Mapping update = parsedDocument.dynamicMappingsUpdate();
         assertNotNull(update);
         assertThat(((FieldMapper) update.root().getMapper("foo")).fieldType().typeName(), equalTo("float"));

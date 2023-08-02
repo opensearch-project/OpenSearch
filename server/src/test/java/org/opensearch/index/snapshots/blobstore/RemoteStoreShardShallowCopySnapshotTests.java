@@ -10,9 +10,9 @@ package org.opensearch.index.snapshots.blobstore;
 
 import org.opensearch.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
@@ -177,7 +177,7 @@ public class RemoteStoreShardShallowCopySnapshotTests extends OpenSearchTestCase
                     fail("shouldn't be here");
             }
 
-            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+            XContentBuilder builder = MediaTypeRegistry.contentBuilder(XContentType.JSON);
             builder.startObject();
             builder.field(RemoteStoreShardShallowCopySnapshot.VERSION, version);
             builder.field(RemoteStoreShardShallowCopySnapshot.NAME, snapshot);

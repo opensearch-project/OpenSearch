@@ -33,9 +33,9 @@
 package org.opensearch.script.mustache;
 
 import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentParseException;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
@@ -101,7 +101,7 @@ public class SearchTemplateRequestXContentTests extends AbstractXContentTestCase
         request.setScriptParams(scriptParams);
 
         XContentType contentType = randomFrom(XContentType.values());
-        XContentBuilder expectedRequest = XContentFactory.contentBuilder(contentType)
+        XContentBuilder expectedRequest = MediaTypeRegistry.contentBuilder(contentType)
             .startObject()
             .field("source", "{\"query\": { \"match\" : { \"{{my_field}}\" : \"{{my_value}}\" } } }")
             .startObject("params")
@@ -112,7 +112,7 @@ public class SearchTemplateRequestXContentTests extends AbstractXContentTestCase
             .field("profile", true)
             .endObject();
 
-        XContentBuilder actualRequest = XContentFactory.contentBuilder(contentType);
+        XContentBuilder actualRequest = MediaTypeRegistry.contentBuilder(contentType);
         request.toXContent(actualRequest, ToXContent.EMPTY_PARAMS);
 
         assertToXContentEquivalent(BytesReference.bytes(expectedRequest), BytesReference.bytes(actualRequest), contentType);
@@ -131,7 +131,7 @@ public class SearchTemplateRequestXContentTests extends AbstractXContentTestCase
         request.setScriptParams(params);
 
         XContentType contentType = randomFrom(XContentType.values());
-        XContentBuilder expectedRequest = XContentFactory.contentBuilder(contentType)
+        XContentBuilder expectedRequest = MediaTypeRegistry.contentBuilder(contentType)
             .startObject()
             .field("id", "match_template")
             .startObject("params")
@@ -142,7 +142,7 @@ public class SearchTemplateRequestXContentTests extends AbstractXContentTestCase
             .field("profile", false)
             .endObject();
 
-        XContentBuilder actualRequest = XContentFactory.contentBuilder(contentType);
+        XContentBuilder actualRequest = MediaTypeRegistry.contentBuilder(contentType);
         request.toXContent(actualRequest, ToXContent.EMPTY_PARAMS);
 
         assertToXContentEquivalent(BytesReference.bytes(expectedRequest), BytesReference.bytes(actualRequest), contentType);

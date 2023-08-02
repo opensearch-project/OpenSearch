@@ -40,8 +40,8 @@ class CheckCompatibilityTask extends DefaultTask {
 
     @TaskAction
     void checkCompatibility() {
-        logger.info("Checking compatibility for: $repositoryUrls for $ref")
         repositoryUrls.parallelStream().forEach { repositoryUrl ->
+            logger.lifecycle("Checking compatibility for: $repositoryUrl with ref: $ref")
             def tempDir = File.createTempDir()
             try {
                 if (cloneAndCheckout(repositoryUrl, tempDir)) {
@@ -81,8 +81,16 @@ class CheckCompatibilityTask extends DefaultTask {
 
     protected static List getRepoUrls() {
         def json = new JsonSlurper().parse(REPO_URL.toURL())
-        def labels = json.projects.values()
-        return labels as List
+        def repository = json.projects.values()
+        def repoUrls = replaceSshWithHttps(repository as List)
+        return repoUrls
+    }
+
+    protected static replaceSshWithHttps(List<String> repoList) {
+        repoList.replaceAll { element ->
+            element.replace("git@github.com:", "https://github.com/")
+        }
+        return repoList
     }
 
     protected boolean cloneAndCheckout(repoUrl, directory) {

@@ -54,7 +54,6 @@ import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.persistent.PersistentTasksCustomMetadata.Assignment;
@@ -204,7 +203,7 @@ public class PersistentTasksCustomMetadataTests extends AbstractDiffableSerializ
         BytesReference shuffled = toShuffledXContent(testInstance, xContentType, params, false);
 
         PersistentTasksCustomMetadata newInstance;
-        try (XContentParser parser = createParser(XContentFactory.xContent(xContentType), shuffled)) {
+        try (XContentParser parser = createParser(xContentType.xContent(), shuffled)) {
             newInstance = doParseInstance(parser);
         }
         assertNotSame(newInstance, testInstance);
