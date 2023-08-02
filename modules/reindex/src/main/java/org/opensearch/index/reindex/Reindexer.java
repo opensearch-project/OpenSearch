@@ -47,7 +47,7 @@ import org.apache.hc.core5.reactor.IOReactorConfig;
 import org.apache.hc.core5.util.Timeout;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.DocWriteRequest;
 import org.opensearch.action.bulk.BackoffPolicy;
 import org.opensearch.action.bulk.BulkItemResponse;

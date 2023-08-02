@@ -33,7 +33,7 @@
 package org.opensearch.action.support.broadcast.node;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.NoShardAvailableActionException;

@@ -33,7 +33,7 @@
 package org.opensearch.indices.cluster;
 
 import org.junit.Before;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;

@@ -33,7 +33,7 @@
 package org.opensearch.transport.netty4;
 
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.network.NetworkService;

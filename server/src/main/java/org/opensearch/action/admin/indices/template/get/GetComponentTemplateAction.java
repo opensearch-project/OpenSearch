@@ -33,7 +33,7 @@
 package org.opensearch.action.admin.indices.template.get;
 
 import org.opensearch.action.ActionRequestValidationException;
-import org.opensearch.action.ActionResponse;
+import org.opensearch.core.action.ActionResponse;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeReadRequest;
 import org.opensearch.cluster.metadata.ComponentTemplate;

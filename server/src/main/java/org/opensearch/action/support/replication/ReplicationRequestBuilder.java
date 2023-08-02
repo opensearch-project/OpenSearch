@@ -34,7 +34,7 @@ package org.opensearch.action.support.replication;
 
 import org.opensearch.action.ActionType;
 import org.opensearch.action.ActionRequestBuilder;
-import org.opensearch.action.ActionResponse;
+import org.opensearch.core.action.ActionResponse;
 import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.unit.TimeValue;

@@ -33,7 +33,7 @@
 package org.opensearch.action.admin.indices.get;
 
 import org.opensearch.Version;
-import org.opensearch.action.ActionResponse;
+import org.opensearch.core.action.ActionResponse;
 import org.opensearch.cluster.metadata.AliasMetadata;
 import org.opensearch.cluster.metadata.MappingMetadata;
 import org.opensearch.core.common.Strings;

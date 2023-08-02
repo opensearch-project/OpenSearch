@@ -34,7 +34,7 @@ package org.opensearch.action.support.replication;
 
 import org.hamcrest.MatcherAssert;
 import org.opensearch.OpenSearchException;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.ActionTestUtils;
 import org.opensearch.action.support.PlainActionFuture;

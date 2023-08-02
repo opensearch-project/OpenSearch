@@ -32,10 +32,10 @@
 package org.opensearch.transport;
 
 import org.opensearch.action.ActionType;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.ActionListenerResponseHandler;
 import org.opensearch.action.ActionRequest;
-import org.opensearch.action.ActionResponse;
+import org.opensearch.core.action.ActionResponse;
 import org.opensearch.client.Client;
 import org.opensearch.client.support.AbstractClient;
 import org.opensearch.cluster.node.DiscoveryNode;

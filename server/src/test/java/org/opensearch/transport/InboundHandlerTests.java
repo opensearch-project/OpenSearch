@@ -37,7 +37,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.bytes.ReleasableBytesReference;
@@ -90,7 +90,7 @@ public class InboundHandlerTests extends OpenSearchTestCase {
         super.setUp();
         taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
         channel = new FakeTcpChannel(randomBoolean(), buildNewFakeTransportAddress().address(), buildNewFakeTransportAddress().address()) {
-            public void sendMessage(BytesReference reference, org.opensearch.action.ActionListener<Void> listener) {
+            public void sendMessage(BytesReference reference, ActionListener<Void> listener) {
                 super.sendMessage(reference, listener);
                 if (listener != null) {
                     listener.onResponse(null);

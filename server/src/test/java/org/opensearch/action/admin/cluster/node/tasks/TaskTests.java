@@ -35,11 +35,11 @@ import org.opensearch.action.search.SearchAction;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.tasks.Task;
-import org.opensearch.tasks.TaskId;
+import org.opensearch.core.tasks.TaskId;
 import org.opensearch.tasks.TaskInfo;
-import org.opensearch.tasks.ResourceUsageMetric;
-import org.opensearch.tasks.ResourceStats;
-import org.opensearch.tasks.ResourceStatsType;
+import org.opensearch.core.tasks.resourcetracker.ResourceUsageMetric;
+import org.opensearch.core.tasks.resourcetracker.ResourceStats;
+import org.opensearch.core.tasks.resourcetracker.ResourceStatsType;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.nio.charset.StandardCharsets;

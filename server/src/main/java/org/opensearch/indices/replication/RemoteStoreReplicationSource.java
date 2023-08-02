@@ -14,7 +14,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.Version;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardState;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;

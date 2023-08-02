@@ -8,7 +8,7 @@
 
 package org.opensearch.index.translog.transfer;
 
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.service.ClusterService;

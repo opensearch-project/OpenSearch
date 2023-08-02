@@ -36,7 +36,7 @@ import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelPromise;
 import org.opensearch.ExceptionsHelper;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.common.Nullable;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.concurrent.CompletableContext;

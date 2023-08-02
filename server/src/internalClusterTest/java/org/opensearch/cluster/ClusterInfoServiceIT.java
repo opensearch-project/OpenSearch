@@ -33,7 +33,7 @@
 package org.opensearch.cluster;
 
 import org.opensearch.OpenSearchException;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsAction;
 import org.opensearch.action.admin.indices.stats.IndicesStatsAction;

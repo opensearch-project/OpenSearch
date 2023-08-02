@@ -33,7 +33,7 @@
 package org.opensearch.search.functionscore;
 
 import org.opensearch.Version;
-import org.opensearch.action.ActionFuture;
+import org.opensearch.common.action.ActionFuture;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.SearchResponse;

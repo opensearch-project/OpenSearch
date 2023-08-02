@@ -28,7 +28,7 @@ import org.junit.Assert;
 import org.mockito.Mockito;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchCorruptionException;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexSettings;

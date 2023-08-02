@@ -33,9 +33,9 @@ package org.opensearch.action.admin.indices.datastream;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.ActionRequestValidationException;
-import org.opensearch.action.ActionResponse;
+import org.opensearch.core.action.ActionResponse;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.support.ActionFilters;

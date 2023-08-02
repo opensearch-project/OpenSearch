@@ -34,7 +34,7 @@ package org.opensearch.action.admin.indices.mapping.get;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.clustermanager.info.TransportClusterInfoAction;
 import org.opensearch.cluster.ClusterState;

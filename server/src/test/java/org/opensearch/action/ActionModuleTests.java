@@ -46,6 +46,8 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.common.settings.SettingsModule;
 import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.action.ActionResponse;
 import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.identity.IdentityService;
 import org.opensearch.plugins.ActionPlugin;

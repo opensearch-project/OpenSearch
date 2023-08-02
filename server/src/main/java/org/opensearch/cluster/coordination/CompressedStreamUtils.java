@@ -13,7 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.Version;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.common.compress.Compressor;
+import org.opensearch.core.common.compress.Compressor;
 import org.opensearch.common.compress.CompressorFactory;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.io.stream.InputStreamStreamInput;

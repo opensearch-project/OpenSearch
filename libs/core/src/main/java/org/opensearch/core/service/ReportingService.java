@@ -30,7 +30,7 @@
  * GitHub history for details.
  */
 
-package org.opensearch.node;
+package org.opensearch.core.service;
 
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.ToXContent;

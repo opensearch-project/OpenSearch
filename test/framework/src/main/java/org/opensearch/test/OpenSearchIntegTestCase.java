@@ -44,7 +44,7 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.DocWriteResponse;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;

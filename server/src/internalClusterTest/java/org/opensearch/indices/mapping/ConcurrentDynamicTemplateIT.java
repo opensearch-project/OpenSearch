@@ -32,7 +32,7 @@
 
 package org.opensearch.indices.mapping;
 
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.test.OpenSearchIntegTestCase;

@@ -41,7 +41,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.UnavailableShardsException;
 import org.opensearch.action.admin.indices.close.CloseIndexRequest;
 import org.opensearch.action.admin.indices.create.CreateIndexRequest;

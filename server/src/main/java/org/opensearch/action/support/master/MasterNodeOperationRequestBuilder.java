@@ -33,7 +33,7 @@
 package org.opensearch.action.support.master;
 
 import org.opensearch.action.ActionType;
-import org.opensearch.action.ActionResponse;
+import org.opensearch.core.action.ActionResponse;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 
