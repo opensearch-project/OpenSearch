@@ -37,6 +37,7 @@ import com.carrotsearch.randomizedtesting.annotations.TestGroup;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.http.HttpHost;
+import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.tests.util.LuceneTestCase;
@@ -136,6 +137,7 @@ import org.opensearch.index.MergeSchedulerConfig;
 import org.opensearch.index.MockEngineFactoryPlugin;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.engine.Segment;
+import org.opensearch.index.mapper.CompletionFieldMapper;
 import org.opensearch.index.mapper.MockFieldFilterPlugin;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.Translog;
@@ -371,6 +373,17 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
     private static OpenSearchIntegTestCase INSTANCE = null; // see @SuiteScope
     private static Long SUITE_SEED = null;
 
+    /**
+     * The lucene_default {@link Codec} is not added to the list as it internally maps to Asserting {@link Codec}.
+     * The override to fetch the {@link CompletionFieldMapper.CompletionFieldType} postings format is not available for this codec.
+     */
+    public static List<String> CODECS = List.of(
+        CodecService.DEFAULT_CODEC,
+        CodecService.BEST_COMPRESSION_CODEC,
+        CodecService.ZSTD_CODEC,
+        CodecService.ZSTD_NO_DICT_CODEC
+    );
+
     @BeforeClass
     public static void beforeClass() throws Exception {
         SUITE_SEED = randomLong();
@@ -434,7 +447,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             // otherwise, use it, it has assertions and so on that can find bugs.
             SuppressCodecs annotation = getClass().getAnnotation(SuppressCodecs.class);
             if (annotation != null && annotation.value().length == 1 && "*".equals(annotation.value()[0])) {
-                randomSettingsBuilder.put("index.codec", randomFrom(CodecService.DEFAULT_CODEC, CodecService.BEST_COMPRESSION_CODEC));
+                randomSettingsBuilder.put("index.codec", randomFrom(CODECS));
             } else {
                 randomSettingsBuilder.put("index.codec", CodecService.LUCENE_DEFAULT_CODEC);
             }
