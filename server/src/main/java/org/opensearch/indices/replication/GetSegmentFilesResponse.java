@@ -33,6 +33,10 @@ public class GetSegmentFilesResponse extends TransportResponse {
         out.readList(StoreFileMetadata::new);
     }
 
+    public List<StoreFileMetadata> getFiles() {
+        return files;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeCollection(files);
