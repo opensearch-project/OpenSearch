@@ -121,8 +121,8 @@ public class BlobStoreRepositoryTests extends OpenSearchSingleNodeTestCase {
     }
 
     @Override
-    protected Settings nodeSettings() {
-        return Settings.builder().put(super.nodeSettings()).put(FeatureFlags.REMOTE_STORE, "true").build();
+    protected Settings featureFlagSettings() {
+        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.REMOTE_STORE, "true").build();
     }
 
     public void testRetrieveSnapshots() throws Exception {
