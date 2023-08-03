@@ -790,8 +790,8 @@ public class PluginsServiceTests extends OpenSearchTestCase {
         assertThat(e.getMessage(), containsString("was built for OpenSearch version 6.0.0"));
     }
 
-    public void testPluginCompatibleWhenSemVerRangeNotSpecified() throws Exception {
-        // When semVer range is not specified, plugin is required to have same version as the core (Version.CURRENT)
+    public void testPluginCompatibilityDefaultBehavior() throws Exception {
+        // Plugin is required to have same version as the core (Version.CURRENT)
         PluginInfo info = new PluginInfo(
             "my_plugin",
             "desc",
@@ -806,8 +806,8 @@ public class PluginsServiceTests extends OpenSearchTestCase {
         PluginsService.verifyCompatibility(info);
     }
 
-    public void testPluginIncompatibleWhenSemVerRangeNotSpecified() throws Exception {
-        // When semVer range is not specified, differing patch version is not allowed
+    public void testPluginIncompatibleIfPatchVersionMismatches() throws Exception {
+        // Differing patch version is not allowed by default
         Version coreVersion = Version.CURRENT;
         Version pluginVersion = VersionUtils.getVersion(coreVersion.major, coreVersion.minor, (byte) (coreVersion.revision + 1));
         PluginInfo info = new PluginInfo(
@@ -825,34 +825,64 @@ public class PluginsServiceTests extends OpenSearchTestCase {
         assertThat(e.getMessage(), containsString("was built for OpenSearch version"));
     }
 
-    public void testPluginCompatibilityWhenSemVerRangeSpecified() {
+    public void testPluginCompatibilityWhenPluginOptsIntoPatchVersionVariability() {
         // Compatible plugin and core versions
-        assertTrue(PluginsService.isPluginVersionCompatible(getSemverCompatiblePluginInfoForVersion("1.0.0"), Version.fromString("1.0.0")));
-        assertTrue(PluginsService.isPluginVersionCompatible(getSemverCompatiblePluginInfoForVersion("1.0.0"), Version.fromString("1.0.1")));
-        assertTrue(PluginsService.isPluginVersionCompatible(getSemverCompatiblePluginInfoForVersion("1.0.1"), Version.fromString("1.0.0")));
+        assertTrue(
+            PluginsService.isPluginVersionCompatible(
+                getPluginInfoWithCompatibilityAcrossPatchVersions("1.0.0"),
+                Version.fromString("1.0.0")
+            )
+        );
+        assertTrue(
+            PluginsService.isPluginVersionCompatible(
+                getPluginInfoWithCompatibilityAcrossPatchVersions("1.0.0"),
+                Version.fromString("1.0.1")
+            )
+        );
+        assertTrue(
+            PluginsService.isPluginVersionCompatible(
+                getPluginInfoWithCompatibilityAcrossPatchVersions("1.0.1"),
+                Version.fromString("1.0.0")
+            )
+        );
 
         // Incompatible plugin and core versions
         // Different minor versions
         assertFalse(
-            PluginsService.isPluginVersionCompatible(getSemverCompatiblePluginInfoForVersion("1.0.0"), Version.fromString("1.1.0"))
+            PluginsService.isPluginVersionCompatible(
+                getPluginInfoWithCompatibilityAcrossPatchVersions("1.0.0"),
+                Version.fromString("1.1.0")
+            )
         );
         assertFalse(
-            PluginsService.isPluginVersionCompatible(getSemverCompatiblePluginInfoForVersion("1.1.0"), Version.fromString("1.0.0"))
+            PluginsService.isPluginVersionCompatible(
+                getPluginInfoWithCompatibilityAcrossPatchVersions("1.1.0"),
+                Version.fromString("1.0.0")
+            )
         );
         // Different major versions
         assertFalse(
-            PluginsService.isPluginVersionCompatible(getSemverCompatiblePluginInfoForVersion("1.0.0"), Version.fromString("2.0.0"))
+            PluginsService.isPluginVersionCompatible(
+                getPluginInfoWithCompatibilityAcrossPatchVersions("1.0.0"),
+                Version.fromString("2.0.0")
+            )
         );
         assertFalse(
-            PluginsService.isPluginVersionCompatible(getSemverCompatiblePluginInfoForVersion("2.0.0"), Version.fromString("1.0.0"))
+            PluginsService.isPluginVersionCompatible(
+                getPluginInfoWithCompatibilityAcrossPatchVersions("2.0.0"),
+                Version.fromString("1.0.0")
+            )
         );
         // Different major and minor versions
         assertFalse(
-            PluginsService.isPluginVersionCompatible(getSemverCompatiblePluginInfoForVersion("1.2.0"), Version.fromString("2.1.0"))
+            PluginsService.isPluginVersionCompatible(
+                getPluginInfoWithCompatibilityAcrossPatchVersions("1.2.0"),
+                Version.fromString("2.1.0")
+            )
         );
     }
 
-    private PluginInfo getSemverCompatiblePluginInfoForVersion(String version) {
+    private PluginInfo getPluginInfoWithCompatibilityAcrossPatchVersions(String version) {
         return new PluginInfo(
             "my_plugin",
             "desc",

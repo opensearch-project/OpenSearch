@@ -877,18 +877,20 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
         assertThat(e.getMessage(), containsString("Unknown plugin unknown_plugin"));
     }
 
-    public void testInstallPluginDifferingInPatchVersionAllowed() throws Exception {
+    public void testInstallPluginWithDifferentPatchVersionIfPluginOptsIn() throws Exception {
         Tuple<Path, Environment> env = createEnv(fs, temp);
         Path pluginDir = createPluginDir(temp);
         Version coreVersion = Version.CURRENT;
         Version pluginVersion = VersionUtils.getVersion(coreVersion.major, coreVersion.minor, (byte) (coreVersion.revision + 1));
-        // Plugin explicitly specifies semVer range compatibility so patch version is not checked
-        String pluginZip = createPlugin("fake", pluginDir, pluginVersion, "is.semVer.range.compatible", "true").toUri().toURL().toString();
+        // Plugin explicitly specifies compatibility across patch versions
+        String pluginZip = createPlugin("fake", pluginDir, pluginVersion, "compatible.across.patch.versions", "true").toUri()
+            .toURL()
+            .toString();
         skipJarHellCommand.execute(terminal, Collections.singletonList(pluginZip), false, env.v2());
         assertThat(terminal.getOutput(), containsString("100%"));
     }
 
-    public void testInstallPluginDifferingInPatchVersionNotAllowed() throws Exception {
+    public void testInstallPluginWithDifferentPatchVersionNotAllowedByDefault() throws Exception {
         Tuple<Path, Environment> env = createEnv(fs, temp);
         Path pluginDir = createPluginDir(temp);
         Version coreVersion = Version.CURRENT;

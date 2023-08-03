@@ -75,7 +75,7 @@ public class PluginInfoTests extends OpenSearchTestCase {
         assertEquals("1.0", info.getVersion());
         assertEquals("FakePlugin", info.getClassname());
         assertThat(info.getExtendedPlugins(), empty());
-        assertEquals(info.isSemVerRangeCompatible(), false);
+        assertEquals(info.compatibleAcrossPatchVersions(), false);
     }
 
     public void testReadFromPropertiesWithFolderNameAndVersionAfter() throws Exception {
@@ -288,7 +288,7 @@ public class PluginInfoTests extends OpenSearchTestCase {
         assertThat(info.getExtendedPlugins(), empty());
     }
 
-    public void testReadFromPropertiesSemVerRangeCompatible() throws Exception {
+    public void testReadFromPropertiesPluginCompatibleAcrossPatchVersions() throws Exception {
         Path pluginDir = createTempDir().resolve("fake-plugin");
         PluginTestUtil.writePluginProperties(
             pluginDir,
@@ -304,14 +304,14 @@ public class PluginInfoTests extends OpenSearchTestCase {
             System.getProperty("java.specification.version"),
             "classname",
             "FakePlugin",
-            "is.semVer.range.compatible",
+            "compatible.across.patch.versions",
             "true"
         );
         PluginInfo info = PluginInfo.readFromProperties(pluginDir);
-        assertEquals(true, info.isSemVerRangeCompatible());
+        assertEquals(true, info.compatibleAcrossPatchVersions());
     }
 
-    public void testReadFromPropertiesSemVerRangeNotCompatible() throws Exception {
+    public void testReadFromPropertiesPluginNotCompatibleAcrossPatchVersions() throws Exception {
         Path pluginDir = createTempDir().resolve("fake-plugin");
         PluginTestUtil.writePluginProperties(
             pluginDir,
@@ -327,11 +327,11 @@ public class PluginInfoTests extends OpenSearchTestCase {
             System.getProperty("java.specification.version"),
             "classname",
             "FakePlugin",
-            "is.semVer.range.compatible",
+            "compatible.across.patch.versions",
             "false"
         );
         PluginInfo info = PluginInfo.readFromProperties(pluginDir);
-        assertEquals(false, info.isSemVerRangeCompatible());
+        assertEquals(false, info.compatibleAcrossPatchVersions());
     }
 
     public void testSerialize() throws Exception {

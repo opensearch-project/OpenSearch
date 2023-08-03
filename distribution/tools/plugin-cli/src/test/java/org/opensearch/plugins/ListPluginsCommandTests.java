@@ -173,7 +173,7 @@ public class ListPluginsCommandTests extends OpenSearchTestCase {
                 "Extended Plugins: []",
                 " * Classname: org.fake",
                 "Folder name: custom-folder",
-                "SemVer Range Compatible: false"
+                "Compatible across patch versions: false"
             ),
             terminal.getOutput()
         );
@@ -197,7 +197,7 @@ public class ListPluginsCommandTests extends OpenSearchTestCase {
                 "Extended Plugins: []",
                 " * Classname: org.fake",
                 "Folder name: custom-folder",
-                "SemVer Range Compatible: false"
+                "Compatible across patch versions: false"
             ),
             terminal.getOutput()
         );
@@ -222,7 +222,7 @@ public class ListPluginsCommandTests extends OpenSearchTestCase {
                 "Extended Plugins: []",
                 " * Classname: org.fake",
                 "Folder name: custom-folder",
-                "SemVer Range Compatible: false",
+                "Compatible across patch versions: false",
                 "fake_plugin2",
                 "- Plugin information:",
                 "Name: fake_plugin2",
@@ -234,7 +234,7 @@ public class ListPluginsCommandTests extends OpenSearchTestCase {
                 "Extended Plugins: []",
                 " * Classname: org.fake2",
                 "Folder name: custom-folder",
-                "SemVer Range Compatible: false"
+                "Compatible across patch versions: false"
             ),
             terminal.getOutput()
         );

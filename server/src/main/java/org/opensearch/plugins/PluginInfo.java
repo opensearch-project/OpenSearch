@@ -75,7 +75,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
     private final String customFolderName;
     private final List<String> extendedPlugins;
     private final boolean hasNativeController;
-    private final boolean isSemVerRangeCompatible;
+    private final boolean compatibleAcrossPatchVersions;
 
     /**
      * Construct plugin info.
@@ -89,7 +89,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
      * @param customFolderName          the custom folder name for the plugin
      * @param extendedPlugins           other plugins this plugin extends through SPI
      * @param hasNativeController       whether or not the plugin has a native controller
-     * @param isSemVerRangeCompatible   whether or not the plugin specifies a semVer range of compatible versions
+     * @param compatibleAcrossPatchVersions   whether or not the plugin is compatible across patch versions
      */
     public PluginInfo(
         String name,
@@ -101,7 +101,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
         String customFolderName,
         List<String> extendedPlugins,
         boolean hasNativeController,
-        boolean isSemVerRangeCompatible
+        boolean compatibleAcrossPatchVersions
     ) {
         this.name = name;
         this.description = description;
@@ -112,7 +112,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
         this.customFolderName = customFolderName;
         this.extendedPlugins = Collections.unmodifiableList(extendedPlugins);
         this.hasNativeController = hasNativeController;
-        this.isSemVerRangeCompatible = isSemVerRangeCompatible;
+        this.compatibleAcrossPatchVersions = compatibleAcrossPatchVersions;
     }
 
     /**
@@ -126,7 +126,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
      * @param classname                 the entry point to the plugin
      * @param extendedPlugins           other plugins this plugin extends through SPI
      * @param hasNativeController       whether or not the plugin has a native controller
-     * @param isSemVerRangeCompatible   whether or not the plugin specifies a semVer range of compatible versions
+     * @param compatibleAcrossPatchVersions   whether or not the plugin is compatible with all patch versions
      */
     public PluginInfo(
         String name,
@@ -137,7 +137,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
         String classname,
         List<String> extendedPlugins,
         boolean hasNativeController,
-        boolean isSemVerRangeCompatible
+        boolean compatibleAcrossPatchVersions
     ) {
         this(
             name,
@@ -149,7 +149,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
             null /* customFolderName */,
             extendedPlugins,
             hasNativeController,
-            isSemVerRangeCompatible
+            compatibleAcrossPatchVersions
         );
     }
 
@@ -169,7 +169,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
         this.customFolderName = in.readString();
         this.extendedPlugins = in.readStringList();
         this.hasNativeController = in.readBoolean();
-        this.isSemVerRangeCompatible = in.readBoolean();
+        this.compatibleAcrossPatchVersions = in.readBoolean();
     }
 
     @Override
@@ -187,7 +187,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
         }
         out.writeStringCollection(extendedPlugins);
         out.writeBoolean(hasNativeController);
-        out.writeBoolean(isSemVerRangeCompatible);
+        out.writeBoolean(compatibleAcrossPatchVersions);
     }
 
     /**
@@ -252,8 +252,12 @@ public class PluginInfo implements Writeable, ToXContentObject {
         final String hasNativeControllerValue = propsMap.remove("has.native.controller");
         final boolean hasNativeController = getBooleanProperty("has.native.controller", hasNativeControllerValue, false);
 
-        final String isSemVerRangeCompatibleValue = propsMap.remove("is.semVer.range.compatible");
-        final boolean isSemVerRangeCompatible = getBooleanProperty("is.semVer.range.compatible", isSemVerRangeCompatibleValue, false);
+        final String compatibleAcrossPatchVersionsValue = propsMap.remove("compatible.across.patch.versions");
+        final boolean compatibleAcrossPatchVersions = getBooleanProperty(
+            "compatible.across.patch.versions",
+            compatibleAcrossPatchVersionsValue,
+            false
+        );
 
         if (propsMap.isEmpty() == false) {
             throw new IllegalArgumentException("Unknown properties in plugin descriptor: " + propsMap.keySet());
@@ -269,7 +273,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
             customFolderName,
             extendedPlugins,
             hasNativeController,
-            isSemVerRangeCompatible
+            compatibleAcrossPatchVersions
         );
     }
 
@@ -377,11 +381,11 @@ public class PluginInfo implements Writeable, ToXContentObject {
     }
 
     /**
-     * Whether or not the plugin specifies a semVer range of compatible versions.
-     * @return {@code true} if the plugin specifies a semVer range of compatible versions, {@code false} otherwise.
+     * Whether or not the plugin is compatible with all patch versions for given opensearch version
+     * @return {@code true} if the plugin is compatible with all patch versions, {@code false} otherwise.
      */
-    public boolean isSemVerRangeCompatible() {
-        return isSemVerRangeCompatible;
+    public boolean compatibleAcrossPatchVersions() {
+        return compatibleAcrossPatchVersions;
     }
 
     /**
@@ -406,7 +410,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
             builder.field("custom_foldername", customFolderName);
             builder.field("extended_plugins", extendedPlugins);
             builder.field("has_native_controller", hasNativeController);
-            builder.field("is_semVer_range_compatible", isSemVerRangeCompatible);
+            builder.field("compatible_across_patch_versions", compatibleAcrossPatchVersions);
         }
         builder.endObject();
 
@@ -477,8 +481,8 @@ public class PluginInfo implements Writeable, ToXContentObject {
             .append(customFolderName)
             .append("\n")
             .append(prefix)
-            .append("SemVer Range Compatible: ")
-            .append(isSemVerRangeCompatible);
+            .append("Compatible across patch versions: ")
+            .append(compatibleAcrossPatchVersions);
         return information.toString();
     }
 }

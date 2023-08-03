@@ -410,8 +410,8 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
      */
     static boolean isPluginVersionCompatible(final PluginInfo pluginInfo, final Version coreVersion) {
         final Version pluginVersion = pluginInfo.getOpenSearchVersion();
-        if (pluginInfo.isSemVerRangeCompatible()) {
-            // Ignore patch version if plugin is specifying semVer range compatibility
+        if (pluginInfo.compatibleAcrossPatchVersions()) {
+            // Ignore patch version if plugin is compatible across patch versions
             return pluginVersion.major == coreVersion.major && pluginVersion.minor == coreVersion.minor;
         }
         return pluginVersion.equals(coreVersion);
