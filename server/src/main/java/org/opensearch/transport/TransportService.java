@@ -226,11 +226,9 @@ public class TransportService extends AbstractLifecycleComponent
         taskManager = createTaskManager(settings, clusterSettings, threadPool, taskHeaders);
         this.interceptor = transportInterceptor;
         this.asyncSender = interceptor.interceptSender(this::sendRequestInternal);
-        // this.asyncSenderProtobuf = interceptor.interceptSenderProotbuf(this::sendRequestInternal);
         this.remoteClusterClient = DiscoveryNode.isRemoteClusterClient(settings);
         remoteClusterService = new RemoteClusterService(settings, this);
         responseHandlers = transport.getResponseHandlers();
-        // responseHandlersProtobuf = transport.getResponseHandlersProtobuf();
         if (clusterSettings != null) {
             clusterSettings.addSettingsUpdateConsumer(TransportSettings.TRACE_LOG_INCLUDE_SETTING, this::setTracerLogInclude);
             clusterSettings.addSettingsUpdateConsumer(TransportSettings.TRACE_LOG_EXCLUDE_SETTING, this::setTracerLogExclude);
@@ -303,7 +301,6 @@ public class TransportService extends AbstractLifecycleComponent
     @Override
     protected void doStart() {
         transport.setMessageListener(this);
-        // transport.setMessageListenerProtobuf(this);
         connectionManager.addListener(this);
         transport.start();
         if (transport.boundAddress() != null && logger.isInfoEnabled()) {

@@ -337,7 +337,6 @@ public class DiffableTests extends OpenSearchTestCase {
         public int hashCode() {
             return value != null ? value.hashCode() : 0;
         }
-
     }
 
 }

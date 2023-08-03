@@ -52,7 +52,6 @@ import org.opensearch.transport.TransportChannel;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportRequestOptions;
 import org.opensearch.transport.TransportResponse;
-import org.opensearch.transport.TransportResponse.Empty;
 import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
 
@@ -383,7 +382,7 @@ public class PublicationTransportHandler {
                     }
 
                     @Override
-                    public Empty read(byte[] in) throws IOException {
+                    public TransportResponse.Empty read(byte[] in) throws IOException {
                         // TODO Auto-generated method stub
                         throw new UnsupportedOperationException("Unimplemented method 'read'");
                     }

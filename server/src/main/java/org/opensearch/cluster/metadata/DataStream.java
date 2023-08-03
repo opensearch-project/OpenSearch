@@ -318,5 +318,4 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
             return Objects.hash(name);
         }
     }
-
 }

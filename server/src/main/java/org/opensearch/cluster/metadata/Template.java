@@ -214,5 +214,4 @@ public class Template extends AbstractDiffable<Template> implements ToXContentOb
             return mapping;
         }
     }
-
 }

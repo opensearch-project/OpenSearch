@@ -235,7 +235,6 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             public int hashCode() {
                 return Objects.hash(dataStream, dataStreamStatus, indexTemplate);
             }
-
         }
 
         private final List<DataStreamInfo> dataStreams;

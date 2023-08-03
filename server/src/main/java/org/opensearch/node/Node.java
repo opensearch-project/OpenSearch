@@ -228,8 +228,6 @@ import org.opensearch.tasks.TaskCancellationService;
 import org.opensearch.tasks.TaskResultsService;
 import org.opensearch.threadpool.ExecutorBuilder;
 import org.opensearch.threadpool.ThreadPool;
-// import org.opensearch.transport.ProtobufTransportInterceptor;
-// import org.opensearch.transport.ProtobufTransportService;
 import org.opensearch.transport.RemoteClusterService;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportInterceptor;
@@ -812,21 +810,6 @@ public class Node implements Closeable {
                 )
                 .collect(Collectors.toList());
 
-            // ActionModule actionModule = new ActionModule(
-            // settings,
-            // clusterModule.getIndexNameExpressionResolver(),
-            // settingsModule.getIndexScopedSettings(),
-            // settingsModule.getClusterSettings(),
-            // settingsModule.getSettingsFilter(),
-            // threadPool,
-            // pluginsService.filterPlugins(ActionPlugin.class),
-            // client,
-            // circuitBreakerService,
-            // usageService,
-            // systemIndices
-            // );
-            // modules.add(actionModule);
-
             ActionModule protobufActionModule = new ActionModule(
                 settings,
                 clusterModule.getIndexNameExpressionResolver(),
@@ -894,16 +877,14 @@ public class Node implements Closeable {
             );
             TopNSearchTasksLogger taskConsumer = new TopNSearchTasksLogger(settings, settingsModule.getClusterSettings());
             transportService.getTaskManager().registerTaskResourceConsumer(taskConsumer);
-            // if (FeatureFlags.isEnabled(FeatureFlags.EXTENSIONS)) {
-            // this.extensionsManager.initializeServicesAndRestHandler(
-            // actionModule,
-            // settingsModule,
-            // transportService,
-            // clusterService,
-            // environment.settings(),
-            // client
-            // );
-            // }
+            this.extensionsManager.initializeServicesAndRestHandler(
+                protobufActionModule,
+                settingsModule,
+                transportService,
+                clusterService,
+                environment.settings(),
+                client
+            );
             final GatewayMetaState gatewayMetaState = new GatewayMetaState();
             final ResponseCollectorService responseCollectorService = new ResponseCollectorService(clusterService);
             final SearchTransportService searchTransportService = new SearchTransportService(
@@ -1162,7 +1143,6 @@ public class Node implements Closeable {
                     .toInstance(new SearchPhaseController(namedWriteableRegistry, searchService::aggReduceContextBuilder));
                 b.bind(Transport.class).toInstance(transport);
                 b.bind(TransportService.class).toInstance(transportService);
-                // b.bind(ProtobufTransportService.class).toInstance(protobufTransportService);
                 b.bind(NetworkService.class).toInstance(networkService);
                 b.bind(UpdateHelper.class).toInstance(new UpdateHelper(scriptService));
                 b.bind(MetadataIndexUpgradeService.class).toInstance(metadataIndexUpgradeService);

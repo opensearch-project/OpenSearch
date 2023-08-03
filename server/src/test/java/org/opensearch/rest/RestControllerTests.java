@@ -691,7 +691,6 @@ public class RestControllerTests extends OpenSearchTestCase {
         public HttpStats stats() {
             return null;
         }
-
     }
 
     public static final class AssertingChannel extends AbstractRestChannel {

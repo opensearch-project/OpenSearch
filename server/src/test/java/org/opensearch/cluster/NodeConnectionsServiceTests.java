@@ -592,7 +592,6 @@ public class NodeConnectionsServiceTests extends OpenSearchTestCase {
     private static final class MockTransport implements Transport {
         private final ResponseHandlers responseHandlers = new ResponseHandlers();
         private final RequestHandlers requestHandlers = new RequestHandlers();
-        // private final ProtobufResponseHandlers protobufResponseHandlers = new ProtobufResponseHandlers();
         private final ProtobufRequestHandlers protobufRequestHandlers = new ProtobufRequestHandlers();
         private volatile boolean randomConnectionExceptions = false;
         private final ThreadPool threadPool;

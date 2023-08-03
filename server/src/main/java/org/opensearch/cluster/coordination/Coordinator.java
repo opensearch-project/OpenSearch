@@ -611,7 +611,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 processJoinRequest(joinRequest, joinCallback);
             }
         }, joinCallback::onFailure));
-
     }
 
     // package private for tests

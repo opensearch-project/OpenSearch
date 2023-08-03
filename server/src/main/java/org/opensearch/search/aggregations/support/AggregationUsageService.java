@@ -118,5 +118,4 @@ public class AggregationUsageService implements ReportingService<AggregationInfo
     public AggregationInfo info() {
         return info;
     }
-
 }

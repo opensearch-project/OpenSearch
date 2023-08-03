@@ -168,5 +168,4 @@ public class ComponentTemplate extends AbstractDiffable<ComponentTemplate> imple
         builder.endObject();
         return builder;
     }
-
 }

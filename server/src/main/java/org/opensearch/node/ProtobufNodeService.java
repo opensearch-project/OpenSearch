@@ -206,13 +206,6 @@ public class ProtobufNodeService implements Closeable {
             discoveryStats ? discovery.stats() : null,
             ingest ? ingestService.stats() : null,
             adaptiveSelection ? responseCollectorService.getAdaptiveStats(searchTransportService.getPendingSearchRequests()) : null
-            // scriptCache ? scriptService.cacheStats() : null,
-            // indexingPressure ? this.indexingPressureService.nodeStats() : null,
-            // shardIndexingPressure ? this.indexingPressureService.shardStats(indices) : null,
-            // searchBackpressure ? this.searchBackpressureService.nodeStats() : null,
-            // clusterManagerThrottling ? this.clusterService.getClusterManagerService().getThrottlingStats() : null,
-            // weightedRoutingStats ? WeightedRoutingStats.getInstance() : null,
-            // fileCacheStats && fileCache != null ? fileCache.fileCacheStats() : null
         );
     }
 

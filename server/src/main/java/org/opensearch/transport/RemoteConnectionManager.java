@@ -230,12 +230,5 @@ public class RemoteConnectionManager implements ConnectionManager {
         public Object getCacheKey() {
             return connection.getCacheKey();
         }
-
-        // @Override
-        // public void sendRequestProtobuf(long requestId, String action, TransportRequest request,
-        // TransportRequestOptions options) throws IOException, TransportException {
-        // // TODO Auto-generated method stub
-        // throw new UnsupportedOperationException("Unimplemented method 'sendRequestProtobuf'");
-        // }
     }
 }

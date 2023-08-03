@@ -1129,20 +1129,6 @@ public class ActionModule extends AbstractModule {
 
         // CAT API
         registerHandler.accept(new ProtobufRestNodesAction());
-
-        // for (ActionPlugin plugin : actionPlugins) {
-        // for (ProtobufActionPlugin handler : plugin.getRestHandlers(
-        // settings,
-        // restController,
-        // clusterSettings,
-        // indexScopedSettings,
-        // settingsFilter,
-        // indexNameExpressionResolver,
-        // nodesInCluster
-        // )) {
-        // registerHandler.accept(handler);
-        // }
-        // }
         registerHandler.accept(new ProtobufRestCatAction(catActions));
     }
 

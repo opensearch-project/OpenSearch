@@ -478,5 +478,4 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
             return new ClusterBlocks(unmodifiableSet(new HashSet<>(global)), indicesBuilder);
         }
     }
-
 }

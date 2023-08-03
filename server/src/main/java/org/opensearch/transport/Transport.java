@@ -139,17 +139,6 @@ public interface Transport extends LifecycleComponent {
         void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options) throws IOException,
             TransportException;
 
-        // /**
-        // * Sends the request to the node this connection is associated with
-        // * @param requestId see {@link ResponseHandlers#add(ResponseContext)} for details
-        // * @param action the action to execute
-        // * @param request the request to send
-        // * @param options request options to apply
-        // * @throws NodeNotConnectedException if the given node is not connected
-        // */
-        // void sendRequestProtobuf(long requestId, String action, TransportRequest request, TransportRequestOptions options)
-        // throws IOException, TransportException;
-
         /**
          * The listener's {@link ActionListener#onResponse(Object)} method will be called when this
          * connection is closed. No implementations currently throw an exception during close, so
@@ -179,56 +168,6 @@ public interface Transport extends LifecycleComponent {
         @Override
         void close();
     }
-
-    // /**
-    // * A unidirectional connection to a {@link DiscoveryNode}
-    // */
-    // interface ProtobufConnection extends Closeable {
-    // /**
-    // * The node this connection is associated with
-    // */
-    // DiscoveryNode getNode();
-
-    // /**
-    // * Sends the request to the node this connection is associated with
-    // * @param requestId see {@link ResponseHandlers#add(ResponseContext)} for details
-    // * @param action the action to execute
-    // * @param request the request to send
-    // * @param options request options to apply
-    // * @throws NodeNotConnectedException if the given node is not connected
-    // */
-    // void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
-    // throws IOException, TransportException;
-
-    // /**
-    // * The listener's {@link ActionListener#onResponse(Object)} method will be called when this
-    // * connection is closed. No implementations currently throw an exception during close, so
-    // * {@link ActionListener#onFailure(Exception)} will not be called.
-    // *
-    // * @param listener to be called
-    // */
-    // void addCloseListener(ActionListener<Void> listener);
-
-    // boolean isClosed();
-
-    // /**
-    // * Returns the version of the node this connection was established with.
-    // */
-    // default Version getVersion() {
-    // return getNode().getVersion();
-    // }
-
-    // /**
-    // * Returns a key that this connection can be cached on. Delegating subclasses must delegate method call to
-    // * the original connection.
-    // */
-    // default Object getCacheKey() {
-    // return this;
-    // }
-
-    // @Override
-    // void close();
-    // }
 
     /**
      * This class represents a response context that encapsulates the actual response handler, the action and the connection it was
@@ -260,37 +199,6 @@ public interface Transport extends LifecycleComponent {
             return this.action;
         }
     }
-
-    // /**
-    // * This class represents a response context that encapsulates the actual response handler, the action and the connection it was
-    // * executed on.
-    // */
-    // final class ProtobufResponseContext<T extends TransportResponse> {
-
-    // private final ProtobufTransportResponseHandler<T> handler;
-
-    // private final Connection connection;
-
-    // private final String action;
-
-    // ProtobufResponseContext(ProtobufTransportResponseHandler<T> handler, Connection connection, String action) {
-    // this.handler = handler;
-    // this.connection = connection;
-    // this.action = action;
-    // }
-
-    // public ProtobufTransportResponseHandler<T> handler() {
-    // return handler;
-    // }
-
-    // public Connection connection() {
-    // return this.connection;
-    // }
-
-    // public String action() {
-    // return this.action;
-    // }
-    // }
 
     /**
      * This class is a registry that allows
@@ -370,87 +278,6 @@ public interface Transport extends LifecycleComponent {
             }
         }
     }
-
-    // /**
-    // * This class is a registry that allows
-    // */
-    // final class ProtobufResponseHandlers {
-    // private final ConcurrentMapLong<ProtobufResponseContext<? extends TransportResponse>> handlers = ConcurrentCollections
-    // .newConcurrentMapLongWithAggressiveConcurrency();
-    // private final AtomicLong requestIdGenerator = new AtomicLong();
-
-    // /**
-    // * Returns <code>true</code> if the give request ID has a context associated with it.
-    // */
-    // public boolean contains(long requestId) {
-    // return handlers.containsKey(requestId);
-    // }
-
-    // /**
-    // * Removes and return the {@link ResponseContext} for the given request ID or returns
-    // * <code>null</code> if no context is associated with this request ID.
-    // */
-    // public ProtobufResponseContext<? extends TransportResponse> remove(long requestId) {
-    // return handlers.remove(requestId);
-    // }
-
-    // /**
-    // * Adds a new response context and associates it with a new request ID.
-    // * @return the new request ID
-    // * @see Connection#sendRequestProtobuf(long, String, TransportRequest, TransportRequestOptions)
-    // */
-    // public long add(ProtobufResponseContext<? extends TransportResponse> holder) {
-    // long requestId = newRequestId();
-    // ProtobufResponseContext<? extends TransportResponse> existing = handlers.put(requestId, holder);
-    // assert existing == null : "request ID already in use: " + requestId;
-    // return requestId;
-    // }
-
-    // /**
-    // * Returns a new request ID to use when sending a message via {@link Connection#sendRequestProtobuf(long, String,
-    // * TransportRequest, TransportRequestOptions)}
-    // */
-    // long newRequestId() {
-    // return requestIdGenerator.incrementAndGet();
-    // }
-
-    // /**
-    // * Removes and returns all {@link ResponseContext} instances that match the predicate
-    // */
-    // public List<ProtobufResponseContext<? extends TransportResponse>> prune(
-    // Predicate<ProtobufResponseContext<? extends TransportResponse>> predicate
-    // ) {
-    // final List<ProtobufResponseContext<? extends TransportResponse>> holders = new ArrayList<>();
-    // for (Map.Entry<Long, ProtobufResponseContext<? extends TransportResponse>> entry : handlers.entrySet()) {
-    // ProtobufResponseContext<? extends TransportResponse> holder = entry.getValue();
-    // if (predicate.test(holder)) {
-    // ProtobufResponseContext<? extends TransportResponse> remove = handlers.remove(entry.getKey());
-    // if (remove != null) {
-    // holders.add(holder);
-    // }
-    // }
-    // }
-    // return holders;
-    // }
-
-    // /**
-    // * called by the {@link Transport} implementation when a response or an exception has been received for a previously
-    // * sent request (before any processing or deserialization was done). Returns the appropriate response handler or null if not
-    // * found.
-    // */
-    // public ProtobufTransportResponseHandler<? extends TransportResponse> onResponseReceived(
-    // final long requestId,
-    // final ProtobufTransportMessageListener listener
-    // ) {
-    // ProtobufResponseContext<? extends TransportResponse> context = handlers.remove(requestId);
-    // listener.onResponseReceived(requestId, context);
-    // if (context == null) {
-    // return null;
-    // } else {
-    // return context.handler();
-    // }
-    // }
-    // }
 
     /**
      * Request handler implementations

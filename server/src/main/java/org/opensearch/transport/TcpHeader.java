@@ -91,5 +91,4 @@ public class TcpHeader {
         assert variableHeaderSize != -1 : "Variable header size not set";
         output.writeInt(variableHeaderSize);
     }
-
 }

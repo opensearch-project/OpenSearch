@@ -304,18 +304,6 @@ public class RestController implements HttpServerTransport.Dispatcher {
      */
     public void registerProtobufHandler(final ProtobufRestHandler restHandler) {
         restHandler.routes().forEach(route -> registerProtobufHandler(route.getMethod(), route.getPath(), restHandler));
-        // restHandler.deprecatedRoutes()
-        // .forEach(route -> registerAsDeprecatedHandler(route.getMethod(), route.getPath(), restHandler, route.getDeprecationMessage()));
-        // restHandler.replacedRoutes()
-        // .forEach(
-        // route -> registerWithDeprecatedHandler(
-        // route.getMethod(),
-        // route.getPath(),
-        // restHandler,
-        // route.getDeprecatedMethod(),
-        // route.getDeprecatedPath()
-        // )
-        // );
     }
 
     @Override

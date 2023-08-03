@@ -191,5 +191,4 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
     public static Diff<MappingMetadata> readDiffFrom(StreamInput in) throws IOException {
         return readDiffFrom(MappingMetadata::new, in);
     }
-
 }

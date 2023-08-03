@@ -209,20 +209,4 @@ public class ClusterStateRequest extends ClusterManagerNodeReadRequest<ClusterSt
         this.waitForMetadataVersion = waitForMetadataVersion;
         return this;
     }
-
-    @Override
-    public String toString() {
-        StringBuilder builder = new StringBuilder();
-        builder.append("ClusterStateRequest[");
-        builder.append("routingTable=").append(routingTable());
-        builder.append(",nodes=").append(nodes());
-        builder.append(",metadata=").append(metadata());
-        builder.append(",blocks=").append(blocks());
-        builder.append(",customs=").append(customs());
-        builder.append(",indices=").append(indices());
-        builder.append(",indicesOptions=").append(indicesOptions());
-        builder.append(",waitForTimeout=").append(waitForTimeout());
-        builder.append(",waitForMetadataVersion=").append(waitForMetadataVersion());
-        return builder.append("]").toString();
-    }
 }

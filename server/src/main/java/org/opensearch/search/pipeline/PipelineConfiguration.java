@@ -162,5 +162,4 @@ public class PipelineConfiguration extends AbstractDiffable<PipelineConfiguratio
         result = 31 * result + getConfigAsMap().hashCode();
         return result;
     }
-
 }

@@ -103,7 +103,6 @@ public class NetworkModuleTests extends OpenSearchTestCase {
         public HttpStats stats() {
             return null;
         }
-
     }
 
     public void testRegisterTransport() {

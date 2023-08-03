@@ -211,7 +211,6 @@ final class OutboundHandler {
         ActionListener<Void> listener = ActionListener.wrap(() -> messageListener.onResponseSent(requestId, action, response));
         String canonicalName = response.getClass().getCanonicalName();
         if (canonicalName.contains("ProtobufClusterState")) {
-            // ExampleProtoRequest exampleProtoRequest = new ExampleProtoRequest(1, "message");
             ProtobufClusterStateResponse protobufClusterStateResponse = (ProtobufClusterStateResponse) response;
             byte[] bytes = new byte[1];
             bytes[0] = 1;
@@ -293,13 +292,7 @@ final class OutboundHandler {
 
     private void sendProtobufMessage(TcpChannel channel, ProtobufOutboundMessage message, ActionListener<Void> listener)
         throws IOException {
-        TryMessageSerializer serializer = new TryMessageSerializer(message, bigArrays);
-        SendContext sendContext = new SendContext(channel, serializer, listener, serializer);
-        internalSend(channel, sendContext);
-    }
-
-    private void sendMessage1(TcpChannel channel, OutboundMessage networkMessage, ActionListener<Void> listener) throws IOException {
-        MessageSerializer1 serializer = new MessageSerializer1(networkMessage, bigArrays);
+        ProtobufMessageSerializer serializer = new ProtobufMessageSerializer(message, bigArrays);
         SendContext sendContext = new SendContext(channel, serializer, listener, serializer);
         internalSend(channel, sendContext);
     }
@@ -353,13 +346,13 @@ final class OutboundHandler {
         }
     }
 
-    private static class TryMessageSerializer implements CheckedSupplier<BytesReference, IOException>, Releasable {
+    private static class ProtobufMessageSerializer implements CheckedSupplier<BytesReference, IOException>, Releasable {
 
         private final ProtobufOutboundMessage message;
         private final BigArrays bigArrays;
         private volatile ReleasableBytesStreamOutput bytesStreamOutput;
 
-        private TryMessageSerializer(ProtobufOutboundMessage message, BigArrays bigArrays) {
+        private ProtobufMessageSerializer(ProtobufOutboundMessage message, BigArrays bigArrays) {
             this.message = message;
             this.bigArrays = bigArrays;
         }
@@ -375,34 +368,6 @@ final class OutboundHandler {
             ByteBuffer byteBuffers = ByteBuffer.wrap(message.getMessage().toByteArray());
             message.getMessage().writeTo(bytesStream);
             return BytesReference.fromByteBuffer(byteBuffers);
-        }
-
-        @Override
-        public void close() {
-            IOUtils.closeWhileHandlingException(bytesStreamOutput);
-        }
-    }
-
-    /**
-     * Internal message serializer
-     *
-     * @opensearch.internal
-     */
-    private static class MessageSerializer1 implements CheckedSupplier<BytesReference, IOException>, Releasable {
-
-        private final OutboundMessage message;
-        private final BigArrays bigArrays;
-        private volatile ReleasableBytesStreamOutput bytesStreamOutput;
-
-        private MessageSerializer1(OutboundMessage message, BigArrays bigArrays) {
-            this.message = message;
-            this.bigArrays = bigArrays;
-        }
-
-        @Override
-        public BytesReference get() throws IOException {
-            bytesStreamOutput = new ReleasableBytesStreamOutput(bigArrays);
-            return message.serialize1(bytesStreamOutput);
         }
 
         @Override

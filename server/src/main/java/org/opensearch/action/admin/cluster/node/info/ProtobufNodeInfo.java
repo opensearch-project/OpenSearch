@@ -22,7 +22,6 @@ import org.opensearch.ingest.IngestInfo;
 import org.opensearch.monitor.jvm.JvmInfo;
 import org.opensearch.monitor.os.OsInfo;
 import org.opensearch.monitor.process.ProcessInfo;
-import org.opensearch.node.ProtobufReportingService;
 import org.opensearch.search.aggregations.support.AggregationInfo;
 import org.opensearch.search.pipeline.SearchPipelineInfo;
 import org.opensearch.server.proto.NodesInfoProto;
@@ -31,8 +30,6 @@ import org.opensearch.transport.TransportInfo;
 
 import java.io.IOException;
 import java.io.OutputStream;
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  * Node information (static, does not change over time).
@@ -48,13 +45,6 @@ public class ProtobufNodeInfo extends ProtobufBaseNodeResponse {
     private Settings settings;
 
     private NodesInfoProto.NodesInfo nodesInfoResponse;
-
-    /**
-     * Do not expose this map to other classes. For type safety, use {@link #getInfo(Class)}
-    * to retrieve items from this map and {@link #addInfoIfNonNull(Class, ProtobufReportingService.ProtobufInfo)}
-    * to retrieve items from it.
-    */
-    private Map<Class<? extends ProtobufReportingService.ProtobufInfo>, ProtobufReportingService.ProtobufInfo> infoMap = new HashMap<>();
 
     @Nullable
     private ByteSizeValue totalIndexingBuffer;
@@ -132,33 +122,9 @@ public class ProtobufNodeInfo extends ProtobufBaseNodeResponse {
         return this.settings;
     }
 
-    /**
-     * Get a particular info object, e.g. {@link JvmInfo} or {@link OsInfo}. This
-    * generic method handles all casting in order to spare client classes the
-    * work of explicit casts. This {@link NodeInfo} class guarantees type
-    * safety for these stored info blocks.
-    *
-    * @param clazz Class for retrieval.
-    * @param <T>   Specific subtype of ReportingService.ProtobufInfo to retrieve.
-    * @return      An object of type T.
-    */
-    public <T extends ProtobufReportingService.ProtobufInfo> T getInfo(Class<T> clazz) {
-        return clazz.cast(infoMap.get(clazz));
-    }
-
     @Nullable
     public ByteSizeValue getTotalIndexingBuffer() {
         return totalIndexingBuffer;
-    }
-
-    /**
-     * Add a value to the map of information blocks. This method guarantees the
-    * type safety of the storage of heterogeneous types of reporting service information.
-    */
-    private <T extends ProtobufReportingService.ProtobufInfo> void addInfoIfNonNull(Class<T> clazz, T info) {
-        if (info != null) {
-            infoMap.put(clazz, info);
-        }
     }
 
     public static ProtobufNodeInfo.Builder builder(Version version, Build build, DiscoveryNode node) {

@@ -151,5 +151,4 @@ public class RolloverInfo extends AbstractDiffable<RolloverInfo> implements Writ
     public String toString() {
         return Strings.toString(XContentType.JSON, this);
     }
-
 }

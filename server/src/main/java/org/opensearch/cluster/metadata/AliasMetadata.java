@@ -431,5 +431,4 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
             return builder.build();
         }
     }
-
 }

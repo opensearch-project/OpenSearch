@@ -151,16 +151,6 @@ public class ProtobufClusterStateRequest extends ProtobufClusterManagerNodeReadR
         return this;
     }
 
-    // @Override
-    // public IndicesOptions indicesOptions() {
-    // return this.clusterStateRequest.;
-    // }
-
-    // public final ProtobufClusterStateRequest indicesOptions(IndicesOptions indicesOptions) {
-    // this.indicesOptions = indicesOptions;
-    // return this;
-    // }
-
     @Override
     public boolean includeDataStreams() {
         return true;
@@ -208,21 +198,6 @@ public class ProtobufClusterStateRequest extends ProtobufClusterManagerNodeReadR
             .setWaitForTimeout(DEFAULT_WAIT_FOR_NODE_TIMEOUT.toString())
             .build();
         return this;
-    }
-
-    @Override
-    public String toString() {
-        StringBuilder builder = new StringBuilder();
-        builder.append("ProtobufClusterStateRequest[");
-        builder.append("routingTable=").append(routingTable());
-        builder.append(",nodes=").append(nodes());
-        builder.append(",metadata=").append(metadata());
-        builder.append(",blocks=").append(blocks());
-        builder.append(",customs=").append(customs());
-        builder.append(",indices=").append(indices());
-        builder.append(",waitForTimeout=").append(waitForTimeout());
-        builder.append(",waitForMetadataVersion=").append(waitForMetadataVersion());
-        return builder.append("]").toString();
     }
 
     @Override

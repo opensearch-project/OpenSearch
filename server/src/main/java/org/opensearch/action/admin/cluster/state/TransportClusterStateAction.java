@@ -120,6 +120,7 @@ public class TransportClusterStateAction extends TransportClusterManagerNodeRead
         final ClusterState state,
         final ActionListener<ClusterStateResponse> listener
     ) throws IOException {
+
         final Predicate<ClusterState> acceptableClusterStatePredicate = request.waitForMetadataVersion() == null
             ? clusterState -> true
             : clusterState -> clusterState.metadata().version() >= request.waitForMetadataVersion();

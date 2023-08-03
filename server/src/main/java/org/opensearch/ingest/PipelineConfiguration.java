@@ -45,7 +45,6 @@ import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
-
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
 
@@ -184,5 +183,4 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
         result = 31 * result + getConfigAsMap().hashCode();
         return result;
     }
-
 }

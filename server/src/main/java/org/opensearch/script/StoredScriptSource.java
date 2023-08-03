@@ -53,7 +53,6 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.core.xcontent.XContentParser.Token;
-
 import org.opensearch.common.xcontent.XContentType;
 
 import java.io.IOException;

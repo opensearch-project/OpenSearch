@@ -279,13 +279,6 @@ public class StubbableTransport implements Transport {
         public Transport.Connection getConnection() {
             return connection;
         }
-
-        // @Override
-        // public void sendRequestProtobuf(long requestId, String action, TransportRequest request,
-        // TransportRequestOptions options) throws IOException, TransportException {
-        // // TODO Auto-generated method stub
-        // throw new UnsupportedOperationException("Unimplemented method 'sendRequestProtobuf'");
-        // }
     }
 
     @FunctionalInterface

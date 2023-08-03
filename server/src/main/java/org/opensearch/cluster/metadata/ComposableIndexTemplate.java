@@ -358,5 +358,4 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
             return Objects.hash(timestampField);
         }
     }
-
 }

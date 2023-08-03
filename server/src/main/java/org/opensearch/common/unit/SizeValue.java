@@ -72,14 +72,6 @@ public class SizeValue implements Writeable, Comparable<SizeValue> {
         out.writeVLong(singles());
     }
 
-    public long getSize() {
-        return size;
-    }
-
-    public SizeUnit getSizeUnit() {
-        return sizeUnit;
-    }
-
     public long singles() {
         return sizeUnit.toSingles(size);
     }

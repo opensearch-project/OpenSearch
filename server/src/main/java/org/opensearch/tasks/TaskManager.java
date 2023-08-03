@@ -910,29 +910,6 @@ public class TaskManager implements ClusterStateApplier {
         }
     }
 
-    // @Override
-    // public void applyProtobufClusterState(ProtobufClusterChangedEvent event) {
-    // lastDiscoveryNodes = event.state().getNodes();
-    // if (event.nodesRemoved()) {
-    // synchronized (banedParentsProtobuf) {
-    // lastDiscoveryNodes = event.state().getNodes();
-    // // Remove all bans that were registered by nodes that are no longer in the cluster state
-    // Iterator<ProtobufTaskId> banIterator = banedParentsProtobuf.keySet().iterator();
-    // while (banIterator.hasNext()) {
-    // ProtobufTaskId taskId = banIterator.next();
-    // if (lastDiscoveryNodes.nodeExists(taskId.getNodeId()) == false) {
-    // logger.debug(
-    // "Removing ban for the parent [{}] on the node [{}], reason: the parent node is gone",
-    // taskId,
-    // event.state().getNodes().getLocalNode()
-    // );
-    // banIterator.remove();
-    // }
-    // }
-    // }
-    // }
-    // }
-
     /**
      * Blocks the calling thread, waiting for the task to vanish from the TaskManager.
      */

@@ -91,7 +91,6 @@ public class InboundHandler {
     private final Transport.ProtobufRequestHandlers protobufRequestHandlers;
 
     private volatile TransportMessageListener messageListener = TransportMessageListener.NOOP_LISTENER;
-    // private volatile ProtobufTransportMessageListener protobufMessageListener = ProtobufTransportMessageListener.NOOP_LISTENER;
 
     private volatile long slowLogThresholdMs = Long.MAX_VALUE;
 

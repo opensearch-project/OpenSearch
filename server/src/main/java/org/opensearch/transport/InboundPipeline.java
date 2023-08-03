@@ -198,7 +198,6 @@ public class InboundPipeline implements Releasable {
     }
 
     private void forwardFragmentsProtobuf(TcpChannel channel, ReleasableBytesReference reference) throws IOException {
-        // ProtobufOutboundMessage message = new ProtobufOutboundMessage(BytesReference.toBytes(reference));
         messageHandlerProtobuf.accept(channel, reference);
     }
 

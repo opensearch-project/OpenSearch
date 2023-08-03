@@ -143,5 +143,4 @@ public final class BytesArray extends AbstractBytesReference {
     public void writeTo(OutputStream os) throws IOException {
         os.write(bytes, offset, length);
     }
-
 }

@@ -280,7 +280,6 @@ public class ProtobufOutboundMessage {
     }
 
     public void writeTo(OutputStream out) throws IOException {
-        // super.writeTo(out);
         out.write(this.message.toByteArray());
     }
 
