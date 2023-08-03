@@ -42,6 +42,7 @@ import org.apache.lucene.search.SimpleCollector;
 import org.apache.lucene.search.Weight;
 import org.opensearch.common.lucene.MinimumScoreCollector;
 import org.opensearch.common.lucene.search.FilteredCollector;
+import org.opensearch.search.profile.query.CollectorResult;
 import org.opensearch.search.profile.query.InternalProfileCollector;
 import org.opensearch.search.profile.query.InternalProfileCollectorManager;
 
@@ -99,11 +100,15 @@ public abstract class QueryCollectorContext {
      */
     protected InternalProfileCollectorManager createWithProfiler(InternalProfileCollectorManager in) throws IOException {
         final CollectorManager<? extends Collector, ReduceableSearchResult> manager = createManager(in);
-        return new InternalProfileCollectorManager(
-            manager,
-            profilerName,
-            in != null ? Collections.singletonList(in) : Collections.emptyList()
-        );
+        if (manager instanceof InternalProfileCollectorManager) {
+            return (InternalProfileCollectorManager) manager;
+        } else {
+            return new InternalProfileCollectorManager(
+                manager,
+                profilerName,
+                in != null ? Collections.singletonList(in) : Collections.emptyList()
+            );
+        }
     }
 
     /**
@@ -198,14 +203,31 @@ public abstract class QueryCollectorContext {
 
                 for (CollectorManager<? extends Collector, ReduceableSearchResult> manager : subs) {
                     final Collector collector = manager.newCollector();
-                    if (!(collector instanceof InternalProfileCollector)) {
-                        throw new IllegalArgumentException("non-profiling collector");
-                    }
-                    subCollectors.add((InternalProfileCollector) collector);
+                    subCollectors.add(new InternalProfileCollector(collector, CollectorResult.REASON_AGGREGATION, Collections.emptyList()));
                 }
 
                 final Collector collector = MultiCollector.wrap(subCollectors);
                 return new InternalProfileCollector(collector, REASON_SEARCH_MULTI, subCollectors);
+            }
+
+            @Override
+            protected InternalProfileCollectorManager createWithProfiler(InternalProfileCollectorManager in) {
+                final List<CollectorManager<?, ReduceableSearchResult>> managers = new ArrayList<>();
+                final List<InternalProfileCollectorManager> children = new ArrayList<>();
+                managers.add(in);
+                children.add(in);
+                for (CollectorManager<? extends Collector, ReduceableSearchResult> manager : subs) {
+                    InternalProfileCollectorManager subCollectorManager = new InternalProfileCollectorManager(
+                        manager,
+                        CollectorResult.REASON_AGGREGATION,
+                        Collections.emptyList()
+                    );
+                    managers.add(subCollectorManager);
+                    children.add(subCollectorManager);
+                }
+                CollectorManager<? extends Collector, ReduceableSearchResult> multiCollectorManager = QueryCollectorManagerContext
+                    .createMultiCollectorManager(managers);
+                return new InternalProfileCollectorManager(multiCollectorManager, REASON_SEARCH_MULTI, children);
             }
 
             @Override

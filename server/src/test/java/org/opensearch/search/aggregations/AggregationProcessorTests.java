@@ -48,15 +48,27 @@ public class AggregationProcessorTests extends AggregationSetupTests {
     }
 
     public void testPostProcessWithNonGlobalAggregatorsAndSingleSlice() throws Exception {
-        testPostProcessCommon(multipleNonGlobalAggs, 1, 0, 2);
+        testPostProcessCommon(multipleNonGlobalAggs, 1, 0, 2, false);
+    }
+
+    public void testPostProcessWithNonGlobalAggregatorsAndSingleSliceWithProfilers() throws Exception {
+        testPostProcessCommon(multipleNonGlobalAggs, 1, 0, 2, true);
     }
 
     public void testPostProcessWithNonGlobalAggregatorsAndMultipleSlices() throws Exception {
-        testPostProcessCommon(multipleNonGlobalAggs, randomIntBetween(2, 5), 0, 2);
+        testPostProcessCommon(multipleNonGlobalAggs, randomIntBetween(2, 5), 0, 2, false);
+    }
+
+    public void testPostProcessWithNonGlobalAggregatorsAndMultipleSlicesWithProfilers() throws Exception {
+        testPostProcessCommon(multipleNonGlobalAggs, randomIntBetween(2, 5), 0, 2, true);
     }
 
     public void testPostProcessGlobalAndNonGlobalAggregators() throws Exception {
-        testPostProcessCommon(globalNonGlobalAggs, randomIntBetween(2, 5), 1, 1);
+        testPostProcessCommon(globalNonGlobalAggs, randomIntBetween(2, 5), 1, 1, false);
+    }
+
+    public void testPostProcessGlobalAndNonGlobalAggregatorsWithProfilers() throws Exception {
+        testPostProcessCommon(globalNonGlobalAggs, randomIntBetween(2, 5), 1, 1, true);
     }
 
     private void testPreProcessCommon(String agg, int expectedGlobalAggs, int expectedNonGlobalAggs) throws Exception {
@@ -127,8 +139,13 @@ public class AggregationProcessorTests extends AggregationSetupTests {
         }
     }
 
-    private void testPostProcessCommon(String aggs, int numSlices, int expectedGlobalAggs, int expectedNonGlobalAggsPerSlice)
-        throws Exception {
+    private void testPostProcessCommon(
+        String aggs,
+        int numSlices,
+        int expectedGlobalAggs,
+        int expectedNonGlobalAggsPerSlice,
+        boolean withProfilers
+    ) throws Exception {
         final Collection<Collector> nonGlobalCollectors = new ArrayList<>();
         final Collection<Collector> globalCollectors = new ArrayList<>();
         testPreProcessCommon(aggs, expectedGlobalAggs, expectedNonGlobalAggsPerSlice, nonGlobalCollectors, globalCollectors);
@@ -157,6 +174,9 @@ public class AggregationProcessorTests extends AggregationSetupTests {
                 .thenReturn(result);
         }
         assertTrue(context.queryResult().hasAggs());
+        if (withProfilers) {
+            ((TestSearchContext) context).withProfilers();
+        }
         testAggregationProcessor.postProcess(context);
         assertTrue(context.queryResult().hasAggs());
         // for global aggs verify that search.search is called with CollectionManager

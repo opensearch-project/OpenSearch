@@ -12,7 +12,6 @@ import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.search.internal.SearchContext;
-import org.opensearch.search.profile.query.InternalProfileCollector;
 import org.opensearch.search.query.ReduceableSearchResult;
 
 import java.io.IOException;
@@ -42,10 +41,14 @@ class AggregationCollectorManager implements CollectorManager<Collector, Reducea
 
     @Override
     public Collector newCollector() throws IOException {
-        final Collector collector = createCollector(context, aggProvider.apply(context), collectorReason);
+        final Collector collector = createCollector(aggProvider.apply(context));
         // For Aggregations we should not have a NO_OP_Collector
         assert collector != BucketCollector.NO_OP_COLLECTOR;
         return collector;
+    }
+
+    public String getCollectorReason() {
+        return collectorReason;
     }
 
     @Override
@@ -70,17 +73,9 @@ class AggregationCollectorManager implements CollectorManager<Collector, Reducea
         return new AggregationReduceableSearchResult(internalAggregations);
     }
 
-    static Collector createCollector(SearchContext context, List<Aggregator> collectors, String reason) throws IOException {
+    static Collector createCollector(List<Aggregator> collectors) throws IOException {
         Collector collector = MultiBucketCollector.wrap(collectors);
         ((BucketCollector) collector).preCollection();
-        if (context.getProfilers() != null) {
-            collector = new InternalProfileCollector(
-                collector,
-                reason,
-                // TODO: report on child aggs as well
-                Collections.emptyList()
-            );
-        }
         return collector;
     }
 }

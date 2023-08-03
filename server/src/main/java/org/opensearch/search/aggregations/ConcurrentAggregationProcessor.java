@@ -65,12 +65,12 @@ public class ConcurrentAggregationProcessor implements AggregationProcessor {
         try {
             if (globalCollectorManager != null) {
                 Query query = context.buildFilteredQuery(Queries.newMatchAllQuery());
-                globalCollectorManager = new InternalProfileCollectorManager(
-                    globalCollectorManager,
-                    CollectorResult.REASON_AGGREGATION_GLOBAL,
-                    Collections.emptyList()
-                );
                 if (context.getProfilers() != null) {
+                    globalCollectorManager = new InternalProfileCollectorManager(
+                        globalCollectorManager,
+                        CollectorResult.REASON_AGGREGATION_GLOBAL,
+                        Collections.emptyList()
+                    );
                     context.getProfilers().addQueryProfiler().setCollector((InternalProfileComponent) globalCollectorManager);
                 }
                 final ReduceableSearchResult result = context.searcher().search(query, globalCollectorManager);
