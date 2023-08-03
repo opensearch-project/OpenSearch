@@ -108,15 +108,23 @@ public class IndexingIT extends AbstractRollingTestCase {
             Response segrepStatsResponse = client().performRequest(segrepStatsRequest);
             List<String> responseList = Streams.readAllLines(segrepStatsResponse.getEntity().getContent());
             logger.info("--> _cat/segments response\n {}", responseList.toString().replace(',', '\n'));
+
+            List<String> filteredList = new ArrayList<>();
+            for(String row: responseList) {
+                String count = row.split(" +")[4];
+                if (count.equals("0") == false) {
+                    filteredList.add(row);
+                }
+            }
             // Ensure there is result for replica copies before processing the result. This results in retry when there
             // are not enough number of rows vs failing with IndexOutOfBoundsException
-            assertEquals(0, responseList.size() % (replicaCount + 1));
-            for (int segmentsIndex=0; segmentsIndex < responseList.size();) {
-                String[] primaryRow = responseList.get(segmentsIndex++).split(" +");
+            assertEquals(0, filteredList.size() % (replicaCount + 1));
+            for (int segmentsIndex=0; segmentsIndex < filteredList.size();) {
+                String[] primaryRow = filteredList.get(segmentsIndex++).split(" +");
                 String shardId = primaryRow[0] + primaryRow[1];
                 assertTrue(primaryRow[2].equals("p"));
                 for(int replicaIndex = 1; replicaIndex <= replicaCount; replicaIndex++) {
-                    String[] replicaRow = responseList.get(segmentsIndex).split(" +");
+                    String[] replicaRow = filteredList.get(segmentsIndex).split(" +");
                     String replicaShardId = replicaRow[0] + replicaRow[1];
                     // When segment has 0 doc count, not all replica copies posses that segment. Skip to next segment
                     if (replicaRow[2].equals("p")) {
