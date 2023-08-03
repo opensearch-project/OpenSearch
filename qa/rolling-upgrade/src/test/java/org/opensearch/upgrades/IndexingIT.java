@@ -399,12 +399,14 @@ public class IndexingIT extends AbstractRollingTestCase {
         client().performRequest(bulk);
     }
 
-    private void assertCount(String index, int count) throws IOException, ParseException {
-        Request searchTestIndexRequest = new Request("POST", "/" + index + "/_search");
-        searchTestIndexRequest.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");
-        searchTestIndexRequest.addParameter("filter_path", "hits.total");
-        Response searchTestIndexResponse = client().performRequest(searchTestIndexRequest);
-        assertEquals("{\"hits\":{\"total\":" + count + "}}",
+    private void assertCount(String index, int count) throws Exception {
+        assertBusy(() -> {
+            Request searchTestIndexRequest = new Request("POST", "/" + index + "/_search");
+            searchTestIndexRequest.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");
+            searchTestIndexRequest.addParameter("filter_path", "hits.total");
+            Response searchTestIndexResponse = client().performRequest(searchTestIndexRequest);
+            assertEquals("{\"hits\":{\"total\":" + count + "}}",
                 EntityUtils.toString(searchTestIndexResponse.getEntity(), StandardCharsets.UTF_8));
+        }, 30, TimeUnit.SECONDS);
     }
 }
