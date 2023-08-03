@@ -183,6 +183,7 @@ final class DefaultSearchContext extends SearchContext {
     private final QueryShardContext queryShardContext;
     private final FetchPhase fetchPhase;
     private final Function<SearchSourceBuilder, InternalAggregation.ReduceContextBuilder> requestToAggReduceContextBuilder;
+    private final boolean useConcurrentSearch;
 
     DefaultSearchContext(
         ReaderContext readerContext,
@@ -213,13 +214,14 @@ final class DefaultSearchContext extends SearchContext {
         this.indexShard = readerContext.indexShard();
         this.clusterService = clusterService;
         this.engineSearcher = readerContext.acquireSearcher("search");
+        this.useConcurrentSearch = useConcurrentSearch(executor);
         this.searcher = new ContextIndexSearcher(
             engineSearcher.getIndexReader(),
             engineSearcher.getSimilarity(),
             engineSearcher.getQueryCache(),
             engineSearcher.getQueryCachingPolicy(),
             lowLevelCancellation,
-            executor,
+            useConcurrentSearch ? executor : null,
             this
         );
         this.relativeTimeSupplier = relativeTimeSupplier;
@@ -878,18 +880,7 @@ final class DefaultSearchContext extends SearchContext {
      */
     @Override
     public boolean isConcurrentSegmentSearchEnabled() {
-        if (FeatureFlags.isEnabled(FeatureFlags.CONCURRENT_SEGMENT_SEARCH)
-            && (clusterService != null)
-            && (searcher().getExecutor() != null)) {
-            return indexService.getIndexSettings()
-                .getSettings()
-                .getAsBoolean(
-                    IndexSettings.INDEX_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(),
-                    clusterService.getClusterSettings().get(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING)
-                );
-        } else {
-            return false;
-        }
+        return useConcurrentSearch;
     }
 
     public void setProfilers(Profilers profilers) {
@@ -931,5 +922,25 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public BucketCollectorProcessor bucketCollectorProcessor() {
         return bucketCollectorProcessor;
+    }
+
+    /**
+     * Evaluate based on cluster and index settings if concurrent segment search should be used for this request context
+     * @return true: use concurrent search
+     *         false: otherwise
+     */
+    private boolean useConcurrentSearch(Executor concurrentSearchExecutor) {
+        if (FeatureFlags.isEnabled(FeatureFlags.CONCURRENT_SEGMENT_SEARCH)
+            && (clusterService != null)
+            && (concurrentSearchExecutor != null)) {
+            return indexService.getIndexSettings()
+                .getSettings()
+                .getAsBoolean(
+                    IndexSettings.INDEX_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(),
+                    clusterService.getClusterSettings().get(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING)
+                );
+        } else {
+            return false;
+        }
     }
 }
