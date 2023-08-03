@@ -206,6 +206,10 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
 
                 try (GatedCloseable<SegmentInfos> segmentInfosGatedCloseable = indexShard.getSegmentInfosSnapshot()) {
                     SegmentInfos segmentInfos = segmentInfosGatedCloseable.get();
+                    assert segmentInfos.getGeneration() == checkpoint.getSegmentsGen() : "SegmentInfos generation: "
+                        + segmentInfos.getGeneration()
+                        + " does not match metadata generation: "
+                        + checkpoint.getSegmentsGen();
                     // Capture replication checkpoint before uploading the segments as upload can take some time and checkpoint can
                     // move.
                     long lastRefreshedCheckpoint = ((InternalEngine) indexShard.getEngine()).lastRefreshedCheckpoint();

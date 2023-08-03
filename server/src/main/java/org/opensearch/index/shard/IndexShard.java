@@ -677,6 +677,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                 // this Shard's engine was read only, we need to update its engine before restoring local history from xlog.
                                 assert newRouting.primary() && currentRouting.primary() == false;
                                 resetEngineToGlobalCheckpoint();
+                                // It is possible an engine can open with a SegmentInfos on a higher gen but the reader does not refresh to
+                                // trigger our refresh listener.
+                                // Force update the checkpoint post engine reset.
+                                updateReplicationCheckpoint();
                             }
 
                             replicationTracker.activatePrimaryMode(getLocalCheckpoint());
