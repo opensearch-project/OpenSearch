@@ -774,7 +774,13 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         Collection<String> segmentFiles = List.of("_123.si");
         assertThrows(
             NoSuchFileException.class,
-            () -> remoteSegmentStoreDirectory.uploadMetadata(segmentFiles, segmentInfos, storeDirectory, 12L, 34L)
+            () -> remoteSegmentStoreDirectory.uploadMetadata(
+                segmentFiles,
+                segmentInfos,
+                storeDirectory,
+                12L,
+                indexShard.getLatestReplicationCheckpoint()
+            )
         );
         verify(indexOutput).close();
         verify(storeDirectory).deleteFile(startsWith("metadata__" + primaryTerm + "__" + generation));
