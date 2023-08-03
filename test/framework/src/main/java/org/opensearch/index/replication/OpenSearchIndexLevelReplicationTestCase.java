@@ -75,12 +75,12 @@ import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.common.collect.Iterators;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.common.lease.Releasable;
-import org.opensearch.common.lease.Releasables;
 import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.DocIdSeqNoAndSource;
@@ -98,7 +98,6 @@ import org.opensearch.index.shard.IndexShardTestCase;
 import org.opensearch.index.shard.PrimaryReplicaSyncer;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.shard.ShardPath;
-import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.recovery.RecoveryTarget;
@@ -253,10 +252,6 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
 
         protected ReplicationGroup(final IndexMetadata indexMetadata, Path remotePath) throws IOException {
             final ShardRouting primaryRouting = this.createShardRouting("s0", true);
-            Store remoteStore = null;
-            if (remotePath != null) {
-                remoteStore = createRemoteStore(remotePath, primaryRouting, indexMetadata);
-            }
             primary = newShard(
                 primaryRouting,
                 indexMetadata,
@@ -264,7 +259,7 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
                 getEngineFactory(primaryRouting),
                 () -> {},
                 retentionLeaseSyncer,
-                remoteStore
+                remotePath
             );
             replicas = new CopyOnWriteArrayList<>();
             this.indexMetadata = indexMetadata;
@@ -390,10 +385,6 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
 
         public IndexShard addReplica(Path remotePath) throws IOException {
             final ShardRouting replicaRouting = createShardRouting("s" + replicaId.incrementAndGet(), false);
-            Store remoteStore = null;
-            if (remotePath != null) {
-                remoteStore = createRemoteStore(remotePath, replicaRouting, indexMetadata);
-            }
             final IndexShard replica = newShard(
                 replicaRouting,
                 indexMetadata,
@@ -401,7 +392,7 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
                 getEngineFactory(replicaRouting),
                 () -> {},
                 retentionLeaseSyncer,
-                remoteStore
+                remotePath
             );
             addReplica(replica);
             return replica;
