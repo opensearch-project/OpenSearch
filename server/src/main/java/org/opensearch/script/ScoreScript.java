@@ -153,6 +153,7 @@ public abstract class ScoreScript {
     }
 
     public Object getTermFrequency(TermFrequencyFunctionNamesEnum functionName, String field, String val) throws IOException {
+        // Fetch data from local cache
         Map<Object, Object> context = new HashMap<>() {
             {
                 put("searcher", indexSearcher);

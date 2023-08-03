@@ -74,6 +74,11 @@ public final class ScoreScriptUtils {
         return Math.pow(value, a) / (Math.pow(k, a) + Math.pow(value, a));
     }
 
+    /**
+     * Retrieves the term frequency within a field for a specific term.
+     *
+     * @opensearch.internal
+     */
     public static final class TermFreq {
         private final ScoreScript scoreScript;
 
@@ -90,6 +95,11 @@ public final class ScoreScriptUtils {
         }
     }
 
+    /**
+     * Calculates the term frequency-inverse document frequency (tf-idf) for a specific term within a field.
+     *
+     * @opensearch.internal
+     */
     public static final class TF {
         private final ScoreScript scoreScript;
 
@@ -106,6 +116,11 @@ public final class ScoreScriptUtils {
         }
     }
 
+    /**
+     * Retrieves the total term frequency within a field for a specific term.
+     *
+     * @opensearch.internal
+     */
     public static final class TotalTermFreq {
         private final ScoreScript scoreScript;
 
@@ -122,6 +137,11 @@ public final class ScoreScriptUtils {
         }
     }
 
+    /**
+     * Retrieves the sum of total term frequencies within a field.
+     *
+     * @opensearch.internal
+     */
     public static final class SumTotalTermFreq {
         private final ScoreScript scoreScript;
 

@@ -19,6 +19,9 @@ import org.opensearch.common.lucene.BytesRefs;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Abstract class representing a term frequency function.
+ */
 public abstract class TermFrequencyFunction {
 
     protected final String field;
@@ -35,6 +38,9 @@ public abstract class TermFrequencyFunction {
 
     public abstract Object execute(LeafReaderContext readerContext) throws IOException;
 
+    /**
+     * Factory class to create term frequency functions.
+     */
     public static class TermFrequencyFunctionFactory {
         public static TermFrequencyFunction createFunction(
             TermFrequencyFunctionNamesEnum functionName,
@@ -58,6 +64,9 @@ public abstract class TermFrequencyFunction {
         }
     }
 
+    /**
+     * TermFreqFunction computes the term frequency in a field.
+     */
     public static class TermFreqFunction extends TermFrequencyFunction {
 
         public TermFreqFunction(String field, String term, int docId, Map<Object, Object> context) {
@@ -71,6 +80,9 @@ public abstract class TermFrequencyFunction {
         }
     }
 
+    /**
+     * TFFunction computes the term frequency-inverse document frequency (tf-idf) in a field.
+     */
     public static class TFFunction extends TermFrequencyFunction {
 
         public TFFunction(String field, String term, int docId, Map<Object, Object> context) {
@@ -84,6 +96,9 @@ public abstract class TermFrequencyFunction {
         }
     }
 
+    /**
+     * TotalTermFreq computes the total term frequency in a field.
+     */
     public static class TotalTermFreq extends TermFrequencyFunction {
 
         public TotalTermFreq(String field, String term, int docId, Map<Object, Object> context) {
@@ -98,6 +113,9 @@ public abstract class TermFrequencyFunction {
         }
     }
 
+    /**
+     * SumTotalTermFreq computes the sum of total term frequencies within a field.
+     */
     public static class SumTotalTermFreq extends TermFrequencyFunction {
 
         public SumTotalTermFreq(String field, String term, int docId, Map<Object, Object> context) {
@@ -112,6 +130,9 @@ public abstract class TermFrequencyFunction {
         }
     }
 
+    /**
+     * Enum representing the names of term frequency functions.
+     */
     public enum TermFrequencyFunctionNamesEnum {
         TERM_FREQ("termFreq"),
         TF("tf"),
