@@ -23,7 +23,7 @@ import org.opensearch.transport.TransportChannel;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.ProtobufTransportRequestHandler;
-import org.opensearch.transport.TransportResponse;
+import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;

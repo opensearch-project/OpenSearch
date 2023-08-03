@@ -46,7 +46,7 @@ import org.opensearch.tasks.TaskId;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.MockTransport;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.transport.TransportResponse.Empty;
+import org.opensearch.core.transport.TransportResponse.Empty;
 
 import java.io.IOException;
 import java.util.Collections;

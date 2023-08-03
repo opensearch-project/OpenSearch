@@ -9,7 +9,7 @@
 package org.opensearch.action.support.nodes;
 
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.transport.TransportResponse;
+import org.opensearch.core.transport.TransportResponse;
 
 /**
  * A base class for node level operations.

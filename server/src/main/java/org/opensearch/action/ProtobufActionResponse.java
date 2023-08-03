@@ -8,7 +8,7 @@
 
 package org.opensearch.action;
 
-import org.opensearch.transport.TransportResponse;
+import org.opensearch.core.transport.TransportResponse;
 
 import java.io.IOException;
 

@@ -75,7 +75,7 @@ import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.test.transport.StubbableTransport;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.transport.TransportResponse.Empty;
+import org.opensearch.core.transport.TransportResponse.Empty;
 
 import org.junit.After;
 import org.junit.Before;
