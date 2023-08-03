@@ -33,7 +33,7 @@ public class RemoteStoreLockManagerFactory {
         this.repositoriesService = repositoriesService;
     }
 
-    public RemoteStoreMetadataLockManager newLockManager(String repositoryName, String indexUUID, String shardId) throws IOException {
+    public RemoteStoreLockManager newLockManager(String repositoryName, String indexUUID, String shardId) throws IOException {
         return newLockManager(repositoriesService.get(), repositoryName, indexUUID, shardId);
     }
 
@@ -56,6 +56,12 @@ public class RemoteStoreLockManagerFactory {
         } catch (RepositoryMissingException e) {
             throw new IllegalArgumentException("Repository should be present to acquire/release lock", e);
         }
+    }
+
+    // TODO: remove this once we add poller in place to trigger remote store cleanup
+    // see: https://github.com/opensearch-project/OpenSearch/issues/8469
+    public Supplier<RepositoriesService> getRepositoriesService() {
+        return repositoriesService;
     }
 
     private static RemoteBufferedOutputDirectory createRemoteBufferedOutputDirectory(
