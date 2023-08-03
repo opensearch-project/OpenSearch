@@ -34,7 +34,6 @@ package org.opensearch.common.xcontent;
 
 import com.fasterxml.jackson.dataformat.cbor.CBORConstants;
 import com.fasterxml.jackson.dataformat.smile.SmileConstants;
-import org.opensearch.common.Strings;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
@@ -73,7 +72,7 @@ public class XContentFactoryTests extends OpenSearchTestCase {
         final BytesReference bytes;
         if (type == XContentType.JSON && randomBoolean()) {
             final int length = randomIntBetween(0, 8 * MediaTypeRegistry.GUESS_HEADER_LENGTH);
-            final String content = Strings.toString(builder);
+            final String content = builder.toString();
             final StringBuilder sb = new StringBuilder(length + content.length());
             final char[] chars = new char[length];
             Arrays.fill(chars, ' ');
@@ -88,7 +87,7 @@ public class XContentFactoryTests extends OpenSearchTestCase {
 
         // CBOR is binary, cannot use String
         if (type != XContentType.CBOR && type != XContentType.SMILE) {
-            assertThat(MediaTypeRegistry.xContentType(Strings.toString(builder)), equalTo(type));
+            assertThat(MediaTypeRegistry.xContentType(builder.toString()), equalTo(type));
         }
     }
 

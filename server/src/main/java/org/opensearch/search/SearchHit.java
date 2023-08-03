@@ -38,7 +38,7 @@ import org.opensearch.Version;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.common.Nullable;
 import org.opensearch.core.common.ParsingException;
-import org.opensearch.common.Strings;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressorFactory;
 import org.opensearch.common.document.DocumentField;

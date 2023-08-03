@@ -43,7 +43,6 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.action.get.GetRequest;
 import org.opensearch.action.get.GetResponse;
 import org.opensearch.core.common.ParsingException;
-import org.opensearch.common.Strings;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -234,7 +233,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
             builder.startObject();
             builder.array(termsPath, randomTerms.toArray(new Object[0]));
             builder.endObject();
-            json = Strings.toString(builder);
+            json = builder.toString();
         } catch (IOException ex) {
             throw new OpenSearchException("boom", ex);
         }
@@ -269,9 +268,14 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
     }
 
     public void testTermsQueryWithMultipleFields() throws IOException {
-        String query = Strings.toString(
-            XContentFactory.jsonBuilder().startObject().startObject("terms").array("foo", 123).array("bar", 456).endObject().endObject()
-        );
+        String query = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("terms")
+            .array("foo", 123)
+            .array("bar", 456)
+            .endObject()
+            .endObject()
+            .toString();
         ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(query));
         assertEquals("[" + TermsQueryBuilder.NAME + "] query does not support multiple fields", e.getMessage());
     }
