@@ -44,6 +44,7 @@ import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.store.NativeFSLockFactory;
 import org.apache.lucene.store.SimpleFSLockFactory;
 import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.IndexModule;
@@ -99,8 +100,9 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
                 // Use Lucene defaults
                 final FSDirectory primaryDirectory = FSDirectory.open(location, lockFactory);
                 Set<String> nioExtensions = new HashSet<>(indexSettings.getValue(IndexModule.INDEX_STORE_HYBRID_NIO_EXTENSIONS));
-                if (nioExtensions.isEmpty()) {
-                    nioExtensions.addAll(INDEX_STORE_HYBRID_ALL_EXTENSIONS);
+                if (indexSettings.getValue(IndexModule.INDEX_STORE_HYBRID_MMAP_EXTENSIONS)
+                    .equals(IndexModule.INDEX_STORE_HYBRID_MMAP_EXTENSIONS.getDefault(Settings.EMPTY)) == false) {
+                    nioExtensions = new HashSet<>(INDEX_STORE_HYBRID_ALL_EXTENSIONS);
                     nioExtensions.removeAll(indexSettings.getValue(IndexModule.INDEX_STORE_HYBRID_MMAP_EXTENSIONS));
                 }
                 if (primaryDirectory instanceof MMapDirectory) {
@@ -174,7 +176,7 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
 
         boolean useDelegate(String name) {
             final String extension = FileSwitchDirectory.getExtension(name);
-            return !nioExtensions.contains(extension);
+            return nioExtensions.contains(extension) == false;
         }
 
         @Override

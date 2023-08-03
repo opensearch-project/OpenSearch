@@ -166,6 +166,35 @@ public final class IndexModule {
         "index.store.hybrid.mmap.extensions",
         List.of("nvd", "dvd", "tim", "tip", "dim", "kdd", "kdi", "cfs", "doc"),
         Function.identity(),
+        new Setting.Validator<List<String>>() {
+
+            @Override
+            public void validate(final List<String> value) {}
+
+            @Override
+            public void validate(final List<String> value, final Map<Setting<?>, Object> settings) {
+                if (value.equals(INDEX_STORE_HYBRID_MMAP_EXTENSIONS.getDefault(Settings.EMPTY)) == false) {
+                    final List<String> nioExtensions = (List<String>) settings.get(INDEX_STORE_HYBRID_NIO_EXTENSIONS);
+                    final List<String> defaultNioExtensions = INDEX_STORE_HYBRID_NIO_EXTENSIONS.getDefault(Settings.EMPTY);
+                    if (nioExtensions.equals(defaultNioExtensions) == false) {
+                        throw new IllegalArgumentException(
+                            "Settings "
+                                + INDEX_STORE_HYBRID_NIO_EXTENSIONS.getKey()
+                                + " & "
+                                + INDEX_STORE_HYBRID_MMAP_EXTENSIONS.getKey()
+                                + " cannot both be set. Use "
+                                + INDEX_STORE_HYBRID_NIO_EXTENSIONS.getKey()
+                                + " only."
+                        );
+                    }
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                return List.<Setting<?>>of(INDEX_STORE_HYBRID_NIO_EXTENSIONS).iterator();
+            }
+        },
         Property.IndexScope,
         Property.NodeScope
     );
@@ -176,7 +205,25 @@ public final class IndexModule {
      */
     public static final Setting<List<String>> INDEX_STORE_HYBRID_NIO_EXTENSIONS = Setting.listSetting(
         "index.store.hybrid.nio.extensions",
-        Collections.emptyList(),
+        List.of(
+            "segments_N",
+            "write.lock",
+            "si",
+            "cfe",
+            "fnm",
+            "fdx",
+            "fdt",
+            "pos",
+            "pay",
+            "nvm",
+            "dvm",
+            "tvx",
+            "tvd",
+            "liv",
+            "dii",
+            "vec",
+            "vem"
+        ),
         Function.identity(),
         new Setting.Validator<List<String>>() {
 
@@ -185,10 +232,10 @@ public final class IndexModule {
 
             @Override
             public void validate(final List<String> value, final Map<Setting<?>, Object> settings) {
-                if (!value.isEmpty()) {
+                if (value.equals(INDEX_STORE_HYBRID_NIO_EXTENSIONS.getDefault(Settings.EMPTY)) == false) {
                     final List<String> mmapExtensions = (List<String>) settings.get(INDEX_STORE_HYBRID_MMAP_EXTENSIONS);
                     final List<String> defaultMmapExtensions = INDEX_STORE_HYBRID_MMAP_EXTENSIONS.getDefault(Settings.EMPTY);
-                    if (!mmapExtensions.equals(defaultMmapExtensions)) {
+                    if (mmapExtensions.equals(defaultMmapExtensions) == false) {
                         throw new IllegalArgumentException(
                             "Settings "
                                 + INDEX_STORE_HYBRID_NIO_EXTENSIONS.getKey()
