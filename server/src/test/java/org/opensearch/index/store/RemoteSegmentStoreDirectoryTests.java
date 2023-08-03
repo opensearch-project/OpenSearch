@@ -766,7 +766,8 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         IndexOutput indexOutput = mock(IndexOutput.class);
 
         String generation = RemoteStoreUtils.invertLong(segmentInfos.getGeneration());
-        String primaryTerm = RemoteStoreUtils.invertLong(12);
+        long primaryTermLong = indexShard.getLatestReplicationCheckpoint().getPrimaryTerm();
+        String primaryTerm = RemoteStoreUtils.invertLong(primaryTermLong);
         when(storeDirectory.createOutput(startsWith("metadata__" + primaryTerm + "__" + generation), eq(IOContext.DEFAULT))).thenReturn(
             indexOutput
         );
