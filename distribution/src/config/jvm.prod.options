@@ -1,0 +1,86 @@
+## JVM configuration
+
+################################################################
+## IMPORTANT: JVM heap size
+################################################################
+##
+## You should always set the min and max JVM heap
+## size to the same value. For example, to set
+## the heap to 4 GB, set:
+##
+## -Xms4g
+## -Xmx4g
+##
+## See https://opensearch.org/docs/opensearch/install/important-settings/
+## for more information
+##
+################################################################
+
+# Xms represents the initial size of total heap space
+# Xmx represents the maximum size of total heap space
+
+-Xms1g
+-Xmx1g
+
+################################################################
+## Expert settings
+################################################################
+##
+## All settings below this section are considered
+## expert settings. Don't tamper with them unless
+## you understand what you are doing
+##
+################################################################
+
+## GC configuration
+8-10:-XX:+UseConcMarkSweepGC
+8-10:-XX:CMSInitiatingOccupancyFraction=75
+8-10:-XX:+UseCMSInitiatingOccupancyOnly
+
+## G1GC Configuration
+# NOTE: G1 GC is only supported on JDK version 10 or later
+# to use G1GC, uncomment the next two lines and update the version on the
+# following three lines to your version of the JDK
+# 10:-XX:-UseConcMarkSweepGC
+# 10:-XX:-UseCMSInitiatingOccupancyOnly
+11-:-XX:+UseG1GC
+11-:-XX:G1ReservePercent=25
+11-:-XX:InitiatingHeapOccupancyPercent=30
+
+## JVM temporary directory
+-Djava.io.tmpdir=${OPENSEARCH_TMPDIR}
+
+## heap dumps
+
+# generate a heap dump when an allocation from the Java heap fails
+# heap dumps are created in the working directory of the JVM
+-XX:+HeapDumpOnOutOfMemoryError
+
+# specify an alternative path for heap dumps; ensure the directory exists and
+# has sufficient space
+-XX:HeapDumpPath=/var/lib/wazuh-indexer
+
+# specify an alternative path for JVM fatal error logs
+-XX:ErrorFile=/var/log/wazuh-indexer/hs_err_pid%p.log
+
+## JDK 8 GC logging
+8:-XX:+PrintGCDetails
+8:-XX:+PrintGCDateStamps
+8:-XX:+PrintTenuringDistribution
+8:-XX:+PrintGCApplicationStoppedTime
+8:-Xloggc:/var/log/wazuh-indexer/gc.log
+8:-XX:+UseGCLogFileRotation
+8:-XX:NumberOfGCLogFiles=32
+8:-XX:GCLogFileSize=64m
+
+# JDK 9+ GC logging
+9-:-Xlog:gc*,gc+age=trace,safepoint:file=/var/log/wazuh-indexer/gc.log:utctime,pid,tags:filecount=32,filesize=64m
+
+# Explicitly allow security manager (https://bugs.openjdk.java.net/browse/JDK-8270380)
+18-:-Djava.security.manager=allow
+
+## OpenSearch Performance Analyzer
+-Dclk.tck=100
+-Djdk.attach.allowAttachSelf=true
+-Djava.security.policy=file:///etc/wazuh-indexer/opensearch-performance-analyzer/opensearch_security.policy
+--add-opens=jdk.attach/sun.tools.attach=ALL-UNNAMED

@@ -1,3 +1,10 @@
 ## Reporting a Vulnerability
 
-If you discover a potential security issue in this project we ask that you notify OpenSearch Security directly via email to security@opensearch.org. Please do **not** create a public GitHub issue.
+To report a possible vulnerability or security issue you can:
+- Send us an email to security@wazuh.com.
+- Open a new security report under the security tab on this repository.
+
+**PLEASE DO NOT OPEN A PUBLIC ISSUE ABOUT SECURITY**
+
+We want to protect our community, so please give us time to fix a vulnerability
+before publishing it.

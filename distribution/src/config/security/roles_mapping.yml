@@ -1,0 +1,87 @@
+---
+# In this file users, backendroles and hosts can be mapped to Open Distro Security roles.
+# Permissions for Opendistro roles are configured in roles.yml
+
+_meta:
+  type: "rolesmapping"
+  config_version: 2
+
+# Define your roles mapping here
+
+## Default roles mapping
+
+all_access:
+  reserved: true
+  hidden: false
+  backend_roles:
+  - "admin"
+  hosts: []
+  users: []
+  and_backend_roles: []
+  description: "Maps admin to all_access"
+
+own_index:
+  reserved: false
+  hidden: false
+  backend_roles: []
+  hosts: []
+  users:
+  - "*"
+  and_backend_roles: []
+  description: "Allow full access to an index named like the username"
+
+logstash:
+  reserved: false
+  hidden: false
+  backend_roles:
+  - "logstash"
+  hosts: []
+  users: []
+  and_backend_roles: []
+
+readall:
+  reserved: true
+  hidden: false
+  backend_roles:
+  - "readall"
+  hosts: []
+  users: []
+  and_backend_roles: []
+
+manage_snapshots:
+  reserved: true
+  hidden: false
+  backend_roles:
+  - "snapshotrestore"
+  hosts: []
+  users: []
+  and_backend_roles: []
+
+kibana_server:
+  reserved: true
+  hidden: false
+  backend_roles: []
+  hosts: []
+  users:
+  - "kibanaserver"
+  and_backend_roles: []
+
+kibana_user:
+  reserved: false
+  hidden: false
+  backend_roles:
+  - "kibanauser"
+  hosts: []
+  users: []
+  and_backend_roles: []
+  description: "Maps kibanauser to kibana_user"
+
+  # Wazuh monitoring and statistics index permissions
+manage_wazuh_index:
+  reserved: true
+  hidden: false
+  backend_roles: []
+  hosts: []
+  users:
+  - "kibanaserver"
+  and_backend_roles: []
