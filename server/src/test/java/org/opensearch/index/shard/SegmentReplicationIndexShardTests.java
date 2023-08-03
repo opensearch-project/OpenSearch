@@ -23,12 +23,12 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingHelper;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.concurrent.GatedCloseable;
+import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.common.lease.Releasable;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.InternalEngineFactory;
@@ -50,8 +50,8 @@ import org.opensearch.indices.replication.SegmentReplicationSourceFactory;
 import org.opensearch.indices.replication.SegmentReplicationState;
 import org.opensearch.indices.replication.SegmentReplicationTarget;
 import org.opensearch.indices.replication.SegmentReplicationTargetService;
-import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
+import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.replication.common.CopyState;
 import org.opensearch.indices.replication.common.ReplicationFailedException;
 import org.opensearch.indices.replication.common.ReplicationListener;
@@ -82,6 +82,7 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.opensearch.index.engine.EngineTestCase.assertAtMostOneLuceneDocumentPerSequenceNumber;
 
 public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelReplicationTestCase {
 
@@ -671,6 +672,41 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             null,
             null
         );
+    }
+
+    public void testNoDuplicateSeqNo() throws Exception {
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT).build();
+        ReplicationGroup shards = createGroup(1, settings, indexMapping, new NRTReplicationEngineFactory(), createTempDir());
+        final IndexShard primaryShard = shards.getPrimary();
+        final IndexShard replicaShard = shards.getReplicas().get(0);
+        shards.startPrimary();
+        shards.startAll();
+        shards.indexDocs(10);
+        replicateSegments(primaryShard, shards.getReplicas());
+
+        flushShard(primaryShard);
+        shards.indexDocs(10);
+        replicateSegments(primaryShard, shards.getReplicas());
+
+        shards.indexDocs(10);
+        primaryShard.refresh("test");
+        replicateSegments(primaryShard, shards.getReplicas());
+
+        CountDownLatch latch = new CountDownLatch(1);
+        shards.promoteReplicaToPrimary(replicaShard, (shard, listener) -> {
+            try {
+                assertAtMostOneLuceneDocumentPerSequenceNumber(replicaShard.getEngine());
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+            latch.countDown();
+        });
+        latch.await();
+        for (IndexShard shard : shards) {
+            if (shard != null) {
+                closeShard(shard, false);
+            }
+        }
     }
 
     /**
