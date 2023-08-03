@@ -52,7 +52,8 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Dire
     }
 
     public Directory newDirectory(String repositoryName, String indexUUID, String shardId) throws IOException {
-        try (Repository repository = repositoriesService.get().getSystemRepository(repositoryName)) {
+        // TODO switch to using {@RepositoriesService#getSystemRespository} once repository auto-bootstrap changes are in
+        try (Repository repository = repositoriesService.get().repository(repositoryName)) {
             assert repository instanceof BlobStoreRepository : "repository should be instance of BlobStoreRepository";
             BlobPath commonBlobPath = ((BlobStoreRepository) repository).basePath();
             commonBlobPath = commonBlobPath.add(indexUUID).add(shardId).add(SEGMENTS);

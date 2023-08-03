@@ -108,4 +108,49 @@ public class RepositoriesServiceIT extends OpenSearchIntegTestCase {
         final Repository updatedRepository = repositoriesService.repository(repositoryName);
         assertThat(updatedRepository, updated ? not(sameInstance(originalRepository)) : sameInstance(originalRepository));
     }
+
+    public void testExternalSystemRepositoryCreationFails() {
+        final String repositoryName = "test-system-repo";
+        final Client client = client();
+
+        final Settings.Builder repoSettings = Settings.builder().put("location", randomRepoPath()).put("system_repository", true);
+
+        assertThrows(
+            "[" + repositoryName + "] cannot register a system repository externally",
+            RepositoryException.class,
+            () -> client.admin().cluster().preparePutRepository(repositoryName).setType(FsRepository.TYPE).setSettings(repoSettings).get()
+        );
+
+        assertThrows(RepositoryException.class, () -> client.admin().cluster().prepareGetRepositories(repositoryName).get());
+    }
+
+    public void testSystemRepositorySettingsUpdationFails() {
+        final InternalTestCluster cluster = internalCluster();
+        final String repositoryName = "test-repo";
+        final Client client = client();
+
+        final RepositoriesService repositoriesService = cluster.getDataOrClusterManagerNodeInstances(RepositoriesService.class)
+            .iterator()
+            .next();
+        final Settings.Builder repoSettings = Settings.builder().put("location", randomRepoPath());
+
+        assertAcked(
+            client.admin().cluster().preparePutRepository(repositoryName).setType(FsRepository.TYPE).setSettings(repoSettings).get()
+        );
+
+        final Settings.Builder updatedRepoSettings = Settings.builder().put("location", randomRepoPath()).put("system_repository", true);
+
+        assertThrows(
+            "[" + repositoryName + "] trying to modify system repository attribute for a repository",
+            RepositoryException.class,
+            () -> client.admin()
+                .cluster()
+                .preparePutRepository(repositoryName)
+                .setType(FsRepository.TYPE)
+                .setSettings(updatedRepoSettings)
+                .get()
+        );
+        assertThrows(RepositoryException.class, () -> repositoriesService.getSystemRepository(repositoryName));
+        assertThat(repositoriesService.repository(repositoryName), instanceOf(FsRepository.class));
+    }
 }

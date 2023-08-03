@@ -211,6 +211,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                     RepositoriesMetadata repositories = metadata.custom(RepositoriesMetadata.TYPE);
                     if (repositories == null) {
                         logger.info("put repository [{}]", request.name());
+                        ensureNonSystemRepository(request.settings(), request.name());
                         repositories = new RepositoriesMetadata(
                             Collections.singletonList(new RepositoryMetadata(request.name(), request.type(), request.settings()))
                         );
@@ -223,9 +224,13 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                                 if (newRepositoryMetadata.equalsIgnoreGenerations(repositoryMetadata)) {
                                     // Previous version is the same as this one no update is needed.
                                     return currentState;
-                                } else if (SYSTEM_REPOSITORY_SETTING.get(repositoryMetadata.settings())
-                                    && SYSTEM_REPOSITORY_SETTING.get(newRepositoryMetadata.settings()) == false) {
-                                    throw new IllegalStateException("trying to modify system repository attribute for a repository");
+                                } else if (SYSTEM_REPOSITORY_SETTING.get(repositoryMetadata.settings()) != SYSTEM_REPOSITORY_SETTING.get(
+                                    newRepositoryMetadata.settings()
+                                )) {
+                                    throw new RepositoryException(
+                                        repositoryMetadata.name(),
+                                        "trying to modify system repository attribute for a repository"
+                                    );
                                 }
                                 found = true;
                                 currentRepositoryMetadata = repositoryMetadata;
@@ -240,7 +245,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                             repositoriesMetadata.add(new RepositoryMetadata(request.name(), request.type(), request.settings()));
                         } else {
                             logger.info("update repository [{}]", request.name());
-                            validateRestrictedSystemRespositorySettings(currentRepositoryMetadata, newRepositoryMetadata);
+                            validateRestrictedSystemRepositorySettings(currentRepositoryMetadata, newRepositoryMetadata);
                         }
                         repositories = new RepositoriesMetadata(repositoriesMetadata);
                     }
@@ -268,12 +273,18 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         );
     }
 
-    private void validateRestrictedSystemRespositorySettings(RepositoryMetadata currentRepositoryMetadata, RepositoryMetadata newRepositoryMetadata) {
-        if (SYSTEM_REPOSITORY_SETTING.get(newRepositoryMetadata.settings())) {
+    private void validateRestrictedSystemRepositorySettings(
+        RepositoryMetadata currentRepositoryMetadata,
+        RepositoryMetadata newRepositoryMetadata
+    ) {
+        if (SYSTEM_REPOSITORY_SETTING.get(currentRepositoryMetadata.settings())) {
             Repository repository = repositories.get(currentRepositoryMetadata.name());
             for (Setting setting : repository.restrictedSystemRepositorySettings()) {
-                if (currentRepositoryMetadata.settings().get(setting.getKey()).equals(newRepositoryMetadata.settings().get(setting.getKey())) == false) {
-                    throw new RepositoryException(repository.getMetadata().name(), "trying to modify immutable property " + setting.getKey());
+                if (newRepositoryMetadata.settings().get(setting.getKey()) != null) {
+                    throw new RepositoryException(
+                        repository.getMetadata().name(),
+                        "trying to modify restricted system repository settings " + setting.getKey()
+                    );
                 }
             }
         }
@@ -444,7 +455,6 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                             || previousMetadata.settings().equals(repositoryMetadata.settings()) == false) {
                             // Previous version is different from the version in settings
                             logger.debug("updating repository [{}]", repositoryMetadata.name());
-                            closeRepository(repository);
                             archiveRepositoryStats(repository, state.version());
                             repository = null;
                             try {

@@ -283,7 +283,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      */
     public static final Setting<Boolean> READONLY_SETTING = Setting.boolSetting("readonly", false, Setting.Property.NodeScope);
 
-    public static final Setting<Boolean> SYSTEM_REPOSITORY_SETTING = Setting.boolSetting("system_repository", false, Setting.Property.NodeScope);
+    public static final Setting<Boolean> SYSTEM_REPOSITORY_SETTING = Setting.boolSetting(
+        "system_repository",
+        false,
+        Setting.Property.NodeScope
+    );
 
     protected final boolean supportURLRepo;
 
@@ -798,7 +802,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         List<Setting> settings = List.of(SYSTEM_REPOSITORY_SETTING, REMOTE_STORE_INDEX_SHALLOW_COPY);
         return settings;
     }
-
 
     @Override
     public RepositoryMetadata getMetadata() {

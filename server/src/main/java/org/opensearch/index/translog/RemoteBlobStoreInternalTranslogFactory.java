@@ -38,7 +38,8 @@ public class RemoteBlobStoreInternalTranslogFactory implements TranslogFactory {
     ) {
         Repository repository;
         try {
-            repository = repositoriesServiceSupplier.get().getSystemRepository(repositoryName);
+            // TODO switch to using {@RepositoriesService#getSystemRespository} once repository auto-bootstrap changes are in
+            repository = repositoriesServiceSupplier.get().repository(repositoryName);
         } catch (RepositoryMissingException ex) {
             throw new IllegalArgumentException("Repository should be created before creating index with remote_store enabled setting", ex);
         }

@@ -56,6 +56,7 @@ import org.opensearch.snapshots.SnapshotInfo;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -246,7 +247,6 @@ public interface Repository extends LifecycleComponent {
      */
     boolean isSystemRepository();
 
-
     /**
      * Creates a snapshot of the shard based on the index commit point.
      * <p>
@@ -356,7 +356,7 @@ public interface Repository extends LifecycleComponent {
      * @return the list of settings
      */
     default List<Setting> restrictedSystemRepositorySettings() {
-        throw new UnsupportedOperationException();
+        return Collections.emptyList();
     }
 
     /**
