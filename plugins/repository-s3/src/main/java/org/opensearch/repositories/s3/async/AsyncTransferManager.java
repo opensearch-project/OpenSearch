@@ -17,7 +17,7 @@ import org.opensearch.common.StreamContext;
 import org.opensearch.common.blobstore.exception.CorruptFileException;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.io.InputStreamContainer;
-import org.opensearch.common.unit.ByteSizeUnit;
+import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.common.util.ByteUtils;
 import org.opensearch.repositories.s3.io.CheckedContainer;
 import org.opensearch.repositories.s3.SocketAccess;

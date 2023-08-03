@@ -14,7 +14,10 @@ import java.util.stream.Collectors;
 
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
+import org.opensearch.core.index.Index;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
+import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 
 /**
  * Metadata object for Remote Segment
@@ -38,19 +41,16 @@ public class RemoteSegmentMetadata {
 
     private final byte[] segmentInfosBytes;
 
-    private final long primaryTerm;
-    private final long generation;
+    private final ReplicationCheckpoint replicationCheckpoint;
 
     public RemoteSegmentMetadata(
         Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> metadata,
         byte[] segmentInfosBytes,
-        long primaryTerm,
-        long generation
+        ReplicationCheckpoint replicationCheckpoint
     ) {
         this.metadata = metadata;
         this.segmentInfosBytes = segmentInfosBytes;
-        this.generation = generation;
-        this.primaryTerm = primaryTerm;
+        this.replicationCheckpoint = replicationCheckpoint;
     }
 
     /**
@@ -66,11 +66,15 @@ public class RemoteSegmentMetadata {
     }
 
     public long getGeneration() {
-        return generation;
+        return replicationCheckpoint.getSegmentsGen();
     }
 
     public long getPrimaryTerm() {
-        return primaryTerm;
+        return replicationCheckpoint.getPrimaryTerm();
+    }
+
+    public ReplicationCheckpoint getReplicationCheckpoint() {
+        return replicationCheckpoint;
     }
 
     /**
@@ -99,19 +103,42 @@ public class RemoteSegmentMetadata {
 
     public void write(IndexOutput out) throws IOException {
         out.writeMapOfStrings(toMapOfStrings());
-        out.writeLong(generation);
-        out.writeLong(primaryTerm);
+        writeCheckpointToIndexOutput(replicationCheckpoint, out);
         out.writeLong(segmentInfosBytes.length);
         out.writeBytes(segmentInfosBytes, segmentInfosBytes.length);
     }
 
     public static RemoteSegmentMetadata read(IndexInput indexInput) throws IOException {
         Map<String, String> metadata = indexInput.readMapOfStrings();
-        long generation = indexInput.readLong();
-        long primaryTerm = indexInput.readLong();
+        ReplicationCheckpoint replicationCheckpoint = readCheckpointFromIndexInput(indexInput);
         int byteArraySize = (int) indexInput.readLong();
         byte[] segmentInfosBytes = new byte[byteArraySize];
         indexInput.readBytes(segmentInfosBytes, 0, byteArraySize);
-        return new RemoteSegmentMetadata(RemoteSegmentMetadata.fromMapOfStrings(metadata), segmentInfosBytes, primaryTerm, generation);
+        return new RemoteSegmentMetadata(RemoteSegmentMetadata.fromMapOfStrings(metadata), segmentInfosBytes, replicationCheckpoint);
+    }
+
+    public static void writeCheckpointToIndexOutput(ReplicationCheckpoint replicationCheckpoint, IndexOutput out) throws IOException {
+        ShardId shardId = replicationCheckpoint.getShardId();
+        // Write ShardId
+        out.writeString(shardId.getIndex().getName());
+        out.writeString(shardId.getIndex().getUUID());
+        out.writeVInt(shardId.getId());
+        // Write remaining checkpoint fields
+        out.writeLong(replicationCheckpoint.getPrimaryTerm());
+        out.writeLong(replicationCheckpoint.getSegmentsGen());
+        out.writeLong(replicationCheckpoint.getSegmentInfosVersion());
+        out.writeLong(replicationCheckpoint.getLength());
+        out.writeString(replicationCheckpoint.getCodec());
+    }
+
+    private static ReplicationCheckpoint readCheckpointFromIndexInput(IndexInput in) throws IOException {
+        return new ReplicationCheckpoint(
+            new ShardId(new Index(in.readString(), in.readString()), in.readVInt()),
+            in.readLong(),
+            in.readLong(),
+            in.readLong(),
+            in.readLong(),
+            in.readString()
+        );
     }
 }
