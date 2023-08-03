@@ -17,7 +17,7 @@ import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
-import org.opensearch.index.remote.RemoteRefreshSegmentTracker;
+import org.opensearch.index.remote.RemoteSegmentTransferTracker;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.snapshots.mockstore.MockRepository;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -92,7 +92,7 @@ public class RemoteStoreBackpressureIT extends AbstractRemoteStoreMockRepository
         assertTrue(ex.getMessage().contains("rejected execution on primary shard"));
         assertTrue(ex.getMessage().contains(breachMode));
 
-        RemoteRefreshSegmentTracker.Stats stats = stats();
+        RemoteSegmentTransferTracker.Stats stats = stats();
         assertTrue(stats.bytesLag > 0);
         assertTrue(stats.refreshTimeLagMs > 0);
         assertTrue(stats.localRefreshNumber - stats.remoteRefreshNumber > 0);
@@ -102,7 +102,7 @@ public class RemoteStoreBackpressureIT extends AbstractRemoteStoreMockRepository
             .setRandomControlIOExceptionRate(0d);
 
         assertBusy(() -> {
-            RemoteRefreshSegmentTracker.Stats finalStats = stats();
+            RemoteSegmentTransferTracker.Stats finalStats = stats();
             assertEquals(0, finalStats.bytesLag);
             assertEquals(0, finalStats.refreshTimeLagMs);
             assertEquals(0, finalStats.localRefreshNumber - finalStats.remoteRefreshNumber);
@@ -115,11 +115,11 @@ public class RemoteStoreBackpressureIT extends AbstractRemoteStoreMockRepository
         deleteRepo();
     }
 
-    private RemoteRefreshSegmentTracker.Stats stats() {
+    private RemoteSegmentTransferTracker.Stats stats() {
         String shardId = "0";
         RemoteStoreStatsResponse response = client().admin().cluster().prepareRemoteStoreStats(INDEX_NAME, shardId).get();
         final String indexShardId = String.format(Locale.ROOT, "[%s][%s]", INDEX_NAME, shardId);
-        List<RemoteStoreStats> matches = Arrays.stream(response.getShards())
+        List<RemoteStoreStats> matches = Arrays.stream(response.getRemoteStoreStats())
             .filter(stat -> indexShardId.equals(stat.getStats().shardId.toString()))
             .collect(Collectors.toList());
         assertEquals(1, matches.size());
