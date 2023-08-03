@@ -159,7 +159,7 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
         assertAcked(clusterAdmin().prepareDeleteRepository(REPOSITORY_2_NAME));
     }
 
-    public int getFileCount(Path path) throws Exception {
+    public static int getFileCount(Path path) throws Exception {
         final AtomicInteger filesExisting = new AtomicInteger(0);
         Files.walkFileTree(path, new SimpleFileVisitor<>() {
             @Override

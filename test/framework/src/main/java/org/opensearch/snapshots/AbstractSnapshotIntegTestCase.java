@@ -557,6 +557,11 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
             .prepareGetSettings(remoteStoreIndex)
             .get()
             .getSetting(remoteStoreIndex, IndexMetadata.SETTING_INDEX_UUID);
+        return getLockFilesInRemoteStore(remoteStoreIndex, remoteStoreRepositoryName, indexUUID);
+    }
+
+    protected String[] getLockFilesInRemoteStore(String remoteStoreIndex, String remoteStoreRepositoryName, String indexUUID)
+        throws IOException {
         final RepositoriesService repositoriesService = internalCluster().getCurrentClusterManagerNodeInstance(RepositoriesService.class);
         final BlobStoreRepository remoteStoreRepository = (BlobStoreRepository) repositoriesService.repository(remoteStoreRepositoryName);
         BlobPath shardLevelBlobPath = remoteStoreRepository.basePath().add(indexUUID).add("0").add("segments").add("lock_files");
