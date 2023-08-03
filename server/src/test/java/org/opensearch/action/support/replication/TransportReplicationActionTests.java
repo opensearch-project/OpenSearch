@@ -89,7 +89,7 @@ import org.opensearch.index.shard.ShardNotFoundException;
 import org.opensearch.index.shard.ShardNotInPrimaryModeException;
 import org.opensearch.indices.IndexClosedException;
 import org.opensearch.indices.IndicesService;
-import org.opensearch.indices.breaker.NoneCircuitBreakerService;
+import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.indices.cluster.ClusterStateChanges;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.test.OpenSearchTestCase;
@@ -102,7 +102,7 @@ import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportChannel;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportRequest;
-import org.opensearch.transport.TransportResponse;
+import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.transport.TransportService;
 import org.opensearch.transport.nio.MockNioTransport;
 

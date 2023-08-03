@@ -14,7 +14,7 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.common.settings.Setting;
-import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.common.util.MovingAverage;
 import org.opensearch.monitor.jvm.JvmStats;
 import org.opensearch.core.xcontent.XContentBuilder;

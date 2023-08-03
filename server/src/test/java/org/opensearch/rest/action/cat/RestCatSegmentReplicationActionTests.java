@@ -15,7 +15,7 @@ import org.opensearch.cluster.routing.AllocationId;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.Randomness;
 import org.opensearch.common.Table;
-import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.index.Index;
 import org.opensearch.index.SegmentReplicationPerGroupStats;

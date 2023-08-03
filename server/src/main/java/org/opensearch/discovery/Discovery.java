@@ -33,7 +33,7 @@
 package org.opensearch.discovery;
 
 import org.opensearch.cluster.coordination.ClusterStatePublisher;
-import org.opensearch.common.component.LifecycleComponent;
+import org.opensearch.common.lifecycle.LifecycleComponent;
 
 /**
  * A pluggable module allowing to implement discovery of other nodes, publishing of the cluster

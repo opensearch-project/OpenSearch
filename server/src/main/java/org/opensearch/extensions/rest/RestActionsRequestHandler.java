@@ -15,7 +15,7 @@ import org.opensearch.extensions.DiscoveryExtensionNode;
 import org.opensearch.identity.IdentityService;
 import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestHandler;
-import org.opensearch.transport.TransportResponse;
+import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.transport.TransportService;
 
 /**

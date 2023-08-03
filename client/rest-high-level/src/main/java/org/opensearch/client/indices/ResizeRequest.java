@@ -39,7 +39,7 @@ import org.opensearch.client.ValidationException;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.core.common.unit.ByteSizeValue;
 
 import java.io.IOException;
 import java.util.Collections;
