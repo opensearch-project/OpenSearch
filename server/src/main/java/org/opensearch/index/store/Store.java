@@ -845,22 +845,24 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * @param tmpToFileName Map of temporary replication file to actual file name
      * @param infosBytes bytes[] of SegmentInfos supposed to be sent over by primary excluding segment_N file
      * @param segmentsGen segment generation number
-     * @param consumer consumer for generated SegmentInfos
+     * @param finalizeConsumer consumer for action on passed in SegmentInfos
+     * @param renameConsumer consumer for action on temporary copied over files
      * @throws IOException Exception while reading store and building segment infos
      */
     public void buildInfosFromBytes(
         Map<String, String> tmpToFileName,
         byte[] infosBytes,
         long segmentsGen,
-        CheckedConsumer<SegmentInfos, IOException> consumer
+        CheckedConsumer<SegmentInfos, IOException> finalizeConsumer,
+        CheckedConsumer<Map<String, String>, IOException> renameConsumer
     ) throws IOException {
         metadataLock.writeLock().lock();
         try {
             final List<String> values = new ArrayList<>(tmpToFileName.values());
             incRefFileDeleter(values);
             try {
-                renameTempFilesSafe(tmpToFileName);
-                consumer.accept(buildSegmentInfos(infosBytes, segmentsGen));
+                renameConsumer.accept(tmpToFileName);
+                finalizeConsumer.accept(buildSegmentInfos(infosBytes, segmentsGen));
             } finally {
                 decRefFileDeleter(values);
             }
