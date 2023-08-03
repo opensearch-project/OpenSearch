@@ -82,6 +82,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.opensearch.repositories.blobstore.BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY;
+import static org.opensearch.repositories.blobstore.BlobStoreRepository.SYSTEM_REPOSITORY_SETTING;
 
 /**
  * Service responsible for maintaining and providing access to snapshot repositories on nodes.
@@ -159,7 +160,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
      * @param request  register repository request
      * @param listener register repository listener
      */
-    public void registerRepository(final PutRepositoryRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
+    public void registerOrUpdateRepository(final PutRepositoryRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
         assert lifecycle.started() : "Trying to register new repository but service is in state [" + lifecycle.state() + "]";
 
         final RepositoryMetadata newRepositoryMetadata = new RepositoryMetadata(request.name(), request.type(), request.settings());
@@ -216,14 +217,18 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                     } else {
                         boolean found = false;
                         List<RepositoryMetadata> repositoriesMetadata = new ArrayList<>(repositories.repositories().size() + 1);
-
+                        RepositoryMetadata currentRepositoryMetadata = null;
                         for (RepositoryMetadata repositoryMetadata : repositories.repositories()) {
                             if (repositoryMetadata.name().equals(newRepositoryMetadata.name())) {
                                 if (newRepositoryMetadata.equalsIgnoreGenerations(repositoryMetadata)) {
                                     // Previous version is the same as this one no update is needed.
                                     return currentState;
+                                } else if (SYSTEM_REPOSITORY_SETTING.get(repositoryMetadata.settings())
+                                    && SYSTEM_REPOSITORY_SETTING.get(newRepositoryMetadata.settings()) == false) {
+                                    throw new IllegalStateException("trying to modify system repository attribute for a repository");
                                 }
                                 found = true;
+                                currentRepositoryMetadata = repositoryMetadata;
                                 repositoriesMetadata.add(newRepositoryMetadata);
                             } else {
                                 repositoriesMetadata.add(repositoryMetadata);
@@ -231,9 +236,11 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                         }
                         if (!found) {
                             logger.info("put repository [{}]", request.name());
+                            ensureNonSystemRepository(newRepositoryMetadata.settings(), newRepositoryMetadata.name());
                             repositoriesMetadata.add(new RepositoryMetadata(request.name(), request.type(), request.settings()));
                         } else {
                             logger.info("update repository [{}]", request.name());
+                            validateRestrictedSystemRespositorySettings(currentRepositoryMetadata, newRepositoryMetadata);
                         }
                         repositories = new RepositoriesMetadata(repositoriesMetadata);
                     }
@@ -259,6 +266,17 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                 }
             }
         );
+    }
+
+    private void validateRestrictedSystemRespositorySettings(RepositoryMetadata currentRepositoryMetadata, RepositoryMetadata newRepositoryMetadata) {
+        if (SYSTEM_REPOSITORY_SETTING.get(newRepositoryMetadata.settings())) {
+            Repository repository = repositories.get(currentRepositoryMetadata.name());
+            for (Setting setting : repository.restrictedSystemRepositorySettings()) {
+                if (currentRepositoryMetadata.settings().get(setting.getKey()).equals(newRepositoryMetadata.settings().get(setting.getKey())) == false) {
+                    throw new RepositoryException(repository.getMetadata().name(), "trying to modify immutable property " + setting.getKey());
+                }
+            }
+        }
     }
 
     /**
@@ -288,6 +306,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                         boolean changed = false;
                         for (RepositoryMetadata repositoryMetadata : repositories.repositories()) {
                             if (Regex.simpleMatch(request.name(), repositoryMetadata.name())) {
+                                ensureNonSystemRepository(repositoryMetadata.settings(), request.name());
                                 ensureRepositoryNotInUse(currentState, repositoryMetadata.name());
                                 logger.info("delete repository [{}]", repositoryMetadata.name());
                                 changed = true;
@@ -499,6 +518,22 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         throw new RepositoryMissingException(repositoryName);
     }
 
+    /**
+     * Returns registered system repository
+     * <p>*
+     * @param repositoryName repository name
+     * @return registered system repository
+     * @throws RepositoryMissingException if repository with such name isn't registered
+     */
+    public Repository getSystemRepository(String repositoryName) {
+        Repository repository = repositories.get(repositoryName);
+        if (repository != null && SYSTEM_REPOSITORY_SETTING.get(repository.getMetadata().settings())) {
+            return repository;
+        }
+        throw new RepositoryMissingException(repositoryName);
+    }
+
+
     public List<RepositoryStatsSnapshot> repositoriesStats() {
         List<RepositoryStatsSnapshot> archivedRepoStats = repositoriesStatsArchive.getArchivedStats();
         List<RepositoryStatsSnapshot> activeRepoStats = getRepositoryStatsForActiveRepositories();
@@ -607,6 +642,12 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         }
         if (Strings.validFileName(repositoryName) == false) {
             throw new RepositoryException(repositoryName, "must not contain the following characters " + Strings.INVALID_FILENAME_CHARS);
+        }
+    }
+
+    public static void ensureNonSystemRepository(Settings repoSettings, String repository) {
+        if (SYSTEM_REPOSITORY_SETTING.get(repoSettings)) {
+            throw new RepositoryException(repository, "cannot register a system repository externally");
         }
     }
 

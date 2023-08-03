@@ -44,6 +44,7 @@ import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.SecureSetting;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.settings.SecureString;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.core.common.unit.ByteSizeUnit;
@@ -63,6 +64,8 @@ import org.opensearch.snapshots.SnapshotInfo;
 import org.opensearch.threadpool.Scheduler;
 
 import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -386,6 +389,13 @@ class S3Repository extends MeteredBlobStoreRepository {
     @Override
     protected ByteSizeValue chunkSize() {
         return chunkSize;
+    }
+
+    @Override
+    public List<Setting> restrictedSystemRepositorySettings() {
+        List<Setting> restrictedSystemRepositorySettings = super.restrictedSystemRepositorySettings();
+        restrictedSystemRepositorySettings.addAll(List.of(BUCKET_SETTING, BASE_PATH_SETTING));
+        return Collections.unmodifiableList(restrictedSystemRepositorySettings);
     }
 
     @Override

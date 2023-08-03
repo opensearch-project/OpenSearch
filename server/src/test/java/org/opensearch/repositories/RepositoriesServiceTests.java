@@ -208,7 +208,7 @@ public class RepositoriesServiceTests extends OpenSearchTestCase {
 
     private void assertThrowsOnRegister(String repoName) {
         PutRepositoryRequest request = new PutRepositoryRequest(repoName);
-        expectThrows(RepositoryException.class, () -> repositoriesService.registerRepository(request, null));
+        expectThrows(RepositoryException.class, () -> repositoriesService.registerOrUpdateRepository(request, null));
     }
 
     private static class TestRepository implements Repository {

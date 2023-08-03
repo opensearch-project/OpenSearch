@@ -75,6 +75,7 @@ import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.blobstore.DeleteResult;
 import org.opensearch.common.blobstore.fs.FsBlobContainer;
+import org.opensearch.common.util.CollectionUtils;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
@@ -282,6 +283,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      */
     public static final Setting<Boolean> READONLY_SETTING = Setting.boolSetting("readonly", false, Setting.Property.NodeScope);
 
+    public static final Setting<Boolean> SYSTEM_REPOSITORY_SETTING = Setting.boolSetting("system_repository", false, Setting.Property.NodeScope);
+
     protected final boolean supportURLRepo;
 
     private final int maxShardBlobDeleteBatch;
@@ -334,6 +337,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     );
 
     private final boolean readOnly;
+
+    private final boolean isSystemRepository;
 
     private final Object lock = new Object();
 
@@ -398,6 +403,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         snapshotRateLimiter = getRateLimiter(metadata.settings(), "max_snapshot_bytes_per_sec", new ByteSizeValue(40, ByteSizeUnit.MB));
         restoreRateLimiter = getRateLimiter(metadata.settings(), "max_restore_bytes_per_sec", ByteSizeValue.ZERO);
         readOnly = READONLY_SETTING.get(metadata.settings());
+        isSystemRepository = SYSTEM_REPOSITORY_SETTING.get(metadata.settings());
         cacheRepositoryData = CACHE_REPOSITORY_DATA.get(metadata.settings());
         bufferSize = Math.toIntExact(BUFFER_SIZE_SETTING.get(metadata.settings()).getBytes());
         maxShardBlobDeleteBatch = MAX_SNAPSHOT_SHARD_BLOB_DELETE_BATCH_SIZE.get(metadata.settings());
@@ -782,6 +788,17 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     protected ByteSizeValue chunkSize() {
         return null;
     }
+
+    /**
+     * Returns the list of restricted system repository settings that cannot be mutated once repository is created*
+     * @return the list of settings
+     */
+    @Override
+    public List<Setting> restrictedSystemRepositorySettings() {
+        List<Setting> settings = List.of(SYSTEM_REPOSITORY_SETTING, REMOTE_STORE_INDEX_SHALLOW_COPY);
+        return settings;
+    }
+
 
     @Override
     public RepositoryMetadata getMetadata() {
@@ -2072,6 +2089,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     @Override
     public boolean isReadOnly() {
         return readOnly;
+    }
+
+    @Override
+    public boolean isSystemRepository() {
+        return isSystemRepository;
     }
 
     /**

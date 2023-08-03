@@ -43,6 +43,7 @@ import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.lifecycle.LifecycleComponent;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
@@ -55,6 +56,7 @@ import org.opensearch.snapshots.SnapshotInfo;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -238,6 +240,14 @@ public interface Repository extends LifecycleComponent {
     boolean isReadOnly();
 
     /**
+     * Returns true if the repository is managed by the system directly and doesn't allow managing the lifetime of the
+     * repository through external APIs
+     * @return true if the repository is system managed
+     */
+    boolean isSystemRepository();
+
+
+    /**
      * Creates a snapshot of the shard based on the index commit point.
      * <p>
      * The index commit point can be obtained by using {@link org.opensearch.index.engine.Engine#acquireLastIndexCommit} method.
@@ -338,6 +348,14 @@ public interface Repository extends LifecycleComponent {
         IndexId indexId,
         ShardId snapshotShardId
     ) {
+        throw new UnsupportedOperationException();
+    }
+
+    /**
+     * Returns the list of restricted system repository settings that cannot be mutated once repository is created*
+     * @return the list of settings
+     */
+    default List<Setting> restrictedSystemRepositorySettings() {
         throw new UnsupportedOperationException();
     }
 
