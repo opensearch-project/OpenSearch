@@ -41,7 +41,7 @@ class DefaultTracer implements Tracer {
     }
 
     @Override
-    public SpanScope startSpan(String spanName, WrappedSpan parentSpan) {
+    public SpanScope startSpan(String spanName, SpanContext parentSpan) {
         Span span = null;
         if (parentSpan != null) {
             span = createSpan(spanName, parentSpan.getSpan());
@@ -62,10 +62,10 @@ class DefaultTracer implements Tracer {
         return tracerContextStorage.get(TracerContextStorage.CURRENT_SPAN);
     }
 
-    public WrappedSpan getCurrentSpan() {
+    public SpanContext getCurrentSpan() {
         return tracerContextStorage.get(TracerContextStorage.CURRENT_SPAN) == null
             ? null
-            : new WrappedSpan(tracerContextStorage.get(TracerContextStorage.CURRENT_SPAN));
+            : new SpanContext(tracerContextStorage.get(TracerContextStorage.CURRENT_SPAN));
     }
 
     private void endSpan(Span span) {

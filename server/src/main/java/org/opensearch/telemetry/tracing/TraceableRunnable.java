@@ -13,7 +13,7 @@ package org.opensearch.telemetry.tracing;
  */
 public class TraceableRunnable implements Runnable {
     private final Runnable runnable;
-    private final WrappedSpan parent;
+    private final SpanContext parent;
     private final Tracer tracer;
     private final String spanName;
 
@@ -23,7 +23,7 @@ public class TraceableRunnable implements Runnable {
      * @param parent parent
      * @param runnable runnable
      */
-    public TraceableRunnable(Tracer tracer, String spanName, WrappedSpan parent, Runnable runnable) {
+    public TraceableRunnable(Tracer tracer, String spanName, SpanContext parent, Runnable runnable) {
         this.tracer = tracer;
         this.spanName = spanName;
         this.parent = parent;

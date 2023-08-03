@@ -40,13 +40,13 @@ final class WrappedTracer implements Tracer {
     }
 
     @Override
-    public WrappedSpan getCurrentSpan() {
+    public SpanContext getCurrentSpan() {
         Tracer delegateTracer = getDelegateTracer();
         return delegateTracer.getCurrentSpan();
     }
 
     @Override
-    public SpanScope startSpan(String spanName, WrappedSpan parentSpan) {
+    public SpanScope startSpan(String spanName, SpanContext parentSpan) {
         Tracer delegateTracer = getDelegateTracer();
         return delegateTracer.startSpan(spanName, parentSpan);
     }

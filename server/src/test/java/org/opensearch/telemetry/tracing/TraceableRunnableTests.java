@@ -43,8 +43,8 @@ public class TraceableRunnableTests extends OpenSearchTestCase {
         String parentSpanName = "parentSpan";
         DefaultTracer defaultTracer = new DefaultTracer(new MockTracingTelemetry(), contextStorage);
         defaultTracer.startSpan(parentSpanName);
-        WrappedSpan parentSpan = defaultTracer.getCurrentSpan();
-        AtomicReference<WrappedSpan> currrntSpan = new AtomicReference<>(new WrappedSpan(null));
+        SpanContext parentSpan = defaultTracer.getCurrentSpan();
+        AtomicReference<SpanContext> currrntSpan = new AtomicReference<>(new SpanContext(null));
         final AtomicBoolean isRunnableCompleted = new AtomicBoolean(false);
         TraceableRunnable traceableRunnable = new TraceableRunnable(defaultTracer, spanName, parentSpan, () -> {
             isRunnableCompleted.set(true);

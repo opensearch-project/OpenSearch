@@ -12,14 +12,14 @@ package org.opensearch.telemetry.tracing;
  * Wrapped Span will be exposed to the code outside of tracing package for sharing the {@link Span} without having access to
  * its properties.
  */
-public final class WrappedSpan {
+public final class SpanContext {
     private final Span span;
 
     /**
      * Constructor.
      * @param span span to be wrapped.
      */
-    public WrappedSpan(Span span) {
+    public SpanContext(Span span) {
         this.span = span;
     }
 

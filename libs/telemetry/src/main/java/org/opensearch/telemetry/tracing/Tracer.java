@@ -32,11 +32,11 @@ public interface Tracer extends Closeable {
      * @param parentSpan parent span.
      * @return scope of the span, must be closed with explicit close or with try-with-resource
      */
-    SpanScope startSpan(String spanName, WrappedSpan parentSpan);
+    SpanScope startSpan(String spanName, SpanContext parentSpan);
 
     /**
      * Returns the current span.
      * @return current wrapped span.
      */
-    WrappedSpan getCurrentSpan();
+    SpanContext getCurrentSpan();
 }
