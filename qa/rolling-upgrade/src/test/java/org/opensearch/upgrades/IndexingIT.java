@@ -168,7 +168,7 @@ public class IndexingIT extends AbstractRollingTestCase {
         }, 1, TimeUnit.MINUTES);
     }
 
-    public void testIndexing() throws IOException, ParseException {
+    public void testIndexing() throws Exception {
         switch (CLUSTER_TYPE) {
         case OLD:
             break;
