@@ -44,6 +44,8 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.allocation.command.CancelAllocationCommand;
+import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.settings.Settings;
@@ -60,6 +62,7 @@ import org.opensearch.index.engine.NRTReplicationReaderManager;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.indices.recovery.FileChunkRequest;
+import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.search.SearchService;
 import org.opensearch.search.builder.PointInTimeBuilder;
@@ -983,8 +986,11 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
             )
         );
         final IndexShard replicaShard = getIndexShard(replica, INDEX_NAME);
-        final SegmentInfos segmentInfos = replicaShard.getLatestSegmentInfosAndCheckpoint().v1().get();
-        final Collection<String> snapshottedSegments = segmentInfos.files(false);
+        final Tuple<GatedCloseable<SegmentInfos>, ReplicationCheckpoint> tuple = replicaShard.getLatestSegmentInfosAndCheckpoint();
+        final Collection<String> snapshottedSegments;
+        try (final GatedCloseable<SegmentInfos> closeable = tuple.v1()) {
+            snapshottedSegments = closeable.get().files(false);
+        }
         // opens a scrolled query before a flush is called.
         // this is for testing scroll segment consistency between refresh and flush
         SearchResponse searchResponse = client(replica).prepareSearch()
