@@ -1921,8 +1921,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
                     if (deleted && engine != null && isPrimaryMode() && isRemoteTranslogEnabled()) {
                         // Translog Clean up
-                        assert engine instanceof InternalEngine;
-                        ((InternalEngine) engine).translogManager().onDelete();
+                        if (engine instanceof InternalEngine) {
+                            ((InternalEngine) engine).translogManager().onDelete();
+                        }
                     }
 
                     indexShardOperationPermits.close();
