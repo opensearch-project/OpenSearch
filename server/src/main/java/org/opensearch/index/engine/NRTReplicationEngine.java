@@ -35,6 +35,7 @@ import org.opensearch.search.suggest.completion.CompletionStats;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -514,6 +515,20 @@ public class NRTReplicationEngine extends Engine implements LifecycleAware {
     @Override
     protected SegmentInfos getLatestSegmentInfos() {
         return readerManager.getSegmentInfos();
+    }
+
+    @Override
+    public synchronized GatedCloseable<SegmentInfos> getSegmentInfosSnapshot() {
+        // get reference to latest infos
+        final SegmentInfos latestSegmentInfos = getLatestSegmentInfos();
+        // incref all files
+        try {
+            final Collection<String> files = latestSegmentInfos.files(false);
+            store.incRefFileDeleter(files);
+            return new GatedCloseable<>(latestSegmentInfos, () -> store.decRefFileDeleter(files));
+        } catch (IOException e) {
+            throw new EngineException(shardId, e.getMessage(), e);
+        }
     }
 
     protected LocalCheckpointTracker getLocalCheckpointTracker() {
