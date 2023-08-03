@@ -677,8 +677,19 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                 // this Shard's engine was read only, we need to update its engine before restoring local history from xlog.
                                 assert newRouting.primary() && currentRouting.primary() == false;
                                 resetEngineToGlobalCheckpoint();
+                                // It is possible an engine can open with a SegmentInfos on a higher gen but the reader does not refresh to
+                                // trigger our refresh listener.
+                                // Force update the checkpoint post engine reset.
+                                updateReplicationCheckpoint();
                             }
+
                             replicationTracker.activatePrimaryMode(getLocalCheckpoint());
+                            if (indexSettings.isSegRepEnabled()) {
+                                // force publish a checkpoint once in primary mode so that replicas not caught up to previous primary
+                                // are brought up to date.
+                                checkpointPublisher.publish(this, getLatestReplicationCheckpoint());
+                            }
+
                             ensurePeerRecoveryRetentionLeasesExist();
                             /*
                              * If this shard was serving as a replica shard when another shard was promoted to primary then
@@ -1551,15 +1562,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @return EMPTY checkpoint before the engine is opened and null for non-segrep enabled indices
      */
     public ReplicationCheckpoint getLatestReplicationCheckpoint() {
-        final Tuple<GatedCloseable<SegmentInfos>, ReplicationCheckpoint> infosAndCheckpoint = getLatestSegmentInfosAndCheckpoint();
-        if (infosAndCheckpoint == null) {
-            return null;
-        }
-        try (final GatedCloseable<SegmentInfos> ignored = infosAndCheckpoint.v1()) {
-            return infosAndCheckpoint.v2();
-        } catch (IOException e) {
-            throw new OpenSearchException("Error Closing SegmentInfos Snapshot", e);
-        }
+        return replicationTracker.getLatestReplicationCheckpoint();
     }
 
     /**
@@ -1573,13 +1576,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      *
      */
     public Tuple<GatedCloseable<SegmentInfos>, ReplicationCheckpoint> getLatestSegmentInfosAndCheckpoint() {
-        if (indexSettings.isSegRepEnabled() == false) {
-            return null;
-        }
+        assert indexSettings.isSegRepEnabled();
 
         Tuple<GatedCloseable<SegmentInfos>, ReplicationCheckpoint> nullSegmentInfosEmptyCheckpoint = new Tuple<>(
             new GatedCloseable<>(null, () -> {}),
-            ReplicationCheckpoint.empty(shardId, getDefaultCodecName())
+            getLatestReplicationCheckpoint()
         );
 
         if (getEngineOrNull() == null) {
@@ -1598,11 +1599,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         getOperationPrimaryTerm(),
                         segmentInfos.getGeneration(),
                         segmentInfos.getVersion(),
-                        // TODO: Update replicas to compute length from SegmentInfos. Replicas do not yet incref segments with
-                        // getSegmentInfosSnapshot, so computing length from SegmentInfos can cause issues.
-                        shardRouting.primary()
-                            ? store.getSegmentMetadataMap(segmentInfos).values().stream().mapToLong(StoreFileMetadata::length).sum()
-                            : store.stats(StoreStats.UNKNOWN_RESERVED_BYTES).getSizeInBytes(),
+                        store.getSegmentMetadataMap(segmentInfos).values().stream().mapToLong(StoreFileMetadata::length).sum(),
                         getEngine().config().getCodec().getName()
                     )
                 );
@@ -1856,10 +1853,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public void resetToWriteableEngine() throws IOException, InterruptedException, TimeoutException {
         indexShardOperationPermits.blockOperations(30, TimeUnit.MINUTES, () -> { resetEngineToGlobalCheckpoint(); });
-    }
-
-    public void onCheckpointPublished(ReplicationCheckpoint checkpoint) {
-        replicationTracker.setLatestReplicationCheckpoint(checkpoint);
     }
 
     /**
@@ -2342,6 +2335,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             final Engine newEngine = engineFactory.newReadWriteEngine(config);
             onNewEngine(newEngine);
             currentEngineReference.set(newEngine);
+
+            if (indexSettings.isSegRepEnabled()) {
+                // set initial replication checkpoints into tracker.
+                updateReplicationCheckpoint();
+            }
             // We set active because we are now writing operations to the engine; this way,
             // we can flush if we go idle after some time and become inactive.
             active.set(true);
@@ -3667,6 +3665,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
         internalRefreshListener.clear();
         internalRefreshListener.add(new RefreshMetricUpdater(refreshMetric));
+        if (indexSettings.isSegRepEnabled()) {
+            internalRefreshListener.add(new ReplicationCheckpointUpdater());
+        }
         if (this.checkpointPublisher != null && shardRouting.primary() && indexSettings.isSegRepLocalEnabled()) {
             internalRefreshListener.add(new CheckpointRefreshListener(this, this.checkpointPublisher));
         }
@@ -4468,6 +4469,30 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 callingThread = null;
             }
             refreshMetric.inc(System.nanoTime() - currentRefreshStartTime);
+        }
+    }
+
+    /**
+     * Refresh listener to update the Shard's ReplicationCheckpoint post refresh.
+     */
+    private class ReplicationCheckpointUpdater implements ReferenceManager.RefreshListener {
+        @Override
+        public void beforeRefresh() throws IOException {}
+
+        @Override
+        public void afterRefresh(boolean didRefresh) throws IOException {
+            if (didRefresh) {
+                updateReplicationCheckpoint();
+            }
+        }
+    }
+
+    private void updateReplicationCheckpoint() {
+        final Tuple<GatedCloseable<SegmentInfos>, ReplicationCheckpoint> tuple = getLatestSegmentInfosAndCheckpoint();
+        try (final GatedCloseable<SegmentInfos> ignored = tuple.v1()) {
+            replicationTracker.setLatestReplicationCheckpoint(tuple.v2());
+        } catch (IOException e) {
+            throw new OpenSearchException("Error Closing SegmentInfos Snapshot", e);
         }
     }
 
