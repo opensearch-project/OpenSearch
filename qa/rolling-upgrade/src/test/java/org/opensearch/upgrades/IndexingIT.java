@@ -106,8 +106,11 @@ public class IndexingIT extends AbstractRollingTestCase {
             Request segrepStatsRequest = new Request("GET", "/_cat/segments/" + index + "?s=shard,segment,primaryOrReplica");
             segrepStatsRequest.addParameter("h", "index,shard,primaryOrReplica,segment,docs.count");
             Response segrepStatsResponse = client().performRequest(segrepStatsRequest);
-            logger.info("--> _cat/segments response\n {}", EntityUtils.toString(segrepStatsResponse.getEntity()));
             List<String> responseList = Streams.readAllLines(segrepStatsResponse.getEntity().getContent());
+            logger.info("--> _cat/segments response\n {}", responseList.toString().replace(',', '\n'));
+            // Ensure there is result for replica copies before processing the result. This results in retry when there
+            // are not enough number of rows vs failing with IndexOutOfBoundsException
+            assertEquals(0, responseList.size() % (replicaCount + 1));
             for (int segmentsIndex=0; segmentsIndex < responseList.size();) {
                 String[] primaryRow = responseList.get(segmentsIndex++).split(" +");
                 String shardId = primaryRow[0] + primaryRow[1];
