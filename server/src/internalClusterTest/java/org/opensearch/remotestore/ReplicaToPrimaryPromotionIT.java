@@ -11,17 +11,22 @@ package org.opensearch.remotestore;
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import org.junit.Before;
 import org.opensearch.action.admin.indices.close.CloseIndexResponse;
+import org.opensearch.action.index.IndexResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.test.BackgroundIndexer;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.Locale;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -115,5 +120,64 @@ public class ReplicaToPrimaryPromotionIT extends RemoteStoreBaseIntegTestCase {
         }
         refresh(indexName);
         assertHitCount(client().prepareSearch(indexName).setSize(0).get(), numOfDocs);
+    }
+
+    public void testFailoverWhileIndexing() throws Exception {
+        internalCluster().startNode();
+        internalCluster().startNode();
+        final String indexName = randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
+        shard_count = scaledRandomIntBetween(1, 5);
+        createIndex(indexName);
+        ensureGreen(indexName);
+        int docCount = scaledRandomIntBetween(20, 50);
+        final int indexDocAfterFailover = scaledRandomIntBetween(20, 50);
+        AtomicInteger numAutoGenDocs = new AtomicInteger();
+        CountDownLatch latch = new CountDownLatch(1);
+        final AtomicBoolean finished = new AtomicBoolean(false);
+        Thread indexingThread = new Thread(() -> {
+            int docsAfterFailover = 0;
+            while (finished.get() == false && numAutoGenDocs.get() < docCount) {
+                IndexResponse indexResponse = internalCluster().clusterManagerClient()
+                    .prepareIndex(indexName)
+                    .setSource("field", numAutoGenDocs.get())
+                    .get();
+
+                if (indexResponse.status() == RestStatus.CREATED || indexResponse.status() == RestStatus.ACCEPTED) {
+                    numAutoGenDocs.incrementAndGet();
+                    if (numAutoGenDocs.get() == docCount / 2) {
+                        if (random().nextInt(3) == 0) {
+                            refresh(indexName);
+                        } else if (random().nextInt(2) == 0) {
+                            flush(indexName);
+                        }
+                        // Node is killed on this
+                        latch.countDown();
+                    } else if (numAutoGenDocs.get() > docCount / 2) {
+                        docsAfterFailover++;
+                        if (docsAfterFailover == indexDocAfterFailover) {
+                            finished.set(true);
+                        }
+                    }
+                }
+            }
+            logger.debug("Done indexing");
+        });
+        indexingThread.start();
+        latch.await();
+
+        ClusterState state = client(internalCluster().getClusterManagerName()).admin().cluster().prepareState().get().getState();
+        final int numShards = state.metadata().index(indexName).getNumberOfShards();
+        final ShardRouting primaryShard = state.routingTable().index(indexName).shard(randomIntBetween(0, numShards - 1)).primaryShard();
+        final DiscoveryNode randomNode = state.nodes().resolveNode(primaryShard.currentNodeId());
+
+        // stop the random data node, all remaining shards are promoted to primaries
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(randomNode.getName()));
+        ensureYellowAndNoInitializingShards(indexName);
+        indexingThread.join();
+        refresh(indexName);
+        assertHitCount(
+            client(internalCluster().getClusterManagerName()).prepareSearch(indexName).setSize(0).setTrackTotalHits(true).get(),
+            numAutoGenDocs.get()
+        );
     }
 }

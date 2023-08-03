@@ -23,7 +23,6 @@ import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.replication.OpenSearchIndexLevelReplicationTestCase;
 import org.opensearch.index.seqno.SequenceNumbers;
-import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.WriteOnlyTranslogManager;
 import org.opensearch.indices.recovery.RecoveryTarget;
 import org.opensearch.indices.replication.common.ReplicationType;
@@ -76,15 +75,6 @@ public class ReplicaRecoveryWithRemoteTranslogOnPrimaryTests extends OpenSearchI
 
             int moreDocs = shards.indexDocs(randomIntBetween(20, 100));
             shards.flush();
-
-            final ShardRouting replicaRouting2 = newShardRouting(
-                replicaRouting.shardId(),
-                replicaRouting.currentNodeId(),
-                false,
-                ShardRoutingState.INITIALIZING,
-                RecoverySource.PeerRecoverySource.INSTANCE
-            );
-            Store remoteStore = createRemoteStore(remoteDir, replicaRouting2, newIndexMetadata);
             IndexShard newReplicaShard = newShard(
                 newShardRouting(
                     replicaRouting.shardId(),
@@ -102,7 +92,7 @@ public class ReplicaRecoveryWithRemoteTranslogOnPrimaryTests extends OpenSearchI
                 replica.getGlobalCheckpointSyncer(),
                 replica.getRetentionLeaseSyncer(),
                 EMPTY_EVENT_LISTENER,
-                remoteStore
+                remoteDir
             );
             shards.addReplica(newReplicaShard);
             AtomicBoolean assertDone = new AtomicBoolean(false);

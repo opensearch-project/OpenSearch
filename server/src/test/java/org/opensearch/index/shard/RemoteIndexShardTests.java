@@ -19,10 +19,12 @@ import org.opensearch.indices.replication.common.ReplicationType;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.opensearch.index.engine.EngineTestCase.assertAtMostOneLuceneDocumentPerSequenceNumber;
 
-public class SegmentReplicationWithRemoteIndexShardTests extends SegmentReplicationIndexShardTests {
+public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
 
     private static final String REPOSITORY_NAME = "temp-fs";
     private static final Settings settings = Settings.builder()
@@ -132,6 +134,41 @@ public class SegmentReplicationWithRemoteIndexShardTests extends SegmentReplicat
             final List<DocIdSeqNoAndSource> docsAfterRecovery = getDocIdAndSeqNos(shards.getPrimary());
             for (IndexShard shard : shards.getReplicas()) {
                 assertThat(shard.routingEntry().toString(), getDocIdAndSeqNos(shard), equalTo(docsAfterRecovery));
+            }
+        }
+    }
+
+    public void testNoDuplicateSeqNo() throws Exception {
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT).build();
+        ReplicationGroup shards = createGroup(1, settings, indexMapping, new NRTReplicationEngineFactory(), createTempDir());
+        final IndexShard primaryShard = shards.getPrimary();
+        final IndexShard replicaShard = shards.getReplicas().get(0);
+        shards.startPrimary();
+        shards.startAll();
+        shards.indexDocs(10);
+        replicateSegments(primaryShard, shards.getReplicas());
+
+        flushShard(primaryShard);
+        shards.indexDocs(10);
+        replicateSegments(primaryShard, shards.getReplicas());
+
+        shards.indexDocs(10);
+        primaryShard.refresh("test");
+        replicateSegments(primaryShard, shards.getReplicas());
+
+        CountDownLatch latch = new CountDownLatch(1);
+        shards.promoteReplicaToPrimary(replicaShard, (shard, listener) -> {
+            try {
+                assertAtMostOneLuceneDocumentPerSequenceNumber(replicaShard.getEngine());
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+            latch.countDown();
+        });
+        latch.await();
+        for (IndexShard shard : shards) {
+            if (shard != null) {
+                closeShard(shard, false);
             }
         }
     }
