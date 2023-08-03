@@ -95,7 +95,7 @@ public class SegmentReplicationWithNodeToNodeIndexShardTests extends SegmentRepl
                 }
             };
             when(sourceFactory.get(any())).thenReturn(source);
-            startReplicationAndAssertCancellation(replica, targetService);
+            startReplicationAndAssertCancellation(replica, primary, targetService);
 
             shards.removeReplica(replica);
             closeShards(replica);
@@ -137,7 +137,7 @@ public class SegmentReplicationWithNodeToNodeIndexShardTests extends SegmentRepl
                 }
             };
             when(sourceFactory.get(any())).thenReturn(source);
-            startReplicationAndAssertCancellation(replica, targetService);
+            startReplicationAndAssertCancellation(replica, primary, targetService);
 
             shards.removeReplica(replica);
             closeShards(replica);
@@ -189,7 +189,7 @@ public class SegmentReplicationWithNodeToNodeIndexShardTests extends SegmentRepl
                 }
             };
             when(sourceFactory.get(any())).thenReturn(source);
-            startReplicationAndAssertCancellation(replica, targetService);
+            startReplicationAndAssertCancellation(replica, primary, targetService);
 
             shards.removeReplica(replica);
             closeShards(replica);
@@ -227,7 +227,7 @@ public class SegmentReplicationWithNodeToNodeIndexShardTests extends SegmentRepl
                 ) {}
             };
             when(sourceFactory.get(any())).thenReturn(source);
-            startReplicationAndAssertCancellation(replica, targetService);
+            startReplicationAndAssertCancellation(replica, primary, targetService);
 
             shards.removeReplica(replica);
             closeShards(replica);
@@ -275,7 +275,7 @@ public class SegmentReplicationWithNodeToNodeIndexShardTests extends SegmentRepl
                 }
             };
             when(sourceFactory.get(any())).thenReturn(source);
-            startReplicationAndAssertCancellation(nextPrimary, targetService);
+            startReplicationAndAssertCancellation(nextPrimary, oldPrimary, targetService);
             // wait for replica to finish being promoted, and assert doc counts.
             final CountDownLatch latch = new CountDownLatch(1);
             nextPrimary.acquirePrimaryOperationPermit(new ActionListener<>() {
@@ -422,7 +422,11 @@ public class SegmentReplicationWithNodeToNodeIndexShardTests extends SegmentRepl
                 runnablePostGetFiles
             );
             when(sourceFactory.get(any())).thenReturn(segmentReplicationSource);
-            targetService.startReplication(replica, getTargetListener(primaryShard, replica, primaryMetadata, countDownLatch));
+            targetService.startReplication(
+                replica,
+                primaryShard.getLatestReplicationCheckpoint(),
+                getTargetListener(primaryShard, replica, primaryMetadata, countDownLatch)
+            );
             countDownLatch.await(30, TimeUnit.SECONDS);
             assertEquals("Replication failed", 0, countDownLatch.getCount());
             shards.assertAllEqual(numDocs);
