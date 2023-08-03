@@ -340,29 +340,37 @@ public class ProtobufRestNodesAction extends ProtobufAbstractCatAction {
             table.addCell(info == null ? null : info.getHash());
             table.addCell(info == null ? null : info.getJvmInfoVersion());
 
-            ByteSizeValue diskTotal = new ByteSizeValue(stats.getDiskTotal());
-            ByteSizeValue diskAvailable = new ByteSizeValue(stats.getDiskAvailable());
-            ByteSizeValue diskUsed = new ByteSizeValue(diskTotal.getBytes() - diskAvailable.getBytes());
-            double diskUsedRatio = diskTotal.getBytes() == 0 ? 1.0 : (double) diskUsed.getBytes() / diskTotal.getBytes();
-            String diskUsedPercent = String.format(Locale.ROOT, "%.2f", 100.0 * diskUsedRatio);
+            ByteSizeValue diskTotal = null;
+            ByteSizeValue diskUsed = null;
+            ByteSizeValue diskAvailable = null;
+            String diskUsedPercent = null;
+            if (stats != null) {
+                diskTotal = new ByteSizeValue(stats.getDiskTotal());
+                diskAvailable = new ByteSizeValue(stats.getDiskAvailable());
+                diskUsed = new ByteSizeValue(diskTotal.getBytes() - diskAvailable.getBytes());
+                double diskUsedRatio = diskTotal.getBytes() == 0 ? 1.0 : (double) diskUsed.getBytes() / diskTotal.getBytes();
+                diskUsedPercent = String.format(Locale.ROOT, "%.2f", 100.0 * diskUsedRatio);
+            }
 
             table.addCell(diskTotal);
             table.addCell(diskUsed);
             table.addCell(diskAvailable);
             table.addCell(diskUsedPercent);
 
-            table.addCell(new ByteSizeValue(stats.getJvmHeapUsed()));
-            table.addCell(stats.getJvmHeapUsedPercent());
-            table.addCell(info.getJvmHeapMax());
-            table.addCell(new ByteSizeValue(stats.getOsMemUsed()));
-            table.addCell(stats.getOsMemUsedPercent());
-            table.addCell(new ByteSizeValue(stats.getOsMemTotal()));
-            table.addCell(stats.getProcessOpenFileDescriptors());
-            table.addCell(calculatePercentage(stats.getProcessOpenFileDescriptors(), stats.getProcessMaxFileDescriptors()));
-            table.addCell(stats.getProcessMaxFileDescriptors());
+            table.addCell(stats == null ? null : new ByteSizeValue(stats.getJvmHeapUsed()));
+            table.addCell(stats == null ? null : stats.getJvmHeapUsedPercent());
+            table.addCell(info == null ? null : info.getJvmHeapMax());
+            table.addCell(stats == null ? null : new ByteSizeValue(stats.getOsMemUsed()));
+            table.addCell(stats == null ? null : stats.getOsMemUsedPercent());
+            table.addCell(stats == null ? null : new ByteSizeValue(stats.getOsMemTotal()));
+            table.addCell(stats == null ? null : stats.getProcessOpenFileDescriptors());
+            table.addCell(
+                stats == null ? null : calculatePercentage(stats.getProcessOpenFileDescriptors(), stats.getProcessMaxFileDescriptors())
+            );
+            table.addCell(stats == null ? null : stats.getProcessMaxFileDescriptors());
 
-            table.addCell(stats.getOsCpuPercent());
-            boolean hasLoadAverage = stats.getOsCpuLoadAverageList() != null;
+            table.addCell(stats == null ? null : stats.getOsCpuPercent());
+            boolean hasLoadAverage = stats != null && stats.getOsCpuLoadAverageList() != null;
             table.addCell(
                 !hasLoadAverage || stats.getOsCpuLoadAverage(0) == -1
                     ? null
@@ -378,7 +386,7 @@ public class ProtobufRestNodesAction extends ProtobufAbstractCatAction {
                     ? null
                     : String.format(Locale.ROOT, "%.2f", stats.getOsCpuLoadAverage(2))
             );
-            table.addCell(new TimeValue(stats.getJvmUpTime()));
+            table.addCell(stats == null ? null : new TimeValue(stats.getJvmUpTime()));
 
             final String roles;
             final String allRoles;
@@ -410,28 +418,28 @@ public class ProtobufRestNodesAction extends ProtobufAbstractCatAction {
             table.addCell(clusterManagerId == null ? "x" : clusterManagerId.equals(node.getNodeId()) ? "*" : "-");
             table.addCell(node.getNodeName());
 
-            table.addCell(stats.getCompletionStats() == null ? null : stats.getCompletionStats().getSize());
+            table.addCell(stats == null ? null : stats.getCompletionStats() == null ? null : stats.getCompletionStats().getSize());
 
-            table.addCell(stats.getFieldDataStats() == null ? null : stats.getFieldDataStats().getMemSize());
-            table.addCell(stats.getFieldDataStats() == null ? null : stats.getFieldDataStats().getEvictions());
+            table.addCell(stats == null ? null : stats.getFieldDataStats() == null ? null : stats.getFieldDataStats().getMemSize());
+            table.addCell(stats == null ? null : stats.getFieldDataStats() == null ? null : stats.getFieldDataStats().getEvictions());
 
-            QueryCacheStats fcStats = stats.getQueryCacheStats() == null ? null : stats.getQueryCacheStats();
+            QueryCacheStats fcStats = stats != null && stats.getQueryCacheStats() != null ? stats.getQueryCacheStats() : null;
             table.addCell(fcStats == null ? null : new ByteSizeValue(fcStats.getRamBytesUsed()));
             table.addCell(fcStats == null ? null : fcStats.getCacheCount() - fcStats.getCacheSize());
             table.addCell(fcStats == null ? null : fcStats.getHitCount());
             table.addCell(fcStats == null ? null : fcStats.getMissCount());
 
-            RequestCacheStats qcStats = stats.getRequestCacheStats() == null ? null : stats.getRequestCacheStats();
+            RequestCacheStats qcStats = stats != null && stats.getRequestCacheStats() != null ? stats.getRequestCacheStats() : null;
             table.addCell(qcStats == null ? null : new ByteSizeValue(qcStats.getMemorySize()));
             table.addCell(qcStats == null ? null : qcStats.getEvictions());
             table.addCell(qcStats == null ? null : qcStats.getHitCount());
             table.addCell(qcStats == null ? null : qcStats.getMissCount());
 
-            FlushStats flushStats = stats.getFlushStats() == null ? null : stats.getFlushStats();
+            FlushStats flushStats = stats != null && stats.getFlushStats() != null ? stats.getFlushStats() : null;
             table.addCell(flushStats == null ? null : flushStats.getTotal());
             table.addCell(flushStats == null ? null : flushStats.getTotalTimeInMillis());
 
-            GetStats getStats = stats.getGetStats() == null ? null : stats.getGetStats();
+            GetStats getStats = stats != null && stats.getGetStats() != null ? stats.getGetStats() : null;
             table.addCell(getStats == null ? null : getStats.getCurrent());
             table.addCell(getStats == null ? null : new TimeValue(getStats.getTime()));
             table.addCell(getStats == null ? null : getStats.getCount());
@@ -440,7 +448,7 @@ public class ProtobufRestNodesAction extends ProtobufAbstractCatAction {
             table.addCell(getStats == null ? null : new TimeValue(getStats.getMissingTimeInMillis()));
             table.addCell(getStats == null ? null : getStats.getMissingCount());
 
-            IndexingStats indexingStats = stats.getIndexingStats() == null ? null : stats.getIndexingStats();
+            IndexingStats indexingStats = stats != null && stats.getIndexingStats() != null ? stats.getIndexingStats() : null;
             table.addCell(indexingStats == null ? null : indexingStats.getDeleteCurrent());
             table.addCell(indexingStats == null ? null : new TimeValue(indexingStats.getDeleteTimeInMillis()));
             table.addCell(indexingStats == null ? null : indexingStats.getDeleteCount());
@@ -449,7 +457,7 @@ public class ProtobufRestNodesAction extends ProtobufAbstractCatAction {
             table.addCell(indexingStats == null ? null : indexingStats.getIndexCount());
             table.addCell(indexingStats == null ? null : indexingStats.getIndexFailedCount());
 
-            MergeStats mergeStats = stats.getMergeStats() == null ? null : stats.getMergeStats();
+            MergeStats mergeStats = stats != null && stats.getMergeStats() != null ? stats.getMergeStats() : null;
             table.addCell(mergeStats == null ? null : mergeStats.getCurrent());
             table.addCell(mergeStats == null ? null : mergeStats.getCurrentNumDocs());
             table.addCell(mergeStats == null ? null : new ByteSizeValue(mergeStats.getCurrentSizeInBytes()));
@@ -458,19 +466,19 @@ public class ProtobufRestNodesAction extends ProtobufAbstractCatAction {
             table.addCell(mergeStats == null ? null : new ByteSizeValue(mergeStats.getTotalSizeInBytes()));
             table.addCell(mergeStats == null ? null : new TimeValue(mergeStats.getTotalTimeInMillis()));
 
-            RefreshStats refreshStats = stats.getRefreshStats() == null ? null : stats.getRefreshStats();
+            RefreshStats refreshStats = stats != null && stats.getRefreshStats() != null ? stats.getRefreshStats() : null;
             table.addCell(refreshStats == null ? null : refreshStats.getTotal());
             table.addCell(refreshStats == null ? null : new TimeValue(refreshStats.getTotalTimeInMillis()));
             table.addCell(refreshStats == null ? null : refreshStats.getExternalTotal());
             table.addCell(refreshStats == null ? null : new TimeValue(refreshStats.getExternalTotalTimeInMillis()));
             table.addCell(refreshStats == null ? null : refreshStats.getListeners());
 
-            ScriptStats scriptStats = stats == null ? null : stats.getScriptStats();
+            ScriptStats scriptStats = stats != null && stats.getScriptStats() != null ? stats.getScriptStats() : null;
             table.addCell(scriptStats == null ? null : scriptStats.getCompilations());
             table.addCell(scriptStats == null ? null : scriptStats.getCacheEvictions());
             table.addCell(scriptStats == null ? null : scriptStats.getCompilationLimitTriggered());
 
-            SearchStats searchStats = stats.getSearchStats() == null ? null : stats.getSearchStats();
+            SearchStats searchStats = stats != null && stats.getSearchStats() != null ? stats.getSearchStats() : null;
             table.addCell(searchStats == null ? null : searchStats.getFetchCurrent());
             table.addCell(searchStats == null ? null : new TimeValue(searchStats.getFetchTimeInMillis()));
             table.addCell(searchStats == null ? null : searchStats.getFetchCount());
@@ -485,7 +493,7 @@ public class ProtobufRestNodesAction extends ProtobufAbstractCatAction {
             table.addCell(searchStats == null ? null : new TimeValue(searchStats.getPitTimeInMillis()));
             table.addCell(searchStats == null ? null : searchStats.getPitCount());
 
-            SegmentStats segmentsStats = stats.getSegmentStats() == null ? null : stats.getSegmentStats();
+            SegmentStats segmentsStats = stats != null && stats.getSegmentStats() != null ? stats.getSegmentStats() : null;
             table.addCell(segmentsStats == null ? null : segmentsStats.getCount());
             table.addCell(segmentsStats == null ? null : new ByteSizeValue(0L));
             table.addCell(segmentsStats == null ? null : new ByteSizeValue(segmentsStats.getIndexWriterMemoryInBytes()));
