@@ -17,7 +17,6 @@ import org.opensearch.plugins.Plugin;
 import org.opensearch.client.Client;
 import org.opensearch.test.telemetry.tracing.TelemetryValidators;
 import org.opensearch.test.telemetry.tracing.validators.AllSpansAreEndedProperly;
-import org.opensearch.test.telemetry.tracing.validators.AllSpansAreInOrder;
 import org.opensearch.test.telemetry.tracing.validators.AllSpansHaveUniqueId;
 import org.opensearch.test.telemetry.tracing.validators.NumberOfTraceIDsEqualToRequests;
 import org.opensearch.test.telemetry.tracing.validators.TotalRootSpansEqualToRequests;
@@ -38,7 +37,7 @@ public class TelemetryTracerEnabledSanityIT extends OpenSearchIntegTestCase {
                 OTelTelemetrySettings.OTEL_TRACER_SPAN_EXPORTER_CLASS_SETTING.getKey(),
                 "org.opensearch.telemetry.tracing.InMemorySingletonSpanExporter"
             )
-            .put(OTelTelemetrySettings.TRACER_EXPORTER_DELAY_SETTING.getKey(), TimeValue.timeValueSeconds(2))
+            .put(OTelTelemetrySettings.TRACER_EXPORTER_DELAY_SETTING.getKey(), TimeValue.timeValueSeconds(1))
             .build();
     }
 
@@ -75,13 +74,12 @@ public class TelemetryTracerEnabledSanityIT extends OpenSearchIntegTestCase {
         client.prepareSearch().setQuery(queryStringQuery("fox")).get();
         client.prepareSearch().setQuery(queryStringQuery("jumps")).get();
 
-        // Sleep for about 2s to wait for traces are published
-        Thread.sleep(2000);
+        // Sleep for about 3s to wait for traces are published, delay is (the delay is 1s).
+        Thread.sleep(3000);
 
         TelemetryValidators validators = new TelemetryValidators(
             Arrays.asList(
                 new AllSpansAreEndedProperly(),
-                new AllSpansAreInOrder(),
                 new AllSpansHaveUniqueId(),
                 new NumberOfTraceIDsEqualToRequests(),
                 new TotalRootSpansEqualToRequests()

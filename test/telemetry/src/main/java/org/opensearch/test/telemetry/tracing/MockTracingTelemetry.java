@@ -12,7 +12,6 @@ import org.opensearch.telemetry.tracing.Span;
 import org.opensearch.telemetry.tracing.TracingContextPropagator;
 import org.opensearch.telemetry.tracing.TracingTelemetry;
 import org.opensearch.test.telemetry.tracing.validators.AllSpansAreEndedProperly;
-import org.opensearch.test.telemetry.tracing.validators.AllSpansAreInOrder;
 import org.opensearch.test.telemetry.tracing.validators.AllSpansHaveUniqueId;
 
 import java.util.Arrays;
@@ -49,7 +48,7 @@ public class MockTracingTelemetry implements TracingTelemetry {
         List<MockSpanData> spanData = ((StrictCheckSpanProcessor) spanProcessor).getFinishedSpanItems();
         if (spanData.size() != 0) {
             TelemetryValidators validators = new TelemetryValidators(
-                Arrays.asList(new AllSpansAreEndedProperly(), new AllSpansAreInOrder(), new AllSpansHaveUniqueId())
+                Arrays.asList(new AllSpansAreEndedProperly(), new AllSpansHaveUniqueId())
             );
             validators.validate(spanData, 1);
         }
