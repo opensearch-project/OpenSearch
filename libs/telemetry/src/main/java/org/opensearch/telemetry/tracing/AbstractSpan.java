@@ -19,8 +19,9 @@ public abstract class AbstractSpan implements Span {
      * name of the span
      */
     private final String spanName;
+
     /**
-     * span's parent span
+     * The parent span of this span.
      */
     private final Span parentSpan;
 
@@ -34,14 +35,23 @@ public abstract class AbstractSpan implements Span {
         this.parentSpan = parentSpan;
     }
 
+    /**
+     * Gets the parent span of this span.
+     *
+     * @return the parent span of this span, or {@code null} if there's no parent.
+     */
     @Override
     public Span getParentSpan() {
         return parentSpan;
     }
 
+    /**
+     * Gets the name of the span.
+     *
+     * @return the name of the span.
+     */
     @Override
     public String getSpanName() {
         return spanName;
     }
-
 }

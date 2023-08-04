@@ -16,9 +16,12 @@ import org.opensearch.telemetry.metrics.MetricsTelemetry;
 import org.opensearch.telemetry.tracing.OTelResourceProvider;
 import org.opensearch.telemetry.tracing.OTelTelemetry;
 import org.opensearch.telemetry.tracing.OTelTracingTelemetry;
+import org.opensearch.telemetry.tracing.listeners.TraceEventListener;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -56,6 +59,11 @@ public class OTelTelemetryPlugin extends Plugin implements TelemetryPlugin {
     @Override
     public String getName() {
         return OTEL_TRACER_NAME;
+    }
+
+    @Override
+    public Map<String, TraceEventListener> getTraceEventListeners(Telemetry telemetry) {
+        return Collections.emptyMap();
     }
 
     private Telemetry telemetry() {

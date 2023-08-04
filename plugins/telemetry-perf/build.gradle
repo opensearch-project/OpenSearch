@@ -1,0 +1,44 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+import org.apache.tools.ant.taskdefs.condition.Os
+import org.opensearch.gradle.Architecture
+import org.opensearch.gradle.OS
+import org.opensearch.gradle.info.BuildParams
+
+opensearchplugin {
+  description 'Opentelemetry performance.'
+  classname 'org.opensearch.telemetry.TelemetryPerfPlugin'
+  hasClientJar = true
+}
+
+dependencies {
+  api project(":libs:opensearch-telemetry")
+}
+
+tasks.named("bundlePlugin").configure {
+  from('config/telemetry-perf') {
+    into 'config'
+  }
+}
+
+tasks.register("writeTestJavaPolicy") {
+  doLast {
+    final File tmp = file("${buildDir}/tmp")
+    if (tmp.exists() == false && tmp.mkdirs() == false) {
+      throw new GradleException("failed to create temporary directory [${tmp}]")
+    }
+    final File javaPolicy = file("${tmp}/java.policy")
+    javaPolicy.write(
+      [
+        "grant {",
+        "  permission java.io.FilePermission \"config\", \"read\";",
+        "};"
+      ].join("\n"))
+  }
+}
