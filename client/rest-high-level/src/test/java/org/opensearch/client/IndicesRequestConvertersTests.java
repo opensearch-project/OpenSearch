@@ -74,7 +74,7 @@ import org.opensearch.client.indices.rollover.RolloverRequest;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.CollectionUtils;
+import org.opensearch.core.common.util.CollectionUtils;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.Strings;
 import org.opensearch.test.OpenSearchTestCase;

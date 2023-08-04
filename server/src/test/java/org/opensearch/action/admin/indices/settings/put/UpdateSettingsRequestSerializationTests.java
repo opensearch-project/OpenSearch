@@ -37,7 +37,7 @@ import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.Settings.Builder;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.CollectionUtils;
+import org.opensearch.core.common.util.CollectionUtils;
 import org.opensearch.test.AbstractWireSerializingTestCase;
 import org.opensearch.test.OpenSearchTestCase;
 
