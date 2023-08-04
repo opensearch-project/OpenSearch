@@ -377,7 +377,7 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
         for (OpenSearchNode node : nodes) {
             // Can only configure master nodes if we have node names defined
             if (nodeNames != null) {
-                commonNodeConfig(node, nodeNames, firstNode);
+                commonNodeConfig(node, nodeNames, firstNode, httpProtocol);
             }
             if (firstNode == null) {
                 firstNode = node;
@@ -389,7 +389,7 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
         }
     }
 
-    private void commonNodeConfig(OpenSearchNode node, String nodeNames, OpenSearchNode firstNode) {
+    private void commonNodeConfig(OpenSearchNode node, String nodeNames, OpenSearchNode firstNode, String httpProtocol) {
         if (node.getVersion().onOrAfter("7.0.0")) {
             node.defaultConfig.keySet()
                 .stream()
@@ -406,6 +406,7 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
             }
             node.defaultConfig.put("discovery.seed_providers", "file");
             node.defaultConfig.put("discovery.seed_hosts", "[]");
+            node.defaultConfig.put("http.protocol", httpProtocol);
         } else {
             node.defaultConfig.put("discovery.zen.master_election.wait_for_joins_timeout", "5s");
             if (nodes.size() > 1) {
@@ -494,7 +495,7 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
         OpenSearchNode node = nodes.getByName(clusterName + "-" + nodeIndex);
         node.stop(false);
         node.goToNextVersion();
-        commonNodeConfig(node, null, null);
+        commonNodeConfig(node, null, null, node.getHttpProtocol());
         nodeIndex += 1;
         return node;
     }

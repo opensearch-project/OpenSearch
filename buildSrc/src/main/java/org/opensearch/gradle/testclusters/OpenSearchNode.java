@@ -1155,6 +1155,7 @@ public class OpenSearchNode implements TestClusterConfiguration {
             baseConfig.put("node.attr.zone", zone);
         }
         baseConfig.put("node.portsfile", "true");
+        baseConfig.put("http.protocol", httpProtocol);
         baseConfig.put("http.port", httpPort);
         baseConfig.put("transport.port", transportPort);
         // Default the watermarks to absurdly low to prevent the tests from failing on nodes without enough disk space
