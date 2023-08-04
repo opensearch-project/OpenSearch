@@ -22,6 +22,8 @@ import org.opensearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.opensearch.common.Priority;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.index.SegmentReplicationShardStats;
+import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.transport.MockTransportService;
@@ -29,8 +31,10 @@ import org.opensearch.transport.TransportService;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
@@ -56,7 +60,7 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationBaseIT {
         createIndex(1);
         final String replica = internalCluster().startNode();
         ensureGreen(INDEX_NAME);
-        final int initialDocCount = scaledRandomIntBetween(100, 1000);
+        final int initialDocCount = scaledRandomIntBetween(10, 100);
         final WriteRequest.RefreshPolicy refreshPolicy = randomFrom(WriteRequest.RefreshPolicy.values());
         final List<ActionFuture<IndexResponse>> pendingIndexResponses = new ArrayList<>();
         for (int i = 0; i < initialDocCount; i++) {
@@ -133,7 +137,7 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationBaseIT {
         createIndex(1);
         final String replica = internalCluster().startNode();
         ensureGreen(INDEX_NAME);
-        final int initialDocCount = scaledRandomIntBetween(100, 1000);
+        final int initialDocCount = scaledRandomIntBetween(10, 100);
         final WriteRequest.RefreshPolicy refreshPolicy = randomFrom(WriteRequest.RefreshPolicy.values());
         final List<ActionFuture<IndexResponse>> pendingIndexResponses = new ArrayList<>();
         for (int i = 0; i < initialDocCount; i++) {
@@ -528,13 +532,27 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationBaseIT {
             client().prepareIndex(INDEX_NAME).setId(Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
         }
 
-        // Verify segment replication event never happened on replica shard
+        final IndexShard replicaShard = getIndexShard(replicaNode, INDEX_NAME);
+
+        // Verify segment replication event never happened on replica shard other than recovery.
+        assertHitCount(client(primaryNode).prepareSearch(INDEX_NAME).setPreference("_only_local").setSize(0).get(), 0);
+        assertHitCount(client(replicaNode).prepareSearch(INDEX_NAME).setPreference("_only_local").setSize(0).get(), 0);
+
         SegmentReplicationStatsResponse segmentReplicationStatsResponse = client().admin()
             .indices()
             .prepareSegmentReplicationStats(INDEX_NAME)
             .execute()
             .actionGet();
-        assertTrue(segmentReplicationStatsResponse.getReplicationStats().get(INDEX_NAME).get(0).getReplicaStats().isEmpty());
+        final Set<SegmentReplicationShardStats> replicaStats = segmentReplicationStatsResponse.getReplicationStats()
+            .get(INDEX_NAME)
+            .get(0)
+            .getReplicaStats();
+        assertEquals(
+            Set.of(replicaShard.routingEntry().allocationId().getId()),
+            replicaStats.stream().map(SegmentReplicationShardStats::getAllocationId).collect(Collectors.toSet())
+        );
+        // the primary still has not refreshed to update its checkpoint, so our replica is not yet behind.
+        assertEquals(0, replicaStats.stream().findFirst().get().getCheckpointsBehindCount());
 
         // Relocate primary to new primary. When new primary starts it does perform a flush.
         logger.info("--> relocate the shard from primary to newPrimary");

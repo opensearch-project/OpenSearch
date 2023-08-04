@@ -49,10 +49,13 @@ import org.opensearch.core.index.shard.ShardId;
 import org.junit.Before;
 
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.function.Predicate;
 
+import static org.mockito.Mockito.mock;
 import static org.opensearch.cluster.routing.ShardRoutingState.UNASSIGNED;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -226,6 +229,49 @@ public class RoutingTableTests extends OpenSearchAllocationTestCase {
         // make sure both replicas are marked as delayed (i.e. not reallocated)
         clusterState = allocation.disassociateDeadNodes(clusterState, true, "reroute");
         assertThat(clusterState.routingTable().shardsMatchingPredicateCount(predicate), is(2));
+    }
+
+    public void testAllShardsMatchingPredicate() {
+        MockAllocationService allocation = createAllocationService(Settings.EMPTY, new DelayedShardsMockGatewayAllocator());
+        Metadata metadata = Metadata.builder()
+            .put(IndexMetadata.builder("test1").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+            .put(IndexMetadata.builder("test2").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+            .build();
+        ClusterState clusterState = ClusterState.builder(org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metadata(metadata)
+            .routingTable(RoutingTable.builder().addAsNew(metadata.index("test1")).addAsNew(metadata.index("test2")).build())
+            .build();
+        clusterState = ClusterState.builder(clusterState)
+            .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
+            .build();
+        clusterState = allocation.reroute(clusterState, "reroute");
+
+        Predicate<ShardRouting> predicate = s -> s.state() == ShardRoutingState.UNASSIGNED && s.unassignedInfo().isDelayed();
+        assertThat(clusterState.routingTable().allShardsSatisfyingPredicate(predicate).size(), is(0));
+
+        // starting primaries
+        clusterState = startInitializingShardsAndReroute(allocation, clusterState);
+        // starting replicas
+        clusterState = startInitializingShardsAndReroute(allocation, clusterState);
+        // remove node2 and reroute
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).remove("node2")).build();
+        // make sure both replicas are marked as delayed (i.e. not reallocated)
+        clusterState = allocation.disassociateDeadNodes(clusterState, true, "reroute");
+        assertThat(clusterState.routingTable().allShardsSatisfyingPredicate(predicate).size(), is(2));
+
+        // Verifies true against all shards on the node (active/inactive)
+        assertThat(clusterState.routingTable().allShardsSatisfyingPredicate(shard -> true).size(), is(4));
+        // Verifies false against all shards on the node (active/inactive)
+        assertThat(clusterState.routingTable().allShardsSatisfyingPredicate(shard -> false).size(), is(0));
+        // Verifies against all primary shards on the node
+        assertThat(clusterState.routingTable().allShardsSatisfyingPredicate(ShardRouting::primary).size(), is(2));
+        // Verifies a predicate which tests for inactive replicas
+        assertThat(
+            clusterState.routingTable()
+                .allShardsSatisfyingPredicate(shardRouting -> !shardRouting.primary() && !shardRouting.active())
+                .size(),
+            is(2)
+        );
     }
 
     public void testActivePrimaryShardsGrouped() {
@@ -502,11 +548,38 @@ public class RoutingTableTests extends OpenSearchAllocationTestCase {
             Version.CURRENT,
             new IndexId(TEST_INDEX_1, "1")
         );
-        final RoutingTable routingTable = new RoutingTable.Builder().addAsRemoteStoreRestore(indexMetadata, remoteStoreRecoverySource)
-            .build();
+        final RoutingTable routingTable = new RoutingTable.Builder().addAsRemoteStoreRestore(
+            indexMetadata,
+            remoteStoreRecoverySource,
+            new HashMap<>()
+        ).build();
         assertTrue(routingTable.hasIndex(TEST_INDEX_1));
         assertEquals(this.numberOfShards, routingTable.allShards(TEST_INDEX_1).size());
         assertEquals(this.numberOfShards, routingTable.index(TEST_INDEX_1).shardsWithState(UNASSIGNED).size());
+    }
+
+    public void testAddAsRemoteStoreRestoreWithActiveShards() {
+        final IndexMetadata indexMetadata = createIndexMetadata(TEST_INDEX_1).state(IndexMetadata.State.OPEN).build();
+        final RemoteStoreRecoverySource remoteStoreRecoverySource = new RemoteStoreRecoverySource(
+            "restore_uuid",
+            Version.CURRENT,
+            new IndexId(TEST_INDEX_1, "1")
+        );
+        Map<ShardId, ShardRouting> activeInitializingShards = new HashMap<>();
+        for (int i = 0; i < randomIntBetween(1, this.numberOfShards); i++) {
+            activeInitializingShards.put(new ShardId(indexMetadata.getIndex(), i), mock(ShardRouting.class));
+        }
+        final RoutingTable routingTable = new RoutingTable.Builder().addAsRemoteStoreRestore(
+            indexMetadata,
+            remoteStoreRecoverySource,
+            activeInitializingShards
+        ).build();
+        assertTrue(routingTable.hasIndex(TEST_INDEX_1));
+        assertEquals(this.numberOfShards, routingTable.allShards(TEST_INDEX_1).size());
+        assertEquals(
+            this.numberOfShards - activeInitializingShards.size(),
+            routingTable.index(TEST_INDEX_1).shardsWithState(UNASSIGNED).size()
+        );
     }
 
     /** reverse engineer the in sync aid based on the given indexRoutingTable **/

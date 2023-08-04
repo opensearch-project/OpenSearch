@@ -74,7 +74,7 @@ public class RestReindexActionTests extends RestActionTestCase {
                 body.endObject();
             }
             body.endObject();
-            request.withContent(BytesReference.bytes(body), XContentType.fromMediaType(body.contentType()));
+            request.withContent(BytesReference.bytes(body), body.contentType());
         }
         request.withParams(singletonMap("pipeline", "doesn't matter"));
         Exception e = expectThrows(

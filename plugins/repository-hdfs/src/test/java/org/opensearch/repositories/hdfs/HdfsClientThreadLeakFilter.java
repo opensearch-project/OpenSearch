@@ -43,6 +43,9 @@ import com.carrotsearch.randomizedtesting.ThreadFilter;
  * to ignore the offending thread until a version of Hadoop is released that addresses the incorrect
  * interrupt handling.
  *
+ * In Hadoop 3.3.6, the org.apache.hadoop.fs.statistics.impl.EvaluatingStatisticsMap uses ForkJoinPool
+ * to perform statistics calculation, leaving dangling workers.
+ *
  * @see <a href="https://issues.apache.org/jira/browse/HADOOP-12829">https://issues.apache.org/jira/browse/HADOOP-12829</a>
  * @see "org.apache.hadoop.fs.FileSystem.Statistics.StatisticsDataReferenceCleaner"
  * @see "org.apache.hadoop.fs.FileSystem.Statistics"
@@ -53,6 +56,6 @@ public final class HdfsClientThreadLeakFilter implements ThreadFilter {
 
     @Override
     public boolean reject(Thread t) {
-        return t.getName().equals(OFFENDING_THREAD_NAME);
+        return t.getName().equals(OFFENDING_THREAD_NAME) || t.getName().startsWith("ForkJoinPool.commonPool-");
     }
 }

@@ -39,7 +39,6 @@ import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.support.AbstractFilteringTestCase;
@@ -89,7 +88,7 @@ public abstract class AbstractXContentFilteringTestCase extends AbstractFilterin
     }
 
     static void assertXContentBuilderAsBytes(final XContentBuilder expected, final XContentBuilder actual) {
-        XContent xContent = XContentFactory.xContent(actual.contentType());
+        XContent xContent = actual.contentType().xContent();
         try (
             XContentParser jsonParser = xContent.createParser(
                 NamedXContentRegistry.EMPTY,

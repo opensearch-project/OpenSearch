@@ -57,7 +57,7 @@ public class AggregationProfileShardResultTests extends OpenSearchTestCase {
         int size = randomIntBetween(0, 5);
         List<ProfileResult> aggProfileResults = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
-            aggProfileResults.add(ProfileResultTests.createTestItem(1));
+            aggProfileResults.add(ProfileResultTests.createTestItem(depth, false));
         }
         return new AggregationProfileShardResult(aggProfileResults);
     }

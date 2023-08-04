@@ -33,6 +33,10 @@ public class ReplicationCheckpoint implements Writeable, Comparable<ReplicationC
     private final long length;
     private final String codec;
 
+    public static ReplicationCheckpoint empty(ShardId shardId) {
+        return empty(shardId, "");
+    }
+
     public static ReplicationCheckpoint empty(ShardId shardId, String codec) {
         return new ReplicationCheckpoint(shardId, codec);
     }

@@ -40,8 +40,8 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.common.xcontent.StatusToXContentObject;
 import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.rest.RestStatus;
@@ -104,11 +104,11 @@ public class SearchTemplateResponse extends ActionResponse implements StatusToXC
 
         if (contentAsMap.containsKey(TEMPLATE_OUTPUT_FIELD.getPreferredName())) {
             Object source = contentAsMap.get(TEMPLATE_OUTPUT_FIELD.getPreferredName());
-            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON).value(source);
+            XContentBuilder builder = MediaTypeRegistry.contentBuilder(XContentType.JSON).value(source);
             searchTemplateResponse.setSource(BytesReference.bytes(builder));
         } else {
             MediaType contentType = parser.contentType();
-            XContentBuilder builder = XContentFactory.contentBuilder(contentType).map(contentAsMap);
+            XContentBuilder builder = MediaTypeRegistry.contentBuilder(contentType).map(contentAsMap);
             XContentParser searchResponseParser = contentType.xContent()
                 .createParser(parser.getXContentRegistry(), parser.getDeprecationHandler(), BytesReference.bytes(builder).streamInput());
 

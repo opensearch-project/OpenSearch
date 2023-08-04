@@ -38,6 +38,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
 import org.apache.hc.core5.http.HttpHost;
+import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.tests.util.LuceneTestCase;
@@ -105,9 +106,9 @@ import org.opensearch.common.settings.FeatureFlagSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.transport.TransportAddress;
-import org.opensearch.common.unit.ByteSizeUnit;
-import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.core.common.transport.TransportAddress;
+import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.concurrent.ThreadContext;
@@ -132,6 +133,7 @@ import org.opensearch.index.MergeSchedulerConfig;
 import org.opensearch.index.MockEngineFactoryPlugin;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.engine.Segment;
+import org.opensearch.index.mapper.CompletionFieldMapper;
 import org.opensearch.index.mapper.MockFieldFilterPlugin;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.Translog;
@@ -270,6 +272,17 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
      * Property that controls whether ThirdParty Integration tests are run (not the default).
      */
     public static final String SYSPROP_THIRDPARTY = "tests.thirdparty";
+
+    /**
+     * The lucene_default {@link Codec} is not added to the list as it internally maps to Asserting {@link Codec}.
+     * The override to fetch the {@link CompletionFieldMapper.CompletionFieldType} postings format is not available for this codec.
+     */
+    public static final List<String> CODECS = List.of(
+        CodecService.DEFAULT_CODEC,
+        CodecService.BEST_COMPRESSION_CODEC,
+        CodecService.ZSTD_CODEC,
+        CodecService.ZSTD_NO_DICT_CODEC
+    );
 
     /**
      * Annotation for third-party integration tests.
@@ -427,7 +440,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             // otherwise, use it, it has assertions and so on that can find bugs.
             SuppressCodecs annotation = getClass().getAnnotation(SuppressCodecs.class);
             if (annotation != null && annotation.value().length == 1 && "*".equals(annotation.value()[0])) {
-                randomSettingsBuilder.put("index.codec", randomFrom(CodecService.DEFAULT_CODEC, CodecService.BEST_COMPRESSION_CODEC));
+                randomSettingsBuilder.put("index.codec", randomFrom(CODECS));
             } else {
                 randomSettingsBuilder.put("index.codec", CodecService.LUCENE_DEFAULT_CODEC);
             }
@@ -577,44 +590,34 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
     }
 
     private void afterInternal(boolean afterClass) throws Exception {
-        boolean success = false;
+        final Scope currentClusterScope = getCurrentClusterScope();
+        if (isInternalCluster()) {
+            internalCluster().clearDisruptionScheme();
+        }
         try {
-            final Scope currentClusterScope = getCurrentClusterScope();
-            if (isInternalCluster()) {
-                internalCluster().clearDisruptionScheme();
-            }
-            try {
-                if (cluster() != null) {
-                    if (currentClusterScope != Scope.TEST) {
-                        Metadata metadata = client().admin().cluster().prepareState().execute().actionGet().getState().getMetadata();
+            if (cluster() != null) {
+                if (currentClusterScope != Scope.TEST) {
+                    Metadata metadata = client().admin().cluster().prepareState().execute().actionGet().getState().getMetadata();
 
-                        final Set<String> persistentKeys = new HashSet<>(metadata.persistentSettings().keySet());
-                        assertThat("test leaves persistent cluster metadata behind", persistentKeys, empty());
+                    final Set<String> persistentKeys = new HashSet<>(metadata.persistentSettings().keySet());
+                    assertThat("test leaves persistent cluster metadata behind", persistentKeys, empty());
 
-                        final Set<String> transientKeys = new HashSet<>(metadata.transientSettings().keySet());
-                        assertThat("test leaves transient cluster metadata behind", transientKeys, empty());
-                    }
-                    ensureClusterSizeConsistency();
-                    ensureClusterStateConsistency();
-                    ensureClusterStateCanBeReadByNodeTool();
-                    beforeIndexDeletion();
-                    cluster().wipe(excludeTemplates()); // wipe after to make sure we fail in the test that didn't ack the delete
-                    if (afterClass || currentClusterScope == Scope.TEST) {
-                        cluster().close();
-                    }
-                    cluster().assertAfterTest();
+                    final Set<String> transientKeys = new HashSet<>(metadata.transientSettings().keySet());
+                    assertThat("test leaves transient cluster metadata behind", transientKeys, empty());
                 }
-            } finally {
-                if (currentClusterScope == Scope.TEST) {
-                    clearClusters(); // it is ok to leave persistent / transient cluster state behind if scope is TEST
+                ensureClusterSizeConsistency();
+                ensureClusterStateConsistency();
+                ensureClusterStateCanBeReadByNodeTool();
+                beforeIndexDeletion();
+                cluster().wipe(excludeTemplates()); // wipe after to make sure we fail in the test that didn't ack the delete
+                if (afterClass || currentClusterScope == Scope.TEST) {
+                    cluster().close();
                 }
+                cluster().assertAfterTest();
             }
-            success = true;
         } finally {
-            if (!success) {
-                // if we failed here that means that something broke horribly so we should clear all clusters
-                // TODO: just let the exception happen, WTF is all this horseshit
-                // afterTestRule.forceFailure();
+            if (currentClusterScope == Scope.TEST) {
+                clearClusters(); // it is ok to leave persistent / transient cluster state behind if scope is TEST
             }
         }
     }

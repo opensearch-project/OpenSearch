@@ -47,7 +47,7 @@ import org.opensearch.common.util.set.Sets;
 import org.opensearch.discovery.Discovery;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.TransportException;
-import org.opensearch.transport.TransportResponse;
+import org.opensearch.core.transport.TransportResponse;
 
 import java.util.ArrayList;
 import java.util.Arrays;

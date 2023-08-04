@@ -32,16 +32,19 @@
 
 package org.opensearch.common.xcontent;
 
+import com.fasterxml.jackson.dataformat.cbor.CBORConstants;
+import com.fasterxml.jackson.dataformat.smile.SmileConstants;
 import org.opensearch.common.xcontent.cbor.CborXContent;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.common.xcontent.smile.SmileXContent;
 import org.opensearch.common.xcontent.yaml.YamlXContent;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.MediaType;
-import org.opensearch.core.xcontent.MediaTypeParser;
 import org.opensearch.core.xcontent.XContent;
+import org.opensearch.core.xcontent.XContentBuilder;
 
-import java.util.Locale;
-import java.util.Map;
+import java.io.IOException;
+import java.io.OutputStream;
 
 /**
  * The content type of {@link XContent}.
@@ -71,6 +74,26 @@ public enum XContentType implements MediaType {
         public XContent xContent() {
             return JsonXContent.jsonXContent;
         }
+
+        @Override
+        public boolean detectedXContent(final byte[] bytes, int offset, int length) {
+            return bytes[offset] == '{';
+        }
+
+        @Override
+        public boolean detectedXContent(final CharSequence content, final int length) {
+            return content.charAt(0) == '{';
+        }
+
+        @Override
+        public XContentBuilder contentBuilder() throws IOException {
+            return JsonXContent.contentBuilder();
+        }
+
+        @Override
+        public XContentBuilder contentBuilder(final OutputStream os) throws IOException {
+            return new XContentBuilder(JsonXContent.jsonXContent, os);
+        }
     },
     /**
      * The jackson based smile binary format. Fast and compact binary format.
@@ -89,6 +112,32 @@ public enum XContentType implements MediaType {
         @Override
         public XContent xContent() {
             return SmileXContent.smileXContent;
+        }
+
+        @Override
+        public boolean detectedXContent(final byte[] bytes, int offset, int length) {
+            return length > 2
+                && bytes[offset] == SmileConstants.HEADER_BYTE_1
+                && bytes[offset + 1] == SmileConstants.HEADER_BYTE_2
+                && bytes[offset + 2] == SmileConstants.HEADER_BYTE_3;
+        }
+
+        @Override
+        public boolean detectedXContent(final CharSequence content, final int length) {
+            return length > 2
+                && content.charAt(0) == SmileConstants.HEADER_BYTE_1
+                && content.charAt(1) == SmileConstants.HEADER_BYTE_2
+                && content.charAt(2) == SmileConstants.HEADER_BYTE_3;
+        }
+
+        @Override
+        public XContentBuilder contentBuilder() throws IOException {
+            return SmileXContent.contentBuilder();
+        }
+
+        @Override
+        public XContentBuilder contentBuilder(final OutputStream os) throws IOException {
+            return new XContentBuilder(SmileXContent.smileXContent, os);
         }
     },
     /**
@@ -109,6 +158,26 @@ public enum XContentType implements MediaType {
         public XContent xContent() {
             return YamlXContent.yamlXContent;
         }
+
+        @Override
+        public boolean detectedXContent(final byte[] bytes, int offset, int length) {
+            return length > 2 && bytes[offset] == '-' && bytes[offset + 1] == '-' && bytes[offset + 2] == '-';
+        }
+
+        @Override
+        public boolean detectedXContent(final CharSequence content, final int length) {
+            return length > 2 && content.charAt(0) == '-' && content.charAt(1) == '-' && content.charAt(2) == '-';
+        }
+
+        @Override
+        public XContentBuilder contentBuilder() throws IOException {
+            return YamlXContent.contentBuilder();
+        }
+
+        @Override
+        public XContentBuilder contentBuilder(final OutputStream os) throws IOException {
+            return new XContentBuilder(YamlXContent.yamlXContent, os);
+        }
     },
     /**
      * A CBOR based content type.
@@ -128,56 +197,42 @@ public enum XContentType implements MediaType {
         public XContent xContent() {
             return CborXContent.cborXContent;
         }
-    };
 
-    /** a parser of media types */
-    private static final MediaTypeParser<XContentType> MEDIA_TYPE_PARSER = new MediaTypeParser<>(
-        XContentType.values(),
-        Map.of("application/*", JSON, "application/x-ndjson", JSON)
-    );
-
-    /** gets the {@link MediaTypeParser} singleton for use outside class */
-    @SuppressWarnings("rawtypes")
-    public static MediaTypeParser getMediaTypeParser() {
-        return MEDIA_TYPE_PARSER;
-    }
-
-    /**
-     * Accepts a format string, which is most of the time is equivalent to {@link XContentType#subtype()}
-     * and attempts to match the value to an {@link XContentType}.
-     * The comparisons are done in lower case format.
-     * This method will return {@code null} if no match is found
-     */
-    public static XContentType fromFormat(String mediaType) {
-        return MEDIA_TYPE_PARSER.fromFormat(mediaType);
-    }
-
-    /**
-     * Attempts to match the given media type with the known {@link XContentType} values. This match is done in a case-insensitive manner.
-     * The provided media type can optionally has parameters.
-     * This method is suitable for parsing of the {@code Content-Type} and {@code Accept} HTTP headers.
-     * This method will return {@code null} if no match is found
-     */
-    public static XContentType fromMediaType(String mediaTypeHeaderValue) {
-        mediaTypeHeaderValue = removeVersionInMediaType(mediaTypeHeaderValue);
-        return MEDIA_TYPE_PARSER.fromMediaType(mediaTypeHeaderValue);
-    }
-
-    /**
-     * Clients compatible with ES 7.x might start sending media types with versioned media type
-     * in a form of application/vnd.elasticsearch+json;compatible-with=7.
-     * This has to be removed in order to be used in 7.x server.
-     * The same client connecting using that media type will be able to communicate with ES 8 thanks to compatible API.
-     * @param mediaType - a media type used on Content-Type header, might contain versioned media type.
-     *
-     * @return a media type string without
-     */
-    private static String removeVersionInMediaType(String mediaType) {
-        if (mediaType != null && (mediaType = mediaType.toLowerCase(Locale.ROOT)).contains("vnd.opensearch")) {
-            return mediaType.replaceAll("vnd.opensearch\\+", "").replaceAll("\\s*;\\s*compatible-with=\\d+", "");
+        @Override
+        public boolean detectedXContent(final byte[] bytes, int offset, int length) {
+            // CBOR logic similar to CBORFactory#hasCBORFormat
+            if (bytes[offset] == CBORConstants.BYTE_OBJECT_INDEFINITE && length > 1) {
+                return true;
+            }
+            if (CBORConstants.hasMajorType(CBORConstants.MAJOR_TYPE_TAG, bytes[offset]) && length > 2) {
+                // Actually, specific "self-describe tag" is a very good indicator
+                if (bytes[offset] == (byte) 0xD9 && bytes[offset + 1] == (byte) 0xD9 && bytes[offset + 2] == (byte) 0xF7) {
+                    return true;
+                }
+            }
+            // for small objects, some encoders just encode as major type object, we can safely
+            // say its CBOR since it doesn't contradict SMILE or JSON, and its a last resort
+            if (CBORConstants.hasMajorType(CBORConstants.MAJOR_TYPE_OBJECT, bytes[offset])) {
+                return true;
+            }
+            return false;
         }
-        return mediaType;
-    }
+
+        @Override
+        public boolean detectedXContent(final CharSequence content, final int length) {
+            return false;
+        }
+
+        @Override
+        public XContentBuilder contentBuilder() throws IOException {
+            return CborXContent.contentBuilder();
+        }
+
+        @Override
+        public XContentBuilder contentBuilder(final OutputStream os) throws IOException {
+            return new XContentBuilder(CborXContent.cborXContent, os);
+        }
+    };
 
     private int index;
 
@@ -199,12 +254,8 @@ public enum XContentType implements MediaType {
         return subtype();
     }
 
-    /** Converts from a {@link MediaType} to an explicit {@link XContentType} */
-    public static XContentType fromMediaType(MediaType mediaType) {
-        if (mediaType instanceof XContentType) {
-            return (XContentType) mediaType;
-        } else {
-            return mediaType != null ? MEDIA_TYPE_PARSER.fromMediaType(mediaType.mediaTypeWithoutParameters()) : null;
-        }
+    @Override
+    public void writeTo(StreamOutput output) throws IOException {
+        output.writeString(this.mediaType());
     }
 }

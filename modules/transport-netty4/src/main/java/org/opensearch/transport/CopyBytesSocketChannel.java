@@ -52,7 +52,7 @@ import io.netty.channel.ChannelOutboundBuffer;
 import io.netty.channel.RecvByteBufAllocator;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import org.opensearch.common.SuppressForbidden;
-import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.core.common.unit.ByteSizeValue;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;

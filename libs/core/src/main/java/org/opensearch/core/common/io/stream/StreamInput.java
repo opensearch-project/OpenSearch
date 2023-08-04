@@ -53,6 +53,8 @@ import org.opensearch.core.common.text.Text;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
+import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 
 import java.io.ByteArrayInputStream;
 import java.io.EOFException;
@@ -342,6 +344,10 @@ public abstract class StreamInput extends InputStream {
 
     public BigInteger readBigInteger() throws IOException {
         return new BigInteger(readString());
+    }
+
+    public MediaType readMediaType() throws IOException {
+        return MediaTypeRegistry.fromMediaType(readString());
     }
 
     @Nullable

@@ -41,6 +41,7 @@ import org.opensearch.common.compress.Compressor;
 import org.opensearch.common.compress.CompressorFactory;
 import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.ToXContent.Params;
@@ -52,7 +53,6 @@ import org.opensearch.core.xcontent.XContentParser;
 import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -86,14 +86,14 @@ public class XContentHelper {
                 if (compressedInput.markSupported() == false) {
                     compressedInput = new BufferedInputStream(compressedInput);
                 }
-                final XContentType contentType = XContentFactory.xContentType(compressedInput);
-                return XContentFactory.xContent(contentType).createParser(xContentRegistry, deprecationHandler, compressedInput);
+                final MediaType contentType = MediaTypeRegistry.xContentType(compressedInput);
+                return contentType.xContent().createParser(xContentRegistry, deprecationHandler, compressedInput);
             } catch (Exception e) {
                 if (compressedInput != null) compressedInput.close();
                 throw e;
             }
         } else {
-            return XContentFactory.xContent(xContentType(bytes)).createParser(xContentRegistry, deprecationHandler, bytes.streamInput());
+            return MediaTypeRegistry.xContentType(bytes).xContent().createParser(xContentRegistry, deprecationHandler, bytes.streamInput());
         }
     }
 
@@ -115,7 +115,7 @@ public class XContentHelper {
                 if (compressedInput.markSupported() == false) {
                     compressedInput = new BufferedInputStream(compressedInput);
                 }
-                return XContentFactory.xContent(mediaType).createParser(xContentRegistry, deprecationHandler, compressedInput);
+                return mediaType.xContent().createParser(xContentRegistry, deprecationHandler, compressedInput);
             } catch (Exception e) {
                 if (compressedInput != null) compressedInput.close();
                 throw e;
@@ -179,20 +179,14 @@ public class XContentHelper {
                 final byte[] raw = arr.array();
                 final int offset = arr.offset();
                 final int length = arr.length();
-                contentType = xContentType != null ? xContentType : XContentFactory.xContentType(raw, offset, length);
-                return new Tuple<>(
-                    Objects.requireNonNull(contentType),
-                    convertToMap(XContentFactory.xContent(contentType), raw, offset, length, ordered)
-                );
+                contentType = xContentType != null ? xContentType : MediaTypeRegistry.mediaTypeFromBytes(raw, offset, length);
+                return new Tuple<>(Objects.requireNonNull(contentType), convertToMap(contentType.xContent(), raw, offset, length, ordered));
             } else {
                 input = bytes.streamInput();
             }
             try (InputStream stream = input) {
-                contentType = xContentType != null ? xContentType : XContentFactory.xContentType(stream);
-                return new Tuple<>(
-                    Objects.requireNonNull(contentType),
-                    convertToMap(XContentFactory.xContent(contentType), stream, ordered)
-                );
+                contentType = xContentType != null ? xContentType : MediaTypeRegistry.xContentType(stream);
+                return new Tuple<>(Objects.requireNonNull(contentType), convertToMap(contentType.xContent(), stream, ordered));
             }
         } catch (IOException e) {
             throw new OpenSearchParseException("Failed to parse content to map", e);
@@ -266,7 +260,7 @@ public class XContentHelper {
 
     @Deprecated
     public static String convertToJson(BytesReference bytes, boolean reformatJson, boolean prettyPrint) throws IOException {
-        return convertToJson(bytes, reformatJson, prettyPrint, XContentFactory.xContentType(bytes.toBytesRef().bytes));
+        return convertToJson(bytes, reformatJson, prettyPrint, MediaTypeRegistry.xContent(bytes.toBytesRef().bytes));
     }
 
     public static String convertToJson(BytesReference bytes, boolean reformatJson, MediaType xContentType) throws IOException {
@@ -311,7 +305,7 @@ public class XContentHelper {
         if (bytes instanceof BytesArray) {
             final BytesArray array = (BytesArray) bytes;
             try (
-                XContentParser parser = XContentFactory.xContent(mediaType)
+                XContentParser parser = mediaType.xContent()
                     .createParser(
                         NamedXContentRegistry.EMPTY,
                         DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
@@ -325,7 +319,7 @@ public class XContentHelper {
         } else {
             try (
                 InputStream stream = bytes.streamInput();
-                XContentParser parser = XContentFactory.xContent(mediaType)
+                XContentParser parser = mediaType.xContent()
                     .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, stream)
             ) {
                 return toJsonString(prettyPrint, parser);
@@ -497,6 +491,7 @@ public class XContentHelper {
      * {@link XContentType}. Wraps the output into a new anonymous object according to the value returned
      * by the {@link ToXContent#isFragment()} method returns.
      */
+    @Deprecated
     public static BytesReference toXContent(ToXContent toXContent, XContentType xContentType, boolean humanReadable) throws IOException {
         return toXContent(toXContent, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
     }
@@ -541,29 +536,6 @@ public class XContentHelper {
                 builder.endObject();
             }
             return BytesReference.bytes(builder);
-        }
-    }
-
-    /**
-     * Guesses the content type based on the provided bytes.
-     *
-     * @deprecated the content type should not be guessed except for few cases where we effectively don't know the content type.
-     * The REST layer should move to reading the Content-Type header instead. There are other places where auto-detection may be needed.
-     * This method is deprecated to prevent usages of it from spreading further without specific reasons.
-     */
-    @Deprecated
-    public static XContentType xContentType(BytesReference bytes) {
-        if (bytes instanceof BytesArray) {
-            final BytesArray array = (BytesArray) bytes;
-            return XContentFactory.xContentType(array.array(), array.offset(), array.length());
-        }
-        try {
-            final InputStream inputStream = bytes.streamInput();
-            assert inputStream.markSupported();
-            return XContentFactory.xContentType(inputStream);
-        } catch (IOException e) {
-            assert false : "Should not happen, we're just reading bytes from memory";
-            throw new UncheckedIOException(e);
         }
     }
 

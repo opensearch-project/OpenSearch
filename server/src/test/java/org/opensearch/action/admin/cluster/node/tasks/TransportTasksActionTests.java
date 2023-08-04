@@ -56,9 +56,9 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.tasks.Task;
@@ -761,7 +761,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
     }
 
     private Map<String, Object> serialize(ListTasksResponse response, boolean byParents) throws IOException {
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        XContentBuilder builder = MediaTypeRegistry.contentBuilder(XContentType.JSON);
         builder.startObject();
         if (byParents) {
             DiscoveryNodes nodes = testNodes[0].clusterService.state().nodes();

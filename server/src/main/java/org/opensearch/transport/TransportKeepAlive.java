@@ -37,7 +37,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.ActionListener;
 import org.opensearch.common.AsyncBiFunction;
 import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.common.component.Lifecycle;
+import org.opensearch.common.lifecycle.Lifecycle;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.common.unit.TimeValue;
