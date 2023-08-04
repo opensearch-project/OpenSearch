@@ -49,7 +49,7 @@ public class MockTracingTelemetry implements TracingTelemetry {
         List<MockSpanData> spanData = ((StrictCheckSpanProcessor) spanProcessor).getFinishedSpanItems();
         if (spanData.size() != 0) {
             TelemetryValidators validators = new TelemetryValidators(
-                Arrays.asList(AllSpansAreEndedProperly.class, AllSpansAreInOrder.class, AllSpansHaveUniqueId.class)
+                Arrays.asList(new AllSpansAreEndedProperly(), new AllSpansAreInOrder(), new AllSpansHaveUniqueId())
             );
             validators.validate(spanData, 1);
         }

@@ -16,14 +16,14 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 /**
- * TotalParentSpansEqualToRequests validator to check sanity on total parent spans.
+ * TotalRootSpansEqualToRequests validator to check sanity on total parent spans.
  */
-public class TotalParentSpansEqualToRequests implements TracingValidator {
+public class TotalRootSpansEqualToRequests implements TracingValidator {
 
     /**
      * Base Constructor
      */
-    public TotalParentSpansEqualToRequests() {}
+    public TotalRootSpansEqualToRequests() {}
 
     /**
      * validates if total parent spans are equal to number of requests.

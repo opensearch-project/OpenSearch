@@ -15,7 +15,7 @@ import java.util.List;
  */
 public interface TracingValidator {
     /**
-     * Validates spanData and return boolean value on validation status.
+     * Validates spanData and return list of problematic spans.
      * @param spans spans emitted at any point of time.
      * @param requests requests can be search/index calls.
      */

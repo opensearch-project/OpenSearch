@@ -8,21 +8,21 @@
 
 package org.opensearch.test.telemetry.tracing;
 
-import java.util.ArrayList;
-import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * TelemetryValidators for running validate on all applicable span Validator classes.
  */
 public class TelemetryValidators {
-    private Collection<Class<? extends TracingValidator>> validators;
+    private List<TracingValidator> validators;
 
     /**
      * Base constructor.
      * @param validators list of validators applicable
      */
-    public TelemetryValidators(Collection<Class<? extends TracingValidator>> validators) {
+    public TelemetryValidators(List<TracingValidator> validators) {
         this.validators = validators;
     }
 
@@ -32,23 +32,28 @@ public class TelemetryValidators {
      * @param requests Request can be indexing/search call
      */
     public void validate(List<MockSpanData> spans, int requests) {
-        List<MockSpanData> totalProblematicSpans = new ArrayList<>();
-        for (Class<? extends TracingValidator> v : this.validators) {
-            try {
-                TracingValidator validator = v.getConstructor().newInstance();
-                List<MockSpanData> problematicSpans = validator.validate(spans, requests);
-                StringBuilder sb = new StringBuilder();
-                for (MockSpanData span : problematicSpans) {
-                    sb.append(span.toString());
-                }
-                totalProblematicSpans.addAll(problematicSpans);
-            } catch (Exception e) {
-                e.getStackTrace();
+        Map<String, List<MockSpanData>> problematicSpansMap = new HashMap<>();
+        for (TracingValidator validator : this.validators) {
+            List<MockSpanData> problematicSpans = validator.validate(spans, requests);
+            if (!problematicSpans.isEmpty()) {
+                problematicSpansMap.put(validator.getClass().getName(), problematicSpans);
             }
         }
-        if (!totalProblematicSpans.isEmpty()) {
-            AssertionError error = new AssertionError(" SpanData validation failed for following spans " + totalProblematicSpans);
+        if (!problematicSpansMap.isEmpty()) {
+            AssertionError error = new AssertionError(printProblematicSpansMap(problematicSpansMap));
             throw error;
         }
+    }
+
+    private String printProblematicSpansMap(Map<String, List<MockSpanData>> spanMap) {
+        StringBuilder sb = new StringBuilder();
+        for (var entry : spanMap.entrySet()) {
+            sb.append("SpanData validation failed for validator " + entry.getKey());
+            sb.append("/n");
+            for (MockSpanData span : entry.getValue()) {
+                sb.append(span.toString());
+            }
+        }
+        return sb.toString();
     }
 }

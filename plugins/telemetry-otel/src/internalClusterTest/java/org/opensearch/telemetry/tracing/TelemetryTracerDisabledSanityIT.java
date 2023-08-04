@@ -10,6 +10,7 @@ package org.opensearch.telemetry.tracing;
 
 import org.opensearch.client.Client;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.telemetry.OTelTelemetrySettings;
 import org.opensearch.telemetry.TelemetrySettings;
@@ -31,6 +32,7 @@ public class TelemetryTracerDisabledSanityIT extends OpenSearchIntegTestCase {
                 OTelTelemetrySettings.OTEL_TRACER_SPAN_EXPORTER_CLASS_SETTING.getKey(),
                 "org.opensearch.telemetry.tracing.InMemorySingletonSpanExporter"
             )
+            .put(OTelTelemetrySettings.TRACER_EXPORTER_DELAY_SETTING.getKey(), TimeValue.timeValueSeconds(2))
             .build();
     }
 
