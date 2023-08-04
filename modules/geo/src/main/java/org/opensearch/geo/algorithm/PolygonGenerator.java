@@ -10,7 +10,7 @@ package org.opensearch.geo.algorithm;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.common.util.CollectionUtils;
+import org.opensearch.core.common.util.CollectionUtils;
 
 import java.awt.geom.Point2D;
 import java.util.ArrayList;

@@ -41,7 +41,7 @@ import org.opensearch.action.support.nodes.BaseNodesResponse;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.ParsingException;
 import org.opensearch.common.lucene.uid.Versions;
-import org.opensearch.common.util.CollectionUtils;
+import org.opensearch.core.common.util.CollectionUtils;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.ToXContent.Params;
 import org.opensearch.core.xcontent.XContentBuilder;
