@@ -45,11 +45,15 @@ public class MultiCodecMergeIT extends OpenSearchIntegTestCase {
         Map<String, String> codecMap = Map.of(
             "best_compression",
             "BEST_COMPRESSION",
+            "zlib",
+            "BEST_COMPRESSION",
             "zstd_no_dict",
             "ZSTD_NO_DICT",
             "zstd",
             "ZSTD",
             "default",
+            "BEST_SPEED",
+            "lz4",
             "BEST_SPEED"
         );
 

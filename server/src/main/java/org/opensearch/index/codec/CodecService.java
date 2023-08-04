@@ -60,7 +60,9 @@ public class CodecService {
     private final Map<String, Codec> codecs;
 
     public static final String DEFAULT_CODEC = "default";
+    public static final String LZ4 = "lz4";
     public static final String BEST_COMPRESSION_CODEC = "best_compression";
+    public static final String ZLIB = "zlib";
     /**
      * the raw unfiltered lucene default. useful for testing
      */
@@ -74,12 +76,16 @@ public class CodecService {
         int compressionLevel = indexSettings.getValue(INDEX_CODEC_COMPRESSION_LEVEL_SETTING);
         if (mapperService == null) {
             codecs.put(DEFAULT_CODEC, new Lucene95Codec());
+            codecs.put(LZ4, new Lucene95Codec());
             codecs.put(BEST_COMPRESSION_CODEC, new Lucene95Codec(Mode.BEST_COMPRESSION));
+            codecs.put(ZLIB, new Lucene95Codec(Mode.BEST_COMPRESSION));
             codecs.put(ZSTD_CODEC, new ZstdCodec(compressionLevel));
             codecs.put(ZSTD_NO_DICT_CODEC, new ZstdNoDictCodec(compressionLevel));
         } else {
             codecs.put(DEFAULT_CODEC, new PerFieldMappingPostingFormatCodec(Mode.BEST_SPEED, mapperService, logger));
+            codecs.put(LZ4, new PerFieldMappingPostingFormatCodec(Mode.BEST_SPEED, mapperService, logger));
             codecs.put(BEST_COMPRESSION_CODEC, new PerFieldMappingPostingFormatCodec(Mode.BEST_COMPRESSION, mapperService, logger));
+            codecs.put(ZLIB, new PerFieldMappingPostingFormatCodec(Mode.BEST_COMPRESSION, mapperService, logger));
             codecs.put(ZSTD_CODEC, new ZstdCodec(mapperService, logger, compressionLevel));
             codecs.put(ZSTD_NO_DICT_CODEC, new ZstdNoDictCodec(mapperService, logger, compressionLevel));
         }

@@ -279,7 +279,9 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
      */
     public static final List<String> CODECS = List.of(
         CodecService.DEFAULT_CODEC,
+        CodecService.LZ4,
         CodecService.BEST_COMPRESSION_CODEC,
+        CodecService.ZLIB,
         CodecService.ZSTD_CODEC,
         CodecService.ZSTD_NO_DICT_CODEC
     );
