@@ -108,7 +108,7 @@ public class IndexingIT extends AbstractRollingTestCase {
             Response segrepStatsResponse = client().performRequest(segrepStatsRequest);
             List<String> responseList = Streams.readAllLines(segrepStatsResponse.getEntity().getContent());
             logger.info("--> _cat/segments response\n {}", responseList.toString().replace(',', '\n'));
-
+            // Filter response for rows with zero doc count
             List<String> filteredList = new ArrayList<>();
             for(String row: responseList) {
                 String count = row.split(" +")[4];
