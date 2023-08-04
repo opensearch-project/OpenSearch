@@ -16,7 +16,7 @@ import org.apache.lucene.search.ReferenceManager;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
-import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ReleasableLock;
 import org.opensearch.common.util.io.IOUtils;
@@ -34,6 +34,7 @@ import org.opensearch.search.suggest.completion.CompletionStats;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -443,6 +444,20 @@ public class NRTReplicationEngine extends Engine {
     @Override
     protected SegmentInfos getLatestSegmentInfos() {
         return readerManager.getSegmentInfos();
+    }
+
+    @Override
+    public synchronized GatedCloseable<SegmentInfos> getSegmentInfosSnapshot() {
+        // get reference to latest infos
+        final SegmentInfos latestSegmentInfos = getLatestSegmentInfos();
+        // incref all files
+        try {
+            final Collection<String> files = latestSegmentInfos.files(false);
+            store.incRefFileDeleter(files);
+            return new GatedCloseable<>(latestSegmentInfos, () -> store.decRefFileDeleter(files));
+        } catch (IOException e) {
+            throw new EngineException(shardId, e.getMessage(), e);
+        }
     }
 
     protected LocalCheckpointTracker getLocalCheckpointTracker() {

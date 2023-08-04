@@ -43,7 +43,7 @@ import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.component.AbstractLifecycleComponent;
+import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Streamables;
@@ -52,17 +52,16 @@ import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.transport.BoundTransportAddress;
-import org.opensearch.common.transport.TransportAddress;
+import org.opensearch.core.common.transport.BoundTransportAddress;
+import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.common.lease.Releasable;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
-import org.opensearch.core.xcontent.MediaTypeParserRegistry;
+import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.node.NodeClosedException;
 import org.opensearch.node.ReportingService;
 import org.opensearch.tasks.Task;
@@ -173,8 +172,6 @@ public class TransportService extends AbstractLifecycleComponent
         Streamables.registerStreamables();
         /** Registers OpenSearch server specific exceptions (exceptions outside of core library) */
         OpenSearchServerException.registerExceptions();
-        // set the default media type to JSON (fallback if a media type is not specified)
-        MediaTypeParserRegistry.setDefaultMediaType(XContentType.JSON);
     }
 
     /** does nothing. easy way to ensure class is loaded so the above static block is called to register the streamables */

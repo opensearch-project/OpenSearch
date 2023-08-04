@@ -36,8 +36,6 @@ import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.profile.AbstractProfiler;
 
 import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -47,29 +45,25 @@ import java.util.Map;
  */
 public class AggregationProfiler extends AbstractProfiler<AggregationProfileBreakdown, Aggregator> {
 
-    private final Map<List<String>, AggregationProfileBreakdown> profileBreakdownLookup = new HashMap<>();
+    private final Map<Aggregator, AggregationProfileBreakdown> profileBreakdownLookup = new HashMap<>();
 
     public AggregationProfiler() {
         super(new InternalAggregationProfileTree());
     }
 
+    /**
+     * This method does not need to be thread safe for concurrent search use case as well.
+     * The {@link AggregationProfileBreakdown} for each Aggregation operator is created in sync path when
+     * {@link org.opensearch.search.aggregations.BucketCollector#preCollection()} is called
+     * on the Aggregation collector instances during construction.
+     */
     @Override
     public AggregationProfileBreakdown getQueryBreakdown(Aggregator agg) {
-        List<String> path = getAggregatorPath(agg);
-        AggregationProfileBreakdown aggregationProfileBreakdown = profileBreakdownLookup.get(path);
+        AggregationProfileBreakdown aggregationProfileBreakdown = profileBreakdownLookup.get(agg);
         if (aggregationProfileBreakdown == null) {
             aggregationProfileBreakdown = super.getQueryBreakdown(agg);
-            profileBreakdownLookup.put(path, aggregationProfileBreakdown);
+            profileBreakdownLookup.put(agg, aggregationProfileBreakdown);
         }
         return aggregationProfileBreakdown;
-    }
-
-    public static List<String> getAggregatorPath(Aggregator agg) {
-        LinkedList<String> path = new LinkedList<>();
-        while (agg != null) {
-            path.addFirst(agg.name());
-            agg = agg.parent();
-        }
-        return path;
     }
 }

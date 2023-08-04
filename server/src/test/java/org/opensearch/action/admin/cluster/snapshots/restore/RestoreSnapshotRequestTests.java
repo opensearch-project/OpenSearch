@@ -112,6 +112,10 @@ public class RestoreSnapshotRequestTests extends AbstractWireSerializingTestCase
             instance.snapshotUuid(randomBoolean() ? null : randomAlphaOfLength(10));
         }
 
+        instance.storageType(
+            randomBoolean() ? RestoreSnapshotRequest.StorageType.LOCAL : RestoreSnapshotRequest.StorageType.REMOTE_SNAPSHOT
+        );
+
         if (randomBoolean()) {
             instance.setSourceRemoteStoreRepository(randomAlphaOfLengthBetween(5, 10));
         }

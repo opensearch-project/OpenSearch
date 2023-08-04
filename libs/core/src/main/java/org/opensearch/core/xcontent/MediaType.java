@@ -34,6 +34,8 @@ package org.opensearch.core.xcontent;
 
 import org.opensearch.core.common.io.stream.Writeable;
 
+import java.io.IOException;
+import java.io.OutputStream;
 import java.util.Locale;
 
 /**
@@ -69,11 +71,19 @@ public interface MediaType extends Writeable {
 
     XContent xContent();
 
+    boolean detectedXContent(final byte[] bytes, int offset, int length);
+
+    boolean detectedXContent(final CharSequence content, final int length);
+
     default String mediaType() {
         return mediaTypeWithoutParameters();
     }
 
     String mediaTypeWithoutParameters();
+
+    XContentBuilder contentBuilder() throws IOException;
+
+    XContentBuilder contentBuilder(final OutputStream os) throws IOException;
 
     /**
      * Accepts a format string, which is most of the time is equivalent to {@link MediaType#subtype()}
@@ -82,7 +92,7 @@ public interface MediaType extends Writeable {
      * This method will return {@code null} if no match is found
      */
     static MediaType fromFormat(String mediaType) {
-        return MediaTypeParserRegistry.fromFormat(mediaType);
+        return MediaTypeRegistry.fromFormat(mediaType);
     }
 
     /**
@@ -93,7 +103,7 @@ public interface MediaType extends Writeable {
      */
     static MediaType fromMediaType(String mediaTypeHeaderValue) {
         mediaTypeHeaderValue = removeVersionInMediaType(mediaTypeHeaderValue);
-        return MediaTypeParserRegistry.fromMediaType(mediaTypeHeaderValue);
+        return MediaTypeRegistry.fromMediaType(mediaTypeHeaderValue);
     }
 
     /**

@@ -139,13 +139,25 @@ class OngoingSegmentReplications {
      */
     CopyState prepareForReplication(CheckpointInfoRequest request, FileChunkWriter fileChunkWriter) throws IOException {
         final CopyState copyState = getCachedCopyState(request.getCheckpoint());
-        allocationIdToHandlers.compute(request.getTargetAllocationId(), (allocationId, segrepHandler) -> {
-            if (segrepHandler != null) {
-                logger.warn("Override handler for allocation id {}", request.getTargetAllocationId());
-                cancelHandlers(handler -> handler.getAllocationId().equals(request.getTargetAllocationId()), "cancel due to retry");
-            }
-            return createTargetHandler(request.getTargetNode(), copyState, request.getTargetAllocationId(), fileChunkWriter);
-        });
+        final SegmentReplicationSourceHandler newHandler = createTargetHandler(
+            request.getTargetNode(),
+            copyState,
+            request.getTargetAllocationId(),
+            fileChunkWriter
+        );
+        final SegmentReplicationSourceHandler existingHandler = allocationIdToHandlers.putIfAbsent(
+            request.getTargetAllocationId(),
+            newHandler
+        );
+        // If we are already replicating to this allocation Id, cancel the old and replace with a new execution.
+        // This will clear the old handler & referenced copy state holding an incref'd indexCommit.
+        if (existingHandler != null) {
+            logger.warn("Override handler for allocation id {}", request.getTargetAllocationId());
+            cancelHandlers(handler -> handler.getAllocationId().equals(request.getTargetAllocationId()), "cancel due to retry");
+            assert allocationIdToHandlers.containsKey(request.getTargetAllocationId()) == false;
+            allocationIdToHandlers.put(request.getTargetAllocationId(), newHandler);
+        }
+        assert allocationIdToHandlers.containsKey(request.getTargetAllocationId());
         return copyState;
     }
 
