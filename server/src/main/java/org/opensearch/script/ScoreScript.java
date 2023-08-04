@@ -38,8 +38,7 @@ import org.apache.lucene.search.Scorable;
 import org.opensearch.Version;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.index.fielddata.ScriptDocValues;
-import org.opensearch.index.query.functionscore.TermFrequencyFunction.TermFrequencyFunctionNamesEnum;
-import org.opensearch.index.query.functionscore.TermFrequencyFunction.TermFrequencyFunctionFactory;
+import org.opensearch.index.query.functionscore.TermFrequencyFunctionFactory.TermFrequencyFunctionName;
 
 import org.opensearch.search.lookup.LeafSearchLookup;
 import org.opensearch.search.lookup.SearchLookup;
@@ -48,6 +47,7 @@ import org.opensearch.search.lookup.SourceLookup;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.DoubleSupplier;
 import java.util.function.Function;
@@ -121,6 +121,8 @@ public abstract class ScoreScript {
 
     private final IndexSearcher indexSearcher;
 
+    private final Map<String, Object> termFreqCache = new HashMap<>();
+
     public ScoreScript(Map<String, Object> params, SearchLookup lookup, IndexSearcher indexSearcher, LeafReaderContext leafContext) {
         // null check needed b/c of expression engine subclass
         if (lookup == null) {
@@ -152,16 +154,23 @@ public abstract class ScoreScript {
         return leafLookup.doc();
     }
 
-    public Object getTermFrequency(TermFrequencyFunctionNamesEnum functionName, String field, String val) throws IOException {
-        // Fetch data from local cache
-        Map<Object, Object> context = new HashMap<>() {
-            {
-                put("searcher", indexSearcher);
-            }
-        };
-        return leafLookup.executeTermFrequencyFunction(
-            TermFrequencyFunctionFactory.createFunction(functionName, field, val, docId, context)
-        );
+    public Object getTermFrequency(TermFrequencyFunctionName functionName, String field, String val) throws IOException {
+        String cacheKey = (val == null)
+            ? String.format(Locale.ROOT, "%s-%s", functionName, field)
+            : String.format(Locale.ROOT, "%s-%s-%s", functionName, field, val);
+
+        if (!termFreqCache.containsKey(cacheKey)) {
+            Map<Object, Object> context = new HashMap<>() {
+                {
+                    put("searcher", indexSearcher);
+                }
+            };
+
+            Object termFrequency = leafLookup.getTermFrequency(functionName, context, field, val, docId);
+            termFreqCache.put(cacheKey, termFrequency);
+        }
+
+        return termFreqCache.get(cacheKey);
     }
 
     /** Set the current document to run the script on next. */
