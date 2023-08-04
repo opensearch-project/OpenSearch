@@ -735,6 +735,59 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
         }
     }
 
+    public void testTransportGetCurrentSnapshotsAction() {
+        setupTestCluster(randomFrom(1, 3, 5), randomIntBetween(2, 10));
+
+        String repoName = "repo";
+        final String index = "index-1";
+        final boolean[] snapshotRequestMode = { true, false };
+        final String[] snapshotsList = { GetSnapshotsRequest.CURRENT_SNAPSHOT };
+        final int shards = randomIntBetween(1, 10);
+
+        TestClusterNodes.TestClusterNode clusterManagerNode = testClusterNodes.currentClusterManager(
+            testClusterNodes.nodes.values().iterator().next().clusterService.state()
+        );
+
+        final StepListener<CreateSnapshotResponse> createSnapshotResponseListener = new StepListener<>();
+        clusterManagerNode.clusterService.addListener(new ClusterStateListener() {
+            @Override
+            public void clusterChanged(ClusterChangedEvent event) {
+                if (event.state().custom(SnapshotsInProgress.TYPE) != null) {
+                    TransportAction getSnapshotsAction = clusterManagerNode.actions.get(GetSnapshotsAction.INSTANCE);
+                    TransportGetSnapshotsAction transportGetSnapshotsAction = (TransportGetSnapshotsAction) getSnapshotsAction;
+                    for (boolean mode : snapshotRequestMode) {
+                        GetSnapshotsRequest repoSnapshotRequest = new GetSnapshotsRequest().repository(repoName)
+                            .snapshots(snapshotsList)
+                            .ignoreUnavailable(mode)
+                            .verbose(mode);
+
+                        transportGetSnapshotsAction.execute(null, repoSnapshotRequest, ActionListener.wrap(repoSnapshotResponse -> {
+                            assertNotNull("Snapshot list should be registered", repoSnapshotResponse.getSnapshots());
+                            List<SnapshotInfo> snapshotInfos = repoSnapshotResponse.getSnapshots();
+                            assertThat(repoSnapshotResponse.getSnapshots(), hasSize(snapshotsList.length));
+                            for (SnapshotInfo snapshotInfo : snapshotInfos) {
+                                assertEquals(SnapshotState.IN_PROGRESS, snapshotInfo.state());
+                                assertEquals(0, snapshotInfo.failedShards());
+                                assertTrue(snapshotInfo.snapshotId().getName().contains("last-snapshot"));
+                            }
+                        }, exception -> { throw new AssertionError(exception); }));
+                    }
+                    SnapshotsInProgress snapshotsInProgress = event.state().custom(SnapshotsInProgress.TYPE);
+                    assertTrue(snapshotsInProgress.entries().stream().anyMatch(entry -> entry.state().completed() == false));
+                    clusterManagerNode.clusterService.removeListener(this);
+                }
+            }
+        });
+        continueOrDie(
+            createRepoAndIndex(repoName, index, shards),
+            createIndexResponse -> client().admin()
+                .cluster()
+                .prepareCreateSnapshot(repoName, GetSnapshotsRequest.CURRENT_SNAPSHOT)
+                .execute(createSnapshotResponseListener)
+        );
+        deterministicTaskQueue.runAllRunnableTasks();
+    }
+
     public void testBulkSnapshotDeleteWithAbort() {
         setupTestCluster(randomFrom(1, 3, 5), randomIntBetween(2, 10));
 
