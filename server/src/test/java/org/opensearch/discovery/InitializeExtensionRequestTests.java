@@ -13,7 +13,7 @@ import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.BytesStreamInput;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.common.transport.TransportAddress;
+import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.extensions.DiscoveryExtensionNode;
 import org.opensearch.extensions.ExtensionDependency;
 import org.opensearch.test.OpenSearchTestCase;

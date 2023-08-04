@@ -36,8 +36,8 @@ import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.index.Term;
 import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
@@ -50,8 +50,6 @@ import org.apache.lucene.tests.store.BaseDirectoryWrapper;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 import org.junit.Assert;
-import org.opensearch.common.io.PathUtils;
-import org.opensearch.core.Assertions;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
@@ -77,11 +75,12 @@ import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.Randomness;
 import org.opensearch.common.Strings;
 import org.opensearch.common.UUIDs;
-import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.concurrent.GatedCloseable;
+import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
@@ -90,8 +89,9 @@ import org.opensearch.common.util.concurrent.AtomicArray;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.common.lease.Releasable;
-import org.opensearch.common.lease.Releasables;
+import org.opensearch.core.Assertions;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -106,8 +106,8 @@ import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.EngineTestCase;
 import org.opensearch.index.engine.InternalEngine;
 import org.opensearch.index.engine.InternalEngineFactory;
-import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.engine.NRTReplicationEngine;
+import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.engine.ReadOnlyEngine;
 import org.opensearch.index.fielddata.FieldDataStats;
 import org.opensearch.index.fielddata.IndexFieldData;
@@ -168,6 +168,7 @@ import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -192,7 +193,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
-import java.util.Collection;
+
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -217,8 +218,8 @@ import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
 import static org.opensearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.opensearch.common.lucene.Lucene.cleanLuceneIndex;
-import static org.opensearch.core.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.opensearch.core.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.opensearch.test.hamcrest.RegexMatcher.matches;
 
@@ -1260,6 +1261,7 @@ public class IndexShardTests extends IndexShardTestCase {
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
             .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
             .build();
         final IndexMetadata.Builder indexMetadata = IndexMetadata.builder(shardRouting.getIndexName()).settings(settings).primaryTerm(0, 1);
@@ -2885,13 +2887,14 @@ public class IndexShardTests extends IndexShardTestCase {
     }
 
     public void testRestoreShardFromRemoteStore(boolean performFlush) throws IOException {
+        String remoteStorePath = createTempDir().toString();
         IndexShard target = newStartedShard(
             true,
             Settings.builder()
                 .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
                 .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
-                .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, "temp-fs")
-                .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "temp-fs")
+                .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, remoteStorePath + "__test")
+                .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, remoteStorePath + "__test")
                 .build(),
             new InternalEngineFactory()
         );
@@ -2956,7 +2959,6 @@ public class IndexShardTests extends IndexShardTestCase {
         final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
         target.restoreFromRemoteStore(future);
         target.remoteStore().decRef();
-
         assertTrue(future.actionGet());
         assertDocs(target, "1", "2");
 
@@ -3751,7 +3753,7 @@ public class IndexShardTests extends IndexShardTestCase {
      */
     public void testCheckpointRefreshListener() throws IOException {
         final SegmentReplicationCheckpointPublisher mock = mock(SegmentReplicationCheckpointPublisher.class);
-        IndexShard shard = newStartedShard(p -> newShard(mock), true);
+        IndexShard shard = newStartedShard(p -> newShard(true, mock), true);
         List<ReferenceManager.RefreshListener> refreshListeners = shard.getEngine().config().getInternalRefreshListener();
         assertTrue(refreshListeners.stream().anyMatch(e -> e instanceof CheckpointRefreshListener));
         closeShards(shard);
@@ -3761,56 +3763,11 @@ public class IndexShardTests extends IndexShardTestCase {
      * here we are passing null in place of SegmentReplicationCheckpointPublisher and testing  on index shard if CheckpointRefreshListener is not added to the InternalrefreshListerners List
      */
     public void testCheckpointRefreshListenerWithNull() throws IOException {
-        IndexShard shard = newStartedShard(p -> newShard(null), true);
+        final SegmentReplicationCheckpointPublisher publisher = null;
+        IndexShard shard = newStartedShard(p -> newShard(true, publisher), true);
         List<ReferenceManager.RefreshListener> refreshListeners = shard.getEngine().config().getInternalRefreshListener();
         assertFalse(refreshListeners.stream().anyMatch(e -> e instanceof CheckpointRefreshListener));
         closeShards(shard);
-    }
-
-    /**
-     * creates a new initializing shard. The shard will be put in its proper path under the
-     * current node id the shard is assigned to.
-     * @param checkpointPublisher               Segment Replication Checkpoint Publisher to publish checkpoint
-     */
-    private IndexShard newShard(SegmentReplicationCheckpointPublisher checkpointPublisher) throws IOException {
-        final ShardId shardId = new ShardId("index", "_na_", 0);
-        final ShardRouting shardRouting = TestShardRouting.newShardRouting(
-            shardId,
-            randomAlphaOfLength(10),
-            true,
-            ShardRoutingState.INITIALIZING,
-            RecoverySource.EmptyStoreRecoverySource.INSTANCE
-        );
-        final NodeEnvironment.NodePath nodePath = new NodeEnvironment.NodePath(createTempDir());
-        ShardPath shardPath = new ShardPath(false, nodePath.resolve(shardId), nodePath.resolve(shardId), shardId);
-
-        Settings indexSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_REPLICATION_TYPE, "SEGMENT")
-            .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), between(0, 1000))
-            .put(Settings.EMPTY)
-            .build();
-        IndexMetadata metadata = IndexMetadata.builder(shardRouting.getIndexName())
-            .settings(indexSettings)
-            .primaryTerm(0, primaryTerm)
-            .putMapping("{ \"properties\": {} }")
-            .build();
-        return newShard(
-            shardRouting,
-            shardPath,
-            metadata,
-            null,
-            null,
-            new InternalEngineFactory(),
-            new EngineConfigFactory(new IndexSettings(metadata, metadata.getSettings())),
-            () -> {},
-            RetentionLeaseSyncer.EMPTY,
-            EMPTY_EVENT_LISTENER,
-            checkpointPublisher,
-            null
-        );
     }
 
     public void testIndexCheckOnStartup() throws Exception {
@@ -4839,12 +4796,13 @@ public class IndexShardTests extends IndexShardTestCase {
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
             .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
             .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, "seg-test")
             .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "txlog-test")
             .build();
         final IndexShard replicaShard = newStartedShard(false, primarySettings, new NRTReplicationEngineFactory());
-        assertEquals(replicaShard.getEngine().getClass(), InternalEngine.class);
+        assertEquals(replicaShard.getEngine().getClass(), NRTReplicationEngine.class);
         assertEquals(replicaShard.getEngine().config().getTranslogFactory().getClass(), InternalTranslogFactory.class);
         closeShards(replicaShard);
     }

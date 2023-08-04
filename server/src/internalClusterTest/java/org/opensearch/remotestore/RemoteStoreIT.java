@@ -40,6 +40,9 @@ import java.util.concurrent.TimeUnit;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.oneOf;
 import static org.hamcrest.Matchers.comparesEqualTo;
+import static org.hamcrest.Matchers.comparesEqualTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.oneOf;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 

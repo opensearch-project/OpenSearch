@@ -673,7 +673,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         List.of(FeatureFlags.REMOTE_STORE),
         List.of(
             IndicesService.CLUSTER_REMOTE_STORE_ENABLED_SETTING,
-            IndicesService.CLUSTER_REMOTE_STORE_REPOSITORY_SETTING,
+            IndicesService.CLUSTER_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING,
             IndicesService.CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING
         ),
         List.of(FeatureFlags.CONCURRENT_SEGMENT_SEARCH),

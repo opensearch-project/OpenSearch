@@ -36,7 +36,7 @@ import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.transport.BoundTransportAddress;
+import org.opensearch.core.common.transport.BoundTransportAddress;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.common.util.concurrent.ThreadContext;

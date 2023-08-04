@@ -74,7 +74,7 @@ import org.opensearch.transport.TransportChannel;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportRequestHandler;
-import org.opensearch.transport.TransportResponse;
+import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
 
@@ -245,7 +245,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                     indexShard.prepareForIndexRecovery();
                     final boolean hasRemoteSegmentStore = indexShard.indexSettings().isRemoteStoreEnabled();
                     if (hasRemoteSegmentStore) {
-                        indexShard.syncSegmentsFromRemoteSegmentStore(false, false, true);
+                        indexShard.syncSegmentsFromRemoteSegmentStore(false, false);
                     }
                     final boolean hasRemoteTranslog = recoveryTarget.state().getPrimary() == false && indexShard.isRemoteTranslogEnabled();
                     final boolean hasNoTranslog = indexShard.indexSettings().isRemoteSnapshot();

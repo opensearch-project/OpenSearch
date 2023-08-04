@@ -28,7 +28,7 @@ import org.opensearch.common.util.UploadListener;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.engine.InternalEngine;
-import org.opensearch.index.remote.RemoteRefreshSegmentTracker;
+import org.opensearch.index.remote.RemoteSegmentTransferTracker;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
@@ -87,7 +87,7 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
     private final IndexShard indexShard;
     private final Directory storeDirectory;
     private final RemoteSegmentStoreDirectory remoteDirectory;
-    private final RemoteRefreshSegmentTracker segmentTracker;
+    private final RemoteSegmentTransferTracker segmentTracker;
     private final Map<String, String> localSegmentChecksumMap;
     private long primaryTerm;
     private volatile Iterator<TimeValue> backoffDelayIterator;
@@ -104,7 +104,7 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
     public RemoteStoreRefreshListener(
         IndexShard indexShard,
         SegmentReplicationCheckpointPublisher checkpointPublisher,
-        RemoteRefreshSegmentTracker segmentTracker
+        RemoteSegmentTransferTracker segmentTracker
     ) {
         super(indexShard.getThreadPool());
         logger = Loggers.getLogger(getClass(), indexShard.shardId());
@@ -185,7 +185,6 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
             return true;
         }
         ReplicationCheckpoint checkpoint = indexShard.getLatestReplicationCheckpoint();
-        indexShard.onCheckpointPublished(checkpoint);
         beforeSegmentsSync();
         long refreshTimeMs = segmentTracker.getLocalRefreshTimeMs(), refreshClockTimeMs = segmentTracker.getLocalRefreshClockTimeMs();
         long refreshSeqNo = segmentTracker.getLocalRefreshSeqNo();
@@ -207,6 +206,10 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
 
                 try (GatedCloseable<SegmentInfos> segmentInfosGatedCloseable = indexShard.getSegmentInfosSnapshot()) {
                     SegmentInfos segmentInfos = segmentInfosGatedCloseable.get();
+                    assert segmentInfos.getGeneration() == checkpoint.getSegmentsGen() : "SegmentInfos generation: "
+                        + segmentInfos.getGeneration()
+                        + " does not match metadata generation: "
+                        + checkpoint.getSegmentsGen();
                     // Capture replication checkpoint before uploading the segments as upload can take some time and checkpoint can
                     // move.
                     long lastRefreshedCheckpoint = ((InternalEngine) indexShard.getEngine()).lastRefreshedCheckpoint();
@@ -220,7 +223,7 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
                         public void onResponse(Void unused) {
                             try {
                                 // Start metadata file upload
-                                uploadMetadata(localSegmentsPostRefresh, segmentInfos);
+                                uploadMetadata(localSegmentsPostRefresh, segmentInfos, checkpoint);
                                 clearStaleFilesFromLocalSegmentChecksumMap(localSegmentsPostRefresh);
                                 onSuccessfulSegmentsSync(
                                     refreshTimeMs,
@@ -327,7 +330,8 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
             && !remoteDirectory.containsFile(lastCommittedLocalSegmentFileName, getChecksumOfLocalFile(lastCommittedLocalSegmentFileName)));
     }
 
-    void uploadMetadata(Collection<String> localSegmentsPostRefresh, SegmentInfos segmentInfos) throws IOException {
+    void uploadMetadata(Collection<String> localSegmentsPostRefresh, SegmentInfos segmentInfos, ReplicationCheckpoint replicationCheckpoint)
+        throws IOException {
         final long maxSeqNo = ((InternalEngine) indexShard.getEngine()).currentOngoingRefreshCheckpoint();
         SegmentInfos segmentInfosSnapshot = segmentInfos.clone();
         Map<String, String> userData = segmentInfosSnapshot.getUserData();
@@ -344,8 +348,8 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
                 localSegmentsPostRefresh,
                 segmentInfosSnapshot,
                 storeDirectory,
-                indexShard.getOperationPrimaryTerm(),
-                translogFileGeneration
+                translogFileGeneration,
+                replicationCheckpoint
             );
         }
     }

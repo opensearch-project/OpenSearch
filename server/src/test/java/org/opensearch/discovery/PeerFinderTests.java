@@ -42,7 +42,7 @@ import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.node.DiscoveryNodes.Builder;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.transport.TransportAddress;
+import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.discovery.PeerFinder.TransportAddressConnector;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.CapturingTransport;

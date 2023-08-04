@@ -254,7 +254,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         }
         documents = in.readList(StreamInput::readBytesReference);
         if (documents.isEmpty() == false) {
-            if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+            if (in.getVersion().onOrAfter(Version.V_2_10_0)) {
                 documentXContentType = in.readMediaType();
             } else {
                 documentXContentType = in.readEnum(XContentType.class);
@@ -304,7 +304,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
             out.writeBytesReference(document);
         }
         if (documents.isEmpty() == false) {
-            if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+            if (out.getVersion().onOrAfter(Version.V_2_10_0)) {
                 documentXContentType.writeTo(out);
             } else {
                 out.writeEnum((XContentType) documentXContentType);

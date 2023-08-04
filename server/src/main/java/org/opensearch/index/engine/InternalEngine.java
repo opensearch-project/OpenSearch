@@ -710,6 +710,7 @@ public class InternalEngine extends Engine {
         final OpVsLuceneDocStatus status;
         VersionValue versionValue = getVersionFromMap(op.uid().bytes());
         assert incrementVersionLookup();
+        boolean segRepEnabled = engineConfig.getIndexSettings().isSegRepEnabled();
         if (versionValue != null) {
             status = compareOpToVersionMapOnSeqNo(op.id(), op.seqNo(), op.primaryTerm(), versionValue);
         } else {
@@ -722,10 +723,8 @@ public class InternalEngine extends Engine {
                 } else if (op.seqNo() > docAndSeqNo.seqNo) {
                     status = OpVsLuceneDocStatus.OP_NEWER;
                 } else if (op.seqNo() == docAndSeqNo.seqNo) {
-                    assert localCheckpointTracker.hasProcessed(op.seqNo()) : "local checkpoint tracker is not updated seq_no="
-                        + op.seqNo()
-                        + " id="
-                        + op.id();
+                    assert localCheckpointTracker.hasProcessed(op.seqNo()) || segRepEnabled
+                        : "local checkpoint tracker is not updated seq_no=" + op.seqNo() + " id=" + op.id();
                     status = OpVsLuceneDocStatus.OP_STALE_OR_EQUAL;
                 } else {
                     status = OpVsLuceneDocStatus.OP_STALE_OR_EQUAL;
@@ -927,6 +926,7 @@ public class InternalEngine extends Engine {
                             plan.currentNotFoundOrDeleted
                         );
                     }
+
                 }
                 if (index.origin().isFromTranslog() == false) {
                     final Translog.Location location;
@@ -1005,10 +1005,18 @@ public class InternalEngine extends Engine {
             assert maxSeqNoOfUpdatesOrDeletes < index.seqNo() : index.seqNo() + ">=" + maxSeqNoOfUpdatesOrDeletes;
             plan = IndexingStrategy.optimizedAppendOnly(index.version(), 0);
         } else {
+            boolean segRepEnabled = engineConfig.getIndexSettings().isSegRepEnabled();
             versionMap.enforceSafeAccess();
             final OpVsLuceneDocStatus opVsLucene = compareOpToLuceneDocBasedOnSeqNo(index);
             if (opVsLucene == OpVsLuceneDocStatus.OP_STALE_OR_EQUAL) {
-                plan = IndexingStrategy.processAsStaleOp(index.version());
+                if (segRepEnabled) {
+                    // For segrep based indices, we can't completely rely on localCheckpointTracker
+                    // as the preserved checkpoint may not have all the operations present in lucene
+                    // we don't need to index it again as stale op as it would create multiple documents for same seq no
+                    plan = IndexingStrategy.processButSkipLucene(false, index.version());
+                } else {
+                    plan = IndexingStrategy.processAsStaleOp(index.version());
+                }
             } else {
                 plan = IndexingStrategy.processNormally(opVsLucene == OpVsLuceneDocStatus.LUCENE_DOC_NOT_FOUND, index.version(), 0);
             }
@@ -1442,9 +1450,17 @@ public class InternalEngine extends Engine {
             // See testRecoveryWithOutOfOrderDelete for an example of peer recovery
             plan = DeletionStrategy.processButSkipLucene(false, delete.version());
         } else {
+            boolean segRepEnabled = engineConfig.getIndexSettings().isSegRepEnabled();
             final OpVsLuceneDocStatus opVsLucene = compareOpToLuceneDocBasedOnSeqNo(delete);
             if (opVsLucene == OpVsLuceneDocStatus.OP_STALE_OR_EQUAL) {
-                plan = DeletionStrategy.processAsStaleOp(delete.version());
+                if (segRepEnabled) {
+                    // For segrep based indices, we can't completely rely on localCheckpointTracker
+                    // as the preserved checkpoint may not have all the operations present in lucene
+                    // we don't need to index it again as stale op as it would create multiple documents for same seq no
+                    plan = DeletionStrategy.processButSkipLucene(false, delete.version());
+                } else {
+                    plan = DeletionStrategy.processAsStaleOp(delete.version());
+                }
             } else {
                 plan = DeletionStrategy.processNormally(opVsLucene == OpVsLuceneDocStatus.LUCENE_DOC_NOT_FOUND, delete.version(), 0);
             }

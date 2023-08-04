@@ -15,7 +15,7 @@ import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.ConstructingObjectParser;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.transport.TransportResponse;
+import org.opensearch.core.transport.TransportResponse;
 
 import java.io.IOException;
 
