@@ -6,7 +6,11 @@
  * compatible open source license.
  */
 
-package org.opensearch.telemetry.tracing;
+package org.opensearch.telemetry.tracing.runnable;
+
+import org.opensearch.telemetry.tracing.SpanContext;
+import org.opensearch.telemetry.tracing.SpanScope;
+import org.opensearch.telemetry.tracing.Tracer;
 
 /**
  * Wraps the runnable and add instrumentation to trace the {@link Runnable}
@@ -18,10 +22,11 @@ public class TraceableRunnable implements Runnable {
     private final String spanName;
 
     /**
-     * Constructor
-     * @param tracer tracerFactory
-     * @param parent parent
-     * @param runnable runnable
+     * Constructor.
+     * @param tracer tracer
+     * @param spanName spanName
+     * @param parent parent Span.
+     * @param runnable runnable.
      */
     public TraceableRunnable(Tracer tracer, String spanName, SpanContext parent, Runnable runnable) {
         this.tracer = tracer;

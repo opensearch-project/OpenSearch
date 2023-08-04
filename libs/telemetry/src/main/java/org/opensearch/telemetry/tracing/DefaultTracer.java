@@ -63,9 +63,8 @@ class DefaultTracer implements Tracer {
     }
 
     public SpanContext getCurrentSpan() {
-        return tracerContextStorage.get(TracerContextStorage.CURRENT_SPAN) == null
-            ? null
-            : new SpanContext(tracerContextStorage.get(TracerContextStorage.CURRENT_SPAN));
+        final Span currentSpan = tracerContextStorage.get(TracerContextStorage.CURRENT_SPAN);
+        return (currentSpan == null) ? null : new SpanContext(currentSpan);
     }
 
     private void endSpan(Span span) {
