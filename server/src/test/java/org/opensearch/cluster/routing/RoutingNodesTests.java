@@ -156,11 +156,11 @@ public class RoutingNodesTests extends OpenSearchAllocationTestCase {
             if (iteratingPrimary) {
                 iteratingPrimary = shard.primary();
             } else {
-                assert shard.primary() == false;
+                assertFalse(shard.primary());
             }
             shardCount++;
         }
-        assert shardCount == this.totalNumberOfShards;
+        assertEquals(shardCount, this.totalNumberOfShards);
     }
 
     public void testInterleavedShardIteratorNoPreference() {
@@ -178,7 +178,7 @@ public class RoutingNodesTests extends OpenSearchAllocationTestCase {
             final ShardRouting shard = iterator.next();
             shardCount++;
         }
-        assert shardCount == this.totalNumberOfShards;
+        assertEquals(shardCount, this.totalNumberOfShards);
     }
 
     public void testInterleavedShardIteratorReplicaFirst() {
@@ -199,11 +199,11 @@ public class RoutingNodesTests extends OpenSearchAllocationTestCase {
             if (iteratingReplica) {
                 iteratingReplica = shard.primary() == false;
             } else {
-                assert shard.primary() == true;
+                assertTrue(shard.primary());
             }
             shardCount++;
         }
-        assert shardCount == this.totalNumberOfShards;
+        assertEquals(shardCount, this.totalNumberOfShards);
     }
 
     public void testSwapPrimaryWithReplica() {

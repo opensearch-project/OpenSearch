@@ -17,6 +17,8 @@ import java.util.Locale;
  *
  * ShardMovementStrategy values or rather their string representation to be used with
  * {@link BalancedShardsAllocator#SHARD_MOVEMENT_STRATEGY_SETTING} via cluster settings.
+ *
+ * @opensearch.internal
  */
 public enum ShardMovementStrategy {
     /**
