@@ -60,7 +60,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.CollectionUtils;
+import org.opensearch.core.common.util.CollectionUtils;
 import org.opensearch.core.common.Strings;
 import org.opensearch.discovery.ClusterManagerNotDiscoveredException;
 import org.opensearch.discovery.Discovery;

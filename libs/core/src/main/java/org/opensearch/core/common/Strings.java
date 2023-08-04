@@ -9,6 +9,7 @@
 package org.opensearch.core.common;
 
 import org.opensearch.common.Nullable;
+import org.opensearch.core.common.util.CollectionUtils;
 
 import java.io.BufferedReader;
 import java.io.StringReader;
@@ -34,18 +35,6 @@ import java.util.function.Supplier;
 public class Strings {
     public static final String UNKNOWN_UUID_VALUE = "_na_";
     public static final String[] EMPTY_ARRAY = new String[0];
-
-    /**
-     * Split the specified string by commas to an array.
-     *
-     * @param s the string to split
-     * @return the array of split values
-     * @see String#split(String)
-     */
-    public static String[] splitStringByCommaToArray(final String s) {
-        if (s == null || s.isEmpty()) return Strings.EMPTY_ARRAY;
-        else return s.split(",");
-    }
 
     /**
      * Convenience method to return a Collection as a delimited (e.g. CSV)
@@ -342,47 +331,6 @@ public class Strings {
     }
 
     /**
-     * Take a String which is a delimited list and convert it to a String array.
-     * <p>A single delimiter can consists of more than one character: It will still
-     * be considered as single delimiter string, rather than as bunch of potential
-     * delimiter characters - in contrast to <code>tokenizeToStringArray</code>.
-     *
-     * @param str           the input String
-     * @param delimiter     the delimiter between elements (this is a single delimiter,
-     *                      rather than a bunch individual delimiter characters)
-     * @param charsToDelete a set of characters to delete. Useful for deleting unwanted
-     *                      line breaks: e.g. "\r\n\f" will delete all new lines and line feeds in a String.
-     * @return an array of the tokens in the list
-     * @see #tokenizeToStringArray
-     */
-    public static String[] delimitedListToStringArray(String str, String delimiter, String charsToDelete) {
-        if (str == null) {
-            return Strings.EMPTY_ARRAY;
-        }
-        if (delimiter == null) {
-            return new String[] { str };
-        }
-        List<String> result = new ArrayList<>();
-        if ("".equals(delimiter)) {
-            for (int i = 0; i < str.length(); i++) {
-                result.add(deleteAny(str.substring(i, i + 1), charsToDelete));
-            }
-        } else {
-            int pos = 0;
-            int delPos;
-            while ((delPos = str.indexOf(delimiter, pos)) != -1) {
-                result.add(deleteAny(str.substring(pos, delPos), charsToDelete));
-                pos = delPos + delimiter.length();
-            }
-            if (str.length() > 0 && pos <= str.length()) {
-                // Add rest of String, but not in case of empty input.
-                result.add(deleteAny(str.substring(pos), charsToDelete));
-            }
-        }
-        return toStringArray(result);
-    }
-
-    /**
      * Tokenize the specified string by commas to a set, trimming whitespace and ignoring empty tokens.
      *
      * @param s the string to tokenize
@@ -391,6 +339,41 @@ public class Strings {
     public static Set<String> tokenizeByCommaToSet(final String s) {
         if (s == null) return Collections.emptySet();
         return tokenizeToCollection(s, ",", HashSet::new);
+    }
+
+    /**
+     * Split the specified string by commas to an array.
+     *
+     * @param s the string to split
+     * @return the array of split values
+     * @see String#split(String)
+     */
+    public static String[] splitStringByCommaToArray(final String s) {
+        if (s == null || s.isEmpty()) return Strings.EMPTY_ARRAY;
+        else return s.split(",");
+    }
+
+    /**
+     * Split a String at the first occurrence of the delimiter.
+     * Does not include the delimiter in the result.
+     *
+     * @param toSplit   the string to split
+     * @param delimiter to split the string up with
+     * @return a two element array with index 0 being before the delimiter, and
+     *         index 1 being after the delimiter (neither element includes the delimiter);
+     *         or <code>null</code> if the delimiter wasn't found in the given input String
+     */
+    public static String[] split(String toSplit, String delimiter) {
+        if (hasLength(toSplit) == false || hasLength(delimiter) == false) {
+            return null;
+        }
+        int offset = toSplit.indexOf(delimiter);
+        if (offset < 0) {
+            return null;
+        }
+        String beforeDelimiter = toSplit.substring(0, offset);
+        String afterDelimiter = toSplit.substring(offset + delimiter.length());
+        return new String[] { beforeDelimiter, afterDelimiter };
     }
 
     /**
@@ -452,6 +435,47 @@ public class Strings {
      * be considered as single delimiter string, rather than as bunch of potential
      * delimiter characters - in contrast to <code>tokenizeToStringArray</code>.
      *
+     * @param str           the input String
+     * @param delimiter     the delimiter between elements (this is a single delimiter,
+     *                      rather than a bunch individual delimiter characters)
+     * @param charsToDelete a set of characters to delete. Useful for deleting unwanted
+     *                      line breaks: e.g. "\r\n\f" will delete all new lines and line feeds in a String.
+     * @return an array of the tokens in the list
+     * @see #tokenizeToStringArray
+     */
+    public static String[] delimitedListToStringArray(String str, String delimiter, String charsToDelete) {
+        if (str == null) {
+            return Strings.EMPTY_ARRAY;
+        }
+        if (delimiter == null) {
+            return new String[] { str };
+        }
+        List<String> result = new ArrayList<>();
+        if ("".equals(delimiter)) {
+            for (int i = 0; i < str.length(); i++) {
+                result.add(deleteAny(str.substring(i, i + 1), charsToDelete));
+            }
+        } else {
+            int pos = 0;
+            int delPos;
+            while ((delPos = str.indexOf(delimiter, pos)) != -1) {
+                result.add(deleteAny(str.substring(pos, delPos), charsToDelete));
+                pos = delPos + delimiter.length();
+            }
+            if (str.length() > 0 && pos <= str.length()) {
+                // Add rest of String, but not in case of empty input.
+                result.add(deleteAny(str.substring(pos), charsToDelete));
+            }
+        }
+        return toStringArray(result);
+    }
+
+    /**
+     * Take a String which is a delimited list and convert it to a String array.
+     * <p>A single delimiter can consists of more than one character: It will still
+     * be considered as single delimiter string, rather than as bunch of potential
+     * delimiter characters - in contrast to <code>tokenizeToStringArray</code>.
+     *
      * @param str       the input String
      * @param delimiter the delimiter between elements (this is a single delimiter,
      *                  rather than a bunch individual delimiter characters)
@@ -484,10 +508,6 @@ public class Strings {
         String[] tokens = commaDelimitedListToStringArray(str);
         set.addAll(Arrays.asList(tokens));
         return set;
-    }
-
-    public static boolean isNullOrEmpty(@Nullable String s) {
-        return s == null || s.isEmpty();
     }
 
     /**
@@ -537,5 +557,96 @@ public class Strings {
                 return p.substring(0, ix) + fraction + suffix;
             }
         }
+    }
+
+    /**
+     * Return substring(beginIndex, endIndex) that is impervious to string length.
+     */
+    public static String substring(String s, int beginIndex, int endIndex) {
+        if (s == null) {
+            return s;
+        }
+
+        int realEndIndex = s.length() > 0 ? s.length() - 1 : 0;
+
+        if (endIndex > realEndIndex) {
+            return s.substring(beginIndex);
+        } else {
+            return s.substring(beginIndex, endIndex);
+        }
+    }
+
+    /**
+     * If an array only consists of zero or one element, which is "*" or "_all" return an empty array
+     * which is usually used as everything
+     */
+    public static boolean isAllOrWildcard(String[] data) {
+        return CollectionUtils.isEmpty(data) || data.length == 1 && isAllOrWildcard(data[0]);
+    }
+
+    /**
+     * Returns `true` if the string is `_all` or `*`.
+     */
+    public static boolean isAllOrWildcard(String data) {
+        return "_all".equals(data) || "*".equals(data);
+    }
+
+    /**
+     * Truncates string to a length less than length. Backtracks to throw out
+     * high surrogates.
+     */
+    public static String cleanTruncate(String s, int length) {
+        if (s == null) {
+            return s;
+        }
+        /*
+         * Its pretty silly for you to truncate to 0 length but just in case
+         * someone does this shouldn't break.
+         */
+        if (length == 0) {
+            return "";
+        }
+        if (length >= s.length()) {
+            return s;
+        }
+        if (Character.isHighSurrogate(s.charAt(length - 1))) {
+            length--;
+        }
+        return s.substring(0, length);
+    }
+
+    public static boolean isNullOrEmpty(@Nullable String s) {
+        return s == null || s.isEmpty();
+    }
+
+    public static String padStart(String s, int minimumLength, char c) {
+        if (s == null) {
+            throw new NullPointerException("s");
+        }
+        if (s.length() >= minimumLength) {
+            return s;
+        } else {
+            StringBuilder sb = new StringBuilder(minimumLength);
+            for (int i = s.length(); i < minimumLength; i++) {
+                sb.append(c);
+            }
+
+            sb.append(s);
+            return sb.toString();
+        }
+    }
+
+    public static String toLowercaseAscii(String in) {
+        StringBuilder out = new StringBuilder();
+        Iterator<Integer> iter = in.codePoints().iterator();
+        while (iter.hasNext()) {
+            int codepoint = iter.next();
+            if (codepoint > 128) {
+                out.appendCodePoint(codepoint);
+            } else {
+                out.appendCodePoint(Character.toLowerCase(codepoint));
+            }
+        }
+        return out.toString();
     }
 }

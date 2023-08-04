@@ -42,7 +42,7 @@ import org.opensearch.action.support.master.AcknowledgedRequest;
 import org.opensearch.client.cluster.RemoteInfoRequest;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.common.Priority;
-import org.opensearch.common.util.CollectionUtils;
+import org.opensearch.core.common.util.CollectionUtils;
 import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.CoreMatchers;
 import org.junit.Assert;

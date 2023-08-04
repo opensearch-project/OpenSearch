@@ -83,6 +83,7 @@ public class IteratorsTests extends OpenSearchTestCase {
         int numberOfIterators = randomIntBetween(1, 1000);
         int singletonIndex = randomIntBetween(0, numberOfIterators - 1);
         int value = randomInt();
+        @SuppressWarnings("rawtypes")
         Iterator<Integer>[] iterators = new Iterator[numberOfIterators];
         for (int i = 0; i < numberOfIterators; i++) {
             iterators[i] = i != singletonIndex ? empty() : singletonIterator(value);
@@ -92,6 +93,7 @@ public class IteratorsTests extends OpenSearchTestCase {
 
     public void testRandomIterators() {
         int numberOfIterators = randomIntBetween(1, 1000);
+        @SuppressWarnings("rawtypes")
         Iterator<Integer>[] iterators = new Iterator[numberOfIterators];
         List<Integer> values = new ArrayList<>();
         for (int i = 0; i < numberOfIterators; i++) {
