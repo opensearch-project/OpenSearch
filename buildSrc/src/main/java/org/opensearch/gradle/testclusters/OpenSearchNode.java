@@ -119,8 +119,7 @@ public class OpenSearchNode implements TestClusterConfiguration {
     private static final List<String> OVERRIDABLE_SETTINGS = Arrays.asList(
         "path.repo",
         "discovery.seed_providers",
-        "discovery.seed_hosts",
-        "http.protocol"
+        "discovery.seed_hosts"
     );
 
     private static final int TAIL_LOG_MESSAGES_COUNT = 40;
@@ -1159,8 +1158,10 @@ public class OpenSearchNode implements TestClusterConfiguration {
             baseConfig.put("cluster.routing.allocation.awareness.attributes", "zone");
             baseConfig.put("node.attr.zone", zone);
         }
+        if (StringUtils.isNotBlank(httpProtocol)) {
+            baseConfig.put("http.protocol", httpProtocol);
+        }
         baseConfig.put("node.portsfile", "true");
-        baseConfig.put("http.protocol", httpProtocol);
         baseConfig.put("http.port", httpPort);
         baseConfig.put("transport.port", transportPort);
         // Default the watermarks to absurdly low to prevent the tests from failing on nodes without enough disk space
