@@ -671,7 +671,11 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
                 false,
                 new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings())
             );
-            validateIndexName(checkerService, "index?name", "must not contain the following characters " + Strings.INVALID_FILENAME_CHARS);
+            validateIndexName(
+                checkerService,
+                "index?name",
+                "must not contain the following characters " + org.opensearch.core.common.Strings.INVALID_FILENAME_CHARS
+            );
 
             validateIndexName(checkerService, "index#name", "must not contain '#'");
 
