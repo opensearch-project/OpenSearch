@@ -33,7 +33,7 @@ package org.opensearch.search.aggregations.support.values;
 
 import org.apache.lucene.search.Scorable;
 import org.opensearch.common.lucene.ScorerAware;
-import org.opensearch.common.util.CollectionUtils;
+import org.opensearch.core.common.util.CollectionUtils;
 import org.opensearch.index.fielddata.SortedBinaryDocValues;
 import org.opensearch.index.fielddata.SortingBinaryDocValues;
 import org.opensearch.script.AggregationScript;
