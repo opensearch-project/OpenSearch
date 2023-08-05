@@ -34,7 +34,6 @@ package org.opensearch.script.mustache;
 
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchRequest;
-import org.opensearch.common.Strings;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.script.ScriptType;
@@ -72,15 +71,14 @@ public class MultiSearchTemplateIT extends OpenSearchIntegTestCase {
         }
         indexRandom(true, indexRequestBuilders);
 
-        final String template = Strings.toString(
-            jsonBuilder().startObject()
-                .startObject("query")
-                .startObject("{{query_type}}")
-                .field("{{field_name}}", "{{field_value}}")
-                .endObject()
-                .endObject()
-                .endObject()
-        );
+        final String template = jsonBuilder().startObject()
+            .startObject("query")
+            .startObject("{{query_type}}")
+            .field("{{field_name}}", "{{field_value}}")
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
 
         MultiSearchTemplateRequest multiRequest = new MultiSearchTemplateRequest();
 

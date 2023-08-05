@@ -45,7 +45,6 @@ import org.apache.lucene.search.similarities.PerFieldSimilarityWrapper;
 import org.apache.lucene.search.similarities.Similarity;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
-import org.opensearch.common.Strings;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -140,7 +139,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
             .endObject()
             .endObject();
 
-        mapperService.merge(TYPE, new CompressedXContent(Strings.toString(mapping)), MapperService.MergeReason.MAPPING_UPDATE);
+        mapperService.merge(TYPE, new CompressedXContent(mapping.toString()), MapperService.MergeReason.MAPPING_UPDATE);
     }
 
     /**

@@ -34,7 +34,6 @@ package org.opensearch.rest;
 
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
-import org.opensearch.common.Strings;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.test.rest.OpenSearchRestTestCase;
 import org.hamcrest.Matcher;
@@ -68,7 +67,7 @@ public class Netty4HeadBodyIsEmptyIT extends OpenSearchRestTestCase {
             }
             builder.endObject();
             Request request = new Request("PUT", "/" + indexName + "/_doc/" + "1");
-            request.setJsonEntity(Strings.toString(builder));
+            request.setJsonEntity(builder.toString());
             client().performRequest(request);
         }
     }
@@ -109,7 +108,7 @@ public class Netty4HeadBodyIsEmptyIT extends OpenSearchRestTestCase {
             builder.endObject();
 
             Request request = new Request("POST", "/_aliases");
-            request.setJsonEntity(Strings.toString(builder));
+            request.setJsonEntity(builder.toString());
             client().performRequest(request);
             headTestCase("/_alias/test_alias", emptyMap(), greaterThan(0));
             headTestCase("/test/_alias/test_alias", emptyMap(), greaterThan(0));
@@ -136,7 +135,7 @@ public class Netty4HeadBodyIsEmptyIT extends OpenSearchRestTestCase {
             builder.endObject();
 
             Request request = new Request("PUT", "/_template/template");
-            request.setJsonEntity(Strings.toString(builder));
+            request.setJsonEntity(builder.toString());
             client().performRequest(request);
             headTestCase("/_template/template", emptyMap(), greaterThan(0));
         }
@@ -163,7 +162,7 @@ public class Netty4HeadBodyIsEmptyIT extends OpenSearchRestTestCase {
             builder.endObject();
 
             Request request = new Request("PUT", "/test-no-source");
-            request.setJsonEntity(Strings.toString(builder));
+            request.setJsonEntity(builder.toString());
             client().performRequest(request);
             createTestDoc("test-no-source");
             headTestCase("/test-no-source/_source/1", emptyMap(), NOT_FOUND.getStatus(), greaterThan(0));

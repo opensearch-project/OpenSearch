@@ -34,7 +34,6 @@ package org.opensearch.index.fielddata;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
-import org.opensearch.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -54,19 +53,18 @@ public class BinaryDVFieldDataTests extends AbstractFieldDataTestCase {
     }
 
     public void testDocValue() throws Exception {
-        String mapping = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("test")
-                .startObject("properties")
-                .startObject("field")
-                .field("type", "binary")
-                .field("doc_values", true)
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
+        String mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("test")
+            .startObject("properties")
+            .startObject("field")
+            .field("type", "binary")
+            .field("doc_values", true)
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
 
         final DocumentMapper mapper = mapperService.documentMapperParser().parse("test", new CompressedXContent(mapping));
 

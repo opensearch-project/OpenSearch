@@ -32,7 +32,6 @@
 package org.opensearch.join.query;
 
 import org.opensearch.action.index.IndexRequestBuilder;
-import org.opensearch.common.Strings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentHelper;
@@ -85,7 +84,7 @@ public abstract class ParentChildTestCase extends OpenSearchIntegTestCase {
 
     protected IndexRequestBuilder createIndexRequest(String index, String type, String id, String parentId, XContentBuilder builder)
         throws IOException {
-        Map<String, Object> source = XContentHelper.convertToMap(JsonXContent.jsonXContent, Strings.toString(builder), false);
+        Map<String, Object> source = XContentHelper.convertToMap(JsonXContent.jsonXContent, builder.toString(), false);
         return createIndexRequest(index, type, id, parentId, source);
     }
 

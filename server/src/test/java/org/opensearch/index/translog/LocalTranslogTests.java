@@ -53,7 +53,6 @@ import org.opensearch.core.Assertions;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Randomness;
-import org.opensearch.common.Strings;
 import org.opensearch.common.UUIDs;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
@@ -520,7 +519,7 @@ public class LocalTranslogTests extends OpenSearchTestCase {
                 copy.toXContent(builder, ToXContent.EMPTY_PARAMS);
                 builder.endObject();
                 assertThat(
-                    Strings.toString(builder),
+                    builder.toString(),
                     equalTo(
                         "{\"translog\":{\"operations\":4,\"size_in_bytes\":"
                             + 326

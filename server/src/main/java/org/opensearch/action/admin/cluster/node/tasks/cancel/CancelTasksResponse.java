@@ -35,7 +35,7 @@ package org.opensearch.action.admin.cluster.node.tasks.cancel;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.TaskOperationFailure;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
-import org.opensearch.common.Strings;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.xcontent.ConstructingObjectParser;

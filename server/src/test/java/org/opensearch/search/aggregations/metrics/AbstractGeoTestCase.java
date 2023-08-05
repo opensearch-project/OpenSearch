@@ -34,7 +34,6 @@ package org.opensearch.search.aggregations.metrics;
 
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
-import org.opensearch.common.Strings;
 import org.opensearch.common.document.DocumentField;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.settings.Settings;
@@ -259,7 +258,7 @@ public abstract class AbstractGeoTestCase extends OpenSearchIntegTestCase {
         long totalHits = response.getHits().getTotalHits().value;
         XContentBuilder builder = XContentFactory.jsonBuilder();
         response.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        logger.info("Full high_card_idx Response Content:\n{ {} }", Strings.toString(builder));
+        logger.info("Full high_card_idx Response Content:\n{ {} }", builder.toString());
         for (int i = 0; i < totalHits; i++) {
             SearchHit searchHit = response.getHits().getAt(i);
             assertThat("Hit " + i + " with id: " + searchHit.getId(), searchHit.getIndex(), equalTo("high_card_idx"));

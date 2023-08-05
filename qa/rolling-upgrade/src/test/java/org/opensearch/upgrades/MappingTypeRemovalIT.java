@@ -17,10 +17,10 @@ import org.opensearch.client.Request;
 import org.opensearch.client.RequestOptions;
 import org.opensearch.client.Response;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.common.Strings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.rest.RestStatus;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -204,7 +204,7 @@ public class MappingTypeRemovalIT extends AbstractRollingTestCase {
 
     private void createIndexWithDocMappings(String index, Settings settings, String mapping) throws IOException {
         Request createIndexWithMappingsRequest = new Request(HttpPut.METHOD_NAME, "/" + index);
-        String entity = "{\"settings\": " + Strings.toString(XContentType.JSON, settings);
+        String entity = "{\"settings\": " + Strings.toString(MediaTypeRegistry.JSON, settings);
         if (mapping != null) {
             entity += ",\"mappings\" : {" + mapping + "}";
         }

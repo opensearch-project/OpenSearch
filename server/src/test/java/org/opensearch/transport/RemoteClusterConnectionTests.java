@@ -51,9 +51,9 @@ import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
-import org.opensearch.common.Strings;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.transport.TransportAddress;
@@ -463,14 +463,14 @@ public class RemoteClusterConnectionTests extends OpenSearchTestCase {
                 "{\"test_cluster\":{\"connected\":true,\"mode\":\"sniff\",\"seeds\":[\"seed:1\",\"seed:2\"],"
                     + "\"num_nodes_connected\":2,\"max_connections_per_cluster\":3,\"initial_connect_timeout\":\"30m\","
                     + "\"skip_unavailable\":true}}",
-                Strings.toString(builder)
+                builder.toString()
             );
         } else {
             assertEquals(
                 "{\"test_cluster\":{\"connected\":true,\"mode\":\"proxy\",\"proxy_address\":\"seed:1\","
                     + "\"server_name\":\"the_server_name\",\"num_proxy_sockets_connected\":16,\"max_proxy_socket_connections\":18,"
                     + "\"initial_connect_timeout\":\"30m\",\"skip_unavailable\":true}}",
-                Strings.toString(builder)
+                builder.toString()
             );
         }
     }
@@ -694,7 +694,7 @@ public class RemoteClusterConnectionTests extends OpenSearchTestCase {
         builder.put(RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias).getKey(), "sniff");
         builder.put(
             SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace(clusterAlias).getKey(),
-            org.opensearch.core.common.Strings.collectionToCommaDelimitedString(seedNodes)
+            Strings.collectionToCommaDelimitedString(seedNodes)
         );
         return builder.build();
     }

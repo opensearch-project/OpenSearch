@@ -39,7 +39,6 @@ import org.apache.lucene.search.SortedSetSortField;
 import org.opensearch.OpenSearchException;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.ParsingException;
-import org.opensearch.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -343,7 +342,7 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
             XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.prettyPrint();
             toXContent(builder, EMPTY_PARAMS);
-            return Strings.toString(builder);
+            return builder.toString();
         } catch (Exception e) {
             throw new OpenSearchException("Failed to build xcontent.", e);
         }

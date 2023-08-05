@@ -205,7 +205,7 @@ public class RestoreRemoteStoreRequest extends ClusterManagerNodeRequest<Restore
 
     @Override
     public String toString() {
-        return org.opensearch.common.Strings.toString(XContentType.JSON, this);
+        return Strings.toString(XContentType.JSON, this);
     }
 
 }
