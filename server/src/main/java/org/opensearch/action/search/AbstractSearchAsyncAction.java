@@ -181,7 +181,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         this.indexRoutings = indexRoutings;
         this.results = resultConsumer;
         this.clusters = clusters;
-        if (searchListenersList != null) {
+        if (searchListenersList != null && !(searchListenersList.isEmpty())) {
             this.searchListenersList = searchListenersList;
             this.searchRequestOperationsListener = new SearchRequestOperationsListener.CompositeListener(this.searchListenersList, logger);
             instantiateStartMap();
