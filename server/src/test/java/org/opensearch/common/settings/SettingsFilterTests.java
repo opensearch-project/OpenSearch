@@ -34,7 +34,6 @@ package org.opensearch.common.settings;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
-import org.opensearch.common.Strings;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.json.JsonXContent;
@@ -163,7 +162,7 @@ public class SettingsFilterTests extends OpenSearchTestCase {
         xContentBuilder.startObject();
         source.toXContent(xContentBuilder, request);
         xContentBuilder.endObject();
-        String filteredSettingsString = Strings.toString(xContentBuilder);
+        String filteredSettingsString = xContentBuilder.toString();
         filteredSettings = Settings.builder().loadFromSource(filteredSettingsString, xContentBuilder.contentType()).build();
         assertThat(filteredSettings, equalTo(filtered));
     }

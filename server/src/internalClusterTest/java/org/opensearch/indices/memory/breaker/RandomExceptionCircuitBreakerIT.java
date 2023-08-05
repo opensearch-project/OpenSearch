@@ -43,7 +43,6 @@ import org.opensearch.action.admin.indices.create.CreateIndexResponse;
 import org.opensearch.action.admin.indices.refresh.RefreshResponse;
 import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.SearchRequestBuilder;
-import org.opensearch.common.Strings;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
@@ -99,22 +98,20 @@ public class RandomExceptionCircuitBreakerIT extends OpenSearchIntegTestCase {
             assertThat("Breaker is not set to 0", node.getBreaker().getStats(CircuitBreaker.FIELDDATA).getEstimated(), equalTo(0L));
         }
 
-        String mapping = Strings // {}
-            .toString(
-                XContentFactory.jsonBuilder()
-                    .startObject()
-                    .startObject("properties")
-                    .startObject("test-str")
-                    .field("type", "keyword")
-                    .field("doc_values", randomBoolean())
-                    .endObject() // test-str
-                    .startObject("test-num")
-                    // I don't use randomNumericType() here because I don't want "byte", and I want "float" and "double"
-                    .field("type", randomFrom(Arrays.asList("float", "long", "double", "short", "integer")))
-                    .endObject() // test-num
-                    .endObject() // properties
-                    .endObject()
-            );
+        String mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("test-str")
+            .field("type", "keyword")
+            .field("doc_values", randomBoolean())
+            .endObject() // test-str
+            .startObject("test-num")
+            // I don't use randomNumericType() here because I don't want "byte", and I want "float" and "double"
+            .field("type", randomFrom(Arrays.asList("float", "long", "double", "short", "integer")))
+            .endObject() // test-num
+            .endObject() // properties
+            .endObject()
+            .toString();
         final double topLevelRate;
         final double lowLevelRate;
         if (frequently()) {

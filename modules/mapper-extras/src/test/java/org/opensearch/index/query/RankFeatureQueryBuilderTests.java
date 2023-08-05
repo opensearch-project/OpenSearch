@@ -36,7 +36,6 @@ import org.apache.lucene.document.FeatureField;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.opensearch.action.admin.indices.mapping.put.PutMappingRequest;
-import org.opensearch.common.Strings;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.index.mapper.MapperExtrasModulePlugin;
 import org.opensearch.index.mapper.MapperService;
@@ -61,16 +60,14 @@ public class RankFeatureQueryBuilderTests extends AbstractQueryTestCase<RankFeat
         mapperService.merge(
             "_doc",
             new CompressedXContent(
-                Strings.toString(
-                    PutMappingRequest.simpleMapping(
-                        "my_feature_field",
-                        "type=rank_feature",
-                        "my_negative_feature_field",
-                        "type=rank_feature,positive_score_impact=false",
-                        "my_feature_vector_field",
-                        "type=rank_features"
-                    )
-                )
+                PutMappingRequest.simpleMapping(
+                    "my_feature_field",
+                    "type=rank_feature",
+                    "my_negative_feature_field",
+                    "type=rank_feature,positive_score_impact=false",
+                    "my_feature_vector_field",
+                    "type=rank_features"
+                ).toString()
             ),
             MapperService.MergeReason.MAPPING_UPDATE
         );

@@ -9,11 +9,17 @@
 package org.opensearch.core.common;
 
 import org.apache.lucene.util.BytesRefBuilder;
+import org.opensearch.ExceptionsHelper;
+import org.opensearch.OpenSearchException;
 import org.opensearch.common.Nullable;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.util.CollectionUtils;
+import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.BufferedReader;
+import java.io.IOException;
 import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -678,6 +684,77 @@ public class Strings {
      */
     public static boolean isAllOrWildcard(String data) {
         return "_all".equals(data) || "*".equals(data);
+    }
+
+    /**
+     * Return a {@link String} that is the json representation of the provided {@link ToXContent}.
+     * Wraps the output into an anonymous object if needed. The content is not pretty-printed
+     * nor human readable.
+     */
+    public static String toString(MediaType mediaType, ToXContent toXContent) {
+        return toString(mediaType, toXContent, false, false);
+    }
+
+    /**
+     * Return a {@link String} that is the json representation of the provided {@link ToXContent}.
+     * Wraps the output into an anonymous object if needed.
+     * Allows to configure the params.
+     * The content is not pretty-printed nor human readable.
+     */
+    public static String toString(MediaType mediaType, ToXContent toXContent, ToXContent.Params params) {
+        return toString(mediaType, toXContent, params, false, false);
+    }
+
+    /**
+     * Return a {@link String} that is the json representation of the provided {@link ToXContent}.
+     * Wraps the output into an anonymous object if needed. Allows to control whether the outputted
+     * json needs to be pretty printed and human readable.
+     *
+     */
+    public static String toString(MediaType mediaType, ToXContent toXContent, boolean pretty, boolean human) {
+        return toString(mediaType, toXContent, ToXContent.EMPTY_PARAMS, pretty, human);
+    }
+
+    /**
+     * Return a {@link String} that is the json representation of the provided {@link ToXContent}.
+     * Wraps the output into an anonymous object if needed.
+     * Allows to configure the params.
+     * Allows to control whether the outputted json needs to be pretty printed and human readable.
+     */
+    private static String toString(MediaType mediaType, ToXContent toXContent, ToXContent.Params params, boolean pretty, boolean human) {
+        try {
+            XContentBuilder builder = createBuilder(mediaType, pretty, human);
+            if (toXContent.isFragment()) {
+                builder.startObject();
+            }
+            toXContent.toXContent(builder, params);
+            if (toXContent.isFragment()) {
+                builder.endObject();
+            }
+            return builder.toString();
+        } catch (IOException e) {
+            try {
+                XContentBuilder builder = createBuilder(mediaType, pretty, human);
+                builder.startObject();
+                builder.field("error", "error building toString out of XContent: " + e.getMessage());
+                builder.field("stack_trace", ExceptionsHelper.stackTrace(e));
+                builder.endObject();
+                return builder.toString();
+            } catch (IOException e2) {
+                throw new OpenSearchException("cannot generate error message for deserialization", e);
+            }
+        }
+    }
+
+    private static XContentBuilder createBuilder(MediaType mediaType, boolean pretty, boolean human) throws IOException {
+        XContentBuilder builder = XContentBuilder.builder(mediaType.xContent());
+        if (pretty) {
+            builder.prettyPrint();
+        }
+        if (human) {
+            builder.humanReadable(true);
+        }
+        return builder;
     }
 
     /**
