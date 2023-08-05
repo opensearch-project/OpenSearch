@@ -1502,12 +1502,9 @@ public class MetadataIndexTemplateService {
             if (indexPattern.startsWith("_")) {
                 validationErrors.add("index_pattern [" + indexPattern + "] must not start with '_'");
             }
-            if (org.opensearch.common.Strings.validFileNameExcludingAstrix(indexPattern) == false) {
+            if (Strings.validFileNameExcludingAstrix(indexPattern) == false) {
                 validationErrors.add(
-                    "index_pattern ["
-                        + indexPattern
-                        + "] must not contain the following characters "
-                        + org.opensearch.common.Strings.INVALID_FILENAME_CHARS
+                    "index_pattern [" + indexPattern + "] must not contain the following characters " + Strings.INVALID_FILENAME_CHARS
                 );
             }
         }

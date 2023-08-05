@@ -8,7 +8,9 @@
 
 package org.opensearch.core.common;
 
+import org.apache.lucene.util.BytesRefBuilder;
 import org.opensearch.common.Nullable;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.util.CollectionUtils;
 
 import java.io.BufferedReader;
@@ -25,6 +27,9 @@ import java.util.StringTokenizer;
 import java.util.TreeSet;
 import java.util.function.Supplier;
 
+import static java.util.Collections.unmodifiableSet;
+import static org.opensearch.common.util.set.Sets.newHashSet;
+
 /**
  * String utility class.
  *
@@ -35,101 +40,27 @@ import java.util.function.Supplier;
 public class Strings {
     public static final String UNKNOWN_UUID_VALUE = "_na_";
     public static final String[] EMPTY_ARRAY = new String[0];
+    public static final Set<Character> INVALID_FILENAME_CHARS = unmodifiableSet(
+        newHashSet('\\', '/', '*', '?', '"', '<', '>', '|', ' ', ',')
+    );
 
-    /**
-     * Convenience method to return a Collection as a delimited (e.g. CSV)
-     * String. E.g. useful for <code>toString()</code> implementations.
-     *
-     * @param coll   the Collection to display
-     * @param delim  the delimiter to use (probably a ",")
-     * @param prefix the String to start each element with
-     * @param suffix the String to end each element with
-     * @return the delimited String
-     */
-    public static String collectionToDelimitedString(Iterable<?> coll, String delim, String prefix, String suffix) {
-        StringBuilder sb = new StringBuilder();
-        collectionToDelimitedString(coll, delim, prefix, suffix, sb);
-        return sb.toString();
-    }
+    // no instance:
+    private Strings() {}
 
-    public static void collectionToDelimitedString(Iterable<?> coll, String delim, String prefix, String suffix, StringBuilder sb) {
-        Iterator<?> it = coll.iterator();
-        while (it.hasNext()) {
-            sb.append(prefix).append(it.next()).append(suffix);
-            if (it.hasNext()) {
-                sb.append(delim);
+    // ---------------------------------------------------------------------
+    // General convenience methods for working with Strings
+    // ---------------------------------------------------------------------
+
+    public static void spaceify(int spaces, String from, StringBuilder to) throws Exception {
+        try (BufferedReader reader = new BufferedReader(new StringReader(from))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                for (int i = 0; i < spaces; i++) {
+                    to.append(' ');
+                }
+                to.append(line).append('\n');
             }
         }
-    }
-
-    /**
-     * Convenience method to return a Collection as a delimited (e.g. CSV)
-     * String. E.g. useful for <code>toString()</code> implementations.
-     *
-     * @param coll  the Collection to display
-     * @param delim the delimiter to use (probably a ",")
-     * @return the delimited String
-     */
-    public static String collectionToDelimitedString(Iterable<?> coll, String delim) {
-        return collectionToDelimitedString(coll, delim, "", "");
-    }
-
-    /**
-     * Convenience method to return a Collection as a CSV String.
-     * E.g. useful for <code>toString()</code> implementations.
-     *
-     * @param coll the Collection to display
-     * @return the delimited String
-     */
-    public static String collectionToCommaDelimitedString(Iterable<?> coll) {
-        return collectionToDelimitedString(coll, ",");
-    }
-
-    /**
-     * Convenience method to return a String array as a delimited (e.g. CSV)
-     * String. E.g. useful for <code>toString()</code> implementations.
-     *
-     * @param arr   the array to display
-     * @param delim the delimiter to use (probably a ",")
-     * @return the delimited String
-     */
-    public static String arrayToDelimitedString(Object[] arr, String delim) {
-        StringBuilder sb = new StringBuilder();
-        arrayToDelimitedString(arr, delim, sb);
-        return sb.toString();
-    }
-
-    public static void arrayToDelimitedString(Object[] arr, String delim, StringBuilder sb) {
-        if (isEmpty(arr)) {
-            return;
-        }
-        for (int i = 0; i < arr.length; i++) {
-            if (i > 0) {
-                sb.append(delim);
-            }
-            sb.append(arr[i]);
-        }
-    }
-
-    /**
-     * Convenience method to return a String array as a CSV String.
-     * E.g. useful for <code>toString()</code> implementations.
-     *
-     * @param arr the array to display
-     * @return the delimited String
-     */
-    public static String arrayToCommaDelimitedString(Object[] arr) {
-        return arrayToDelimitedString(arr, ",");
-    }
-
-    /**
-     * Determine whether the given array is empty:
-     * i.e. <code>null</code> or of zero length.
-     *
-     * @param array the array to check
-     */
-    private static boolean isEmpty(Object[] array) {
-        return (array == null || array.length == 0);
     }
 
     /**
@@ -151,6 +82,18 @@ public class Strings {
     }
 
     /**
+     * Check that the given BytesReference is neither <code>null</code> nor of length 0
+     * Note: Will return <code>true</code> for a BytesReference that purely consists of whitespace.
+     *
+     * @param bytesReference the BytesReference to check (may be <code>null</code>)
+     * @return <code>true</code> if the BytesReference is not null and has length
+     * @see Strings#hasLength(CharSequence)
+     */
+    public static boolean hasLength(final BytesReference bytesReference) {
+        return (bytesReference != null && bytesReference.length() > 0);
+    }
+
+    /**
      * Check that the given String is neither <code>null</code> nor of length 0.
      * Note: Will return <code>true</code> for a String that purely consists of whitespace.
      *
@@ -158,7 +101,7 @@ public class Strings {
      * @return <code>true</code> if the String is not null and has length
      * @see Strings#hasLength(CharSequence)
      */
-    public static boolean hasLength(String str) {
+    public static boolean hasLength(final String str) {
         return hasLength((CharSequence) str);
     }
 
@@ -175,7 +118,7 @@ public class Strings {
      * @param str the CharSequence to check (may be <code>null</code>)
      * @return <code>true</code> if the CharSequence is either null or has a zero length
      */
-    public static boolean isEmpty(CharSequence str) {
+    public static boolean isEmpty(final CharSequence str) {
         return hasLength(str) == false;
     }
 
@@ -224,6 +167,42 @@ public class Strings {
     }
 
     /**
+     * Trim all occurrences of the supplied leading character from the given String.
+     *
+     * @param str              the String to check
+     * @param leadingCharacter the leading character to be trimmed
+     * @return the trimmed String
+     */
+    public static String trimLeadingCharacter(String str, char leadingCharacter) {
+        if (hasLength(str) == false) {
+            return str;
+        }
+        StringBuilder sb = new StringBuilder(str);
+        while (sb.length() > 0 && sb.charAt(0) == leadingCharacter) {
+            sb.deleteCharAt(0);
+        }
+        return sb.toString();
+    }
+
+    /**
+     * Test whether the given string matches the given substring
+     * at the given index.
+     *
+     * @param str       the original string (or StringBuilder)
+     * @param index     the index in the original string to start matching against
+     * @param substring the substring to match at the given index
+     */
+    public static boolean substringMatch(CharSequence str, int index, CharSequence substring) {
+        for (int j = 0; j < substring.length(); j++) {
+            int i = index + j;
+            if (i >= str.length() || str.charAt(i) != substring.charAt(j)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
      * Replace all occurrences of a substring within a string with
      * another string.
      *
@@ -249,24 +228,6 @@ public class Strings {
         }
         sb.append(inString.substring(pos));
         // remember to append any characters to the right of a match
-        return sb.toString();
-    }
-
-    /**
-     * Trim all occurrences of the supplied leading character from the given String.
-     *
-     * @param str              the String to check
-     * @param leadingCharacter the leading character to be trimmed
-     * @return the trimmed String
-     */
-    public static String trimLeadingCharacter(String str, char leadingCharacter) {
-        if (hasLength(str) == false) {
-            return str;
-        }
-        StringBuilder sb = new StringBuilder(str);
-        while (sb.length() > 0 && sb.charAt(0) == leadingCharacter) {
-            sb.deleteCharAt(0);
-        }
         return sb.toString();
     }
 
@@ -303,16 +264,65 @@ public class Strings {
         return sb.toString();
     }
 
-    public static void spaceify(int spaces, String from, StringBuilder to) throws Exception {
-        try (BufferedReader reader = new BufferedReader(new StringReader(from))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                for (int i = 0; i < spaces; i++) {
-                    to.append(' ');
-                }
-                to.append(line).append('\n');
+    // ---------------------------------------------------------------------
+    // Convenience methods for working with formatted Strings
+    // ---------------------------------------------------------------------
+
+    /**
+     * Quote the given String with single quotes.
+     *
+     * @param str the input String (e.g. "myString")
+     * @return the quoted String (e.g. "'myString'"),
+     *         or <code>null</code> if the input was <code>null</code>
+     */
+    public static String quote(String str) {
+        return (str != null ? "'" + str + "'" : null);
+    }
+
+    /**
+     * Capitalize a <code>String</code>, changing the first letter to
+     * upper case as per {@link Character#toUpperCase(char)}.
+     * No other letters are changed.
+     *
+     * @param str the String to capitalize, may be <code>null</code>
+     * @return the capitalized String, <code>null</code> if null
+     */
+    public static String capitalize(String str) {
+        return changeFirstCharacterCase(str, true);
+    }
+
+    private static String changeFirstCharacterCase(String str, boolean capitalize) {
+        if (str == null || str.length() == 0) {
+            return str;
+        }
+        StringBuilder sb = new StringBuilder(str.length());
+        if (capitalize) {
+            sb.append(Character.toUpperCase(str.charAt(0)));
+        } else {
+            sb.append(Character.toLowerCase(str.charAt(0)));
+        }
+        sb.append(str.substring(1));
+        return sb.toString();
+    }
+
+    public static boolean validFileName(String fileName) {
+        for (int i = 0; i < fileName.length(); i++) {
+            char c = fileName.charAt(i);
+            if (INVALID_FILENAME_CHARS.contains(c)) {
+                return false;
             }
         }
+        return true;
+    }
+
+    public static boolean validFileNameExcludingAstrix(String fileName) {
+        for (int i = 0; i < fileName.length(); i++) {
+            char c = fileName.charAt(i);
+            if (c != '*' && INVALID_FILENAME_CHARS.contains(c)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
@@ -511,29 +521,89 @@ public class Strings {
     }
 
     /**
-     * Capitalize a <code>String</code>, changing the first letter to
-     * upper case as per {@link Character#toUpperCase(char)}.
-     * No other letters are changed.
+     * Convenience method to return a Collection as a delimited (e.g. CSV)
+     * String. E.g. useful for <code>toString()</code> implementations.
      *
-     * @param str the String to capitalize, may be <code>null</code>
-     * @return the capitalized String, <code>null</code> if null
+     * @param coll   the Collection to display
+     * @param delim  the delimiter to use (probably a ",")
+     * @param prefix the String to start each element with
+     * @param suffix the String to end each element with
+     * @return the delimited String
      */
-    public static String capitalize(String str) {
-        return changeFirstCharacterCase(str, true);
+    public static String collectionToDelimitedString(Iterable<?> coll, String delim, String prefix, String suffix) {
+        StringBuilder sb = new StringBuilder();
+        collectionToDelimitedString(coll, delim, prefix, suffix, sb);
+        return sb.toString();
     }
 
-    private static String changeFirstCharacterCase(String str, boolean capitalize) {
-        if (str == null || str.length() == 0) {
-            return str;
+    public static void collectionToDelimitedString(Iterable<?> coll, String delim, String prefix, String suffix, StringBuilder sb) {
+        Iterator<?> it = coll.iterator();
+        while (it.hasNext()) {
+            sb.append(prefix).append(it.next()).append(suffix);
+            if (it.hasNext()) {
+                sb.append(delim);
+            }
         }
-        StringBuilder sb = new StringBuilder(str.length());
-        if (capitalize) {
-            sb.append(Character.toUpperCase(str.charAt(0)));
-        } else {
-            sb.append(Character.toLowerCase(str.charAt(0)));
-        }
-        sb.append(str.substring(1));
+    }
+
+    /**
+     * Convenience method to return a Collection as a delimited (e.g. CSV)
+     * String. E.g. useful for <code>toString()</code> implementations.
+     *
+     * @param coll  the Collection to display
+     * @param delim the delimiter to use (probably a ",")
+     * @return the delimited String
+     */
+    public static String collectionToDelimitedString(Iterable<?> coll, String delim) {
+        return collectionToDelimitedString(coll, delim, "", "");
+    }
+
+    /**
+     * Convenience method to return a Collection as a CSV String.
+     * E.g. useful for <code>toString()</code> implementations.
+     *
+     * @param coll the Collection to display
+     * @return the delimited String
+     */
+    public static String collectionToCommaDelimitedString(Iterable<?> coll) {
+        return collectionToDelimitedString(coll, ",");
+    }
+
+    /**
+     * Convenience method to return a String array as a delimited (e.g. CSV)
+     * String. E.g. useful for <code>toString()</code> implementations.
+     *
+     * @param arr   the array to display
+     * @param delim the delimiter to use (probably a ",")
+     * @return the delimited String
+     */
+    public static String arrayToDelimitedString(Object[] arr, String delim) {
+        StringBuilder sb = new StringBuilder();
+        arrayToDelimitedString(arr, delim, sb);
         return sb.toString();
+    }
+
+    public static void arrayToDelimitedString(Object[] arr, String delim, StringBuilder sb) {
+        if (isEmpty(arr)) {
+            return;
+        }
+        for (int i = 0; i < arr.length; i++) {
+            if (i > 0) {
+                sb.append(delim);
+            }
+            sb.append(arr[i]);
+        }
+    }
+
+    /**
+     * Convenience method to return a String array as a CSV String.
+     * E.g. useful for <code>toString()</code> implementations.
+     *
+     * @param arr the array to display
+     * @return the delimited String
+     */
+    public static String arrayToCommaDelimitedString(Object[] arr) {
+        return arrayToDelimitedString(arr, ",");
     }
 
     /**
@@ -557,6 +627,25 @@ public class Strings {
                 return p.substring(0, ix) + fraction + suffix;
             }
         }
+    }
+
+    /**
+     * Determine whether the given array is empty:
+     * i.e. <code>null</code> or of zero length.
+     *
+     * @param array the array to check
+     */
+    private static boolean isEmpty(final Object[] array) {
+        return (array == null || array.length == 0);
+    }
+
+    public static byte[] toUTF8Bytes(CharSequence charSequence) {
+        return toUTF8Bytes(charSequence, new BytesRefBuilder());
+    }
+
+    public static byte[] toUTF8Bytes(CharSequence charSequence, BytesRefBuilder spare) {
+        spare.copyChars(charSequence);
+        return Arrays.copyOf(spare.bytes(), spare.length());
     }
 
     /**
