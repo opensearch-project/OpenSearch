@@ -47,7 +47,6 @@ import org.opensearch.action.bulk.BulkResponse;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Priority;
-import org.opensearch.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.geo.GeoUtils;
@@ -211,17 +210,16 @@ public class GeoFilterIT extends OpenSearchIntegTestCase {
         assertTrue("Disjoint relation is not supported", disjointSupport);
         assertTrue("within relation is not supported", withinSupport);
 
-        String mapping = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("properties")
-                .startObject("area")
-                .field("type", "geo_shape")
-                .field("tree", "geohash")
-                .endObject()
-                .endObject()
-                .endObject()
-        );
+        String mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("area")
+            .field("type", "geo_shape")
+            .field("tree", "geohash")
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
 
         CreateIndexRequestBuilder mappingRequest = client().admin().indices().prepareCreate("shapes").setMapping(mapping);
         mappingRequest.get();

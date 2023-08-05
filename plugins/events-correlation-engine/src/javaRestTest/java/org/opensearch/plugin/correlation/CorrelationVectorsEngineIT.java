@@ -18,11 +18,11 @@ import org.opensearch.client.Response;
 import org.opensearch.client.ResponseException;
 import org.opensearch.client.RestClient;
 import org.opensearch.client.WarningsHandler;
-import org.opensearch.common.Strings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.rest.RestStatus;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.test.rest.OpenSearchRestTestCase;
@@ -94,7 +94,7 @@ public class CorrelationVectorsEngineIT extends OpenSearchRestTestCase {
             .endObject()
             .endObject();
 
-        String mapping = Strings.toString(builder);
+        String mapping = builder.toString();
         createTestIndexWithMappingJson(client(), INDEX_NAME, mapping, getCorrelationDefaultIndexSettings());
 
         for (int idx = 0; idx < TEST_VECTORS.length; ++idx) {
@@ -209,7 +209,7 @@ public class CorrelationVectorsEngineIT extends OpenSearchRestTestCase {
             .endObject()
             .endObject();
 
-        String mapping = Strings.toString(builder);
+        String mapping = builder.toString();
         Exception ex = assertThrows(ResponseException.class, () -> {
             createTestIndexWithMappingJson(client(), INDEX_NAME, mapping, getCorrelationDefaultIndexSettings());
         });
@@ -225,7 +225,7 @@ public class CorrelationVectorsEngineIT extends OpenSearchRestTestCase {
 
     private String createTestIndexWithMappingJson(RestClient client, String index, String mapping, Settings settings) throws IOException {
         Request request = new Request("PUT", "/" + index);
-        String entity = "{\"settings\": " + Strings.toString(XContentType.JSON, settings);
+        String entity = "{\"settings\": " + Strings.toString(MediaTypeRegistry.JSON, settings);
         if (mapping != null) {
             entity = entity + ",\"mappings\" : " + mapping;
         }
@@ -253,7 +253,7 @@ public class CorrelationVectorsEngineIT extends OpenSearchRestTestCase {
         }
         builder.endObject();
 
-        request.setJsonEntity(Strings.toString(builder));
+        request.setJsonEntity(builder.toString());
         Response response = client().performRequest(request);
         assertEquals(request.getEndpoint() + ": failed", RestStatus.CREATED, RestStatus.fromCode(response.getStatusLine().getStatusCode()));
     }

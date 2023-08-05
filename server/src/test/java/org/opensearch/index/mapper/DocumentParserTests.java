@@ -36,7 +36,6 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.common.Strings;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.settings.Settings;
@@ -1469,18 +1468,17 @@ public class DocumentParserTests extends MapperServiceTestCase {
     }
 
     public void testTypeless() throws IOException {
-        String mapping = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject(MapperService.SINGLE_MAPPING_NAME)
-                .startObject("properties")
-                .startObject("foo")
-                .field("type", "keyword")
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
+        String mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject(MapperService.SINGLE_MAPPING_NAME)
+            .startObject("properties")
+            .startObject("foo")
+            .field("type", "keyword")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
         DocumentMapper mapper = createDocumentMapper(MapperService.SINGLE_MAPPING_NAME, mapping);
 
         ParsedDocument doc = mapper.parse(source(b -> b.field("foo", "1234")));

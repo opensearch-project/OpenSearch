@@ -33,7 +33,6 @@
 package org.opensearch.search;
 
 import org.apache.lucene.util.BytesRef;
-import org.opensearch.common.Strings;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.common.lucene.LuceneTests;
 import org.opensearch.core.xcontent.ToXContent;
@@ -129,7 +128,7 @@ public class SearchSortValuesTests extends AbstractSerializingTestCase<SearchSor
             builder.startObject();
             sortValues.toXContent(builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
-            assertEquals("{\"sort\":[1,\"foo\",3.0]}", Strings.toString(builder));
+            assertEquals("{\"sort\":[1,\"foo\",3.0]}", builder.toString());
         }
         {
             SearchSortValues sortValues = new SearchSortValues(new Object[0]);
@@ -137,7 +136,7 @@ public class SearchSortValuesTests extends AbstractSerializingTestCase<SearchSor
             builder.startObject();
             sortValues.toXContent(builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
-            assertEquals("{}", Strings.toString(builder));
+            assertEquals("{}", builder.toString());
         }
     }
 

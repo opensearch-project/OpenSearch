@@ -32,9 +32,9 @@
 package org.opensearch.index.mapper;
 
 import org.opensearch.common.Explicit;
-import org.opensearch.common.Strings;
 import org.opensearch.common.geo.builders.ShapeBuilder;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.plugins.Plugin;

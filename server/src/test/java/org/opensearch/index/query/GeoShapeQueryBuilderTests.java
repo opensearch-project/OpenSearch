@@ -40,7 +40,6 @@ import org.opensearch.Version;
 import org.opensearch.action.get.GetRequest;
 import org.opensearch.action.get.GetResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.common.Strings;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.common.geo.builders.EnvelopeBuilder;
 import org.opensearch.common.geo.builders.ShapeBuilder;
@@ -107,7 +106,7 @@ public abstract class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<Ge
             builder.field(expectedShapePath, indexedShapeToReturn);
             builder.field(randomAlphaOfLengthBetween(10, 20), "something");
             builder.endObject();
-            json = Strings.toString(builder);
+            json = builder.toString();
         } catch (IOException ex) {
             throw new OpenSearchException("boom", ex);
         }

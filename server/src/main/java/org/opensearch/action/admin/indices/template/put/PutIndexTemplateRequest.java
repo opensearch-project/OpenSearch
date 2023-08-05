@@ -41,7 +41,6 @@ import org.opensearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.Strings;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -298,7 +297,7 @@ public class PutIndexTemplateRequest extends ClusterManagerNodeRequest<PutIndexT
         try {
             XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.map(source);
-            mappings = Strings.toString(builder);
+            mappings = builder.toString();
             return this;
         } catch (IOException e) {
             throw new OpenSearchGenerationException("Failed to generate [" + source + "]", e);

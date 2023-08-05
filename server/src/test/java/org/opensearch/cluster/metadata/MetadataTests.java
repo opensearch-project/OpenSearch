@@ -38,7 +38,7 @@ import org.opensearch.cluster.ClusterModule;
 import org.opensearch.cluster.DataStreamTestHelper;
 import org.opensearch.cluster.coordination.CoordinationMetadata;
 import org.opensearch.cluster.coordination.CoordinationMetadata.VotingConfigExclusion;
-import org.opensearch.common.Strings;
+import org.opensearch.core.common.Strings;
 import org.opensearch.common.UUIDs;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamOutput;
@@ -724,7 +724,7 @@ public class MetadataTests extends OpenSearchTestCase {
             Map<String, Object> doc = (Map<String, Object>) stringObjectMap.get("_doc");
             try (XContentBuilder builder = JsonXContent.contentBuilder()) {
                 builder.map(doc);
-                mapping = Strings.toString(builder);
+                mapping = builder.toString();
             }
         }
 

@@ -32,7 +32,6 @@
 
 package org.opensearch.index.mapper;
 
-import org.opensearch.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.xcontent.XContentFactory;
@@ -45,7 +44,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class RoutingFieldMapperTests extends OpenSearchSingleNodeTestCase {
 
     public void testRoutingMapper() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject());
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().toString();
         DocumentMapper docMapper = createIndex("test").mapperService()
             .documentMapperParser()
             .parse("type", new CompressedXContent(mapping));
@@ -65,7 +64,7 @@ public class RoutingFieldMapperTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testIncludeInObjectNotAllowed() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject());
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().toString();
         DocumentMapper docMapper = createIndex("test").mapperService()
             .documentMapperParser()
             .parse("type", new CompressedXContent(mapping));

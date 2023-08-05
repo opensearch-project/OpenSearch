@@ -34,7 +34,6 @@ package org.opensearch.common.settings;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
-import org.opensearch.common.Strings;
 import org.opensearch.common.inject.Binder;
 import org.opensearch.common.inject.Module;
 import org.opensearch.common.util.FeatureFlags;
@@ -162,7 +161,7 @@ public class SettingsModule implements Module {
                     xContentBuilder.startObject();
                     indexSettings.toXContent(xContentBuilder, new ToXContent.MapParams(Collections.singletonMap("flat_settings", "true")));
                     xContentBuilder.endObject();
-                    builder.append(Strings.toString(xContentBuilder));
+                    builder.append(xContentBuilder);
                 }
                 builder.append("'");
                 builder.append(System.lineSeparator());
