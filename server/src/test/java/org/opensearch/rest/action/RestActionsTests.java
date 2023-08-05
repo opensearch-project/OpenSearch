@@ -38,7 +38,6 @@ import org.opensearch.core.action.ShardOperationFailedException;
 import org.opensearch.action.search.ShardSearchFailure;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.core.common.ParsingException;
-import org.opensearch.common.Strings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContent;
@@ -138,7 +137,7 @@ public class RestActionsTests extends OpenSearchTestCase {
         RestActions.buildBroadcastShardsHeader(builder, ToXContent.EMPTY_PARAMS, 12, 3, 0, 9, failures);
         builder.endObject();
         assertThat(
-            Strings.toString(builder),
+            builder.toString(),
             equalTo(
                 "{\n"
                     + "  \"_shards\" : {\n"

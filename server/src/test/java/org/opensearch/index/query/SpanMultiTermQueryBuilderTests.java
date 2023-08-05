@@ -52,7 +52,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopTermsRewrite;
 import org.apache.lucene.store.Directory;
-import org.opensearch.common.Strings;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.common.lucene.search.SpanBooleanQueryRewriteWithMaxClause;
@@ -92,7 +91,7 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
             .endObject()
             .endObject();
 
-        mapperService.merge("_doc", new CompressedXContent(Strings.toString(mapping)), MapperService.MergeReason.MAPPING_UPDATE);
+        mapperService.merge("_doc", new CompressedXContent(mapping.toString()), MapperService.MergeReason.MAPPING_UPDATE);
     }
 
     @Override

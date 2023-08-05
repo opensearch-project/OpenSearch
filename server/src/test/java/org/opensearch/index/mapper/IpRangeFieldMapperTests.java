@@ -34,7 +34,6 @@ package org.opensearch.index.mapper;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.opensearch.common.CheckedConsumer;
-import org.opensearch.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.network.InetAddresses;
@@ -73,8 +72,8 @@ public class IpRangeFieldMapperTests extends OpenSearchSingleNodeTestCase {
             .field("type", "ip_range")
             .field("store", true);
         mapping = mapping.endObject().endObject().endObject().endObject();
-        DocumentMapper mapper = parser.parse("type", new CompressedXContent(Strings.toString(mapping)));
-        assertEquals(Strings.toString(mapping), mapper.mappingSource().toString());
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping.toString()));
+        assertEquals(mapping.toString(), mapper.mappingSource().toString());
         final Map<String, String> cases = new HashMap<>();
         cases.put("192.168.0.0/15", "192.169.255.255");
         cases.put("192.168.0.0/16", "192.168.255.255");
@@ -119,18 +118,17 @@ public class IpRangeFieldMapperTests extends OpenSearchSingleNodeTestCase {
         final DocumentMapper mapper = parser.parse(
             "type",
             new CompressedXContent(
-                Strings.toString(
-                    XContentFactory.jsonBuilder()
-                        .startObject()
-                        .startObject("type")
-                        .startObject("properties")
-                        .startObject("field")
-                        .field("type", "ip_range")
-                        .endObject()
-                        .endObject()
-                        .endObject()
-                        .endObject()
-                )
+                XContentFactory.jsonBuilder()
+                    .startObject()
+                    .startObject("type")
+                    .startObject("properties")
+                    .startObject("field")
+                    .field("type", "ip_range")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .toString()
             )
         );
 
@@ -141,19 +139,18 @@ public class IpRangeFieldMapperTests extends OpenSearchSingleNodeTestCase {
         final DocumentMapper mapper2 = parser.parse(
             "type",
             new CompressedXContent(
-                Strings.toString(
-                    XContentFactory.jsonBuilder()
-                        .startObject()
-                        .startObject("type")
-                        .startObject("properties")
-                        .startObject("field")
-                        .field("type", "ip_range")
-                        .field("ignore_malformed", true)
-                        .endObject()
-                        .endObject()
-                        .endObject()
-                        .endObject()
-                )
+                XContentFactory.jsonBuilder()
+                    .startObject()
+                    .startObject("type")
+                    .startObject("properties")
+                    .startObject("field")
+                    .field("type", "ip_range")
+                    .field("ignore_malformed", true)
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .toString()
             )
         );
 

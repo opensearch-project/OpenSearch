@@ -39,14 +39,13 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.nio.entity.NStringEntity;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
-import org.opensearch.common.Strings;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.support.XContentMapValues;
-import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.core.rest.RestStatus;
+import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.opensearch.test.rest.yaml.OpenSearchClientYamlSuiteTestCase;
 import org.junit.Before;
@@ -144,7 +143,7 @@ public class RepositoryURLClientYamlTestSuiteIT extends OpenSearchClientYamlSuit
                 builder.endObject();
             }
             builder.endObject();
-            return new NStringEntity(Strings.toString(builder), ContentType.APPLICATION_JSON);
+            return new NStringEntity(builder.toString(), ContentType.APPLICATION_JSON);
         }
     }
 }

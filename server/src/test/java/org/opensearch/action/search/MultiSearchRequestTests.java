@@ -38,7 +38,7 @@ import org.opensearch.common.CheckedBiConsumer;
 import org.opensearch.common.CheckedRunnable;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.ParseField;
-import org.opensearch.common.Strings;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.logging.DeprecationLogger;

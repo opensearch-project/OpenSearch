@@ -32,7 +32,7 @@
 
 package org.opensearch.common.xcontent.support;
 
-import org.opensearch.common.Strings;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.xcontent.XContentFactory;
@@ -95,7 +95,7 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject().field("test", "value").endObject();
 
         Map<String, Object> map;
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, Strings.toString(builder))) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, builder.toString())) {
             map = parser.map();
         }
         assertThat(XContentMapValues.extractValue("test", map).toString(), equalTo("value"));
@@ -111,7 +111,7 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
             .endObject()
             .endObject();
 
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, Strings.toString(builder))) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, builder.toString())) {
             map = parser.map();
         }
         assertThat(XContentMapValues.extractValue("path1.path2.test", map).toString(), equalTo("value"));
@@ -136,7 +136,7 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
             .endObject()
             .endObject();
 
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, Strings.toString(builder))) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, builder.toString())) {
             map = parser.map();
         }
 
@@ -160,7 +160,7 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
             .endObject()
             .endObject();
 
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, Strings.toString(builder))) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, builder.toString())) {
             map = parser.map();
         }
 
@@ -174,7 +174,7 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
 
         // fields with . in them
         builder = XContentFactory.jsonBuilder().startObject().field("xxx.yyy", "value").endObject();
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, Strings.toString(builder))) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, builder.toString())) {
             map = parser.map();
         }
         assertThat(XContentMapValues.extractValue("xxx.yyy", map).toString(), equalTo("value"));
@@ -188,7 +188,7 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
             .endObject()
             .endObject();
 
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, Strings.toString(builder))) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, builder.toString())) {
             map = parser.map();
         }
         assertThat(XContentMapValues.extractValue("path1.xxx.path2.yyy.test", map).toString(), equalTo("value"));
@@ -216,7 +216,7 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
             .endObject();
 
         Map<String, Object> map;
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, Strings.toString(builder))) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, builder.toString())) {
             map = parser.map();
         }
         assertEquals("value", XContentMapValues.extractValue("field", map, "NULL"));
@@ -234,14 +234,14 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject().field("test", "value").endObject();
 
         Map<String, Object> map;
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, Strings.toString(builder))) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, builder.toString())) {
             map = parser.map();
         }
         assertThat(XContentMapValues.extractRawValues("test", map).get(0).toString(), equalTo("value"));
 
         builder = XContentFactory.jsonBuilder().startObject().field("test.me", "value").endObject();
 
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, Strings.toString(builder))) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, builder.toString())) {
             map = parser.map();
         }
         assertThat(XContentMapValues.extractRawValues("test.me", map).get(0).toString(), equalTo("value"));
@@ -255,7 +255,7 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
             .endObject()
             .endObject();
 
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, Strings.toString(builder))) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, builder.toString())) {
             map = parser.map();
         }
         assertThat(XContentMapValues.extractRawValues("path1.path2.test", map).get(0).toString(), equalTo("value"));
@@ -269,7 +269,7 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
             .endObject()
             .endObject();
 
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, Strings.toString(builder))) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, builder.toString())) {
             map = parser.map();
         }
         assertThat(XContentMapValues.extractRawValues("path1.xxx.path2.yyy.test", map).get(0).toString(), equalTo("value"));

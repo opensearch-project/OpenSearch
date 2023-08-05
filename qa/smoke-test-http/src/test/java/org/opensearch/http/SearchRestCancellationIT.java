@@ -48,8 +48,8 @@ import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 import org.opensearch.client.ResponseListener;
 import org.opensearch.common.SetOnce;
-import org.opensearch.common.Strings;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.Strings;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.script.MockScriptPlugin;
@@ -83,7 +83,6 @@ import static org.opensearch.index.query.QueryBuilders.scriptQuery;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.opensearch.test.hamcrest.OpenSearchAssertions.awaitLatch;
 
 public class SearchRestCancellationIT extends HttpSmokeTestCase {
 

@@ -60,7 +60,6 @@ import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.CheckedFunction;
-import org.opensearch.common.Strings;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.IndexScopedSettings;
@@ -426,7 +425,7 @@ public class MetadataRolloverServiceTests extends OpenSearchTestCase {
             equalTo("aliases, mappings, and index settings may not be specified when rolling over a data stream")
         );
 
-        String mapping = Strings.toString(JsonXContent.contentBuilder().startObject().startObject("_doc").endObject().endObject());
+        String mapping = JsonXContent.contentBuilder().startObject().startObject("_doc").endObject().endObject().toString();
         CreateIndexRequest mappingReq = new CreateIndexRequest().mapping(mapping);
         exception = expectThrows(
             IllegalArgumentException.class,

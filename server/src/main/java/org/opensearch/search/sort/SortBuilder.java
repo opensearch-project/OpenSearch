@@ -37,7 +37,7 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.join.ToChildBlockJoinQuery;
 import org.opensearch.core.common.ParsingException;
-import org.opensearch.common.Strings;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.NamedWriteable;
 import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.common.xcontent.XContentType;

@@ -36,7 +36,6 @@ import org.opensearch.Build;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterName;
-import org.opensearch.common.Strings;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -134,7 +133,7 @@ public class MainResponseTests extends AbstractSerializingTestCase<MainResponse>
                 + TAGLINE
                 + "\""
                 + "}",
-            Strings.toString(builder)
+            builder.toString()
         );
     }
 
@@ -150,8 +149,8 @@ public class MainResponseTests extends AbstractSerializingTestCase<MainResponse>
         );
         XContentBuilder builder = XContentFactory.jsonBuilder();
         response.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertTrue(Strings.toString(builder).contains("\"number\":\"" + responseVersion + "\","));
-        assertFalse(Strings.toString(builder).contains("\"distribution\":\"" + Build.CURRENT.getDistribution() + "\","));
+        assertTrue(builder.toString().contains("\"number\":\"" + responseVersion + "\","));
+        assertFalse(builder.toString().contains("\"distribution\":\"" + Build.CURRENT.getDistribution() + "\","));
     }
 
     @Override

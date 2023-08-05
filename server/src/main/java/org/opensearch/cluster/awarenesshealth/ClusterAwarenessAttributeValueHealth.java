@@ -14,7 +14,7 @@ import org.opensearch.cluster.metadata.WeightedRoutingMetadata;
 import org.opensearch.cluster.routing.RoutingNode;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.WeightedRouting;
-import org.opensearch.common.Strings;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;

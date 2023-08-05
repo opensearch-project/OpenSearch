@@ -35,7 +35,7 @@ package org.opensearch.index.get;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
-import org.opensearch.common.Strings;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressorFactory;
 import org.opensearch.common.document.DocumentField;

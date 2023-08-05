@@ -40,7 +40,6 @@ import org.apache.lucene.search.join.ScoreMode;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.admin.indices.mapping.put.PutMappingRequest;
-import org.opensearch.common.Strings;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexSettings;
@@ -76,26 +75,24 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
         mapperService.merge(
             "_doc",
             new CompressedXContent(
-                Strings.toString(
-                    PutMappingRequest.simpleMapping(
-                        TEXT_FIELD_NAME,
-                        "type=text",
-                        INT_FIELD_NAME,
-                        "type=integer",
-                        DOUBLE_FIELD_NAME,
-                        "type=double",
-                        BOOLEAN_FIELD_NAME,
-                        "type=boolean",
-                        DATE_FIELD_NAME,
-                        "type=date",
-                        OBJECT_FIELD_NAME,
-                        "type=object",
-                        GEO_POINT_FIELD_NAME,
-                        "type=geo_point",
-                        "nested1",
-                        "type=nested"
-                    )
-                )
+                PutMappingRequest.simpleMapping(
+                    TEXT_FIELD_NAME,
+                    "type=text",
+                    INT_FIELD_NAME,
+                    "type=integer",
+                    DOUBLE_FIELD_NAME,
+                    "type=double",
+                    BOOLEAN_FIELD_NAME,
+                    "type=boolean",
+                    DATE_FIELD_NAME,
+                    "type=date",
+                    OBJECT_FIELD_NAME,
+                    "type=object",
+                    GEO_POINT_FIELD_NAME,
+                    "type=geo_point",
+                    "nested1",
+                    "type=nested"
+                ).toString()
             ),
             MapperService.MergeReason.MAPPING_UPDATE
         );

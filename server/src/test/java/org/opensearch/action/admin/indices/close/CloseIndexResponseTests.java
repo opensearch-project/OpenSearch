@@ -35,7 +35,7 @@ package org.opensearch.action.admin.indices.close;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.NoShardAvailableActionException;
 import org.opensearch.action.admin.indices.close.CloseIndexResponse.IndexResult;
-import org.opensearch.common.Strings;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;

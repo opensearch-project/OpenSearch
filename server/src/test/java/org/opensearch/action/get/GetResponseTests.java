@@ -33,7 +33,7 @@
 package org.opensearch.action.get;
 
 import org.opensearch.core.common.ParsingException;
-import org.opensearch.common.Strings;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;

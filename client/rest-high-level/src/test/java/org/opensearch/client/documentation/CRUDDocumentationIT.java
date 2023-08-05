@@ -74,7 +74,7 @@ import org.opensearch.client.core.TermVectorsRequest;
 import org.opensearch.client.core.TermVectorsResponse;
 import org.opensearch.client.indices.CreateIndexRequest;
 import org.opensearch.client.indices.CreateIndexResponse;
-import org.opensearch.common.Strings;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.unit.ByteSizeUnit;
@@ -298,15 +298,14 @@ public class CRUDDocumentationIT extends OpenSearchRestHighLevelClientTestCase {
 
             Request request = new Request("POST", "/_scripts/increment-field");
             request.setJsonEntity(
-                Strings.toString(
-                    JsonXContent.contentBuilder()
-                        .startObject()
-                        .startObject("script")
-                        .field("lang", "painless")
-                        .field("source", "ctx._source.field += params.count")
-                        .endObject()
-                        .endObject()
-                )
+                JsonXContent.contentBuilder()
+                    .startObject()
+                    .startObject("script")
+                    .field("lang", "painless")
+                    .field("source", "ctx._source.field += params.count")
+                    .endObject()
+                    .endObject()
+                    .toString()
             );
             Response response = client().performRequest(request);
             assertEquals(RestStatus.OK.getStatus(), response.getStatusLine().getStatusCode());
