@@ -42,7 +42,6 @@ import org.opensearch.action.get.MultiGetRequest;
 import org.opensearch.action.get.MultiGetResponse;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.search.SearchRequest;
-import org.opensearch.common.Strings;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
@@ -423,7 +422,7 @@ public class BulkProcessorIT extends OpenSearchRestHighLevelClientTestCase {
 
         XContentBuilder source = jsonBuilder().startObject().field("field", randomRealisticUnicodeOfLengthBetween(1, 30)).endObject();
 
-        String request = Strings.toString(action) + "\n" + Strings.toString(source) + "\n";
+        String request = action + "\n" + source + "\n";
         return new BytesArray(request);
     }
 

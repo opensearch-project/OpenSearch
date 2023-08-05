@@ -33,7 +33,6 @@
 package org.opensearch.index.mapper;
 
 import org.apache.lucene.index.IndexableField;
-import org.opensearch.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Settings;
@@ -66,18 +65,17 @@ public class NestedObjectMapperTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testEmptyNested() throws Exception {
-        String mapping = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("type")
-                .startObject("properties")
-                .startObject("nested1")
-                .field("type", "nested")
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
+        String mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("type")
+            .startObject("properties")
+            .startObject("nested1")
+            .field("type", "nested")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
 
         DocumentMapper docMapper = createIndex("test").mapperService()
             .documentMapperParser()
@@ -109,18 +107,17 @@ public class NestedObjectMapperTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testSingleNested() throws Exception {
-        String mapping = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("type")
-                .startObject("properties")
-                .startObject("nested1")
-                .field("type", "nested")
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
+        String mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("type")
+            .startObject("properties")
+            .startObject("nested1")
+            .field("type", "nested")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
 
         DocumentMapper docMapper = createIndex("test").mapperService()
             .documentMapperParser()
@@ -191,23 +188,22 @@ public class NestedObjectMapperTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testMultiNested() throws Exception {
-        String mapping = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("type")
-                .startObject("properties")
-                .startObject("nested1")
-                .field("type", "nested")
-                .startObject("properties")
-                .startObject("nested2")
-                .field("type", "nested")
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
+        String mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("type")
+            .startObject("properties")
+            .startObject("nested1")
+            .field("type", "nested")
+            .startObject("properties")
+            .startObject("nested2")
+            .field("type", "nested")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
 
         DocumentMapper docMapper = createIndex("test").mapperService()
             .documentMapperParser()
@@ -284,24 +280,23 @@ public class NestedObjectMapperTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testMultiObjectAndNested1() throws Exception {
-        String mapping = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("type")
-                .startObject("properties")
-                .startObject("nested1")
-                .field("type", "nested")
-                .startObject("properties")
-                .startObject("nested2")
-                .field("type", "nested")
-                .field("include_in_parent", true)
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
+        String mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("type")
+            .startObject("properties")
+            .startObject("nested1")
+            .field("type", "nested")
+            .startObject("properties")
+            .startObject("nested2")
+            .field("type", "nested")
+            .field("include_in_parent", true)
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
 
         DocumentMapper docMapper = createIndex("test").mapperService()
             .documentMapperParser()
@@ -378,25 +373,24 @@ public class NestedObjectMapperTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testMultiObjectAndNested2() throws Exception {
-        String mapping = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("type")
-                .startObject("properties")
-                .startObject("nested1")
-                .field("type", "nested")
-                .field("include_in_parent", true)
-                .startObject("properties")
-                .startObject("nested2")
-                .field("type", "nested")
-                .field("include_in_parent", true)
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
+        String mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("type")
+            .startObject("properties")
+            .startObject("nested1")
+            .field("type", "nested")
+            .field("include_in_parent", true)
+            .startObject("properties")
+            .startObject("nested2")
+            .field("type", "nested")
+            .field("include_in_parent", true)
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
 
         DocumentMapper docMapper = createIndex("test").mapperService()
             .documentMapperParser()
@@ -473,24 +467,23 @@ public class NestedObjectMapperTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testMultiRootAndNested1() throws Exception {
-        String mapping = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("type")
-                .startObject("properties")
-                .startObject("nested1")
-                .field("type", "nested")
-                .startObject("properties")
-                .startObject("nested2")
-                .field("type", "nested")
-                .field("include_in_root", true)
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
+        String mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("type")
+            .startObject("properties")
+            .startObject("nested1")
+            .field("type", "nested")
+            .startObject("properties")
+            .startObject("nested2")
+            .field("type", "nested")
+            .field("include_in_root", true)
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
 
         DocumentMapper docMapper = createIndex("test").mapperService()
             .documentMapperParser()
@@ -574,27 +567,26 @@ public class NestedObjectMapperTests extends OpenSearchSingleNodeTestCase {
     public void testMultipleLevelsIncludeRoot1() throws Exception {
         MapperService mapperService = createIndex("test").mapperService();
 
-        String mapping = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject(MapperService.SINGLE_MAPPING_NAME)
-                .startObject("properties")
-                .startObject("nested1")
-                .field("type", "nested")
-                .field("include_in_root", true)
-                .field("include_in_parent", true)
-                .startObject("properties")
-                .startObject("nested2")
-                .field("type", "nested")
-                .field("include_in_root", true)
-                .field("include_in_parent", true)
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
+        String mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject(MapperService.SINGLE_MAPPING_NAME)
+            .startObject("properties")
+            .startObject("nested1")
+            .field("type", "nested")
+            .field("include_in_root", true)
+            .field("include_in_parent", true)
+            .startObject("properties")
+            .startObject("nested2")
+            .field("type", "nested")
+            .field("include_in_root", true)
+            .field("include_in_parent", true)
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
         MergeReason mergeReason = randomFrom(MergeReason.MAPPING_UPDATE, MergeReason.INDEX_TEMPLATE);
 
         mapperService.merge(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(mapping), mergeReason);
@@ -636,34 +628,33 @@ public class NestedObjectMapperTests extends OpenSearchSingleNodeTestCase {
     public void testMultipleLevelsIncludeRoot2() throws Exception {
         MapperService mapperService = createIndex("test").mapperService();
 
-        String mapping = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject(MapperService.SINGLE_MAPPING_NAME)
-                .startObject("properties")
-                .startObject("nested1")
-                .field("type", "nested")
-                .field("include_in_root", true)
-                .field("include_in_parent", true)
-                .startObject("properties")
-                .startObject("nested2")
-                .field("type", "nested")
-                .field("include_in_root", true)
-                .field("include_in_parent", false)
-                .startObject("properties")
-                .startObject("nested3")
-                .field("type", "nested")
-                .field("include_in_root", true)
-                .field("include_in_parent", true)
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
+        String mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject(MapperService.SINGLE_MAPPING_NAME)
+            .startObject("properties")
+            .startObject("nested1")
+            .field("type", "nested")
+            .field("include_in_root", true)
+            .field("include_in_parent", true)
+            .startObject("properties")
+            .startObject("nested2")
+            .field("type", "nested")
+            .field("include_in_root", true)
+            .field("include_in_parent", false)
+            .startObject("properties")
+            .startObject("nested3")
+            .field("type", "nested")
+            .field("include_in_root", true)
+            .field("include_in_parent", true)
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
         MergeReason mergeReason = randomFrom(MergeReason.MAPPING_UPDATE, MergeReason.INDEX_TEMPLATE);
 
         mapperService.merge(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(mapping), mergeReason);
@@ -707,48 +698,46 @@ public class NestedObjectMapperTests extends OpenSearchSingleNodeTestCase {
     public void testMultipleLevelsIncludeRootWithMerge() throws Exception {
         MapperService mapperService = createIndex("test").mapperService();
 
-        String firstMapping = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject(MapperService.SINGLE_MAPPING_NAME)
-                .startObject("properties")
-                .startObject("nested1")
-                .field("type", "nested")
-                .field("include_in_root", true)
-                .startObject("properties")
-                .startObject("nested2")
-                .field("type", "nested")
-                .field("include_in_root", true)
-                .field("include_in_parent", true)
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
+        String firstMapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject(MapperService.SINGLE_MAPPING_NAME)
+            .startObject("properties")
+            .startObject("nested1")
+            .field("type", "nested")
+            .field("include_in_root", true)
+            .startObject("properties")
+            .startObject("nested2")
+            .field("type", "nested")
+            .field("include_in_root", true)
+            .field("include_in_parent", true)
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
         mapperService.merge(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(firstMapping), MergeReason.INDEX_TEMPLATE);
 
-        String secondMapping = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject(MapperService.SINGLE_MAPPING_NAME)
-                .startObject("properties")
-                .startObject("nested1")
-                .field("type", "nested")
-                .field("include_in_root", true)
-                .field("include_in_parent", true)
-                .startObject("properties")
-                .startObject("nested2")
-                .field("type", "nested")
-                .field("include_in_root", true)
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
+        String secondMapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject(MapperService.SINGLE_MAPPING_NAME)
+            .startObject("properties")
+            .startObject("nested1")
+            .field("type", "nested")
+            .field("include_in_root", true)
+            .field("include_in_parent", true)
+            .startObject("properties")
+            .startObject("nested2")
+            .field("type", "nested")
+            .field("include_in_root", true)
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
 
         mapperService.merge(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(secondMapping), MergeReason.INDEX_TEMPLATE);
         DocumentMapper docMapper = mapperService.documentMapper();
@@ -780,24 +769,23 @@ public class NestedObjectMapperTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testNestedArrayStrict() throws Exception {
-        String mapping = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("type")
-                .startObject("properties")
-                .startObject("nested1")
-                .field("type", "nested")
-                .field("dynamic", "strict")
-                .startObject("properties")
-                .startObject("field1")
-                .field("type", "text")
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
+        String mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("type")
+            .startObject("properties")
+            .startObject("nested1")
+            .field("type", "nested")
+            .field("dynamic", "strict")
+            .startObject("properties")
+            .startObject("field1")
+            .field("type", "text")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
 
         DocumentMapper docMapper = createIndex("test").mapperService()
             .documentMapperParser()
@@ -841,23 +829,22 @@ public class NestedObjectMapperTests extends OpenSearchSingleNodeTestCase {
     public void testLimitOfNestedFieldsPerIndex() throws Exception {
         Function<String, String> mapping = type -> {
             try {
-                return Strings.toString(
-                    XContentFactory.jsonBuilder()
-                        .startObject()
-                        .startObject(type)
-                        .startObject("properties")
-                        .startObject("nested1")
-                        .field("type", "nested")
-                        .startObject("properties")
-                        .startObject("nested2")
-                        .field("type", "nested")
-                        .endObject()
-                        .endObject()
-                        .endObject()
-                        .endObject()
-                        .endObject()
-                        .endObject()
-                );
+                return XContentFactory.jsonBuilder()
+                    .startObject()
+                    .startObject(type)
+                    .startObject("properties")
+                    .startObject("nested1")
+                    .field("type", "nested")
+                    .startObject("properties")
+                    .startObject("nested2")
+                    .field("type", "nested")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .toString();
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
@@ -935,18 +922,17 @@ public class NestedObjectMapperTests extends OpenSearchSingleNodeTestCase {
     public void testLimitNestedDocsDefaultSettings() throws Exception {
         Settings settings = Settings.builder().build();
         MapperService mapperService = createIndex("test1", settings).mapperService();
-        String mapping = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("type")
-                .startObject("properties")
-                .startObject("nested1")
-                .field("type", "nested")
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
+        String mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("type")
+            .startObject("properties")
+            .startObject("nested1")
+            .field("type", "nested")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
         DocumentMapper docMapper = mapperService.documentMapperParser().parse("type", new CompressedXContent(mapping));
         long defaultMaxNoNestedDocs = MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING.get(settings);
 
@@ -982,18 +968,17 @@ public class NestedObjectMapperTests extends OpenSearchSingleNodeTestCase {
             "test1",
             Settings.builder().put(MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING.getKey(), maxNoNestedDocs).build()
         ).mapperService();
-        String mapping = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("type")
-                .startObject("properties")
-                .startObject("nested1")
-                .field("type", "nested")
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
+        String mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("type")
+            .startObject("properties")
+            .startObject("nested1")
+            .field("type", "nested")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
         DocumentMapper docMapper = mapperService.documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         // parsing a doc with 2 nested objects succeeds
@@ -1044,21 +1029,20 @@ public class NestedObjectMapperTests extends OpenSearchSingleNodeTestCase {
             "test1",
             Settings.builder().put(MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING.getKey(), maxNoNestedDocs).build()
         ).mapperService();
-        String mapping = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("type")
-                .startObject("properties")
-                .startObject("nested1")
-                .field("type", "nested")
-                .endObject()
-                .startObject("nested2")
-                .field("type", "nested")
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
+        String mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("type")
+            .startObject("properties")
+            .startObject("nested1")
+            .field("type", "nested")
+            .endObject()
+            .startObject("nested2")
+            .field("type", "nested")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
         DocumentMapper docMapper = mapperService.documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         // parsing a doc with 2 nested objects succeeds
@@ -1133,19 +1117,18 @@ public class NestedObjectMapperTests extends OpenSearchSingleNodeTestCase {
                 .endObject()
         ).mapperService();
 
-        String mapping1 = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject(MapperService.SINGLE_MAPPING_NAME)
-                .startObject("properties")
-                .startObject("nested1")
-                .field("type", "nested")
-                .field("include_in_parent", true)
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
+        String mapping1 = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject(MapperService.SINGLE_MAPPING_NAME)
+            .startObject("properties")
+            .startObject("nested1")
+            .field("type", "nested")
+            .field("include_in_parent", true)
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
 
         // cannot update `include_in_parent` dynamically
         MapperException e1 = expectThrows(
@@ -1154,19 +1137,18 @@ public class NestedObjectMapperTests extends OpenSearchSingleNodeTestCase {
         );
         assertEquals("the [include_in_parent] parameter can't be updated on a nested object mapping", e1.getMessage());
 
-        String mapping2 = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject(MapperService.SINGLE_MAPPING_NAME)
-                .startObject("properties")
-                .startObject("nested1")
-                .field("type", "nested")
-                .field("include_in_root", true)
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
+        String mapping2 = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject(MapperService.SINGLE_MAPPING_NAME)
+            .startObject("properties")
+            .startObject("nested1")
+            .field("type", "nested")
+            .field("include_in_root", true)
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
 
         // cannot update `include_in_root` dynamically
         MapperException e2 = expectThrows(

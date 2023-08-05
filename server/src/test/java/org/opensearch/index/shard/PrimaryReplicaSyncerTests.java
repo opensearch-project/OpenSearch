@@ -37,7 +37,6 @@ import org.opensearch.action.resync.ResyncReplicationRequest;
 import org.opensearch.action.resync.ResyncReplicationResponse;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
-import org.opensearch.common.Strings;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.io.stream.ByteBufferStreamInput;
 import org.opensearch.common.io.stream.BytesStreamOutput;
@@ -315,7 +314,7 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
         PrimaryReplicaSyncer.ResyncTask.Status status = task.getStatus();
         XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
         status.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
-        String jsonString = Strings.toString(jsonBuilder);
+        String jsonString = jsonBuilder.toString();
         assertThat(jsonString, containsString("\"phase\":\"" + task.getPhase() + "\""));
         assertThat(jsonString, containsString("\"totalOperations\":" + task.getTotalOperations()));
         assertThat(jsonString, containsString("\"resyncedOperations\":" + task.getResyncedOperations()));

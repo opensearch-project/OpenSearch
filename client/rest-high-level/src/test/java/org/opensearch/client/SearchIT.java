@@ -52,7 +52,6 @@ import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.SearchScrollRequest;
 import org.opensearch.client.core.CountRequest;
 import org.opensearch.client.core.CountResponse;
-import org.opensearch.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -769,7 +768,7 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
         for (int i = 0; i < 100; i++) {
             XContentBuilder builder = jsonBuilder().startObject().field("field", i).endObject();
             Request doc = new Request(HttpPut.METHOD_NAME, "/test/_doc/" + Integer.toString(i));
-            doc.setJsonEntity(Strings.toString(builder));
+            doc.setJsonEntity(builder.toString());
             client().performRequest(doc);
         }
         client().performRequest(new Request(HttpPost.METHOD_NAME, "/test/_refresh"));
@@ -837,7 +836,7 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
         for (int i = 0; i < 100; i++) {
             XContentBuilder builder = jsonBuilder().startObject().field("field", i).endObject();
             Request doc = new Request(HttpPut.METHOD_NAME, "/test/_doc/" + Integer.toString(i));
-            doc.setJsonEntity(Strings.toString(builder));
+            doc.setJsonEntity(builder.toString());
             client().performRequest(doc);
         }
         client().performRequest(new Request(HttpPost.METHOD_NAME, "/test/_refresh"));

@@ -33,7 +33,7 @@
 package org.opensearch.index.rankeval;
 
 import org.opensearch.action.OriginalIndices;
-import org.opensearch.common.Strings;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.MediaTypeRegistry;

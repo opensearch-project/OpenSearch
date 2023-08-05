@@ -39,7 +39,6 @@ import org.opensearch.core.Assertions;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.MappingMetadata;
-import org.opensearch.common.Strings;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.regex.Regex;
@@ -47,11 +46,12 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
-import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.AbstractIndexComponent;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.AnalysisRegistry;
@@ -394,7 +394,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             try {
                 mappingSourcesCompressed.put(
                     entry.getKey(),
-                    new CompressedXContent(Strings.toString(XContentFactory.jsonBuilder().map(entry.getValue())))
+                    new CompressedXContent(XContentFactory.jsonBuilder().map(entry.getValue()).toString())
                 );
             } catch (Exception e) {
                 throw new MapperParsingException("Failed to parse mapping [{}]: {}", e, entry.getKey(), e.getMessage());
@@ -405,7 +405,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     public void merge(String type, Map<String, Object> mappings, MergeReason reason) throws IOException {
-        CompressedXContent content = new CompressedXContent(Strings.toString(XContentFactory.jsonBuilder().map(mappings)));
+        CompressedXContent content = new CompressedXContent(XContentFactory.jsonBuilder().map(mappings).toString());
         internalMerge(Collections.singletonMap(type, content), reason);
     }
 
