@@ -74,7 +74,7 @@ import static org.opensearch.core.common.Strings.EMPTY_ARRAY;
  * <li>must not contain hash sign ('#')</li>
  * <li>must not start with underscore ('_')</li>
  * <li>must be lowercase</li>
- * <li>must not contain invalid file name characters {@link org.opensearch.common.Strings#INVALID_FILENAME_CHARS} </li>
+ * <li>must not contain invalid file name characters {@link org.opensearch.core.common.Strings#INVALID_FILENAME_CHARS} </li>
  * </ul>
  *
  * @opensearch.internal
