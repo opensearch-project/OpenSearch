@@ -33,17 +33,17 @@
 package org.opensearch.script;
 
 import org.opensearch.OpenSearchParseException;
-import org.opensearch.common.Strings;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.InputStreamStreamInput;
 import org.opensearch.core.common.io.stream.OutputStreamStreamOutput;
-import org.opensearch.common.settings.Settings;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.ByteArrayInputStream;
@@ -88,7 +88,7 @@ public class ScriptTests extends OpenSearchTestCase {
                 builder.startObject();
                 builder.field("field", randomAlphaOfLengthBetween(1, 5));
                 builder.endObject();
-                script = Strings.toString(builder);
+                script = builder.toString();
             }
         } else {
             script = randomAlphaOfLengthBetween(1, 5);

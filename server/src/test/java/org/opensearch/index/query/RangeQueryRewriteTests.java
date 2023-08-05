@@ -35,7 +35,6 @@ package org.opensearch.index.query;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.search.IndexSearcher;
-import org.opensearch.common.Strings;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.xcontent.XContentFactory;
@@ -77,18 +76,17 @@ public class RangeQueryRewriteTests extends OpenSearchSingleNodeTestCase {
 
     public void testRewriteMissingReader() throws Exception {
         IndexService indexService = createIndex("test");
-        String mapping = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("type")
-                .startObject("properties")
-                .startObject("foo")
-                .field("type", "date")
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
+        String mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("type")
+            .startObject("properties")
+            .startObject("foo")
+            .field("type", "date")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
         indexService.mapperService().merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
         QueryRewriteContext context = new QueryShardContext(
             0,
@@ -116,18 +114,17 @@ public class RangeQueryRewriteTests extends OpenSearchSingleNodeTestCase {
 
     public void testRewriteEmptyReader() throws Exception {
         IndexService indexService = createIndex("test");
-        String mapping = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("type")
-                .startObject("properties")
-                .startObject("foo")
-                .field("type", "date")
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
+        String mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("type")
+            .startObject("properties")
+            .startObject("foo")
+            .field("type", "date")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
         indexService.mapperService().merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
         IndexReader reader = new MultiReader();
         QueryRewriteContext context = new QueryShardContext(

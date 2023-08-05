@@ -35,7 +35,6 @@ import org.opensearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
-import org.opensearch.common.Strings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -208,7 +207,7 @@ public class SignificantTermsSignificanceScoreIT extends OpenSearchIntegTestCase
             + "\"score\":0.75,"
             + "\"bg_count\":4"
             + "}]}}]}}";
-        assertThat(Strings.toString(responseBuilder), equalTo(result));
+        assertThat(responseBuilder.toString(), equalTo(result));
 
     }
 

@@ -60,21 +60,21 @@ import org.opensearch.client.RestClientBuilder;
 import org.opensearch.client.WarningsHandler;
 import org.opensearch.common.CheckedRunnable;
 import org.opensearch.common.SetOnce;
-import org.opensearch.common.Strings;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.core.xcontent.DeprecationHandler;
-import org.opensearch.core.xcontent.MediaType;
-import org.opensearch.core.xcontent.NamedXContentRegistry;
-import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.xcontent.DeprecationHandler;
+import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.seqno.ReplicationTracker;
 import org.opensearch.core.rest.RestStatus;
@@ -695,7 +695,7 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
 
         if (mustClear) {
             Request request = new Request("PUT", "/_cluster/settings");
-            request.setJsonEntity(Strings.toString(clearCommand));
+            request.setJsonEntity(clearCommand.toString());
             adminClient().performRequest(request);
         }
     }
@@ -1059,10 +1059,10 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
     @SuppressWarnings("unchecked")
     protected static Map<String, Object> getAlias(final String index, final String alias) throws IOException {
         String endpoint = "/_alias";
-        if (false == org.opensearch.core.common.Strings.isEmpty(index)) {
+        if (false == Strings.isEmpty(index)) {
             endpoint = index + endpoint;
         }
-        if (false == org.opensearch.core.common.Strings.isEmpty(alias)) {
+        if (false == Strings.isEmpty(alias)) {
             endpoint = endpoint + "/" + alias;
         }
         Map<String, Object> getAliasResponse = getAsMap(endpoint);

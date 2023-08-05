@@ -35,7 +35,6 @@ package org.opensearch.search.query;
 import org.opensearch.action.explain.ExplainResponse;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
-import org.opensearch.common.Strings;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.json.JsonXContent;
@@ -140,14 +139,7 @@ public class ExistsIT extends OpenSearchIntegTestCase {
             assertSearchResponse(resp);
             try {
                 assertEquals(
-                    String.format(
-                        Locale.ROOT,
-                        "exists(%s, %d) mapping: %s response: %s",
-                        fieldName,
-                        count,
-                        Strings.toString(mapping),
-                        resp
-                    ),
+                    String.format(Locale.ROOT, "exists(%s, %d) mapping: %s response: %s", fieldName, count, mapping.toString(), resp),
                     count,
                     resp.getHits().getTotalHits().value
                 );
