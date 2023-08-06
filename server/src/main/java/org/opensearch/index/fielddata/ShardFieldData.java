@@ -36,7 +36,7 @@ import org.apache.lucene.util.Accountable;
 import org.opensearch.common.FieldMemoryStats;
 import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.common.regex.Regex;
-import org.opensearch.common.util.CollectionUtils;
+import org.opensearch.core.common.util.CollectionUtils;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.core.index.shard.ShardId;
 

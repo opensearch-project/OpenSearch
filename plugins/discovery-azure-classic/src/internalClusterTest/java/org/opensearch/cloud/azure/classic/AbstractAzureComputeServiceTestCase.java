@@ -47,7 +47,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.network.NetworkAddress;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.transport.TransportAddress;
+import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.discovery.azure.classic.AzureSeedHostsProvider;
 import org.opensearch.plugin.discovery.azure.classic.AzureDiscoveryPlugin;
 import org.opensearch.plugins.Plugin;
@@ -63,7 +63,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-import static org.opensearch.common.util.CollectionUtils.newSingletonArrayList;
+import static org.opensearch.core.common.util.CollectionUtils.newSingletonArrayList;
 import static org.opensearch.discovery.DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING;
 
 public abstract class AbstractAzureComputeServiceTestCase extends OpenSearchIntegTestCase {

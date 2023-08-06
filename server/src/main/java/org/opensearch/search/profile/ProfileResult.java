@@ -134,7 +134,7 @@ public final class ProfileResult implements Writeable, ToXContentObject {
         breakdown = in.readMap(StreamInput::readString, StreamInput::readLong);
         debug = in.readMap(StreamInput::readString, StreamInput::readGenericValue);
         children = in.readList(ProfileResult::new);
-        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_2_10_0)) {
             this.maxSliceNodeTime = in.readOptionalLong();
             this.minSliceNodeTime = in.readOptionalLong();
             this.avgSliceNodeTime = in.readOptionalLong();
@@ -153,7 +153,7 @@ public final class ProfileResult implements Writeable, ToXContentObject {
         out.writeMap(breakdown, StreamOutput::writeString, StreamOutput::writeLong);
         out.writeMap(debug, StreamOutput::writeString, StreamOutput::writeGenericValue);
         out.writeList(children);
-        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_2_10_0)) {
             out.writeOptionalLong(maxSliceNodeTime);
             out.writeOptionalLong(minSliceNodeTime);
             out.writeOptionalLong(avgSliceNodeTime);

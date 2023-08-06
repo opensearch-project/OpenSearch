@@ -43,7 +43,7 @@ import org.opensearch.cluster.coordination.ClusterStatePublisher.AckListener;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.transport.TransportException;
-import org.opensearch.transport.TransportResponse;
+import org.opensearch.core.transport.TransportResponse;
 
 import java.util.ArrayList;
 import java.util.List;

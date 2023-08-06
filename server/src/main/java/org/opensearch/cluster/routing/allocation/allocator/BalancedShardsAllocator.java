@@ -37,6 +37,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.IntroSorter;
 import org.opensearch.cluster.routing.RoutingNode;
 import org.opensearch.cluster.routing.RoutingNodes;
+import org.opensearch.cluster.routing.ShardMovementStrategy;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.cluster.routing.UnassignedInfo.AllocationStatus;
@@ -107,8 +108,22 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         "cluster.routing.allocation.move.primary_first",
         false,
         Property.Dynamic,
+        Property.NodeScope,
+        Property.Deprecated
+    );
+
+    /**
+     * Decides order in which to move shards from node when shards can not stay on node anymore. {@link LocalShardsBalancer#moveShards()}
+     * Encapsulates behavior of above SHARD_MOVE_PRIMARY_FIRST_SETTING.
+     */
+    public static final Setting<ShardMovementStrategy> SHARD_MOVEMENT_STRATEGY_SETTING = new Setting<ShardMovementStrategy>(
+        "cluster.routing.allocation.shard_movement_strategy",
+        ShardMovementStrategy.NO_PREFERENCE.toString(),
+        ShardMovementStrategy::parse,
+        Property.Dynamic,
         Property.NodeScope
     );
+
     public static final Setting<Float> THRESHOLD_SETTING = Setting.floatSetting(
         "cluster.routing.allocation.balance.threshold",
         1.0f,
@@ -131,6 +146,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     );
 
     private volatile boolean movePrimaryFirst;
+    private volatile ShardMovementStrategy shardMovementStrategy;
 
     private volatile boolean preferPrimaryShardBalance;
     private volatile WeightFunction weightFunction;
@@ -145,14 +161,20 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         setWeightFunction(INDEX_BALANCE_FACTOR_SETTING.get(settings), SHARD_BALANCE_FACTOR_SETTING.get(settings));
         setThreshold(THRESHOLD_SETTING.get(settings));
         setPreferPrimaryShardBalance(PREFER_PRIMARY_SHARD_BALANCE.get(settings));
+        setShardMovementStrategy(SHARD_MOVEMENT_STRATEGY_SETTING.get(settings));
         clusterSettings.addSettingsUpdateConsumer(PREFER_PRIMARY_SHARD_BALANCE, this::setPreferPrimaryShardBalance);
         clusterSettings.addSettingsUpdateConsumer(SHARD_MOVE_PRIMARY_FIRST_SETTING, this::setMovePrimaryFirst);
+        clusterSettings.addSettingsUpdateConsumer(SHARD_MOVEMENT_STRATEGY_SETTING, this::setShardMovementStrategy);
         clusterSettings.addSettingsUpdateConsumer(INDEX_BALANCE_FACTOR_SETTING, SHARD_BALANCE_FACTOR_SETTING, this::setWeightFunction);
         clusterSettings.addSettingsUpdateConsumer(THRESHOLD_SETTING, this::setThreshold);
     }
 
     private void setMovePrimaryFirst(boolean movePrimaryFirst) {
         this.movePrimaryFirst = movePrimaryFirst;
+    }
+
+    private void setShardMovementStrategy(ShardMovementStrategy shardMovementStrategy) {
+        this.shardMovementStrategy = shardMovementStrategy;
     }
 
     private void setWeightFunction(float indexBalance, float shardBalanceFactor) {
@@ -184,6 +206,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             logger,
             allocation,
             movePrimaryFirst,
+            shardMovementStrategy,
             weightFunction,
             threshold,
             preferPrimaryShardBalance
@@ -205,6 +228,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             logger,
             allocation,
             movePrimaryFirst,
+            shardMovementStrategy,
             weightFunction,
             threshold,
             preferPrimaryShardBalance
@@ -456,11 +480,12 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             Logger logger,
             RoutingAllocation allocation,
             boolean movePrimaryFirst,
+            ShardMovementStrategy shardMovementStrategy,
             BalancedShardsAllocator.WeightFunction weight,
             float threshold,
             boolean preferPrimaryBalance
         ) {
-            super(logger, allocation, movePrimaryFirst, weight, threshold, preferPrimaryBalance);
+            super(logger, allocation, movePrimaryFirst, shardMovementStrategy, weight, threshold, preferPrimaryBalance);
         }
     }
 

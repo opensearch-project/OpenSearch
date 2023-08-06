@@ -40,7 +40,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.routing.GroupShardsIterator;
 import org.opensearch.cluster.routing.ShardIterator;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.Strings;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -132,7 +132,7 @@ public class SliceBuilder implements Writeable, ToXContentObject {
     }
 
     private SliceBuilder setField(String field) {
-        if (org.opensearch.core.common.Strings.isEmpty(field)) {
+        if (Strings.isEmpty(field)) {
             throw new IllegalArgumentException("field name is null or empty");
         }
         this.field = field;

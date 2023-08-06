@@ -32,7 +32,6 @@
 
 package org.opensearch.index.mapper;
 
-import org.opensearch.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.xcontent.XContentFactory;
@@ -45,18 +44,17 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class NullValueObjectMappingTests extends OpenSearchSingleNodeTestCase {
     public void testNullValueObject() throws IOException {
-        String mapping = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("type")
-                .startObject("properties")
-                .startObject("obj1")
-                .field("type", "object")
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
+        String mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("type")
+            .startObject("properties")
+            .startObject("obj1")
+            .field("type", "object")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
 
         DocumentMapper defaultMapper = createIndex("test").mapperService()
             .documentMapperParser()

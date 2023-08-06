@@ -36,7 +36,6 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
-import org.opensearch.common.Strings;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.xcontent.ToXContent;
@@ -144,7 +143,7 @@ public class RepositoryURLClientYamlTestSuiteIT extends OpenSearchClientYamlSuit
                 builder.endObject();
             }
             builder.endObject();
-            return new StringEntity(Strings.toString(builder), ContentType.APPLICATION_JSON);
+            return new StringEntity(builder.toString(), ContentType.APPLICATION_JSON);
         }
     }
 }
