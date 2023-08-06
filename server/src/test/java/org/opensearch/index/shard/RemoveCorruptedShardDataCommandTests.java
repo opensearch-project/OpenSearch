@@ -295,8 +295,8 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         final Exception exception = expectThrows(Exception.class, () -> newStartedShard(p -> corruptedShard, true));
         // if corruption is in engine UUID in header, the TranslogCorruptedException is caught and rethrown as
         // EngineCreationFailureException rather than TranslogException
-        final Throwable cause = (exception.getCause() instanceof TranslogException
-            || exception.getCause() instanceof EngineCreationFailureException) ? exception.getCause().getCause() : exception.getCause();
+        final Throwable cause = exception.getCause() instanceof TranslogException
+            || exception.getCause() instanceof EngineCreationFailureException ? exception.getCause().getCause() : exception.getCause();
         assertThat(cause, instanceOf(TranslogCorruptedException.class));
 
         closeShard(corruptedShard, false); // translog is corrupted already - do not check consistency
