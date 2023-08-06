@@ -41,7 +41,6 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.suggest.document.ContextSuggestField;
 import org.apache.lucene.util.BytesRef;
-import org.opensearch.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Settings;
@@ -75,21 +74,20 @@ import static org.hamcrest.Matchers.equalTo;
 public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
 
     public void testIndexingWithNoContexts() throws Exception {
-        String mapping = Strings.toString(
-            jsonBuilder().startObject()
-                .startObject("properties")
-                .startObject("completion")
-                .field("type", "completion")
-                .startArray("contexts")
-                .startObject()
-                .field("name", "ctx")
-                .field("type", "category")
-                .endObject()
-                .endArray()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
+        String mapping = jsonBuilder().startObject()
+            .startObject("properties")
+            .startObject("completion")
+            .field("type", "completion")
+            .startArray("contexts")
+            .startObject()
+            .field("name", "ctx")
+            .field("type", "category")
+            .endObject()
+            .endArray()
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
 
         DocumentMapper defaultMapper = createIndex("test").mapperService()
             .documentMapperParser()
@@ -125,21 +123,20 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testIndexingWithSimpleContexts() throws Exception {
-        String mapping = Strings.toString(
-            jsonBuilder().startObject()
-                .startObject("properties")
-                .startObject("completion")
-                .field("type", "completion")
-                .startArray("contexts")
-                .startObject()
-                .field("name", "ctx")
-                .field("type", "category")
-                .endObject()
-                .endArray()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
+        String mapping = jsonBuilder().startObject()
+            .startObject("properties")
+            .startObject("completion")
+            .field("type", "completion")
+            .startArray("contexts")
+            .startObject()
+            .field("name", "ctx")
+            .field("type", "category")
+            .endObject()
+            .endArray()
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
 
         DocumentMapper defaultMapper = createIndex("test").mapperService()
             .documentMapperParser()
@@ -170,21 +167,20 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testIndexingWithSimpleNumberContexts() throws Exception {
-        String mapping = Strings.toString(
-            jsonBuilder().startObject()
-                .startObject("properties")
-                .startObject("completion")
-                .field("type", "completion")
-                .startArray("contexts")
-                .startObject()
-                .field("name", "ctx")
-                .field("type", "category")
-                .endObject()
-                .endArray()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
+        String mapping = jsonBuilder().startObject()
+            .startObject("properties")
+            .startObject("completion")
+            .field("type", "completion")
+            .startArray("contexts")
+            .startObject()
+            .field("name", "ctx")
+            .field("type", "category")
+            .endObject()
+            .endArray()
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
 
         DocumentMapper defaultMapper = createIndex("test").mapperService()
             .documentMapperParser()
@@ -215,21 +211,20 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testIndexingWithSimpleBooleanContexts() throws Exception {
-        String mapping = Strings.toString(
-            jsonBuilder().startObject()
-                .startObject("properties")
-                .startObject("completion")
-                .field("type", "completion")
-                .startArray("contexts")
-                .startObject()
-                .field("name", "ctx")
-                .field("type", "category")
-                .endObject()
-                .endArray()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
+        String mapping = jsonBuilder().startObject()
+            .startObject("properties")
+            .startObject("completion")
+            .field("type", "completion")
+            .startArray("contexts")
+            .startObject()
+            .field("name", "ctx")
+            .field("type", "category")
+            .endObject()
+            .endArray()
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
 
         DocumentMapper defaultMapper = createIndex("test").mapperService()
             .documentMapperParser()
@@ -260,21 +255,20 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testIndexingWithSimpleNULLContexts() throws Exception {
-        String mapping = Strings.toString(
-            jsonBuilder().startObject()
-                .startObject("properties")
-                .startObject("completion")
-                .field("type", "completion")
-                .startArray("contexts")
-                .startObject()
-                .field("name", "ctx")
-                .field("type", "category")
-                .endObject()
-                .endArray()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
+        String mapping = jsonBuilder().startObject()
+            .startObject("properties")
+            .startObject("completion")
+            .field("type", "completion")
+            .startArray("contexts")
+            .startObject()
+            .field("name", "ctx")
+            .field("type", "category")
+            .endObject()
+            .endArray()
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
 
         DocumentMapper defaultMapper = createIndex("test").mapperService()
             .documentMapperParser()
@@ -302,21 +296,20 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testIndexingWithContextList() throws Exception {
-        String mapping = Strings.toString(
-            jsonBuilder().startObject()
-                .startObject("properties")
-                .startObject("completion")
-                .field("type", "completion")
-                .startArray("contexts")
-                .startObject()
-                .field("name", "ctx")
-                .field("type", "category")
-                .endObject()
-                .endArray()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
+        String mapping = jsonBuilder().startObject()
+            .startObject("properties")
+            .startObject("completion")
+            .field("type", "completion")
+            .startArray("contexts")
+            .startObject()
+            .field("name", "ctx")
+            .field("type", "category")
+            .endObject()
+            .endArray()
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
 
         DocumentMapper defaultMapper = createIndex("test").mapperService()
             .documentMapperParser()
@@ -345,21 +338,20 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testIndexingWithMixedTypeContextList() throws Exception {
-        String mapping = Strings.toString(
-            jsonBuilder().startObject()
-                .startObject("properties")
-                .startObject("completion")
-                .field("type", "completion")
-                .startArray("contexts")
-                .startObject()
-                .field("name", "ctx")
-                .field("type", "category")
-                .endObject()
-                .endArray()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
+        String mapping = jsonBuilder().startObject()
+            .startObject("properties")
+            .startObject("completion")
+            .field("type", "completion")
+            .startArray("contexts")
+            .startObject()
+            .field("name", "ctx")
+            .field("type", "category")
+            .endObject()
+            .endArray()
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
 
         DocumentMapper defaultMapper = createIndex("test").mapperService()
             .documentMapperParser()
@@ -388,21 +380,20 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testIndexingWithMixedTypeContextListHavingNULL() throws Exception {
-        String mapping = Strings.toString(
-            jsonBuilder().startObject()
-                .startObject("properties")
-                .startObject("completion")
-                .field("type", "completion")
-                .startArray("contexts")
-                .startObject()
-                .field("name", "ctx")
-                .field("type", "category")
-                .endObject()
-                .endArray()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
+        String mapping = jsonBuilder().startObject()
+            .startObject("properties")
+            .startObject("completion")
+            .field("type", "completion")
+            .startArray("contexts")
+            .startObject()
+            .field("name", "ctx")
+            .field("type", "category")
+            .endObject()
+            .endArray()
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
 
         DocumentMapper defaultMapper = createIndex("test").mapperService()
             .documentMapperParser()
@@ -425,25 +416,24 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testIndexingWithMultipleContexts() throws Exception {
-        String mapping = Strings.toString(
-            jsonBuilder().startObject()
-                .startObject("properties")
-                .startObject("completion")
-                .field("type", "completion")
-                .startArray("contexts")
-                .startObject()
-                .field("name", "ctx")
-                .field("type", "category")
-                .endObject()
-                .startObject()
-                .field("name", "type")
-                .field("type", "category")
-                .endObject()
-                .endArray()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
+        String mapping = jsonBuilder().startObject()
+            .startObject("properties")
+            .startObject("completion")
+            .field("type", "completion")
+            .startArray("contexts")
+            .startObject()
+            .field("name", "ctx")
+            .field("type", "category")
+            .endObject()
+            .startObject()
+            .field("name", "type")
+            .field("type", "category")
+            .endObject()
+            .endArray()
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
 
         DocumentMapper defaultMapper = createIndex("test").mapperService()
             .documentMapperParser()

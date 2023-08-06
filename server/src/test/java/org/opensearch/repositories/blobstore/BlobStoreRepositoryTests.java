@@ -106,8 +106,8 @@ public class BlobStoreRepositoryTests extends BlobStoreRepositoryHelperTests {
     }
 
     @Override
-    protected Settings nodeSettings() {
-        return Settings.builder().put(super.nodeSettings()).put(FeatureFlags.REMOTE_STORE, "true").build();
+    protected Settings featureFlagSettings() {
+        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.REMOTE_STORE, "true").build();
     }
 
     public void testRetrieveSnapshots() throws Exception {
@@ -166,8 +166,6 @@ public class BlobStoreRepositoryTests extends BlobStoreRepositoryHelperTests {
         assertThat(snapshotIds, equalTo(originalSnapshots));
     }
 
-    // Validate Scenario remoteStoreShallowCopy Snapshot -> remoteStoreShallowCopy Snapshot
-    // -> remoteStoreShallowCopy Snapshot -> normal snapshot
     public void testReadAndWriteSnapshotsThroughIndexFile() throws Exception {
         final BlobStoreRepository repository = setupRepo();
         final long pendingGeneration = repository.metadata.pendingGeneration();

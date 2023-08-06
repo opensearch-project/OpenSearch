@@ -30,11 +30,11 @@
  * GitHub history for details.
  */
 
-package org.opensearch.transport;
+package org.opensearch.core.transport;
 
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.common.transport.TransportAddress;
+import org.opensearch.core.common.transport.TransportAddress;
 
 /**
  * Message over the transport interface

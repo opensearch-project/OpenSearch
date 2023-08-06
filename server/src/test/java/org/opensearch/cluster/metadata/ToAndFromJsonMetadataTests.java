@@ -35,7 +35,6 @@ package org.opensearch.cluster.metadata;
 import org.opensearch.Version;
 import org.opensearch.action.admin.indices.rollover.RolloverInfo;
 import org.opensearch.cluster.coordination.CoordinationMetadata;
-import org.opensearch.common.Strings;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.xcontent.ToXContent;
@@ -275,7 +274,7 @@ public class ToAndFromJsonMetadataTests extends OpenSearchTestCase {
                 + "    }\n"
                 + "  }\n"
                 + "}",
-            Strings.toString(builder)
+            builder.toString()
         );
     }
 
@@ -371,7 +370,7 @@ public class ToAndFromJsonMetadataTests extends OpenSearchTestCase {
                 + "    }\n"
                 + "  }\n"
                 + "}",
-            Strings.toString(builder)
+            builder.toString()
         );
     }
 
@@ -441,7 +440,7 @@ public class ToAndFromJsonMetadataTests extends OpenSearchTestCase {
                 + "    }\n"
                 + "  }\n"
                 + "}",
-            Strings.toString(builder)
+            builder.toString()
         );
     }
 
@@ -546,7 +545,7 @@ public class ToAndFromJsonMetadataTests extends OpenSearchTestCase {
                 + "    }\n"
                 + "  }\n"
                 + "}",
-            Strings.toString(builder)
+            builder.toString()
         );
     }
 
@@ -657,7 +656,7 @@ public class ToAndFromJsonMetadataTests extends OpenSearchTestCase {
                 + "    }\n"
                 + "  }\n"
                 + "}",
-            Strings.toString(builder)
+            builder.toString()
         );
     }
 

@@ -44,7 +44,7 @@ import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.io.Streams;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.transport.TransportAddress;
+import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.test.transport.MockTransportService;

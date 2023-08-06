@@ -49,7 +49,7 @@ import org.opensearch.cluster.metadata.RepositoriesMetadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.Strings;
+import org.opensearch.core.common.Strings;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
@@ -466,7 +466,7 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
             JsonXContent.jsonXContent.createParser(
                 NamedXContentRegistry.EMPTY,
                 DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                Strings.toString(jsonBuilder).replace(Version.CURRENT.toString(), version.toString())
+                jsonBuilder.toString().replace(Version.CURRENT.toString(), version.toString())
             ),
             repositoryData.getGenId()
         );
@@ -557,6 +557,11 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
             .prepareGetSettings(remoteStoreIndex)
             .get()
             .getSetting(remoteStoreIndex, IndexMetadata.SETTING_INDEX_UUID);
+        return getLockFilesInRemoteStore(remoteStoreIndex, remoteStoreRepositoryName, indexUUID);
+    }
+
+    protected String[] getLockFilesInRemoteStore(String remoteStoreIndex, String remoteStoreRepositoryName, String indexUUID)
+        throws IOException {
         final RepositoriesService repositoriesService = internalCluster().getCurrentClusterManagerNodeInstance(RepositoriesService.class);
         final BlobStoreRepository remoteStoreRepository = (BlobStoreRepository) repositoriesService.repository(remoteStoreRepositoryName);
         BlobPath shardLevelBlobPath = remoteStoreRepository.basePath().add(indexUUID).add("0").add("segments").add("lock_files");

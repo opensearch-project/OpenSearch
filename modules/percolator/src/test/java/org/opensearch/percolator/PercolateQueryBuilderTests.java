@@ -38,7 +38,6 @@ import org.opensearch.ResourceNotFoundException;
 import org.opensearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.opensearch.action.get.GetRequest;
 import org.opensearch.action.get.GetResponse;
-import org.opensearch.common.Strings;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressedXContent;
@@ -109,15 +108,13 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
         mapperService.merge(
             docType,
             new CompressedXContent(
-                Strings.toString(
-                    PutMappingRequest.simpleMapping(queryField, "type=percolator", aliasField, "type=alias,path=" + queryField)
-                )
+                PutMappingRequest.simpleMapping(queryField, "type=percolator", aliasField, "type=alias,path=" + queryField).toString()
             ),
             MapperService.MergeReason.MAPPING_UPDATE
         );
         mapperService.merge(
             docType,
-            new CompressedXContent(Strings.toString(PutMappingRequest.simpleMapping(TEXT_FIELD_NAME, "type=text"))),
+            new CompressedXContent(PutMappingRequest.simpleMapping(TEXT_FIELD_NAME, "type=text").toString()),
             MapperService.MergeReason.MAPPING_UPDATE
         );
     }

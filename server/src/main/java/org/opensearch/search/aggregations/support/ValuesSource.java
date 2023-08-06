@@ -44,7 +44,7 @@ import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.Rounding;
 import org.opensearch.common.Rounding.Prepared;
 import org.opensearch.common.lucene.ScorerAware;
-import org.opensearch.common.util.CollectionUtils;
+import org.opensearch.core.common.util.CollectionUtils;
 import org.opensearch.index.fielddata.AbstractSortingNumericDocValues;
 import org.opensearch.index.fielddata.DocValueBits;
 import org.opensearch.index.fielddata.GeoShapeValue;

@@ -19,16 +19,17 @@ import org.opensearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingHelper;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.concurrent.GatedCloseable;
+import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.common.lease.Releasable;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.InternalEngineFactory;
@@ -50,8 +51,8 @@ import org.opensearch.indices.replication.SegmentReplicationSourceFactory;
 import org.opensearch.indices.replication.SegmentReplicationState;
 import org.opensearch.indices.replication.SegmentReplicationTarget;
 import org.opensearch.indices.replication.SegmentReplicationTargetService;
-import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
+import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.replication.common.CopyState;
 import org.opensearch.indices.replication.common.ReplicationFailedException;
 import org.opensearch.indices.replication.common.ReplicationListener;
@@ -63,6 +64,7 @@ import org.opensearch.transport.TransportService;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -82,6 +84,7 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.opensearch.index.engine.EngineTestCase.assertAtMostOneLuceneDocumentPerSequenceNumber;
 
 public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelReplicationTestCase {
 
@@ -422,7 +425,70 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
     /**
      * here we are starting a new primary shard in PrimaryMode and testing if the shard publishes checkpoint after refresh.
      */
-    public void testPublishCheckpointOnPrimaryMode() throws IOException {
+    public void testPublishCheckpointOnPrimaryMode() throws IOException, InterruptedException {
+        final SegmentReplicationCheckpointPublisher mock = mock(SegmentReplicationCheckpointPublisher.class);
+        IndexShard shard = newStartedShard(p -> newShard(false, mock, settings), false);
+
+        final ShardRouting shardRouting = shard.routingEntry();
+        promoteReplica(
+            shard,
+            Collections.singleton(shardRouting.allocationId().getId()),
+            new IndexShardRoutingTable.Builder(shardRouting.shardId()).addShard(shardRouting).build()
+        );
+
+        final CountDownLatch latch = new CountDownLatch(1);
+        shard.acquirePrimaryOperationPermit(new ActionListener<Releasable>() {
+            @Override
+            public void onResponse(Releasable releasable) {
+                releasable.close();
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                throw new RuntimeException(e);
+            }
+        }, ThreadPool.Names.GENERIC, "");
+
+        latch.await();
+        // verify checkpoint is published
+        verify(mock, times(1)).publish(any(), any());
+        closeShards(shard);
+    }
+
+    public void testPublishCheckpointOnPrimaryMode_segrep_off() throws IOException, InterruptedException {
+        final SegmentReplicationCheckpointPublisher mock = mock(SegmentReplicationCheckpointPublisher.class);
+        final Settings settings = Settings.builder().put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.DOCUMENT).build();
+        IndexShard shard = newStartedShard(p -> newShard(false, mock, settings), false);
+
+        final ShardRouting shardRouting = shard.routingEntry();
+        promoteReplica(
+            shard,
+            Collections.singleton(shardRouting.allocationId().getId()),
+            new IndexShardRoutingTable.Builder(shardRouting.shardId()).addShard(shardRouting).build()
+        );
+
+        final CountDownLatch latch = new CountDownLatch(1);
+        shard.acquirePrimaryOperationPermit(new ActionListener<Releasable>() {
+            @Override
+            public void onResponse(Releasable releasable) {
+                releasable.close();
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                throw new RuntimeException(e);
+            }
+        }, ThreadPool.Names.GENERIC, "");
+
+        latch.await();
+        // verify checkpoint is published
+        verify(mock, times(0)).publish(any(), any());
+        closeShards(shard);
+    }
+
+    public void testPublishCheckpointPostFailover() throws IOException {
         final SegmentReplicationCheckpointPublisher mock = mock(SegmentReplicationCheckpointPublisher.class);
         IndexShard shard = newStartedShard(true);
         CheckpointRefreshListener refreshListener = new CheckpointRefreshListener(shard, mock);
@@ -481,7 +547,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         spy.onNewCheckpoint(new ReplicationCheckpoint(primaryShard.shardId(), 0L, 0L, 0L, Codec.getDefault().getName()), spyShard);
 
         // Verify that checkpoint is not processed as shard routing is primary.
-        verify(spy, times(0)).startReplication(any(), any());
+        verify(spy, times(0)).startReplication(any(), any(), any());
         closeShards(primaryShard);
     }
 
@@ -655,7 +721,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
                 }
             };
             when(sourceFactory.get(any())).thenReturn(source);
-            startReplicationAndAssertCancellation(replica, targetService);
+            startReplicationAndAssertCancellation(replica, primary, targetService);
 
             shards.removeReplica(replica);
             closeShards(replica);
@@ -671,6 +737,41 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             null,
             null
         );
+    }
+
+    public void testNoDuplicateSeqNo() throws Exception {
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT).build();
+        ReplicationGroup shards = createGroup(1, settings, indexMapping, new NRTReplicationEngineFactory(), createTempDir());
+        final IndexShard primaryShard = shards.getPrimary();
+        final IndexShard replicaShard = shards.getReplicas().get(0);
+        shards.startPrimary();
+        shards.startAll();
+        shards.indexDocs(10);
+        replicateSegments(primaryShard, shards.getReplicas());
+
+        flushShard(primaryShard);
+        shards.indexDocs(10);
+        replicateSegments(primaryShard, shards.getReplicas());
+
+        shards.indexDocs(10);
+        primaryShard.refresh("test");
+        replicateSegments(primaryShard, shards.getReplicas());
+
+        CountDownLatch latch = new CountDownLatch(1);
+        shards.promoteReplicaToPrimary(replicaShard, (shard, listener) -> {
+            try {
+                assertAtMostOneLuceneDocumentPerSequenceNumber(replicaShard.getEngine());
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+            latch.countDown();
+        });
+        latch.await();
+        for (IndexShard shard : shards) {
+            if (shard != null) {
+                closeShard(shard, false);
+            }
+        }
     }
 
     /**
@@ -700,11 +801,15 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         }
     }
 
-    protected void startReplicationAndAssertCancellation(IndexShard replica, SegmentReplicationTargetService targetService)
-        throws InterruptedException {
+    protected void startReplicationAndAssertCancellation(
+        IndexShard replica,
+        IndexShard primary,
+        SegmentReplicationTargetService targetService
+    ) throws InterruptedException {
         CountDownLatch latch = new CountDownLatch(1);
         final SegmentReplicationTarget target = targetService.startReplication(
             replica,
+            primary.getLatestReplicationCheckpoint(),
             new SegmentReplicationTargetService.SegmentReplicationListener() {
                 @Override
                 public void onReplicationDone(SegmentReplicationState state) {

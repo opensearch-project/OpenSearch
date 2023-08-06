@@ -11,7 +11,7 @@ package org.opensearch.extensions.settings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.SettingsModule;
 import org.opensearch.extensions.AcknowledgedResponse;
-import org.opensearch.transport.TransportResponse;
+import org.opensearch.core.transport.TransportResponse;
 
 import java.util.ArrayList;
 import java.util.List;

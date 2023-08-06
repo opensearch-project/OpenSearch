@@ -6,5 +6,5 @@
  * compatible open source license.
  */
 
-/** Base Transport utility package. */
-package org.opensearch.common.transport;
+/** Common / Base Transport classes used to implement the OpenSearch transport layer */
+package org.opensearch.core.common.transport;

@@ -40,7 +40,6 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.opensearch.core.common.ParsingException;
-import org.opensearch.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -521,20 +520,19 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
     }
 
     public void testWeight1fStillProducesWeightFunction() throws IOException {
-        String queryString = Strings.toString(
-            jsonBuilder().startObject()
-                .startObject("function_score")
-                .startArray("functions")
-                .startObject()
-                .startObject("field_value_factor")
-                .field("field", INT_FIELD_NAME)
-                .endObject()
-                .field("weight", 1.0)
-                .endObject()
-                .endArray()
-                .endObject()
-                .endObject()
-        );
+        String queryString = jsonBuilder().startObject()
+            .startObject("function_score")
+            .startArray("functions")
+            .startObject()
+            .startObject("field_value_factor")
+            .field("field", INT_FIELD_NAME)
+            .endObject()
+            .field("weight", 1.0)
+            .endObject()
+            .endArray()
+            .endObject()
+            .endObject()
+            .toString();
         QueryBuilder query = parseQuery(queryString);
         assertThat(query, instanceOf(FunctionScoreQueryBuilder.class));
         FunctionScoreQueryBuilder functionScoreQueryBuilder = (FunctionScoreQueryBuilder) query;
@@ -561,36 +559,34 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
     }
 
     public void testProperErrorMessagesForMisplacedWeightsAndFunctions() throws IOException {
-        String query = Strings.toString(
-            jsonBuilder().startObject()
-                .startObject("function_score")
-                .startArray("functions")
-                .startObject()
-                .startObject("script_score")
-                .field("script", "3")
-                .endObject()
-                .endObject()
-                .endArray()
-                .field("weight", 2)
-                .endObject()
-                .endObject()
-        );
+        String query = jsonBuilder().startObject()
+            .startObject("function_score")
+            .startArray("functions")
+            .startObject()
+            .startObject("script_score")
+            .field("script", "3")
+            .endObject()
+            .endObject()
+            .endArray()
+            .field("weight", 2)
+            .endObject()
+            .endObject()
+            .toString();
         expectParsingException(
             query,
             "[you can either define [functions] array or a single function, not both. already "
                 + "found [functions] array, now encountering [weight].]"
         );
-        query = Strings.toString(
-            jsonBuilder().startObject()
-                .startObject("function_score")
-                .field("weight", 2)
-                .startArray("functions")
-                .startObject()
-                .endObject()
-                .endArray()
-                .endObject()
-                .endObject()
-        );
+        query = jsonBuilder().startObject()
+            .startObject("function_score")
+            .field("weight", 2)
+            .startArray("functions")
+            .startObject()
+            .endObject()
+            .endArray()
+            .endObject()
+            .endObject()
+            .toString();
         expectParsingException(
             query,
             "[you can either define [functions] array or a single function, not both. already found "
