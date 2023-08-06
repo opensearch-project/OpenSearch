@@ -36,7 +36,7 @@ import org.opensearch.action.admin.indices.stats.IndexStats.IndexStatsBuilder;
 import org.opensearch.core.action.support.DefaultShardOperationFailedException;
 import org.opensearch.action.support.broadcast.BroadcastResponse;
 import org.opensearch.cluster.routing.ShardRouting;
-import org.opensearch.common.Strings;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.common.xcontent.XContentType;

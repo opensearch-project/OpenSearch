@@ -33,7 +33,6 @@
 package org.opensearch.script;
 
 import org.opensearch.OpenSearchException;
-import org.opensearch.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.ToXContent;
@@ -165,7 +164,7 @@ public class ScriptException extends OpenSearchException {
             json.startObject();
             toXContent(json, ToXContent.EMPTY_PARAMS);
             json.endObject();
-            return Strings.toString(json);
+            return json.toString();
         } catch (IOException e) {
             throw new RuntimeException(e);
         }

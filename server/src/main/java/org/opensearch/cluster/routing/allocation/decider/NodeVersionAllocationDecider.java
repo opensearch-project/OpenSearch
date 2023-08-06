@@ -32,12 +32,18 @@
 
 package org.opensearch.cluster.routing.allocation.decider;
 
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.opensearch.cluster.routing.RoutingNode;
 import org.opensearch.cluster.routing.RoutingNodes;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.indices.replication.common.ReplicationType;
+
+import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * An allocation decider that prevents relocation or allocation from nodes
@@ -52,9 +58,35 @@ public class NodeVersionAllocationDecider extends AllocationDecider {
 
     public static final String NAME = "node_version";
 
+    private final ReplicationType replicationType;
+
+    public NodeVersionAllocationDecider(Settings settings) {
+        replicationType = IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.get(settings);
+    }
+
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         if (shardRouting.primary()) {
+            if (replicationType == ReplicationType.SEGMENT) {
+                List<ShardRouting> replicas = allocation.routingNodes()
+                    .assignedShards(shardRouting.shardId())
+                    .stream()
+                    .filter(shr -> !shr.primary() && shr.active())
+                    .collect(Collectors.toList());
+                for (ShardRouting replica : replicas) {
+                    // can not allocate if target node version > any existing replica version
+                    RoutingNode replicaNode = allocation.routingNodes().node(replica.currentNodeId());
+                    if (node.node().getVersion().after(replicaNode.node().getVersion())) {
+                        return allocation.decision(
+                            Decision.NO,
+                            NAME,
+                            "When segment replication is enabled, cannot relocate primary shard to a node with version [%s] if it has a replica on older version [%s]",
+                            node.node().getVersion(),
+                            replicaNode.node().getVersion()
+                        );
+                    }
+                }
+            }
             if (shardRouting.currentNodeId() == null) {
                 if (shardRouting.recoverySource() != null && shardRouting.recoverySource().getType() == RecoverySource.Type.SNAPSHOT) {
                     // restoring from a snapshot - check that the node can handle the version

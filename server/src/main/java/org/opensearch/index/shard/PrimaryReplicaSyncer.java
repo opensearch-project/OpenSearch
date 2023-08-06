@@ -39,8 +39,8 @@ import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.resync.ResyncReplicationRequest;
 import org.opensearch.action.resync.ResyncReplicationResponse;
 import org.opensearch.action.resync.TransportResyncReplicationAction;
-import org.opensearch.common.Strings;
 import org.opensearch.common.inject.Inject;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 

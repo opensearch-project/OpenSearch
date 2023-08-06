@@ -56,7 +56,6 @@ import org.opensearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.Strings;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.IndexScopedSettings;
@@ -671,7 +670,11 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
                 false,
                 new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings())
             );
-            validateIndexName(checkerService, "index?name", "must not contain the following characters " + Strings.INVALID_FILENAME_CHARS);
+            validateIndexName(
+                checkerService,
+                "index?name",
+                "must not contain the following characters " + org.opensearch.core.common.Strings.INVALID_FILENAME_CHARS
+            );
 
             validateIndexName(checkerService, "index#name", "must not contain '#'");
 
@@ -1556,18 +1559,17 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
 
     private CompressedXContent createMapping(String fieldName, String fieldType) {
         try {
-            final String mapping = Strings.toString(
-                XContentFactory.jsonBuilder()
-                    .startObject()
-                    .startObject(MapperService.SINGLE_MAPPING_NAME)
-                    .startObject("properties")
-                    .startObject(fieldName)
-                    .field("type", fieldType)
-                    .endObject()
-                    .endObject()
-                    .endObject()
-                    .endObject()
-            );
+            final String mapping = XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject(MapperService.SINGLE_MAPPING_NAME)
+                .startObject("properties")
+                .startObject(fieldName)
+                .field("type", fieldType)
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                .toString();
 
             return new CompressedXContent(mapping);
         } catch (IOException e) {

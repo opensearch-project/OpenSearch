@@ -35,7 +35,7 @@ package org.opensearch.action.search;
 import org.apache.lucene.search.TotalHits;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.Strings;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;

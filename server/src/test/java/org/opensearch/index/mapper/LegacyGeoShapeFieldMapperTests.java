@@ -38,12 +38,12 @@ import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.Explicit;
-import org.opensearch.common.Strings;
 import org.opensearch.common.geo.GeoUtils;
 import org.opensearch.common.geo.ShapeRelation;
 import org.opensearch.common.geo.SpatialStrategy;
 import org.opensearch.common.geo.builders.ShapeBuilder;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.geometry.Point;
@@ -139,7 +139,7 @@ public class LegacyGeoShapeFieldMapperTests extends FieldMapperTestCase2<LegacyG
         DocumentMapper mapper = createDocumentMapper(mapping);
         Mapper fieldMapper = mapper.mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(LegacyGeoShapeFieldMapper.class));
-        assertEquals(Strings.toString(mapping), mapper.mappingSource().toString());
+        assertEquals(mapping.toString(), mapper.mappingSource().toString());
 
         LegacyGeoShapeFieldMapper geoShapeFieldMapper = (LegacyGeoShapeFieldMapper) fieldMapper;
         assertThat(geoShapeFieldMapper.fieldType().tree(), equalTo(LegacyGeoShapeFieldMapper.DeprecatedParameters.Defaults.TREE));

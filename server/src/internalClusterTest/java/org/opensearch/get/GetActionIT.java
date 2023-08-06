@@ -45,12 +45,12 @@ import org.opensearch.action.get.MultiGetResponse;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.core.action.support.DefaultShardOperationFailedException;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.Strings;
-import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.index.engine.VersionConflictEngineException;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.core.rest.RestStatus;
@@ -288,17 +288,16 @@ public class GetActionIT extends OpenSearchIntegTestCase {
     }
 
     public void testGetDocWithMultivaluedFields() throws Exception {
-        String mapping1 = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("properties")
-                .startObject("field")
-                .field("type", "text")
-                .field("store", true)
-                .endObject()
-                .endObject()
-                .endObject()
-        );
+        String mapping1 = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("field")
+            .field("type", "text")
+            .field("store", true)
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
         assertAcked(prepareCreate("test").setMapping(mapping1));
         ensureGreen();
 

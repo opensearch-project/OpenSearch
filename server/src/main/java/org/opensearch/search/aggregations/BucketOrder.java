@@ -31,7 +31,7 @@
 
 package org.opensearch.search.aggregations;
 
-import org.opensearch.common.Strings;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.common.xcontent.XContentType;

@@ -40,14 +40,14 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.core.ParseField;
-import org.opensearch.common.Strings;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.core.common.text.Text;
 import org.opensearch.common.unit.DistanceUnit;
-import org.opensearch.common.util.CollectionUtils;
+import org.opensearch.core.common.util.CollectionUtils;
 import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedObjectNotFoundException;
@@ -127,11 +127,11 @@ public abstract class BaseXContentTestCase extends OpenSearchTestCase {
     public void testStartEndObject() throws IOException {
         expectUnclosedException(() -> BytesReference.bytes(builder().startObject()));
         expectUnclosedException(() -> builder().startObject().close());
-        expectUnclosedException(() -> Strings.toString(builder().startObject()));
+        expectUnclosedException(() -> builder().startObject().toString());
 
         expectObjectException(() -> BytesReference.bytes(builder().endObject()));
         expectObjectException(() -> builder().endObject().close());
-        expectObjectException(() -> Strings.toString(builder().endObject()));
+        expectObjectException(() -> builder().endObject().toString());
 
         expectValueException(() -> builder().startObject("foo").endObject());
         expectNonNullFieldException(() -> builder().startObject().startObject(null));
@@ -148,11 +148,11 @@ public abstract class BaseXContentTestCase extends OpenSearchTestCase {
     public void testStartEndArray() throws IOException {
         expectUnclosedException(() -> BytesReference.bytes(builder().startArray()));
         expectUnclosedException(() -> builder().startArray().close());
-        expectUnclosedException(() -> Strings.toString(builder().startArray()));
+        expectUnclosedException(() -> builder().startArray().toString());
 
         expectArrayException(() -> BytesReference.bytes(builder().endArray()));
         expectArrayException(() -> builder().endArray().close());
-        expectArrayException(() -> Strings.toString(builder().endArray()));
+        expectArrayException(() -> builder().endArray().toString());
 
         expectValueException(() -> builder().startArray("foo").endObject());
         expectFieldException(() -> builder().startObject().startArray().endArray().endObject());
