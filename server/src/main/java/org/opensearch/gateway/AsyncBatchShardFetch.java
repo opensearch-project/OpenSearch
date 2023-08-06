@@ -29,6 +29,6 @@ public abstract class AsyncBatchShardFetch<T extends BaseNodeResponse> implement
      * An action that lists the relevant shard data that needs to be fetched.
      */
     public interface Lister<NodesResponse extends BaseNodesResponse<NodeResponse>, NodeResponse extends BaseNodeResponse> {
-        void list(DiscoveryNode[] nodes, Map<ShardId, String> shardIdsWithCustomDataPath, ActionListener<NodesResponse> listener);
+        void list(DiscoveryNode[] nodes, Map<ShardId, String> shardToCustomDataPath, ActionListener<NodesResponse> listener);
     }
 }

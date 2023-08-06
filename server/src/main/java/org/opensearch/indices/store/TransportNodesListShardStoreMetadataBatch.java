@@ -142,8 +142,11 @@ public class TransportNodesListShardStoreMetadataBatch extends TransportNodesAct
     }
 
     /**
-     * This method is similar to listStoreMetadata method of {@link TransportNodesListShardStoreMetadata}
-     * In this case we fetch the shard store files for batch of shards instead of one shard.
+     * This method is similar to listStoreMetadata method of {@link TransportNodesListShardStoreMetadata} we loop over
+     * the shards here and populate the data about the shard store information held by the local node.
+     *
+     * @param request Request containing the map shardIdsWithCustomDataPath.
+     * @return NodeStoreFilesMetadata contains the data about the shard store held by the local node
      */
     private Map<ShardId, NodeStoreFilesMetadata> listStoreMetadata(NodeRequest request) throws IOException {
         Map<ShardId, NodeStoreFilesMetadata> shardStoreMetadataMap = new HashMap<ShardId, NodeStoreFilesMetadata>();
