@@ -24,11 +24,16 @@ import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.engine.InternalEngineFactory;
+import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.remote.RemoteRefreshSegmentPressureService;
 import org.opensearch.index.remote.RemoteSegmentTransferTracker;
+import org.opensearch.index.store.RemoteDirectory;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
+import org.opensearch.index.store.RemoteSegmentStoreDirectory.MetadataFilenameUtils;
 import org.opensearch.index.store.Store;
+import org.opensearch.index.store.lockmanager.RemoteStoreLockManager;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.threadpool.ThreadPool;
@@ -44,8 +49,12 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
+import static org.opensearch.test.RemoteStoreTestUtils.createMetadataFileBytes;
+import static org.opensearch.test.RemoteStoreTestUtils.getDummyMetadata;
 
 public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
     private IndexShard indexShard;
@@ -77,11 +86,8 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         );
         remoteRefreshSegmentPressureService = new RemoteRefreshSegmentPressureService(clusterService, Settings.EMPTY);
         remoteRefreshSegmentPressureService.afterIndexShardCreated(indexShard);
-        remoteStoreRefreshListener = new RemoteStoreRefreshListener(
-            indexShard,
-            SegmentReplicationCheckpointPublisher.EMPTY,
-            remoteRefreshSegmentPressureService.getRemoteRefreshSegmentTracker(indexShard.shardId())
-        );
+        RemoteSegmentTransferTracker tracker = remoteRefreshSegmentPressureService.getRemoteRefreshSegmentTracker(indexShard.shardId());
+        remoteStoreRefreshListener = new RemoteStoreRefreshListener(indexShard, SegmentReplicationCheckpointPublisher.EMPTY, tracker);
     }
 
     private void indexDocs(int startDocId, int numberOfDocs) throws IOException {
@@ -96,6 +102,70 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         ((BaseDirectoryWrapper) storeDirectory).setCheckIndexOnClose(false);
         closeShards(indexShard);
         super.tearDown();
+    }
+
+    public void testRemoteDirectoryInitThrowsException() throws IOException {
+        // Methods used in the constructor of RemoteSegmentTrackerListener have been mocked to reproduce specific exceptions
+        // to test the failure modes possible during construction of RemoteSegmentTrackerListener object.
+        Settings indexSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
+            .put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            .build();
+        indexShard = newStartedShard(false, indexSettings, new NRTReplicationEngineFactory());
+
+        // Mocking the IndexShard methods and dependent classes.
+        ShardId shardId = new ShardId("index1", "_na_", 1);
+        IndexShard shard = mock(IndexShard.class);
+        Store store = mock(Store.class);
+        Directory directory = mock(Directory.class);
+        ShardRouting shardRouting = mock(ShardRouting.class);
+        when(shard.store()).thenReturn(store);
+        when(store.directory()).thenReturn(directory);
+        when(shard.shardId()).thenReturn(shardId);
+        when(shard.routingEntry()).thenReturn(shardRouting);
+        when(shardRouting.primary()).thenReturn(true);
+        when(shard.getThreadPool()).thenReturn(mock(ThreadPool.class));
+
+        // Mock the Store, Directory and RemoteSegmentStoreDirectory classes
+        Store remoteStore = mock(Store.class);
+        when(shard.remoteStore()).thenReturn(remoteStore);
+        RemoteDirectory remoteMetadataDirectory = mock(RemoteDirectory.class);
+        AtomicLong listFilesCounter = new AtomicLong();
+
+        // Below we are trying to get the IOException thrown in the constructor of the RemoteSegmentStoreDirectory.
+        doAnswer(invocation -> {
+            if (listFilesCounter.incrementAndGet() <= 1) {
+                return Collections.singletonList("dummy string");
+            }
+            throw new IOException();
+        }).when(remoteMetadataDirectory).listFilesByPrefixInLexicographicOrder(MetadataFilenameUtils.METADATA_PREFIX, 1);
+
+        SegmentInfos segmentInfos;
+        try (Store indexShardStore = indexShard.store()) {
+            segmentInfos = indexShardStore.readLastCommittedSegmentsInfo();
+        }
+
+        when(remoteMetadataDirectory.openInput(any(), any())).thenAnswer(
+            I -> createMetadataFileBytes(getDummyMetadata("_0", 1), indexShard.getLatestReplicationCheckpoint(), segmentInfos)
+        );
+        RemoteSegmentStoreDirectory remoteSegmentStoreDirectory = new RemoteSegmentStoreDirectory(
+            mock(RemoteDirectory.class),
+            remoteMetadataDirectory,
+            mock(RemoteStoreLockManager.class),
+            mock(ThreadPool.class)
+        );
+        FilterDirectory remoteStoreFilterDirectory = new RemoteStoreRefreshListenerTests.TestFilterDirectory(
+            new RemoteStoreRefreshListenerTests.TestFilterDirectory(remoteSegmentStoreDirectory)
+        );
+        when(remoteStore.directory()).thenReturn(remoteStoreFilterDirectory);
+
+        // Since the thrown IOException is caught in the constructor, ctor should be invoked successfully.
+        new RemoteStoreRefreshListener(shard, SegmentReplicationCheckpointPublisher.EMPTY, mock(RemoteSegmentTransferTracker.class));
+
+        // Validate that the openInput method of remoteMetadataDirectory has been opened only once and the
+        // listFilesByPrefixInLexicographicOrder has been called twice.
+        verify(remoteMetadataDirectory, times(1)).openInput(any(), any());
+        verify(remoteMetadataDirectory, times(2)).listFilesByPrefixInLexicographicOrder(MetadataFilenameUtils.METADATA_PREFIX, 1);
     }
 
     public void testAfterRefresh() throws IOException {
@@ -433,7 +503,7 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         AtomicLong counter = new AtomicLong();
         // Mock indexShard.getSegmentInfosSnapshot()
         doAnswer(invocation -> {
-            if (counter.incrementAndGet() <= succeedOnAttempt - 1) {
+            if (counter.incrementAndGet() <= succeedOnAttempt) {
                 throw new RuntimeException("Inducing failure in upload");
             }
             return indexShard.getSegmentInfosSnapshot();
@@ -470,11 +540,8 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         when(shard.indexSettings()).thenReturn(indexShard.indexSettings());
         when(shard.shardId()).thenReturn(indexShard.shardId());
         remoteRefreshSegmentPressureService.afterIndexShardCreated(shard);
-        RemoteStoreRefreshListener refreshListener = new RemoteStoreRefreshListener(
-            shard,
-            emptyCheckpointPublisher,
-            remoteRefreshSegmentPressureService.getRemoteRefreshSegmentTracker(indexShard.shardId())
-        );
+        RemoteSegmentTransferTracker tracker = remoteRefreshSegmentPressureService.getRemoteRefreshSegmentTracker(indexShard.shardId());
+        RemoteStoreRefreshListener refreshListener = new RemoteStoreRefreshListener(shard, emptyCheckpointPublisher, tracker);
         refreshListener.afterRefresh(true);
         return Tuple.tuple(refreshListener, remoteRefreshSegmentPressureService);
     }
