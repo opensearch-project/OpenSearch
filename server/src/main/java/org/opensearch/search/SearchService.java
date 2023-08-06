@@ -53,8 +53,8 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.CheckedSupplier;
 import org.opensearch.common.UUIDs;
-import org.opensearch.common.breaker.CircuitBreaker;
-import org.opensearch.common.component.AbstractLifecycleComponent;
+import org.opensearch.core.common.breaker.CircuitBreaker;
+import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.common.lucene.Lucene;
@@ -87,7 +87,7 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.SearchOperationListener;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.indices.IndicesService;
-import org.opensearch.indices.breaker.CircuitBreakerService;
+import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
 import org.opensearch.node.ResponseCollectorService;
 import org.opensearch.script.FieldScript;
@@ -1270,7 +1270,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             context.minimumScore(source.minScore());
         }
         if (source.profile()) {
-            context.setProfilers(new Profilers(context.searcher()));
+            context.setProfilers(new Profilers(context.searcher(), context.isConcurrentSegmentSearchEnabled()));
         }
         if (source.timeout() != null) {
             context.timeout(source.timeout());

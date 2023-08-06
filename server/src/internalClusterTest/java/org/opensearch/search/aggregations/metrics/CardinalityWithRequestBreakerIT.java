@@ -35,7 +35,7 @@ package org.opensearch.search.aggregations.metrics;
 import org.opensearch.OpenSearchException;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.index.IndexRequestBuilder;
-import org.opensearch.common.breaker.CircuitBreakingException;
+import org.opensearch.core.common.breaker.CircuitBreakingException;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.opensearch.search.aggregations.Aggregator;

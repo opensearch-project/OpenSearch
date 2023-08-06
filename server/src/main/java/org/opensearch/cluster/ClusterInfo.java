@@ -34,7 +34,7 @@ package org.opensearch.cluster;
 
 import org.opensearch.Version;
 import org.opensearch.cluster.routing.ShardRouting;
-import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -110,7 +110,7 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
         this.shardSizes = Collections.unmodifiableMap(sizeMap);
         this.routingToDataPath = Collections.unmodifiableMap(routingMap);
         this.reservedSpace = Collections.unmodifiableMap(reservedSpaceMap);
-        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_2_10_0)) {
             this.nodeFileCacheStats = in.readMap(StreamInput::readString, FileCacheStats::new);
         } else {
             this.nodeFileCacheStats = Map.of();
@@ -124,7 +124,7 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
         out.writeMap(this.shardSizes, StreamOutput::writeString, (o, v) -> out.writeLong(v == null ? -1 : v));
         out.writeMap(this.routingToDataPath, (o, k) -> k.writeTo(o), StreamOutput::writeString);
         out.writeMap(this.reservedSpace, (o, v) -> v.writeTo(o), (o, v) -> v.writeTo(o));
-        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_2_10_0)) {
             out.writeMap(this.nodeFileCacheStats, StreamOutput::writeString, (o, v) -> v.writeTo(o));
         }
     }

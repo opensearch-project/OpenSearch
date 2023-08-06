@@ -32,7 +32,7 @@
 package org.opensearch.search.aggregations;
 
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.breaker.CircuitBreaker;
+import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.common.settings.Setting;

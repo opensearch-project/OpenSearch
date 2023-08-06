@@ -33,9 +33,9 @@
 package org.opensearch.transport;
 
 import org.opensearch.Version;
-import org.opensearch.common.breaker.CircuitBreaker;
-import org.opensearch.common.breaker.CircuitBreakingException;
-import org.opensearch.common.breaker.NoopCircuitBreaker;
+import org.opensearch.core.common.breaker.CircuitBreaker;
+import org.opensearch.core.common.breaker.CircuitBreakingException;
+import org.opensearch.core.common.breaker.NoopCircuitBreaker;
 import org.opensearch.common.breaker.TestCircuitBreaker;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;

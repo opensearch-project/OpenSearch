@@ -79,7 +79,7 @@ import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.Strings;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Assert;
-import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.core.common.unit.ByteSizeValue;
 
 import java.io.IOException;
 import java.util.Arrays;
