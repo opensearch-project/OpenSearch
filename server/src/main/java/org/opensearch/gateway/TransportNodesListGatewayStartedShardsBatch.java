@@ -48,7 +48,7 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * This transport action is used to fetch  all unassigned shard version from each node during primary allocation in {@link GatewayAllocator}.
+ * This transport action is used to fetch batch of unassigned shard version from each node during primary allocation in {@link GatewayAllocator}.
  * We use this to find out which node holds the latest shard version and which of them used to be a primary in order to allocate
  * shards after node or cluster restarts.
  *
@@ -132,11 +132,11 @@ public class TransportNodesListGatewayStartedShardsBatch extends TransportNodesA
     }
 
     /**
-     * This function is similar to nodeoperation method of {@link TransportNodesListGatewayStartedShards} we loop over
-     * the shards here to fetch the shard result in bulk.
+     * This function is similar to nodeOperation method of {@link TransportNodesListGatewayStartedShards} we loop over
+     * the shards here and populate the data about the shards held by the local node.
      *
-     * @param request
-     * @return NodeGatewayStartedShardsBatch
+     * @param request Request containing the map shardIdsWithCustomDataPath.
+     * @return NodeGatewayStartedShardsBatch contains the data about the primary shards held by the local node
      */
     @Override
     protected NodeGatewayStartedShardsBatch nodeOperation(NodeRequest request) {
