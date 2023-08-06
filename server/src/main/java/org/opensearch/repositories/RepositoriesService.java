@@ -455,6 +455,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                             || previousMetadata.settings().equals(repositoryMetadata.settings()) == false) {
                             // Previous version is different from the version in settings
                             logger.debug("updating repository [{}]", repositoryMetadata.name());
+                            closeRepository(repository);
                             archiveRepositoryStats(repository, state.version());
                             repository = null;
                             try {
