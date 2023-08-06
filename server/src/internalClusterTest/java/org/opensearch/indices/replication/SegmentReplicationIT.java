@@ -1347,7 +1347,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         waitForSearchableDocs(2, nodes);
     }
 
-    public void testSimpleDFSQueryWithSegmentReplication() throws Exception {
+    public void testIndexWhileRecoveringReplica() throws Exception {
         final String primaryNode = internalCluster().startDataOnlyNode();
         assertAcked(
             prepareCreate(INDEX_NAME).setMapping(
