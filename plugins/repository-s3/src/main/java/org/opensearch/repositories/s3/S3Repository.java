@@ -62,6 +62,7 @@ import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.snapshots.SnapshotInfo;
 import org.opensearch.threadpool.Scheduler;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -391,9 +392,9 @@ class S3Repository extends MeteredBlobStoreRepository {
     }
 
     @Override
-    public List<Setting> restrictedSystemRepositorySettings() {
-        List<Setting> restrictedSystemRepositorySettings = super.restrictedSystemRepositorySettings();
-        restrictedSystemRepositorySettings.addAll(List.of(BUCKET_SETTING, BASE_PATH_SETTING));
+    public List<Setting<?>> restrictedSystemRepositorySettings() {
+        List<Setting<?>> restrictedSystemRepositorySettings = super.restrictedSystemRepositorySettings();
+        restrictedSystemRepositorySettings.addAll(Arrays.asList(BUCKET_SETTING, BASE_PATH_SETTING));
         return Collections.unmodifiableList(restrictedSystemRepositorySettings);
     }
 

@@ -145,6 +145,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -798,8 +799,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * @return the list of settings
      */
     @Override
-    public List<Setting> restrictedSystemRepositorySettings() {
-        List<Setting> settings = List.of(SYSTEM_REPOSITORY_SETTING, REMOTE_STORE_INDEX_SHALLOW_COPY);
+    public List<Setting<?>> restrictedSystemRepositorySettings() {
+        List<Setting<?>> settings = Arrays.asList(SYSTEM_REPOSITORY_SETTING, REMOTE_STORE_INDEX_SHALLOW_COPY);
         return settings;
     }
 

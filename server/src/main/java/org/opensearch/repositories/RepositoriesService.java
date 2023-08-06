@@ -279,7 +279,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     ) {
         if (SYSTEM_REPOSITORY_SETTING.get(currentRepositoryMetadata.settings())) {
             Repository repository = repositories.get(currentRepositoryMetadata.name());
-            for (Setting setting : repository.restrictedSystemRepositorySettings()) {
+            for (Setting<?> setting : repository.restrictedSystemRepositorySettings()) {
                 if (newRepositoryMetadata.settings().get(setting.getKey()) != null) {
                     throw new RepositoryException(
                         repository.getMetadata().name(),

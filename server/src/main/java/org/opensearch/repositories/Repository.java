@@ -355,7 +355,7 @@ public interface Repository extends LifecycleComponent {
      * Returns the list of restricted system repository settings that cannot be mutated once repository is created*
      * @return the list of settings
      */
-    default List<Setting> restrictedSystemRepositorySettings() {
+    default List<Setting<?>> restrictedSystemRepositorySettings() {
         return Collections.emptyList();
     }
 
