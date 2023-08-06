@@ -44,7 +44,6 @@ import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.SecureSetting;
-import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.settings.SecureString;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.core.common.unit.ByteSizeUnit;
