@@ -82,7 +82,6 @@ import java.util.regex.Pattern;
 
 import static org.opensearch.index.shard.RemoveCorruptedShardDataCommand.TRUNCATE_CLEAN_TRANSLOG_FLAG;
 import static org.hamcrest.Matchers.allOf;
-import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
@@ -294,10 +293,11 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         allowShardFailures();
         // it has to fail on start up due to index.shard.check_on_startup = checksum
         final Exception exception = expectThrows(Exception.class, () -> newStartedShard(p -> corruptedShard, true));
-        final Throwable cause = exception.getCause() instanceof TranslogException ? exception.getCause().getCause() : exception.getCause();
         // if corruption is in engine UUID in header, the TranslogCorruptedException is caught and rethrown as
-        // EngineCreationFailureException
-        assertThat(cause, anyOf(instanceOf(TranslogCorruptedException.class), instanceOf(EngineCreationFailureException.class)));
+        // EngineCreationFailureException rather than TranslogException
+        final Throwable cause = (exception.getCause() instanceof TranslogException
+            || exception.getCause() instanceof EngineCreationFailureException) ? exception.getCause().getCause() : exception.getCause();
+        assertThat(cause, instanceOf(TranslogCorruptedException.class));
 
         closeShard(corruptedShard, false); // translog is corrupted already - do not check consistency
 
