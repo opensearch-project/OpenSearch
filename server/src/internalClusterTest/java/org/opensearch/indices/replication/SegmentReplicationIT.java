@@ -91,10 +91,14 @@ import static org.opensearch.action.search.SearchContextId.decode;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
 import static org.opensearch.index.query.QueryBuilders.matchQuery;
+import static org.opensearch.index.query.QueryBuilders.termQuery;
+import static org.opensearch.index.query.QueryBuilders.boolQuery;
+import static org.opensearch.index.query.QueryBuilders.rangeQuery;
 import static org.opensearch.indices.replication.SegmentReplicationTarget.REPLICATION_PREFIX;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAllSuccessful;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchHits;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
@@ -1348,5 +1352,77 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         }
         ensureGreen(INDEX_NAME);
         waitForSearchableDocs(2, nodes);
+    }
+
+    public void testIndexWhileRecoveringReplica() throws Exception {
+        final String primaryNode = internalCluster().startDataOnlyNode();
+        assertAcked(
+            prepareCreate(INDEX_NAME).setMapping(
+                jsonBuilder().startObject()
+                    .startObject("_routing")
+                    .field("required", true)
+                    .endObject()
+                    .startObject("properties")
+                    .startObject("online")
+                    .field("type", "boolean")
+                    .endObject()
+                    .startObject("ts")
+                    .field("type", "date")
+                    .field("ignore_malformed", false)
+                    .field("format", "epoch_millis")
+                    .endObject()
+                    .startObject("bs")
+                    .field("type", "keyword")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+        );
+        ensureYellow(INDEX_NAME);
+        final String replicaNode = internalCluster().startDataOnlyNode();
+
+        client().prepareIndex(INDEX_NAME)
+            .setId("1")
+            .setRouting("Y")
+            .setSource("online", false, "bs", "Y", "ts", System.currentTimeMillis() - 100, "type", "s")
+            .get();
+        client().prepareIndex(INDEX_NAME)
+            .setId("2")
+            .setRouting("X")
+            .setSource("online", true, "bs", "X", "ts", System.currentTimeMillis() - 10000000, "type", "s")
+            .get();
+        client().prepareIndex(INDEX_NAME)
+            .setId("3")
+            .setRouting(randomAlphaOfLength(2))
+            .setSource("online", false, "ts", System.currentTimeMillis() - 100, "type", "bs")
+            .get();
+        client().prepareIndex(INDEX_NAME)
+            .setId("4")
+            .setRouting(randomAlphaOfLength(2))
+            .setSource("online", true, "ts", System.currentTimeMillis() - 123123, "type", "bs")
+            .get();
+        refresh();
+        ensureGreen(INDEX_NAME);
+        waitForSearchableDocs(4, primaryNode, replicaNode);
+
+        SearchResponse response = client().prepareSearch(INDEX_NAME)
+            .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
+            .setQuery(
+                boolQuery().must(termQuery("online", true))
+                    .must(
+                        boolQuery().should(
+                            boolQuery().must(rangeQuery("ts").lt(System.currentTimeMillis() - (15 * 1000))).must(termQuery("type", "bs"))
+                        )
+                            .should(
+                                boolQuery().must(rangeQuery("ts").lt(System.currentTimeMillis() - (15 * 1000))).must(termQuery("type", "s"))
+                            )
+                    )
+            )
+            .setVersion(true)
+            .setFrom(0)
+            .setSize(100)
+            .setExplain(true)
+            .get();
+        assertNoFailures(response);
     }
 }
