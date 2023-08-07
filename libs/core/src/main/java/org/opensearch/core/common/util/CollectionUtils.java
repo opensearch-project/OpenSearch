@@ -134,6 +134,7 @@ public class CollectionUtils {
         }
     }
 
+    @SuppressWarnings("unchecked")
     private static Iterable<?> convert(Object value) {
         if (value == null) {
             return null;
