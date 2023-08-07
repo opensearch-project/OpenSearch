@@ -35,6 +35,7 @@ package org.opensearch.repositories;
 import org.opensearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.fs.FsRepository;
@@ -44,6 +45,7 @@ import org.opensearch.test.InternalTestCluster;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
@@ -152,5 +154,23 @@ public class RepositoriesServiceIT extends OpenSearchIntegTestCase {
         );
         assertThrows(RepositoryException.class, () -> repositoriesService.getSystemRepository(repositoryName));
         assertThat(repositoriesService.repository(repositoryName), instanceOf(FsRepository.class));
+    }
+
+    public void testRestrictedSystemSettings() {
+        final InternalTestCluster cluster = internalCluster();
+        final String repositoryName = "test-repo";
+        final Client client = client();
+
+        final RepositoriesService repositoriesService = cluster.getDataOrClusterManagerNodeInstances(RepositoriesService.class)
+            .iterator()
+            .next();
+        final Settings.Builder repoSettings = Settings.builder().put("location", randomRepoPath());
+
+        assertAcked(
+            client.admin().cluster().preparePutRepository(repositoryName).setType(FsRepository.TYPE).setSettings(repoSettings).get()
+        );
+        List<Setting<?>> restrictedSettings = repositoriesService.repository(repositoryName).restrictedSystemRepositorySettings();
+        assertThat(restrictedSettings, hasSize(2));
+
     }
 }
