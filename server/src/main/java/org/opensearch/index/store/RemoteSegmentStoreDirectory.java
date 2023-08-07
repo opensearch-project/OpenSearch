@@ -71,9 +71,11 @@ import java.util.zip.CRC32;
  * caller will be accessing segment files in the same way as {@code FSDirectory}. Apart from storing actual segment files,
  * remote segment store also keeps track of refresh checkpoints as metadata in a separate path which is handled by
  * another instance of {@code RemoteDirectory}.
+ *
  * @opensearch.internal
  */
 public final class RemoteSegmentStoreDirectory extends FilterDirectory implements RemoteStoreCommitLevelLockManager {
+
     /**
      * Each segment file is uploaded with unique suffix.
      * For example, _0.cfe in local filesystem will be uploaded to remote segment store as _0.cfe__gX7bNIIBrs0AUNsR2yEG
@@ -140,6 +142,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
      * As this cache is specific to an instance of RemoteSegmentStoreDirectory, it is possible that cache becomes stale
      * if another instance of RemoteSegmentStoreDirectory is used to upload/delete segment files.
      * It is caller's responsibility to call init() again to ensure that cache is properly updated.
+     *
      * @throws IOException if there were any failures in reading the metadata file
      */
     public RemoteSegmentMetadata init() throws IOException {
@@ -157,6 +160,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
      * remote segment store.
      * this is currently used to restore snapshots, where we want to copy segment files from a given commit.
      * TODO: check if we can return read only RemoteSegmentStoreDirectory object from here.
+     *
      * @throws IOException if there were any failures in reading the metadata file
      */
     public RemoteSegmentMetadata initializeToSpecificCommit(long primaryTerm, long commitGeneration) throws IOException {
@@ -177,8 +181,9 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
      * Refresh metadata files keep track of active segments for the shard at the time of refresh.
      * In order to get the list of segment files uploaded to the remote segment store, we need to read the latest metadata file.
      * Each metadata file contains a map where
-     *      Key is - Segment local filename and
-     *      Value is - local filename::uploaded filename::checksum
+     * Key is - Segment local filename and
+     * Value is - local filename::uploaded filename::checksum
+     *
      * @return Map of segment filename to uploaded filename with checksum
      * @throws IOException if there were any failures in reading the metadata file
      */
@@ -293,7 +298,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
      * Contains utility methods that provide various parts of metadata filename along with comparator
      * Each metadata filename is of format: PREFIX__PrimaryTerm__Generation__UUID
      */
-    static class MetadataFilenameUtils {
+    public static class MetadataFilenameUtils {
         public static final String SEPARATOR = "__";
         public static final String METADATA_PREFIX = "metadata";
 
@@ -342,6 +347,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
      * Any segment file that is uploaded without corresponding metadata file will not be visible as part of listAll().
      * We chose not to return cache entries for listAll as cache can have entries for stale segments as well.
      * Even if we plan to delete stale segments from remote segment store, it will be a periodic operation.
+     *
      * @return segment filenames stored in remote segment store
      * @throws IOException if there were any failures in reading the metadata file
      */
@@ -352,6 +358,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
 
     /**
      * Delete segment file from remote segment store.
+     *
      * @param name the name of an existing segment file in local filesystem.
      * @throws IOException if the file exists but could not be deleted.
      */
@@ -366,8 +373,9 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
 
     /**
      * Returns the byte length of a segment file in the remote segment store.
+     *
      * @param name the name of an existing segment file in local filesystem.
-     * @throws IOException in case of I/O error
+     * @throws IOException         in case of I/O error
      * @throws NoSuchFileException if the file does not exist in the cache or remote segment store
      */
     @Override
@@ -386,6 +394,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
     /**
      * Creates and returns a new instance of {@link RemoteIndexOutput} which will be used to copy files to the remote
      * segment store.
+     *
      * @param name the name of the file to create.
      * @throws IOException in case of I/O error
      */
@@ -396,8 +405,9 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
 
     /**
      * Opens a stream for reading an existing file and returns {@link RemoteIndexInput} enclosing the stream.
+     *
      * @param name the name of an existing file.
-     * @throws IOException in case of I/O error
+     * @throws IOException         in case of I/O error
      * @throws NoSuchFileException if the file does not exist either in cache or remote segment store
      */
     @Override
@@ -416,10 +426,10 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
      * will be used, else, the legacy {@link RemoteSegmentStoreDirectory#copyFrom(Directory, String, String, IOContext)}
      * will be called.
      *
-     * @param from            The directory for the file to be uploaded
-     * @param src             File to be uploaded
-     * @param context         IOContext to be used to open IndexInput of file during remote upload
-     * @param listener        Listener to handle upload callback events
+     * @param from     The directory for the file to be uploaded
+     * @param src      File to be uploaded
+     * @param context  IOContext to be used to open IndexInput of file during remote upload
+     * @param listener Listener to handle upload callback events
      */
     public void copyFrom(Directory from, String src, IOContext context, ActionListener<Void> listener) {
         if (remoteDataDirectory.getBlobContainer() instanceof VerifyingMultiStreamBlobContainer) {
@@ -495,10 +505,11 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
 
     /**
      * This acquires a lock on a given commit by creating a lock file in lock directory using {@code FileLockInfo}
+     *
      * @param primaryTerm Primary Term of index at the time of commit.
-     * @param generation Commit Generation
-     * @param acquirerId Lock Acquirer ID which wants to acquire lock on the commit.
-     * @throws IOException will be thrown in case i) listing file failed or ii) Writing the lock file failed.
+     * @param generation  Commit Generation
+     * @param acquirerId  Lock Acquirer ID which wants to acquire lock on the commit.
+     * @throws IOException         will be thrown in case i) listing file failed or ii) Writing the lock file failed.
      * @throws NoSuchFileException when metadata file is not present for given commit point.
      */
     @Override
@@ -509,10 +520,11 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
 
     /**
      * Releases a lock which was acquired on given segment commit.
+     *
      * @param primaryTerm Primary Term of index at the time of commit.
-     * @param generation Commit Generation
-     * @param acquirerId Acquirer ID for which lock needs to be released.
-     * @throws IOException will be thrown in case i) listing lock files failed or ii) deleting the lock file failed.
+     * @param generation  Commit Generation
+     * @param acquirerId  Acquirer ID for which lock needs to be released.
+     * @throws IOException         will be thrown in case i) listing lock files failed or ii) deleting the lock file failed.
      * @throws NoSuchFileException when metadata file is not present for given commit point.
      */
     @Override
@@ -523,10 +535,11 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
 
     /**
      * Checks if a specific commit have any corresponding lock file.
+     *
      * @param primaryTerm Primary Term of index at the time of commit.
-     * @param generation Commit Generation
+     * @param generation  Commit Generation
      * @return True if there is at least one lock for given primary term and generation.
-     * @throws IOException will be thrown in case listing lock files failed.
+     * @throws IOException         will be thrown in case listing lock files failed.
      * @throws NoSuchFileException when metadata file is not present for given commit point.
      */
     @Override
@@ -590,8 +603,9 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
      * Checks if the file exists in the uploadedSegments cache and the checksum matches.
      * It is important to match the checksum as the same segment filename can be used for different
      * segments due to a concurrency issue.
+     *
      * @param localFilename filename of segment stored in local filesystem
-     * @param checksum checksum of the segment file
+     * @param checksum      checksum of the segment file
      * @return true if file exists in cache and checksum matches.
      */
     public boolean containsFile(String localFilename, String checksum) {
@@ -601,7 +615,8 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
 
     /**
      * Upload metadata file
-     * @param segmentFiles segment files that are part of the shard at the time of the latest refresh
+     *
+     * @param segmentFiles         segment files that are part of the shard at the time of the latest refresh
      * @param segmentInfosSnapshot SegmentInfos bytes to store as part of metadata file
      * @param storeDirectory instance of local directory to temporarily create metadata file before upload
      * @param translogGeneration translog generation
@@ -663,7 +678,8 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
     /**
      * Parses the provided SegmentInfos to retrieve a mapping of the provided segment files to
      * the respective Lucene major version that wrote the segments
-     * @param segmentFiles List of segment files for which the Lucene major version is needed
+     *
+     * @param segmentFiles         List of segment files for which the Lucene major version is needed
      * @param segmentInfosSnapshot SegmentInfos instance to parse
      * @return Map of the segment file to its Lucene major version
      */
@@ -694,6 +710,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
 
     /**
      * Try to delete file from local store. Fails silently on failures
+     *
      * @param filename: name of the file to be deleted
      */
     private void tryAndDeleteLocalFile(String filename, Directory directory) {
@@ -759,6 +776,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
      * Delete stale segment and metadata files
      * One metadata file is kept per commit (refresh updates the same file). To read segments uploaded to remote store,
      * we just need to read the latest metadata file. All the stale metadata files can be safely deleted.
+     *
      * @param lastNMetadataFilesToKeep number of metadata files to keep
      * @throws IOException in case of I/O error while reading from / writing to remote segment store
      */
@@ -844,6 +862,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
     /**
      * Delete stale segment and metadata files asynchronously.
      * This method calls {@link RemoteSegmentStoreDirectory#deleteStaleSegments(int)} in an async manner.
+     *
      * @param lastNMetadataFilesToKeep number of metadata files to keep
      */
     public void deleteStaleSegmentsAsync(int lastNMetadataFilesToKeep, ActionListener<Void> listener) {
