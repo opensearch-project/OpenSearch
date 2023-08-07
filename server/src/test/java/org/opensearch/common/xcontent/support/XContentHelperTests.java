@@ -35,6 +35,7 @@ package org.opensearch.common.xcontent.support;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.core.xcontent.DeprecationHandler;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.ToXContentObject;
@@ -211,7 +212,7 @@ public class XContentHelperTests extends OpenSearchTestCase {
     }
 
     public void testEmbeddedObject() throws IOException {
-        // Need to test this separately as XContentType.JSON never produces VALUE_EMBEDDED_OBJECT
+        // Need to test this separately as MediaTypeRegistry.JSON never produces VALUE_EMBEDDED_OBJECT
         XContentBuilder builder = XContentBuilder.builder(XContentType.CBOR.xContent());
         builder.startObject().startObject("root");
         CompressedXContent embedded = new CompressedXContent("{\"field\":\"value\"}");
@@ -252,7 +253,7 @@ public class XContentHelperTests extends OpenSearchTestCase {
 
         String inputJson = "{ \"mappings\" : {} }";
         try (
-            XContentParser parser = XContentType.JSON.xContent()
+            XContentParser parser = MediaTypeRegistry.JSON.xContent()
                 .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, inputJson)
         ) {
 

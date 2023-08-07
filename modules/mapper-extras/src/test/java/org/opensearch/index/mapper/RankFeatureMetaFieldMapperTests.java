@@ -34,7 +34,6 @@ package org.opensearch.index.mapper;
 
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressedXContent;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.IndexService;
 import org.opensearch.plugins.Plugin;
@@ -91,7 +90,7 @@ public class RankFeatureMetaFieldMapperTests extends OpenSearchSingleNodeTestCas
         );
         MapperParsingException e = expectThrows(
             MapperParsingException.class,
-            () -> mapper.parse(new SourceToParse("test", "1", bytes, XContentType.JSON))
+            () -> mapper.parse(new SourceToParse("test", "1", bytes, MediaTypeRegistry.JSON))
         );
         assertTrue(
             e.getCause().getMessage().contains("Field [" + rfMetaField + "] is a metadata field and cannot be added inside a document.")

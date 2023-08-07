@@ -44,10 +44,10 @@ import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.AnalyzerScope;
@@ -185,11 +185,11 @@ public abstract class MapperServiceTestCase extends OpenSearchTestCase {
         XContentBuilder builder = JsonXContent.contentBuilder().startObject();
         build.accept(builder);
         builder.endObject();
-        return new SourceToParse("test", "1", BytesReference.bytes(builder), XContentType.JSON);
+        return new SourceToParse("test", "1", BytesReference.bytes(builder), MediaTypeRegistry.JSON);
     }
 
     protected final SourceToParse source(String source) {
-        return new SourceToParse("test", "1", new BytesArray(source), XContentType.JSON);
+        return new SourceToParse("test", "1", new BytesArray(source), MediaTypeRegistry.JSON);
     }
 
     /**

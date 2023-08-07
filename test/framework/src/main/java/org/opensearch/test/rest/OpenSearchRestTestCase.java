@@ -65,13 +65,13 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
@@ -607,7 +607,7 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
             deleteRequest.setOptions(allowSystemIndexAccessWarningOptions);
             final Response response = adminClient().performRequest(deleteRequest);
             try (InputStream is = response.getEntity().getContent()) {
-                assertTrue((boolean) XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true).get("acknowledged"));
+                assertTrue((boolean) XContentHelper.convertToMap(MediaTypeRegistry.JSON.xContent(), is, true).get("acknowledged"));
             }
         } catch (ResponseException e) {
             // 404 here just means we had no indexes
@@ -974,7 +974,7 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
 
     protected static void createIndex(String name, Settings settings, String mapping, String aliases) throws IOException {
         Request request = new Request("PUT", "/" + name);
-        String entity = "{\"settings\": " + Strings.toString(XContentType.JSON, settings);
+        String entity = "{\"settings\": " + Strings.toString(MediaTypeRegistry.JSON, settings);
         if (mapping != null) {
             entity += ",\"mappings\" : {" + mapping + "}";
         }
@@ -1000,7 +1000,7 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
 
     private static void updateIndexSettings(String index, Settings settings) throws IOException {
         Request request = new Request("PUT", "/" + index + "/_settings");
-        request.setJsonEntity(Strings.toString(XContentType.JSON, settings));
+        request.setJsonEntity(Strings.toString(MediaTypeRegistry.JSON, settings));
         client().performRequest(request);
     }
 
@@ -1021,7 +1021,7 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
         request.addParameter("flat_settings", "true");
         Response response = client().performRequest(request);
         try (InputStream is = response.getEntity().getContent()) {
-            return XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
+            return XContentHelper.convertToMap(MediaTypeRegistry.JSON.xContent(), is, true);
         }
     }
 
@@ -1088,7 +1088,7 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
     protected static void registerRepository(String repository, String type, boolean verify, Settings settings) throws IOException {
         final Request request = new Request(HttpPut.METHOD_NAME, "_snapshot/" + repository);
         request.addParameter("verify", Boolean.toString(verify));
-        request.setJsonEntity(Strings.toString(XContentType.JSON, new PutRepositoryRequest(repository).type(type).settings(settings)));
+        request.setJsonEntity(Strings.toString(MediaTypeRegistry.JSON, new PutRepositoryRequest(repository).type(type).settings(settings)));
 
         final Response response = client().performRequest(request);
         assertAcked("Failed to create repository [" + repository + "] of type [" + type + "]: " + response, response);

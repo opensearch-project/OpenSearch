@@ -44,7 +44,7 @@ import org.opensearch.action.update.UpdateResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
@@ -60,7 +60,7 @@ public class ShardInfoIT extends OpenSearchIntegTestCase {
 
     public void testIndexAndDelete() throws Exception {
         prepareIndex(1);
-        IndexResponse indexResponse = client().prepareIndex("idx").setSource("{}", XContentType.JSON).get();
+        IndexResponse indexResponse = client().prepareIndex("idx").setSource("{}", MediaTypeRegistry.JSON).get();
         assertShardInfo(indexResponse);
         DeleteResponse deleteResponse = client().prepareDelete("idx", indexResponse.getId()).get();
         assertShardInfo(deleteResponse);
@@ -68,7 +68,7 @@ public class ShardInfoIT extends OpenSearchIntegTestCase {
 
     public void testUpdate() throws Exception {
         prepareIndex(1);
-        UpdateResponse updateResponse = client().prepareUpdate("idx", "1").setDoc("{}", XContentType.JSON).setDocAsUpsert(true).get();
+        UpdateResponse updateResponse = client().prepareUpdate("idx", "1").setDoc("{}", MediaTypeRegistry.JSON).setDocAsUpsert(true).get();
         assertShardInfo(updateResponse);
     }
 
@@ -76,7 +76,7 @@ public class ShardInfoIT extends OpenSearchIntegTestCase {
         prepareIndex(1);
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
         for (int i = 0; i < 10; i++) {
-            bulkRequestBuilder.add(client().prepareIndex("idx").setSource("{}", XContentType.JSON));
+            bulkRequestBuilder.add(client().prepareIndex("idx").setSource("{}", MediaTypeRegistry.JSON));
         }
 
         BulkResponse bulkResponse = bulkRequestBuilder.get();
@@ -98,7 +98,9 @@ public class ShardInfoIT extends OpenSearchIntegTestCase {
         prepareIndex(1);
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
         for (int i = 0; i < 10; i++) {
-            bulkRequestBuilder.add(client().prepareUpdate("idx", Integer.toString(i)).setDoc("{}", XContentType.JSON).setDocAsUpsert(true));
+            bulkRequestBuilder.add(
+                client().prepareUpdate("idx", Integer.toString(i)).setDoc("{}", MediaTypeRegistry.JSON).setDocAsUpsert(true)
+            );
         }
 
         BulkResponse bulkResponse = bulkRequestBuilder.get();

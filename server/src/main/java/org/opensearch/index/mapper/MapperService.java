@@ -48,8 +48,8 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.AbstractIndexComponent;
@@ -253,7 +253,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      */
     public static Map<String, Object> parseMapping(NamedXContentRegistry xContentRegistry, String mappingSource) throws IOException {
         try (
-            XContentParser parser = XContentType.JSON.xContent()
+            XContentParser parser = MediaTypeRegistry.JSON.xContent()
                 .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, mappingSource)
         ) {
             return parser.map();
@@ -348,7 +348,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                         + "to be the same as new mapping ["
                         + newSource
                         + "]";
-                    final CompressedXContent mapperSource = new CompressedXContent(Strings.toString(XContentType.JSON, mapper));
+                    final CompressedXContent mapperSource = new CompressedXContent(Strings.toString(MediaTypeRegistry.JSON, mapper));
                     assert currentSource.equals(mapperSource) : "expected current mapping ["
                         + currentSource
                         + "] for type ["
@@ -543,7 +543,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     public static boolean isMappingSourceTyped(String type, CompressedXContent mappingSource) {
-        Map<String, Object> root = XContentHelper.convertToMap(mappingSource.compressedReference(), true, XContentType.JSON).v2();
+        Map<String, Object> root = XContentHelper.convertToMap(mappingSource.compressedReference(), true, MediaTypeRegistry.JSON).v2();
         return isMappingSourceTyped(type, root);
     }
 

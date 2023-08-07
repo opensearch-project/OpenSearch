@@ -37,7 +37,7 @@ import org.opensearch.action.admin.indices.shrink.ResizeType;
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.query.TermsQueryBuilder;
 import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -62,7 +62,7 @@ public class CloneIndexIT extends OpenSearchIntegTestCase {
         ).get();
         final int docs = randomIntBetween(0, 128);
         for (int i = 0; i < docs; i++) {
-            client().prepareIndex("source").setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON).get();
+            client().prepareIndex("source").setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", MediaTypeRegistry.JSON).get();
         }
         internalCluster().ensureAtLeastNumDataNodes(2);
         // ensure all shards are allocated otherwise the ensure green below might not succeed since we require the merge node
@@ -122,7 +122,7 @@ public class CloneIndexIT extends OpenSearchIntegTestCase {
             }
 
             for (int i = docs; i < 2 * docs; i++) {
-                client().prepareIndex("target").setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON).get();
+                client().prepareIndex("target").setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", MediaTypeRegistry.JSON).get();
             }
             flushAndRefresh();
             assertHitCount(

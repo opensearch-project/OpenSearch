@@ -50,7 +50,7 @@ import org.opensearch.client.RequestOptions;
 import org.opensearch.client.RestHighLevelClient;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.ingest.PipelineConfiguration;
 
 import java.io.IOException;
@@ -91,7 +91,7 @@ public class IngestClientDocumentationIT extends OpenSearchRestHighLevelClientTe
             PutPipelineRequest request = new PutPipelineRequest(
                 "my-pipeline-id", // <1>
                 new BytesArray(source.getBytes(StandardCharsets.UTF_8)), // <2>
-                XContentType.JSON // <3>
+                MediaTypeRegistry.JSON // <3>
             );
             // end::put-pipeline-request
 
@@ -125,7 +125,7 @@ public class IngestClientDocumentationIT extends OpenSearchRestHighLevelClientTe
             PutPipelineRequest request = new PutPipelineRequest(
                 "my-pipeline-id",
                 new BytesArray(source.getBytes(StandardCharsets.UTF_8)),
-                XContentType.JSON
+                MediaTypeRegistry.JSON
             );
 
             // tag::put-pipeline-execute-listener
@@ -314,7 +314,7 @@ public class IngestClientDocumentationIT extends OpenSearchRestHighLevelClientTe
                 "}";
             SimulatePipelineRequest request = new SimulatePipelineRequest(
                 new BytesArray(source.getBytes(StandardCharsets.UTF_8)), // <1>
-                XContentType.JSON // <2>
+                MediaTypeRegistry.JSON // <2>
             );
             // end::simulate-pipeline-request
 
@@ -370,7 +370,7 @@ public class IngestClientDocumentationIT extends OpenSearchRestHighLevelClientTe
                 + "}";
             SimulatePipelineRequest request = new SimulatePipelineRequest(
                 new BytesArray(source.getBytes(StandardCharsets.UTF_8)),
-                XContentType.JSON
+                MediaTypeRegistry.JSON
             );
 
             // tag::simulate-pipeline-execute-listener

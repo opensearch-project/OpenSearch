@@ -35,11 +35,11 @@ package org.opensearch.client.indices;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.ConstructingObjectParser;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.mapper.Mapper;
 
 import java.io.IOException;
@@ -150,7 +150,7 @@ public class GetFieldMappingsResponse {
          * Returns the mappings as a map. Note that the returned map has a single key which is always the field's {@link Mapper#name}.
          */
         public Map<String, Object> sourceAsMap() {
-            return XContentHelper.convertToMap(source, true, XContentType.JSON).v2();
+            return XContentHelper.convertToMap(source, true, MediaTypeRegistry.JSON).v2();
         }
 
         // pkg-private for testing

@@ -43,6 +43,7 @@ import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.xcontent.AbstractObjectParser;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.ObjectParser.ValueType;
@@ -181,7 +182,7 @@ public final class Script implements ToXContentObject, Writeable {
                     // this is really for search templates, that need to be converted to json format
                     XContentBuilder builder = XContentFactory.jsonBuilder();
                     idOrCode = builder.copyCurrentStructure(parser).toString();
-                    options.put(CONTENT_TYPE_OPTION, XContentType.JSON.mediaType());
+                    options.put(CONTENT_TYPE_OPTION, MediaTypeRegistry.JSON.mediaType());
                 } else {
                     idOrCode = parser.text();
                 }

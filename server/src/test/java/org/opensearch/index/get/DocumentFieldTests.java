@@ -36,6 +36,8 @@ import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.document.DocumentField;
+import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
@@ -52,7 +54,7 @@ import java.util.Map;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
-import static org.opensearch.common.xcontent.XContentHelper.toXContent;
+import static org.opensearch.core.xcontent.XContentHelper.toXContent;
 import static org.opensearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertToXContentEquivalent;
 
@@ -60,13 +62,13 @@ public class DocumentFieldTests extends OpenSearchTestCase {
 
     public void testToXContent() {
         DocumentField documentField = new DocumentField("field", Arrays.asList("value1", "value2"));
-        String output = Strings.toString(XContentType.JSON, documentField);
+        String output = Strings.toString(MediaTypeRegistry.JSON, documentField);
         assertEquals("{\"field\":[\"value1\",\"value2\"]}", output);
     }
 
     public void testEqualsAndHashcode() {
         checkEqualsAndHashCode(
-            randomDocumentField(XContentType.JSON).v1(),
+            randomDocumentField(MediaTypeRegistry.JSON).v1(),
             DocumentFieldTests::copyDocumentField,
             DocumentFieldTests::mutateDocumentField
         );
@@ -102,7 +104,7 @@ public class DocumentFieldTests extends OpenSearchTestCase {
     private static DocumentField mutateDocumentField(DocumentField documentField) {
         List<Supplier<DocumentField>> mutations = new ArrayList<>();
         mutations.add(() -> new DocumentField(randomUnicodeOfCodepointLength(15), documentField.getValues()));
-        mutations.add(() -> new DocumentField(documentField.getName(), randomDocumentField(XContentType.JSON).v1().getValues()));
+        mutations.add(() -> new DocumentField(documentField.getName(), randomDocumentField(MediaTypeRegistry.JSON).v1().getValues()));
         final int index = randomFrom(0, 1);
         final DocumentField randomCandidate = mutations.get(index).get();
         if (!documentField.equals(randomCandidate)) {
@@ -115,12 +117,12 @@ public class DocumentFieldTests extends OpenSearchTestCase {
         }
     }
 
-    public static Tuple<DocumentField, DocumentField> randomDocumentField(XContentType xContentType) {
-        return randomDocumentField(xContentType, randomBoolean(), fieldName -> false);  // don't exclude any meta-fields
+    public static Tuple<DocumentField, DocumentField> randomDocumentField(MediaType mediaType) {
+        return randomDocumentField(mediaType, randomBoolean(), fieldName -> false);  // don't exclude any meta-fields
     }
 
     public static Tuple<DocumentField, DocumentField> randomDocumentField(
-        XContentType xContentType,
+        MediaType mediaType,
         boolean isMetafield,
         Predicate<String> excludeMetaFieldFilter
     ) {
@@ -143,7 +145,7 @@ public class DocumentFieldTests extends OpenSearchTestCase {
             switch (randomIntBetween(0, 2)) {
                 case 0:
                     String fieldName = randomAlphaOfLengthBetween(3, 10);
-                    Tuple<List<Object>, List<Object>> tuple = RandomObjects.randomStoredFieldValues(random(), xContentType);
+                    Tuple<List<Object>, List<Object>> tuple = RandomObjects.randomStoredFieldValues(random(), mediaType);
                     DocumentField input = new DocumentField(fieldName, tuple.v1());
                     DocumentField expected = new DocumentField(fieldName, tuple.v2());
                     return Tuple.tuple(input, expected);

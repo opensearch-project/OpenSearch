@@ -118,6 +118,7 @@ import org.opensearch.common.xcontent.smile.SmileXContent;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -1405,7 +1406,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
      */
     @Deprecated
     protected final IndexResponse index(String index, String type, String id, String source) {
-        return client().prepareIndex(index).setId(id).setSource(source, XContentType.JSON).execute().actionGet();
+        return client().prepareIndex(index).setId(id).setSource(source, MediaTypeRegistry.JSON).execute().actionGet();
     }
 
     /**
@@ -1577,7 +1578,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
                 String index = RandomPicks.randomFrom(random, indices);
                 bogusIds.add(Arrays.asList(index, id));
                 // We configure a routing key in case the mapping requires it
-                builders.add(client().prepareIndex().setIndex(index).setId(id).setSource("{}", XContentType.JSON).setRouting(id));
+                builders.add(client().prepareIndex().setIndex(index).setId(id).setSource("{}", MediaTypeRegistry.JSON).setRouting(id));
             }
         }
         Collections.shuffle(builders, random());

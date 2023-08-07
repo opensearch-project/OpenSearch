@@ -705,7 +705,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
      * Sets the doc to use for updates when a script is not specified, the doc provided
      * is a field and value pairs.
      */
-    public UpdateRequest doc(XContentType xContentType, Object... source) {
+    public UpdateRequest doc(MediaType xContentType, Object... source) {
         safeDoc().source(xContentType, source);
         return this;
     }

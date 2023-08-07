@@ -15,7 +15,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.CancellableThreads;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
@@ -94,7 +94,7 @@ public class OngoingSegmentReplicationsTests extends IndexShardTestCase {
     }
 
     public void testPrepareAndSendSegments() throws IOException {
-        indexDoc(primary, "1", "{\"foo\" : \"baz\"}", XContentType.JSON, "foobar");
+        indexDoc(primary, "1", "{\"foo\" : \"baz\"}", MediaTypeRegistry.JSON, "foobar");
         primary.refresh("Test");
         OngoingSegmentReplications replications = spy(new OngoingSegmentReplications(mockIndicesService, recoverySettings));
         final CheckpointInfoRequest request = new CheckpointInfoRequest(
@@ -162,7 +162,7 @@ public class OngoingSegmentReplicationsTests extends IndexShardTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         OngoingSegmentReplications replications = new OngoingSegmentReplications(mockIndicesService, recoverySettings);
         // add a doc and refresh so primary has more than one segment.
-        indexDoc(primary, "1", "{\"foo\" : \"baz\"}", XContentType.JSON, "foobar");
+        indexDoc(primary, "1", "{\"foo\" : \"baz\"}", MediaTypeRegistry.JSON, "foobar");
         primary.refresh("Test");
         final CheckpointInfoRequest request = new CheckpointInfoRequest(
             1L,

@@ -81,6 +81,7 @@ import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.DeprecationHandler;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContent;
@@ -119,7 +120,7 @@ import java.util.StringJoiner;
  * @opensearch.api
  */
 final class RequestConverters {
-    static final XContentType REQUEST_BODY_CONTENT_TYPE = XContentType.JSON;
+    static final MediaType REQUEST_BODY_CONTENT_TYPE = MediaTypeRegistry.JSON;
 
     private RequestConverters() {
         // Contains only status utility methods
@@ -177,7 +178,7 @@ final class RequestConverters {
         }
 
         if (bulkContentType == null) {
-            bulkContentType = XContentType.JSON;
+            bulkContentType = MediaTypeRegistry.JSON;
         }
 
         final byte separator = bulkContentType.xContent().streamSeparator();
@@ -266,7 +267,12 @@ final class RequestConverters {
                     }
                 }
             } else if (opType == DocWriteRequest.OpType.UPDATE) {
-                source = XContentHelper.toXContent((UpdateRequest) action, bulkContentType, ToXContent.EMPTY_PARAMS, false).toBytesRef();
+                source = org.opensearch.core.xcontent.XContentHelper.toXContent(
+                    (UpdateRequest) action,
+                    bulkContentType,
+                    ToXContent.EMPTY_PARAMS,
+                    false
+                ).toBytesRef();
             }
 
             if (source != null) {
@@ -821,7 +827,8 @@ final class RequestConverters {
     }
 
     static HttpEntity createEntity(ToXContent toXContent, MediaType mediaType, ToXContent.Params toXContentParams) throws IOException {
-        BytesRef source = XContentHelper.toXContent(toXContent, mediaType, toXContentParams, false).toBytesRef();
+        BytesRef source = org.opensearch.core.xcontent.XContentHelper.toXContent(toXContent, mediaType, toXContentParams, false)
+            .toBytesRef();
         return new ByteArrayEntity(source.bytes, source.offset, source.length, createContentType(mediaType));
     }
 
@@ -1252,7 +1259,7 @@ final class RequestConverters {
      */
     static MediaType enforceSameContentType(IndexRequest indexRequest, @Nullable MediaType mediaType) {
         MediaType requestContentType = indexRequest.getContentType();
-        if (requestContentType != XContentType.JSON && requestContentType != XContentType.SMILE) {
+        if (requestContentType != MediaTypeRegistry.JSON && requestContentType != XContentType.SMILE) {
             throw new IllegalArgumentException(
                 "Unsupported content-type found for request with content-type ["
                     + requestContentType
