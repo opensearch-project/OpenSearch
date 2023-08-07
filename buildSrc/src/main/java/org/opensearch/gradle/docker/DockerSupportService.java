@@ -68,7 +68,9 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
     // Defines the possible locations of the Docker CLI. These will be searched in order.
     private static String[] DOCKER_BINARIES_UNIX = { "/usr/bin/docker", "/usr/local/bin/docker" };
 
-    private static String[] DOCKER_BINARIES_WINDOWS = { System.getenv("PROGRAMFILES") + "\\Docker\\Docker\\resources\\bin\\docker.exe" };
+    private static String[] DOCKER_BINARIES_WINDOWS = {
+        System.getenv("PROGRAMFILES") + "\\Docker\\Docker\\resources\\bin\\docker.exe",
+        System.getenv("SystemRoot") + "\\System32\\docker.exe" /* Github Actions */ };
 
     private static String[] DOCKER_BINARIES = Os.isFamily(Os.FAMILY_WINDOWS) ? DOCKER_BINARIES_WINDOWS : DOCKER_BINARIES_UNIX;
 
