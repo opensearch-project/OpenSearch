@@ -49,6 +49,7 @@ import java.nio.file.Path;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -129,6 +130,21 @@ public class S3RepositoryTests extends OpenSearchTestCase implements ConfigPathS
             assertThat(s3repo.getBlobStore(), not(nullValue()));
             assertThat(defaultBufferSize, Matchers.lessThanOrEqualTo(100L * 1024 * 1024));
             assertThat(defaultBufferSize, Matchers.greaterThanOrEqualTo(5L * 1024 * 1024));
+        }
+    }
+
+    public void testCreateS3SystemRepository() {
+        final RepositoryMetadata metadata = new RepositoryMetadata(
+            "dummy-repo",
+            "mock",
+            Settings.builder()
+                .put(S3Repository.BASE_PATH_SETTING.getKey(), "foo/bar")
+                .put(S3Repository.BUCKET_SETTING.getKey(), "bucket")
+                .put(S3Repository.SYSTEM_REPOSITORY_SETTING.getKey(), true)
+                .build());
+        try (S3Repository s3repo = createS3Repo(metadata)) {
+            assertTrue(s3repo.isSystemRepository());
+            assertThat(s3repo.restrictedSystemRepositorySettings(), hasSize(2));
         }
     }
 
