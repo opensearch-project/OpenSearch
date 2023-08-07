@@ -34,6 +34,7 @@ public class StrictCheckSpanProcessor implements SpanProcessor {
     @Override
     public void onEnd(Span span) {
         MockSpanData spanData = spanMap.get(span.getSpanId());
+        // Setting EndEpochTime and HasEnded value to true on completion of span.
         if (spanData != null) {
             spanData.setEndEpochNanos(System.nanoTime());
             spanData.setHasEnded(true);
