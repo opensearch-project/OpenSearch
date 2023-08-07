@@ -31,7 +31,6 @@
 
 package org.opensearch.search.aggregations.metrics;
 
-import org.opensearch.common.Strings;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.json.JsonXContent;
@@ -263,7 +262,7 @@ public class InternalStatsTests extends InternalAggregationTestCase<InternalStat
                 + "\"";
         }
         expected += "\n}";
-        assertEquals(expected, Strings.toString(builder));
+        assertEquals(expected, builder.toString());
 
         // count is zero
         format = randomNumericDocValueFormat();
@@ -285,7 +284,7 @@ public class InternalStatsTests extends InternalAggregationTestCase<InternalStat
                 + "  \"avg\" : null,\n"
                 + "  \"sum\" : 0.0\n"
                 + "}",
-            Strings.toString(builder)
+            builder.toString()
         );
     }
 }

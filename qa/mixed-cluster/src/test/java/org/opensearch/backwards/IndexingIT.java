@@ -42,7 +42,6 @@ import org.opensearch.client.Response;
 import org.opensearch.client.ResponseException;
 import org.opensearch.client.RestClient;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.common.Strings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.common.xcontent.support.XContentMapValues;
@@ -365,15 +364,14 @@ public class IndexingIT extends OpenSearchRestTestCase {
 
         // Create the repository before taking the snapshot.
         Request request = new Request("PUT", "/_snapshot/repo");
-        request.setJsonEntity(Strings
-            .toString(JsonXContent.contentBuilder()
+        request.setJsonEntity(JsonXContent.contentBuilder()
                 .startObject()
                     .field("type", "fs")
                     .startObject("settings")
                         .field("compress", randomBoolean())
                         .field("location", System.getProperty("tests.path.repo"))
                     .endObject()
-                .endObject()));
+                .endObject().toString());
 
         assertOK(client().performRequest(request));
 

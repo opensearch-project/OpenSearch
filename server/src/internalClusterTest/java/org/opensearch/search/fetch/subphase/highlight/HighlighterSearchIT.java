@@ -44,7 +44,6 @@ import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.support.WriteRequest;
-import org.opensearch.common.Strings;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.Settings.Builder;
@@ -3231,26 +3230,25 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
     }
 
     public void testACopyFieldWithNestedQuery() throws Exception {
-        String mapping = Strings.toString(
-            jsonBuilder().startObject()
-                .startObject("properties")
-                .startObject("foo")
-                .field("type", "nested")
-                .startObject("properties")
-                .startObject("text")
-                .field("type", "text")
-                .field("copy_to", "foo_text")
-                .endObject()
-                .endObject()
-                .endObject()
-                .startObject("foo_text")
-                .field("type", "text")
-                .field("term_vector", "with_positions_offsets")
-                .field("store", true)
-                .endObject()
-                .endObject()
-                .endObject()
-        );
+        String mapping = jsonBuilder().startObject()
+            .startObject("properties")
+            .startObject("foo")
+            .field("type", "nested")
+            .startObject("properties")
+            .startObject("text")
+            .field("type", "text")
+            .field("copy_to", "foo_text")
+            .endObject()
+            .endObject()
+            .endObject()
+            .startObject("foo_text")
+            .field("type", "text")
+            .field("term_vector", "with_positions_offsets")
+            .field("store", true)
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
         prepareCreate("test").setMapping(mapping).get();
 
         client().prepareIndex("test")
@@ -3361,25 +3359,24 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
     }
 
     public void testWithNestedQuery() throws Exception {
-        String mapping = Strings.toString(
-            jsonBuilder().startObject()
-                .startObject("properties")
-                .startObject("text")
-                .field("type", "text")
-                .field("index_options", "offsets")
-                .field("term_vector", "with_positions_offsets")
-                .endObject()
-                .startObject("foo")
-                .field("type", "nested")
-                .startObject("properties")
-                .startObject("text")
-                .field("type", "text")
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
+        String mapping = jsonBuilder().startObject()
+            .startObject("properties")
+            .startObject("text")
+            .field("type", "text")
+            .field("index_options", "offsets")
+            .field("term_vector", "with_positions_offsets")
+            .endObject()
+            .startObject("foo")
+            .field("type", "nested")
+            .startObject("properties")
+            .startObject("text")
+            .field("type", "text")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
         prepareCreate("test").setMapping(mapping).get();
 
         client().prepareIndex("test")

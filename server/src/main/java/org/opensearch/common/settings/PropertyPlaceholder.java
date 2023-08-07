@@ -32,7 +32,7 @@
 
 package org.opensearch.common.settings;
 
-import org.opensearch.common.Strings;
+import org.opensearch.core.common.Strings;
 
 import java.util.HashSet;
 import java.util.Objects;
