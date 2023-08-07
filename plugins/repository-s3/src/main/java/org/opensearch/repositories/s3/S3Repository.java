@@ -397,7 +397,7 @@ class S3Repository extends MeteredBlobStoreRepository {
         List<Setting<?>> restrictedSystemRepositorySettings = super.restrictedSystemRepositorySettings();
         settings.addAll(restrictedSystemRepositorySettings);
         settings.addAll(new ArrayList<>(List.of(BUCKET_SETTING, BASE_PATH_SETTING)));
-        return Collections.unmodifiableList(restrictedSystemRepositorySettings);
+        return Collections.unmodifiableList(settings);
     }
 
     @Override

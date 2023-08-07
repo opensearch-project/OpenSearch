@@ -145,7 +145,7 @@ public class S3RepositoryTests extends OpenSearchTestCase implements ConfigPathS
         );
         try (S3Repository s3repo = createS3Repo(metadata)) {
             assertTrue(s3repo.isSystemRepository());
-            assertThat(s3repo.restrictedSystemRepositorySettings(), hasSize(2));
+            assertThat(s3repo.restrictedSystemRepositorySettings(), hasSize(4));
         }
     }
 
