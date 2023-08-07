@@ -137,7 +137,6 @@ import org.opensearch.plugins.PluginsService;
 import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.script.ScriptService;
-import org.opensearch.search.SearchBootstrapSettings;
 import org.opensearch.search.SearchModule;
 import org.opensearch.search.SearchService;
 import org.opensearch.search.aggregations.MultiBucketConsumerService;
@@ -694,7 +693,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         List.of(FeatureFlags.CONCURRENT_SEGMENT_SEARCH),
         List.of(
             SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING,
-            SearchBootstrapSettings.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING
+            SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING
         ),
         List.of(FeatureFlags.TELEMETRY),
         List.of(TelemetrySettings.TRACER_ENABLED_SETTING, TelemetrySettings.TRACER_SAMPLER_PROBABILITY)

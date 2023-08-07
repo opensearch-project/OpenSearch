@@ -971,4 +971,13 @@ final class DefaultSearchContext extends SearchContext {
             && sort.isSortOnTimeSeriesField()
             && sort.sort.getSort()[0].getReverse() == false;
     }
+
+    @Override
+    public int getTargetMaxSliceCount() {
+        if (shouldUseConcurrentSearch() == false) {
+            throw new IllegalStateException("Target slice count should not be used when concurrent search is disabled");
+        }
+        return clusterService.getClusterSettings().get(SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING);
+    }
+
 }

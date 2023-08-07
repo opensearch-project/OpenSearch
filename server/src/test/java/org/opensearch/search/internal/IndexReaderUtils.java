@@ -31,21 +31,25 @@ public class IndexReaderUtils {
      * @return created leaves
      */
     public static List<LeafReaderContext> getLeaves(int leafCount) throws Exception {
-        final Directory directory = newDirectory();
-        IndexWriter iw = new IndexWriter(directory, new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(NoMergePolicy.INSTANCE));
-        for (int i = 0; i < leafCount; ++i) {
-            Document document = new Document();
-            final String fieldValue = "value" + i;
-            document.add(new StringField("field1", fieldValue, Field.Store.NO));
-            document.add(new StringField("field2", fieldValue, Field.Store.NO));
-            iw.addDocument(document);
-            iw.commit();
+        try (
+            final Directory directory = newDirectory();
+            final IndexWriter iw = new IndexWriter(
+                directory,
+                new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(NoMergePolicy.INSTANCE)
+            )
+        ) {
+            for (int i = 0; i < leafCount; ++i) {
+                Document document = new Document();
+                final String fieldValue = "value" + i;
+                document.add(new StringField("field1", fieldValue, Field.Store.NO));
+                document.add(new StringField("field2", fieldValue, Field.Store.NO));
+                iw.addDocument(document);
+                iw.commit();
+            }
+            try (DirectoryReader directoryReader = DirectoryReader.open(directory)) {
+                List<LeafReaderContext> leaves = directoryReader.leaves();
+                return leaves;
+            }
         }
-        iw.close();
-        DirectoryReader directoryReader = DirectoryReader.open(directory);
-        List<LeafReaderContext> leaves = directoryReader.leaves();
-        directoryReader.close();
-        directory.close();
-        return leaves;
     }
 }

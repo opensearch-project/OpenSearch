@@ -156,7 +156,6 @@ import org.opensearch.rest.action.RestCancellableNodeClient;
 import org.opensearch.script.MockScriptService;
 import org.opensearch.script.ScriptMetadata;
 import org.opensearch.search.MockSearchService;
-import org.opensearch.search.SearchBootstrapSettings;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchService;
 import org.opensearch.telemetry.TelemetrySettings;
@@ -1971,14 +1970,14 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             // fixed thread pool
             builder.put("thread_pool.search.min_queue_size", 100);
         }
-        if (FeatureFlags.CONCURRENT_SEGMENT_SEARCH_SETTING.get(featureFlagSettings)) {
-            // By default, for tests we will put the target slice count of 2. This will increase the probability of having multiple slices
-            // when tests are run with concurrent segment search enabled
-            builder.put(SearchBootstrapSettings.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_KEY, 2);
-        }
         // Enable tracer only when Telemetry Setting is enabled
         if (featureFlagSettings().getAsBoolean(FeatureFlags.TELEMETRY_SETTING.getKey(), false)) {
             builder.put(TelemetrySettings.TRACER_ENABLED_SETTING.getKey(), true);
+        }
+        if (FeatureFlags.CONCURRENT_SEGMENT_SEARCH_SETTING.get(featureFlagSettings)) {
+            // By default, for tests we will put the target slice count of 2. This will increase the probability of having multiple slices
+            // when tests are run with concurrent segment search enabled
+            builder.put(SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_KEY, 2);
         }
         return builder.build();
     }
