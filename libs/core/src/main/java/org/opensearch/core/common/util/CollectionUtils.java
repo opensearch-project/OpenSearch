@@ -134,16 +134,14 @@ public class CollectionUtils {
         }
     }
 
+    @SuppressWarnings("unchecked")
     private static Iterable<?> convert(Object value) {
         if (value == null) {
             return null;
         }
         if (value instanceof Map) {
             Map<?, ?> map = (Map<?, ?>) value;
-            Iterator<?>[] iterators = new Iterator<?>[2];
-            iterators[0] = map.keySet().iterator();
-            iterators[1] = map.values().iterator();
-            return () -> Iterators.concat(iterators);
+            return () -> Iterators.concat(map.keySet().iterator(), map.values().iterator());
         } else if ((value instanceof Iterable) && (value instanceof Path == false)) {
             return (Iterable<?>) value;
         } else if (value instanceof Object[]) {
