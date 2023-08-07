@@ -150,12 +150,13 @@ import org.opensearch.script.MockScriptService;
 import org.opensearch.search.MockSearchService;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchService;
+import org.opensearch.telemetry.TelemetrySettings;
 import org.opensearch.test.client.RandomizingClient;
 import org.opensearch.test.disruption.NetworkDisruption;
 import org.opensearch.test.disruption.ServiceDisruptionScheme;
 import org.opensearch.test.store.MockFSIndexStore;
-import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.test.telemetry.MockTelemetryPlugin;
+import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.transport.TransportInterceptor;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportRequestHandler;
@@ -781,6 +782,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         for (Setting builtInFlag : FeatureFlagSettings.BUILT_IN_FEATURE_FLAGS) {
             featureSettings.put(builtInFlag.getKey(), builtInFlag.getDefaultRaw(Settings.EMPTY));
         }
+        // Enabling Telemetry setting by default
         featureSettings.put(FeatureFlags.TELEMETRY_SETTING.getKey(), true);
         return featureSettings.build();
     }
@@ -1908,6 +1910,11 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             .putList(DISCOVERY_SEED_HOSTS_SETTING.getKey()) // empty list disables a port scan for other nodes
             .putList(DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), "file")
             .put(featureFlagSettings());
+
+        // Enable tracer only when Telemetry Setting is enabled
+        if (featureFlagSettings().getAsBoolean(FeatureFlags.TELEMETRY_SETTING.getKey(), false)) {
+            builder.put(TelemetrySettings.TRACER_ENABLED_SETTING.getKey(), true);
+        }
         return builder.build();
     }
 
@@ -2063,6 +2070,11 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         return true;
     }
 
+    /** Returns {@code true} if this test cluster should have tracing enabled with MockTelemetryPlugin */
+    protected boolean addMockTelemetryPlugin() {
+        return true;
+    }
+
     /**
      * Returns a function that allows to wrap / filter all clients that are exposed by the test cluster. This is useful
      * for debugging or request / response pre and post processing. It also allows to intercept all calls done by the test
@@ -2107,8 +2119,9 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         if (addMockGeoShapeFieldMapper()) {
             mocks.add(TestGeoShapeFieldMapperPlugin.class);
         }
-        mocks.add(MockTelemetryPlugin.class);
-
+        if (addMockTelemetryPlugin()) {
+            mocks.add(MockTelemetryPlugin.class);
+        }
         return Collections.unmodifiableList(mocks);
     }
 
