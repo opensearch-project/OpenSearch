@@ -29,6 +29,7 @@ import java.util.Collections;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.opensearch.remotestore.RemoteStoreBaseIntegTestCase.remoteStoreClusterSettings;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 public abstract class AbstractRemoteStoreMockRepositoryIntegTestCase extends AbstractSnapshotIntegTestCase {
@@ -46,7 +47,7 @@ public abstract class AbstractRemoteStoreMockRepositoryIntegTestCase extends Abs
     public void setup() {
         FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
         FeatureFlagSetter.set(FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL);
-        internalCluster().startClusterManagerOnlyNode();
+        internalCluster().startClusterManagerOnlyNode(remoteStoreClusterSettings(REPOSITORY_NAME, TRANSLOG_REPOSITORY_NAME));
     }
 
     @Override
@@ -62,9 +63,6 @@ public abstract class AbstractRemoteStoreMockRepositoryIntegTestCase extends Abs
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas)
             .put(IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING.getKey(), false)
             .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
-            .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
-            .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, REPOSITORY_NAME)
-            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, TRANSLOG_REPOSITORY_NAME)
             .build();
     }
 

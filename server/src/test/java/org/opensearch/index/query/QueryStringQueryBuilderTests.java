@@ -68,7 +68,6 @@ import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.opensearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.common.Strings;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.Fuzziness;
@@ -116,7 +115,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             .endObject()
             .endObject();
 
-        mapperService.merge("_doc", new CompressedXContent(Strings.toString(mapping)), MapperService.MergeReason.MAPPING_UPDATE);
+        mapperService.merge("_doc", new CompressedXContent(mapping.toString()), MapperService.MergeReason.MAPPING_UPDATE);
     }
 
     @Override
@@ -1113,9 +1112,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         context.getMapperService()
             .merge(
                 "_doc",
-                new CompressedXContent(
-                    Strings.toString(PutMappingRequest.simpleMapping("foo", "type=text", "_field_names", "enabled=false"))
-                ),
+                new CompressedXContent(PutMappingRequest.simpleMapping("foo", "type=text", "_field_names", "enabled=false").toString()),
                 MapperService.MergeReason.MAPPING_UPDATE
             );
 
@@ -1129,9 +1126,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             context.getMapperService()
                 .merge(
                     "_doc",
-                    new CompressedXContent(
-                        Strings.toString(PutMappingRequest.simpleMapping("foo", "type=text", "_field_names", "enabled=true"))
-                    ),
+                    new CompressedXContent(PutMappingRequest.simpleMapping("foo", "type=text", "_field_names", "enabled=true").toString()),
                     MapperService.MergeReason.MAPPING_UPDATE
                 );
         }

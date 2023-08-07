@@ -43,12 +43,13 @@ import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.common.util.CollectionUtils;
+import org.opensearch.core.common.util.CollectionUtils;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.index.Index;
@@ -250,7 +251,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
                     builder.startObject(fieldName);
                     String[] s1 = Strings.splitStringByCommaToArray(source[i]);
                     for (String s : s1) {
-                        String[] s2 = org.opensearch.common.Strings.split(s, "=");
+                        String[] s2 = Strings.split(s, "=");
                         if (s2.length != 2) {
                             throw new IllegalArgumentException("malformed " + s);
                         }
@@ -270,7 +271,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
                 builder.startObject(fieldName);
                 String[] s1 = Strings.splitStringByCommaToArray(source[i]);
                 for (String s : s1) {
-                    String[] s2 = org.opensearch.common.Strings.split(s, "=");
+                    String[] s2 = Strings.split(s, "=");
                     if (s2.length != 2) {
                         throw new IllegalArgumentException("malformed " + s);
                     }
@@ -298,7 +299,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
      */
     public PutMappingRequest source(Map<String, ?> mappingSource) {
         try {
-            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+            XContentBuilder builder = MediaTypeRegistry.contentBuilder(XContentType.JSON);
             builder.map(mappingSource);
             return source(BytesReference.bytes(builder), builder.contentType());
         } catch (IOException e) {

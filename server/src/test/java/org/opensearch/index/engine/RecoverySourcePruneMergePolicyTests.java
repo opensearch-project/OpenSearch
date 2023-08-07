@@ -49,6 +49,7 @@ import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.ShuffleForcedMergePolicy;
 import org.apache.lucene.index.StandardDirectoryReader;
+import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -89,8 +90,9 @@ public class RecoverySourcePruneMergePolicyTests extends OpenSearchTestCase {
                 writer.forceMerge(1);
                 writer.commit();
                 try (DirectoryReader reader = DirectoryReader.open(writer)) {
+                    StoredFields storedFields = reader.storedFields();
                     for (int i = 0; i < reader.maxDoc(); i++) {
-                        Document document = reader.document(i);
+                        Document document = storedFields.document(i);
                         assertEquals(1, document.getFields().size());
                         assertEquals("source", document.getFields().get(0).name());
                     }
@@ -157,11 +159,12 @@ public class RecoverySourcePruneMergePolicyTests extends OpenSearchTestCase {
                 writer.forceMerge(1);
                 writer.commit();
                 try (DirectoryReader reader = DirectoryReader.open(writer)) {
+                    StoredFields storedFields = reader.storedFields();
                     assertEquals(1, reader.leaves().size());
                     NumericDocValues extra_source = reader.leaves().get(0).reader().getNumericDocValues("extra_source");
                     assertNotNull(extra_source);
                     for (int i = 0; i < reader.maxDoc(); i++) {
-                        Document document = reader.document(i);
+                        Document document = storedFields.document(i);
                         Set<String> collect = document.getFields().stream().map(IndexableField::name).collect(Collectors.toSet());
                         assertTrue(collect.contains("source"));
                         assertTrue(collect.contains("even"));
@@ -197,11 +200,12 @@ public class RecoverySourcePruneMergePolicyTests extends OpenSearchTestCase {
                 writer.forceMerge(1);
                 writer.commit();
                 try (DirectoryReader reader = DirectoryReader.open(writer)) {
+                    StoredFields storedFields = reader.storedFields();
                     assertEquals(1, reader.leaves().size());
                     NumericDocValues extra_source = reader.leaves().get(0).reader().getNumericDocValues("extra_source");
                     assertNotNull(extra_source);
                     for (int i = 0; i < reader.maxDoc(); i++) {
-                        Document document = reader.document(i);
+                        Document document = storedFields.document(i);
                         Set<String> collect = document.getFields().stream().map(IndexableField::name).collect(Collectors.toSet());
                         assertTrue(collect.contains("source"));
                         assertTrue(collect.contains("extra_source"));

@@ -35,7 +35,6 @@ package org.opensearch.search.sort;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.ShardSearchFailure;
-import org.opensearch.common.Strings;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.geo.GeoUtils;
 import org.opensearch.index.fielddata.ScriptDocValues;
@@ -237,24 +236,23 @@ public class SimpleSortIT extends OpenSearchIntegTestCase {
     }
 
     public void testSortMinValueScript() throws IOException {
-        String mapping = Strings.toString(
-            jsonBuilder().startObject()
-                .startObject("properties")
-                .startObject("lvalue")
-                .field("type", "long")
-                .endObject()
-                .startObject("dvalue")
-                .field("type", "double")
-                .endObject()
-                .startObject("svalue")
-                .field("type", "keyword")
-                .endObject()
-                .startObject("gvalue")
-                .field("type", "geo_point")
-                .endObject()
-                .endObject()
-                .endObject()
-        );
+        String mapping = jsonBuilder().startObject()
+            .startObject("properties")
+            .startObject("lvalue")
+            .field("type", "long")
+            .endObject()
+            .startObject("dvalue")
+            .field("type", "double")
+            .endObject()
+            .startObject("svalue")
+            .field("type", "keyword")
+            .endObject()
+            .startObject("gvalue")
+            .field("type", "geo_point")
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
 
         assertAcked(prepareCreate("test").setMapping(mapping));
         ensureGreen();
@@ -351,18 +349,17 @@ public class SimpleSortIT extends OpenSearchIntegTestCase {
         // TODO: sort shouldn't fail when sort field is mapped dynamically
         // We have to specify mapping explicitly because by the time search is performed dynamic mapping might not
         // be propagated to all nodes yet and sort operation fail when the sort field is not defined
-        String mapping = Strings.toString(
-            jsonBuilder().startObject()
-                .startObject("properties")
-                .startObject("id")
-                .field("type", "keyword")
-                .endObject()
-                .startObject("svalue")
-                .field("type", "keyword")
-                .endObject()
-                .endObject()
-                .endObject()
-        );
+        String mapping = jsonBuilder().startObject()
+            .startObject("properties")
+            .startObject("id")
+            .field("type", "keyword")
+            .endObject()
+            .startObject("svalue")
+            .field("type", "keyword")
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
         assertAcked(prepareCreate("test").setMapping(mapping));
         ensureGreen();
 

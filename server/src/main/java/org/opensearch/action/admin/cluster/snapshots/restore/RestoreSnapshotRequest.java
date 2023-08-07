@@ -517,7 +517,7 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
     /**
      * Sets the storage type for this request.
      */
-    RestoreSnapshotRequest storageType(StorageType storageType) {
+    public RestoreSnapshotRequest storageType(StorageType storageType) {
         this.storageType = storageType;
         return this;
     }
@@ -749,6 +749,6 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
 
     @Override
     public String toString() {
-        return org.opensearch.common.Strings.toString(XContentType.JSON, this);
+        return Strings.toString(XContentType.JSON, this);
     }
 }

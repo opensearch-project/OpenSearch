@@ -35,6 +35,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.suggest.document.CompletionQuery;
 import org.apache.lucene.search.suggest.document.TopSuggestDocs;
@@ -103,16 +104,23 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
     }
 
     private static void suggest(IndexSearcher searcher, CompletionQuery query, TopSuggestDocsCollector collector) throws IOException {
-        query = (CompletionQuery) query.rewrite(searcher.getIndexReader());
+        query = (CompletionQuery) query.rewrite(searcher);
         Weight weight = query.createWeight(searcher, collector.scoreMode(), 1f);
         for (LeafReaderContext context : searcher.getIndexReader().leaves()) {
             BulkScorer scorer = weight.bulkScorer(context);
             if (scorer != null) {
+                LeafCollector leafCollector = null;
                 try {
-                    scorer.score(collector.getLeafCollector(context), context.reader().getLiveDocs());
+                    leafCollector = collector.getLeafCollector(context);
+                    scorer.score(leafCollector, context.reader().getLiveDocs());
                 } catch (CollectionTerminatedException e) {
                     // collection was terminated prematurely
                     // continue with the following leaf
+                }
+                // Note: this is called if collection ran successfully, including the above special cases of
+                // CollectionTerminatedException and TimeExceededException, but no other exception.
+                if (leafCollector != null) {
+                    leafCollector.finish();
                 }
             }
         }

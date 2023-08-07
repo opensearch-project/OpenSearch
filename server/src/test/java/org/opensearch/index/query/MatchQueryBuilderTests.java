@@ -56,7 +56,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.graph.GraphTokenStreamFiniteStrings;
 import org.opensearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.opensearch.core.common.ParsingException;
-import org.opensearch.common.Strings;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.opensearch.common.lucene.search.Queries;
@@ -411,9 +410,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         mapperService.merge(
             "_doc",
             new CompressedXContent(
-                Strings.toString(
-                    PutMappingRequest.simpleMapping("string_boost", "type=text", "string_no_pos", "type=text,index_options=docs")
-                )
+                PutMappingRequest.simpleMapping("string_boost", "type=text", "string_no_pos", "type=text,index_options=docs").toString()
             ),
             MapperService.MergeReason.MAPPING_UPDATE
         );

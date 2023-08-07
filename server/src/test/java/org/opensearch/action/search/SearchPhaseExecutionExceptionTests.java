@@ -36,7 +36,7 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.TimestampParsingException;
 import org.opensearch.core.common.ParsingException;
-import org.opensearch.common.Strings;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.xcontent.ToXContent;

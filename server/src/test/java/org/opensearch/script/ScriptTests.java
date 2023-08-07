@@ -33,16 +33,17 @@
 package org.opensearch.script;
 
 import org.opensearch.OpenSearchParseException;
-import org.opensearch.common.Strings;
-import org.opensearch.core.common.io.stream.InputStreamStreamInput;
-import org.opensearch.core.common.io.stream.OutputStreamStreamOutput;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.xcontent.ToXContent;
-import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.io.stream.InputStreamStreamInput;
+import org.opensearch.core.common.io.stream.OutputStreamStreamOutput;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.ByteArrayInputStream;
@@ -58,7 +59,7 @@ public class ScriptTests extends OpenSearchTestCase {
 
     public void testScriptParsing() throws IOException {
         Script expectedScript = createScript();
-        try (XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()))) {
+        try (XContentBuilder builder = MediaTypeRegistry.contentBuilder(randomFrom(XContentType.values()))) {
             expectedScript.toXContent(builder, ToXContent.EMPTY_PARAMS);
             try (XContentParser parser = createParser(builder)) {
                 Script actualScript = Script.parse(parser);
@@ -87,7 +88,7 @@ public class ScriptTests extends OpenSearchTestCase {
                 builder.startObject();
                 builder.field("field", randomAlphaOfLengthBetween(1, 5));
                 builder.endObject();
-                script = Strings.toString(builder);
+                script = builder.toString();
             }
         } else {
             script = randomAlphaOfLengthBetween(1, 5);
@@ -103,7 +104,7 @@ public class ScriptTests extends OpenSearchTestCase {
 
     public void testParse() throws IOException {
         Script expectedScript = createScript();
-        try (XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()))) {
+        try (XContentBuilder builder = MediaTypeRegistry.contentBuilder(randomFrom(XContentType.values()))) {
             expectedScript.toXContent(builder, ToXContent.EMPTY_PARAMS);
             try (XContentParser xParser = createParser(builder)) {
                 Settings settings = Settings.fromXContent(xParser);

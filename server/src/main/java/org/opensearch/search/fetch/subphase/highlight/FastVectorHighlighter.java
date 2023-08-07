@@ -48,7 +48,7 @@ import org.apache.lucene.search.vectorhighlight.SingleFragListBuilder;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.text.Text;
-import org.opensearch.common.util.CollectionUtils;
+import org.opensearch.core.common.util.CollectionUtils;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.TextSearchInfo;
 import org.opensearch.search.fetch.FetchSubPhase;

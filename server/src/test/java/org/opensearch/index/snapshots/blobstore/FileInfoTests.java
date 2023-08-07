@@ -35,10 +35,10 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Version;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
@@ -73,7 +73,7 @@ public class FileInfoTests extends OpenSearchTestCase {
             );
             ByteSizeValue size = new ByteSizeValue(Math.abs(randomLong()));
             BlobStoreIndexShardSnapshot.FileInfo info = new BlobStoreIndexShardSnapshot.FileInfo("_foobar", meta, size);
-            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON).prettyPrint();
+            XContentBuilder builder = MediaTypeRegistry.contentBuilder(XContentType.JSON).prettyPrint();
             BlobStoreIndexShardSnapshot.FileInfo.toXContent(info, builder, ToXContent.EMPTY_PARAMS);
             byte[] xcontent = BytesReference.toBytes(BytesReference.bytes(shuffleXContent(builder)));
 
@@ -126,7 +126,7 @@ public class FileInfoTests extends OpenSearchTestCase {
                     fail("shouldn't be here");
             }
 
-            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+            XContentBuilder builder = MediaTypeRegistry.contentBuilder(XContentType.JSON);
             builder.startObject();
             builder.field(FileInfo.NAME, name);
             builder.field(FileInfo.PHYSICAL_NAME, physicalName);

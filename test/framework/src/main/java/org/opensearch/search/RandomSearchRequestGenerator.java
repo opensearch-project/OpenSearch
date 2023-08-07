@@ -353,7 +353,7 @@ public class RandomSearchRequestGenerator {
                 }
                 jsonBuilder.endArray();
                 jsonBuilder.endObject();
-                XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+                XContentParser parser = XContentType.JSON.xContent()
                     .createParser(
                         NamedXContentRegistry.EMPTY,
                         DeprecationHandler.THROW_UNSUPPORTED_OPERATION,

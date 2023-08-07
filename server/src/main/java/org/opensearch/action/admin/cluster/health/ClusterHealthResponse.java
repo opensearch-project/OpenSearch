@@ -39,7 +39,7 @@ import org.opensearch.cluster.awarenesshealth.ClusterAwarenessHealth;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.cluster.health.ClusterIndexHealth;
 import org.opensearch.cluster.health.ClusterStateHealth;
-import org.opensearch.common.Strings;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.common.settings.ClusterSettings;

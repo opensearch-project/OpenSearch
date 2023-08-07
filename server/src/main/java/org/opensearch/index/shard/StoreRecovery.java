@@ -51,7 +51,7 @@ import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.lucene.Lucene;
-import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.index.Index;
@@ -530,7 +530,7 @@ final class StoreRecovery {
         remoteStore.incRef();
         try {
             // Download segments from remote segment store
-            indexShard.syncSegmentsFromRemoteSegmentStore(true, true, true);
+            indexShard.syncSegmentsFromRemoteSegmentStore(true, true);
 
             if (store.directory().listAll().length == 0) {
                 store.createEmpty(indexShard.indexSettings().getIndexVersionCreated().luceneVersion);

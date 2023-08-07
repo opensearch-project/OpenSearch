@@ -54,7 +54,7 @@ import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.transport.TransportAddress;
+import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.index.Index;
 import org.opensearch.index.query.InnerHitBuilder;

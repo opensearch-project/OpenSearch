@@ -50,7 +50,7 @@ import org.opensearch.client.Client;
 import org.opensearch.common.Nullable;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.ParsingException;
-import org.opensearch.common.Strings;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -58,6 +58,7 @@ import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.common.lucene.search.MoreLikeThisQuery;
 import org.opensearch.common.lucene.search.XMoreLikeThis;
 import org.opensearch.common.lucene.uid.Versions;
+import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
@@ -170,7 +171,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         private String index;
         private String id;
         private BytesReference doc;
-        private XContentType xContentType;
+        private MediaType mediaType;
         private String[] fields;
         private Map<String, String> perFieldAnalyzer;
         private String routing;
@@ -187,7 +188,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             this.id = copy.id;
             this.routing = copy.routing;
             this.doc = copy.doc;
-            this.xContentType = copy.xContentType;
+            this.mediaType = copy.mediaType;
             this.fields = copy.fields;
             this.perFieldAnalyzer = copy.perFieldAnalyzer;
             this.version = copy.version;
@@ -220,7 +221,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             }
             this.index = index;
             this.doc = BytesReference.bytes(doc);
-            this.xContentType = XContentType.fromMediaType(doc.contentType());
+            this.mediaType = doc.contentType();
         }
 
         /**
@@ -234,7 +235,11 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             }
             if (in.readBoolean()) {
                 doc = (BytesReference) in.readGenericValue();
-                xContentType = in.readEnum(XContentType.class);
+                if (in.getVersion().onOrAfter(Version.V_2_10_0)) {
+                    mediaType = in.readMediaType();
+                } else {
+                    mediaType = in.readEnum(XContentType.class);
+                }
             } else {
                 id = in.readString();
             }
@@ -255,7 +260,11 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             out.writeBoolean(doc != null);
             if (doc != null) {
                 out.writeGenericValue(doc);
-                out.writeEnum(xContentType);
+                if (out.getVersion().onOrAfter(Version.V_2_10_0)) {
+                    mediaType.writeTo(out);
+                } else {
+                    out.writeEnum((XContentType) mediaType);
+                }
             } else {
                 out.writeString(id);
             }
@@ -331,8 +340,8 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             return this;
         }
 
-        XContentType xContentType() {
-            return xContentType;
+        MediaType mediaType() {
+            return mediaType;
         }
 
         /**
@@ -351,7 +360,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
                 .termStatistics(false);
             // for artificial docs to make sure that the id has changed in the item too
             if (doc != null) {
-                termVectorsRequest.doc(doc, true, xContentType);
+                termVectorsRequest.doc(doc, true, mediaType);
                 this.id = termVectorsRequest.id();
             }
             return termVectorsRequest;
@@ -373,7 +382,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
                         item.id = parser.text();
                     } else if (DOC.match(currentFieldName, parser.getDeprecationHandler())) {
                         item.doc = BytesReference.bytes(jsonBuilder().copyCurrentStructure(parser));
-                        item.xContentType = XContentType.JSON;
+                        item.mediaType = XContentType.JSON;
                     } else if (FIELDS.match(currentFieldName, parser.getDeprecationHandler())) {
                         if (token == XContentParser.Token.START_ARRAY) {
                             List<String> fields = new ArrayList<>();
@@ -419,7 +428,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             }
             if (this.doc != null) {
                 try (InputStream stream = this.doc.streamInput()) {
-                    builder.rawField(DOC.getPreferredName(), stream, xContentType);
+                    builder.rawField(DOC.getPreferredName(), stream, mediaType);
                 }
             }
             if (this.fields != null) {
@@ -446,7 +455,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
                 XContentBuilder builder = XContentFactory.jsonBuilder();
                 builder.prettyPrint();
                 toXContent(builder, EMPTY_PARAMS);
-                return Strings.toString(builder);
+                return builder.toString();
             } catch (Exception e) {
                 return "{ \"error\" : \"" + ExceptionsHelper.detailedMessage(e) + "\"}";
             }

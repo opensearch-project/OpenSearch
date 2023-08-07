@@ -39,10 +39,10 @@ import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.xcontent.DeprecationHandler;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
@@ -262,7 +262,7 @@ public class GetIndexTemplatesResponseTests extends OpenSearchTestCase {
     }
 
     static XContentBuilder randomMapping(String type, XContentType xContentType) throws IOException {
-        XContentBuilder builder = XContentFactory.contentBuilder(xContentType);
+        XContentBuilder builder = MediaTypeRegistry.contentBuilder(xContentType);
         builder.startObject().startObject(type);
 
         randomMappingFields(builder, true);

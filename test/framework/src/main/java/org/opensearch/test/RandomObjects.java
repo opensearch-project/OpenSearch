@@ -48,9 +48,9 @@ import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.shard.IndexShardRecoveringException;
@@ -98,7 +98,7 @@ public final class RandomObjects {
         List<Object> originalValues = randomStoredFieldValues(random, numValues);
         List<Object> expectedParsedValues = new ArrayList<>(numValues);
         for (Object originalValue : originalValues) {
-            expectedParsedValues.add(getExpectedParsedValue(XContentType.fromMediaType(mediaType), originalValue));
+            expectedParsedValues.add(getExpectedParsedValue(mediaType, originalValue));
         }
         return Tuple.tuple(originalValues, expectedParsedValues);
     }
@@ -154,15 +154,15 @@ public final class RandomObjects {
      * Generates values based on what can get printed out. Stored fields values are retrieved from lucene and converted via
      * {@link org.opensearch.index.mapper.MappedFieldType#valueForDisplay(Object)} to either strings, numbers or booleans.
      */
-    public static Object getExpectedParsedValue(XContentType xContentType, Object value) {
+    public static Object getExpectedParsedValue(MediaType mediaType, Object value) {
         if (value instanceof BytesArray) {
-            if (xContentType == XContentType.JSON) {
+            if (mediaType == XContentType.JSON) {
                 // JSON writes base64 format
                 return Base64.getEncoder().encodeToString(((BytesArray) value).toBytesRef().bytes);
             }
         }
         if (value instanceof Float) {
-            if (xContentType == XContentType.CBOR || xContentType == XContentType.SMILE) {
+            if (mediaType == XContentType.CBOR || mediaType == XContentType.SMILE) {
                 // with binary content types we pass back the object as is
                 return value;
             }
@@ -205,7 +205,7 @@ public final class RandomObjects {
      * @param random Random generator
      */
     public static BytesReference randomSource(Random random, XContentType xContentType, int minNumFields) {
-        try (XContentBuilder builder = XContentFactory.contentBuilder(xContentType)) {
+        try (XContentBuilder builder = MediaTypeRegistry.contentBuilder(xContentType)) {
             builder.startObject();
             addFields(random, builder, minNumFields, 0);
             builder.endObject();

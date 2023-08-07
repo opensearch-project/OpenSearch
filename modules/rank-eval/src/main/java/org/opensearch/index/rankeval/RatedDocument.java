@@ -129,7 +129,7 @@ public class RatedDocument implements Writeable, ToXContentObject {
 
     @Override
     public String toString() {
-        return org.opensearch.common.Strings.toString(XContentType.JSON, this);
+        return Strings.toString(XContentType.JSON, this);
     }
 
     @Override

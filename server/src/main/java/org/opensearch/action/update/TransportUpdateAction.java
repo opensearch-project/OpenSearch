@@ -61,7 +61,7 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.core.common.io.stream.NotSerializableExceptionWrapper;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.engine.VersionConflictEngineException;
@@ -238,7 +238,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                         response.getResult()
                     );
                     if (request.fetchSource() != null && request.fetchSource().fetchSource()) {
-                        Tuple<XContentType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(
+                        Tuple<? extends MediaType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(
                             upsertSourceBytes,
                             true,
                             upsertRequest.getContentType()

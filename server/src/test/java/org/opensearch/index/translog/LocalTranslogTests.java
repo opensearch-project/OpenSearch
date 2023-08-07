@@ -53,7 +53,6 @@ import org.opensearch.core.Assertions;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Randomness;
-import org.opensearch.common.Strings;
 import org.opensearch.common.UUIDs;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
@@ -63,8 +62,8 @@ import org.opensearch.core.util.FileSystemUtils;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.unit.ByteSizeUnit;
-import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.util.concurrent.ReleasableLock;
@@ -520,7 +519,7 @@ public class LocalTranslogTests extends OpenSearchTestCase {
                 copy.toXContent(builder, ToXContent.EMPTY_PARAMS);
                 builder.endObject();
                 assertThat(
-                    Strings.toString(builder),
+                    builder.toString(),
                     equalTo(
                         "{\"translog\":{\"operations\":4,\"size_in_bytes\":"
                             + 326

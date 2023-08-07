@@ -1,0 +1,35 @@
+---
+name: Check Compatibility
+
+on:
+  pull_request_target
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Run compatibility task
+        run: ./gradlew checkCompatibility | tee $HOME/gradlew-check.out
+
+      - name: Get results
+        run: |
+          echo 'Compatibility status:' > ${{ github.workspace }}/results.txt && echo '```' >> ${{ github.workspace }}/results.txt
+          grep -e 'Compatible components' -e 'Incompatible components' -e 'Components skipped' -A 2 -B 3 $HOME/gradlew-check.out >> "${{ github.workspace }}/results.txt"
+          echo '```' >> ${{ github.workspace }}/results.txt
+
+      - name: GitHub App token
+        id: github_app_token
+        uses: tibdex/github-app-token@v1.6.0
+        with:
+          app_id: ${{ secrets.APP_ID }}
+          private_key: ${{ secrets.APP_PRIVATE_KEY }}
+          installation_id: 22958780
+
+      - name: Add comment on the PR
+        uses: peter-evans/create-or-update-comment@v3
+        with:
+          token: ${{ steps.github_app_token.outputs.token }}
+          issue-number: ${{ github.event.number }}
+          body-path: "${{ github.workspace }}/results.txt"

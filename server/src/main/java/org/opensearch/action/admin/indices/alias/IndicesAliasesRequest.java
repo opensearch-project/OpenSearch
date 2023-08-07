@@ -48,6 +48,7 @@ import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.ConstructingObjectParser;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.ObjectParser.ValueType;
 import org.opensearch.core.xcontent.ToXContent;
@@ -428,9 +429,9 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
                 return this;
             }
             try {
-                XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+                XContentBuilder builder = MediaTypeRegistry.contentBuilder(XContentType.JSON);
                 builder.map(filter);
-                this.filter = org.opensearch.common.Strings.toString(builder);
+                this.filter = builder.toString();
                 return this;
             } catch (IOException e) {
                 throw new OpenSearchGenerationException("Failed to generate [" + filter + "]", e);
@@ -446,7 +447,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
                 XContentBuilder builder = XContentFactory.jsonBuilder();
                 filter.toXContent(builder, ToXContent.EMPTY_PARAMS);
                 builder.close();
-                this.filter = org.opensearch.common.Strings.toString(builder);
+                this.filter = builder.toString();
                 return this;
             } catch (IOException e) {
                 throw new OpenSearchGenerationException("Failed to build json for alias request", e);

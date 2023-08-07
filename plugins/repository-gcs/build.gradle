@@ -67,7 +67,7 @@ dependencies {
   api "com.google.auth:google-auth-library-oauth2-http:${versions.google_auth}"
 
   api 'com.google.cloud:google-cloud-core:2.5.10'
-  api 'com.google.cloud:google-cloud-core-http:2.21.0'
+  api 'com.google.cloud:google-cloud-core-http:2.21.1'
   api 'com.google.cloud:google-cloud-storage:1.113.1'
 
   api 'com.google.code.gson:gson:2.9.0'
@@ -77,7 +77,7 @@ dependencies {
 
   api 'com.google.http-client:google-http-client:1.43.2'
   api 'com.google.http-client:google-http-client-appengine:1.43.2'
-  api 'com.google.http-client:google-http-client-gson:1.43.2'
+  api 'com.google.http-client:google-http-client-gson:1.43.3'
   api 'com.google.http-client:google-http-client-jackson2:1.43.2'
 
   api 'com.google.oauth-client:google-oauth-client:1.34.1'
