@@ -141,7 +141,8 @@ public class S3RepositoryTests extends OpenSearchTestCase implements ConfigPathS
                 .put(S3Repository.BASE_PATH_SETTING.getKey(), "foo/bar")
                 .put(S3Repository.BUCKET_SETTING.getKey(), "bucket")
                 .put(S3Repository.SYSTEM_REPOSITORY_SETTING.getKey(), true)
-                .build());
+                .build()
+        );
         try (S3Repository s3repo = createS3Repo(metadata)) {
             assertTrue(s3repo.isSystemRepository());
             assertThat(s3repo.restrictedSystemRepositorySettings(), hasSize(2));

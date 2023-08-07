@@ -63,7 +63,6 @@ import org.opensearch.snapshots.SnapshotInfo;
 import org.opensearch.threadpool.Scheduler;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
