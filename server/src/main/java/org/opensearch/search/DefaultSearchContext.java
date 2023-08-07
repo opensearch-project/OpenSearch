@@ -946,7 +946,7 @@ final class DefaultSearchContext extends SearchContext {
 
     @Override
     public int getTargetMaxSliceCount() {
-        if (!isConcurrentSegmentSearchEnabled()) {
+        if (isConcurrentSegmentSearchEnabled() == false) {
             throw new IllegalStateException("Target slice count should not be used when concurrent search is disabled");
         }
         return clusterService.getClusterSettings().get(SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING);

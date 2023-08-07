@@ -40,7 +40,7 @@ final class MaxTargetSliceSupplier {
         // Sort by maxDoc, descending:
         sortedLeaves.sort(Collections.reverseOrder(Comparator.comparingInt(l -> l.reader().maxDoc())));
 
-        final List<List<LeafReaderContext>> groupedLeaves = new ArrayList<>();
+        final List<List<LeafReaderContext>> groupedLeaves = new ArrayList<>(targetSliceCount);
         for (int i = 0; i < targetSliceCount; ++i) {
             groupedLeaves.add(new ArrayList<>());
         }

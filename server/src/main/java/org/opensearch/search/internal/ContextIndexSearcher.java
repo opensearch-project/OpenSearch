@@ -453,7 +453,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
      * @return leafSlice group to be executed by different threads
      */
     @Override
-    public LeafSlice[] slices(List<LeafReaderContext> leaves) {
+    protected LeafSlice[] slices(List<LeafReaderContext> leaves) {
         return slicesInternal(leaves, searchContext.getTargetMaxSliceCount());
     }
 
