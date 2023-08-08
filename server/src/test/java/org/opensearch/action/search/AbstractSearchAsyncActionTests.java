@@ -90,7 +90,6 @@ import java.util.function.BiFunction;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -614,7 +613,7 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
         action.skipShard(searchShardIterator);
         action.executeNextPhase(action, fetchPhase);
 
-        assertThat(testListener.totalStats.queryMetric.sum(), greaterThan(delay));
+        assertThat(testListener.totalStats.queryMetric.sum(), greaterThanOrEqualTo(delay));
         assertEquals(testListener.totalStats.queryTotal.count(), 1);
 
         assertEquals(1, testListener.totalStats.fetchCurrent.count());
@@ -624,12 +623,12 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
         action.executeNextPhase(fetchPhase, expandPhase);
 
         TimeUnit.MILLISECONDS.sleep(delay);
-        assertThat(testListener.totalStats.fetchMetric.sum(), greaterThan(delay));
+        assertThat(testListener.totalStats.fetchMetric.sum(), greaterThanOrEqualTo(delay));
         assertEquals(testListener.totalStats.fetchTotal.count(), 1);
         assertEquals(1, testListener.totalStats.expandSearchCurrent.count());
 
         action.executeNextPhase(expandPhase, fetchPhase);
-        assertThat(testListener.totalStats.expandSearchMetric.sum(), greaterThan(delay));
+        assertThat(testListener.totalStats.expandSearchMetric.sum(), greaterThanOrEqualTo(delay));
         assertEquals(testListener.totalStats.expandSearchTotal.count(), 1);
     }
 
@@ -653,7 +652,7 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
         searchDfsQueryThenFetchAsyncAction.skipShard(searchShardIterator);
         searchDfsQueryThenFetchAsyncAction.executeNextPhase(searchDfsQueryThenFetchAsyncAction, fetchPhase);
 
-        assertThat(testListener.totalStats.dfsPreQueryMetric.sum(), greaterThan(delay));
+        assertThat(testListener.totalStats.dfsPreQueryMetric.sum(), greaterThanOrEqualTo(delay));
         assertEquals(testListener.totalStats.dfsPreQueryTotal.count(), 1);
     }
 

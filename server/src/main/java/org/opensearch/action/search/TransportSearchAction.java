@@ -145,6 +145,14 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         Setting.Property.NodeScope
     );
 
+    public static final String SEARCH_REQUEST_STATS_ENABLED_KEY = "search.request_stats_enabled";
+    public static final Setting<Boolean> SEARCH_REQUEST_STATS_ENABLED = Setting.boolSetting(
+        SEARCH_REQUEST_STATS_ENABLED_KEY,
+        true,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
     private final NodeClient client;
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
@@ -156,7 +164,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final CircuitBreaker circuitBreaker;
     private final SearchPipelineService searchPipelineService;
-    final List<SearchRequestOperationsListener> searchListenersList = new ArrayList<>();
+
+    private volatile boolean isRequestStatsEnabled;
+
+    private final SearchRequestStats searchRequestStats;
 
     @Inject
     public TransportSearchAction(
@@ -187,7 +198,13 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.searchPipelineService = searchPipelineService;
-        this.searchListenersList.add(searchRequestStats);
+        this.isRequestStatsEnabled = clusterService.getClusterSettings().get(SEARCH_REQUEST_STATS_ENABLED);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(SEARCH_REQUEST_STATS_ENABLED, this::setIsRequestStatsEnabled);
+        this.searchRequestStats = searchRequestStats;
+    }
+
+    private void setIsRequestStatsEnabled(boolean isRequestStatsEnabled) {
+        this.isRequestStatsEnabled = isRequestStatsEnabled;
     }
 
     private Map<String, AliasFilter> buildPerIndexAliasFilter(
@@ -314,6 +331,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         SinglePhaseSearchAction phaseSearchAction,
         ActionListener<SearchResponse> listener
     ) {
+        final List<SearchRequestOperationsListener> searchListenersList = createSearchListenerList();
         executeRequest(task, searchRequest, new SearchAsyncActionProvider() {
             @Override
             public AbstractSearchAsyncAction<? extends SearchPhaseResult> asyncSearchAction(
@@ -1108,6 +1126,14 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         );
     }
 
+    private List<SearchRequestOperationsListener> createSearchListenerList() {
+        final List<SearchRequestOperationsListener> searchListenersList = new ArrayList<>();
+        if (isRequestStatsEnabled) {
+            searchListenersList.add(searchRequestStats);
+        }
+        return searchListenersList;
+    }
+
     private AbstractSearchAsyncAction<? extends SearchPhaseResult> searchAsyncAction(
         SearchTask task,
         SearchRequest searchRequest,
@@ -1124,6 +1150,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         ThreadPool threadPool,
         SearchResponse.Clusters clusters
     ) {
+        final List<SearchRequestOperationsListener> searchListenersList = createSearchListenerList();
         if (preFilter) {
             return new CanMatchPreFilterSearchPhase(
                 logger,

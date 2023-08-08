@@ -200,9 +200,18 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             SearchPhaseName.CAN_MATCH.getName(),
             () -> searchRequestOperationsListener.onCanMatchPhaseStart(this)
         );
-        searchPhaseStartTrackingMapModifiable.put(SearchPhaseName.DFS_QUERY.getName(), () -> searchRequestOperationsListener.onQueryPhaseStart(this));
-        searchPhaseStartTrackingMapModifiable.put(SearchPhaseName.QUERY.getName(), () -> searchRequestOperationsListener.onQueryPhaseStart(this));
-        searchPhaseStartTrackingMapModifiable.put(SearchPhaseName.FETCH.getName(), () -> searchRequestOperationsListener.onFetchPhaseStart(this));
+        searchPhaseStartTrackingMapModifiable.put(
+            SearchPhaseName.DFS_QUERY.getName(),
+            () -> searchRequestOperationsListener.onQueryPhaseStart(this)
+        );
+        searchPhaseStartTrackingMapModifiable.put(
+            SearchPhaseName.QUERY.getName(),
+            () -> searchRequestOperationsListener.onQueryPhaseStart(this)
+        );
+        searchPhaseStartTrackingMapModifiable.put(
+            SearchPhaseName.FETCH.getName(),
+            () -> searchRequestOperationsListener.onFetchPhaseStart(this)
+        );
         searchPhaseStartTrackingMapModifiable.put(
             SearchPhaseName.EXPAND.getName(),
             () -> searchRequestOperationsListener.onExpandSearchPhaseStart(this)
@@ -271,8 +280,14 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             SearchPhaseName.DFS_QUERY.getName(),
             () -> searchRequestOperationsListener.onQueryPhaseFailure(this)
         );
-        searchPhaseFailureTrackingMapModifiable.put(SearchPhaseName.QUERY.getName(), () -> searchRequestOperationsListener.onQueryPhaseFailure(this));
-        searchPhaseFailureTrackingMapModifiable.put(SearchPhaseName.FETCH.getName(), () -> searchRequestOperationsListener.onFetchPhaseFailure(this));
+        searchPhaseFailureTrackingMapModifiable.put(
+            SearchPhaseName.QUERY.getName(),
+            () -> searchRequestOperationsListener.onQueryPhaseFailure(this)
+        );
+        searchPhaseFailureTrackingMapModifiable.put(
+            SearchPhaseName.FETCH.getName(),
+            () -> searchRequestOperationsListener.onFetchPhaseFailure(this)
+        );
         searchPhaseFailureTrackingMapModifiable.put(
             SearchPhaseName.EXPAND.getName(),
             () -> searchRequestOperationsListener.onExpandSearchPhaseFailure(this)
@@ -534,22 +549,22 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     }
 
     private void onPhaseEnd(SearchPhaseContext searchPhaseContext) {
-        if (searchRequestOperationsListener == null || searchListenersList.isEmpty()) {
-            return;
-        }
-        if (searchPhaseEndTrackingMap.containsKey(searchPhaseContext.getCurrentPhase().getName())) {
-            searchPhaseEndTrackingMap.get(searchPhaseContext.getCurrentPhase().getName()).run();
+        if (!(searchListenersList == null) && !searchListenersList.isEmpty()) {
+            if (searchPhaseContext.getCurrentPhase() != null
+                && searchPhaseEndTrackingMap.containsKey(searchPhaseContext.getCurrentPhase().getName())) {
+                searchPhaseEndTrackingMap.get(searchPhaseContext.getCurrentPhase().getName()).run();
+            }
         }
     }
 
     private void onPhaseStart(SearchPhase phase, SearchPhaseContext searchPhaseContext) {
         setCurrentPhase(phase);
         phase.setStartTimeInNanos(System.nanoTime());
-        if (searchRequestOperationsListener == null || searchListenersList.isEmpty()) {
-            return;
-        }
-        if (searchPhaseStartTrackingMap.containsKey(searchPhaseContext.getCurrentPhase().getName())) {
-            searchPhaseStartTrackingMap.get(searchPhaseContext.getCurrentPhase().getName()).run();
+        if (!(searchListenersList == null) && !searchListenersList.isEmpty()) {
+            if (searchPhaseContext.getCurrentPhase() != null
+                && searchPhaseStartTrackingMap.containsKey(searchPhaseContext.getCurrentPhase().getName())) {
+                searchPhaseStartTrackingMap.get(searchPhaseContext.getCurrentPhase().getName()).run();
+            }
         }
     }
 
@@ -815,8 +830,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
 
     @Override
     public final void onPhaseFailure(SearchPhase phase, String msg, Throwable cause) {
-        if (searchRequestOperationsListener != null || searchListenersList.isEmpty()) {
-            if (searchPhaseFailureTrackingMap.containsKey(this.getCurrentPhase().getName())) {
+        if (!(searchListenersList == null) && !searchListenersList.isEmpty()) {
+            if (this.getCurrentPhase() != null && searchPhaseFailureTrackingMap.containsKey(this.getCurrentPhase().getName())) {
                 searchPhaseFailureTrackingMap.get(this.getCurrentPhase().getName()).run();
             }
         }
