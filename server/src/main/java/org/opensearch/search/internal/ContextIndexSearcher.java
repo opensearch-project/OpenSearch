@@ -450,7 +450,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
      * @return leafSlice group to be executed by different threads
      */
     @Override
-    public LeafSlice[] slices(List<LeafReaderContext> leaves) {
+    protected LeafSlice[] slices(List<LeafReaderContext> leaves) {
         // For now using the static setting to get the targetMaxSlice value. It will be updated to dynamic mechanism as part of
         // https://github.com/opensearch-project/OpenSearch/issues/8870 when lucene changes are available
         return slicesInternal(leaves, SearchBootstrapSettings.getTargetMaxSlice());
