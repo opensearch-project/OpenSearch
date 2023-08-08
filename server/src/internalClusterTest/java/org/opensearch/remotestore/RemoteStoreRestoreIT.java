@@ -211,7 +211,6 @@ public class RemoteStoreRestoreIT extends RemoteStoreBaseIntegTestCase {
         restoreAndVerify(shardCount, 1, indexStats);
     }
 
-
     /**
      * Helper function to test restoring multiple indices from remote store when all the nodes housing the primary/replica drop.
      * @param numberOfIterations Number of times a refresh/flush should be invoked, followed by indexing some data.
