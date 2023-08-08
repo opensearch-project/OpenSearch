@@ -211,6 +211,11 @@ class S3BlobContainer extends AbstractBlobContainer implements VerifyingMultiStr
         }
     }
 
+    @Override
+    public void readBlobAsync(String blobName, long position, long length, ActionListener<InputStream> listener) {
+        throw new UnsupportedOperationException("S3 BlobContainer currently does not support async blob downloads");
+    }
+
     // package private for testing
     long getLargeBlobThresholdInBytes() {
         return blobStore.bufferSizeInBytes();

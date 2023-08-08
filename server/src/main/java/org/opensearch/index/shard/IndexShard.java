@@ -59,9 +59,11 @@ import org.apache.lucene.util.ThreadInterruptedException;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionRunnable;
+import org.opensearch.action.LatchedActionListener;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.opensearch.action.admin.indices.upgrade.post.UpgradeRequest;
+import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.action.support.replication.PendingReplicationActions;
 import org.opensearch.action.support.replication.ReplicationResponse;
 import org.opensearch.cluster.metadata.DataStream;
@@ -212,6 +214,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
@@ -4787,37 +4790,102 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> uploadedSegments,
         boolean overrideLocal
     ) throws IOException {
-        List<String> downloadedSegments = new ArrayList<>();
-        List<String> skippedSegments = new ArrayList<>();
+        Set<String> toDownloadSegments = new HashSet<>();
+        Set<String> skippedSegments = new HashSet<>();
         String segmentNFile = null;
+
         try {
-            Set<String> localSegmentFiles = Sets.newHashSet(storeDirectory.listAll());
             if (overrideLocal) {
-                for (String file : localSegmentFiles) {
-                    storeDirectory.deleteFile(file);
-                }
+                deleteExistingSegments(storeDirectory);
             }
+
             for (String file : uploadedSegments.keySet()) {
                 long checksum = Long.parseLong(uploadedSegments.get(file).getChecksum());
                 if (overrideLocal || localDirectoryContains(storeDirectory, file, checksum) == false) {
-                    storeDirectory.copyFrom(sourceRemoteDirectory, file, file, IOContext.DEFAULT);
-                    downloadedSegments.add(file);
+                    toDownloadSegments.add(file);
                 } else {
                     skippedSegments.add(file);
                 }
-                if (targetRemoteDirectory != null) {
-                    targetRemoteDirectory.copyFrom(storeDirectory, file, file, IOContext.DEFAULT);
-                }
+
                 if (file.startsWith(IndexFileNames.SEGMENTS)) {
                     assert segmentNFile == null : "There should be only one SegmentInfosSnapshot file";
                     segmentNFile = file;
                 }
             }
+
+            if (!toDownloadSegments.isEmpty()) {
+                try {
+                    CountDownLatch completionLatch = new CountDownLatch(1);
+                    LatchedActionListener<Void> downloadsCompletionListener = new LatchedActionListener<>(
+                        new PlainActionFuture<>(),
+                        completionLatch
+                    );
+
+                    downloadSegments(
+                        storeDirectory,
+                        sourceRemoteDirectory,
+                        targetRemoteDirectory,
+                        uploadedSegments,
+                        toDownloadSegments,
+                        downloadsCompletionListener
+                    );
+
+                    completionLatch.await();
+                } catch (Exception e) {
+                    throw new IOException("Error occurred when downloading segments from remote store", e);
+                }
+            }
         } finally {
-            logger.trace("Downloaded segments here: {}", downloadedSegments);
-            logger.trace("Skipped download for segments here: {}", skippedSegments);
+            logger.info("Started downloads for segments here: {}", toDownloadSegments);
+            logger.info("Skipped download for segments here: {}", skippedSegments);
         }
+
         return segmentNFile;
+    }
+
+    private void downloadSegments(
+        Directory storeDirectory,
+        RemoteSegmentStoreDirectory sourceRemoteDirectory,
+        RemoteSegmentStoreDirectory targetRemoteDirectory,
+        Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> uploadedSegments,
+        Set<String> toDownloadSegments,
+        ActionListener<Void> completionListener
+    ) {
+        AtomicInteger totalDownloadedSegments = new AtomicInteger(toDownloadSegments.size());
+
+        ActionListener<String> segmentsDownloadListener = new ActionListener<>() {
+            @Override
+            public void onResponse(String fileName) {
+                try {
+                    if (targetRemoteDirectory != null) {
+                        targetRemoteDirectory.copyFrom(storeDirectory, fileName, fileName, IOContext.DEFAULT);
+                    }
+                    if (totalDownloadedSegments.decrementAndGet() == 0) {
+                        completionListener.onResponse(null);
+                    }
+                } catch (IOException ex) {
+                    logger.error("Failed to download segment file {} from the remote store", fileName);
+                    onFailure(ex);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.error("Failed to download one of the segment files from the remote store", e);
+                throw new RuntimeException(e);
+            }
+        };
+
+        toDownloadSegments.forEach(
+            file -> sourceRemoteDirectory.copyTo(storeDirectory, file, store.getShardPath().resolveIndex(), segmentsDownloadListener)
+        );
+    }
+
+    private void deleteExistingSegments(Directory storeDirectory) throws IOException {
+        Set<String> localSegmentFiles = Sets.newHashSet(storeDirectory.listAll());
+        for (String file : localSegmentFiles) {
+            storeDirectory.deleteFile(file);
+        }
     }
 
     private boolean localDirectoryContains(Directory localDirectory, String file, long checksum) {

@@ -114,6 +114,17 @@ public class MockFsVerifyingBlobContainer extends FsBlobContainer implements Ver
 
     }
 
+    @Override
+    public void readBlobAsync(String blobName, long position, long length, ActionListener<InputStream> listener) {
+        new Thread(() -> {
+            try {
+                listener.onResponse(readBlob(blobName, position, length));
+            } catch (Exception e) {
+                listener.onFailure(e);
+            }
+        }).start();
+    }
+
     private boolean isSegmentFile(String filename) {
         return !filename.endsWith(".tlog") && !filename.endsWith(".ckp");
     }
