@@ -46,17 +46,17 @@ import org.opensearch.client.Client;
 import org.opensearch.client.Requests;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider;
-import org.opensearch.common.breaker.CircuitBreaker;
-import org.opensearch.common.breaker.CircuitBreakingException;
-import org.opensearch.common.breaker.NoopCircuitBreaker;
+import org.opensearch.core.common.breaker.NoopCircuitBreaker;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.unit.ByteSizeUnit;
-import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.indices.breaker.CircuitBreakerStats;
-import org.opensearch.indices.breaker.HierarchyCircuitBreakerService;
+import org.opensearch.core.common.breaker.CircuitBreaker;
+import org.opensearch.core.common.breaker.CircuitBreakingException;
+import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.core.indices.breaker.CircuitBreakerStats;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.rest.RestStatus;
+import org.opensearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
@@ -197,7 +197,7 @@ public class CircuitBreakerServiceIT extends OpenSearchIntegTestCase {
             prepareCreate("ramtest").setSource(
                 "{\"mappings\": {\"type\": {\"properties\": {\"test\": "
                     + "{\"type\": \"text\",\"fielddata\": true,\"fielddata_frequency_filter\": {\"max\": 10000}}}}}}",
-                XContentType.JSON
+                MediaTypeRegistry.JSON
             )
         );
 

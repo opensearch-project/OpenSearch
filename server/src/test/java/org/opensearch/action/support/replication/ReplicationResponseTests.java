@@ -34,9 +34,9 @@ package org.opensearch.action.support.replication;
 
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.support.replication.ReplicationResponse.ShardInfo;
-import org.opensearch.common.Strings;
-import org.opensearch.common.breaker.CircuitBreaker;
-import org.opensearch.common.breaker.CircuitBreakingException;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.breaker.CircuitBreaker;
+import org.opensearch.core.common.breaker.CircuitBreakingException;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.core.xcontent.ToXContent;

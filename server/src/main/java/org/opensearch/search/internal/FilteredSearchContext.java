@@ -559,4 +559,14 @@ public abstract class FilteredSearchContext extends SearchContext {
     public BucketCollectorProcessor bucketCollectorProcessor() {
         return in.bucketCollectorProcessor();
     }
+
+    @Override
+    public boolean isConcurrentSegmentSearchEnabled() {
+        return in.isConcurrentSegmentSearchEnabled();
+    }
+
+    @Override
+    public int getTargetMaxSliceCount() {
+        return in.getTargetMaxSliceCount();
+    }
 }

@@ -9,7 +9,7 @@ package org.opensearch.identity.tokens;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
-import org.opensearch.common.Strings;
+import org.opensearch.core.common.Strings;
 import org.opensearch.rest.RestRequest;
 
 import java.util.Collections;

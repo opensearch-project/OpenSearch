@@ -14,7 +14,7 @@ import org.opensearch.common.StreamContext;
 import org.opensearch.common.blobstore.exception.CorruptFileException;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.io.InputStreamContainer;
-import org.opensearch.common.unit.ByteSizeUnit;
+import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.repositories.blobstore.ZeroInputStream;
 import org.opensearch.test.OpenSearchTestCase;
 import software.amazon.awssdk.awscore.exception.AwsErrorDetails;

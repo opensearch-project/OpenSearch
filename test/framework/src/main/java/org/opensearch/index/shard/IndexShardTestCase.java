@@ -48,6 +48,7 @@ import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.action.support.replication.TransportReplicationAction;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.MappingMetadata;
+import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
@@ -66,20 +67,22 @@ import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.blobstore.fs.FsBlobContainer;
 import org.opensearch.common.blobstore.fs.FsBlobStore;
-import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.index.Index;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
+import org.opensearch.env.TestEnvironment;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.MapperTestUtils;
 import org.opensearch.index.VersionType;
@@ -91,6 +94,7 @@ import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.EngineFactory;
 import org.opensearch.index.engine.EngineTestCase;
 import org.opensearch.index.engine.InternalEngineFactory;
+import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.SourceToParse;
 import org.opensearch.index.remote.RemoteRefreshSegmentPressureService;
@@ -112,7 +116,7 @@ import org.opensearch.index.translog.RemoteBlobStoreInternalTranslogFactory;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogFactory;
 import org.opensearch.indices.IndicesService;
-import org.opensearch.indices.breaker.CircuitBreakerService;
+import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.opensearch.indices.recovery.AsyncRecoveryTarget;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
@@ -138,11 +142,14 @@ import org.opensearch.indices.replication.common.ReplicationCollection;
 import org.opensearch.indices.replication.common.ReplicationFailedException;
 import org.opensearch.indices.replication.common.ReplicationListener;
 import org.opensearch.indices.replication.common.ReplicationState;
+import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
+import org.opensearch.repositories.blobstore.BlobStoreTestUtil;
 import org.opensearch.repositories.blobstore.OpenSearchBlobStoreRepositoryIntegTestCase;
+import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.snapshots.Snapshot;
 import org.opensearch.test.DummyShardLock;
 import org.opensearch.test.OpenSearchTestCase;
@@ -460,7 +467,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         @Nullable EngineFactory engineFactory,
         Runnable globalCheckpointSyncer,
         RetentionLeaseSyncer retentionLeaseSyncer,
-        Store remoteStore,
+        Path path,
         IndexingOperationListener... listeners
     ) throws IOException {
         // add node id as name to settings for proper logging
@@ -478,7 +485,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             globalCheckpointSyncer,
             retentionLeaseSyncer,
             EMPTY_EVENT_LISTENER,
-            remoteStore,
+            path,
             listeners
         );
     }
@@ -506,7 +513,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         Runnable globalCheckpointSyncer,
         RetentionLeaseSyncer retentionLeaseSyncer,
         IndexEventListener indexEventListener,
-        Store remoteStore,
+        Path remotePath,
         IndexingOperationListener... listeners
     ) throws IOException {
         return newShard(
@@ -521,8 +528,60 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             retentionLeaseSyncer,
             indexEventListener,
             SegmentReplicationCheckpointPublisher.EMPTY,
-            remoteStore,
+            remotePath,
             listeners
+        );
+    }
+
+    protected IndexShard newShard(boolean primary, SegmentReplicationCheckpointPublisher checkpointPublisher) throws IOException {
+        final Settings settings = Settings.builder().put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT).build();
+        return newShard(primary, checkpointPublisher, settings);
+    }
+
+    /**
+     * creates a new initializing shard. The shard will be put in its proper path under the
+     * current node id the shard is assigned to.
+     * @param checkpointPublisher               Segment Replication Checkpoint Publisher to publish checkpoint
+     */
+    protected IndexShard newShard(boolean primary, SegmentReplicationCheckpointPublisher checkpointPublisher, Settings settings)
+        throws IOException {
+        final ShardId shardId = new ShardId("index", "_na_", 0);
+        final ShardRouting shardRouting = TestShardRouting.newShardRouting(
+            shardId,
+            randomAlphaOfLength(10),
+            primary,
+            ShardRoutingState.INITIALIZING,
+            primary ? RecoverySource.EmptyStoreRecoverySource.INSTANCE : RecoverySource.PeerRecoverySource.INSTANCE
+        );
+        final NodeEnvironment.NodePath nodePath = new NodeEnvironment.NodePath(createTempDir());
+        ShardPath shardPath = new ShardPath(false, nodePath.resolve(shardId), nodePath.resolve(shardId), shardId);
+
+        Settings indexSettings = Settings.builder()
+            .put(settings)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), between(0, 1000))
+            .put(Settings.EMPTY)
+            .build();
+        IndexMetadata metadata = IndexMetadata.builder(shardRouting.getIndexName())
+            .settings(indexSettings)
+            .primaryTerm(0, primaryTerm)
+            .putMapping("{ \"properties\": {} }")
+            .build();
+        return newShard(
+            shardRouting,
+            shardPath,
+            metadata,
+            null,
+            null,
+            new NRTReplicationEngineFactory(),
+            new EngineConfigFactory(new IndexSettings(metadata, metadata.getSettings())),
+            () -> {},
+            RetentionLeaseSyncer.EMPTY,
+            EMPTY_EVENT_LISTENER,
+            checkpointPublisher,
+            null
         );
     }
 
@@ -550,7 +609,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         RetentionLeaseSyncer retentionLeaseSyncer,
         IndexEventListener indexEventListener,
         SegmentReplicationCheckpointPublisher checkpointPublisher,
-        @Nullable Store remoteStore,
+        @Nullable Path remotePath,
         IndexingOperationListener... listeners
     ) throws IOException {
         final Settings nodeSettings = Settings.builder().put("node.name", routing.currentNodeId()).build();
@@ -578,26 +637,32 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 Collections.emptyList(),
                 clusterSettings
             );
-
+            Store remoteStore = null;
             RemoteRefreshSegmentPressureService remoteRefreshSegmentPressureService = null;
+            RepositoriesService mockRepoSvc = mock(RepositoriesService.class);
+
             if (indexSettings.isRemoteStoreEnabled()) {
-                if (remoteStore == null) {
-                    Path remoteStorePath;
-                    String remoteStoreRepository = indexSettings.getRemoteStoreRepository();
-                    if (remoteStoreRepository != null && remoteStoreRepository.endsWith("__test")) {
-                        remoteStorePath = PathUtils.get(remoteStoreRepository.replace("__test", ""));
-                    } else {
-                        remoteStorePath = createTempDir();
-                    }
-                    remoteStore = createRemoteStore(remoteStorePath, routing, indexMetadata);
+                String remoteStoreRepository = indexSettings.getRemoteStoreRepository();
+                // remote path via setting a repository . This is a hack used for shards are created using reset .
+                // since we can't get remote path from IndexShard directly, we are using repository to store it .
+                if (remoteStoreRepository != null && remoteStoreRepository.endsWith("__test")) {
+                    remotePath = PathUtils.get(remoteStoreRepository.replace("__test", ""));
+                } else if (remotePath == null) {
+                    remotePath = createTempDir();
                 }
+
+                remoteStore = createRemoteStore(remotePath, routing, indexMetadata);
+
                 remoteRefreshSegmentPressureService = new RemoteRefreshSegmentPressureService(clusterService, indexSettings.getSettings());
+                BlobStoreRepository repo = createRepository(remotePath);
+                when(mockRepoSvc.repository(any())).thenAnswer(invocationOnMock -> repo);
             }
 
             final BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier = (settings, shardRouting) -> {
                 if (settings.isRemoteTranslogStoreEnabled() && shardRouting.primary()) {
+
                     return new RemoteBlobStoreInternalTranslogFactory(
-                        this::createRepositoriesService,
+                        () -> mockRepoSvc,
                         threadPool,
                         settings.getRemoteStoreTranslogRepository()
                     );
@@ -641,6 +706,39 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             }
         }
         return indexShard;
+    }
+
+    private BlobStoreRepository createRepository(Path path) {
+        Settings settings = Settings.builder().put("location", path).build();
+        RepositoryMetadata repositoryMetadata = new RepositoryMetadata(randomAlphaOfLength(10), FsRepository.TYPE, settings);
+        final ClusterService clusterService = BlobStoreTestUtil.mockClusterService(repositoryMetadata);
+        final FsRepository repository = new FsRepository(
+            repositoryMetadata,
+            createEnvironment(path),
+            xContentRegistry(),
+            clusterService,
+            new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))
+        ) {
+            @Override
+            protected void assertSnapshotOrGenericThread() {
+                // eliminate thread name check as we create repo manually
+            }
+        };
+        clusterService.addStateApplier(event -> repository.updateState(event.state()));
+        // Apply state once to initialize repo properly like RepositoriesService would
+        repository.updateState(clusterService.state());
+        repository.start();
+        return repository;
+    }
+
+    private Environment createEnvironment(Path path) {
+        Path home = createTempDir();
+        return TestEnvironment.newEnvironment(
+            Settings.builder()
+                .put(Environment.PATH_HOME_SETTING.getKey(), home.toAbsolutePath())
+                .put(Environment.PATH_REPO_SETTING.getKey(), path.toAbsolutePath())
+                .build()
+        );
     }
 
     protected RepositoriesService createRepositoriesService() {
@@ -724,7 +822,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             current.indexSettings.getIndexMetadata(),
             current.engineFactory,
             current.engineConfigFactory,
-            current.remoteStore(),
+            null,
             listeners
         );
     }
@@ -743,7 +841,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         IndexMetadata indexMetadata,
         EngineFactory engineFactory,
         EngineConfigFactory engineConfigFactory,
-        Store remoteStore,
+        Path remotePath,
         IndexingOperationListener... listeners
     ) throws IOException {
         closeShards(current);
@@ -758,7 +856,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             current.getGlobalCheckpointSyncer(),
             current.getRetentionLeaseSyncer(),
             EMPTY_EVENT_LISTENER,
-            remoteStore,
+            remotePath,
             listeners
         );
     }
@@ -1326,9 +1424,27 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         };
     }
 
+    private SegmentReplicationTargetService getSegmentReplicationTargetService(
+        TransportService transportService,
+        IndicesService indicesService,
+        ClusterService clusterService,
+        SegmentReplicationSourceFactory sourceFactory
+    ) {
+        return new SegmentReplicationTargetService(
+            threadPool,
+            new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
+            transportService,
+            sourceFactory,
+            indicesService,
+            clusterService
+        );
+    }
+
     /**
      * Segment Replication specific test method - Creates a {@link SegmentReplicationTargetService} to perform replications that has
-     * been configured to return the given primaryShard's current segments.
+     * been configured to return the given primaryShard's current segments. In order to do so, it mimics the replication
+     * source (to avoid transport calls) and simply copies over the segment files from primary store to replica's as part of
+     * get_files calls.
      *
      * @param primaryShard {@link IndexShard} - The target replica shard in segment replication.
      * @param target {@link IndexShard} - The source primary shard in segment replication.
@@ -1339,7 +1455,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
      *                             which are desired right after files are copied. e.g. To work with temp files
      * @return Returns SegmentReplicationTargetService
      */
-    public final SegmentReplicationTargetService prepareForReplication(
+    private SegmentReplicationTargetService prepareForReplication(
         IndexShard primaryShard,
         IndexShard target,
         TransportService transportService,
@@ -1347,22 +1463,28 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         ClusterService clusterService,
         Consumer<IndexShard> postGetFilesRunnable
     ) {
-        final SegmentReplicationSourceFactory sourceFactory = mock(SegmentReplicationSourceFactory.class);
-        final SegmentReplicationTargetService targetService = new SegmentReplicationTargetService(
-            threadPool,
-            new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
-            transportService,
-            sourceFactory,
-            indicesService,
-            clusterService
-        );
-        final SegmentReplicationSource replicationSource = getSegmentReplicationSource(
-            primaryShard,
-            (repId) -> targetService.get(repId),
-            postGetFilesRunnable
-        );
-        when(sourceFactory.get(any())).thenReturn(replicationSource);
-        when(indicesService.getShardOrNull(any())).thenReturn(target);
+
+        SegmentReplicationSourceFactory sourceFactory = null;
+        SegmentReplicationTargetService targetService;
+        if (primaryShard.indexSettings.isRemoteStoreEnabled()) {
+            RecoverySettings recoverySettings = new RecoverySettings(
+                Settings.EMPTY,
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+            );
+            sourceFactory = new SegmentReplicationSourceFactory(transportService, recoverySettings, clusterService);
+            targetService = getSegmentReplicationTargetService(transportService, indicesService, clusterService, sourceFactory);
+        } else {
+            sourceFactory = mock(SegmentReplicationSourceFactory.class);
+            targetService = getSegmentReplicationTargetService(transportService, indicesService, clusterService, sourceFactory);
+            final SegmentReplicationSource replicationSource = getSegmentReplicationSource(
+                primaryShard,
+                (repId) -> targetService.get(repId),
+                postGetFilesRunnable
+            );
+            when(sourceFactory.get(any())).thenReturn(replicationSource);
+            // This is needed for force segment sync call. Remote store uses a different recovery mechanism
+            when(indicesService.getShardOrNull(any())).thenReturn(target);
+        }
         return targetService;
     }
 
@@ -1459,10 +1581,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 ActionListener<CheckpointInfoResponse> listener
             ) {
                 try {
-                    final CopyState copyState = new CopyState(
-                        ReplicationCheckpoint.empty(primaryShard.shardId, primaryShard.getLatestReplicationCheckpoint().getCodec()),
-                        primaryShard
-                    );
+                    final CopyState copyState = new CopyState(primaryShard.getLatestReplicationCheckpoint(), primaryShard);
                     listener.onResponse(
                         new CheckpointInfoResponse(copyState.getCheckpoint(), copyState.getMetadataMap(), copyState.getInfosBytes())
                     );
@@ -1502,9 +1621,11 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
      * @param replicaShards - Replicas that will be updated.
      * @return {@link List} List of target components orchestrating replication.
      */
-    public final List<SegmentReplicationTarget> replicateSegments(IndexShard primaryShard, List<IndexShard> replicaShards)
+    protected final List<SegmentReplicationTarget> replicateSegments(IndexShard primaryShard, List<IndexShard> replicaShards)
         throws IOException, InterruptedException {
+        // Latch to block test execution until replica catches up
         final CountDownLatch countDownLatch = new CountDownLatch(replicaShards.size());
+        // Get primary metadata to verify with replica's, used to ensure replica catches up
         Map<String, StoreFileMetadata> primaryMetadata;
         try (final GatedCloseable<SegmentInfos> segmentInfosSnapshot = primaryShard.getSegmentInfosSnapshot()) {
             final SegmentInfos primarySegmentInfos = segmentInfosSnapshot.get();
@@ -1515,6 +1636,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             final SegmentReplicationTargetService targetService = prepareForReplication(primaryShard, replica);
             final SegmentReplicationTarget target = targetService.startReplication(
                 replica,
+                primaryShard.getLatestReplicationCheckpoint(),
                 getTargetListener(primaryShard, replica, primaryMetadata, countDownLatch)
             );
             ids.add(target);

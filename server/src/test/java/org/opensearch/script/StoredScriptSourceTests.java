@@ -32,7 +32,6 @@
 
 package org.opensearch.script;
 
-import org.opensearch.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.Writeable.Reader;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -100,7 +99,7 @@ public class StoredScriptSourceTests extends AbstractSerializingTestCase<StoredS
 
         switch (between(0, 2)) {
             case 0:
-                source = Strings.toString(newTemplate);
+                source = newTemplate.toString();
                 break;
             case 1:
                 lang = randomAlphaOfLengthBetween(1, 20);

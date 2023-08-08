@@ -53,7 +53,7 @@ import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
-import static org.opensearch.common.util.CollectionUtils.iterableAsArrayList;
+import static org.opensearch.core.common.util.CollectionUtils.iterableAsArrayList;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
 import static org.opensearch.index.query.QueryBuilders.termQuery;
 import static org.opensearch.search.aggregations.AggregationBuilders.filter;

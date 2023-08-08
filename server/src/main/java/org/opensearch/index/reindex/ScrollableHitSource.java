@@ -40,7 +40,7 @@ import org.opensearch.action.bulk.BackoffPolicy;
 import org.opensearch.action.bulk.BulkItemResponse;
 import org.opensearch.action.search.ShardSearchFailure;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.Strings;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -138,7 +138,7 @@ public abstract class ScrollableHitSource {
 
     public final void close(Runnable onCompletion) {
         String scrollId = this.scrollId.get();
-        if (org.opensearch.core.common.Strings.hasLength(scrollId)) {
+        if (Strings.hasLength(scrollId)) {
             clearScroll(scrollId, () -> cleanup(onCompletion));
         } else {
             cleanup(onCompletion);

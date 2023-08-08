@@ -335,4 +335,36 @@ public class SettingsModuleTests extends ModuleTestCase {
             "node"
         );
     }
+
+    public void testMaxSliceCountClusterSettingsForConcurrentSearch() {
+        // Test that we throw an exception without the feature flag
+        Settings settings = Settings.builder()
+            .put(SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING.getKey(), 2)
+            .build();
+        SettingsException ex = expectThrows(SettingsException.class, () -> new SettingsModule(settings));
+        assertTrue(
+            ex.getMessage()
+                .contains("unknown setting [" + SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING.getKey() + "]")
+        );
+
+        // Test that the settings updates correctly with the feature flag
+        FeatureFlagSetter.set(FeatureFlags.CONCURRENT_SEGMENT_SEARCH);
+        int settingValue = randomIntBetween(0, 10);
+        Settings settingsWithFeatureFlag = Settings.builder()
+            .put(SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING.getKey(), settingValue)
+            .build();
+        SettingsModule settingsModule = new SettingsModule(settingsWithFeatureFlag);
+        assertEquals(
+            settingValue,
+            (int) SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING.get(settingsModule.getSettings())
+        );
+
+        // Test that negative value is not allowed
+        settingValue = -1;
+        final Settings settingsWithFeatureFlag_2 = Settings.builder()
+            .put(SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING.getKey(), settingValue)
+            .build();
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> new SettingsModule(settingsWithFeatureFlag_2));
+        assertTrue(iae.getMessage().contains(SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING.getKey()));
+    }
 }

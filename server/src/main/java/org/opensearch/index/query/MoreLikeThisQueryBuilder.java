@@ -50,7 +50,7 @@ import org.opensearch.client.Client;
 import org.opensearch.common.Nullable;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.ParsingException;
-import org.opensearch.common.Strings;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -235,7 +235,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             }
             if (in.readBoolean()) {
                 doc = (BytesReference) in.readGenericValue();
-                if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+                if (in.getVersion().onOrAfter(Version.V_2_10_0)) {
                     mediaType = in.readMediaType();
                 } else {
                     mediaType = in.readEnum(XContentType.class);
@@ -260,7 +260,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             out.writeBoolean(doc != null);
             if (doc != null) {
                 out.writeGenericValue(doc);
-                if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+                if (out.getVersion().onOrAfter(Version.V_2_10_0)) {
                     mediaType.writeTo(out);
                 } else {
                     out.writeEnum((XContentType) mediaType);
@@ -455,7 +455,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
                 XContentBuilder builder = XContentFactory.jsonBuilder();
                 builder.prettyPrint();
                 toXContent(builder, EMPTY_PARAMS);
-                return Strings.toString(builder);
+                return builder.toString();
             } catch (Exception e) {
                 return "{ \"error\" : \"" + ExceptionsHelper.detailedMessage(e) + "\"}";
             }

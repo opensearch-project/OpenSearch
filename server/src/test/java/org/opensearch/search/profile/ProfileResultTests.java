@@ -32,7 +32,6 @@
 
 package org.opensearch.search.profile;
 
-import org.opensearch.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -183,7 +182,7 @@ public class ProfileResultTests extends OpenSearchTestCase {
                 + "    }\n"
                 + "  ]\n"
                 + "}",
-            Strings.toString(builder)
+            builder.toString()
         );
 
         builder = XContentFactory.jsonBuilder().prettyPrint().humanReadable(true);
@@ -223,7 +222,7 @@ public class ProfileResultTests extends OpenSearchTestCase {
                 + "    }\n"
                 + "  ]\n"
                 + "}",
-            Strings.toString(builder)
+            builder.toString()
         );
 
         result = new ProfileResult("profileName", "some description", Map.of("key1", 12345678L), Map.of(), 12345678L, List.of());
@@ -239,7 +238,7 @@ public class ProfileResultTests extends OpenSearchTestCase {
                 + "    \"key1\" : 12345678\n"
                 + "  }\n"
                 + "}",
-            Strings.toString(builder)
+            builder.toString()
         );
 
         result = new ProfileResult("profileName", "some description", Map.of("key1", 1234567890L), Map.of(), 1234567890L, List.of());
@@ -255,7 +254,7 @@ public class ProfileResultTests extends OpenSearchTestCase {
                 + "    \"key1\" : 1234567890\n"
                 + "  }\n"
                 + "}",
-            Strings.toString(builder)
+            builder.toString()
         );
 
         result = new ProfileResult("profileName", "some description", Map.of("key1", 1234L), Map.of(), 1234L, List.of(), 321L, 123L, 222L);
@@ -273,7 +272,7 @@ public class ProfileResultTests extends OpenSearchTestCase {
                 + "    \"key1\" : 1234\n"
                 + "  }\n"
                 + "}",
-            Strings.toString(builder)
+            builder.toString()
         );
 
         result = new ProfileResult(
@@ -305,7 +304,7 @@ public class ProfileResultTests extends OpenSearchTestCase {
                 + "    \"key1\" : 1234567890\n"
                 + "  }\n"
                 + "}",
-            Strings.toString(builder)
+            builder.toString()
         );
 
     }
