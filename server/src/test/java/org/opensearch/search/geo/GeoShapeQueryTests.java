@@ -37,7 +37,6 @@ import org.apache.lucene.tests.geo.GeoTestUtil;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.CheckedSupplier;
-import org.opensearch.common.Strings;
 import org.opensearch.common.geo.ShapeRelation;
 import org.opensearch.common.geo.SpatialStrategy;
 import org.opensearch.common.geo.builders.CircleBuilder;
@@ -438,7 +437,7 @@ public class GeoShapeQueryTests extends GeoQueryTests {
             .endObject()
             .endObject()
             .endObject();
-        String mapping = Strings.toString(xcb);
+        String mapping = xcb.toString();
         client().admin().indices().prepareCreate("test").setMapping(mapping).get();
         ensureGreen();
 
@@ -524,9 +523,9 @@ public class GeoShapeQueryTests extends GeoQueryTests {
     }
 
     private void assertUnmodified(ShapeBuilder builder) throws IOException {
-        String before = Strings.toString(jsonBuilder().startObject().field("area", builder).endObject());
+        String before = jsonBuilder().startObject().field("area", builder).endObject().toString();
         builder.buildS4J();
-        String after = Strings.toString(jsonBuilder().startObject().field("area", builder).endObject());
+        String after = jsonBuilder().startObject().field("area", builder).endObject().toString();
         assertThat(before, equalTo(after));
     }
 
@@ -614,20 +613,19 @@ public class GeoShapeQueryTests extends GeoQueryTests {
     }
 
     public void testPointsOnly() throws Exception {
-        String mapping = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("properties")
-                .startObject("location")
-                .field("type", "geo_shape")
-                .field("tree", randomBoolean() ? "quadtree" : "geohash")
-                .field("tree_levels", "6")
-                .field("distance_error_pct", "0.01")
-                .field("points_only", true)
-                .endObject()
-                .endObject()
-                .endObject()
-        );
+        String mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("location")
+            .field("type", "geo_shape")
+            .field("tree", randomBoolean() ? "quadtree" : "geohash")
+            .field("tree_levels", "6")
+            .field("distance_error_pct", "0.01")
+            .field("points_only", true)
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
 
         client().admin().indices().prepareCreate("geo_points_only").setMapping(mapping).get();
         ensureGreen();
@@ -652,20 +650,19 @@ public class GeoShapeQueryTests extends GeoQueryTests {
     }
 
     public void testPointsOnlyExplicit() throws Exception {
-        String mapping = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("properties")
-                .startObject("geo")
-                .field("type", "geo_shape")
-                .field("tree", randomBoolean() ? "quadtree" : "geohash")
-                .field("tree_levels", "6")
-                .field("distance_error_pct", "0.01")
-                .field("points_only", true)
-                .endObject()
-                .endObject()
-                .endObject()
-        );
+        String mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("geo")
+            .field("type", "geo_shape")
+            .field("tree", randomBoolean() ? "quadtree" : "geohash")
+            .field("tree_levels", "6")
+            .field("distance_error_pct", "0.01")
+            .field("points_only", true)
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
 
         client().admin().indices().prepareCreate("geo_points_only").setMapping(mapping).get();
         ensureGreen();
@@ -693,7 +690,7 @@ public class GeoShapeQueryTests extends GeoQueryTests {
     }
 
     public void testIndexedShapeReference() throws Exception {
-        String mapping = Strings.toString(createDefaultMapping());
+        String mapping = createDefaultMapping().toString();
         client().admin().indices().prepareCreate("test").setMapping(mapping).get();
         createIndex("shapes");
         ensureGreen();
@@ -888,7 +885,7 @@ public class GeoShapeQueryTests extends GeoQueryTests {
     }
 
     public void testDistanceQuery() throws Exception {
-        String mapping = Strings.toString(createRandomMapping());
+        String mapping = createRandomMapping().toString();
         client().admin().indices().prepareCreate("test_distance").setMapping(mapping).get();
         ensureGreen();
 
@@ -930,7 +927,7 @@ public class GeoShapeQueryTests extends GeoQueryTests {
     }
 
     public void testIndexRectangleSpanningDateLine() throws Exception {
-        String mapping = Strings.toString(createRandomMapping());
+        String mapping = createRandomMapping().toString();
 
         client().admin().indices().prepareCreate("test").setMapping(mapping).get();
         ensureGreen();

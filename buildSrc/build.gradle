@@ -117,7 +117,7 @@ dependencies {
   api 'de.thetaphi:forbiddenapis:3.5.1'
   api 'com.avast.gradle:gradle-docker-compose-plugin:0.16.12'
   api "org.yaml:snakeyaml:${props.getProperty('snakeyaml')}"
-  api 'org.apache.maven:maven-model:3.9.3'
+  api 'org.apache.maven:maven-model:3.9.4'
   api 'com.networknt:json-schema-validator:1.0.86'
   api 'org.jruby.jcodings:jcodings:1.0.58'
   api 'org.jruby.joni:joni:2.2.1'

@@ -38,7 +38,7 @@ import org.opensearch.action.search.SearchRequest;
 import org.opensearch.cluster.metadata.AliasMetadata;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.Strings;
+import org.opensearch.core.common.Strings;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Settings;
@@ -206,7 +206,7 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
         XContentBuilder builder = XContentFactory.jsonBuilder();
         filterBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.close();
-        return new CompressedXContent(Strings.toString(builder));
+        return new CompressedXContent(builder.toString());
     }
 
     private IndexMetadata remove(IndexMetadata indexMetadata, String alias) {

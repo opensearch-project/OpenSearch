@@ -44,7 +44,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.SetOnce;
-import org.opensearch.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -192,7 +191,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         XContentBuilder parsedFromOrig = JsonXContent.contentBuilder().startObject();
         createMapperService(orig).documentMapper().mapping().toXContent(parsedFromOrig, ToXContent.EMPTY_PARAMS);
         parsedFromOrig.endObject();
-        assertEquals(Strings.toString(orig), Strings.toString(parsedFromOrig));
+        assertEquals(orig.toString(), parsedFromOrig.toString());
         assertParseMinimalWarnings();
     }
 
@@ -204,7 +203,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         XContentBuilder parsedFromOrig = JsonXContent.contentBuilder().startObject();
         createMapperService(orig).documentMapper().mapping().toXContent(parsedFromOrig, INCLUDE_DEFAULTS);
         parsedFromOrig.endObject();
-        assertEquals(Strings.toString(orig), Strings.toString(parsedFromOrig));
+        assertEquals(orig.toString(), parsedFromOrig.toString());
         assertParseMaximalWarnings();
     }
 

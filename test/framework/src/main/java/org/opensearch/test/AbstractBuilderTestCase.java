@@ -47,7 +47,6 @@ import org.opensearch.action.termvectors.MultiTermVectorsRequest;
 import org.opensearch.action.termvectors.MultiTermVectorsResponse;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.common.Strings;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.regex.Regex;
@@ -434,42 +433,40 @@ public abstract class AbstractBuilderTestCase extends OpenSearchTestCase {
                 mapperService.merge(
                     "_doc",
                     new CompressedXContent(
-                        Strings.toString(
-                            PutMappingRequest.simpleMapping(
-                                TEXT_FIELD_NAME,
-                                "type=text",
-                                KEYWORD_FIELD_NAME,
-                                "type=keyword",
-                                TEXT_ALIAS_FIELD_NAME,
-                                "type=alias,path=" + TEXT_FIELD_NAME,
-                                INT_FIELD_NAME,
-                                "type=integer",
-                                INT_ALIAS_FIELD_NAME,
-                                "type=alias,path=" + INT_FIELD_NAME,
-                                INT_RANGE_FIELD_NAME,
-                                "type=integer_range",
-                                DOUBLE_FIELD_NAME,
-                                "type=double",
-                                BOOLEAN_FIELD_NAME,
-                                "type=boolean",
-                                DATE_NANOS_FIELD_NAME,
-                                "type=date_nanos",
-                                DATE_FIELD_NAME,
-                                "type=date",
-                                DATE_ALIAS_FIELD_NAME,
-                                "type=alias,path=" + DATE_FIELD_NAME,
-                                DATE_RANGE_FIELD_NAME,
-                                "type=date_range",
-                                OBJECT_FIELD_NAME,
-                                "type=object",
-                                GEO_POINT_FIELD_NAME,
-                                "type=geo_point",
-                                GEO_POINT_ALIAS_FIELD_NAME,
-                                "type=alias,path=" + GEO_POINT_FIELD_NAME,
-                                GEO_SHAPE_FIELD_NAME,
-                                "type=geo_shape"
-                            )
-                        )
+                        PutMappingRequest.simpleMapping(
+                            TEXT_FIELD_NAME,
+                            "type=text",
+                            KEYWORD_FIELD_NAME,
+                            "type=keyword",
+                            TEXT_ALIAS_FIELD_NAME,
+                            "type=alias,path=" + TEXT_FIELD_NAME,
+                            INT_FIELD_NAME,
+                            "type=integer",
+                            INT_ALIAS_FIELD_NAME,
+                            "type=alias,path=" + INT_FIELD_NAME,
+                            INT_RANGE_FIELD_NAME,
+                            "type=integer_range",
+                            DOUBLE_FIELD_NAME,
+                            "type=double",
+                            BOOLEAN_FIELD_NAME,
+                            "type=boolean",
+                            DATE_NANOS_FIELD_NAME,
+                            "type=date_nanos",
+                            DATE_FIELD_NAME,
+                            "type=date",
+                            DATE_ALIAS_FIELD_NAME,
+                            "type=alias,path=" + DATE_FIELD_NAME,
+                            DATE_RANGE_FIELD_NAME,
+                            "type=date_range",
+                            OBJECT_FIELD_NAME,
+                            "type=object",
+                            GEO_POINT_FIELD_NAME,
+                            "type=geo_point",
+                            GEO_POINT_ALIAS_FIELD_NAME,
+                            "type=alias,path=" + GEO_POINT_FIELD_NAME,
+                            GEO_SHAPE_FIELD_NAME,
+                            "type=geo_shape"
+                        ).toString()
                     ),
                     MapperService.MergeReason.MAPPING_UPDATE
                 );

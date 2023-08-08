@@ -73,7 +73,6 @@ import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.Randomness;
-import org.opensearch.common.Strings;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.concurrent.GatedCloseable;
@@ -1706,7 +1705,7 @@ public class IndexShardTests extends IndexShardTestCase {
         builder.startObject();
         stats.toXContent(builder, EMPTY_PARAMS);
         builder.endObject();
-        String xContent = Strings.toString(builder);
+        String xContent = builder.toString();
         StringBuilder expectedSubSequence = new StringBuilder("\"shard_path\":{\"state_path\":\"");
         expectedSubSequence.append(shard.shardPath().getRootStatePath().toString());
         expectedSubSequence.append("\",\"data_path\":\"");
@@ -3634,14 +3633,13 @@ public class IndexShardTests extends IndexShardTestCase {
 
             int numDoc = randomIntBetween(100, 200);
             for (int i = 0; i < numDoc; i++) {
-                String doc = Strings.toString(
-                    XContentFactory.jsonBuilder()
-                        .startObject()
-                        .field("count", randomInt())
-                        .field("point", randomFloat())
-                        .field("description", randomUnicodeOfCodepointLength(100))
-                        .endObject()
-                );
+                String doc = XContentFactory.jsonBuilder()
+                    .startObject()
+                    .field("count", randomInt())
+                    .field("point", randomFloat())
+                    .field("description", randomUnicodeOfCodepointLength(100))
+                    .endObject()
+                    .toString();
                 indexDoc(indexShard, "_doc", Integer.toString(i), doc);
             }
 
@@ -3753,7 +3751,7 @@ public class IndexShardTests extends IndexShardTestCase {
      */
     public void testCheckpointRefreshListener() throws IOException {
         final SegmentReplicationCheckpointPublisher mock = mock(SegmentReplicationCheckpointPublisher.class);
-        IndexShard shard = newStartedShard(p -> newShard(mock), true);
+        IndexShard shard = newStartedShard(p -> newShard(true, mock), true);
         List<ReferenceManager.RefreshListener> refreshListeners = shard.getEngine().config().getInternalRefreshListener();
         assertTrue(refreshListeners.stream().anyMatch(e -> e instanceof CheckpointRefreshListener));
         closeShards(shard);
@@ -3763,56 +3761,11 @@ public class IndexShardTests extends IndexShardTestCase {
      * here we are passing null in place of SegmentReplicationCheckpointPublisher and testing  on index shard if CheckpointRefreshListener is not added to the InternalrefreshListerners List
      */
     public void testCheckpointRefreshListenerWithNull() throws IOException {
-        IndexShard shard = newStartedShard(p -> newShard(null), true);
+        final SegmentReplicationCheckpointPublisher publisher = null;
+        IndexShard shard = newStartedShard(p -> newShard(true, publisher), true);
         List<ReferenceManager.RefreshListener> refreshListeners = shard.getEngine().config().getInternalRefreshListener();
         assertFalse(refreshListeners.stream().anyMatch(e -> e instanceof CheckpointRefreshListener));
         closeShards(shard);
-    }
-
-    /**
-     * creates a new initializing shard. The shard will be put in its proper path under the
-     * current node id the shard is assigned to.
-     * @param checkpointPublisher               Segment Replication Checkpoint Publisher to publish checkpoint
-     */
-    private IndexShard newShard(SegmentReplicationCheckpointPublisher checkpointPublisher) throws IOException {
-        final ShardId shardId = new ShardId("index", "_na_", 0);
-        final ShardRouting shardRouting = TestShardRouting.newShardRouting(
-            shardId,
-            randomAlphaOfLength(10),
-            true,
-            ShardRoutingState.INITIALIZING,
-            RecoverySource.EmptyStoreRecoverySource.INSTANCE
-        );
-        final NodeEnvironment.NodePath nodePath = new NodeEnvironment.NodePath(createTempDir());
-        ShardPath shardPath = new ShardPath(false, nodePath.resolve(shardId), nodePath.resolve(shardId), shardId);
-
-        Settings indexSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_REPLICATION_TYPE, "SEGMENT")
-            .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), between(0, 1000))
-            .put(Settings.EMPTY)
-            .build();
-        IndexMetadata metadata = IndexMetadata.builder(shardRouting.getIndexName())
-            .settings(indexSettings)
-            .primaryTerm(0, primaryTerm)
-            .putMapping("{ \"properties\": {} }")
-            .build();
-        return newShard(
-            shardRouting,
-            shardPath,
-            metadata,
-            null,
-            null,
-            new InternalEngineFactory(),
-            new EngineConfigFactory(new IndexSettings(metadata, metadata.getSettings())),
-            () -> {},
-            RetentionLeaseSyncer.EMPTY,
-            EMPTY_EVENT_LISTENER,
-            checkpointPublisher,
-            null
-        );
     }
 
     public void testIndexCheckOnStartup() throws Exception {

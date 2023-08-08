@@ -35,7 +35,6 @@ import org.apache.hc.client5.http.classic.methods.HttpHead;
 import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.opensearch.client.Response;
-import org.opensearch.common.Strings;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.core.xcontent.MediaType;
@@ -136,7 +135,7 @@ public class ClientYamlTestResponse {
                     ) {
                         jsonBuilder.copyCurrentStructure(parser);
                     }
-                    bodyAsString = Strings.toString(jsonBuilder);
+                    bodyAsString = jsonBuilder.toString();
                 } catch (IOException e) {
                     throw new UncheckedIOException("unable to convert response body to a string format", e);
                 }

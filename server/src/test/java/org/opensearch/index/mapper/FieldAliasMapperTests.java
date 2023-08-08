@@ -32,7 +32,6 @@
 
 package org.opensearch.index.mapper;
 
-import org.opensearch.common.Strings;
 import org.opensearch.common.xcontent.XContentFactory;
 
 import java.io.IOException;
@@ -40,22 +39,21 @@ import java.io.IOException;
 public class FieldAliasMapperTests extends MapperServiceTestCase {
 
     public void testParsing() throws IOException {
-        String mapping = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("_doc")
-                .startObject("properties")
-                .startObject("alias-field")
-                .field("type", "alias")
-                .field("path", "concrete-field")
-                .endObject()
-                .startObject("concrete-field")
-                .field("type", "keyword")
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
+        String mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("_doc")
+            .startObject("properties")
+            .startObject("alias-field")
+            .field("type", "alias")
+            .field("path", "concrete-field")
+            .endObject()
+            .startObject("concrete-field")
+            .field("type", "keyword")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
         DocumentMapper mapper = createDocumentMapper("_doc", mapping);
         assertEquals(mapping, mapper.mappingSource().toString());
     }

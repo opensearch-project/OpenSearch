@@ -33,7 +33,6 @@
 package org.opensearch.action.admin.indices.alias;
 
 import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
-import org.opensearch.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -195,7 +194,7 @@ public class AliasActionsTests extends OpenSearchTestCase {
             if (filter == null || filter.isEmpty()) {
                 assertNull(action.filter());
             } else {
-                assertEquals(Strings.toString(MediaTypeRegistry.contentBuilder(XContentType.JSON).map(filter)), action.filter());
+                assertEquals(MediaTypeRegistry.contentBuilder(XContentType.JSON).map(filter).toString(), action.filter());
             }
             assertEquals(Objects.toString(searchRouting, null), action.searchRouting());
             assertEquals(Objects.toString(indexRouting, null), action.indexRouting());
