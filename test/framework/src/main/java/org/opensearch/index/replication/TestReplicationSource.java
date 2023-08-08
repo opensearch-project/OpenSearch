@@ -41,6 +41,6 @@ public abstract class TestReplicationSource implements SegmentReplicationSource 
 
     @Override
     public String getDescription() {
-        return "This is a test description";
+        return "TestReplicationSource";
     }
 }

@@ -26,7 +26,6 @@ import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.IndexSettings;
@@ -36,7 +35,6 @@ import org.opensearch.index.engine.NRTReplicationEngine;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.replication.OpenSearchIndexLevelReplicationTestCase;
-import org.opensearch.index.replication.TestReplicationSource;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.index.translog.SnapshotMatchers;
@@ -44,8 +42,6 @@ import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RecoveryTarget;
 import org.opensearch.indices.replication.CheckpointInfoResponse;
-import org.opensearch.indices.replication.GetSegmentFilesResponse;
-import org.opensearch.indices.replication.SegmentReplicationSource;
 import org.opensearch.indices.replication.SegmentReplicationSourceFactory;
 import org.opensearch.indices.replication.SegmentReplicationState;
 import org.opensearch.indices.replication.SegmentReplicationTarget;
@@ -84,7 +80,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelReplicationTestCase {
 
@@ -672,58 +667,6 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             doThrow(AlreadyClosedException.class).when(replicaSpy).finalizeReplication(any());
 
             replicateSegments(primary, List.of(replicaSpy));
-        }
-    }
-
-    public void testBeforeIndexShardClosedWhileCopyingFiles() throws Exception {
-        try (ReplicationGroup shards = createGroup(1, getIndexSettings(), new NRTReplicationEngineFactory())) {
-            shards.startAll();
-            IndexShard primary = shards.getPrimary();
-            final IndexShard replica = shards.getReplicas().get(0);
-
-            primary.refresh("Test");
-
-            final SegmentReplicationSourceFactory sourceFactory = mock(SegmentReplicationSourceFactory.class);
-            final SegmentReplicationTargetService targetService = newTargetService(sourceFactory);
-            SegmentReplicationSource source = new TestReplicationSource() {
-
-                ActionListener<GetSegmentFilesResponse> listener;
-
-                @Override
-                public void getCheckpointMetadata(
-                    long replicationId,
-                    ReplicationCheckpoint checkpoint,
-                    ActionListener<CheckpointInfoResponse> listener
-                ) {
-                    resolveCheckpointInfoResponseListener(listener, primary);
-                }
-
-                @Override
-                public void getSegmentFiles(
-                    long replicationId,
-                    ReplicationCheckpoint checkpoint,
-                    List<StoreFileMetadata> filesToFetch,
-                    IndexShard indexShard,
-                    ActionListener<GetSegmentFilesResponse> listener
-                ) {
-                    // set the listener, we will only fail it once we cancel the source.
-                    this.listener = listener;
-                    // shard is closing while we are copying files.
-                    targetService.beforeIndexShardClosed(replica.shardId, replica, Settings.EMPTY);
-                }
-
-                @Override
-                public void cancel() {
-                    // simulate listener resolving, but only after we have issued a cancel from beforeIndexShardClosed .
-                    final RuntimeException exception = new CancellableThreads.ExecutionCancelledException("retryable action was cancelled");
-                    listener.onFailure(exception);
-                }
-            };
-            when(sourceFactory.get(any())).thenReturn(source);
-            startReplicationAndAssertCancellation(replica, primary, targetService);
-
-            shards.removeReplica(replica);
-            closeShards(replica);
         }
     }
 

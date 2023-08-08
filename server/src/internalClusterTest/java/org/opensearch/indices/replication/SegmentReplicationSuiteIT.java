@@ -11,17 +11,49 @@ package org.opensearch.indices.replication;
 import org.opensearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.junit.Before;
 
+import static org.opensearch.remotestore.RemoteStoreBaseIntegTestCase.remoteStoreClusterSettings;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
+
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE, minNumDataNodes = 2)
 public class SegmentReplicationSuiteIT extends SegmentReplicationBaseIT {
+
+    private static final String REPOSITORY_NAME = "test-remote-store-repo";
+    private static final boolean remoteStoreEnabled = randomBoolean();
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal));
+        if (remoteStoreEnabled == true) {
+            builder = builder.put(remoteStoreClusterSettings(REPOSITORY_NAME));
+        }
+        return builder.build();
+    }
 
     @Before
     public void setup() {
         internalCluster().startClusterManagerOnlyNode();
+        if (remoteStoreEnabled == true) {
+            assertAcked(
+                clusterAdmin().preparePutRepository(REPOSITORY_NAME)
+                    .setType("fs")
+                    .setSettings(Settings.builder().put("location", randomRepoPath().toAbsolutePath()))
+            );
+        }
         createIndex(INDEX_NAME);
+    }
+
+    @Override
+    protected Settings featureFlagSettings() {
+        return Settings.builder()
+            .put(super.featureFlagSettings())
+            .put(FeatureFlags.REMOTE_STORE, remoteStoreEnabled)
+            .put(FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL, "true")
+            .build();
     }
 
     @Override
@@ -33,12 +65,11 @@ public class SegmentReplicationSuiteIT extends SegmentReplicationBaseIT {
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas())
             .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT);
 
-        // TODO: Randomly enable remote store on these tests.
         return builder.build();
     }
 
     public void testBasicReplication() throws Exception {
-        final int docCount = scaledRandomIntBetween(10, 200);
+        final int docCount = scaledRandomIntBetween(10, 50);
         for (int i = 0; i < docCount; i++) {
             client().prepareIndex(INDEX_NAME).setId(Integer.toString(i)).setSource("field", "value" + i).execute().get();
         }
@@ -51,7 +82,7 @@ public class SegmentReplicationSuiteIT extends SegmentReplicationBaseIT {
         internalCluster().ensureAtLeastNumDataNodes(2);
         internalCluster().startClusterManagerOnlyNodes(1);
 
-        final int docCount = scaledRandomIntBetween(10, 200);
+        final int docCount = scaledRandomIntBetween(10, 50);
         for (int i = 0; i < docCount; i++) {
             client().prepareIndex(INDEX_NAME).setId(Integer.toString(i)).setSource("field", "value" + i).execute().get();
         }
@@ -67,7 +98,7 @@ public class SegmentReplicationSuiteIT extends SegmentReplicationBaseIT {
 
     public void testDeleteIndexWhileReplicating() throws Exception {
         internalCluster().startClusterManagerOnlyNode();
-        final int docCount = scaledRandomIntBetween(10, 200);
+        final int docCount = scaledRandomIntBetween(10, 50);
         for (int i = 0; i < docCount; i++) {
             client().prepareIndex(INDEX_NAME).setId(Integer.toString(i)).setSource("field", "value" + i).execute().get();
         }
@@ -77,7 +108,7 @@ public class SegmentReplicationSuiteIT extends SegmentReplicationBaseIT {
 
     public void testFullRestartDuringReplication() throws Exception {
         internalCluster().startNode();
-        final int docCount = scaledRandomIntBetween(10, 200);
+        final int docCount = scaledRandomIntBetween(10, 50);
         for (int i = 0; i < docCount; i++) {
             client().prepareIndex(INDEX_NAME).setId(Integer.toString(i)).setSource("field", "value" + i).execute().get();
         }

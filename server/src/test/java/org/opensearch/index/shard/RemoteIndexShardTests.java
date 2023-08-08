@@ -10,7 +10,14 @@ package org.opensearch.index.shard;
 
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.util.Version;
+import org.hamcrest.MatcherAssert;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.IOContext;
+import org.junit.Assert;
+import org.junit.Before;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
@@ -18,11 +25,11 @@ import org.opensearch.index.engine.DocIdSeqNoAndSource;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.InternalEngine;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
+import org.opensearch.index.replication.TestReplicationSource;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
+import org.opensearch.indices.replication.SegmentReplicationSourceFactory;
 import org.opensearch.indices.replication.common.ReplicationType;
-import org.hamcrest.MatcherAssert;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -30,12 +37,23 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.store.RemoteSegmentStoreDirectory;
+import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
+import org.opensearch.indices.replication.CheckpointInfoResponse;
+import org.opensearch.indices.replication.GetSegmentFilesResponse;
+import org.opensearch.indices.replication.SegmentReplicationSource;
+import org.opensearch.indices.replication.SegmentReplicationTargetService;
+import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import java.util.concurrent.CountDownLatch;
 import java.util.stream.Collectors;
 
 import static org.opensearch.index.engine.EngineTestCase.assertAtMostOneLuceneDocumentPerSequenceNumber;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
 
@@ -77,6 +95,159 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
 
     public void testNRTReplicaWithRemoteStorePromotedAsPrimaryCommitCommit() throws Exception {
         testNRTReplicaWithRemoteStorePromotedAsPrimary(true, true);
+    }
+
+    public void testCloseShardWhileGettingCheckpoint() throws Exception {
+        String indexMapping = "{ \"" + MapperService.SINGLE_MAPPING_NAME + "\": {} }";
+        try (
+            ReplicationGroup shards = createGroup(1, getIndexSettings(), indexMapping, new NRTReplicationEngineFactory(), createTempDir())
+        ) {
+            shards.startAll();
+            IndexShard primary = shards.getPrimary();
+            final IndexShard replica = shards.getReplicas().get(0);
+            primary.refresh("Test");
+
+            final SegmentReplicationSourceFactory sourceFactory = mock(SegmentReplicationSourceFactory.class);
+            final SegmentReplicationTargetService targetService = newTargetService(sourceFactory);
+
+            // Create custom replication source in order to trigger shard close operations at specific point of segment replication
+            // lifecycle
+            SegmentReplicationSource source = new TestReplicationSource() {
+                RemoteSegmentStoreDirectory remoteDirectory;
+
+                @Override
+                public void getCheckpointMetadata(
+                    long replicationId,
+                    ReplicationCheckpoint checkpoint,
+                    ActionListener<CheckpointInfoResponse> listener
+                ) {
+                    // shard is closing while fetching metadata
+                    targetService.beforeIndexShardClosed(replica.shardId, replica, Settings.EMPTY);
+                    FilterDirectory remoteStoreDirectory = (FilterDirectory) replica.remoteStore().directory();
+                    FilterDirectory byteSizeCachingStoreDirectory = (FilterDirectory) remoteStoreDirectory.getDelegate();
+                    this.remoteDirectory = (RemoteSegmentStoreDirectory) byteSizeCachingStoreDirectory.getDelegate();
+
+                    RemoteSegmentMetadata mdFile = null;
+                    try {
+                        mdFile = remoteDirectory.init();
+                        final Version version = replica.getSegmentInfosSnapshot().get().getCommitLuceneVersion();
+                        Map<String, StoreFileMetadata> metadataMap = mdFile.getMetadata()
+                            .entrySet()
+                            .stream()
+                            .collect(
+                                Collectors.toMap(
+                                    e -> e.getKey(),
+                                    e -> new StoreFileMetadata(
+                                        e.getValue().getOriginalFilename(),
+                                        e.getValue().getLength(),
+                                        Store.digestToString(Long.valueOf(e.getValue().getChecksum())),
+                                        version,
+                                        null
+                                    )
+                                )
+                            );
+                        listener.onResponse(
+                            new CheckpointInfoResponse(mdFile.getReplicationCheckpoint(), metadataMap, mdFile.getSegmentInfosBytes())
+                        );
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+
+                @Override
+                public void getSegmentFiles(
+                    long replicationId,
+                    ReplicationCheckpoint checkpoint,
+                    List<StoreFileMetadata> filesToFetch,
+                    IndexShard indexShard,
+                    ActionListener<GetSegmentFilesResponse> listener
+                ) {
+                    Assert.fail("Unreachable");
+                }
+            };
+            when(sourceFactory.get(any())).thenReturn(source);
+            startReplicationAndAssertCancellation(replica, primary, targetService);
+            shards.removeReplica(replica);
+            closeShards(replica);
+        }
+    }
+
+    public void testBeforeIndexShardClosedWhileCopyingFiles() throws Exception {
+        try (ReplicationGroup shards = createGroup(1, getIndexSettings(), new NRTReplicationEngineFactory())) {
+            shards.startAll();
+            IndexShard primary = shards.getPrimary();
+            final IndexShard replica = shards.getReplicas().get(0);
+
+            shards.indexDocs(10);
+            primary.refresh("Test");
+
+            final SegmentReplicationSourceFactory sourceFactory = mock(SegmentReplicationSourceFactory.class);
+            final SegmentReplicationTargetService targetService = newTargetService(sourceFactory);
+            SegmentReplicationSource source = new TestReplicationSource() {
+                RemoteSegmentStoreDirectory remoteDirectory;
+
+                @Override
+                public void getCheckpointMetadata(
+                    long replicationId,
+                    ReplicationCheckpoint checkpoint,
+                    ActionListener<CheckpointInfoResponse> listener
+                ) {
+                    try {
+                        FilterDirectory remoteStoreDirectory = (FilterDirectory) replica.remoteStore().directory();
+                        FilterDirectory byteSizeCachingStoreDirectory = (FilterDirectory) remoteStoreDirectory.getDelegate();
+                        this.remoteDirectory = (RemoteSegmentStoreDirectory) byteSizeCachingStoreDirectory.getDelegate();
+
+                        RemoteSegmentMetadata mdFile = remoteDirectory.init();
+                        final Version version = replica.getSegmentInfosSnapshot().get().getCommitLuceneVersion();
+                        Map<String, StoreFileMetadata> metadataMap = mdFile.getMetadata()
+                            .entrySet()
+                            .stream()
+                            .collect(
+                                Collectors.toMap(
+                                    e -> e.getKey(),
+                                    e -> new StoreFileMetadata(
+                                        e.getValue().getOriginalFilename(),
+                                        e.getValue().getLength(),
+                                        Store.digestToString(Long.valueOf(e.getValue().getChecksum())),
+                                        version,
+                                        null
+                                    )
+                                )
+                            );
+                        listener.onResponse(
+                            new CheckpointInfoResponse(mdFile.getReplicationCheckpoint(), metadataMap, mdFile.getSegmentInfosBytes())
+                        );
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+
+                @Override
+                public void getSegmentFiles(
+                    long replicationId,
+                    ReplicationCheckpoint checkpoint,
+                    List<StoreFileMetadata> filesToFetch,
+                    IndexShard indexShard,
+                    ActionListener<GetSegmentFilesResponse> listener
+                ) {
+                    try {
+                        // shard is closing while we are copying files.
+                        targetService.beforeIndexShardClosed(replica.shardId, replica, Settings.EMPTY);
+                        final Directory storeDirectory = indexShard.store().directory();
+                        for (StoreFileMetadata fileMetadata : filesToFetch) {
+                            String file = fileMetadata.name();
+                            storeDirectory.copyFrom(remoteDirectory, file, file, IOContext.DEFAULT);
+                        }
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+            };
+            when(sourceFactory.get(any())).thenReturn(source);
+            startReplicationAndAssertCancellation(replica, primary, targetService);
+            shards.removeReplica(replica);
+            closeShards(replica);
+        }
     }
 
     public void testNRTReplicaWithRemoteStorePromotedAsPrimary(boolean performFlushFirst, boolean performFlushSecond) throws Exception {

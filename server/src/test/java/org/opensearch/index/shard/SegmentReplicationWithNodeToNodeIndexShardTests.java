@@ -709,4 +709,56 @@ public class SegmentReplicationWithNodeToNodeIndexShardTests extends SegmentRepl
         }
     }
 
+    public void testBeforeIndexShardClosedWhileCopyingFiles() throws Exception {
+        try (ReplicationGroup shards = createGroup(1, getIndexSettings(), new NRTReplicationEngineFactory())) {
+            shards.startAll();
+            IndexShard primary = shards.getPrimary();
+            final IndexShard replica = shards.getReplicas().get(0);
+
+            primary.refresh("Test");
+
+            final SegmentReplicationSourceFactory sourceFactory = mock(SegmentReplicationSourceFactory.class);
+            final SegmentReplicationTargetService targetService = newTargetService(sourceFactory);
+            SegmentReplicationSource source = new TestReplicationSource() {
+
+                ActionListener<GetSegmentFilesResponse> listener;
+
+                @Override
+                public void getCheckpointMetadata(
+                    long replicationId,
+                    ReplicationCheckpoint checkpoint,
+                    ActionListener<CheckpointInfoResponse> listener
+                ) {
+                    resolveCheckpointInfoResponseListener(listener, primary);
+                }
+
+                @Override
+                public void getSegmentFiles(
+                    long replicationId,
+                    ReplicationCheckpoint checkpoint,
+                    List<StoreFileMetadata> filesToFetch,
+                    IndexShard indexShard,
+                    ActionListener<GetSegmentFilesResponse> listener
+                ) {
+                    // set the listener, we will only fail it once we cancel the source.
+                    this.listener = listener;
+                    // shard is closing while we are copying files.
+                    targetService.beforeIndexShardClosed(replica.shardId, replica, Settings.EMPTY);
+                }
+
+                @Override
+                public void cancel() {
+                    // simulate listener resolving, but only after we have issued a cancel from beforeIndexShardClosed .
+                    final RuntimeException exception = new CancellableThreads.ExecutionCancelledException("retryable action was cancelled");
+                    listener.onFailure(exception);
+                }
+            };
+            when(sourceFactory.get(any())).thenReturn(source);
+            startReplicationAndAssertCancellation(replica, primary, targetService);
+
+            shards.removeReplica(replica);
+            closeShards(replica);
+        }
+    }
+
 }

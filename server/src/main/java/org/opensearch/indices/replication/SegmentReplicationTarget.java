@@ -159,13 +159,15 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         // Get list of files to copy from this checkpoint.
         state.setStage(SegmentReplicationState.Stage.GET_CHECKPOINT_INFO);
         cancellableThreads.checkForCancel();
-        source.getCheckpointMetadata(getId(), checkpoint, checkpointInfoListener);
+        cancellableThreads.execute(() -> source.getCheckpointMetadata(getId(), checkpoint, checkpointInfoListener));
 
         checkpointInfoListener.whenComplete(checkpointInfo -> {
             final List<StoreFileMetadata> filesToFetch = getFiles(checkpointInfo);
             state.setStage(SegmentReplicationState.Stage.GET_FILES);
             cancellableThreads.checkForCancel();
-            source.getSegmentFiles(getId(), checkpointInfo.getCheckpoint(), filesToFetch, indexShard, getFilesListener);
+            cancellableThreads.execute(
+                () -> source.getSegmentFiles(getId(), checkpointInfo.getCheckpoint(), filesToFetch, indexShard, getFilesListener)
+            );
         }, listener::onFailure);
 
         getFilesListener.whenComplete(response -> {
