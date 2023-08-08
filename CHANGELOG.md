@@ -63,9 +63,5 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ### Security
 
-<<<<<<< HEAD
-[Unreleased 2.x]: https://github.com/opensearch-project/OpenSearch/compare/2.9...2.x
-=======
-[Unreleased 3.0]: https://github.com/opensearch-project/OpenSearch/compare/2.x...HEAD
+
 [Unreleased 2.x]: https://github.com/opensearch-project/OpenSearch/compare/2.10...2.x
->>>>>>> e1eade10174 (Bump io.projectreactor.netty:reactor-netty-http from 1.1.8 to 1.1.9 in /plugins/repository-azure (#9147))
