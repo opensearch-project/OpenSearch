@@ -211,6 +211,13 @@ public class RemoteStoreRestoreIT extends RemoteStoreBaseIntegTestCase {
         restoreAndVerify(shardCount, 1, indexStats);
     }
 
+
+    /**
+     * Helper function to test restoring multiple indices from remote store when all the nodes housing the primary/replica drop.
+     * @param numberOfIterations Number of times a refresh/flush should be invoked, followed by indexing some data.
+     * @param invokeFlush If true, a flush is invoked. Otherwise, a refresh is invoked.
+     * @throws IOException IO Exception.
+     */
     private void testRestoreFlowMultipleIndices(int numberOfIterations, boolean invokeFlush, int shardCount) throws IOException {
         prepareCluster(1, 3, INDEX_NAMES, 1, shardCount);
         String[] indices = INDEX_NAMES.split(",");
