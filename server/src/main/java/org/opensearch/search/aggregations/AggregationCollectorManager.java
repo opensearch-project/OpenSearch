@@ -17,14 +17,15 @@ import org.opensearch.search.query.ReduceableSearchResult;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 
 /**
  * Common {@link CollectorManager} used by both concurrent and non-concurrent aggregation path and also for global and non-global
  * aggregation operators
+ *
+ * @opensearch.internal
  */
-class AggregationCollectorManager implements CollectorManager<Collector, ReduceableSearchResult> {
+public abstract class AggregationCollectorManager implements CollectorManager<Collector, ReduceableSearchResult> {
     protected final SearchContext context;
     private final CheckedFunction<SearchContext, List<Aggregator>, IOException> aggProvider;
     private final String collectorReason;
@@ -50,6 +51,8 @@ class AggregationCollectorManager implements CollectorManager<Collector, Reducea
     public String getCollectorReason() {
         return collectorReason;
     }
+
+    public abstract String getCollectorName();
 
     @Override
     public ReduceableSearchResult reduce(Collection<Collector> collectors) throws IOException {

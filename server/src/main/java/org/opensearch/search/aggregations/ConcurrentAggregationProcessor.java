@@ -13,7 +13,6 @@ import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.Query;
 import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.search.internal.SearchContext;
-import org.opensearch.search.profile.query.CollectorResult;
 import org.opensearch.search.profile.query.InternalProfileCollectorManager;
 import org.opensearch.search.profile.query.InternalProfileComponent;
 import org.opensearch.search.query.QueryPhaseExecutionException;
@@ -68,7 +67,7 @@ public class ConcurrentAggregationProcessor implements AggregationProcessor {
                 if (context.getProfilers() != null) {
                     globalCollectorManager = new InternalProfileCollectorManager(
                         globalCollectorManager,
-                        CollectorResult.REASON_AGGREGATION_GLOBAL,
+                        ((AggregationCollectorManager) globalCollectorManager).getCollectorReason(),
                         Collections.emptyList()
                     );
                     context.getProfilers().addQueryProfiler().setCollector((InternalProfileComponent) globalCollectorManager);

@@ -15,6 +15,7 @@ import org.apache.lucene.search.Query;
 import org.mockito.ArgumentMatchers;
 import org.opensearch.search.aggregations.bucket.global.GlobalAggregator;
 import org.opensearch.search.internal.ContextIndexSearcher;
+import org.opensearch.search.profile.query.CollectorResult;
 import org.opensearch.search.query.ReduceableSearchResult;
 import org.opensearch.test.TestSearchContext;
 
@@ -51,16 +52,8 @@ public class AggregationProcessorTests extends AggregationSetupTests {
         testPostProcessCommon(multipleNonGlobalAggs, 1, 0, 2, false);
     }
 
-    public void testPostProcessWithNonGlobalAggregatorsAndSingleSliceWithProfilers() throws Exception {
-        testPostProcessCommon(multipleNonGlobalAggs, 1, 0, 2, true);
-    }
-
     public void testPostProcessWithNonGlobalAggregatorsAndMultipleSlices() throws Exception {
         testPostProcessCommon(multipleNonGlobalAggs, randomIntBetween(2, 5), 0, 2, false);
-    }
-
-    public void testPostProcessWithNonGlobalAggregatorsAndMultipleSlicesWithProfilers() throws Exception {
-        testPostProcessCommon(multipleNonGlobalAggs, randomIntBetween(2, 5), 0, 2, true);
     }
 
     public void testPostProcessGlobalAndNonGlobalAggregators() throws Exception {
@@ -182,6 +175,14 @@ public class AggregationProcessorTests extends AggregationSetupTests {
         // for global aggs verify that search.search is called with CollectionManager
         if (expectedGlobalAggs > 0) {
             verify(testSearcher, times(1)).search(nullable(Query.class), ArgumentMatchers.<CollectorManager<?, ?>>any());
+            if (withProfilers) {
+                // First profiler is from withProfilers() call, second one is from postProcess() call
+                assertEquals(2, context.getProfilers().getQueryProfilers().size());
+                assertEquals(
+                    CollectorResult.REASON_AGGREGATION_GLOBAL,
+                    context.getProfilers().getQueryProfilers().get(1).getCollector().getReason()
+                );
+            }
         }
         // after shard level reduce it should have only 1 InternalAggregation instance for each agg in request and internal aggregation
         // will be equal to sum of expected global and nonglobal aggs
