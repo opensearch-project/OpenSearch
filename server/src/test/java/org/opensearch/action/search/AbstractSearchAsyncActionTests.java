@@ -599,7 +599,7 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
 
         SearchQueryThenFetchAsyncAction action = createSearchQueryThenFetchAsyncAction(requestOperationListeners);
 
-        long delay = (int) Math.floor(Math.random() * (5 - 1 + 1) + 1);
+        long delay = randomIntBetween(1, 5);
         delay = delay * 10;
 
         action.start();
@@ -639,7 +639,7 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
         SearchDfsQueryThenFetchAsyncAction searchDfsQueryThenFetchAsyncAction = createSearchDfsQueryThenFetchAsyncAction(
             requestOperationListeners
         );
-        long delay = (int) Math.floor(Math.random() * (5 - 1 + 1) + 1);
+        long delay =  randomIntBetween(1, 5);
 
         FetchSearchPhase fetchPhase = createFetchSearchPhase();
         searchDfsQueryThenFetchAsyncAction.start();
