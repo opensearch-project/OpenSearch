@@ -148,7 +148,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     public static final String SEARCH_REQUEST_STATS_ENABLED_KEY = "search.request_stats_enabled";
     public static final Setting<Boolean> SEARCH_REQUEST_STATS_ENABLED = Setting.boolSetting(
         SEARCH_REQUEST_STATS_ENABLED_KEY,
-        true,
+        false,
         Property.Dynamic,
         Property.NodeScope
     );
