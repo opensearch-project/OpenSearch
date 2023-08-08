@@ -382,6 +382,10 @@ public class Node implements Closeable {
     private final LocalNodeFactory localNodeFactory;
     private final NodeService nodeService;
     private final Tracer tracer;
+<<<<<<< HEAD
+=======
+    private final TracerFactory tracerFactory;
+>>>>>>> 4ec68e250f9 (fixed tracer bug)
     final NamedWriteableRegistry namedWriteableRegistry;
     private final AtomicReference<RunnableTaskExecutionListener> runnableTaskListener;
     private FileCache fileCache;
@@ -1043,8 +1047,13 @@ public class Node implements Closeable {
             } else {
                 tracerFactory = new NoopTracerFactory();
             }
+<<<<<<< HEAD
             tracer = tracerFactory.getTracer();
             resourcesToClose.add(tracer::close);
+=======
+            resourcesToClose.add(tracerFactory::close);
+            tracer = tracerFactory.getTracer();
+>>>>>>> 4ec68e250f9 (fixed tracer bug)
 
             final List<PersistentTasksExecutor<?>> tasksExecutors = pluginsService.filterPlugins(PersistentTaskPlugin.class)
                 .stream()
@@ -1153,6 +1162,7 @@ public class Node implements Closeable {
                 b.bind(IdentityService.class).toInstance(identityService);
                 b.bind(Tracer.class).toInstance(tracer);
                 b.bind(SearchRequestStats.class).toInstance(requestStats.getSearchRequestStats());
+                b.bind(Tracer.class).toInstance(tracer);
             });
             injector = modules.createInjector();
 
