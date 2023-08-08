@@ -38,7 +38,7 @@ import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.SetOnce;
-import org.opensearch.common.Strings;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.common.logging.DeprecationLogger;
@@ -427,7 +427,7 @@ public final class Settings implements ToXContentFragment {
             if (valueFromPrefix instanceof List) {
                 return Collections.unmodifiableList((List<String>) valueFromPrefix);
             } else if (commaDelimited) {
-                String[] strings = org.opensearch.core.common.Strings.splitStringByCommaToArray(get(key));
+                String[] strings = Strings.splitStringByCommaToArray(get(key));
                 if (strings.length > 0) {
                     for (String string : strings) {
                         result.add(string.trim());
@@ -455,7 +455,7 @@ public final class Settings implements ToXContentFragment {
      * Returns group settings for the given setting prefix.
      */
     public Map<String, Settings> getGroups(String settingPrefix, boolean ignoreNonGrouped) throws SettingsException {
-        if (!org.opensearch.core.common.Strings.hasLength(settingPrefix)) {
+        if (!Strings.hasLength(settingPrefix)) {
             throw new IllegalArgumentException("illegal setting prefix " + settingPrefix);
         }
         if (settingPrefix.charAt(settingPrefix.length() - 1) != '.') {
@@ -1084,7 +1084,7 @@ public final class Settings implements ToXContentFragment {
             // TODO: do this without a serialization round-trip
             try (XContentBuilder builder = MediaTypeRegistry.contentBuilder(XContentType.JSON)) {
                 builder.map(map);
-                return loadFromSource(Strings.toString(builder), builder.contentType());
+                return loadFromSource(builder.toString(), builder.contentType());
             } catch (IOException e) {
                 throw new OpenSearchGenerationException("Failed to generate [" + map + "]", e);
             }
@@ -1208,7 +1208,7 @@ public final class Settings implements ToXContentFragment {
                 String value = propertyPlaceholder.replacePlaceholders(Settings.toString(entry.getValue()), placeholderResolver);
                 // if the values exists and has length, we should maintain it in the map
                 // otherwise, the replace process resolved into removing it
-                if (org.opensearch.core.common.Strings.hasLength(value)) {
+                if (Strings.hasLength(value)) {
                     entry.setValue(value);
                 } else {
                     entryItr.remove();
@@ -1432,7 +1432,7 @@ public final class Settings implements ToXContentFragment {
             builder.startObject();
             toXContent(builder, new MapParams(Collections.singletonMap("flat_settings", "true")));
             builder.endObject();
-            return Strings.toString(builder);
+            return builder.toString();
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

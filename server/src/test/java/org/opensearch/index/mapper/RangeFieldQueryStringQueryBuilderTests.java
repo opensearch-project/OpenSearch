@@ -44,7 +44,6 @@ import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.opensearch.action.admin.indices.mapping.put.PutMappingRequest;
-import org.opensearch.common.Strings;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.network.InetAddresses;
 import org.opensearch.common.time.DateMathParser;
@@ -72,22 +71,20 @@ public class RangeFieldQueryStringQueryBuilderTests extends AbstractQueryTestCas
         mapperService.merge(
             "_doc",
             new CompressedXContent(
-                Strings.toString(
-                    PutMappingRequest.simpleMapping(
-                        INTEGER_RANGE_FIELD_NAME,
-                        "type=integer_range",
-                        LONG_RANGE_FIELD_NAME,
-                        "type=long_range",
-                        FLOAT_RANGE_FIELD_NAME,
-                        "type=float_range",
-                        DOUBLE_RANGE_FIELD_NAME,
-                        "type=double_range",
-                        DATE_RANGE_FIELD_NAME,
-                        "type=date_range",
-                        IP_RANGE_FIELD_NAME,
-                        "type=ip_range"
-                    )
-                )
+                PutMappingRequest.simpleMapping(
+                    INTEGER_RANGE_FIELD_NAME,
+                    "type=integer_range",
+                    LONG_RANGE_FIELD_NAME,
+                    "type=long_range",
+                    FLOAT_RANGE_FIELD_NAME,
+                    "type=float_range",
+                    DOUBLE_RANGE_FIELD_NAME,
+                    "type=double_range",
+                    DATE_RANGE_FIELD_NAME,
+                    "type=date_range",
+                    IP_RANGE_FIELD_NAME,
+                    "type=ip_range"
+                ).toString()
             ),
             MapperService.MergeReason.MAPPING_UPDATE
         );

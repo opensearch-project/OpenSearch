@@ -36,7 +36,6 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.tests.util.TestUtil;
 import org.opensearch.action.OriginalIndices;
-import org.opensearch.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.common.lucene.LuceneTests;
@@ -261,7 +260,7 @@ public class SearchHitsTests extends AbstractSerializingTestCase<SearchHits> {
             "{\"hits\":{\"total\":{\"value\":1000,\"relation\":\"eq\"},\"max_score\":1.5,"
                 + "\"hits\":[{\"_id\":\"id1\",\"_score\":null},"
                 + "{\"_id\":\"id2\",\"_score\":null}]}}",
-            Strings.toString(builder)
+            builder.toString()
         );
     }
 

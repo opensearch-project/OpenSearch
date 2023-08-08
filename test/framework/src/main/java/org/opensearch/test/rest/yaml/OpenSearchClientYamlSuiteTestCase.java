@@ -46,7 +46,7 @@ import org.opensearch.client.RestClient;
 import org.opensearch.client.RestClientBuilder;
 import org.opensearch.client.WarningsHandler;
 import org.opensearch.client.sniff.OpenSearchNodesSniffer;
-import org.opensearch.common.Strings;
+import org.opensearch.core.common.Strings;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.xcontent.XContentType;
@@ -300,7 +300,7 @@ public abstract class OpenSearchClientYamlSuiteTestCase extends OpenSearchRestTe
 
     private static String[] resolvePathsProperty(String propertyName, String defaultValue) {
         String property = System.getProperty(propertyName);
-        if (!org.opensearch.core.common.Strings.hasLength(property)) {
+        if (!Strings.hasLength(property)) {
             return defaultValue == null ? Strings.EMPTY_ARRAY : new String[] { defaultValue };
         } else {
             return property.split(PATHS_SEPARATOR);

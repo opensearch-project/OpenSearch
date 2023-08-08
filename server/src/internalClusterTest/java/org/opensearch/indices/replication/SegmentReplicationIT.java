@@ -44,6 +44,8 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.allocation.command.CancelAllocationCommand;
+import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.settings.Settings;
@@ -60,6 +62,7 @@ import org.opensearch.index.engine.NRTReplicationReaderManager;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.indices.recovery.FileChunkRequest;
+import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.search.SearchService;
 import org.opensearch.search.builder.PointInTimeBuilder;
@@ -88,10 +91,14 @@ import static org.opensearch.action.search.SearchContextId.decode;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
 import static org.opensearch.index.query.QueryBuilders.matchQuery;
+import static org.opensearch.index.query.QueryBuilders.termQuery;
+import static org.opensearch.index.query.QueryBuilders.boolQuery;
+import static org.opensearch.index.query.QueryBuilders.rangeQuery;
 import static org.opensearch.indices.replication.SegmentReplicationTarget.REPLICATION_PREFIX;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAllSuccessful;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchHits;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
@@ -201,10 +208,11 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         final String nodeB = internalCluster().startDataOnlyNode();
         final Settings settings = Settings.builder()
             .put(indexSettings())
-            .put(
-                EngineConfig.INDEX_CODEC_SETTING.getKey(),
-                randomFrom(CodecService.DEFAULT_CODEC, CodecService.BEST_COMPRESSION_CODEC, CodecService.LUCENE_DEFAULT_CODEC)
-            )
+            .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), randomFrom(new ArrayList<>(CODECS) {
+                {
+                    add(CodecService.LUCENE_DEFAULT_CODEC);
+                }
+            }))
             .build();
         createIndex(INDEX_NAME, settings);
         ensureGreen(INDEX_NAME);
@@ -982,8 +990,11 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
             )
         );
         final IndexShard replicaShard = getIndexShard(replica, INDEX_NAME);
-        final SegmentInfos segmentInfos = replicaShard.getLatestSegmentInfosAndCheckpoint().v1().get();
-        final Collection<String> snapshottedSegments = segmentInfos.files(false);
+        final Tuple<GatedCloseable<SegmentInfos>, ReplicationCheckpoint> tuple = replicaShard.getLatestSegmentInfosAndCheckpoint();
+        final Collection<String> snapshottedSegments;
+        try (final GatedCloseable<SegmentInfos> closeable = tuple.v1()) {
+            snapshottedSegments = closeable.get().files(false);
+        }
         // opens a scrolled query before a flush is called.
         // this is for testing scroll segment consistency between refresh and flush
         SearchResponse searchResponse = client(replica).prepareSearch()
@@ -1341,5 +1352,77 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         }
         ensureGreen(INDEX_NAME);
         waitForSearchableDocs(2, nodes);
+    }
+
+    public void testIndexWhileRecoveringReplica() throws Exception {
+        final String primaryNode = internalCluster().startDataOnlyNode();
+        assertAcked(
+            prepareCreate(INDEX_NAME).setMapping(
+                jsonBuilder().startObject()
+                    .startObject("_routing")
+                    .field("required", true)
+                    .endObject()
+                    .startObject("properties")
+                    .startObject("online")
+                    .field("type", "boolean")
+                    .endObject()
+                    .startObject("ts")
+                    .field("type", "date")
+                    .field("ignore_malformed", false)
+                    .field("format", "epoch_millis")
+                    .endObject()
+                    .startObject("bs")
+                    .field("type", "keyword")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+        );
+        ensureYellow(INDEX_NAME);
+        final String replicaNode = internalCluster().startDataOnlyNode();
+
+        client().prepareIndex(INDEX_NAME)
+            .setId("1")
+            .setRouting("Y")
+            .setSource("online", false, "bs", "Y", "ts", System.currentTimeMillis() - 100, "type", "s")
+            .get();
+        client().prepareIndex(INDEX_NAME)
+            .setId("2")
+            .setRouting("X")
+            .setSource("online", true, "bs", "X", "ts", System.currentTimeMillis() - 10000000, "type", "s")
+            .get();
+        client().prepareIndex(INDEX_NAME)
+            .setId("3")
+            .setRouting(randomAlphaOfLength(2))
+            .setSource("online", false, "ts", System.currentTimeMillis() - 100, "type", "bs")
+            .get();
+        client().prepareIndex(INDEX_NAME)
+            .setId("4")
+            .setRouting(randomAlphaOfLength(2))
+            .setSource("online", true, "ts", System.currentTimeMillis() - 123123, "type", "bs")
+            .get();
+        refresh();
+        ensureGreen(INDEX_NAME);
+        waitForSearchableDocs(4, primaryNode, replicaNode);
+
+        SearchResponse response = client().prepareSearch(INDEX_NAME)
+            .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
+            .setQuery(
+                boolQuery().must(termQuery("online", true))
+                    .must(
+                        boolQuery().should(
+                            boolQuery().must(rangeQuery("ts").lt(System.currentTimeMillis() - (15 * 1000))).must(termQuery("type", "bs"))
+                        )
+                            .should(
+                                boolQuery().must(rangeQuery("ts").lt(System.currentTimeMillis() - (15 * 1000))).must(termQuery("type", "s"))
+                            )
+                    )
+            )
+            .setVersion(true)
+            .setFrom(0)
+            .setSize(100)
+            .setExplain(true)
+            .get();
+        assertNoFailures(response);
     }
 }

@@ -8,7 +8,6 @@
 
 package org.opensearch.index.snapshots.blobstore;
 
-import org.opensearch.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
@@ -61,7 +60,7 @@ public class RemoteStoreShardShallowCopySnapshotTests extends OpenSearchTestCase
             builder.startObject();
             shardShallowCopySnapshot.toXContent(builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
-            actual = Strings.toString(builder);
+            actual = builder.toString();
         }
         String expectedXContent = "{\"version\":\"1\",\"name\":\"test-snapshot\",\"index_version\":1,\"start_time\":123,\"time\":123,"
             + "\"number_of_files\":5,\"total_size\":5,\"index_uuid\":\"syzhajds-ashdlfj\",\"remote_store_repository\":"

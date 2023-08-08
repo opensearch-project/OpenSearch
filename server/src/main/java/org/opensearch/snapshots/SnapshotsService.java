@@ -79,7 +79,6 @@ import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
-import org.opensearch.common.Strings;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
@@ -88,6 +87,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
@@ -477,7 +477,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         "No indices in the source snapshot ["
                             + sourceSnapshotId
                             + "] matched requested pattern ["
-                            + org.opensearch.core.common.Strings.arrayToCommaDelimitedString(request.indices())
+                            + Strings.arrayToCommaDelimitedString(request.indices())
                             + "]"
                     );
                 }
@@ -823,7 +823,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     }
 
     private static void validate(final String repositoryName, final String snapshotName) {
-        if (org.opensearch.core.common.Strings.hasLength(snapshotName) == false) {
+        if (Strings.hasLength(snapshotName) == false) {
             throw new InvalidSnapshotNameException(repositoryName, snapshotName, "cannot be empty");
         }
         if (snapshotName.contains(" ")) {
@@ -1806,7 +1806,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         logger.info(
             () -> new ParameterizedMessage(
                 "deleting snapshots [{}] from repository [{}]",
-                org.opensearch.core.common.Strings.arrayToCommaDelimitedString(snapshotNames),
+                Strings.arrayToCommaDelimitedString(snapshotNames),
                 repoName
             )
         );

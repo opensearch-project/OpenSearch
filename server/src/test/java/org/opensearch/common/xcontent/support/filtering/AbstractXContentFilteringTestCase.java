@@ -33,7 +33,6 @@
 package org.opensearch.common.xcontent.support.filtering;
 
 import org.junit.Assert;
-import org.opensearch.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
@@ -84,7 +83,7 @@ public abstract class AbstractXContentFilteringTestCase extends AbstractFilterin
     }
 
     static void assertXContentBuilderAsString(final XContentBuilder expected, final XContentBuilder actual) {
-        Assert.assertThat(Strings.toString(actual), is(Strings.toString(expected)));
+        Assert.assertThat(actual.toString(), is(expected.toString()));
     }
 
     static void assertXContentBuilderAsBytes(final XContentBuilder expected, final XContentBuilder actual) {
