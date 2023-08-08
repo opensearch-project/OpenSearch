@@ -144,8 +144,12 @@ public class NRTReplicationEngineTests extends EngineTestCase {
             final Store nrtEngineStore = createStore(INDEX_SETTINGS, newDirectory());
             final NRTReplicationEngine nrtEngine = buildNrtReplicaEngine(globalCheckpoint, nrtEngineStore)
         ) {
+            assertEquals(5, nrtEngine.getLatestSegmentInfos().getVersion());
             nrtEngine.getLatestSegmentInfos().changed();
             nrtEngine.getLatestSegmentInfos().changed();
+            assertEquals(7, nrtEngine.getLatestSegmentInfos().getVersion());
+            assertEquals(2, nrtEngine.getLastCommittedSegmentInfos().getGeneration());
+
             // commit the infos to push us to segments_3.
             nrtEngine.commitSegmentInfos();
             assertEquals(3, nrtEngine.getLastCommittedSegmentInfos().getGeneration());
@@ -154,14 +158,15 @@ public class NRTReplicationEngineTests extends EngineTestCase {
             // update the replica with segments_2 from the primary.
             final SegmentInfos primaryInfos = engine.getLatestSegmentInfos();
             assertEquals(2, primaryInfos.getGeneration());
+            assertEquals(5, primaryInfos.getVersion());
             nrtEngine.updateSegments(primaryInfos);
-            assertEquals(3, nrtEngine.getLastCommittedSegmentInfos().getGeneration());
-            assertEquals(3, nrtEngine.getLatestSegmentInfos().getGeneration());
+            assertEquals(4, nrtEngine.getLastCommittedSegmentInfos().getGeneration());
+            assertEquals(4, nrtEngine.getLatestSegmentInfos().getGeneration());
             assertEquals(primaryInfos.getVersion(), nrtEngine.getLatestSegmentInfos().getVersion());
             assertEquals(primaryInfos.getVersion(), nrtEngine.getLastCommittedSegmentInfos().getVersion());
 
             nrtEngine.close();
-            assertEquals(4, nrtEngine.getLastCommittedSegmentInfos().getGeneration());
+            assertEquals(5, nrtEngine.getLastCommittedSegmentInfos().getGeneration());
         }
     }
 
@@ -197,7 +202,7 @@ public class NRTReplicationEngineTests extends EngineTestCase {
         }
     }
 
-    public void testUpdateSegments_replicaStartsAtCorrectGen() throws IOException {
+    public void testUpdateSegments_replicaCommitsFirstReceivedInfos() throws IOException {
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
 
         try (
@@ -206,7 +211,6 @@ public class NRTReplicationEngineTests extends EngineTestCase {
         ) {
             assertEquals(2, nrtEngine.getLastCommittedSegmentInfos().getGeneration());
             assertEquals(2, nrtEngine.getLatestSegmentInfos().getGeneration());
-            assertEquals(nrtEngine.getLastCommittedSegmentInfos().version, nrtEngine.getLatestSegmentInfos().getVersion());
             // bump the latest infos version a couple of times so that we can assert the correct version after commit.
             engine.getLatestSegmentInfos().changed();
             engine.getLatestSegmentInfos().changed();
@@ -218,7 +222,7 @@ public class NRTReplicationEngineTests extends EngineTestCase {
             nrtEngine.updateSegments(primaryInfos);
             final SegmentInfos lastCommittedSegmentInfos = nrtEngine.getLastCommittedSegmentInfos();
             assertEquals(primaryInfos.getVersion(), nrtEngine.getLatestSegmentInfos().getVersion());
-            assertEquals("Commit gen is not increased", 2, lastCommittedSegmentInfos.getGeneration());
+            assertEquals(primaryInfos.getVersion(), lastCommittedSegmentInfos.getVersion());
         }
     }
 
@@ -400,6 +404,172 @@ public class NRTReplicationEngineTests extends EngineTestCase {
             // Ensure we still have all the active files. Note - we exclude the infos file here if we aren't committing
             // the nrt reader will still reference segments_n-1 after being loaded until a local commit occurs.
             assertTrue(replicaFiles.containsAll(nrtEngine.getLatestSegmentInfos().files(false)));
+        }
+    }
+
+    public void testRemoveExtraFilesOnStartup() throws Exception {
+        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+        List<Engine.Operation> operations = generateHistoryOnReplica(2, randomBoolean(), randomBoolean(), randomBoolean());
+        for (Engine.Operation op : operations) {
+            applyOperation(engine, op);
+            // refresh to create a lot of segments.
+            engine.refresh("test");
+        }
+        try (final Store nrtEngineStore = createStore(INDEX_SETTINGS, newDirectory());) {
+            final Collection<String> extraSegments = engine.getLatestSegmentInfos().files(false);
+            for (String file : extraSegments) {
+                nrtEngineStore.directory().copyFrom(store.directory(), file, file, IOContext.DEFAULT);
+            }
+            List<String> replicaFiles = List.of(nrtEngineStore.directory().listAll());
+            for (String file : extraSegments) {
+                assertTrue(replicaFiles.contains(file));
+            }
+            assertTrue(storeContainsAll(nrtEngineStore, extraSegments));
+            try (NRTReplicationEngine nrtEngine = buildNrtReplicaEngine(globalCheckpoint, nrtEngineStore, INDEX_SETTINGS)) {
+                replicaFiles = List.of(nrtEngineStore.directory().listAll());
+                for (String file : extraSegments) {
+                    assertFalse(replicaFiles.contains(file));
+                }
+            }
+        }
+    }
+
+    public void testPreserveLatestCommit() throws Exception {
+        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+
+        try (
+            final Store nrtEngineStore = createStore(INDEX_SETTINGS, newDirectory());
+            final NRTReplicationEngine nrtEngine = buildNrtReplicaEngine(globalCheckpoint, nrtEngineStore, INDEX_SETTINGS)
+        ) {
+            final int docCount = 4;
+            List<Engine.Operation> operations = generateHistoryOnReplica(docCount, randomBoolean(), randomBoolean(), randomBoolean());
+            indexOperations(nrtEngine, operations.subList(0, 2));
+            // wipe the nrt directory initially so we can sync with primary.
+            cleanAndCopySegmentsFromPrimary(nrtEngine);
+            SegmentInfos primaryInfos;
+
+            final SegmentInfos lastCommittedSegmentInfos = nrtEngine.getLastCommittedSegmentInfos();
+            final Collection<String> lastCommittedFiles = lastCommittedSegmentInfos.files(true);
+            assertTrue(storeContainsAll(nrtEngineStore, lastCommittedFiles));
+
+            // ensure segments and commit file are incref'd:
+            assertEquals(
+                "Segments_N is incref'd once",
+                1,
+                nrtEngine.replicaFileTracker.refCount(lastCommittedSegmentInfos.getSegmentsFileName())
+            );
+            // segments are incref'd twice because they are loaded on the reader.
+            assertRefCount(nrtEngine, lastCommittedSegmentInfos.files(false), 2);
+
+            // get and close a snapshot - this will decref files when closed.
+            final GatedCloseable<SegmentInfos> segmentInfosSnapshot = nrtEngine.getSegmentInfosSnapshot();
+            segmentInfosSnapshot.close();
+            assertTrue(storeContainsAll(nrtEngineStore, lastCommittedFiles));
+
+            // index more docs and refresh the reader - this will incref/decref files again
+            indexOperations(nrtEngine, operations.subList(2, 4));
+            primaryInfos = engine.getLatestSegmentInfos();
+            copySegments(primaryInfos.files(false), nrtEngine);
+            nrtEngine.updateSegments(primaryInfos);
+
+            // get the additional segments that are only on the reader - not part of a commit.
+            final Collection<String> readerOnlySegments = primaryInfos.files(false);
+            readerOnlySegments.removeAll(lastCommittedFiles);
+            assertRefCount(nrtEngine, readerOnlySegments, 1);
+
+            assertTrue(storeContainsAll(nrtEngineStore, lastCommittedFiles));
+            assertEquals(
+                "Segments_N is incref'd once",
+                1,
+                nrtEngine.replicaFileTracker.refCount(lastCommittedSegmentInfos.getSegmentsFileName())
+            );
+            assertRefCount(nrtEngine, lastCommittedSegmentInfos.files(false), 2);
+
+            // flush the primary
+            engine.flush(true, true);
+            copySegments(engine.getLatestSegmentInfos().files(false), nrtEngine);
+            nrtEngine.updateSegments(engine.getLatestSegmentInfos());
+            // after flush our segment_n is removed.
+            assertEquals(
+                "Segments_N is removed",
+                0,
+                nrtEngine.replicaFileTracker.refCount(lastCommittedSegmentInfos.getSegmentsFileName())
+            );
+            assertFalse(storeContainsAll(nrtEngineStore, lastCommittedFiles));
+            // close the engine - ensure we preserved the last commit
+            final SegmentInfos infosBeforeClose = nrtEngine.getLatestSegmentInfos();
+            nrtEngine.close();
+            assertTrue(storeContainsAll(nrtEngineStore, infosBeforeClose.files(false)));
+            assertEquals(store.readLastCommittedSegmentsInfo().files(false), infosBeforeClose.files(false));
+        }
+    }
+
+    private void assertRefCount(NRTReplicationEngine nrtEngine, Collection<String> files, int count) {
+        for (String file : files) {
+            // refCount for our segments is 2 because they are still active on the reader
+            assertEquals(count, nrtEngine.replicaFileTracker.refCount(file));
+        }
+    }
+
+    private boolean storeContainsAll(Store nrtEngineStore, Collection<String> lastCommittedFiles) throws IOException {
+        return List.of(nrtEngineStore.directory().listAll()).containsAll(lastCommittedFiles);
+    }
+
+    private void cleanAndCopySegmentsFromPrimary(NRTReplicationEngine nrtEngine) throws IOException {
+        Lucene.cleanLuceneIndex(nrtEngine.store.directory());
+        assertFalse(
+            Arrays.stream(nrtEngine.store.directory().listAll())
+                .anyMatch(file -> file.equals("write.lock") == false && file.equals("extra0") == false)
+        );
+        SegmentInfos primaryInfos = engine.getLatestSegmentInfos();
+        copySegments(primaryInfos.files(false), nrtEngine);
+        nrtEngine.updateSegments(primaryInfos);
+    }
+
+    private void indexOperations(NRTReplicationEngine nrtEngine, List<Engine.Operation> operations) throws IOException {
+        for (Engine.Operation op : operations) {
+            applyOperation(engine, op);
+            applyOperation(nrtEngine, op);
+            engine.refresh("test");
+        }
+    }
+
+    public void testDecrefToZeroRemovesFile() throws IOException {
+        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+
+        try (
+            final Store nrtEngineStore = createStore(INDEX_SETTINGS, newDirectory());
+            final NRTReplicationEngine nrtEngine = buildNrtReplicaEngine(globalCheckpoint, nrtEngineStore, INDEX_SETTINGS)
+        ) {
+            Lucene.cleanLuceneIndex(nrtEngineStore.directory());
+            copySegments(engine.getLatestSegmentInfos().files(true), nrtEngine);
+            nrtEngine.updateSegments(engine.getLatestSegmentInfos());
+            final SegmentInfos lastCommittedSegmentInfos = nrtEngine.getLastCommittedSegmentInfos();
+            assertEquals(
+                "Segments_N is incref'd to 1",
+                1,
+                nrtEngine.replicaFileTracker.refCount(lastCommittedSegmentInfos.getSegmentsFileName())
+            );
+            // create a new commit and update infos
+            engine.flush(true, true);
+            nrtEngine.updateSegments(engine.getLatestSegmentInfos());
+            assertEquals(
+                "Segments_N is removed",
+                0,
+                nrtEngine.replicaFileTracker.refCount(lastCommittedSegmentInfos.getSegmentsFileName())
+            );
+            assertFalse(List.of(nrtEngineStore.directory().listAll()).contains(lastCommittedSegmentInfos.getSegmentsFileName()));
+        }
+    }
+
+    private void copySegments(Collection<String> latestPrimaryFiles, Engine nrtEngine) throws IOException {
+        final Store store = nrtEngine.store;
+        final List<String> replicaFiles = List.of(store.directory().listAll());
+        // copy new segments in and load reader.
+        for (String file : latestPrimaryFiles) {
+            if (replicaFiles.contains(file) == false) {
+                store.directory().copyFrom(this.store.directory(), file, file, IOContext.DEFAULT);
+            }
         }
     }
 }

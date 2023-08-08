@@ -59,9 +59,9 @@ public class NRTReplicationEngine extends Engine {
     private final CompletionStatsCache completionStatsCache;
     private final LocalCheckpointTracker localCheckpointTracker;
     private final WriteOnlyTranslogManager translogManager;
-    private final ReplicaFileTracker replicaFileTracker;
+    protected final ReplicaFileTracker replicaFileTracker;
 
-    private volatile long lastReceivedGen = SequenceNumbers.NO_OPS_PERFORMED;
+    private volatile long lastReceivedPrimaryGen = SequenceNumbers.NO_OPS_PERFORMED;
 
     private static final int SI_COUNTER_INCREMENT = 10;
 
@@ -77,7 +77,6 @@ public class NRTReplicationEngine extends Engine {
             replicaFileTracker.incRef(this.lastCommittedSegmentInfos.files(true));
             // cleanup anything not referenced by the latest infos.
             cleanUnreferencedFiles();
-            this.lastReceivedGen = lastCommittedSegmentInfos.getGeneration();
             readerManager = buildReaderManager();
             final SequenceNumbers.CommitInfo commitInfo = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(
                 this.lastCommittedSegmentInfos.getUserData().entrySet()
@@ -156,15 +155,16 @@ public class NRTReplicationEngine extends Engine {
             final long maxSeqNo = Long.parseLong(infos.userData.get(MAX_SEQ_NO));
             final long incomingGeneration = infos.getGeneration();
             readerManager.updateSegments(infos);
-
-            // Commit and roll the translog when we receive a different generation than what was last received.
-            // lower/higher gens are possible from a new primary that was just elected.
-            if (incomingGeneration != lastReceivedGen) {
+            // Ensure that we commit and clear the local translog if a new commit has been made on the primary.
+            // We do not compare against the last local commit gen here because it is possible to receive
+            // a lower gen from a newly elected primary shard that is behind this shard's last commit gen.
+            // In that case we still commit into the next local generation.
+            if (incomingGeneration != this.lastReceivedPrimaryGen) {
                 commitSegmentInfos();
                 translogManager.getDeletionPolicy().setLocalCheckpointOfSafeCommit(maxSeqNo);
                 translogManager.rollTranslogGeneration();
             }
-            lastReceivedGen = incomingGeneration;
+            this.lastReceivedPrimaryGen = incomingGeneration;
             localCheckpointTracker.fastForwardProcessedSeqNo(maxSeqNo);
         }
     }

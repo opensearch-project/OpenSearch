@@ -10,12 +10,12 @@ package org.opensearch.index.engine;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.index.IndexFileNames;
 
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiConsumer;
 
@@ -41,6 +41,10 @@ final class ReplicaFileTracker {
         for (String fileName : fileNames) {
             refCounts.merge(fileName, 1, Integer::sum);
         }
+    }
+
+    public synchronized int refCount(String file) {
+        return Optional.ofNullable(refCounts.get(file)).orElse(0);
     }
 
     public synchronized void decRef(Collection<String> fileNames) {
@@ -70,18 +74,8 @@ final class ReplicaFileTracker {
     }
 
     private synchronized void delete(Collection<String> toDelete) {
-        // First pass: delete any segments_N files. We do these first to be certain stale commit points
-        // are removed
-        // before we remove any files they reference, in case we crash right now:
         for (String fileName : toDelete) {
-            if (fileName.startsWith(IndexFileNames.SEGMENTS)) {
-                delete(fileName);
-            }
-        }
-        for (String fileName : toDelete) {
-            if (fileName.startsWith(IndexFileNames.SEGMENTS) == false) {
-                delete(fileName);
-            }
+            delete(fileName);
         }
     }
 
