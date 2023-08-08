@@ -116,6 +116,8 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
         fileSizes = in.readMap(StreamInput::readString, StreamInput::readLong);
         if (in.getVersion().onOrAfter(Version.V_2_10_0)) {
             remoteSegmentStats = in.readOptionalWriteable(RemoteSegmentStats::new);
+        } else {
+            remoteSegmentStats = null;
         }
     }
 
