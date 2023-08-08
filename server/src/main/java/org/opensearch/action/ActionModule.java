@@ -301,7 +301,7 @@ import org.opensearch.extensions.rest.RestInitializeExtensionAction;
 import org.opensearch.index.seqno.RetentionLeaseActions;
 import org.opensearch.identity.IdentityService;
 import org.opensearch.indices.SystemIndices;
-import org.opensearch.indices.breaker.CircuitBreakerService;
+import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.persistent.CompletionPersistentTaskAction;
 import org.opensearch.persistent.RemovePersistentTaskAction;
 import org.opensearch.persistent.StartPersistentTaskAction;

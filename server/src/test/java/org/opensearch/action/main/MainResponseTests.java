@@ -35,7 +35,6 @@ package org.opensearch.action.main;
 import org.opensearch.Build;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterName;
-import org.opensearch.common.Strings;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -133,7 +132,7 @@ public class MainResponseTests extends AbstractSerializingTestCase<MainResponse>
                 + TAGLINE
                 + "\""
                 + "}",
-            Strings.toString(builder)
+            builder.toString()
         );
     }
 

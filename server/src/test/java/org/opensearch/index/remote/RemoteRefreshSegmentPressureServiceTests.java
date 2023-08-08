@@ -13,9 +13,11 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.IndexShard;
-import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.store.Store;
+import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
@@ -99,7 +101,7 @@ public class RemoteRefreshSegmentPressureServiceTests extends OpenSearchTestCase
         pressureService = new RemoteRefreshSegmentPressureService(clusterService, Settings.EMPTY);
         pressureService.afterIndexShardCreated(indexShard);
 
-        RemoteRefreshSegmentTracker pressureTracker = pressureService.getRemoteRefreshSegmentTracker(shardId);
+        RemoteSegmentTransferTracker pressureTracker = pressureService.getRemoteRefreshSegmentTracker(shardId);
         pressureTracker.updateLocalRefreshSeqNo(6);
 
         // 1. time lag more than dynamic threshold
@@ -129,13 +131,14 @@ public class RemoteRefreshSegmentPressureServiceTests extends OpenSearchTestCase
         avg = (double) sum.get() / 20;
         Map<String, Long> nameSizeMap = new HashMap<>();
         nameSizeMap.put("a", (long) (12 * avg));
-        pressureTracker.setLatestLocalFileNameLengthMap(nameSizeMap);
+        pressureTracker.updateLatestLocalFileNameLengthMap(nameSizeMap.keySet(), nameSizeMap::get);
         e = assertThrows(OpenSearchRejectedExecutionException.class, () -> pressureService.validateSegmentsUploadLag(shardId));
         assertTrue(e.getMessage().contains("due to remote segments lagging behind local segments"));
         assertTrue(e.getMessage().contains("bytes_lag:114 dynamic_bytes_lag_threshold:95.0"));
 
-        nameSizeMap.put("a", (long) (2 * avg));
-        pressureTracker.setLatestLocalFileNameLengthMap(nameSizeMap);
+        nameSizeMap.clear();
+        nameSizeMap.put("b", (long) (2 * avg));
+        pressureTracker.updateLatestLocalFileNameLengthMap(nameSizeMap.keySet(), nameSizeMap::get);
         pressureService.validateSegmentsUploadLag(shardId);
 
         // 3. Consecutive failures more than the limit
@@ -150,12 +153,16 @@ public class RemoteRefreshSegmentPressureServiceTests extends OpenSearchTestCase
     }
 
     private static IndexShard createIndexShard(ShardId shardId, boolean remoteStoreEnabled) {
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, String.valueOf(remoteStoreEnabled)).build();
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, String.valueOf(remoteStoreEnabled))
+            .build();
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test_index", settings);
+        Store store = mock(Store.class);
         IndexShard indexShard = mock(IndexShard.class);
         when(indexShard.indexSettings()).thenReturn(indexSettings);
         when(indexShard.shardId()).thenReturn(shardId);
+        when(indexShard.store()).thenReturn(store);
         return indexShard;
     }
-
 }

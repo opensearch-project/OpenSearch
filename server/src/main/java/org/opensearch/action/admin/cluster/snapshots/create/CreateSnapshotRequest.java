@@ -38,7 +38,7 @@ import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
-import org.opensearch.common.Strings;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -74,7 +74,7 @@ import static org.opensearch.core.common.Strings.EMPTY_ARRAY;
  * <li>must not contain hash sign ('#')</li>
  * <li>must not start with underscore ('_')</li>
  * <li>must be lowercase</li>
- * <li>must not contain invalid file name characters {@link org.opensearch.common.Strings#INVALID_FILENAME_CHARS} </li>
+ * <li>must not contain invalid file name characters {@link Strings#INVALID_FILENAME_CHARS} </li>
  * </ul>
  *
  * @opensearch.internal
@@ -390,7 +390,7 @@ public class CreateSnapshotRequest extends ClusterManagerNodeRequest<CreateSnaps
         try {
             XContentBuilder builder = MediaTypeRegistry.contentBuilder(XContentType.JSON);
             builder.map(source);
-            settings(Strings.toString(builder), builder.contentType());
+            settings(builder.toString(), builder.contentType());
         } catch (IOException e) {
             throw new OpenSearchGenerationException("Failed to generate [" + source + "]", e);
         }
@@ -447,7 +447,7 @@ public class CreateSnapshotRequest extends ClusterManagerNodeRequest<CreateSnaps
             String name = entry.getKey();
             if (name.equals("indices")) {
                 if (entry.getValue() instanceof String) {
-                    indices(org.opensearch.core.common.Strings.splitStringByCommaToArray((String) entry.getValue()));
+                    indices(Strings.splitStringByCommaToArray((String) entry.getValue()));
                 } else if (entry.getValue() instanceof List) {
                     indices((List<String>) entry.getValue());
                 } else {

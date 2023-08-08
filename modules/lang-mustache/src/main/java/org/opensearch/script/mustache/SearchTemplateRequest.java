@@ -38,13 +38,12 @@ import org.opensearch.action.CompositeIndicesRequest;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.ParsingException;
-import org.opensearch.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.script.ScriptType;
 
@@ -207,8 +206,8 @@ public class SearchTemplateRequest extends ActionRequest implements CompositeInd
             request.setScriptType(ScriptType.INLINE);
             if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
                 // convert the template to json which is the only supported XContentType (see CustomMustacheFactory#createEncoder)
-                try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-                    request.setScript(Strings.toString(builder.copyCurrentStructure(parser)));
+                try (XContentBuilder builder = MediaTypeRegistry.JSON.contentBuilder()) {
+                    request.setScript(builder.copyCurrentStructure(parser).toString());
                 } catch (IOException e) {
                     throw new ParsingException(parser.getTokenLocation(), "Could not parse inline template", e);
                 }

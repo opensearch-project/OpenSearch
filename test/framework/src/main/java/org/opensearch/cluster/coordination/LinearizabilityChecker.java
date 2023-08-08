@@ -34,8 +34,8 @@ package org.opensearch.cluster.coordination;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.FixedBitSet;
-import org.opensearch.common.Strings;
 import org.opensearch.common.collect.Tuple;
+import org.opensearch.core.common.Strings;
 
 import java.util.ArrayList;
 import java.util.Collection;

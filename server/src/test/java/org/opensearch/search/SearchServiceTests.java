@@ -226,8 +226,13 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
     }
 
     @Override
+    protected Settings featureFlagSettings() {
+        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
+    }
+
+    @Override
     protected Settings nodeSettings() {
-        return Settings.builder().put("search.default_search_timeout", "5s").put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, true).build();
+        return Settings.builder().put("search.default_search_timeout", "5s").build();
     }
 
     public void testClearOnClose() {
@@ -1270,8 +1275,77 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
                         .getSetting(index, IndexSettings.INDEX_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey())
                 );
                 assertEquals(concurrentSearchEnabled, searchContext.isConcurrentSegmentSearchEnabled());
+                // verify executor nullability with concurrent search enabled/disabled
+                if (concurrentSearchEnabled) {
+                    assertNotNull(searchContext.searcher().getExecutor());
+                } else {
+                    assertNull(searchContext.searcher().getExecutor());
+                }
             }
         }
+        // Cleanup
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder().putNull(SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey()))
+            .get();
+    }
+
+    /**
+     * Test that the Search Context for concurrent segment search enabled is set correctly at the time of construction.
+     * The same is used throughout the context object lifetime even if cluster setting changes before the request completion.
+     */
+    public void testConcurrentSegmentSearchIsSetOnceDuringContextCreation() throws IOException {
+        String index = randomAlphaOfLengthBetween(5, 10).toLowerCase(Locale.ROOT);
+        IndexService indexService = createIndex(index);
+        final SearchService service = getInstanceFromNode(SearchService.class);
+        ShardId shardId = new ShardId(indexService.index(), 0);
+        long nowInMillis = System.currentTimeMillis();
+        String clusterAlias = randomBoolean() ? null : randomAlphaOfLengthBetween(3, 10);
+        SearchRequest searchRequest = new SearchRequest();
+        searchRequest.allowPartialSearchResults(randomBoolean());
+        ShardSearchRequest request = new ShardSearchRequest(
+            OriginalIndices.NONE,
+            searchRequest,
+            shardId,
+            indexService.numberOfShards(),
+            AliasFilter.EMPTY,
+            1f,
+            nowInMillis,
+            clusterAlias,
+            Strings.EMPTY_ARRAY
+        );
+
+        Boolean[] concurrentSearchStates = new Boolean[] { true, false };
+        for (Boolean concurrentSearchSetting : concurrentSearchStates) {
+            // update concurrent search cluster setting and create search context
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(
+                    Settings.builder().put(SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), concurrentSearchSetting)
+                )
+                .get();
+            try (DefaultSearchContext searchContext = service.createSearchContext(request, new TimeValue(System.currentTimeMillis()))) {
+                // verify concurrent search state in context
+                assertEquals(concurrentSearchSetting, searchContext.isConcurrentSegmentSearchEnabled());
+                // verify executor state in searcher
+                assertEquals(concurrentSearchSetting, (searchContext.searcher().getExecutor() != null));
+
+                // update cluster setting to flip the concurrent segment search state
+                client().admin()
+                    .cluster()
+                    .prepareUpdateSettings()
+                    .setTransientSettings(
+                        Settings.builder().put(SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), !concurrentSearchSetting)
+                    )
+                    .get();
+
+                // verify that concurrent segment search is still set to same expected value for the context
+                assertEquals(concurrentSearchSetting, searchContext.isConcurrentSegmentSearchEnabled());
+            }
+        }
+
         // Cleanup
         client().admin()
             .cluster()

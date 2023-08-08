@@ -1310,100 +1310,131 @@ public class RoutingNodes implements Iterable<RoutingNode> {
     }
 
     /**
-     * Creates an iterator over shards interleaving between nodes: The iterator returns the first shard from
-     * the first node, then the first shard of the second node, etc. until one shard from each node has been returned.
-     * The iterator then resumes on the first node by returning the second shard and continues until all shards from
-     * all the nodes have been returned.
-     * @param movePrimaryFirst if true, all primary shards are iterated over before iterating replica for any node
-     * @return iterator of shard routings
+     * Returns iterator of shard routings used by {@link #nodeInterleavedShardIterator(ShardMovementStrategy)}
+     * @param primaryFirst true when ShardMovementStrategy = ShardMovementStrategy.PRIMARY_FIRST, false when it is ShardMovementStrategy.REPLICA_FIRST
      */
-    public Iterator<ShardRouting> nodeInterleavedShardIterator(boolean movePrimaryFirst) {
+    private Iterator<ShardRouting> buildIteratorForMovementStrategy(boolean primaryFirst) {
         final Queue<Iterator<ShardRouting>> queue = new ArrayDeque<>();
         for (Map.Entry<String, RoutingNode> entry : nodesToShards.entrySet()) {
             queue.add(entry.getValue().copyShards().iterator());
         }
-        if (movePrimaryFirst) {
-            return new Iterator<ShardRouting>() {
-                private Queue<ShardRouting> replicaShards = new ArrayDeque<>();
-                private Queue<Iterator<ShardRouting>> replicaIterators = new ArrayDeque<>();
+        return new Iterator<ShardRouting>() {
+            private Queue<ShardRouting> shardRoutings = new ArrayDeque<>();
+            private Queue<Iterator<ShardRouting>> shardIterators = new ArrayDeque<>();
 
-                public boolean hasNext() {
-                    while (!queue.isEmpty()) {
-                        if (queue.peek().hasNext()) {
-                            return true;
-                        }
-                        queue.poll();
-                    }
-                    if (!replicaShards.isEmpty()) {
+            public boolean hasNext() {
+                while (queue.isEmpty() == false) {
+                    if (queue.peek().hasNext()) {
                         return true;
                     }
-                    while (!replicaIterators.isEmpty()) {
-                        if (replicaIterators.peek().hasNext()) {
-                            return true;
-                        }
-                        replicaIterators.poll();
-                    }
-                    return false;
+                    queue.poll();
                 }
-
-                public ShardRouting next() {
-                    if (hasNext() == false) {
-                        throw new NoSuchElementException();
+                if (!shardRoutings.isEmpty()) {
+                    return true;
+                }
+                while (!shardIterators.isEmpty()) {
+                    if (shardIterators.peek().hasNext()) {
+                        return true;
                     }
-                    while (!queue.isEmpty()) {
-                        Iterator<ShardRouting> iter = queue.poll();
+                    shardIterators.poll();
+                }
+                return false;
+            }
+
+            public ShardRouting next() {
+                if (hasNext() == false) {
+                    throw new NoSuchElementException();
+                }
+                while (!queue.isEmpty()) {
+                    Iterator<ShardRouting> iter = queue.poll();
+                    if (primaryFirst) {
                         if (iter.hasNext()) {
                             ShardRouting result = iter.next();
                             if (result.primary()) {
                                 queue.offer(iter);
                                 return result;
                             }
-                            replicaShards.offer(result);
-                            replicaIterators.offer(iter);
+                            shardRoutings.offer(result);
+                            shardIterators.offer(iter);
+                        }
+                    } else {
+                        while (iter.hasNext()) {
+                            ShardRouting result = iter.next();
+                            if (result.primary() == false) {
+                                queue.offer(iter);
+                                return result;
+                            }
+                            shardRoutings.offer(result);
+                            shardIterators.offer(iter);
                         }
                     }
-                    if (!replicaShards.isEmpty()) {
-                        return replicaShards.poll();
-                    }
-                    Iterator<ShardRouting> replicaIterator = replicaIterators.poll();
-                    ShardRouting replicaShard = replicaIterator.next();
-                    replicaIterators.offer(replicaIterator);
-
-                    assert !replicaShard.primary();
-                    return replicaShard;
                 }
-
-                public void remove() {
-                    throw new UnsupportedOperationException();
+                if (!shardRoutings.isEmpty()) {
+                    return shardRoutings.poll();
                 }
-            };
+                Iterator<ShardRouting> replicaIterator = shardIterators.poll();
+                ShardRouting replicaShard = replicaIterator.next();
+                shardIterators.offer(replicaIterator);
+
+                assert replicaShard.primary() != primaryFirst;
+                return replicaShard;
+            }
+
+            public void remove() {
+                throw new UnsupportedOperationException();
+            }
+
+        };
+    }
+
+    /**
+     * Creates an iterator over shards interleaving between nodes: The iterator returns the first shard from
+     * the first node, then the first shard of the second node, etc. until one shard from each node has been returned.
+     * The iterator then resumes on the first node by returning the second shard and continues until all shards from
+     * all the nodes have been returned.
+     * @param shardMovementStrategy if ShardMovementStrategy.PRIMARY_FIRST, all primary shards are iterated over before iterating replica for any node
+     *                              if ShardMovementStrategy.REPLICA_FIRST, all replica shards are iterated over before iterating primary for any node
+     *                              if ShardMovementStrategy.NO_PREFERENCE, order of replica and primary shards doesn't matter in iteration
+     * @return iterator of shard routings
+     */
+    public Iterator<ShardRouting> nodeInterleavedShardIterator(ShardMovementStrategy shardMovementStrategy) {
+        final Queue<Iterator<ShardRouting>> queue = new ArrayDeque<>();
+        for (Map.Entry<String, RoutingNode> entry : nodesToShards.entrySet()) {
+            queue.add(entry.getValue().copyShards().iterator());
+        }
+        if (shardMovementStrategy == ShardMovementStrategy.PRIMARY_FIRST) {
+            return buildIteratorForMovementStrategy(true);
         } else {
-            return new Iterator<ShardRouting>() {
-                @Override
-                public boolean hasNext() {
-                    while (!queue.isEmpty()) {
-                        if (queue.peek().hasNext()) {
-                            return true;
+            if (shardMovementStrategy == ShardMovementStrategy.REPLICA_FIRST) {
+                return buildIteratorForMovementStrategy(false);
+            } else {
+                return new Iterator<ShardRouting>() {
+                    @Override
+                    public boolean hasNext() {
+                        while (!queue.isEmpty()) {
+                            if (queue.peek().hasNext()) {
+                                return true;
+                            }
+                            queue.poll();
                         }
-                        queue.poll();
+                        return false;
                     }
-                    return false;
-                }
 
-                @Override
-                public ShardRouting next() {
-                    if (hasNext() == false) {
-                        throw new NoSuchElementException();
+                    @Override
+                    public ShardRouting next() {
+                        if (hasNext() == false) {
+                            throw new NoSuchElementException();
+                        }
+                        Iterator<ShardRouting> iter = queue.poll();
+                        queue.offer(iter);
+                        return iter.next();
                     }
-                    Iterator<ShardRouting> iter = queue.poll();
-                    queue.offer(iter);
-                    return iter.next();
-                }
 
-                public void remove() {
-                    throw new UnsupportedOperationException();
-                }
-            };
+                    public void remove() {
+                        throw new UnsupportedOperationException();
+                    }
+                };
+            }
         }
     }
 

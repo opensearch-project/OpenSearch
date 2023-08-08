@@ -38,7 +38,6 @@ import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.client.TimedRequest;
 import org.opensearch.client.Validatable;
-import org.opensearch.common.Strings;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.settings.Settings;
@@ -135,7 +134,7 @@ public class CreateIndexRequest extends TimedRequest implements Validatable, ToX
      * Allows to set the settings using a json builder.
      */
     public CreateIndexRequest settings(XContentBuilder builder) {
-        settings(Strings.toString(builder), builder.contentType());
+        settings(builder.toString(), builder.contentType());
         return this;
     }
 

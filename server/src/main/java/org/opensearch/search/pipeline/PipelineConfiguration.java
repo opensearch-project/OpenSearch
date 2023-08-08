@@ -11,7 +11,7 @@ package org.opensearch.search.pipeline;
 import org.opensearch.Version;
 import org.opensearch.cluster.AbstractDiffable;
 import org.opensearch.cluster.Diff;
-import org.opensearch.common.Strings;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -120,7 +120,7 @@ public class PipelineConfiguration extends AbstractDiffable<PipelineConfiguratio
         return new PipelineConfiguration(
             in.readString(),
             in.readBytesReference(),
-            in.getVersion().onOrAfter(Version.V_3_0_0) ? in.readMediaType() : in.readEnum(XContentType.class)
+            in.getVersion().onOrAfter(Version.V_2_10_0) ? in.readMediaType() : in.readEnum(XContentType.class)
         );
     }
 
@@ -137,7 +137,7 @@ public class PipelineConfiguration extends AbstractDiffable<PipelineConfiguratio
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(id);
         out.writeBytesReference(config);
-        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_2_10_0)) {
             mediaType.writeTo(out);
         } else {
             out.writeEnum((XContentType) mediaType);

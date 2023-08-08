@@ -120,11 +120,13 @@ public class ReplicationCollectionTests extends OpenSearchIndexLevelReplicationT
             shards.recoverReplica(shard);
             final SegmentReplicationTarget target1 = new SegmentReplicationTarget(
                 shard,
+                shards.getPrimary().getLatestReplicationCheckpoint(),
                 mock(SegmentReplicationSource.class),
                 mock(ReplicationListener.class)
             );
             final SegmentReplicationTarget target2 = new SegmentReplicationTarget(
                 shard,
+                shards.getPrimary().getLatestReplicationCheckpoint(),
                 mock(SegmentReplicationSource.class),
                 mock(ReplicationListener.class)
             );
