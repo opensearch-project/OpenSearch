@@ -61,11 +61,17 @@ public class RemoteSegmentStatsFromNodesStatsIT extends RemoteStoreBaseIntegTest
         long cumulativeUploads = 0;
 
         // Fetch upload stats
-        RemoteStoreStatsResponse remoteStoreStatsFirstIndex =
-            client(randomDataNode).admin().cluster().prepareRemoteStoreStats(firstIndex, "0").setLocal(true).get();
+        RemoteStoreStatsResponse remoteStoreStatsFirstIndex = client(randomDataNode).admin()
+            .cluster()
+            .prepareRemoteStoreStats(firstIndex, "0")
+            .setLocal(true)
+            .get();
         cumulativeUploads += remoteStoreStatsFirstIndex.getRemoteStoreStats()[0].getStats().uploadBytesSucceeded;
-        RemoteStoreStatsResponse remoteStoreStatsSecondIndex =
-            client(randomDataNode).admin().cluster().prepareRemoteStoreStats(firstIndex, "0").setLocal(true).get();
+        RemoteStoreStatsResponse remoteStoreStatsSecondIndex = client(randomDataNode).admin()
+            .cluster()
+            .prepareRemoteStoreStats(firstIndex, "0")
+            .setLocal(true)
+            .get();
         cumulativeUploads += remoteStoreStatsSecondIndex.getRemoteStoreStats()[0].getStats().uploadBytesSucceeded;
 
         // Fetch nodes stats
@@ -88,21 +94,24 @@ public class RemoteSegmentStatsFromNodesStatsIT extends RemoteStoreBaseIntegTest
             .prepareNodesStats(internalCluster().getClusterManagerName())
             .setIndices(new CommonStatsFlags().set(CommonStatsFlags.Flag.Segments, true))
             .get();
-        assertTrue(nodesStatsResponseForClusterManager.getNodes().get(0).getNode().isClusterManagerNode()
-            && !nodesStatsResponseForClusterManager.getNodes().get(0).getNode().isDataNode());
-        assertZeroRemoteSegmentStats(nodesStatsResponseForClusterManager.getNodes()
-            .get(0)
-            .getIndices()
-            .getSegments()
-            .getRemoteSegmentStats());
+        assertTrue(
+            nodesStatsResponseForClusterManager.getNodes().get(0).getNode().isClusterManagerNode()
+                && !nodesStatsResponseForClusterManager.getNodes().get(0).getNode().isDataNode()
+        );
+        assertZeroRemoteSegmentStats(
+            nodesStatsResponseForClusterManager.getNodes().get(0).getIndices().getSegments().getRemoteSegmentStats()
+        );
         NodesStatsResponse nodesStatsResponseForDataNode = client().admin()
             .cluster()
             .prepareNodesStats(primaryNodeName(INDEX_NAME))
             .setIndices(new CommonStatsFlags().set(CommonStatsFlags.Flag.Segments, true))
             .get();
         assertTrue(nodesStatsResponseForDataNode.getNodes().get(0).getNode().isDataNode());
-        RemoteSegmentStats remoteSegmentStats =
-            nodesStatsResponseForDataNode.getNodes().get(0).getIndices().getSegments().getRemoteSegmentStats();
+        RemoteSegmentStats remoteSegmentStats = nodesStatsResponseForDataNode.getNodes()
+            .get(0)
+            .getIndices()
+            .getSegments()
+            .getRemoteSegmentStats();
         assertTrue(remoteSegmentStats.getUploadBytesStarted() > 0);
         assertTrue(remoteSegmentStats.getUploadBytesSucceeded() > 0);
     }

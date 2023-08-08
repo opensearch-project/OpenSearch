@@ -1423,7 +1423,8 @@ public class IndexStatsIT extends OpenSearchIntegTestCase {
         String indexName = "test-index";
         createIndex(indexName, Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).build());
         ensureGreen(indexName);
-        assertEquals(RestStatus.CREATED,
+        assertEquals(
+            RestStatus.CREATED,
             client().prepareIndex(indexName)
                 .setId(UUIDs.randomBase64UUID())
                 .setSource("field", "value1", "field2", "value1")
@@ -1435,8 +1436,11 @@ public class IndexStatsIT extends OpenSearchIntegTestCase {
         RemoteSegmentStats remoteSegmentStatsFromIndexStats = shard.getStats().getSegments().getRemoteSegmentStats();
         assertZeroRemoteSegmentStats(remoteSegmentStatsFromIndexStats);
         NodesStatsResponse nodesStatsResponse = client().admin().cluster().prepareNodesStats(primaryNodeName(indexName)).get();
-        RemoteSegmentStats remoteSegmentStatsFromNodesStats =
-            nodesStatsResponse.getNodes().get(0).getIndices().getSegments().getRemoteSegmentStats();
+        RemoteSegmentStats remoteSegmentStatsFromNodesStats = nodesStatsResponse.getNodes()
+            .get(0)
+            .getIndices()
+            .getSegments()
+            .getRemoteSegmentStats();
         assertZeroRemoteSegmentStats(remoteSegmentStatsFromNodesStats);
     }
 
@@ -1450,6 +1454,7 @@ public class IndexStatsIT extends OpenSearchIntegTestCase {
         assertEquals(0, remoteSegmentStats.getMaxRefreshBytesLag());
         assertEquals(0, remoteSegmentStats.getMaxRefreshTimeLag());
     }
+
     /**
      * Persist the global checkpoint on all shards of the given index into disk.
      * This makes sure that the persisted global checkpoint on those shards will equal to the in-memory value.

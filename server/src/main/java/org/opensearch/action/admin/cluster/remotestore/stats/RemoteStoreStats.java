@@ -8,18 +8,15 @@
 
 package org.opensearch.action.admin.cluster.remotestore.stats;
 
-import org.opensearch.common.Nullable;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.index.recovery.RecoveryStats;
 import org.opensearch.index.remote.RemoteSegmentTransferTracker;
 
 import java.io.IOException;
-import java.rmi.Remote;
 
 /**
  * Encapsulates all remote store stats
@@ -28,14 +25,9 @@ import java.rmi.Remote;
  */
 public class RemoteStoreStats implements Writeable, ToXContentFragment {
 
-    private RemoteSegmentTransferTracker.Stats remoteSegmentShardStats;
+    private final RemoteSegmentTransferTracker.Stats remoteSegmentShardStats;
 
-    @Nullable
-    private ShardRouting shardRouting;
-
-    public RemoteStoreStats() {
-        remoteSegmentShardStats = new RemoteSegmentTransferTracker.Stats();
-    }
+    private final ShardRouting shardRouting;
 
     public RemoteStoreStats(RemoteSegmentTransferTracker.Stats remoteSegmentUploadShardStats, ShardRouting shardRouting) {
         this.remoteSegmentShardStats = remoteSegmentUploadShardStats;
@@ -55,20 +47,10 @@ public class RemoteStoreStats implements Writeable, ToXContentFragment {
         return shardRouting;
     }
 
-    public void add(RemoteStoreStats remoteStoreStats) {
-        if (remoteStoreStats != null) {
-            this.remoteSegmentShardStats.add(remoteStoreStats.remoteSegmentShardStats);
-        }
-    }
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        if (shardRouting != null) {
-            builder.startObject();
-            buildShardRouting(builder);
-        } else {
-            builder.startObject(Fields.REMOTE_STORE);
-        }
+        builder.startObject();
+        buildShardRouting(builder);
         builder.startObject(Fields.SEGMENT);
         builder.startObject(SubFields.DOWNLOAD);
         // Ensuring that we are not showing 0 metrics to the user
@@ -150,7 +132,6 @@ public class RemoteStoreStats implements Writeable, ToXContentFragment {
     }
 
     static final class Fields {
-        static final String REMOTE_STORE = "remote_store";
         static final String ROUTING = "routing";
         static final String SEGMENT = "segment";
         static final String TRANSLOG = "translog";

@@ -42,8 +42,13 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
     protected static final int REPLICA_COUNT = 1;
     protected Path absolutePath;
     protected Path absolutePath2;
-    private final List<String> documentKeys =
-        List.of(randomAlphaOfLength(5), randomAlphaOfLength(5), randomAlphaOfLength(5), randomAlphaOfLength(5), randomAlphaOfLength(5));
+    private final List<String> documentKeys = List.of(
+        randomAlphaOfLength(5),
+        randomAlphaOfLength(5),
+        randomAlphaOfLength(5),
+        randomAlphaOfLength(5),
+        randomAlphaOfLength(5)
+    );
 
     @Override
     protected boolean addMockInternalEngine() {
@@ -83,9 +88,12 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
     }
 
     public static Settings remoteStoreClusterSettings(
-        String segmentRepoName, String translogRepoName, boolean randomizeSameRepoForRSSAndRTS
+        String segmentRepoName,
+        String translogRepoName,
+        boolean randomizeSameRepoForRSSAndRTS
     ) {
-        return remoteStoreClusterSettings(segmentRepoName,
+        return remoteStoreClusterSettings(
+            segmentRepoName,
             randomizeSameRepoForRSSAndRTS ? (randomBoolean() ? translogRepoName : segmentRepoName) : translogRepoName
         );
     }

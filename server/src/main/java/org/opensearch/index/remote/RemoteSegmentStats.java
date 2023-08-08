@@ -18,6 +18,11 @@ import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
+/**
+ * Tracks remote store segment download and upload stats
+ *
+ * @opensearch.internal
+ */
 public class RemoteSegmentStats implements Writeable, ToXContentFragment {
     private long uploadBytesStarted;
     private long uploadBytesFailed;
@@ -118,7 +123,7 @@ public class RemoteSegmentStats implements Writeable, ToXContentFragment {
         }
     }
 
-    public void buildIndexStats(RemoteSegmentTransferTracker.Stats trackerStats) {
+    public void buildRemoteSegmentStats(RemoteSegmentTransferTracker.Stats trackerStats) {
         this.uploadBytesStarted = trackerStats.uploadBytesStarted;
         this.uploadBytesFailed = trackerStats.uploadBytesFailed;
         this.uploadBytesSucceeded = trackerStats.uploadBytesSucceeded;

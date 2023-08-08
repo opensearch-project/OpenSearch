@@ -560,30 +560,26 @@ public class RemoteSegmentTransferTracker {
      */
     public static class Stats implements Writeable {
 
-        public ShardId shardId;
-        public long localRefreshClockTimeMs;
-        public long remoteRefreshClockTimeMs;
-        public long refreshTimeLagMs;
-        public long localRefreshNumber;
-        public long remoteRefreshNumber;
-        public long uploadBytesStarted;
-        public long uploadBytesFailed;
-        public long uploadBytesSucceeded;
-        public long totalUploadsStarted;
-        public long totalUploadsFailed;
-        public long totalUploadsSucceeded;
-        public long rejectionCount;
-        public long consecutiveFailuresCount;
-        public long lastSuccessfulRemoteRefreshBytes;
-        public double uploadBytesMovingAverage;
-        public double uploadBytesPerSecMovingAverage;
-        public double uploadTimeMovingAverage;
-        public long bytesLag;
-        public DirectoryFileTransferTracker.Stats directoryFileTransferTrackerStats;
-
-        public Stats() {
-            directoryFileTransferTrackerStats = new DirectoryFileTransferTracker.Stats();
-        }
+        public final ShardId shardId;
+        public final long localRefreshClockTimeMs;
+        public final long remoteRefreshClockTimeMs;
+        public final long refreshTimeLagMs;
+        public final long localRefreshNumber;
+        public final long remoteRefreshNumber;
+        public final long uploadBytesStarted;
+        public final long uploadBytesFailed;
+        public final long uploadBytesSucceeded;
+        public final long totalUploadsStarted;
+        public final long totalUploadsFailed;
+        public final long totalUploadsSucceeded;
+        public final long rejectionCount;
+        public final long consecutiveFailuresCount;
+        public final long lastSuccessfulRemoteRefreshBytes;
+        public final double uploadBytesMovingAverage;
+        public final double uploadBytesPerSecMovingAverage;
+        public final double uploadTimeMovingAverage;
+        public final long bytesLag;
+        public final DirectoryFileTransferTracker.Stats directoryFileTransferTrackerStats;
 
         public Stats(
             ShardId shardId,
@@ -653,15 +649,6 @@ public class RemoteSegmentTransferTracker {
                 this.directoryFileTransferTrackerStats = in.readOptionalWriteable(DirectoryFileTransferTracker.Stats::new);
             } catch (IOException e) {
                 throw e;
-            }
-        }
-
-        public void add(RemoteSegmentTransferTracker.Stats existingStats) {
-            if (existingStats != null) {
-                this.uploadBytesStarted += existingStats.uploadBytesStarted;
-                this.uploadBytesFailed += existingStats.uploadBytesFailed;
-                this.uploadBytesSucceeded += existingStats.uploadBytesSucceeded;
-                this.directoryFileTransferTrackerStats.add(existingStats.directoryFileTransferTrackerStats);
             }
         }
 

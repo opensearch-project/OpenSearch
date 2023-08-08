@@ -1381,7 +1381,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         segmentsStats.addBitsetMemoryInBytes(shardBitsetFilterCache.getMemorySizeInBytes());
         if (indexSettings.isRemoteStoreEnabled()) {
             RemoteSegmentStats remoteSegmentStats = new RemoteSegmentStats();
-            remoteSegmentStats.buildIndexStats(remoteRefreshSegmentPressureService.getRemoteRefreshSegmentTracker(shardId).stats());
+            remoteSegmentStats.buildRemoteSegmentStats(remoteRefreshSegmentPressureService.getRemoteRefreshSegmentTracker(shardId).stats());
             segmentsStats.addRemoteSegmentStats(remoteSegmentStats);
         }
         return segmentsStats;
