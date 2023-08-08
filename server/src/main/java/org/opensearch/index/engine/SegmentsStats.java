@@ -209,6 +209,7 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
         return Collections.unmodifiableMap(this.fileSizes);
     }
 
+    /** Returns remote_store based stats **/
     public RemoteSegmentStats getRemoteSegmentStats() {
         return remoteSegmentStats;
     }

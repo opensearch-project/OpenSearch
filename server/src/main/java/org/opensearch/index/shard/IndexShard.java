@@ -334,6 +334,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final Store remoteStore;
     private final BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier;
     private final boolean isTimeSeriesIndex;
+
     private final RemoteRefreshSegmentPressureService remoteRefreshSegmentPressureService;
 
     private final List<ReferenceManager.RefreshListener> internalRefreshListener = new ArrayList<>();
@@ -544,6 +545,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public QueryCachingPolicy getQueryCachingPolicy() {
         return cachingPolicy;
+    }
+
+    /** Only used for testing **/
+    protected RemoteRefreshSegmentPressureService getRemoteRefreshSegmentPressureService() {
+        return remoteRefreshSegmentPressureService;
     }
 
     @Override
@@ -1379,6 +1385,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public SegmentsStats segmentStats(boolean includeSegmentFileSizes, boolean includeUnloadedSegments) {
         SegmentsStats segmentsStats = getEngine().segmentsStats(includeSegmentFileSizes, includeUnloadedSegments);
         segmentsStats.addBitsetMemoryInBytes(shardBitsetFilterCache.getMemorySizeInBytes());
+        // Populate remote_store stats only if the index is remote store backed
         if (indexSettings.isRemoteStoreEnabled()) {
             RemoteSegmentStats remoteSegmentStats = new RemoteSegmentStats();
             remoteSegmentStats.buildRemoteSegmentStats(remoteRefreshSegmentPressureService.getRemoteRefreshSegmentTracker(shardId).stats());

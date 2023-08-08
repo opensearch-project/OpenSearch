@@ -20,6 +20,7 @@ import java.io.IOException;
 
 /**
  * Tracks remote store segment download and upload stats
+ * Used for displaying remote store stats in IndicesStats/NodeStats API
  *
  * @opensearch.internal
  */
@@ -156,7 +157,11 @@ public class RemoteSegmentStats implements Writeable, ToXContentFragment {
         builder.humanReadableField(Fields.FAILED_BYTES, Fields.FAILED, new ByteSizeValue(uploadBytesFailed));
         builder.endObject();
         builder.humanReadableField(Fields.MAX_REFRESH_TIME_LAG_IN_MILLIS, Fields.MAX_REFRESH_TIME_LAG, new TimeValue(maxRefreshTimeLag));
-        builder.humanReadableField(Fields.MAX_REFRESH_SIZE_LAG_IN_MILLIS, Fields.MAX_REFRESH_SIZE_LAG, new ByteSizeValue(maxRefreshBytesLag));
+        builder.humanReadableField(
+            Fields.MAX_REFRESH_SIZE_LAG_IN_MILLIS,
+            Fields.MAX_REFRESH_SIZE_LAG,
+            new ByteSizeValue(maxRefreshBytesLag)
+        );
         builder.endObject();
         builder.startObject(Fields.DOWNLOAD);
         builder.startObject(Fields.TOTAL_DOWNLOADS);
