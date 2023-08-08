@@ -245,7 +245,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                             repositoriesMetadata.add(new RepositoryMetadata(request.name(), request.type(), request.settings()));
                         } else {
                             logger.info("update repository [{}]", request.name());
-                            validateRestrictedSystemRepositorySettings(currentRepositoryMetadata, newRepositoryMetadata);
+                            validateRestrictedSystemRepositorySettingsAndType(currentRepositoryMetadata, newRepositoryMetadata);
                         }
                         repositories = new RepositoriesMetadata(repositoriesMetadata);
                     }
@@ -273,11 +273,17 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         );
     }
 
-    private void validateRestrictedSystemRepositorySettings(
+    private void validateRestrictedSystemRepositorySettingsAndType(
         RepositoryMetadata currentRepositoryMetadata,
         RepositoryMetadata newRepositoryMetadata
     ) {
         if (SYSTEM_REPOSITORY_SETTING.get(currentRepositoryMetadata.settings())) {
+            if (newRepositoryMetadata.type() != currentRepositoryMetadata.type()) {
+                throw new RepositoryException(
+                    currentRepositoryMetadata.name(),
+                    "trying to modify system repository type " + currentRepositoryMetadata.type()
+                );
+            }
             Repository repository = repositories.get(currentRepositoryMetadata.name());
             for (Setting<?> setting : repository.restrictedSystemRepositorySettings()) {
                 if (newRepositoryMetadata.settings().get(setting.getKey()) != null) {
