@@ -40,7 +40,6 @@ import org.opensearch.common.Nullable;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.VersionType;
 
 import java.util.Map;
@@ -83,8 +82,8 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
     /**
      * Sets the source.
      */
-    public IndexRequestBuilder setSource(BytesReference source, XContentType xContentType) {
-        request.source(source, xContentType);
+    public IndexRequestBuilder setSource(BytesReference source, MediaType mediaType) {
+        request.source(source, mediaType);
         return this;
     }
 
@@ -142,10 +141,10 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
      * @param source The source to index
      * @param offset The offset in the byte array
      * @param length The length of the data
-     * @param xContentType The type/format of the source
+     * @param mediaType The type/format of the source
      */
-    public IndexRequestBuilder setSource(byte[] source, int offset, int length, XContentType xContentType) {
-        request.source(source, offset, length, xContentType);
+    public IndexRequestBuilder setSource(byte[] source, int offset, int length, MediaType mediaType) {
+        request.source(source, offset, length, mediaType);
         return this;
     }
 
@@ -170,8 +169,8 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
      * valid String representation.</b>
      * </p>
      */
-    public IndexRequestBuilder setSource(XContentType xContentType, Object... source) {
-        request.source(xContentType, source);
+    public IndexRequestBuilder setSource(MediaType mediaType, Object... source) {
+        request.source(mediaType, source);
         return this;
     }
 
