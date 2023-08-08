@@ -31,6 +31,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `org.apache.commons:commons-lang3` from 3.12.0 to 3.13.0 in /plugins/repository-hdfs ([#8997](https://github.com/opensearch-project/OpenSearch/pull/8997))
 - Bump `netty` from 4.1.94.Final to 4.1.96.Final ([#9030](https://github.com/opensearch-project/OpenSearch/pull/9030))
 - Bump `com.google.jimfs:jimfs` from 1.2 to 1.3.0 ([#9080](https://github.com/opensearch-project/OpenSearch/pull/9080))
+- Bump `io.projectreactor.netty:reactor-netty-http` from 1.1.8 to 1.1.9 ([#9147](https://github.com/opensearch-project/OpenSearch/pull/9147))
 
 ### Changed
 - Perform aggregation postCollection in ContextIndexSearcher after searching leaves ([#8303](https://github.com/opensearch-project/OpenSearch/pull/8303))
@@ -62,4 +63,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ### Security
 
+<<<<<<< HEAD
 [Unreleased 2.x]: https://github.com/opensearch-project/OpenSearch/compare/2.9...2.x
+=======
+[Unreleased 3.0]: https://github.com/opensearch-project/OpenSearch/compare/2.x...HEAD
+[Unreleased 2.x]: https://github.com/opensearch-project/OpenSearch/compare/2.10...2.x
+>>>>>>> e1eade10174 (Bump io.projectreactor.netty:reactor-netty-http from 1.1.8 to 1.1.9 in /plugins/repository-azure (#9147))
