@@ -48,7 +48,7 @@ public class WrappedTracerTests extends OpenSearchTestCase {
             wrappedTracer.startSpan("foo");
 
             assertTrue(wrappedTracer.getDelegateTracer() instanceof DefaultTracer);
-            verify(mockDefaultTracer).startSpan("foo");
+            verify(mockDefaultTracer).startSpan("foo", null);
         }
     }
 
