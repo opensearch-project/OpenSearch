@@ -147,6 +147,10 @@ public class FsDirectoryFactoryTests extends OpenSearchTestCase {
             assertFalse(hybridDirectory.useDelegate("foo.doc"));
             MMapDirectory delegate = hybridDirectory.getDelegate();
             assertThat(delegate, Matchers.instanceOf(FsDirectoryFactory.PreLoadMMapDirectory.class));
+            assertWarnings(
+                "[index.store.hybrid.mmap.extensions] setting was deprecated in OpenSearch and will be removed in a future release!"
+                    + " See the breaking changes documentation for the next major version."
+            );
         }
         build = Settings.builder()
             .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.HYBRIDFS.name().toLowerCase(Locale.ROOT))

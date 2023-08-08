@@ -159,7 +159,7 @@ public final class IndexModule {
      *  This is an expert setting.
      *  @see <a href="https://lucene.apache.org/core/9_5_0/core/org/apache/lucene/codecs/lucene95/package-summary.html#file-names">Lucene File Extensions</a>.
      *
-     * @deprecated This setting will be removed in OpenSearch 4.x. Use {@link #INDEX_STORE_HYBRID_NIO_EXTENSIONS} instead.
+     * @deprecated This setting will be removed in OpenSearch 3.x. Use {@link #INDEX_STORE_HYBRID_NIO_EXTENSIONS} instead.
      */
     @Deprecated
     public static final Setting<List<String>> INDEX_STORE_HYBRID_MMAP_EXTENSIONS = Setting.listSetting(
@@ -196,7 +196,8 @@ public final class IndexModule {
             }
         },
         Property.IndexScope,
-        Property.NodeScope
+        Property.NodeScope,
+        Property.Deprecated
     );
 
     /** Which lucene file extensions to load with nio. All others will default to mmap. Takes precedence over {@link #INDEX_STORE_HYBRID_MMAP_EXTENSIONS}.

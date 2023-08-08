@@ -56,8 +56,9 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Factory for a filesystem directory
@@ -102,7 +103,10 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
                 Set<String> nioExtensions = new HashSet<>(indexSettings.getValue(IndexModule.INDEX_STORE_HYBRID_NIO_EXTENSIONS));
                 if (indexSettings.getValue(IndexModule.INDEX_STORE_HYBRID_MMAP_EXTENSIONS)
                     .equals(IndexModule.INDEX_STORE_HYBRID_MMAP_EXTENSIONS.getDefault(Settings.EMPTY)) == false) {
-                    nioExtensions = new HashSet<>(INDEX_STORE_HYBRID_ALL_EXTENSIONS);
+                    nioExtensions = Stream.concat(
+                        IndexModule.INDEX_STORE_HYBRID_NIO_EXTENSIONS.getDefault(Settings.EMPTY).stream(),
+                        IndexModule.INDEX_STORE_HYBRID_MMAP_EXTENSIONS.getDefault(Settings.EMPTY).stream()
+                    ).collect(Collectors.toSet());
                     nioExtensions.removeAll(indexSettings.getValue(IndexModule.INDEX_STORE_HYBRID_MMAP_EXTENSIONS));
                 }
                 if (primaryDirectory instanceof MMapDirectory) {
@@ -239,33 +243,4 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
             return delegate;
         }
     }
-
-    private static List<String> INDEX_STORE_HYBRID_ALL_EXTENSIONS = List.of(
-        "nvd", // mmap defaults start
-        "dvd",
-        "tim",
-        "tip",
-        "dim",
-        "kdd",
-        "kdi",
-        "cfs",
-        "doc", // mmap defaults end
-        "segments_N", // nio defaults start
-        "write.lock",
-        "si",
-        "cfe",
-        "fnm",
-        "fdx",
-        "fdt",
-        "pos",
-        "pay",
-        "nvm",
-        "dvm",
-        "tvx",
-        "tvd",
-        "liv",
-        "dii",
-        "vec",
-        "vem" // nio defaults end
-    );
 }
