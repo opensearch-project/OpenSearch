@@ -66,7 +66,7 @@ class AggregationCollectorManager implements CollectorManager<Collector, Reducea
         // Reduce the aggregations across slices before sending to the coordinator. We will perform shard level reduce iff multiple slices
         // were created to execute this request and it used concurrent segment search path
         // TODO: Add the check for flag that the request was executed using concurrent search
-        if (collectors.size() > 1) {
+        if (collectors.size() >= 1) {
             // using reduce is fine here instead of topLevelReduce as pipeline aggregation is evaluated on the coordinator after all
             // documents are collected across shards for an aggregation
             return new AggregationReduceableSearchResult(

@@ -220,7 +220,6 @@ public class InternalMultiTerms extends InternalTerms<InternalMultiTerms, Intern
         }
     }
 
-    private final int shardSize;
     private final boolean showTermDocCountError;
     private final long otherDocCount;
     private final List<DocValueFormat> termFormats;
@@ -233,18 +232,16 @@ public class InternalMultiTerms extends InternalTerms<InternalMultiTerms, Intern
         String name,
         BucketOrder reduceOrder,
         BucketOrder order,
-        int requiredSize,
-        long minDocCount,
         Map<String, Object> metadata,
-        int shardSize,
         boolean showTermDocCountError,
         long otherDocCount,
         long docCountError,
         List<DocValueFormat> formats,
-        List<Bucket> buckets
+        List<Bucket> buckets,
+        TermsAggregator.BucketCountThresholds bucketCountThresholds
     ) {
-        super(name, reduceOrder, order, requiredSize, minDocCount, metadata);
-        this.shardSize = shardSize;
+        super(name, reduceOrder, order, bucketCountThresholds, metadata);
+        this.shardSize = bucketCountThresholds.getShardSize();
         this.showTermDocCountError = showTermDocCountError;
         this.otherDocCount = otherDocCount;
         this.termFormats = formats;
@@ -278,15 +275,13 @@ public class InternalMultiTerms extends InternalTerms<InternalMultiTerms, Intern
             name,
             reduceOrder,
             order,
-            requiredSize,
-            minDocCount,
             metadata,
-            shardSize,
             showTermDocCountError,
             otherDocCount,
             docCountError,
             termFormats,
-            buckets
+            buckets,
+            bucketCountThresholds
         );
     }
 
@@ -357,15 +352,13 @@ public class InternalMultiTerms extends InternalTerms<InternalMultiTerms, Intern
             name,
             reduceOrder,
             order,
-            requiredSize,
-            minDocCount,
             metadata,
-            shardSize,
             showTermDocCountError,
             otherDocCount,
             docCountError,
             termFormats,
-            buckets
+            buckets,
+            bucketCountThresholds
         );
     }
 

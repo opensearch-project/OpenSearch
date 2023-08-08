@@ -118,13 +118,22 @@ public class MultiTermsAggregator extends DeferableBucketAggregator {
 
     @Override
     public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+        int requiredSizeLocal;
+        long minDocCountLocal;
+        if (context.isConcurrentSegmentSearchEnabled()) {
+            requiredSizeLocal = Integer.MAX_VALUE;
+            minDocCountLocal = 0;
+        } else {
+            requiredSizeLocal = bucketCountThresholds.getShardSize();
+            minDocCountLocal = bucketCountThresholds.getShardMinDocCount();
+        }
         InternalMultiTerms.Bucket[][] topBucketsPerOrd = new InternalMultiTerms.Bucket[owningBucketOrds.length][];
         long[] otherDocCounts = new long[owningBucketOrds.length];
         for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
             collectZeroDocEntriesIfNeeded(owningBucketOrds[ordIdx]);
             long bucketsInOrd = bucketOrds.bucketsInOrd(owningBucketOrds[ordIdx]);
 
-            int size = (int) Math.min(bucketsInOrd, bucketCountThresholds.getShardSize());
+            int size = (int) Math.min(bucketsInOrd, requiredSizeLocal);
             PriorityQueue<InternalMultiTerms.Bucket> ordered = new BucketPriorityQueue<>(size, partiallyBuiltBucketComparator);
             InternalMultiTerms.Bucket spare = null;
             BytesRef dest = null;
@@ -136,7 +145,7 @@ public class MultiTermsAggregator extends DeferableBucketAggregator {
             while (ordsEnum.next()) {
                 long docCount = bucketDocCount(ordsEnum.ord());
                 otherDocCounts[ordIdx] += docCount;
-                if (docCount < bucketCountThresholds.getShardMinDocCount()) {
+                if (docCount < minDocCountLocal) {
                     continue;
                 }
                 if (spare == null) {
@@ -182,15 +191,13 @@ public class MultiTermsAggregator extends DeferableBucketAggregator {
             name,
             reduceOrder,
             order,
-            bucketCountThresholds.getRequiredSize(),
-            bucketCountThresholds.getMinDocCount(),
             metadata(),
-            bucketCountThresholds.getShardSize(),
             showTermDocCountError,
             otherDocCount,
             0,
             formats,
-            List.of(topBuckets)
+            List.of(topBuckets),
+            bucketCountThresholds
         );
     }
 
@@ -200,15 +207,13 @@ public class MultiTermsAggregator extends DeferableBucketAggregator {
             name,
             order,
             order,
-            bucketCountThresholds.getRequiredSize(),
-            bucketCountThresholds.getMinDocCount(),
             metadata(),
-            bucketCountThresholds.getShardSize(),
             showTermDocCountError,
             0,
             0,
             formats,
-            Collections.emptyList()
+            Collections.emptyList(),
+            bucketCountThresholds
         );
     }
 

@@ -603,6 +603,15 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         TB extends InternalMultiBucketAggregation.InternalBucket> implements Releasable {
 
         private InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+            int requiredSizeLocal;
+            long minDocCountLocal;
+            if (context.isConcurrentSegmentSearchEnabled()) {
+                requiredSizeLocal = Integer.MAX_VALUE;
+                minDocCountLocal = 0;
+            } else {
+                requiredSizeLocal = bucketCountThresholds.getShardSize();
+                minDocCountLocal = bucketCountThresholds.getShardMinDocCount();
+            }
             if (valueCount == 0) { // no context in this reader
                 InternalAggregation[] results = new InternalAggregation[owningBucketOrds.length];
                 for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
@@ -615,11 +624,11 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             long[] otherDocCount = new long[owningBucketOrds.length];
             for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
                 final int size;
-                if (bucketCountThresholds.getMinDocCount() == 0) {
+                if (minDocCountLocal == 0) {
                     // if minDocCount == 0 then we can end up with more buckets then maxBucketOrd() returns
-                    size = (int) Math.min(valueCount, bucketCountThresholds.getShardSize());
+                    size = (int) Math.min(valueCount, requiredSizeLocal);
                 } else {
-                    size = (int) Math.min(maxBucketOrd(), bucketCountThresholds.getShardSize());
+                    size = (int) Math.min(maxBucketOrd(), requiredSizeLocal);
                 }
                 PriorityQueue<TB> ordered = buildPriorityQueue(size);
                 final int finalOrdIdx = ordIdx;
@@ -630,7 +639,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                     @Override
                     public void accept(long globalOrd, long bucketOrd, long docCount) throws IOException {
                         otherDocCount[finalOrdIdx] += docCount;
-                        if (docCount >= bucketCountThresholds.getShardMinDocCount()) {
+                        if (docCount >= minDocCountLocal) {
                             if (spare == null) {
                                 spare = buildEmptyTemporaryBucket();
                             }
@@ -799,15 +808,13 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                 name,
                 reduceOrder,
                 order,
-                bucketCountThresholds.getRequiredSize(),
-                bucketCountThresholds.getMinDocCount(),
                 metadata(),
                 format,
-                bucketCountThresholds.getShardSize(),
                 showTermDocCountError,
                 otherDocCount,
                 Arrays.asList(topBuckets),
-                0
+                0,
+                bucketCountThresholds
             );
         }
 
@@ -924,14 +931,13 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         SignificantStringTerms buildResult(long owningBucketOrd, long otherDocCount, SignificantStringTerms.Bucket[] topBuckets) {
             return new SignificantStringTerms(
                 name,
-                bucketCountThresholds.getRequiredSize(),
-                bucketCountThresholds.getMinDocCount(),
                 metadata(),
                 format,
                 subsetSize(owningBucketOrd),
                 supersetSize,
                 significanceHeuristic,
-                Arrays.asList(topBuckets)
+                Arrays.asList(topBuckets),
+                bucketCountThresholds
             );
         }
 

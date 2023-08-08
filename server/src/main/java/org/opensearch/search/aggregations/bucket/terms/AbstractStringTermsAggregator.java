@@ -72,20 +72,7 @@ abstract class AbstractStringTermsAggregator extends TermsAggregator {
     }
 
     protected StringTerms buildEmptyTermsAggregation() {
-        return new StringTerms(
-            name,
-            order,
-            order,
-            bucketCountThresholds.getRequiredSize(),
-            bucketCountThresholds.getMinDocCount(),
-            metadata(),
-            format,
-            bucketCountThresholds.getShardSize(),
-            showTermDocCountError,
-            0,
-            emptyList(),
-            0
-        );
+        return new StringTerms(name, order, order, metadata(), format, showTermDocCountError, 0, emptyList(), 0, bucketCountThresholds);
     }
 
     protected SignificantStringTerms buildEmptySignificantTermsAggregation(long subsetSize, SignificanceHeuristic significanceHeuristic) {
@@ -95,14 +82,13 @@ abstract class AbstractStringTermsAggregator extends TermsAggregator {
         int supersetSize = topReader.numDocs();
         return new SignificantStringTerms(
             name,
-            bucketCountThresholds.getRequiredSize(),
-            bucketCountThresholds.getMinDocCount(),
             metadata(),
             format,
             subsetSize,
             supersetSize,
             significanceHeuristic,
-            emptyList()
+            emptyList(),
+            bucketCountThresholds
         );
     }
 }

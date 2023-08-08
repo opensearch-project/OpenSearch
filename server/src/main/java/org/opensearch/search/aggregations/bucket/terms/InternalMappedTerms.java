@@ -52,7 +52,6 @@ import java.util.stream.Collectors;
  */
 public abstract class InternalMappedTerms<A extends InternalTerms<A, B>, B extends InternalTerms.Bucket<B>> extends InternalTerms<A, B> {
     protected final DocValueFormat format;
-    protected final int shardSize;
     protected final boolean showTermDocCountError;
     protected final long otherDocCount;
     protected final List<B> buckets;
@@ -64,19 +63,16 @@ public abstract class InternalMappedTerms<A extends InternalTerms<A, B>, B exten
         String name,
         BucketOrder reduceOrder,
         BucketOrder order,
-        int requiredSize,
-        long minDocCount,
         Map<String, Object> metadata,
         DocValueFormat format,
-        int shardSize,
         boolean showTermDocCountError,
         long otherDocCount,
         List<B> buckets,
-        long docCountError
+        long docCountError,
+        TermsAggregator.BucketCountThresholds bucketCountThresholds
     ) {
-        super(name, reduceOrder, order, requiredSize, minDocCount, metadata);
+        super(name, reduceOrder, order, bucketCountThresholds, metadata);
         this.format = format;
-        this.shardSize = shardSize;
         this.showTermDocCountError = showTermDocCountError;
         this.otherDocCount = otherDocCount;
         this.docCountError = docCountError;
