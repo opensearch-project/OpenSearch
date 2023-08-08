@@ -236,9 +236,7 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
         builder.humanReadableField(Fields.VERSION_MAP_MEMORY_IN_BYTES, Fields.VERSION_MAP_MEMORY, getVersionMapMemory());
         builder.humanReadableField(Fields.FIXED_BIT_SET_MEMORY_IN_BYTES, Fields.FIXED_BIT_SET, getBitsetMemory());
         builder.field(Fields.MAX_UNSAFE_AUTO_ID_TIMESTAMP, maxUnsafeAutoIdTimestamp);
-        if (remoteSegmentStats != null) {
-            remoteSegmentStats.toXContent(builder, params);
-        }
+        remoteSegmentStats.toXContent(builder, params);
         builder.startObject(Fields.FILE_SIZES);
         for (Map.Entry<String, Long> entry : fileSizes.entrySet()) {
             builder.startObject(entry.getKey());

@@ -107,7 +107,7 @@ public class RemoteSegmentStats implements Writeable, ToXContentFragment {
     }
 
     public void setMaxRefreshBytesLag(long maxRefreshBytesLag) {
-        this.maxRefreshBytesLag = Math.max(this.maxRefreshBytesLag, maxRefreshBytesLag);
+        this.maxRefreshBytesLag = maxRefreshBytesLag;
     }
 
     public void add(RemoteSegmentStats remoteSegmentStats) {
@@ -130,8 +130,8 @@ public class RemoteSegmentStats implements Writeable, ToXContentFragment {
         this.downloadBytesSucceeded = trackerStats.directoryFileTransferTrackerStats.transferredBytesSucceeded;
         this.downloadBytesStarted = trackerStats.directoryFileTransferTrackerStats.transferredBytesStarted;
         this.downloadBytesFailed = trackerStats.directoryFileTransferTrackerStats.transferredBytesFailed;
-        this.maxRefreshTimeLag = Math.max(this.maxRefreshTimeLag, trackerStats.refreshTimeLagMs);
-        this.maxRefreshBytesLag = Math.max(this.maxRefreshBytesLag, trackerStats.bytesLag);
+        this.maxRefreshTimeLag = trackerStats.refreshTimeLagMs;
+        this.maxRefreshBytesLag = trackerStats.bytesLag;
     }
 
     @Override
@@ -156,7 +156,7 @@ public class RemoteSegmentStats implements Writeable, ToXContentFragment {
         builder.humanReadableField(Fields.FAILED_BYTES, Fields.FAILED, new ByteSizeValue(uploadBytesFailed));
         builder.endObject();
         builder.humanReadableField(Fields.MAX_REFRESH_TIME_LAG_IN_MILLIS, Fields.MAX_REFRESH_TIME_LAG, new TimeValue(maxRefreshTimeLag));
-        builder.humanReadableField(Fields.MAX_REFRESH_BYTES_LAG_IN_MILLIS, Fields.MAX_REFRESH_BYTES_LAG, new TimeValue(maxRefreshBytesLag));
+        builder.humanReadableField(Fields.MAX_REFRESH_SIZE_LAG_IN_MILLIS, Fields.MAX_REFRESH_SIZE_LAG, new ByteSizeValue(maxRefreshBytesLag));
         builder.endObject();
         builder.startObject(Fields.DOWNLOAD);
         builder.startObject(Fields.TOTAL_DOWNLOADS);
@@ -183,7 +183,7 @@ public class RemoteSegmentStats implements Writeable, ToXContentFragment {
         static final String SUCCEEDED_BYTES = "succeeded_bytes";
         static final String MAX_REFRESH_TIME_LAG = "max_refresh_time_lag";
         static final String MAX_REFRESH_TIME_LAG_IN_MILLIS = "max_refresh_time_lag_in_millis";
-        static final String MAX_REFRESH_BYTES_LAG = "max_refresh_bytes_lag";
-        static final String MAX_REFRESH_BYTES_LAG_IN_MILLIS = "max_refresh_bytes_lag_in_millis";
+        static final String MAX_REFRESH_SIZE_LAG = "max_refresh_size_lag";
+        static final String MAX_REFRESH_SIZE_LAG_IN_MILLIS = "max_refresh_size_lag_in_bytes";
     }
 }
