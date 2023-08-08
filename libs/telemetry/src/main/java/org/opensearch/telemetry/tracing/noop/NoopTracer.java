@@ -45,5 +45,4 @@ public class NoopTracer implements Tracer {
     public void close() {
 
     }
-
 }
