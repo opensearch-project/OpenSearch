@@ -639,7 +639,7 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
         SearchDfsQueryThenFetchAsyncAction searchDfsQueryThenFetchAsyncAction = createSearchDfsQueryThenFetchAsyncAction(
             requestOperationListeners
         );
-        long delay =  randomIntBetween(1, 5);
+        long delay = randomIntBetween(1, 5);
 
         FetchSearchPhase fetchPhase = createFetchSearchPhase();
         searchDfsQueryThenFetchAsyncAction.start();
