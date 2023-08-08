@@ -36,7 +36,7 @@ import org.opensearch.action.admin.indices.rollover.MaxAgeCondition;
 import org.opensearch.action.admin.indices.rollover.MaxDocsCondition;
 import org.opensearch.action.admin.indices.rollover.MaxSizeCondition;
 import org.opensearch.action.admin.indices.rollover.RolloverInfo;
-import org.opensearch.common.Strings;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;

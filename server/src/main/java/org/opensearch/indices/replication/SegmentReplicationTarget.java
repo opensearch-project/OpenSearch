@@ -51,9 +51,14 @@ public class SegmentReplicationTarget extends ReplicationTarget {
 
     public final static String REPLICATION_PREFIX = "replication.";
 
-    public SegmentReplicationTarget(IndexShard indexShard, SegmentReplicationSource source, ReplicationListener listener) {
+    public SegmentReplicationTarget(
+        IndexShard indexShard,
+        ReplicationCheckpoint checkpoint,
+        SegmentReplicationSource source,
+        ReplicationListener listener
+    ) {
         super("replication_target", indexShard, new ReplicationLuceneIndex(), listener);
-        this.checkpoint = indexShard.getLatestReplicationCheckpoint();
+        this.checkpoint = checkpoint;
         this.source = source;
         this.state = new SegmentReplicationState(
             indexShard.routingEntry(),
@@ -90,12 +95,19 @@ public class SegmentReplicationTarget extends ReplicationTarget {
     }
 
     public SegmentReplicationTarget retryCopy() {
-        return new SegmentReplicationTarget(indexShard, source, listener);
+        return new SegmentReplicationTarget(indexShard, checkpoint, source, listener);
     }
 
     @Override
     public String description() {
-        return String.format(Locale.ROOT, "Id:[%d] Shard:[%s] Source:[%s]", getId(), shardId(), source.getDescription());
+        return String.format(
+            Locale.ROOT,
+            "Id:[%d] Checkpoint [%s] Shard:[%s] Source:[%s]",
+            getId(),
+            getCheckpoint(),
+            shardId(),
+            source.getDescription()
+        );
     }
 
     @Override

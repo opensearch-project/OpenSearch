@@ -10,9 +10,9 @@ package org.opensearch.index.remote;
 
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.store.DirectoryFileTransferTracker;
 import org.opensearch.test.OpenSearchTestCase;
@@ -389,14 +389,14 @@ public class RemoteSegmentTransferTrackerTests extends OpenSearchTestCase {
         Map<String, Long> fileSizeMap = new HashMap<>();
         fileSizeMap.put("a", 100L);
         fileSizeMap.put("b", 105L);
-        pressureTracker.setLatestLocalFileNameLengthMap(fileSizeMap);
+        pressureTracker.updateLatestLocalFileNameLengthMap(fileSizeMap.keySet(), fileSizeMap::get);
         assertEquals(205L, pressureTracker.getBytesLag());
 
         pressureTracker.addToLatestUploadedFiles("a");
         assertEquals(105L, pressureTracker.getBytesLag());
 
         fileSizeMap.put("c", 115L);
-        pressureTracker.setLatestLocalFileNameLengthMap(fileSizeMap);
+        pressureTracker.updateLatestLocalFileNameLengthMap(fileSizeMap.keySet(), fileSizeMap::get);
         assertEquals(220L, pressureTracker.getBytesLag());
 
         pressureTracker.addToLatestUploadedFiles("b");
@@ -573,7 +573,7 @@ public class RemoteSegmentTransferTrackerTests extends OpenSearchTestCase {
     /**
      * Tests whether RemoteSegmentTransferTracker.Stats object serialize and deserialize is working fine.
      * This comes into play during internode data transfer.
-     * */
+     */
     public void testStatsObjectCreationViaStream() throws IOException {
         pressureTracker = constructTracker();
         RemoteSegmentTransferTracker.Stats pressureTrackerStats = pressureTracker.stats();

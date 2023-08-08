@@ -32,10 +32,10 @@
 
 package org.opensearch.client.slm;
 
-import org.opensearch.common.Strings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.ParseField;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.ConstructingObjectParser;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.ToXContentObject;

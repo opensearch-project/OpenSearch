@@ -34,7 +34,6 @@ package org.opensearch.action.admin.indices.create;
 
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.action.admin.indices.alias.Alias;
-import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
@@ -57,9 +56,12 @@ public class CreateIndexRequestTests extends OpenSearchTestCase {
 
     public void testSerialization() throws IOException {
         CreateIndexRequest request = new CreateIndexRequest("foo");
-        String mapping = Strings.toString(
-            JsonXContent.contentBuilder().startObject().startObject(MapperService.SINGLE_MAPPING_NAME).endObject().endObject()
-        );
+        String mapping = JsonXContent.contentBuilder()
+            .startObject()
+            .startObject(MapperService.SINGLE_MAPPING_NAME)
+            .endObject()
+            .endObject()
+            .toString();
         request.mapping(mapping);
 
         try (BytesStreamOutput output = new BytesStreamOutput()) {

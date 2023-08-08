@@ -260,7 +260,7 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
 
     @Override
     public String toString() {
-        return org.opensearch.common.Strings.toString(XContentType.JSON, this, true, true);
+        return Strings.toString(XContentType.JSON, this, true, true);
     }
 
     @Override

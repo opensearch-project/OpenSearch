@@ -49,7 +49,6 @@ import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.TestShardRouting;
-import org.opensearch.common.Strings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.xcontent.ToXContent;
@@ -327,7 +326,7 @@ public class ClusterStateTests extends OpenSearchTestCase {
                 + "    }\n"
                 + "  }\n"
                 + "}",
-            Strings.toString(builder)
+            builder.toString()
         );
 
     }
@@ -527,7 +526,7 @@ public class ClusterStateTests extends OpenSearchTestCase {
                 + "    }\n"
                 + "  }\n"
                 + "}",
-            Strings.toString(builder)
+            builder.toString()
         );
 
     }
@@ -734,7 +733,7 @@ public class ClusterStateTests extends OpenSearchTestCase {
                 + "    }\n"
                 + "  }\n"
                 + "}",
-            Strings.toString(builder)
+            builder.toString()
         );
 
     }
@@ -844,7 +843,7 @@ public class ClusterStateTests extends OpenSearchTestCase {
                 + "    \"nodes\" : { }\n"
                 + "  }\n"
                 + "}",
-            Strings.toString(builder)
+            builder.toString()
         );
     }
 

@@ -62,7 +62,7 @@ import java.util.function.Consumer;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableList;
 import static org.opensearch.common.unit.TimeValue.timeValueNanos;
-import static org.opensearch.common.util.CollectionUtils.isEmpty;
+import static org.opensearch.core.common.util.CollectionUtils.isEmpty;
 
 /**
  * A scrollable source of hits from a {@linkplain Client} instance.

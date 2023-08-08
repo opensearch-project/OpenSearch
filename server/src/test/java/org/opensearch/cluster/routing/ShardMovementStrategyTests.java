@@ -22,7 +22,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 @ThreadLeakScope(ThreadLeakScope.Scope.NONE)
-public class MovePrimaryFirstTests extends OpenSearchIntegTestCase {
+public class ShardMovementStrategyTests extends OpenSearchIntegTestCase {
 
     protected String startDataOnlyNode(final String zone) {
         final Settings settings = Settings.builder().put("node.attr.zone", zone).build();
@@ -48,14 +48,48 @@ public class MovePrimaryFirstTests extends OpenSearchIntegTestCase {
         flushAndRefresh(index);
     }
 
+    private static Settings.Builder getSettings(ShardMovementStrategy shardMovementStrategy, boolean movePrimaryFirst) {
+        return Settings.builder()
+            .put("cluster.routing.allocation.shard_movement_strategy", shardMovementStrategy)
+            .put("cluster.routing.allocation.move.primary_first", movePrimaryFirst);
+    }
+
+    public void testClusterGreenAfterPartialRelocationPrimaryFirstShardMovementMovePrimarySettingEnabled() throws InterruptedException {
+        testClusterGreenAfterPartialRelocation(ShardMovementStrategy.PRIMARY_FIRST, true);
+    }
+
+    public void testClusterGreenAfterPartialRelocationPrimaryFirstShardMovementMovePrimarySettingDisabled() throws InterruptedException {
+        testClusterGreenAfterPartialRelocation(ShardMovementStrategy.PRIMARY_FIRST, false);
+    }
+
+    public void testClusterGreenAfterPartialRelocationReplicaFirstShardMovementPrimaryFirstEnabled() throws InterruptedException {
+        testClusterGreenAfterPartialRelocation(ShardMovementStrategy.REPLICA_FIRST, true);
+    }
+
+    public void testClusterGreenAfterPartialRelocationReplicaFirstShardMovementPrimaryFirstDisabled() throws InterruptedException {
+        testClusterGreenAfterPartialRelocation(ShardMovementStrategy.REPLICA_FIRST, false);
+    }
+
+    public void testClusterGreenAfterPartialRelocationNoPreferenceShardMovementPrimaryFirstEnabled() throws InterruptedException {
+        testClusterGreenAfterPartialRelocation(ShardMovementStrategy.NO_PREFERENCE, true);
+    }
+
+    private boolean shouldMovePrimaryShardsFirst(ShardMovementStrategy shardMovementStrategy, boolean movePrimaryFirst) {
+        if (shardMovementStrategy == ShardMovementStrategy.NO_PREFERENCE && movePrimaryFirst) {
+            return true;
+        }
+        return shardMovementStrategy == ShardMovementStrategy.PRIMARY_FIRST;
+    }
+
     /**
      * Creates two nodes each in two zones and shuts down nodes in zone1 after
      * relocating half the number of shards. Shards per node constraint ensures
      * that exactly 50% of shards relocate to nodes in zone2 giving time to shut down
-     * nodes in zone1. Since primaries are relocated first as movePrimaryFirst is
-     * enabled, cluster should not become red and zone2 nodes have all the primaries
+     * nodes in zone1. Depending on the shard movement strategy, we check whether the
+     * primary or replica shards are moved first, and zone2 nodes have all the shards
      */
-    public void testClusterGreenAfterPartialRelocation() throws InterruptedException {
+    private void testClusterGreenAfterPartialRelocation(ShardMovementStrategy shardMovementStrategy, boolean movePrimaryFirst)
+        throws InterruptedException {
         internalCluster().startClusterManagerOnlyNodes(1);
         final String z1 = "zone-1", z2 = "zone-2";
         final int primaryShardCount = 6;
@@ -73,7 +107,7 @@ public class MovePrimaryFirstTests extends OpenSearchIntegTestCase {
         // zone nodes excluded to prevent any shard relocation
         ClusterUpdateSettingsRequest settingsRequest = new ClusterUpdateSettingsRequest();
         settingsRequest.persistentSettings(
-            Settings.builder().put("cluster.routing.allocation.move.primary_first", true).put("cluster.routing.allocation.exclude.zone", z2)
+            getSettings(shardMovementStrategy, movePrimaryFirst).put("cluster.routing.allocation.exclude.zone", z2)
         );
         client().admin().cluster().updateSettings(settingsRequest).actionGet();
 
@@ -82,7 +116,7 @@ public class MovePrimaryFirstTests extends OpenSearchIntegTestCase {
 
         // Create cluster state listener to compute number of shards on new zone
         // nodes before counting down the latch
-        final CountDownLatch primaryMoveLatch = new CountDownLatch(1);
+        final CountDownLatch shardMoveLatch = new CountDownLatch(1);
         final ClusterStateListener listener = event -> {
             if (event.routingTableChanged()) {
                 final RoutingNodes routingNodes = event.state().getRoutingNodes();
@@ -91,13 +125,22 @@ public class MovePrimaryFirstTests extends OpenSearchIntegTestCase {
                     RoutingNode routingNode = it.next();
                     final String nodeName = routingNode.node().getName();
                     if (nodeName.equals(z2n1) || nodeName.equals(z2n2)) {
-                        startedCount += routingNode.numberOfShardsWithState(ShardRoutingState.STARTED);
+                        int count = 0;
+                        for (ShardRouting shardEntry : routingNode) {
+                            // If shard movement strategy is primary first, asserting that primary shards are moved first; else assert
+                            // shards are replicas
+                            if ((shardEntry.primary() == shouldMovePrimaryShardsFirst(shardMovementStrategy, movePrimaryFirst))
+                                && shardEntry.state() == ShardRoutingState.STARTED) {
+                                count++;
+                            }
+                        }
+                        startedCount += count;
                     }
                 }
 
-                // Count down the latch once all the primary shards have initialized on nodes in zone-2
+                // Count down the latch once all the shards have initialized on nodes in zone-2
                 if (startedCount == primaryShardCount) {
-                    primaryMoveLatch.countDown();
+                    shardMoveLatch.countDown();
                 }
             }
         };
@@ -108,12 +151,12 @@ public class MovePrimaryFirstTests extends OpenSearchIntegTestCase {
         settingsRequest.persistentSettings(
             Settings.builder()
                 .put("cluster.routing.allocation.exclude.zone", z1)
-                // Total shards per node constraint is added to pause the relocation after primary shards
+                // Total shards per node constraint is added to pause the relocation after shards
                 // have relocated to allow time for node shutdown and validate yellow cluster
                 .put("cluster.routing.allocation.total_shards_per_node", primaryShardCount / 2)
         );
         client().admin().cluster().updateSettings(settingsRequest);
-        primaryMoveLatch.await();
+        shardMoveLatch.await();
 
         // Shutdown both nodes in zone 1 and ensure cluster does not become red
         try {
