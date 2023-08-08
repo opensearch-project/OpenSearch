@@ -26,7 +26,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.opensearch.indices.IndicesService.CLUSTER_REPLICATION_TYPE_SETTING;
@@ -40,6 +42,11 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
     protected static final String REPOSITORY_2_NAME = "test-remote-store-repo-2";
     protected static final int SHARD_COUNT = 1;
     protected static final int REPLICA_COUNT = 1;
+    protected static final String TOTAL_OPERATIONS = "total-operations";
+    protected static final String REFRESHED_OR_FLUSHED_OPERATIONS = "refreshed-or-flushed-operations";
+    protected static final String MAX_SEQ_NO_TOTAL = "max-seq-no-total";
+    protected static final String MAX_SEQ_NO_REFRESHED_OR_FLUSHED = "max-seq-no-refreshed-or-flushed";
+
     protected Path absolutePath;
     protected Path absolutePath2;
     private final List<String> documentKeys = List.of(
@@ -49,6 +56,39 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
         randomAlphaOfLength(5),
         randomAlphaOfLength(5)
     );
+
+    protected Map<String, Long> indexData(int numberOfIterations, boolean invokeFlush, String index) {
+        long totalOperations = 0;
+        long refreshedOrFlushedOperations = 0;
+        long maxSeqNo = -1;
+        long maxSeqNoRefreshedOrFlushed = -1;
+        int shardId = 0;
+        Map<String, Long> indexingStats = new HashMap<>();
+        for (int i = 0; i < numberOfIterations; i++) {
+            if (invokeFlush) {
+                flush(index);
+            } else {
+                refresh(index);
+            }
+            maxSeqNoRefreshedOrFlushed = maxSeqNo;
+            indexingStats.put(MAX_SEQ_NO_REFRESHED_OR_FLUSHED + "-shard-" + shardId, maxSeqNoRefreshedOrFlushed);
+            refreshedOrFlushedOperations = totalOperations;
+            int numberOfOperations = randomIntBetween(20, 50);
+            for (int j = 0; j < numberOfOperations; j++) {
+                IndexResponse response = indexSingleDoc(index);
+                maxSeqNo = response.getSeqNo();
+                shardId = response.getShardId().id();
+                indexingStats.put(MAX_SEQ_NO_TOTAL + "-shard-" + shardId, maxSeqNo);
+            }
+            totalOperations += numberOfOperations;
+        }
+
+        indexingStats.put(TOTAL_OPERATIONS, totalOperations);
+        indexingStats.put(REFRESHED_OR_FLUSHED_OPERATIONS, refreshedOrFlushedOperations);
+        indexingStats.put(MAX_SEQ_NO_TOTAL, maxSeqNo);
+        indexingStats.put(MAX_SEQ_NO_REFRESHED_OR_FLUSHED, maxSeqNoRefreshedOrFlushed);
+        return indexingStats;
+    }
 
     @Override
     protected boolean addMockInternalEngine() {
