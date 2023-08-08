@@ -145,13 +145,17 @@ public class DirectoryFileTransferTracker {
      * @opensearch.internal
      */
     public static class Stats implements Writeable {
-        public final long transferredBytesStarted;
-        public final long transferredBytesFailed;
-        public final long transferredBytesSucceeded;
-        public final long lastTransferTimestampMs;
-        public final double transferredBytesMovingAverage;
-        public final long lastSuccessfulTransferInBytes;
-        public final double transferredBytesPerSecMovingAverage;
+        public long transferredBytesStarted;
+        public long transferredBytesFailed;
+        public long transferredBytesSucceeded;
+        public long lastTransferTimestampMs;
+        public double transferredBytesMovingAverage;
+        public long lastSuccessfulTransferInBytes;
+        public double transferredBytesPerSecMovingAverage;
+
+        public Stats() {
+
+        }
 
         public Stats(
             long transferredBytesStarted,
@@ -179,6 +183,14 @@ public class DirectoryFileTransferTracker {
             this.transferredBytesMovingAverage = in.readDouble();
             this.lastSuccessfulTransferInBytes = in.readLong();
             this.transferredBytesPerSecMovingAverage = in.readDouble();
+        }
+
+        public void add(DirectoryFileTransferTracker.Stats existingStats) {
+            if (existingStats != null) {
+                this.transferredBytesStarted += existingStats.transferredBytesStarted;
+                this.transferredBytesSucceeded += existingStats.transferredBytesSucceeded;
+                this.transferredBytesFailed += existingStats.transferredBytesFailed;
+            }
         }
 
         @Override

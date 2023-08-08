@@ -135,7 +135,8 @@ public class GetStats implements Writeable, ToXContentFragment {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.GET);
         builder.field(Fields.TOTAL, getCount());
-        builder.humanReadableField(Fields.TIME_IN_MILLIS, Fields.TIME, getTime());
+        builder.
+            humanReadableField(Fields.TIME_IN_MILLIS, Fields.TIME, getTime());
         builder.field(Fields.EXISTS_TOTAL, existsCount);
         builder.humanReadableField(Fields.EXISTS_TIME_IN_MILLIS, Fields.EXISTS_TIME, getExistsTime());
         builder.field(Fields.MISSING_TOTAL, missingCount);

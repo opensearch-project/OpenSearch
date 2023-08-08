@@ -146,6 +146,7 @@ import org.opensearch.index.merge.MergeStats;
 import org.opensearch.index.recovery.RecoveryStats;
 import org.opensearch.index.refresh.RefreshStats;
 import org.opensearch.index.remote.RemoteRefreshSegmentPressureService;
+import org.opensearch.index.remote.RemoteSegmentStats;
 import org.opensearch.index.search.stats.SearchStats;
 import org.opensearch.index.search.stats.ShardSearchStats;
 import org.opensearch.index.seqno.ReplicationTracker;
@@ -1361,6 +1362,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public SegmentsStats segmentStats(boolean includeSegmentFileSizes, boolean includeUnloadedSegments) {
         SegmentsStats segmentsStats = getEngine().segmentsStats(includeSegmentFileSizes, includeUnloadedSegments);
         segmentsStats.addBitsetMemoryInBytes(shardBitsetFilterCache.getMemorySizeInBytes());
+        if (indexSettings.isRemoteStoreEnabled()) {
+            RemoteSegmentStats remoteSegmentStats = new RemoteSegmentStats();
+            remoteSegmentStats.buildIndexStats(remoteRefreshSegmentPressureService.getRemoteRefreshSegmentTracker(shardId).stats());
+            segmentsStats.addRemoteSegmentStats(remoteSegmentStats);
+        }
         return segmentsStats;
     }
 

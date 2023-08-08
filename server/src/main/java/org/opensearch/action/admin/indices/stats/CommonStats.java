@@ -33,6 +33,7 @@
 package org.opensearch.action.admin.indices.stats;
 
 import org.apache.lucene.store.AlreadyClosedException;
+import org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStats;
 import org.opensearch.common.Nullable;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -50,6 +51,7 @@ import org.opensearch.index.get.GetStats;
 import org.opensearch.index.merge.MergeStats;
 import org.opensearch.index.recovery.RecoveryStats;
 import org.opensearch.index.refresh.RefreshStats;
+import org.opensearch.index.remote.RemoteSegmentStats;
 import org.opensearch.index.search.stats.SearchStats;
 import org.opensearch.index.shard.DocsStats;
 import org.opensearch.index.shard.IndexShard;
@@ -535,7 +537,7 @@ public class CommonStats implements Writeable, ToXContentFragment {
                 segments,
                 translog,
                 requestCache,
-                recoveryStats }
+                recoveryStats}
         ).filter(Objects::nonNull);
         for (ToXContent toXContent : ((Iterable<ToXContent>) stream::iterator)) {
             toXContent.toXContent(builder, params);
