@@ -9,6 +9,10 @@
 package org.opensearch.remotestore;
 
 import org.junit.After;
+import org.opensearch.action.bulk.BulkItemResponse;
+import org.opensearch.action.bulk.BulkRequest;
+import org.opensearch.action.bulk.BulkResponse;
+import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.UUIDs;
@@ -31,10 +35,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.opensearch.indices.IndicesService.CLUSTER_REPLICATION_TYPE_SETTING;
-import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_STORE_ENABLED_SETTING;
 import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING;
+import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_STORE_ENABLED_SETTING;
 import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING;
+import static org.opensearch.indices.IndicesService.CLUSTER_REPLICATION_TYPE_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
@@ -74,13 +78,18 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
             indexingStats.put(MAX_SEQ_NO_REFRESHED_OR_FLUSHED + "-shard-" + shardId, maxSeqNoRefreshedOrFlushed);
             refreshedOrFlushedOperations = totalOperations;
             int numberOfOperations = randomIntBetween(20, 50);
-            for (int j = 0; j < numberOfOperations; j++) {
-                IndexResponse response = indexSingleDoc(index);
-                maxSeqNo = response.getSeqNo();
-                shardId = response.getShardId().id();
-                indexingStats.put(MAX_SEQ_NO_TOTAL + "-shard-" + shardId, maxSeqNo);
+            int numberOfBulk = randomIntBetween(1, 5);
+            for (int j = 0; j < numberOfBulk; j++) {
+                BulkResponse res = indexBulk(index, numberOfOperations);
+                for (BulkItemResponse singleResp : res.getItems()) {
+                    indexingStats.put(
+                        MAX_SEQ_NO_TOTAL + "-shard-" + singleResp.getResponse().getShardId().id(),
+                        singleResp.getResponse().getSeqNo()
+                    );
+                    maxSeqNo = singleResp.getResponse().getSeqNo();
+                }
+                totalOperations += numberOfOperations;
             }
-            totalOperations += numberOfOperations;
         }
 
         indexingStats.put(TOTAL_OPERATIONS, totalOperations);
@@ -121,6 +130,18 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
             .setId(UUIDs.randomBase64UUID())
             .setSource(documentKeys.get(randomIntBetween(0, documentKeys.size() - 1)), randomAlphaOfLength(5))
             .get();
+    }
+
+    protected BulkResponse indexBulk(String indexName, int numDocs) {
+        BulkRequest bulkRequest = new BulkRequest();
+        for (int i = 0; i < numDocs; i++) {
+            final IndexRequest request = client().prepareIndex(indexName)
+                .setId(UUIDs.randomBase64UUID())
+                .setSource(documentKeys.get(randomIntBetween(0, documentKeys.size() - 1)), randomAlphaOfLength(5))
+                .request();
+            bulkRequest.add(request);
+        }
+        return client().bulk(bulkRequest).actionGet();
     }
 
     public static Settings remoteStoreClusterSettings(String segmentRepoName) {
@@ -170,10 +191,11 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
         return remoteStoreIndexSettings(numberOfReplicas, 1);
     }
 
-    protected Settings remoteStoreIndexSettings(int numberOfReplicas, long totalFieldLimit) {
+    protected Settings remoteStoreIndexSettings(int numberOfReplicas, long totalFieldLimit, int refresh) {
         return Settings.builder()
             .put(remoteStoreIndexSettings(numberOfReplicas))
             .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), totalFieldLimit)
+            .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), String.valueOf(refresh))
             .build();
     }
 

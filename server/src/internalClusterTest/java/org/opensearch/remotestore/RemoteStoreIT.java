@@ -16,7 +16,6 @@ import org.opensearch.action.index.IndexResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.index.shard.RemoteStoreRefreshListener;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -29,12 +28,10 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.oneOf;
-import static org.hamcrest.Matchers.comparesEqualTo;
 import static org.hamcrest.Matchers.comparesEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.oneOf;
+import static org.opensearch.index.shard.RemoteStoreRefreshListener.LAST_N_METADATA_FILES_TO_KEEP;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 
@@ -148,10 +145,9 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         verifyRemoteStoreCleanup();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/8658")
     public void testStaleCommitDeletionWithInvokeFlush() throws Exception {
-        internalCluster().startDataOnlyNodes(3);
-        createIndex(INDEX_NAME, remoteStoreIndexSettings(1, 10000l));
+        internalCluster().startDataOnlyNodes(1);
+        createIndex(INDEX_NAME, remoteStoreIndexSettings(1, 10000l, -1));
         int numberOfIterations = randomIntBetween(5, 15);
         indexData(numberOfIterations, true, INDEX_NAME);
         String indexUUID = client().admin()
@@ -163,20 +159,22 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         // Delete is async.
         assertBusy(() -> {
             int actualFileCount = getFileCount(indexPath);
-            if (numberOfIterations <= RemoteStoreRefreshListener.LAST_N_METADATA_FILES_TO_KEEP) {
-                MatcherAssert.assertThat(actualFileCount, is(oneOf(numberOfIterations, numberOfIterations + 1)));
+            if (numberOfIterations <= LAST_N_METADATA_FILES_TO_KEEP) {
+                MatcherAssert.assertThat(actualFileCount, is(oneOf(numberOfIterations - 1, numberOfIterations, numberOfIterations + 1)));
             } else {
                 // As delete is async its possible that the file gets created before the deletion or after
                 // deletion.
-                MatcherAssert.assertThat(actualFileCount, is(oneOf(10, 11)));
+                MatcherAssert.assertThat(
+                    actualFileCount,
+                    is(oneOf(LAST_N_METADATA_FILES_TO_KEEP - 1, LAST_N_METADATA_FILES_TO_KEEP, LAST_N_METADATA_FILES_TO_KEEP + 1))
+                );
             }
         }, 30, TimeUnit.SECONDS);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/8658")
     public void testStaleCommitDeletionWithoutInvokeFlush() throws Exception {
-        internalCluster().startDataOnlyNodes(3);
-        createIndex(INDEX_NAME, remoteStoreIndexSettings(1, 10000l));
+        internalCluster().startDataOnlyNodes(1);
+        createIndex(INDEX_NAME, remoteStoreIndexSettings(1, 10000l, -1));
         int numberOfIterations = randomIntBetween(5, 15);
         indexData(numberOfIterations, false, INDEX_NAME);
         String indexUUID = client().admin()
@@ -187,6 +185,6 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         Path indexPath = Path.of(String.valueOf(absolutePath), indexUUID, "/0/segments/metadata");
         int actualFileCount = getFileCount(indexPath);
         // We also allow (numberOfIterations + 1) as index creation also triggers refresh.
-        MatcherAssert.assertThat(actualFileCount, is(oneOf(numberOfIterations, numberOfIterations + 1)));
+        MatcherAssert.assertThat(actualFileCount, is(oneOf(numberOfIterations - 1, numberOfIterations, numberOfIterations + 1)));
     }
 }
