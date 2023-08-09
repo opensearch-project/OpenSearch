@@ -13,6 +13,7 @@ import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.IOContext;
+import org.apache.lucene.util.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.concurrent.GatedCloseable;
@@ -407,7 +408,7 @@ public class NRTReplicationEngineTests extends EngineTestCase {
         }
     }
 
-    public void testRemoveExtraFilesOnStartup() throws Exception {
+    public void testRemoveExtraSegmentsOnStartup() throws Exception {
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         List<Engine.Operation> operations = generateHistoryOnReplica(2, randomBoolean(), randomBoolean(), randomBoolean());
         for (Engine.Operation op : operations) {
@@ -416,6 +417,7 @@ public class NRTReplicationEngineTests extends EngineTestCase {
             engine.refresh("test");
         }
         try (final Store nrtEngineStore = createStore(INDEX_SETTINGS, newDirectory());) {
+            nrtEngineStore.createEmpty(Version.LATEST);
             final Collection<String> extraSegments = engine.getLatestSegmentInfos().files(false);
             for (String file : extraSegments) {
                 nrtEngineStore.directory().copyFrom(store.directory(), file, file, IOContext.DEFAULT);

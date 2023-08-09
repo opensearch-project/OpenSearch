@@ -222,6 +222,7 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
                     // move.
                     long lastRefreshedCheckpoint = ((InternalEngine) indexShard.getEngine()).lastRefreshedCheckpoint();
                     Collection<String> localSegmentsPostRefresh = segmentInfos.files(true);
+
                     // Create a map of file name to size and update the refresh segment tracker
                     updateLocalSizeMapAndTracker(localSegmentsPostRefresh);
                     CountDownLatch latch = new CountDownLatch(1);

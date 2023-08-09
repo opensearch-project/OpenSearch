@@ -40,8 +40,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.BiFunction;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.opensearch.index.seqno.SequenceNumbers.MAX_SEQ_NO;
 
@@ -130,9 +128,7 @@ public class NRTReplicationEngine extends Engine {
     }
 
     public void cleanUnreferencedFiles() throws IOException {
-        replicaFileTracker.deleteUnreferencedFiles(
-            Stream.of(store.directory().listAll()).filter(f -> f.startsWith("write.lock") == false).collect(Collectors.toSet())
-        );
+        replicaFileTracker.deleteUnreferencedFiles(store.directory().listAll());
     }
 
     private NRTReplicationReaderManager buildReaderManager() throws IOException {

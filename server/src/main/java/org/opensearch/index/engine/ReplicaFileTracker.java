@@ -32,6 +32,7 @@ final class ReplicaFileTracker {
     public static final Logger logger = LogManager.getLogger(ReplicaFileTracker.class);
     private final Map<String, Integer> refCounts = new HashMap<>();
     private final BiConsumer<String, String> fileDeleter;
+    private final Set<String> EXCLUDE_FILES = Set.of("write.lock");
 
     public ReplicaFileTracker(BiConsumer<String, String> fileDeleter) {
         this.fileDeleter = fileDeleter;
@@ -65,7 +66,7 @@ final class ReplicaFileTracker {
         }
     }
 
-    public void deleteUnreferencedFiles(Collection<String> toDelete) {
+    public void deleteUnreferencedFiles(String... toDelete) {
         for (String file : toDelete) {
             if (canDelete(file)) {
                 delete(file);
@@ -85,7 +86,7 @@ final class ReplicaFileTracker {
     }
 
     private synchronized boolean canDelete(String fileName) {
-        return refCounts.containsKey(fileName) == false && fileName.startsWith("write.lock") == false;
+        return EXCLUDE_FILES.contains(fileName) == false && refCounts.containsKey(fileName) == false;
     }
 
 }
