@@ -8,19 +8,29 @@
 
 package org.opensearch.index.shard;
 
+import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.util.Version;
+import org.hamcrest.MatcherAssert;
 import org.junit.Before;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.engine.DocIdSeqNoAndSource;
+import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.InternalEngine;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
+import org.opensearch.index.store.Store;
+import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.replication.common.ReplicationType;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.opensearch.index.engine.EngineTestCase.assertAtMostOneLuceneDocumentPerSequenceNumber;
 
@@ -170,6 +180,130 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
             if (shard != null) {
                 closeShard(shard, false);
             }
+        }
+    }
+
+    public void testReplicaCommitsInfosBytesOnRecovery() throws Exception {
+        final Path remotePath = createTempDir();
+        try (ReplicationGroup shards = createGroup(0, getIndexSettings(), indexMapping, new NRTReplicationEngineFactory(), remotePath)) {
+            shards.startAll();
+            // ensure primary has uploaded something
+            shards.indexDocs(10);
+            shards.refresh("test");
+
+            final IndexShard primary = shards.getPrimary();
+            final Engine primaryEngine = getEngine(primary);
+            assertNotNull(primaryEngine);
+            final SegmentInfos latestCommit = SegmentInfos.readLatestCommit(primary.store().directory());
+            assertEquals("On-disk commit references no segments", Set.of("segments_3"), latestCommit.files(true));
+            assertEquals(
+                "Latest remote commit On-disk commit references no segments",
+                Set.of("segments_3"),
+                primary.remoteStore().readLastCommittedSegmentsInfo().files(true)
+            );
+            MatcherAssert.assertThat(
+                "Segments are referenced in memory only",
+                primaryEngine.getSegmentInfosSnapshot().get().files(false),
+                containsInAnyOrder("_0.cfe", "_0.si", "_0.cfs")
+            );
+
+            final IndexShard replica = shards.addReplica(remotePath);
+            replica.store().createEmpty(Version.LATEST);
+            assertEquals(
+                "Replica starts at empty segment 2",
+                Set.of("segments_1"),
+                replica.store().readLastCommittedSegmentsInfo().files(true)
+            );
+            // commit replica infos so it has a conflicting commit with remote.
+            final SegmentInfos segmentCommitInfos = replica.store().readLastCommittedSegmentsInfo();
+            segmentCommitInfos.commit(replica.store().directory());
+            segmentCommitInfos.commit(replica.store().directory());
+            assertEquals(
+                "Replica starts recovery at empty segment 3",
+                Set.of("segments_3"),
+                replica.store().readLastCommittedSegmentsInfo().files(true)
+            );
+
+            shards.recoverReplica(replica);
+
+            final Engine replicaEngine = getEngine(replica);
+            assertNotNull(replicaEngine);
+            final SegmentInfos latestReplicaCommit = SegmentInfos.readLatestCommit(replica.store().directory());
+            logger.info(List.of(replica.store().directory().listAll()));
+            MatcherAssert.assertThat(
+                "Replica commits infos bytes referencing latest refresh point",
+                latestReplicaCommit.files(true),
+                containsInAnyOrder("_0.cfe", "_0.si", "_0.cfs", "segments_5")
+            );
+            MatcherAssert.assertThat(
+                "Segments are referenced in memory",
+                replicaEngine.getSegmentInfosSnapshot().get().files(false),
+                containsInAnyOrder("_0.cfe", "_0.si", "_0.cfs")
+            );
+            final Store.RecoveryDiff recoveryDiff = Store.segmentReplicationDiff(
+                primary.getSegmentMetadataMap(),
+                replica.getSegmentMetadataMap()
+            );
+            assertTrue(recoveryDiff.missing.isEmpty());
+            assertTrue(recoveryDiff.different.isEmpty());
+        }
+    }
+
+    public void testPrimaryRestart() throws Exception {
+        final Path remotePath = createTempDir();
+        try (ReplicationGroup shards = createGroup(0, getIndexSettings(), indexMapping, new NRTReplicationEngineFactory(), remotePath)) {
+            shards.startAll();
+            // ensure primary has uploaded something
+            shards.indexDocs(10);
+            IndexShard primary = shards.getPrimary();
+            if (randomBoolean()) {
+                flushShard(primary);
+            } else {
+                primary.refresh("test");
+            }
+            assertDocCount(primary, 10);
+            // get a metadata map - we'll use segrep diff to ensure segments on reader are identical after restart.
+            final Map<String, StoreFileMetadata> metadataBeforeRestart = primary.getSegmentMetadataMap();
+            // restart the primary
+            shards.reinitPrimaryShard(remotePath);
+            // the store is open at this point but the shard has not yet run through recovery
+            primary = shards.getPrimary();
+            shards.startPrimary();
+            assertDocCount(primary, 10);
+            final Store.RecoveryDiff diff = Store.segmentReplicationDiff(metadataBeforeRestart, primary.getSegmentMetadataMap());
+            assertTrue(diff.missing.isEmpty());
+            assertTrue(diff.different.isEmpty());
+        }
+    }
+
+    public void testPrimaryRestart_PrimaryHasExtraCommits() throws Exception {
+        final Path remotePath = createTempDir();
+        try (ReplicationGroup shards = createGroup(0, getIndexSettings(), indexMapping, new NRTReplicationEngineFactory(), remotePath)) {
+            shards.startAll();
+            // ensure primary has uploaded something
+            shards.indexDocs(10);
+            IndexShard primary = shards.getPrimary();
+            if (randomBoolean()) {
+                flushShard(primary);
+            } else {
+                primary.refresh("test");
+            }
+            assertDocCount(primary, 10);
+            // get a metadata map - we'll use segrep diff to ensure segments on reader are identical after restart.
+            final Map<String, StoreFileMetadata> metadataBeforeRestart = primary.getSegmentMetadataMap();
+            // restart the primary
+            shards.reinitPrimaryShard(remotePath);
+            // the store is open at this point but the shard has not yet run through recovery
+            primary = shards.getPrimary();
+            SegmentInfos latestPrimaryCommit = SegmentInfos.readLatestCommit(primary.store().directory());
+            latestPrimaryCommit.commit(primary.store().directory());
+            latestPrimaryCommit = SegmentInfos.readLatestCommit(primary.store().directory());
+            latestPrimaryCommit.commit(primary.store().directory());
+            shards.startPrimary();
+            assertDocCount(primary, 10);
+            final Store.RecoveryDiff diff = Store.segmentReplicationDiff(metadataBeforeRestart, primary.getSegmentMetadataMap());
+            assertTrue(diff.missing.isEmpty());
+            assertTrue(diff.different.isEmpty());
         }
     }
 }

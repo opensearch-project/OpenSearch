@@ -10,6 +10,7 @@ package org.opensearch.remotestore;
 
 import org.junit.After;
 import org.junit.Before;
+import org.opensearch.action.support.WriteRequest;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.indices.replication.SegmentReplicationIT;
@@ -66,5 +67,24 @@ public class SegmentReplicationUsingRemoteStoreIT extends SegmentReplicationIT {
     @Override
     public void testPressureServiceStats() throws Exception {
         super.testPressureServiceStats();
+    }
+
+    public void testRestartPrimary_NoReplicas() throws Exception {
+        final String primary = internalCluster().startDataOnlyNode();
+        createIndex(INDEX_NAME);
+        ensureYellow(INDEX_NAME);
+
+        assertEquals(getNodeContainingPrimaryShard().getName(), primary);
+
+        client().prepareIndex(INDEX_NAME).setId("1").setSource("foo", "bar").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        if (randomBoolean()) {
+            flush(INDEX_NAME);
+        } else {
+            refresh(INDEX_NAME);
+        }
+
+        internalCluster().restartNode(primary);
+        ensureYellow(INDEX_NAME);
+        assertDocCounts(1, primary);
     }
 }
