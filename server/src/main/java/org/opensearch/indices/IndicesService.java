@@ -82,7 +82,6 @@ import org.opensearch.common.util.concurrent.OpenSearchThreadPoolExecutor;
 import org.opensearch.common.util.iterable.Iterables;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
@@ -950,7 +949,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 .indices()
                 .preparePutMapping()
                 .setConcreteIndex(shardRouting.index()) // concrete index - no name clash, it uses uuid
-                .setSource(mapping.source().string(), XContentType.JSON)
+                .setSource(mapping.source().string(), MediaTypeRegistry.JSON)
                 .get();
         }, this);
         return indexShard;

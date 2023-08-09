@@ -51,12 +51,13 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.Writeable.Reader;
 import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.core.xcontent.DeprecationHandler;
+import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentGenerator;
-import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.xcontent.XContentParseException;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
@@ -262,7 +263,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
 
                 BytesStreamOutput out = new BytesStreamOutput();
                 try (
-                    XContentGenerator generator = XContentType.JSON.xContent().createGenerator(out);
+                    XContentGenerator generator = MediaTypeRegistry.JSON.xContent().createGenerator(out);
                     XContentParser parser = JsonXContent.jsonXContent.createParser(
                         NamedXContentRegistry.EMPTY,
                         DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
@@ -408,7 +409,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     }
 
     protected QueryBuilder parseQuery(AbstractQueryBuilder<?> builder) throws IOException {
-        BytesReference bytes = XContentHelper.toXContent(builder, XContentType.JSON, false);
+        BytesReference bytes = org.opensearch.core.xcontent.XContentHelper.toXContent(builder, MediaTypeRegistry.JSON, false);
         return parseQuery(createParser(JsonXContent.jsonXContent, bytes));
     }
 
@@ -633,11 +634,11 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     public void testValidOutput() throws IOException {
         for (int runs = 0; runs < NUMBER_OF_TESTQUERIES; runs++) {
             QB testQuery = createTestQueryBuilder();
-            XContentType xContentType = XContentType.JSON;
-            String toString = Strings.toString(XContentType.JSON, testQuery);
-            assertParsedQuery(createParser(xContentType.xContent(), toString), testQuery);
-            BytesReference bytes = XContentHelper.toXContent(testQuery, xContentType, false);
-            assertParsedQuery(createParser(xContentType.xContent(), bytes), testQuery);
+            MediaType mediaType = MediaTypeRegistry.JSON;
+            String toString = Strings.toString(MediaTypeRegistry.JSON, testQuery);
+            assertParsedQuery(createParser(mediaType.xContent(), toString), testQuery);
+            BytesReference bytes = org.opensearch.core.xcontent.XContentHelper.toXContent(testQuery, mediaType, false);
+            assertParsedQuery(createParser(mediaType.xContent(), bytes), testQuery);
         }
     }
 

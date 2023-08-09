@@ -37,6 +37,7 @@ import org.opensearch.action.support.replication.ReplicationResponse;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
@@ -57,7 +58,7 @@ public class IndexResponseTests extends OpenSearchTestCase {
     public void testToXContent() {
         {
             IndexResponse indexResponse = new IndexResponse(new ShardId("index", "index_uuid", 0), "id", 3, 17, 5, true);
-            String output = Strings.toString(XContentType.JSON, indexResponse);
+            String output = Strings.toString(MediaTypeRegistry.JSON, indexResponse);
             assertEquals(
                 "{\"_index\":\"index\",\"_id\":\"id\",\"_version\":5,\"result\":\"created\",\"_shards\":null,"
                     + "\"_seq_no\":3,\"_primary_term\":17}",
@@ -68,7 +69,7 @@ public class IndexResponseTests extends OpenSearchTestCase {
             IndexResponse indexResponse = new IndexResponse(new ShardId("index", "index_uuid", 0), "id", -1, 17, 7, true);
             indexResponse.setForcedRefresh(true);
             indexResponse.setShardInfo(new ReplicationResponse.ShardInfo(10, 5));
-            String output = Strings.toString(XContentType.JSON, indexResponse);
+            String output = Strings.toString(MediaTypeRegistry.JSON, indexResponse);
             assertEquals(
                 "{\"_index\":\"index\",\"_id\":\"id\",\"_version\":7,\"result\":\"created\","
                     + "\"forced_refresh\":true,\"_shards\":{\"total\":10,\"successful\":5,\"failed\":0}}",

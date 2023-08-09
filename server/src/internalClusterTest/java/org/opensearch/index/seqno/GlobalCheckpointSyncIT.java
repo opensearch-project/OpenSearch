@@ -37,7 +37,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.IndexShard;
@@ -82,7 +82,7 @@ public class GlobalCheckpointSyncIT extends OpenSearchIntegTestCase {
 
         for (int j = 0; j < 10; j++) {
             final String id = Integer.toString(j);
-            client().prepareIndex("test").setId(id).setSource("{\"foo\": " + id + "}", XContentType.JSON).get();
+            client().prepareIndex("test").setId(id).setSource("{\"foo\": " + id + "}", MediaTypeRegistry.JSON).get();
         }
 
         assertBusy(() -> {
@@ -194,7 +194,7 @@ public class GlobalCheckpointSyncIT extends OpenSearchIntegTestCase {
                 }
                 for (int j = 0; j < numberOfDocuments; j++) {
                     final String id = Integer.toString(index * numberOfDocuments + j);
-                    client().prepareIndex("test").setId(id).setSource("{\"foo\": " + id + "}", XContentType.JSON).get();
+                    client().prepareIndex("test").setId(id).setSource("{\"foo\": " + id + "}", MediaTypeRegistry.JSON).get();
                 }
                 try {
                     barrier.await();
@@ -251,7 +251,7 @@ public class GlobalCheckpointSyncIT extends OpenSearchIntegTestCase {
         }
         int numDocs = randomIntBetween(1, 20);
         for (int i = 0; i < numDocs; i++) {
-            client().prepareIndex("test").setId(Integer.toString(i)).setSource("{}", XContentType.JSON).get();
+            client().prepareIndex("test").setId(Integer.toString(i)).setSource("{}", MediaTypeRegistry.JSON).get();
         }
         ensureGreen("test");
         assertBusy(() -> {
@@ -281,7 +281,7 @@ public class GlobalCheckpointSyncIT extends OpenSearchIntegTestCase {
         logger.info("numDocs {}", numDocs);
         long maxSeqNo = 0;
         for (int i = 0; i < numDocs; i++) {
-            maxSeqNo = client().prepareIndex("test").setId(Integer.toString(i)).setSource("{}", XContentType.JSON).get().getSeqNo();
+            maxSeqNo = client().prepareIndex("test").setId(Integer.toString(i)).setSource("{}", MediaTypeRegistry.JSON).get().getSeqNo();
             logger.info("got {}", maxSeqNo);
         }
         for (IndicesService indicesService : internalCluster().getDataNodeInstances(IndicesService.class)) {

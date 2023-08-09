@@ -40,6 +40,7 @@ import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.common.lucene.LuceneTests;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
+import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
@@ -61,13 +62,13 @@ public class SearchHitsTests extends AbstractSerializingTestCase<SearchHits> {
 
     private static SearchHit[] createSearchHitArray(
         int size,
-        XContentType xContentType,
+        final MediaType mediaType,
         boolean withOptionalInnerHits,
         boolean transportSerialization
     ) {
         SearchHit[] hits = new SearchHit[size];
         for (int i = 0; i < hits.length; i++) {
-            hits[i] = SearchHitTests.createTestItem(xContentType, withOptionalInnerHits, transportSerialization);
+            hits[i] = SearchHitTests.createTestItem(mediaType, withOptionalInnerHits, transportSerialization);
         }
         return hits;
     }
@@ -77,18 +78,18 @@ public class SearchHitsTests extends AbstractSerializingTestCase<SearchHits> {
         return new TotalHits(totalHits, relation);
     }
 
-    public static SearchHits createTestItem(XContentType xContentType, boolean withOptionalInnerHits, boolean transportSerialization) {
-        return createTestItem(xContentType, withOptionalInnerHits, transportSerialization, randomFrom(TotalHits.Relation.values()));
+    public static SearchHits createTestItem(final MediaType mediaType, boolean withOptionalInnerHits, boolean transportSerialization) {
+        return createTestItem(mediaType, withOptionalInnerHits, transportSerialization, randomFrom(TotalHits.Relation.values()));
     }
 
     private static SearchHits createTestItem(
-        XContentType xContentType,
+        final MediaType mediaType,
         boolean withOptionalInnerHits,
         boolean transportSerialization,
         TotalHits.Relation totalHitsRelation
     ) {
         int searchHits = randomIntBetween(0, 5);
-        SearchHit[] hits = createSearchHitArray(searchHits, xContentType, withOptionalInnerHits, transportSerialization);
+        SearchHit[] hits = createSearchHitArray(searchHits, mediaType, withOptionalInnerHits, transportSerialization);
         TotalHits totalHits = frequently() ? randomTotalHits(totalHitsRelation) : null;
         float maxScore = frequently() ? randomFloat() : Float.NaN;
         SortField[] sortFields = null;
@@ -223,13 +224,13 @@ public class SearchHitsTests extends AbstractSerializingTestCase<SearchHits> {
     }
 
     @Override
-    protected SearchHits createXContextTestInstance(XContentType xContentType) {
+    protected SearchHits createXContextTestInstance(final MediaType mediaType) {
         // We don't set SearchHit#shard (withShardTarget is false) in this test
         // because the rest serialization does not render this information so the
         // deserialized hit cannot be equal to the original instance.
         // There is another test (#testFromXContentWithShards) that checks the
         // rest serialization with shard targets.
-        return createTestItem(xContentType, true, false);
+        return createTestItem(mediaType, true, false);
     }
 
     @Override

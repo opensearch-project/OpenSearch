@@ -63,8 +63,8 @@ import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.support.XContentMapValues;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.transport.RemoteClusterService;
@@ -125,7 +125,7 @@ public class ClusterClientIT extends OpenSearchRestHighLevelClientTestCase {
 
         ClusterUpdateSettingsRequest resetRequest = new ClusterUpdateSettingsRequest();
         resetRequest.transientSettings(Settings.builder().putNull(transientSettingKey));
-        resetRequest.persistentSettings("{\"" + persistentSettingKey + "\": null }", XContentType.JSON);
+        resetRequest.persistentSettings("{\"" + persistentSettingKey + "\": null }", MediaTypeRegistry.JSON);
 
         ClusterUpdateSettingsResponse resetResponse = execute(
             resetRequest,

@@ -15,7 +15,7 @@ import org.opensearch.client.IndicesAdminClient;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentParser;
 
@@ -80,7 +80,7 @@ public class IndexUtils {
      * @throws IOException IOException
      */
     public static Integer getSchemaVersion(String mapping) throws IOException {
-        XContentParser xcp = XContentType.JSON.xContent()
+        XContentParser xcp = MediaTypeRegistry.JSON.xContent()
             .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, mapping);
 
         while (!xcp.isClosed()) {
@@ -129,7 +129,7 @@ public class IndexUtils {
     ) throws IOException {
         if (clusterState.metadata().indices().containsKey(index)) {
             if (shouldUpdateIndex(clusterState.metadata().index(index), mapping)) {
-                PutMappingRequest putMappingRequest = new PutMappingRequest(index).source(mapping, XContentType.JSON);
+                PutMappingRequest putMappingRequest = new PutMappingRequest(index).source(mapping, MediaTypeRegistry.JSON);
                 client.putMapping(putMappingRequest, actionListener);
             } else {
                 actionListener.onResponse(new AcknowledgedResponse(true));

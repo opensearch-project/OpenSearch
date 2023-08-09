@@ -35,7 +35,7 @@ package org.opensearch.percolator;
 import org.opensearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.common.compress.CompressedXContent;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryShardContext;
@@ -57,7 +57,11 @@ public class PercolateWithNestedQueryBuilderTests extends PercolateQueryBuilderT
     public void testDetectsNestedDocuments() throws IOException {
         QueryShardContext shardContext = createShardContext();
 
-        PercolateQueryBuilder builder = new PercolateQueryBuilder(queryField, new BytesArray("{ \"foo\": \"bar\" }"), XContentType.JSON);
+        PercolateQueryBuilder builder = new PercolateQueryBuilder(
+            queryField,
+            new BytesArray("{ \"foo\": \"bar\" }"),
+            MediaTypeRegistry.JSON
+        );
         QueryBuilder rewrittenBuilder = rewriteAndFetch(builder, shardContext);
         PercolateQuery query = (PercolateQuery) rewrittenBuilder.toQuery(shardContext);
         assertFalse(query.excludesNestedDocs());
@@ -65,7 +69,7 @@ public class PercolateWithNestedQueryBuilderTests extends PercolateQueryBuilderT
         builder = new PercolateQueryBuilder(
             queryField,
             new BytesArray("{ \"foo\": \"bar\", \"some_nested_object\": [ { \"baz\": 42 } ] }"),
-            XContentType.JSON
+            MediaTypeRegistry.JSON
         );
         rewrittenBuilder = rewriteAndFetch(builder, shardContext);
         query = (PercolateQuery) rewrittenBuilder.toQuery(shardContext);

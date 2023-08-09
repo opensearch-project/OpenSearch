@@ -35,7 +35,7 @@ package org.opensearch.index.mapper;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.mapper.MapperService.MergeReason;
 import org.opensearch.index.mapper.ObjectMapper.Dynamic;
 import org.opensearch.plugins.Plugin;
@@ -74,7 +74,7 @@ public class ObjectMapperTests extends OpenSearchSingleNodeTestCase {
                             + "      \"value\":\"value\"\n"
                             + "    }"
                     ),
-                    XContentType.JSON
+                    MediaTypeRegistry.JSON
                 )
             );
         });

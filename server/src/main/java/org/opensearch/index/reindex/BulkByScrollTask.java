@@ -41,8 +41,8 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.xcontent.ConstructingObjectParser;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -1048,9 +1048,9 @@ public class BulkByScrollTask extends CancellableTask {
         @Override
         public String toString() {
             if (exception != null) {
-                return "BulkByScrollTask{error=" + Strings.toString(XContentType.JSON, this) + "}";
+                return "BulkByScrollTask{error=" + Strings.toString(MediaTypeRegistry.JSON, this) + "}";
             } else {
-                return "BulkByScrollTask{status=" + Strings.toString(XContentType.JSON, this) + "}";
+                return "BulkByScrollTask{status=" + Strings.toString(MediaTypeRegistry.JSON, this) + "}";
             }
         }
 

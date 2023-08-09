@@ -55,8 +55,8 @@ import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
@@ -1012,7 +1012,10 @@ public class IndexStatsIT extends OpenSearchIntegTestCase {
         );
         ensureGreen();
 
-        client().prepareIndex("test1").setId(Integer.toString(1)).setSource("{\"bar\":\"bar\",\"baz\":\"baz\"}", XContentType.JSON).get();
+        client().prepareIndex("test1")
+            .setId(Integer.toString(1))
+            .setSource("{\"bar\":\"bar\",\"baz\":\"baz\"}", MediaTypeRegistry.JSON)
+            .get();
         refresh();
 
         IndicesStatsRequestBuilder builder = client().admin().indices().prepareStats();
@@ -1357,7 +1360,7 @@ public class IndexStatsIT extends OpenSearchIntegTestCase {
                 }
                 while (!stop.get()) {
                     final String id = Integer.toString(idGenerator.incrementAndGet());
-                    final IndexResponse response = client().prepareIndex("test").setId(id).setSource("{}", XContentType.JSON).get();
+                    final IndexResponse response = client().prepareIndex("test").setId(id).setSource("{}", MediaTypeRegistry.JSON).get();
                     assertThat(response.getResult(), equalTo(DocWriteResponse.Result.CREATED));
                 }
             });

@@ -40,7 +40,7 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.common.util.CollectionUtils;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.index.Index;
@@ -93,7 +93,7 @@ public class CloseIndexResponse extends ShardsAcknowledgedResponse {
 
     @Override
     public String toString() {
-        return Strings.toString(XContentType.JSON, this);
+        return Strings.toString(MediaTypeRegistry.JSON, this);
     }
 
     /**
@@ -192,7 +192,7 @@ public class CloseIndexResponse extends ShardsAcknowledgedResponse {
 
         @Override
         public String toString() {
-            return Strings.toString(XContentType.JSON, this);
+            return Strings.toString(MediaTypeRegistry.JSON, this);
         }
     }
 
@@ -251,7 +251,7 @@ public class CloseIndexResponse extends ShardsAcknowledgedResponse {
 
         @Override
         public String toString() {
-            return Strings.toString(XContentType.JSON, this);
+            return Strings.toString(MediaTypeRegistry.JSON, this);
         }
 
         /**
@@ -297,7 +297,7 @@ public class CloseIndexResponse extends ShardsAcknowledgedResponse {
 
             @Override
             public String toString() {
-                return Strings.toString(XContentType.JSON, this);
+                return Strings.toString(MediaTypeRegistry.JSON, this);
             }
 
             static Failure readFailure(final StreamInput in) throws IOException {

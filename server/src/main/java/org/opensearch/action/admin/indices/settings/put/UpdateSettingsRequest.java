@@ -40,10 +40,11 @@ import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -157,8 +158,8 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
     /**
      * Sets the settings to be updated (either json or yaml format)
      */
-    public UpdateSettingsRequest settings(String source, XContentType xContentType) {
-        this.settings = Settings.builder().loadFromSource(source, xContentType).build();
+    public UpdateSettingsRequest settings(String source, MediaType mediaType) {
+        this.settings = Settings.builder().loadFromSource(source, mediaType).build();
         return this;
     }
 
@@ -221,7 +222,7 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
 
     @Override
     public String toString() {
-        return "indices : " + Arrays.toString(indices) + "," + Strings.toString(XContentType.JSON, this);
+        return "indices : " + Arrays.toString(indices) + "," + Strings.toString(MediaTypeRegistry.JSON, this);
     }
 
     @Override

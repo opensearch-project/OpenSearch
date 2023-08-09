@@ -194,7 +194,7 @@ public class AliasActionsTests extends OpenSearchTestCase {
             if (filter == null || filter.isEmpty()) {
                 assertNull(action.filter());
             } else {
-                assertEquals(MediaTypeRegistry.contentBuilder(XContentType.JSON).map(filter).toString(), action.filter());
+                assertEquals(MediaTypeRegistry.contentBuilder(MediaTypeRegistry.JSON).map(filter).toString(), action.filter());
             }
             assertEquals(Objects.toString(searchRouting, null), action.searchRouting());
             assertEquals(Objects.toString(indexRouting, null), action.indexRouting());

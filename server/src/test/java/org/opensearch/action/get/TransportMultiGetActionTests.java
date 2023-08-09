@@ -53,9 +53,9 @@ import org.opensearch.common.util.concurrent.AtomicArray;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskId;
@@ -139,7 +139,7 @@ public class TransportMultiGetActionTests extends OpenSearchTestCase {
                                         .endObject()
                                 ),
                                 true,
-                                XContentType.JSON
+                                MediaTypeRegistry.JSON
                             )
                         )
                 )
@@ -164,7 +164,7 @@ public class TransportMultiGetActionTests extends OpenSearchTestCase {
                                             .endObject()
                                     ),
                                     true,
-                                    XContentType.JSON
+                                    MediaTypeRegistry.JSON
                                 )
                             )
                     )
