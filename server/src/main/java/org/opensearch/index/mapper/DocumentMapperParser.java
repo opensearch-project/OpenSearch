@@ -40,6 +40,7 @@ import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.IndexSettings;
@@ -121,7 +122,7 @@ public class DocumentMapperParser {
     public DocumentMapper parse(@Nullable String type, CompressedXContent source) throws MapperParsingException {
         Map<String, Object> mapping = null;
         if (source != null) {
-            Map<String, Object> root = XContentHelper.convertToMap(source.compressedReference(), true, XContentType.JSON).v2();
+            Map<String, Object> root = XContentHelper.convertToMap(source.compressedReference(), true, MediaTypeRegistry.JSON).v2();
             Tuple<String, Map<String, Object>> t = extractMapping(type, root);
             type = t.v1();
             mapping = t.v2();

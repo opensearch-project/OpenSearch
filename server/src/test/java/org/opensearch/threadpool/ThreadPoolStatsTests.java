@@ -33,10 +33,10 @@
 package org.opensearch.threadpool;
 
 import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -86,7 +86,7 @@ public class ThreadPoolStatsTests extends OpenSearchTestCase {
             stats.add(new ThreadPoolStats.Stats(ThreadPool.Names.SAME, -1, 0, 0, 0, 0, 0L));
 
             ThreadPoolStats threadPoolStats = new ThreadPoolStats(stats);
-            try (XContentBuilder builder = new XContentBuilder(XContentType.JSON.xContent(), os)) {
+            try (XContentBuilder builder = new XContentBuilder(MediaTypeRegistry.JSON.xContent(), os)) {
                 builder.startObject();
                 threadPoolStats.toXContent(builder, ToXContent.EMPTY_PARAMS);
                 builder.endObject();

@@ -67,9 +67,9 @@ import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.common.network.InetAddresses;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.DocumentMapper;
@@ -552,7 +552,7 @@ public class PercolatorFieldMapperTests extends OpenSearchSingleNodeTestCase {
                     "test",
                     "1",
                     BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field(fieldName, queryBuilder).endObject()),
-                    XContentType.JSON
+                    MediaTypeRegistry.JSON
                 )
             );
 
@@ -572,7 +572,7 @@ public class PercolatorFieldMapperTests extends OpenSearchSingleNodeTestCase {
                     "test",
                     "1",
                     BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field(fieldName, queryBuilder).endObject()),
-                    XContentType.JSON
+                    MediaTypeRegistry.JSON
                 )
             );
         assertThat(doc.rootDoc().getFields(fieldType.extractionResultField.name()).length, equalTo(1));
@@ -589,7 +589,7 @@ public class PercolatorFieldMapperTests extends OpenSearchSingleNodeTestCase {
                     "test",
                     "1",
                     BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field(fieldName, queryBuilder).endObject()),
-                    XContentType.JSON
+                    MediaTypeRegistry.JSON
                 )
             );
         assertThat(doc.rootDoc().getFields(fieldType.extractionResultField.name()).length, equalTo(1));
@@ -617,7 +617,7 @@ public class PercolatorFieldMapperTests extends OpenSearchSingleNodeTestCase {
                         "test",
                         "1",
                         BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field(fieldName, query).endObject()),
-                        XContentType.JSON
+                        MediaTypeRegistry.JSON
                     )
                 );
             BytesRef qbSource = doc.rootDoc().getFields(fieldType.queryBuilderField.name())[0].binaryValue();
@@ -635,7 +635,7 @@ public class PercolatorFieldMapperTests extends OpenSearchSingleNodeTestCase {
                     "test",
                     "1",
                     BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field(fieldName, queryBuilder).endObject()),
-                    XContentType.JSON
+                    MediaTypeRegistry.JSON
                 )
             );
         BytesRef qbSource = doc.rootDoc().getFields(fieldType.queryBuilderField.name())[0].binaryValue();
@@ -661,7 +661,7 @@ public class PercolatorFieldMapperTests extends OpenSearchSingleNodeTestCase {
                         BytesReference.bytes(
                             XContentFactory.jsonBuilder().startObject().field(fieldName, termQuery("unmapped_field", "value")).endObject()
                         ),
-                        XContentType.JSON
+                        MediaTypeRegistry.JSON
                     )
                 );
         });
@@ -677,7 +677,7 @@ public class PercolatorFieldMapperTests extends OpenSearchSingleNodeTestCase {
                     "test",
                     "1",
                     BytesReference.bytes(XContentFactory.jsonBuilder().startObject().endObject()),
-                    XContentType.JSON
+                    MediaTypeRegistry.JSON
                 )
             );
         assertThat(doc.rootDoc().getFields(fieldType.queryBuilderField.name()).length, equalTo(0));
@@ -689,7 +689,7 @@ public class PercolatorFieldMapperTests extends OpenSearchSingleNodeTestCase {
                         "test",
                         "1",
                         BytesReference.bytes(XContentFactory.jsonBuilder().startObject().nullField(fieldName).endObject()),
-                        XContentType.JSON
+                        MediaTypeRegistry.JSON
                     )
                 );
         } catch (MapperParsingException e) {
@@ -751,7 +751,7 @@ public class PercolatorFieldMapperTests extends OpenSearchSingleNodeTestCase {
                     BytesReference.bytes(
                         jsonBuilder().startObject().field("query_field1", queryBuilder).field("query_field2", queryBuilder).endObject()
                     ),
-                    XContentType.JSON
+                    MediaTypeRegistry.JSON
                 )
             );
         assertThat(doc.rootDoc().getFields().size(), equalTo(16)); // also includes all other meta fields
@@ -792,7 +792,7 @@ public class PercolatorFieldMapperTests extends OpenSearchSingleNodeTestCase {
                     BytesReference.bytes(
                         jsonBuilder().startObject().startObject("object_field").field("query_field", queryBuilder).endObject().endObject()
                     ),
-                    XContentType.JSON
+                    MediaTypeRegistry.JSON
                 )
             );
         assertThat(doc.rootDoc().getFields().size(), equalTo(12)); // also includes all other meta fields
@@ -817,7 +817,7 @@ public class PercolatorFieldMapperTests extends OpenSearchSingleNodeTestCase {
                             .endArray()
                             .endObject()
                     ),
-                    XContentType.JSON
+                    MediaTypeRegistry.JSON
                 )
             );
         assertThat(doc.rootDoc().getFields().size(), equalTo(12)); // also includes all other meta fields
@@ -842,7 +842,7 @@ public class PercolatorFieldMapperTests extends OpenSearchSingleNodeTestCase {
                                 .endArray()
                                 .endObject()
                         ),
-                        XContentType.JSON
+                        MediaTypeRegistry.JSON
                     )
                 );
         });
@@ -942,7 +942,7 @@ public class PercolatorFieldMapperTests extends OpenSearchSingleNodeTestCase {
                             .rawField(fieldName, new BytesArray(query.toString()).streamInput(), query.contentType())
                             .endObject()
                     ),
-                    XContentType.JSON
+                    MediaTypeRegistry.JSON
                 )
             );
         BytesRef querySource = doc.rootDoc().getFields(fieldType.queryBuilderField.name())[0].binaryValue();
@@ -989,7 +989,7 @@ public class PercolatorFieldMapperTests extends OpenSearchSingleNodeTestCase {
                             .rawField(fieldName, new BytesArray(query.toString()).streamInput(), query.contentType())
                             .endObject()
                     ),
-                    XContentType.JSON
+                    MediaTypeRegistry.JSON
                 )
             );
         querySource = doc.rootDoc().getFields(fieldType.queryBuilderField.name())[0].binaryValue();
@@ -1078,7 +1078,7 @@ public class PercolatorFieldMapperTests extends OpenSearchSingleNodeTestCase {
                     "test",
                     "1",
                     BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field(fieldName, qb).endObject()),
-                    XContentType.JSON
+                    MediaTypeRegistry.JSON
                 )
             );
 
@@ -1103,7 +1103,7 @@ public class PercolatorFieldMapperTests extends OpenSearchSingleNodeTestCase {
                     "test",
                     "1",
                     BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field(fieldName, qb).endObject()),
-                    XContentType.JSON
+                    MediaTypeRegistry.JSON
                 )
             );
 
@@ -1131,7 +1131,7 @@ public class PercolatorFieldMapperTests extends OpenSearchSingleNodeTestCase {
                     "test",
                     "1",
                     BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field(fieldName, qb).endObject()),
-                    XContentType.JSON
+                    MediaTypeRegistry.JSON
                 )
             );
 

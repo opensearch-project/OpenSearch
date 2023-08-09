@@ -70,9 +70,9 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.common.lease.Releasable;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.RecoveryEngineException;
@@ -487,7 +487,7 @@ public class LocalStorePeerRecoverySourceHandlerTests extends OpenSearchTestCase
             null,
             Arrays.asList(document),
             source,
-            XContentType.JSON,
+            MediaTypeRegistry.JSON,
             null
         );
         return new Engine.Index(new Term("_id", Uid.encodeId(doc.id())), randomNonNegativeLong(), doc);

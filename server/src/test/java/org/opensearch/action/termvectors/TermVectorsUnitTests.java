@@ -55,8 +55,8 @@ import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.InputStreamStreamInput;
 import org.opensearch.core.common.io.stream.OutputStreamStreamOutput;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.rest.action.document.RestTermVectorsAction;
@@ -247,7 +247,7 @@ public class TermVectorsUnitTests extends OpenSearchTestCase {
             request.termStatistics(random().nextBoolean());
             String pref = random().nextBoolean() ? "somePreference" : null;
             request.preference(pref);
-            request.doc(new BytesArray("{}"), randomBoolean(), XContentType.JSON);
+            request.doc(new BytesArray("{}"), randomBoolean(), MediaTypeRegistry.JSON);
 
             // write
             ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
@@ -267,7 +267,7 @@ public class TermVectorsUnitTests extends OpenSearchTestCase {
             assertThat(request.preference(), equalTo(pref));
             assertThat(request.routing(), equalTo(null));
             assertEquals(new BytesArray("{}"), request.doc());
-            assertEquals(XContentType.JSON, request.xContentType());
+            assertEquals(MediaTypeRegistry.JSON, request.xContentType());
         }
     }
 
@@ -281,7 +281,7 @@ public class TermVectorsUnitTests extends OpenSearchTestCase {
             request.termStatistics(random().nextBoolean());
             String pref = random().nextBoolean() ? "somePreference" : null;
             request.preference(pref);
-            request.doc(new BytesArray("{}"), randomBoolean(), XContentType.JSON);
+            request.doc(new BytesArray("{}"), randomBoolean(), MediaTypeRegistry.JSON);
 
             // write using older version which contains types
             ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
@@ -313,7 +313,7 @@ public class TermVectorsUnitTests extends OpenSearchTestCase {
             assertThat(request.preference(), equalTo(pref));
             assertThat(request.routing(), equalTo(null));
             assertEquals(new BytesArray("{}"), request.doc());
-            assertEquals(XContentType.JSON, request.xContentType());
+            assertEquals(MediaTypeRegistry.JSON, request.xContentType());
         }
     }
 

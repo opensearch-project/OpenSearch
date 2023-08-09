@@ -1081,7 +1081,7 @@ public final class Settings implements ToXContentFragment {
          */
         public Builder loadFromMap(Map<String, ?> map) {
             // TODO: do this without a serialization round-trip
-            try (XContentBuilder builder = MediaTypeRegistry.contentBuilder(XContentType.JSON)) {
+            try (XContentBuilder builder = MediaTypeRegistry.contentBuilder(MediaTypeRegistry.JSON)) {
                 builder.map(map);
                 return loadFromSource(builder.toString(), builder.contentType());
             } catch (IOException e) {
@@ -1092,9 +1092,9 @@ public final class Settings implements ToXContentFragment {
         /**
          * Loads settings from the actual string content that represents them using {@link #fromXContent(XContentParser)}
          */
-        public Builder loadFromSource(String source, MediaType xContentType) {
+        public Builder loadFromSource(String source, MediaType mediaType) {
             try (
-                XContentParser parser = xContentType.xContent()
+                XContentParser parser = mediaType.xContent()
                     .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, source)
             ) {
                 this.put(fromXContent(parser, true, true));
@@ -1117,17 +1117,17 @@ public final class Settings implements ToXContentFragment {
          * Loads settings from a stream that represents them using {@link #fromXContent(XContentParser)}
          */
         public Builder loadFromStream(String resourceName, InputStream is, boolean acceptNullValues) throws IOException {
-            final XContentType xContentType;
+            final MediaType mediaType;
             if (resourceName.endsWith(".json")) {
-                xContentType = XContentType.JSON;
+                mediaType = MediaTypeRegistry.JSON;
             } else if (resourceName.endsWith(".yml") || resourceName.endsWith(".yaml")) {
-                xContentType = XContentType.YAML;
+                mediaType = XContentType.YAML;
             } else {
                 throw new IllegalArgumentException("unable to detect content type from resource name [" + resourceName + "]");
             }
             // fromXContent doesn't use named xcontent or deprecation.
             try (
-                XContentParser parser = xContentType.xContent()
+                XContentParser parser = mediaType.xContent()
                     .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, is)
             ) {
                 if (parser.currentToken() == null) {
@@ -1427,7 +1427,7 @@ public final class Settings implements ToXContentFragment {
 
     @Override
     public String toString() {
-        try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
+        try (XContentBuilder builder = MediaTypeRegistry.JSON.contentBuilder()) {
             builder.startObject();
             toXContent(builder, new MapParams(Collections.singletonMap("flat_settings", "true")));
             builder.endObject();

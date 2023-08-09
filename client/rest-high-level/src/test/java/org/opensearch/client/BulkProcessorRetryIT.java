@@ -40,8 +40,8 @@ import org.opensearch.action.bulk.BulkResponse;
 import org.opensearch.action.get.MultiGetRequest;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.rest.RestStatus;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.transport.RemoteTransportException;
 
 import java.util.Collections;
@@ -170,7 +170,7 @@ public class BulkProcessorRetryIT extends OpenSearchRestHighLevelClientTestCase 
         for (int i = 1; i <= numDocs; i++) {
             processor.add(
                 new IndexRequest(INDEX_NAME).id(Integer.toString(i))
-                    .source(XContentType.JSON, "field", randomRealisticUnicodeOfCodepointLengthBetween(1, 30))
+                    .source(MediaTypeRegistry.JSON, "field", randomRealisticUnicodeOfCodepointLengthBetween(1, 30))
             );
             multiGetRequest.add(INDEX_NAME, Integer.toString(i));
         }

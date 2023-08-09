@@ -39,10 +39,10 @@ import org.opensearch.common.Explicit;
 import org.opensearch.core.ParseField;
 import org.opensearch.common.geo.GeoJsonGeometryFormat;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.xcontent.MapXContentParser;
 import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.index.query.QueryShardContext;
@@ -141,7 +141,7 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
                     NamedXContentRegistry.EMPTY,
                     LoggingDeprecationHandler.INSTANCE,
                     Collections.singletonMap("dummy_field", value),
-                    XContentType.JSON
+                    MediaTypeRegistry.JSON
                 )
             ) {
                 parser.nextToken(); // start object

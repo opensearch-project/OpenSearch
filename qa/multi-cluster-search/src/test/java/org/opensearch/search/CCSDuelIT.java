@@ -54,11 +54,11 @@ import org.opensearch.client.RestHighLevelClient;
 import org.opensearch.client.indices.CreateIndexRequest;
 import org.opensearch.client.indices.CreateIndexResponse;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.core.xcontent.XContentHelper;
 import org.opensearch.index.query.InnerHitBuilder;
 import org.opensearch.index.query.MatchQueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
@@ -198,7 +198,7 @@ public class CCSDuelIT extends OpenSearchRestTestCase {
         createIndexRequest.mapping("{\"properties\":{" +
                 "\"id\":{\"type\":\"keyword\"}," +
                 "\"suggest\":{\"type\":\"completion\"}," +
-                "\"join\":{\"type\":\"join\", \"relations\": {\"question\":\"answer\"}}}}", XContentType.JSON);
+                "\"join\":{\"type\":\"join\", \"relations\": {\"question\":\"answer\"}}}}", MediaTypeRegistry.JSON);
         CreateIndexResponse createIndexResponse = restHighLevelClient.indices().create(createIndexRequest, RequestOptions.DEFAULT);
         assertTrue(createIndexResponse.isAcknowledged());
 
@@ -255,7 +255,7 @@ public class CCSDuelIT extends OpenSearchRestTestCase {
         if (questionId != null) {
             joinField.put("parent", questionId);
         }
-        indexRequest.source(XContentType.JSON,
+        indexRequest.source(MediaTypeRegistry.JSON,
             "id", id,
             "type", type,
             "votes", randomIntBetween(0, 30),
@@ -726,7 +726,7 @@ public class CCSDuelIT extends OpenSearchRestTestCase {
         sourceBuilder.suggest(suggestBuilder);
         duelSearch(searchRequest, response -> {
             assertMultiClusterSearchResponse(response);
-            assertEquals(Strings.toString(XContentType.JSON, response, true, true), 3, response.getSuggest().size());
+            assertEquals(Strings.toString(MediaTypeRegistry.JSON, response, true, true), 3, response.getSuggest().size());
             assertThat(response.getSuggest().getSuggestion("python").getEntries().size(), greaterThan(0));
             assertThat(response.getSuggest().getSuggestion("java").getEntries().size(), greaterThan(0));
             assertThat(response.getSuggest().getSuggestion("ruby").getEntries().size(), greaterThan(0));
@@ -827,8 +827,8 @@ public class CCSDuelIT extends OpenSearchRestTestCase {
 
     @SuppressWarnings("unchecked")
     private static Map<String, Object> responseToMap(SearchResponse response) throws IOException {
-        BytesReference bytesReference = XContentHelper.toXContent(response, XContentType.JSON, false);
-        Map<String, Object> responseMap = XContentHelper.convertToMap(bytesReference, false, XContentType.JSON).v2();
+        BytesReference bytesReference = XContentHelper.toXContent(response, MediaTypeRegistry.JSON, false);
+        Map<String, Object> responseMap = org.opensearch.common.xcontent.XContentHelper.convertToMap(bytesReference, false, MediaTypeRegistry.JSON).v2();
         assertNotNull(responseMap.put("took", -1));
         responseMap.remove("num_reduce_phases");
         Map<String, Object> profile = (Map<String, Object>)responseMap.get("profile");

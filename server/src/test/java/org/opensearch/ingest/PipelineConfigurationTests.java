@@ -38,6 +38,7 @@ import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.xcontent.ContextParser;
 import org.opensearch.core.xcontent.DeprecationHandler;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -56,15 +57,15 @@ public class PipelineConfigurationTests extends AbstractXContentTestCase<Pipelin
         PipelineConfiguration configuration = new PipelineConfiguration(
             "1",
             new BytesArray("{}".getBytes(StandardCharsets.UTF_8)),
-            XContentType.JSON
+            MediaTypeRegistry.JSON
         );
-        assertEquals(XContentType.JSON, configuration.getMediaType());
+        assertEquals(MediaTypeRegistry.JSON, configuration.getMediaType());
 
         BytesStreamOutput out = new BytesStreamOutput();
         configuration.writeTo(out);
         StreamInput in = StreamInput.wrap(out.bytes().toBytesRef().bytes);
         PipelineConfiguration serialized = PipelineConfiguration.readFrom(in);
-        assertEquals(XContentType.JSON, serialized.getMediaType());
+        assertEquals(MediaTypeRegistry.JSON, serialized.getMediaType());
         assertEquals("{}", serialized.getConfig().utf8ToString());
     }
 
@@ -73,7 +74,7 @@ public class PipelineConfigurationTests extends AbstractXContentTestCase<Pipelin
         XContentType xContentType = randomFrom(XContentType.values());
         final BytesReference bytes;
         try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
-            new PipelineConfiguration("1", new BytesArray("{}".getBytes(StandardCharsets.UTF_8)), XContentType.JSON).toXContent(
+            new PipelineConfiguration("1", new BytesArray("{}".getBytes(StandardCharsets.UTF_8)), MediaTypeRegistry.JSON).toXContent(
                 builder,
                 ToXContent.EMPTY_PARAMS
             );
@@ -96,7 +97,7 @@ public class PipelineConfigurationTests extends AbstractXContentTestCase<Pipelin
         } else {
             config = new BytesArray("{\"foo\": \"bar\"}".getBytes(StandardCharsets.UTF_8));
         }
-        return new PipelineConfiguration(randomAlphaOfLength(4), config, XContentType.JSON);
+        return new PipelineConfiguration(randomAlphaOfLength(4), config, MediaTypeRegistry.JSON);
     }
 
     @Override

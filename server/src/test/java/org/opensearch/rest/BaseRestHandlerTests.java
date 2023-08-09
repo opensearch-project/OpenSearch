@@ -36,8 +36,8 @@ import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.Table;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.rest.action.cat.AbstractCatAction;
 import org.opensearch.test.OpenSearchTestCase;
@@ -299,7 +299,7 @@ public class BaseRestHandlerTests extends OpenSearchTestCase {
         try (XContentBuilder builder = JsonXContent.contentBuilder().startObject().endObject()) {
             final RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withContent(
                 new BytesArray(builder.toString()),
-                XContentType.JSON
+                MediaTypeRegistry.JSON
             ).build();
             final RestChannel channel = new FakeRestChannel(request, randomBoolean(), 1);
             handler.handleRequest(request, channel, mockClient);
@@ -344,7 +344,7 @@ public class BaseRestHandlerTests extends OpenSearchTestCase {
         try (XContentBuilder builder = JsonXContent.contentBuilder().startObject().endObject()) {
             final RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withContent(
                 new BytesArray(builder.toString()),
-                XContentType.JSON
+                MediaTypeRegistry.JSON
             ).build();
             final RestChannel channel = new FakeRestChannel(request, randomBoolean(), 1);
             final IllegalArgumentException e = expectThrows(

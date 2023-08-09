@@ -29,7 +29,7 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.CancellableThreads;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.InternalEngineFactory;
@@ -274,7 +274,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             final int numDocs = randomIntBetween(10, 20);
             logger.info("--> Inserting documents {}", numDocs);
             for (int i = 0; i < numDocs; i++) {
-                shards.index(new IndexRequest(index.getName()).id(String.valueOf(i)).source("{\"foo\": \"bar\"}", XContentType.JSON));
+                shards.index(new IndexRequest(index.getName()).id(String.valueOf(i)).source("{\"foo\": \"bar\"}", MediaTypeRegistry.JSON));
             }
             assertEqualTranslogOperations(shards, primaryShard);
             primaryShard.refresh("Test");
@@ -288,7 +288,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             // Step 2. Ingest numDocs documents again & replicate to replica shard
             logger.info("--> Ingest {} docs again", numDocs);
             for (int i = 0; i < numDocs; i++) {
-                shards.index(new IndexRequest(index.getName()).id(String.valueOf(i)).source("{\"foo\": \"bar\"}", XContentType.JSON));
+                shards.index(new IndexRequest(index.getName()).id(String.valueOf(i)).source("{\"foo\": \"bar\"}", MediaTypeRegistry.JSON));
             }
             assertEqualTranslogOperations(shards, primaryShard);
             primaryShard.flush(new FlushRequest().waitIfOngoing(true).force(true));
@@ -323,7 +323,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             final int numDocs = randomIntBetween(10, 20);
             logger.info("--> Inserting documents {}", numDocs);
             for (int i = 0; i < numDocs; i++) {
-                shards.index(new IndexRequest(index.getName()).id(String.valueOf(i)).source("{\"foo\": \"bar\"}", XContentType.JSON));
+                shards.index(new IndexRequest(index.getName()).id(String.valueOf(i)).source("{\"foo\": \"bar\"}", MediaTypeRegistry.JSON));
             }
             assertEqualTranslogOperations(shards, primaryShard);
             primaryShard.refresh("Test");
@@ -334,7 +334,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             // Step 2. Ingest numDocs documents again to create a new commit
             logger.info("--> Ingest {} docs again", numDocs);
             for (int i = 0; i < numDocs; i++) {
-                shards.index(new IndexRequest(index.getName()).id(String.valueOf(i)).source("{\"foo\": \"bar\"}", XContentType.JSON));
+                shards.index(new IndexRequest(index.getName()).id(String.valueOf(i)).source("{\"foo\": \"bar\"}", MediaTypeRegistry.JSON));
             }
             assertEqualTranslogOperations(shards, primaryShard);
             primaryShard.flush(new FlushRequest().waitIfOngoing(true).force(true));

@@ -11,8 +11,8 @@ package org.opensearch.search.pipeline.common;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
@@ -114,7 +114,7 @@ public class FilterQueryRequestProcessor extends AbstractProcessor implements Se
             try (
                 XContentBuilder builder = XContentBuilder.builder(JsonXContent.jsonXContent).map(query);
                 InputStream stream = BytesReference.bytes(builder).streamInput();
-                XContentParser parser = XContentType.JSON.xContent()
+                XContentParser parser = MediaTypeRegistry.JSON.xContent()
                     .createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)
             ) {
                 return new FilterQueryRequestProcessor(tag, description, ignoreFailure, parseInnerQueryBuilder(parser));

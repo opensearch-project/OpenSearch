@@ -41,7 +41,7 @@ import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.opensearch.action.ingest.DeletePipelineRequest;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.Engine.Operation.Origin;
@@ -263,7 +263,7 @@ public class CancelTests extends ReindexTestCase {
                 + "  } ]\n"
                 + "}"
         );
-        assertAcked(client().admin().cluster().preparePutPipeline("set-processed", pipeline, XContentType.JSON).get());
+        assertAcked(client().admin().cluster().preparePutPipeline("set-processed", pipeline, MediaTypeRegistry.JSON).get());
 
         testCancel(UpdateByQueryAction.NAME, updateByQuery().setPipeline("set-processed").source(INDEX), (response, total, modified) -> {
             assertThat(response, matcher().updated(modified).reasonCancelled(equalTo("by user request")));
@@ -307,7 +307,7 @@ public class CancelTests extends ReindexTestCase {
                 + "  } ]\n"
                 + "}"
         );
-        assertAcked(client().admin().cluster().preparePutPipeline("set-processed", pipeline, XContentType.JSON).get());
+        assertAcked(client().admin().cluster().preparePutPipeline("set-processed", pipeline, MediaTypeRegistry.JSON).get());
 
         testCancel(
             UpdateByQueryAction.NAME,

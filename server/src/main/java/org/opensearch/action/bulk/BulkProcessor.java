@@ -45,6 +45,7 @@ import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -457,17 +458,13 @@ public class BulkProcessor implements Closeable {
     /**
      * Adds the data from the bytes to be processed by the bulk processor
      */
-    public BulkProcessor add(
-        BytesReference data,
-        @Nullable String defaultIndex,
-        @Nullable String defaultPipeline,
-        XContentType xContentType
-    ) throws Exception {
+    public BulkProcessor add(BytesReference data, @Nullable String defaultIndex, @Nullable String defaultPipeline, MediaType mediaType)
+        throws Exception {
         Tuple<BulkRequest, Long> bulkRequestToExecute = null;
         lock.lock();
         try {
             ensureOpen();
-            bulkRequest.add(data, defaultIndex, null, null, defaultPipeline, null, true, xContentType);
+            bulkRequest.add(data, defaultIndex, null, null, defaultPipeline, null, true, mediaType);
             bulkRequestToExecute = newBulkRequestIfNeeded();
         } finally {
             lock.unlock();

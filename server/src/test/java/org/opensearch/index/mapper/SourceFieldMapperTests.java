@@ -75,11 +75,11 @@ public class SourceFieldMapperTests extends OpenSearchSingleNodeTestCase {
                 "test",
                 "1",
                 BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", "value").endObject()),
-                XContentType.JSON
+                MediaTypeRegistry.JSON
             )
         );
 
-        assertThat(MediaTypeRegistry.xContent(doc.source().toBytesRef().bytes), equalTo(XContentType.JSON));
+        assertThat(MediaTypeRegistry.xContent(doc.source().toBytesRef().bytes), equalTo(MediaTypeRegistry.JSON));
 
         documentMapper = parser.parse("type", new CompressedXContent(mapping));
         doc = documentMapper.parse(
@@ -124,7 +124,7 @@ public class SourceFieldMapperTests extends OpenSearchSingleNodeTestCase {
                         .endObject()
                         .endObject()
                 ),
-                XContentType.JSON
+                MediaTypeRegistry.JSON
             )
         );
 
@@ -167,7 +167,7 @@ public class SourceFieldMapperTests extends OpenSearchSingleNodeTestCase {
                         .endObject()
                         .endObject()
                 ),
-                XContentType.JSON
+                MediaTypeRegistry.JSON
             )
         );
 
@@ -314,8 +314,8 @@ public class SourceFieldMapperTests extends OpenSearchSingleNodeTestCase {
             .parse("type", new CompressedXContent(mapping));
 
         try {
-            documentMapper.parse(new SourceToParse("test", "1", new BytesArray("{}}"), XContentType.JSON)); // extra end object
-                                                                                                            // (invalid JSON)
+            documentMapper.parse(new SourceToParse("test", "1", new BytesArray("{}}"), MediaTypeRegistry.JSON)); // extra end object
+            // (invalid JSON)
             fail("Expected parse exception");
         } catch (MapperParsingException e) {
             assertNotNull(e.getRootCause());
