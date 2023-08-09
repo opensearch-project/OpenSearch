@@ -1497,12 +1497,17 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
      * @return Returns SegmentReplicationTargetService
      */
     public final SegmentReplicationTargetService prepareForReplication(IndexShard primaryShard, IndexShard target) {
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
+        when(clusterService.getClusterSettings()).thenReturn(
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
         return prepareForReplication(
             primaryShard,
             target,
             mock(TransportService.class),
             mock(IndicesService.class),
-            mock(ClusterService.class),
+            clusterService,
             (indexShard) -> {}
         );
     }

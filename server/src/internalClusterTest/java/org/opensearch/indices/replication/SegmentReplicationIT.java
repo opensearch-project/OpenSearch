@@ -44,6 +44,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.allocation.command.CancelAllocationCommand;
+import org.opensearch.common.UUIDs;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
@@ -61,6 +62,7 @@ import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.NRTReplicationReaderManager;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.shard.IndexShardState;
 import org.opensearch.indices.recovery.FileChunkRequest;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.common.ReplicationType;
@@ -95,6 +97,7 @@ import static org.opensearch.index.query.QueryBuilders.termQuery;
 import static org.opensearch.index.query.QueryBuilders.boolQuery;
 import static org.opensearch.index.query.QueryBuilders.rangeQuery;
 import static org.opensearch.indices.replication.SegmentReplicationTarget.REPLICATION_PREFIX;
+import static org.opensearch.indices.replication.SegmentReplicationTargetService.MAX_ALLOWED_REPLICATION_TIME_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAllSuccessful;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
@@ -1424,5 +1427,38 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
             .setExplain(true)
             .get();
         assertNoFailures(response);
+    }
+
+    public void testFailStaleReplica() throws Exception {
+        Settings settings = Settings.builder().put(MAX_ALLOWED_REPLICATION_TIME_SETTING.getKey(), TimeValue.timeValueMillis(500)).build();
+        // Starts a primary and replica node.
+        final String primaryNode = internalCluster().startNode(settings);
+        createIndex(INDEX_NAME);
+        ensureYellowAndNoInitializingShards(INDEX_NAME);
+        final String replicaNode = internalCluster().startNode(settings);
+        ensureGreen(INDEX_NAME);
+
+        final List<String> replicaNodes = asList(replicaNode);
+        IndexShard replicaShard = getIndexShard(replicaNode, INDEX_NAME);
+
+        final CountDownLatch latch = new CountDownLatch(1);
+        try (final Releasable ignored = blockReplication(replicaNodes, latch)) {
+            client().prepareIndex(INDEX_NAME).setId(UUIDs.base64UUID()).setSource("{}", "{}").execute().actionGet();
+            refresh(INDEX_NAME);
+
+            latch.await();
+
+            // index again while we are stale.
+            client().prepareIndex(INDEX_NAME).setId(UUIDs.base64UUID()).setSource("{}", "{}").execute().actionGet();
+            refresh(INDEX_NAME);
+
+            // Verify that replica shard is closed.
+            assertBusy(() -> { assertTrue(replicaShard.state().equals(IndexShardState.CLOSED)); }, 1, TimeUnit.MINUTES);
+        }
+        ensureGreen(INDEX_NAME);
+        final IndexShard replicaAfterFailure = getIndexShard(replicaNode, INDEX_NAME);
+
+        // Verify that new replica shard after failure is different from old replica shard.
+        assertNotEquals(replicaAfterFailure.routingEntry().allocationId().getId(), replicaShard.routingEntry().allocationId().getId());
     }
 }

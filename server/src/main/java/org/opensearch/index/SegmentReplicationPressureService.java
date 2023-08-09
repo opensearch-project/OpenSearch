@@ -10,16 +10,13 @@ package org.opensearch.index;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.concurrent.AbstractAsyncTask;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.core.index.shard.ShardId;
@@ -28,7 +25,6 @@ import org.opensearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.Comparator;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -87,8 +83,6 @@ public class SegmentReplicationPressureService implements Closeable {
     private final SegmentReplicationStatsTracker tracker;
     private final ShardStateAction shardStateAction;
 
-    private final AsyncFailStaleReplicaTask failStaleReplicaTask;
-
     @Inject
     public SegmentReplicationPressureService(
         Settings settings,
@@ -117,13 +111,6 @@ public class SegmentReplicationPressureService implements Closeable {
 
         this.maxAllowedStaleReplicas = MAX_ALLOWED_STALE_SHARDS.get(settings);
         clusterSettings.addSettingsUpdateConsumer(MAX_ALLOWED_STALE_SHARDS, this::setMaxAllowedStaleReplicas);
-
-        this.failStaleReplicaTask = new AsyncFailStaleReplicaTask(this);
-    }
-
-    // visible for testing
-    AsyncFailStaleReplicaTask getFailStaleReplicaTask() {
-        return failStaleReplicaTask;
     }
 
     public void isSegrepLimitBreached(ShardId shardId) {
@@ -191,95 +178,6 @@ public class SegmentReplicationPressureService implements Closeable {
 
     @Override
     public void close() throws IOException {
-        failStaleReplicaTask.close();
+        // pass
     }
-
-    // Background Task to fail replica shards if they are too far behind primary shard.
-    final static class AsyncFailStaleReplicaTask extends AbstractAsyncTask {
-
-        final SegmentReplicationPressureService pressureService;
-
-        static final TimeValue INTERVAL = TimeValue.timeValueSeconds(30);
-
-        AsyncFailStaleReplicaTask(SegmentReplicationPressureService pressureService) {
-            super(logger, pressureService.threadPool, INTERVAL, true);
-            this.pressureService = pressureService;
-            rescheduleIfNecessary();
-        }
-
-        @Override
-        protected boolean mustReschedule() {
-            return true;
-        }
-
-        @Override
-        protected void runInternal() {
-            if (pressureService.isSegmentReplicationBackpressureEnabled) {
-                final SegmentReplicationStats stats = pressureService.tracker.getStats();
-
-                // Find the shardId in node which is having stale replicas with highest current replication time.
-                // This way we only fail one shardId's stale replicas in every iteration of this background async task and there by decrease
-                // load gradually on node.
-                stats.getShardStats()
-                    .entrySet()
-                    .stream()
-                    .flatMap(
-                        entry -> pressureService.getStaleReplicas(entry.getValue().getReplicaStats())
-                            .stream()
-                            .map(r -> Tuple.tuple(entry.getKey(), r.getCurrentReplicationTimeMillis()))
-                    )
-                    .max(Comparator.comparingLong(Tuple::v2))
-                    .map(Tuple::v1)
-                    .ifPresent(shardId -> {
-                        final Set<SegmentReplicationShardStats> staleReplicas = pressureService.getStaleReplicas(
-                            stats.getShardStats().get(shardId).getReplicaStats()
-                        );
-                        final IndexService indexService = pressureService.indicesService.indexService(shardId.getIndex());
-                        if (indexService.getIndexSettings() != null && indexService.getIndexSettings().isSegRepEnabled() == false) {
-                            return;
-                        }
-                        final IndexShard primaryShard = indexService.getShard(shardId.getId());
-                        for (SegmentReplicationShardStats staleReplica : staleReplicas) {
-                            if (staleReplica.getCurrentReplicationTimeMillis() > 2 * pressureService.maxReplicationTime.millis()) {
-                                pressureService.shardStateAction.remoteShardFailed(
-                                    shardId,
-                                    staleReplica.getAllocationId(),
-                                    primaryShard.getOperationPrimaryTerm(),
-                                    true,
-                                    "replica too far behind primary, marking as stale",
-                                    null,
-                                    new ActionListener<>() {
-                                        @Override
-                                        public void onResponse(Void unused) {
-                                            logger.trace(
-                                                "Successfully failed remote shardId [{}] allocation id [{}]",
-                                                shardId,
-                                                staleReplica.getAllocationId()
-                                            );
-                                        }
-
-                                        @Override
-                                        public void onFailure(Exception e) {
-                                            logger.error("Failed to send remote shard failure", e);
-                                        }
-                                    }
-                                );
-                            }
-                        }
-                    });
-            }
-        }
-
-        @Override
-        protected String getThreadPool() {
-            return ThreadPool.Names.GENERIC;
-        }
-
-        @Override
-        public String toString() {
-            return "fail_stale_replica";
-        }
-
-    }
-
 }

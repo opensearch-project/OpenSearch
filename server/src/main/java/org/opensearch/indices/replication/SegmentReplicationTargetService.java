@@ -18,7 +18,11 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.concurrent.AbstractAsyncTask;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.index.shard.IndexEventListener;
@@ -44,9 +48,14 @@ import org.opensearch.transport.TransportRequestOptions;
 import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.transport.TransportService;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
 
 import static org.opensearch.indices.replication.SegmentReplicationSourceService.Actions.UPDATE_VISIBLE_CHECKPOINT;
 
@@ -68,11 +77,20 @@ public class SegmentReplicationTargetService implements IndexEventListener {
 
     private final SegmentReplicationSourceFactory sourceFactory;
 
-    protected final Map<ShardId, ReplicationCheckpoint> latestReceivedCheckpoint = ConcurrentCollections.newConcurrentMap();
-
     private final IndicesService indicesService;
     private final ClusterService clusterService;
     private final TransportService transportService;
+
+    protected final PendingCheckpoints pendingCheckpoints;
+
+    protected final AsyncFailStaleReplicaTask asyncFailStaleReplicaTask;
+
+    public static final Setting<TimeValue> MAX_ALLOWED_REPLICATION_TIME_SETTING = Setting.positiveTimeSetting(
+        "segrep.stale_replica.time_limit",
+        TimeValue.timeValueMinutes(10),
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
 
     public ReplicationRef<SegmentReplicationTarget> get(long replicationId) {
         return onGoingReplications.get(replicationId);
@@ -123,6 +141,11 @@ public class SegmentReplicationTargetService implements IndexEventListener {
         this.indicesService = indicesService;
         this.clusterService = clusterService;
         this.transportService = transportService;
+        this.pendingCheckpoints = new PendingCheckpoints(MAX_ALLOWED_REPLICATION_TIME_SETTING.get(clusterService.getSettings()));
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(MAX_ALLOWED_REPLICATION_TIME_SETTING, pendingCheckpoints::setMaxAllowedReplicationTime);
+
+        this.asyncFailStaleReplicaTask = new AsyncFailStaleReplicaTask(indicesService, threadPool, pendingCheckpoints);
 
         transportService.registerRequestHandler(
             Actions.FILE_CHUNK,
@@ -145,7 +168,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
     public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, Settings indexSettings) {
         if (indexShard != null && indexShard.indexSettings().isSegRepEnabled()) {
             onGoingReplications.requestCancel(indexShard.shardId(), "Shard closing");
-            latestReceivedCheckpoint.remove(shardId);
+            pendingCheckpoints.remove(shardId);
         }
     }
 
@@ -167,7 +190,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
     public void shardRoutingChanged(IndexShard indexShard, @Nullable ShardRouting oldRouting, ShardRouting newRouting) {
         if (oldRouting != null && indexShard.indexSettings().isSegRepEnabled() && oldRouting.primary() == false && newRouting.primary()) {
             onGoingReplications.requestCancel(indexShard.shardId(), "Shard has been promoted to primary");
-            latestReceivedCheckpoint.remove(indexShard.shardId());
+            pendingCheckpoints.remove(indexShard.shardId());
         }
     }
 
@@ -255,8 +278,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
                             )
                         );
 
-                        // update visible checkpoint to primary
-                        updateVisibleCheckpoint(state.getReplicationId(), replicaShard);
+                        updateCheckpointAsProcessed(state.getReplicationId(), replicaShard);
 
                         // if we received a checkpoint during the copy event that is ahead of this
                         // try and process it.
@@ -291,6 +313,13 @@ public class SegmentReplicationTargetService implements IndexEventListener {
                 () -> new ParameterizedMessage("Ignoring checkpoint, shard not started {} {}", receivedCheckpoint, replicaShard.state())
             );
         }
+    }
+
+    protected void updateCheckpointAsProcessed(long replicationId, IndexShard replicaShard) {
+        // Update the replica's checkpoint on primary's replication tracker.
+        updateVisibleCheckpoint(replicationId, replicaShard);
+        // mark the checkpoint as processed locally.
+        pendingCheckpoints.updateCheckpointProcessed(replicaShard.shardId(), replicaShard.getLatestReplicationCheckpoint());
     }
 
     protected void updateVisibleCheckpoint(long replicationId, IndexShard replicaShard) {
@@ -366,7 +395,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
 
     // visible to tests
     protected boolean processLatestReceivedCheckpoint(IndexShard replicaShard, Thread thread) {
-        final ReplicationCheckpoint latestPublishedCheckpoint = latestReceivedCheckpoint.get(replicaShard.shardId());
+        final ReplicationCheckpoint latestPublishedCheckpoint = pendingCheckpoints.getLatestReplicationCheckpoint(replicaShard.shardId());
         if (latestPublishedCheckpoint != null && latestPublishedCheckpoint.isAheadOf(replicaShard.getLatestReplicationCheckpoint())) {
             logger.trace(
                 () -> new ParameterizedMessage(
@@ -375,7 +404,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
                     latestPublishedCheckpoint
                 )
             );
-            Runnable runnable = () -> onNewCheckpoint(latestReceivedCheckpoint.get(replicaShard.shardId()), replicaShard);
+            Runnable runnable = () -> onNewCheckpoint(latestPublishedCheckpoint, replicaShard);
             // Checks if we are using same thread and forks if necessary.
             if (thread == Thread.currentThread()) {
                 threadPool.generic().execute(runnable);
@@ -389,13 +418,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
 
     // visible to tests
     protected void updateLatestReceivedCheckpoint(ReplicationCheckpoint receivedCheckpoint, IndexShard replicaShard) {
-        if (latestReceivedCheckpoint.get(replicaShard.shardId()) != null) {
-            if (receivedCheckpoint.isAheadOf(latestReceivedCheckpoint.get(replicaShard.shardId()))) {
-                latestReceivedCheckpoint.replace(replicaShard.shardId(), receivedCheckpoint);
-            }
-        } else {
-            latestReceivedCheckpoint.put(replicaShard.shardId(), receivedCheckpoint);
-        }
+        pendingCheckpoints.addNewReceivedCheckpoint(replicaShard.shardId(), receivedCheckpoint);
     }
 
     /**
@@ -568,8 +591,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
                             if (indexShard.recoveryState().getPrimary() == true) {
                                 indexShard.resetToWriteableEngine();
                             } else {
-                                // Update the replica's checkpoint on primary's replication tracker.
-                                updateVisibleCheckpoint(state.getReplicationId(), indexShard);
+                                updateCheckpointAsProcessed(state.getReplicationId(), indexShard);
                             }
                             listener.onResponse(TransportResponse.Empty.INSTANCE);
                         } catch (Exception e) {
@@ -603,12 +625,115 @@ public class SegmentReplicationTargetService implements IndexEventListener {
         }
     }
 
-    private void failShard(ReplicationFailedException e, IndexShard indexShard) {
+    private static void failShard(ReplicationFailedException e, IndexShard indexShard) {
         try {
             indexShard.failShard("unrecoverable replication failure", e);
         } catch (Exception inner) {
             logger.error("Error attempting to fail shard", inner);
             e.addSuppressed(inner);
+        }
+    }
+
+    final static class AsyncFailStaleReplicaTask extends AbstractAsyncTask {
+        private final PendingCheckpoints pendingCheckpoints;
+        private final IndicesService indicesService;
+        static final TimeValue INTERVAL = TimeValue.timeValueSeconds(30);
+
+        public AsyncFailStaleReplicaTask(IndicesService indicesService, ThreadPool threadPool, PendingCheckpoints pendingCheckpoints) {
+            super(logger, threadPool, INTERVAL, true);
+            this.pendingCheckpoints = pendingCheckpoints;
+            this.indicesService = indicesService;
+            rescheduleIfNecessary();
+        }
+
+        @Override
+        protected boolean mustReschedule() {
+            return true;
+        }
+
+        @Override
+        protected void runInternal() {
+            List<ShardId> shardsToFail = pendingCheckpoints.getStaleShardsToFail();
+            for (ShardId shardId : shardsToFail) {
+                IndexShard replicaShard = this.indicesService.getShardOrNull(shardId);
+                if (replicaShard != null && replicaShard.state() == IndexShardState.STARTED) {
+                    failShard(new ReplicationFailedException("replica too far behind primary, marking as stale"), replicaShard);
+                }
+            }
+        }
+
+        @Override
+        protected String getThreadPool() {
+            return ThreadPool.Names.GENERIC;
+        }
+
+        @Override
+        public String toString() {
+            return "fail_stale_replica";
+        }
+
+    }
+
+    public static class PendingCheckpoints {
+        protected final Map<ShardId, List<Tuple<ReplicationCheckpoint, Long>>> checkpointsTracker = ConcurrentCollections
+            .newConcurrentMap();
+        private volatile TimeValue maxAllowedReplicationTime;
+
+        public PendingCheckpoints(TimeValue maxAllowedReplicationTime) {
+            this.maxAllowedReplicationTime = maxAllowedReplicationTime;
+        }
+
+        public void setMaxAllowedReplicationTime(TimeValue maxAllowedReplicationTime) {
+            this.maxAllowedReplicationTime = maxAllowedReplicationTime;
+        }
+
+        public void addNewReceivedCheckpoint(ShardId shardId, ReplicationCheckpoint checkpoint) {
+            checkpointsTracker.putIfAbsent(shardId, new ArrayList<>());
+            List<Tuple<ReplicationCheckpoint, Long>> checkpoints = checkpointsTracker.get(shardId);
+            if (checkpoints.size() > 0) {
+                assert checkpoints.get(checkpoints.size() - 1).v1().isAheadOf(checkpoint) == false;
+            }
+            checkpoints.add(new Tuple<>(checkpoint, System.currentTimeMillis()));
+        }
+
+        public void updateCheckpointProcessed(ShardId shardId, ReplicationCheckpoint checkpoint) {
+            if (checkpointsTracker.containsKey(shardId)) {
+                checkpointsTracker.put(
+                    shardId,
+                    checkpointsTracker.get(shardId)
+                        .stream()
+                        .filter(t -> t.v1().isAheadOf(checkpoint))
+                        .collect(Collectors.toCollection(ArrayList::new))
+                );
+            }
+        }
+
+        public ReplicationCheckpoint getLatestReplicationCheckpoint(ShardId shardId) {
+            List<Tuple<ReplicationCheckpoint, Long>> checkpoints = checkpointsTracker.getOrDefault(shardId, Collections.emptyList());
+            if (checkpoints.size() > 0) {
+                return checkpoints.get(checkpoints.size() - 1).v1();
+            }
+            return null;
+        }
+
+        public void remove(ShardId shardId) {
+            checkpointsTracker.remove(shardId);
+        }
+
+        public List<ShardId> getStaleShardsToFail() {
+            long currentTime = System.currentTimeMillis();
+            return checkpointsTracker.entrySet()
+                .stream()
+                .map(
+                    e -> Tuple.tuple(
+                        e.getKey(),
+                        e.getValue().stream().min(Comparator.comparingLong(Tuple::v2)).map(t -> t.v2()).orElse(currentTime)
+                    )
+                )
+                .filter(t -> currentTime - t.v2() > maxAllowedReplicationTime.millis())
+                .map(t -> t.v1())
+                .sorted(Comparator.comparing(ShardId::getIndexName))
+                .collect(Collectors.toList());
         }
     }
 
