@@ -41,7 +41,7 @@ public class GlobalAggCollectorManager extends AggregationCollectorManager {
     }
 
     @Override
-    public AggregationReduceableSearchResult buildAggregationResult(InternalAggregations internalAggregations) {
+    protected AggregationReduceableSearchResult buildAggregationResult(InternalAggregations internalAggregations) {
         // Reduce the aggregations across slices before sending to the coordinator. We will perform shard level reduce as long as any slices
         // were created so that we can apply shard level bucket count thresholds in the reduce phase.
         return new AggregationReduceableSearchResult(

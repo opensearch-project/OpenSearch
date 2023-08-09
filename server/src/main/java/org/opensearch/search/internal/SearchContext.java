@@ -58,6 +58,7 @@ import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.BucketCollectorProcessor;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.SearchContextAggregations;
+import org.opensearch.search.aggregations.bucket.LocalBucketCountThresholds;
 import org.opensearch.search.aggregations.bucket.terms.TermsAggregator;
 import org.opensearch.search.collapse.CollapseContext;
 import org.opensearch.search.dfs.DfsSearchResult;
@@ -403,17 +404,14 @@ public abstract class SearchContext implements Releasable {
     }
 
     /**
-     * Returns the local size threshold based on search context
+     * Returns local bucket count thresholds based on concurrent segment search status
      */
-    public int getRequiredSizeLocal(TermsAggregator.BucketCountThresholds bucketCountThresholds) {
-        return isConcurrentSegmentSearchEnabled() ? ArrayUtil.MAX_ARRAY_LENGTH - 1 : bucketCountThresholds.getShardSize();
-    }
-
-    /**
-     * Returns the local minDocCount threshold based on search context
-     */
-    public long getMinDocCountLocal(TermsAggregator.BucketCountThresholds bucketCountThresholds) {
-        return isConcurrentSegmentSearchEnabled() ? 0 : bucketCountThresholds.getShardMinDocCount();
+    public LocalBucketCountThresholds asLocalBucketCountThresholds(TermsAggregator.BucketCountThresholds bucketCountThresholds) {
+        if (isConcurrentSegmentSearchEnabled()) {
+            return new LocalBucketCountThresholds(0, ArrayUtil.MAX_ARRAY_LENGTH - 1);
+        } else {
+            return new LocalBucketCountThresholds(bucketCountThresholds.getShardMinDocCount(), bucketCountThresholds.getShardSize());
+        }
     }
 
     /**

@@ -66,7 +66,7 @@ class AggregationCollectorManager implements CollectorManager<Collector, Reducea
         return buildAggregationResult(internalAggregations);
     }
 
-    public AggregationReduceableSearchResult buildAggregationResult(InternalAggregations internalAggregations) {
+    protected AggregationReduceableSearchResult buildAggregationResult(InternalAggregations internalAggregations) {
         return new AggregationReduceableSearchResult(internalAggregations);
     }
 

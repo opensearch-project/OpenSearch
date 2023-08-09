@@ -46,6 +46,7 @@ import org.opensearch.search.aggregations.InternalMultiBucketAggregation;
 import org.opensearch.search.aggregations.InternalOrder;
 import org.opensearch.search.aggregations.KeyComparable;
 import org.opensearch.search.aggregations.bucket.IteratorAndCurrent;
+import org.opensearch.search.aggregations.bucket.LocalBucketCountThresholds;
 import org.opensearch.search.aggregations.bucket.MultiBucketsAggregation;
 
 import java.io.IOException;
@@ -388,6 +389,7 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
     }
 
     public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+        LocalBucketCountThresholds localBucketCountThresholds = reduceContext.asLocalBucketCountThresholds(bucketCountThresholds);
         long sumDocCountError = 0;
         long otherDocCount = 0;
         InternalTerms<A, B> referenceTerms = null;
@@ -448,7 +450,7 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
         }
         final B[] list;
         if (reduceContext.isFinalReduce() || reduceContext.isSliceLevel()) {
-            final int size = Math.min(reduceContext.getRequiredSizeLocal(bucketCountThresholds), reducedBuckets.size());
+            final int size = Math.min(localBucketCountThresholds.getRequiredSize(), reducedBuckets.size());
             // final comparator
             final BucketPriorityQueue<B> ordered = new BucketPriorityQueue<>(size, order.comparator());
             for (B bucket : reducedBuckets) {
@@ -458,7 +460,7 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
                     final long finalSumDocCountError = sumDocCountError;
                     bucket.setDocCountError(docCountError -> docCountError + finalSumDocCountError);
                 }
-                if (bucket.getDocCount() >= reduceContext.getMinDocCountLocal(bucketCountThresholds)) {
+                if (bucket.getDocCount() >= localBucketCountThresholds.getMinDocCount()) {
                     B removed = ordered.insertWithOverflow(bucket);
                     if (removed != null) {
                         otherDocCount += removed.getDocCount();
@@ -477,8 +479,8 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
         } else {
             // we can prune the list on partial reduce if the aggregation is ordered by key
             // and not filtered (minDocCount == 0)
-            int size = isKeyOrder(order) && reduceContext.getMinDocCountLocal(bucketCountThresholds) == 0
-                ? Math.min(reduceContext.getRequiredSizeLocal(bucketCountThresholds), reducedBuckets.size())
+            int size = isKeyOrder(order) && localBucketCountThresholds.getMinDocCount() == 0
+                ? Math.min(localBucketCountThresholds.getRequiredSize(), reducedBuckets.size())
                 : reducedBuckets.size();
             list = createBucketsArray(size);
             for (int i = 0; i < size; i++) {

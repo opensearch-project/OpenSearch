@@ -71,9 +71,9 @@ public abstract class TermsAggregator extends DeferableBucketAggregator {
      */
     public static class BucketCountThresholds implements Writeable, ToXContentFragment {
         private long minDocCount;
-        protected long shardMinDocCount;
+        private long shardMinDocCount;
         private int requiredSize;
-        protected int shardSize;
+        private int shardSize;
 
         public BucketCountThresholds(long minDocCount, long shardMinDocCount, int requiredSize, int shardSize) {
             this.minDocCount = minDocCount;

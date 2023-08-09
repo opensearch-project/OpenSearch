@@ -39,6 +39,7 @@ import org.opensearch.search.aggregations.Aggregations;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.InternalAggregations;
 import org.opensearch.search.aggregations.InternalMultiBucketAggregation;
+import org.opensearch.search.aggregations.bucket.LocalBucketCountThresholds;
 import org.opensearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
 
 import java.io.IOException;
@@ -233,7 +234,7 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
 
     @Override
     public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
-
+        LocalBucketCountThresholds localBucketCountThresholds = reduceContext.asLocalBucketCountThresholds(bucketCountThresholds);
         long globalSubsetSize = 0;
         long globalSupersetSize = 0;
         // Compute the overall result set size and the corpus size using the
@@ -278,7 +279,7 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
         boolean isCoordinatorPartialReduce = reduceContext.isFinalReduce() == false && reduceContext.isSliceLevel() == false;
         // Do not apply size threshold on coordinator partial reduce
         final int size = !isCoordinatorPartialReduce
-            ? Math.min(reduceContext.getRequiredSizeLocal(bucketCountThresholds), buckets.size())
+            ? Math.min(localBucketCountThresholds.getRequiredSize(), buckets.size())
             : buckets.size();
         BucketSignificancePriorityQueue<B> ordered = new BucketSignificancePriorityQueue<>(size);
         for (Map.Entry<String, List<B>> entry : buckets.entrySet()) {
@@ -287,7 +288,7 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
             b.updateScore(heuristic);
             // For concurrent search case we do not apply bucket count thresholds in buildAggregation and instead is done here during
             // reduce. However, the bucket score is only evaluated at the final coordinator reduce.
-            boolean meetsThresholds = (b.subsetDf >= reduceContext.getMinDocCountLocal(bucketCountThresholds))
+            boolean meetsThresholds = (b.subsetDf >= localBucketCountThresholds.getMinDocCount())
                 && (((b.score > 0) || reduceContext.isSliceLevel()));
             if (isCoordinatorPartialReduce || meetsThresholds) {
                 B removed = ordered.insertWithOverflow(b);
