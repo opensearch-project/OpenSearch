@@ -1258,7 +1258,7 @@ final class RequestConverters {
      */
     static MediaType enforceSameContentType(IndexRequest indexRequest, @Nullable MediaType mediaType) {
         MediaType requestContentType = indexRequest.getContentType();
-        if (requestContentType != MediaTypeRegistry.JSON && requestContentType != MediaTypeRegistry.fromMediaType("smile")) {
+        if (requestContentType != MediaTypeRegistry.JSON && requestContentType != MediaTypeRegistry.fromFormat("smile")) {
             throw new IllegalArgumentException(
                 "Unsupported content-type found for request with content-type ["
                     + requestContentType
