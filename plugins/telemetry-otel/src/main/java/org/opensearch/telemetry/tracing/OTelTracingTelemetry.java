@@ -9,7 +9,10 @@
 package org.opensearch.telemetry.tracing;
 
 import io.opentelemetry.api.OpenTelemetry;
+import io.opentelemetry.api.common.Attributes;
+import io.opentelemetry.api.common.AttributesBuilder;
 import io.opentelemetry.context.Context;
+import java.util.Map;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -46,8 +49,8 @@ public class OTelTracingTelemetry implements TracingTelemetry {
     }
 
     @Override
-    public Span createSpan(String spanName, Span parentSpan) {
-        return createOtelSpan(spanName, parentSpan);
+    public Span createSpan(String spanName, Span parentSpan, Map<String, String> attributes) {
+        return createOtelSpan(spanName, parentSpan, attributes);
     }
 
     @Override
@@ -55,14 +58,27 @@ public class OTelTracingTelemetry implements TracingTelemetry {
         return new OTelTracingContextPropagator(openTelemetry);
     }
 
-    private Span createOtelSpan(String spanName, Span parentSpan) {
-        io.opentelemetry.api.trace.Span otelSpan = otelSpan(spanName, parentSpan);
+    private Span createOtelSpan(String spanName, Span parentSpan, Map<String, String> attributes) {
+        io.opentelemetry.api.trace.Span otelSpan = otelSpan(spanName, parentSpan, convertToAttributes(attributes));
         return new OTelSpan(spanName, otelSpan, parentSpan);
     }
 
-    io.opentelemetry.api.trace.Span otelSpan(String spanName, Span parentOTelSpan) {
+    private Attributes convertToAttributes(Map<String, String> attributes) {
+        if (attributes != null && !attributes.isEmpty()) {
+            AttributesBuilder attributesBuilder = Attributes.builder();
+            attributes.forEach((x, y) -> attributesBuilder.put(x, y));
+            return attributesBuilder.build();
+        } else {
+            return Attributes.builder().build();
+        }
+    }
+
+    io.opentelemetry.api.trace.Span otelSpan(String spanName, Span parentOTelSpan, Attributes attributes) {
         return parentOTelSpan == null || !(parentOTelSpan instanceof OTelSpan)
-            ? otelTracer.spanBuilder(spanName).startSpan()
-            : otelTracer.spanBuilder(spanName).setParent(Context.current().with(((OTelSpan) parentOTelSpan).getDelegateSpan())).startSpan();
+            ? otelTracer.spanBuilder(spanName).setAllAttributes(attributes).startSpan()
+            : otelTracer.spanBuilder(spanName)
+                .setParent(Context.current().with(((OTelSpan) parentOTelSpan).getDelegateSpan()))
+                .setAllAttributes(attributes)
+                .startSpan();
     }
 }

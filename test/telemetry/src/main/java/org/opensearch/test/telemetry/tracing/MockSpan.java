@@ -160,4 +160,8 @@ public class MockSpan extends AbstractSpan {
         }
 
     }
+
+    public Object getAttribute(String key) {
+        return metadata.get(key);
+    }
 }

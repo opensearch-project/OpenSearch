@@ -8,6 +8,7 @@
 
 package org.opensearch.telemetry.tracing.runnable;
 
+import java.util.Map;
 import org.opensearch.telemetry.tracing.SpanContext;
 import org.opensearch.telemetry.tracing.SpanScope;
 import org.opensearch.telemetry.tracing.Tracer;
@@ -20,24 +21,27 @@ public class TraceableRunnable implements Runnable {
     private final SpanContext parent;
     private final Tracer tracer;
     private final String spanName;
+    private final Map<String, String> initialAttributes;
 
     /**
      * Constructor.
      * @param tracer tracer
      * @param spanName spanName
      * @param parent parent Span.
+     * @param attributes attributes.
      * @param runnable runnable.
      */
-    public TraceableRunnable(Tracer tracer, String spanName, SpanContext parent, Runnable runnable) {
+    public TraceableRunnable(Tracer tracer, String spanName, SpanContext parent, Map<String, String> attributes, Runnable runnable) {
         this.tracer = tracer;
         this.spanName = spanName;
         this.parent = parent;
+        this.initialAttributes = attributes;
         this.runnable = runnable;
     }
 
     @Override
     public void run() {
-        try (SpanScope spanScope = tracer.startSpan(spanName, parent)) {
+        try (SpanScope spanScope = tracer.startSpan(spanName, parent, initialAttributes)) {
             runnable.run();
         }
     }

@@ -8,6 +8,8 @@
 
 package org.opensearch.telemetry.tracing;
 
+import java.util.Collections;
+import java.util.Map;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
@@ -48,7 +50,20 @@ public class WrappedTracerTests extends OpenSearchTestCase {
             wrappedTracer.startSpan("foo");
 
             assertTrue(wrappedTracer.getDelegateTracer() instanceof DefaultTracer);
-            verify(mockDefaultTracer).startSpan("foo", null);
+            verify(mockDefaultTracer).startSpan("foo", null, Collections.emptyMap());
+        }
+    }
+
+    public void testStartSpanWithTracingEnabledInvokesDefaultTracerWithAttr() throws Exception {
+        Settings settings = Settings.builder().put(TelemetrySettings.TRACER_ENABLED_SETTING.getKey(), true).build();
+        TelemetrySettings telemetrySettings = new TelemetrySettings(settings, new ClusterSettings(settings, getClusterSettings()));
+        DefaultTracer mockDefaultTracer = mock(DefaultTracer.class);
+        Map<String, String> attributesMap = Collections.singletonMap("key", "value");
+        try (WrappedTracer wrappedTracer = new WrappedTracer(telemetrySettings, mockDefaultTracer)) {
+            wrappedTracer.startSpan("foo", attributesMap);
+
+            assertTrue(wrappedTracer.getDelegateTracer() instanceof DefaultTracer);
+            verify(mockDefaultTracer).startSpan("foo", null, attributesMap);
         }
     }
 
