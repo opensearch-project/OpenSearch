@@ -8,6 +8,7 @@
 
 package org.opensearch.index.remote;
 
+import org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStats;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -15,6 +16,7 @@ import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.index.shard.IndexShard;
 
 import java.io.IOException;
 
@@ -25,13 +27,39 @@ import java.io.IOException;
  * @opensearch.internal
  */
 public class RemoteSegmentStats implements Writeable, ToXContentFragment {
+    /**
+     * Cumulative bytes attempted to be uploaded to remote store
+     */
     private long uploadBytesStarted;
+    /**
+     * Cumulative bytes failed to be uploaded to the remote store
+     */
     private long uploadBytesFailed;
+    /**
+     * Cumulative bytes successfully uploaded to the remote store
+     */
     private long uploadBytesSucceeded;
+    /**
+     * Cumulative bytes attempted to be downloaded from the remote store
+     */
     private long downloadBytesStarted;
+    /**
+     * Cumulative bytes failed to be downloaded from the remote store
+     */
     private long downloadBytesFailed;
+    /**
+     * Cumulative bytes successfully downloaded from the remote store
+     */
     private long downloadBytesSucceeded;
+    /**
+     * Maximum refresh lag (in milliseconds) between local and the remote store
+     * Used to check for data freshness in the remote store
+     */
     private long maxRefreshTimeLag;
+    /**
+     * Maximum refresh lag (in bytes) between local and the remote store
+     * Used to check for data freshness in the remote store
+     */
     private long maxRefreshBytesLag;
 
     public RemoteSegmentStats() {}
@@ -47,6 +75,7 @@ public class RemoteSegmentStats implements Writeable, ToXContentFragment {
         maxRefreshBytesLag = in.readLong();
     }
 
+    // Getter and setters. All are visible for testing
     public long getUploadBytesStarted() {
         return uploadBytesStarted;
     }
@@ -111,19 +140,32 @@ public class RemoteSegmentStats implements Writeable, ToXContentFragment {
         this.maxRefreshBytesLag = maxRefreshBytesLag;
     }
 
-    public void add(RemoteSegmentStats remoteSegmentStats) {
-        if (remoteSegmentStats != null) {
-            this.uploadBytesStarted += remoteSegmentStats.getUploadBytesStarted();
-            this.uploadBytesSucceeded += remoteSegmentStats.getUploadBytesSucceeded();
-            this.uploadBytesFailed += remoteSegmentStats.getUploadBytesFailed();
-            this.downloadBytesStarted += remoteSegmentStats.getDownloadBytesStarted();
-            this.downloadBytesFailed += remoteSegmentStats.getDownloadBytesFailed();
-            this.downloadBytesSucceeded += remoteSegmentStats.getDownloadBytesSucceeded();
-            this.maxRefreshTimeLag = Math.max(this.maxRefreshTimeLag, remoteSegmentStats.getMaxRefreshTimeLag());
-            this.maxRefreshBytesLag = Math.max(this.maxRefreshBytesLag, remoteSegmentStats.getMaxRefreshBytesLag());
+    /**
+     * Adds existing stats. Used for stats roll-ups at index or node level
+     *
+     * @param existingStats: Existing {@link RemoteSegmentStats} to add
+     */
+    public void add(RemoteSegmentStats existingStats) {
+        if (existingStats != null) {
+            this.uploadBytesStarted += existingStats.getUploadBytesStarted();
+            this.uploadBytesSucceeded += existingStats.getUploadBytesSucceeded();
+            this.uploadBytesFailed += existingStats.getUploadBytesFailed();
+            this.downloadBytesStarted += existingStats.getDownloadBytesStarted();
+            this.downloadBytesFailed += existingStats.getDownloadBytesFailed();
+            this.downloadBytesSucceeded += existingStats.getDownloadBytesSucceeded();
+            this.maxRefreshTimeLag = Math.max(this.maxRefreshTimeLag, existingStats.getMaxRefreshTimeLag());
+            this.maxRefreshBytesLag = Math.max(this.maxRefreshBytesLag, existingStats.getMaxRefreshBytesLag());
         }
     }
 
+    /**
+     * Adapter method to retrieve metrics from {@link RemoteSegmentTransferTracker.Stats} which is used in {@link RemoteStoreStats} and
+     * provides verbose index level stats of segments transferred to the remote store.
+     * <p>
+     * This method is used in {@link IndexShard} to port over a subset of metrics to be displayed in IndexStats and subsequently rolled up to NodesStats
+     *
+     * @param trackerStats: Source {@link RemoteSegmentTransferTracker.Stats} object from which metrics would be retrieved
+     */
     public void buildRemoteSegmentStats(RemoteSegmentTransferTracker.Stats trackerStats) {
         this.uploadBytesStarted = trackerStats.uploadBytesStarted;
         this.uploadBytesFailed = trackerStats.uploadBytesFailed;
