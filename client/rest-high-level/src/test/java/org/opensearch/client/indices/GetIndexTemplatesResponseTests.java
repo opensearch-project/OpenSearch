@@ -34,18 +34,18 @@ package org.opensearch.client.indices;
 
 import org.opensearch.cluster.metadata.AliasMetadata;
 import org.opensearch.cluster.metadata.MappingMetadata;
-import org.opensearch.core.common.bytes.BytesArray;
-import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -53,18 +53,21 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.hamcrest.Matchers.equalTo;
+import static org.junit.Assert.assertThat;
 import static org.opensearch.index.RandomCreateIndexGenerator.randomIndexSettings;
 import static org.opensearch.index.RandomCreateIndexGenerator.randomMappingFields;
 import static org.opensearch.test.AbstractXContentTestCase.xContentTester;
-import static org.hamcrest.Matchers.equalTo;
 
 public class GetIndexTemplatesResponseTests extends OpenSearchTestCase {
 
@@ -99,8 +102,12 @@ public class GetIndexTemplatesResponseTests extends OpenSearchTestCase {
                 esIMD.settings(randomIndexSettings());
                 esIMD.putMapping("_doc", new CompressedXContent(BytesReference.bytes(randomMapping("_doc", xContentType))));
                 int numAliases = randomIntBetween(0, 8);
+                Set<String> uniqueAliases = new HashSet<>();
                 for (int j = 0; j < numAliases; j++) {
-                    esIMD.putAlias(randomAliasMetadata(String.format(Locale.ROOT, "%02d ", j) + randomAlphaOfLength(4)));
+                    uniqueAliases.add(String.format(Locale.ROOT, "%02d ", j) + randomAlphaOfLength(4));
+                }
+                for (String uniqueAlias : uniqueAliases) {
+                    esIMD.putAlias(randomAliasMetadata(uniqueAlias));
                 }
                 esIMD.order(randomIntBetween(0, Integer.MAX_VALUE));
                 esIMD.version(randomIntBetween(0, Integer.MAX_VALUE));
