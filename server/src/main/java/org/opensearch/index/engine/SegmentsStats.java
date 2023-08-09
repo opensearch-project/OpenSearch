@@ -33,6 +33,7 @@
 package org.opensearch.index.engine;
 
 import org.opensearch.Version;
+import org.opensearch.common.Nullable;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -58,8 +59,9 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
     private long versionMapMemoryInBytes;
     private long maxUnsafeAutoIdTimestamp = Long.MIN_VALUE;
     private long bitsetMemoryInBytes;
-    private RemoteSegmentStats remoteSegmentStats;
     private final Map<String, Long> fileSizes;
+    @Nullable
+    private RemoteSegmentStats remoteSegmentStats;
 
     private static final ByteSizeValue ZERO_BYTE_SIZE_VALUE = new ByteSizeValue(0L);
 
