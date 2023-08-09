@@ -317,7 +317,7 @@ public class GetResultTests extends OpenSearchTestCase {
         return randomFrom(mutations).get();
     }
 
-    public static Tuple<GetResult, GetResult> randomGetResult(MediaType xContentType) {
+    public static Tuple<GetResult, GetResult> randomGetResult(MediaType mediaType) {
         final String index = randomAlphaOfLengthBetween(3, 10);
         final String type = randomAlphaOfLengthBetween(3, 10);
         final String id = randomAlphaOfLengthBetween(3, 10);
@@ -339,11 +339,11 @@ public class GetResultTests extends OpenSearchTestCase {
                 source = RandomObjects.randomSource(random());
             }
             if (randomBoolean()) {
-                Tuple<Map<String, DocumentField>, Map<String, DocumentField>> tuple = randomDocumentFields(xContentType, false);
+                Tuple<Map<String, DocumentField>, Map<String, DocumentField>> tuple = randomDocumentFields(mediaType, false);
                 docFields = tuple.v1();
                 expectedDocFields = tuple.v2();
 
-                tuple = randomDocumentFields(xContentType, true);
+                tuple = randomDocumentFields(mediaType, true);
                 metaFields = tuple.v1();
                 expectedMetaFields = tuple.v2();
             }

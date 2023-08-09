@@ -78,7 +78,6 @@ import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.util.CollectionUtils;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
@@ -875,12 +874,12 @@ final class RequestConverters {
     }
 
     /**
-     * Returns a {@link ContentType} from a given {@link XContentType}.
+     * Returns a {@link ContentType} from a given {@link MediaType}.
      *
      * @param mediaType the {@link MediaType}
      * @return the {@link ContentType}
      */
-    @SuppressForbidden(reason = "Only allowed place to convert a XContentType to a ContentType")
+    @SuppressForbidden(reason = "Only allowed place to convert a MediaType to a ContentType")
     public static ContentType createContentType(final MediaType mediaType) {
         return ContentType.create(mediaType.mediaTypeWithoutParameters(), (Charset) null);
     }
@@ -1259,7 +1258,7 @@ final class RequestConverters {
      */
     static MediaType enforceSameContentType(IndexRequest indexRequest, @Nullable MediaType mediaType) {
         MediaType requestContentType = indexRequest.getContentType();
-        if (requestContentType != MediaTypeRegistry.JSON && requestContentType != XContentType.SMILE) {
+        if (requestContentType != MediaTypeRegistry.JSON && requestContentType != MediaTypeRegistry.fromMediaType("smile")) {
             throw new IllegalArgumentException(
                 "Unsupported content-type found for request with content-type ["
                     + requestContentType

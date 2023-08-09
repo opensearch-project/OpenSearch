@@ -687,8 +687,7 @@ public class OpenSearchAssertions {
      * The comparison is done by parsing both into a map and comparing those two, so that keys ordering doesn't matter.
      * Also binary values (byte[]) are properly compared through arrays comparisons.
      */
-    public static void assertToXContentEquivalent(BytesReference expected, BytesReference actual, MediaType xContentType)
-        throws IOException {
+    public static void assertToXContentEquivalent(BytesReference expected, BytesReference actual, MediaType mediaType) throws IOException {
         // we tried comparing byte per byte, but that didn't fly for a couple of reasons:
         // 1) whenever anything goes through a map while parsing, ordering is not preserved, which is perfectly ok
         // 2) Jackson SMILE parser parses floats as double, which then get printed out as double (with double precision)
@@ -696,12 +695,12 @@ public class OpenSearchAssertions {
         Map<String, Object> actualMap = null;
         Map<String, Object> expectedMap = null;
         try (
-            XContentParser actualParser = xContentType.xContent()
+            XContentParser actualParser = mediaType.xContent()
                 .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, actual.streamInput())
         ) {
             actualMap = actualParser.map();
             try (
-                XContentParser expectedParser = xContentType.xContent()
+                XContentParser expectedParser = mediaType.xContent()
                     .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, expected.streamInput())
             ) {
                 expectedMap = expectedParser.map();

@@ -27,8 +27,8 @@ public final class XContentHelper {
      * by the {@link ToXContent#isFragment()} method returns.
      */
     @Deprecated
-    public static BytesReference toXContent(ToXContent toXContent, MediaType xContentType, boolean humanReadable) throws IOException {
-        return toXContent(toXContent, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
+    public static BytesReference toXContent(ToXContent toXContent, MediaType mediaType, boolean humanReadable) throws IOException {
+        return toXContent(toXContent, mediaType, ToXContent.EMPTY_PARAMS, humanReadable);
     }
 
     /**

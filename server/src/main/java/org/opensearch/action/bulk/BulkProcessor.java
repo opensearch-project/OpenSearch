@@ -458,13 +458,13 @@ public class BulkProcessor implements Closeable {
     /**
      * Adds the data from the bytes to be processed by the bulk processor
      */
-    public BulkProcessor add(BytesReference data, @Nullable String defaultIndex, @Nullable String defaultPipeline, MediaType xContentType)
+    public BulkProcessor add(BytesReference data, @Nullable String defaultIndex, @Nullable String defaultPipeline, MediaType mediaType)
         throws Exception {
         Tuple<BulkRequest, Long> bulkRequestToExecute = null;
         lock.lock();
         try {
             ensureOpen();
-            bulkRequest.add(data, defaultIndex, null, null, defaultPipeline, null, true, xContentType);
+            bulkRequest.add(data, defaultIndex, null, null, defaultPipeline, null, true, mediaType);
             bulkRequestToExecute = newBulkRequestIfNeeded();
         } finally {
             lock.unlock();

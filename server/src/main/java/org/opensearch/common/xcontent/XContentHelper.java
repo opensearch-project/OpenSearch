@@ -259,8 +259,8 @@ public class XContentHelper {
         return convertToJson(bytes, reformatJson, prettyPrint, MediaTypeRegistry.xContent(bytes.toBytesRef().bytes));
     }
 
-    public static String convertToJson(BytesReference bytes, boolean reformatJson, MediaType xContentType) throws IOException {
-        return convertToJson(bytes, reformatJson, false, xContentType);
+    public static String convertToJson(BytesReference bytes, boolean reformatJson, MediaType mediaType) throws IOException {
+        return convertToJson(bytes, reformatJson, false, mediaType);
     }
 
     /**

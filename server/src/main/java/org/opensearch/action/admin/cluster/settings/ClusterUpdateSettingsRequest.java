@@ -152,8 +152,8 @@ public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpd
     /**
      * Sets the source containing the persistent settings to be updated. They will get applied cross restarts
      */
-    public ClusterUpdateSettingsRequest persistentSettings(String source, final MediaType xContentType) {
-        this.persistentSettings = Settings.builder().loadFromSource(source, xContentType).build();
+    public ClusterUpdateSettingsRequest persistentSettings(String source, final MediaType mediaType) {
+        this.persistentSettings = Settings.builder().loadFromSource(source, mediaType).build();
         return this;
     }
 
