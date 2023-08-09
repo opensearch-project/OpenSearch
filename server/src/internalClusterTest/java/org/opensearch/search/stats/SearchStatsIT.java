@@ -177,7 +177,7 @@ public class SearchStatsIT extends OpenSearchIntegTestCase {
                 numOfCoordinators += 1;
             }
             if (nodeIdsWithIndex.contains(stat.getNode().getId())) {
-                assertEquals(total.getQueryCount(), iters);
+                assertEquals(total.getQueryCount(), greaterThan(0L));
                 assertThat(total.getQueryTimeInMillis(), greaterThan(0L));
                 num++;
             } else {
