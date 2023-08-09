@@ -1090,6 +1090,7 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
     /**
      * Assert that preference based search is not allowed with strict weighted shard routing
      */
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/8030")
     public void testStrictWeightedRoutingWithCustomString() {
         Settings commonSettings = Settings.builder()
             .put("cluster.routing.allocation.awareness.attributes", "zone")
