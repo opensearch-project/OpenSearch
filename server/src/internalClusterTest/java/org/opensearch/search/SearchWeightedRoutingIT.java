@@ -76,13 +76,8 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
             .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING.getKey() + "zone" + ".values", "a,b,c")
             .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey(), "zone")
             .put("cluster.routing.weighted.fail_open", false)
+            .put(SEARCH_REQUEST_STATS_ENABLED_KEY, true)
             .build();
-
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(Settings.builder().put(SEARCH_REQUEST_STATS_ENABLED_KEY, true).build())
-            .get();
 
         logger.info("--> starting 6 nodes on different zones");
         List<String> nodes = internalCluster().startNodes(

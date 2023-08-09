@@ -36,7 +36,6 @@ import org.opensearch.action.admin.cluster.node.stats.NodeStats;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.opensearch.action.search.SearchResponse;
-import org.opensearch.action.search.TransportSearchAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.routing.GroupShardsIterator;
 import org.opensearch.cluster.routing.ShardIterator;
@@ -125,10 +124,7 @@ public class SearchStatsIT extends OpenSearchIntegTestCase {
         }
         assertAcked(
             prepareCreate("test2").setSettings(
-                Settings.builder()
-                    .put(SETTING_NUMBER_OF_SHARDS, shardsIdx2)
-                    .put(SETTING_NUMBER_OF_REPLICAS, 0)
-                    .put(TransportSearchAction.SEARCH_REQUEST_STATS_ENABLED.getKey(), true)
+                Settings.builder().put(SETTING_NUMBER_OF_SHARDS, shardsIdx2).put(SETTING_NUMBER_OF_REPLICAS, 0)
             )
         );
         int docsTest2 = scaledRandomIntBetween(3 * shardsIdx2, 5 * shardsIdx2);
