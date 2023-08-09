@@ -73,7 +73,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-@OpenSearchIntegTestCase.ClusterScope(minNumDataNodes = 2)
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, minNumDataNodes = 2)
 public class SearchStatsIT extends OpenSearchIntegTestCase {
 
     @Override
@@ -193,7 +193,6 @@ public class SearchStatsIT extends OpenSearchIntegTestCase {
         }
         assertThat(numOfCoordinators, greaterThan(0));
         assertThat(num, greaterThan(0));
-
     }
 
     private Set<String> nodeIdsWithIndex(String... indices) {
