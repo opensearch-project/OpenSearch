@@ -603,15 +603,6 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         TB extends InternalMultiBucketAggregation.InternalBucket> implements Releasable {
 
         private InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
-            int requiredSizeLocal;
-            long minDocCountLocal;
-            if (context.isConcurrentSegmentSearchEnabled()) {
-                requiredSizeLocal = Integer.MAX_VALUE;
-                minDocCountLocal = 0;
-            } else {
-                requiredSizeLocal = bucketCountThresholds.getShardSize();
-                minDocCountLocal = bucketCountThresholds.getShardMinDocCount();
-            }
             if (valueCount == 0) { // no context in this reader
                 InternalAggregation[] results = new InternalAggregation[owningBucketOrds.length];
                 for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
@@ -624,11 +615,11 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             long[] otherDocCount = new long[owningBucketOrds.length];
             for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
                 final int size;
-                if (minDocCountLocal == 0) {
+                if (context.getMinDocCountLocal(bucketCountThresholds) == 0) {
                     // if minDocCount == 0 then we can end up with more buckets then maxBucketOrd() returns
-                    size = (int) Math.min(valueCount, requiredSizeLocal);
+                    size = (int) Math.min(valueCount, context.getRequiredSizeLocal(bucketCountThresholds));
                 } else {
-                    size = (int) Math.min(maxBucketOrd(), requiredSizeLocal);
+                    size = (int) Math.min(maxBucketOrd(), context.getRequiredSizeLocal(bucketCountThresholds));
                 }
                 PriorityQueue<TB> ordered = buildPriorityQueue(size);
                 final int finalOrdIdx = ordIdx;
@@ -639,7 +630,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                     @Override
                     public void accept(long globalOrd, long bucketOrd, long docCount) throws IOException {
                         otherDocCount[finalOrdIdx] += docCount;
-                        if (docCount >= minDocCountLocal) {
+                        if (docCount >= context.getMinDocCountLocal(bucketCountThresholds)) {
                             if (spare == null) {
                                 spare = buildEmptyTemporaryBucket();
                             }

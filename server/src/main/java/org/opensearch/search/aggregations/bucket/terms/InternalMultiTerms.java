@@ -220,6 +220,7 @@ public class InternalMultiTerms extends InternalTerms<InternalMultiTerms, Intern
         }
     }
 
+    private final int shardSize;
     private final boolean showTermDocCountError;
     private final long otherDocCount;
     private final List<DocValueFormat> termFormats;

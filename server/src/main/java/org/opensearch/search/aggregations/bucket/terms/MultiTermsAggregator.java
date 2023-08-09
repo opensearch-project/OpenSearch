@@ -118,22 +118,13 @@ public class MultiTermsAggregator extends DeferableBucketAggregator {
 
     @Override
     public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
-        int requiredSizeLocal;
-        long minDocCountLocal;
-        if (context.isConcurrentSegmentSearchEnabled()) {
-            requiredSizeLocal = Integer.MAX_VALUE;
-            minDocCountLocal = 0;
-        } else {
-            requiredSizeLocal = bucketCountThresholds.getShardSize();
-            minDocCountLocal = bucketCountThresholds.getShardMinDocCount();
-        }
         InternalMultiTerms.Bucket[][] topBucketsPerOrd = new InternalMultiTerms.Bucket[owningBucketOrds.length][];
         long[] otherDocCounts = new long[owningBucketOrds.length];
         for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
             collectZeroDocEntriesIfNeeded(owningBucketOrds[ordIdx]);
             long bucketsInOrd = bucketOrds.bucketsInOrd(owningBucketOrds[ordIdx]);
 
-            int size = (int) Math.min(bucketsInOrd, requiredSizeLocal);
+            int size = (int) Math.min(bucketsInOrd, context.getRequiredSizeLocal(bucketCountThresholds));
             PriorityQueue<InternalMultiTerms.Bucket> ordered = new BucketPriorityQueue<>(size, partiallyBuiltBucketComparator);
             InternalMultiTerms.Bucket spare = null;
             BytesRef dest = null;
@@ -145,7 +136,7 @@ public class MultiTermsAggregator extends DeferableBucketAggregator {
             while (ordsEnum.next()) {
                 long docCount = bucketDocCount(ordsEnum.ord());
                 otherDocCounts[ordIdx] += docCount;
-                if (docCount < minDocCountLocal) {
+                if (docCount < context.getMinDocCountLocal(bucketCountThresholds)) {
                     continue;
                 }
                 if (spare == null) {

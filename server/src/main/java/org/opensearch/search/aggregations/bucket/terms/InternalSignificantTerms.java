@@ -39,7 +39,6 @@ import org.opensearch.search.aggregations.Aggregations;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.InternalAggregations;
 import org.opensearch.search.aggregations.InternalMultiBucketAggregation;
-import org.opensearch.search.aggregations.bucket.BucketUtils;
 import org.opensearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
 
 import java.io.IOException;
@@ -196,8 +195,6 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
 
     protected final int requiredSize;
     protected final long minDocCount;
-    protected int shardSize;
-    protected final long shardMinDocCount;
     protected final TermsAggregator.BucketCountThresholds bucketCountThresholds;
 
     protected InternalSignificantTerms(
@@ -208,8 +205,6 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
         super(name, metadata);
         this.requiredSize = bucketCountThresholds.getRequiredSize();
         this.minDocCount = bucketCountThresholds.getMinDocCount();
-        this.shardSize = bucketCountThresholds.getShardSize();
-        this.shardMinDocCount = bucketCountThresholds.getShardMinDocCount();
         this.bucketCountThresholds = bucketCountThresholds;
     }
 
@@ -220,9 +215,9 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
         super(in);
         requiredSize = readSize(in);
         minDocCount = in.readVLong();
-        shardSize = BucketUtils.suggestShardSideQueueSize(requiredSize);
-        shardMinDocCount = 0;
-        bucketCountThresholds = new TermsAggregator.BucketCountThresholds(minDocCount, shardMinDocCount, requiredSize, shardSize);
+        // shardMinDocCount and shardSize are not used on the coordinator, so they are not deserialized. We use
+        // CoordinatorBucketCountThresholds which will throw an exception if they are accessed.
+        bucketCountThresholds = new TermsAggregator.CoordinatorBucketCountThresholds(minDocCount, -1, requiredSize, -1);
     }
 
     protected final void doWriteTo(StreamOutput out) throws IOException {
@@ -238,15 +233,6 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
 
     @Override
     public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
-        int requiredSizeLocal;
-        long minDocCountLocal;
-        if (reduceContext.isSliceLevel()) {
-            requiredSizeLocal = bucketCountThresholds.getShardSize();
-            minDocCountLocal = bucketCountThresholds.getShardMinDocCount();
-        } else {
-            requiredSizeLocal = bucketCountThresholds.getRequiredSize();
-            minDocCountLocal = bucketCountThresholds.getMinDocCount();
-        }
 
         long globalSubsetSize = 0;
         long globalSupersetSize = 0;
@@ -289,17 +275,21 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
             }
         }
         SignificanceHeuristic heuristic = getSignificanceHeuristic().rewrite(reduceContext);
-        final int size = (reduceContext.isFinalReduce() || reduceContext.isSliceLevel())
-            ? Math.min(requiredSizeLocal, buckets.size())
+        boolean isCoordinatorPartialReduce = reduceContext.isFinalReduce() == false && reduceContext.isSliceLevel() == false;
+        // Do not apply size threshold on coordinator partial reduce
+        final int size = !isCoordinatorPartialReduce
+            ? Math.min(reduceContext.getRequiredSizeLocal(bucketCountThresholds), buckets.size())
             : buckets.size();
         BucketSignificancePriorityQueue<B> ordered = new BucketSignificancePriorityQueue<>(size);
         for (Map.Entry<String, List<B>> entry : buckets.entrySet()) {
             List<B> sameTermBuckets = entry.getValue();
             final B b = reduceBucket(sameTermBuckets, reduceContext);
             b.updateScore(heuristic);
-            if (!(reduceContext.isFinalReduce() || reduceContext.isSliceLevel()) // Don't apply thresholds for partial reduce
-                || (reduceContext.isSliceLevel() && (b.subsetDf >= minDocCountLocal)) // Score needs to be evaluated only at the coordinator
-                || ((b.score > 0) && (b.subsetDf >= minDocCountLocal))) {
+            // For concurrent search case we do not apply bucket count thresholds in buildAggregation and instead is done here during
+            // reduce. However, the bucket score is only evaluated at the final coordinator reduce.
+            boolean meetsThresholds = (b.subsetDf >= reduceContext.getMinDocCountLocal(bucketCountThresholds))
+                && (((b.score > 0) || reduceContext.isSliceLevel()));
+            if (isCoordinatorPartialReduce || meetsThresholds) {
                 B removed = ordered.insertWithOverflow(b);
                 if (removed == null) {
                     reduceContext.consumeBucketsAndMaybeBreak(1);

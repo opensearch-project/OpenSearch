@@ -244,20 +244,11 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
             Releasable {
 
         private InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
-            int requiredSizeLocal;
-            long minDocCountLocal;
-            if (context.isConcurrentSegmentSearchEnabled()) {
-                requiredSizeLocal = Integer.MAX_VALUE;
-                minDocCountLocal = 0;
-            } else {
-                requiredSizeLocal = bucketCountThresholds.getShardSize();
-                minDocCountLocal = bucketCountThresholds.getShardMinDocCount();
-            }
             B[][] topBucketsPerOrd = buildTopBucketsPerOrd(owningBucketOrds.length);
             long[] otherDocCounts = new long[owningBucketOrds.length];
             for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
                 collectZeroDocEntriesIfNeeded(owningBucketOrds[ordIdx]);
-                int size = (int) Math.min(bucketOrds.size(), requiredSizeLocal);
+                int size = (int) Math.min(bucketOrds.size(), context.getRequiredSizeLocal(bucketCountThresholds));
 
                 PriorityQueue<B> ordered = buildPriorityQueue(size);
                 B spare = null;
@@ -266,7 +257,7 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
                 while (ordsEnum.next()) {
                     long docCount = bucketDocCount(ordsEnum.ord());
                     otherDocCounts[ordIdx] += docCount;
-                    if (docCount < minDocCountLocal) {
+                    if (docCount < context.getMinDocCountLocal(bucketCountThresholds)) {
                         continue;
                     }
                     if (spare == null) {

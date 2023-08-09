@@ -39,6 +39,7 @@ import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.search.DocValueFormat;
+import org.opensearch.search.aggregations.AggregationExecutionException;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorFactories;
 import org.opensearch.search.aggregations.BucketOrder;
@@ -70,9 +71,9 @@ public abstract class TermsAggregator extends DeferableBucketAggregator {
      */
     public static class BucketCountThresholds implements Writeable, ToXContentFragment {
         private long minDocCount;
-        private long shardMinDocCount;
+        protected long shardMinDocCount;
         private int requiredSize;
-        private int shardSize;
+        protected int shardSize;
 
         public BucketCountThresholds(long minDocCount, long shardMinDocCount, int requiredSize, int shardSize) {
             this.minDocCount = minDocCount;
@@ -192,6 +193,29 @@ public abstract class TermsAggregator extends DeferableBucketAggregator {
                 && Objects.equals(shardSize, other.shardSize)
                 && Objects.equals(minDocCount, other.minDocCount)
                 && Objects.equals(shardMinDocCount, other.shardMinDocCount);
+        }
+    }
+
+    // BucketCountThresholds type that throws an exception when shardMinDocCount and shardSize are accessed. This is used for
+    // deserialization on the coordinator during reduce as shardMinDocCount and shardSize should not be accessed this way on the
+    // coordinator.
+    public static class CoordinatorBucketCountThresholds extends BucketCountThresholds {
+
+        public CoordinatorBucketCountThresholds(long minDocCount, long shardMinDocCount, int requiredSize, int shardSize) {
+            super(minDocCount, shardMinDocCount, requiredSize, shardSize);
+        }
+
+        @Override
+        public long getShardMinDocCount() {
+            throw new AggregationExecutionException("shard_min_doc_count should not be accessed");
+        }
+
+        @Override
+        public int getShardSize() {
+            if (shardSize < 0) {
+                throw new AggregationExecutionException("Invalid shard_size accessed");
+            }
+            return shardSize;
         }
     }
 

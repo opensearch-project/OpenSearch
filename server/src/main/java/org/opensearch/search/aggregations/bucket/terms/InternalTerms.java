@@ -45,7 +45,6 @@ import org.opensearch.search.aggregations.InternalAggregations;
 import org.opensearch.search.aggregations.InternalMultiBucketAggregation;
 import org.opensearch.search.aggregations.InternalOrder;
 import org.opensearch.search.aggregations.KeyComparable;
-import org.opensearch.search.aggregations.bucket.BucketUtils;
 import org.opensearch.search.aggregations.bucket.IteratorAndCurrent;
 import org.opensearch.search.aggregations.bucket.MultiBucketsAggregation;
 
@@ -58,7 +57,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import static org.opensearch.search.aggregations.InternalOrder.isKeyAsc;
 import static org.opensearch.search.aggregations.InternalOrder.isKeyOrder;
@@ -225,8 +223,6 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
     protected final BucketOrder order;
     protected final int requiredSize;
     protected final long minDocCount;
-    protected int shardSize;
-    protected final long shardMinDocCount;
     protected final TermsAggregator.BucketCountThresholds bucketCountThresholds;
 
     /**
@@ -250,8 +246,6 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
         this.bucketCountThresholds = bucketCountThresholds;
         this.requiredSize = bucketCountThresholds.getRequiredSize();
         this.minDocCount = bucketCountThresholds.getMinDocCount();
-        this.shardSize = bucketCountThresholds.getShardSize();
-        this.shardMinDocCount = bucketCountThresholds.getShardMinDocCount();
     }
 
     /**
@@ -263,9 +257,9 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
         order = InternalOrder.Streams.readOrder(in);
         requiredSize = readSize(in);
         minDocCount = in.readVLong();
-        shardSize = BucketUtils.suggestShardSideQueueSize(requiredSize);
-        shardMinDocCount = 0;
-        bucketCountThresholds = new TermsAggregator.BucketCountThresholds(minDocCount, shardMinDocCount, requiredSize, shardSize);
+        // shardMinDocCount and shardSize are not used on the coordinator, so they are not deserialized. We use
+        // CoordinatorBucketCountThresholds which will throw an exception if they are accessed.
+        bucketCountThresholds = new TermsAggregator.CoordinatorBucketCountThresholds(minDocCount, -1, requiredSize, getShardSize());
     }
 
     @Override
@@ -394,16 +388,6 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
     }
 
     public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
-        int requiredSizeLocal;
-        long minDocCountLocal;
-        if (reduceContext.isSliceLevel()) {
-            requiredSizeLocal = bucketCountThresholds.getShardSize();
-            minDocCountLocal = bucketCountThresholds.getShardMinDocCount();
-        } else {
-            requiredSizeLocal = bucketCountThresholds.getRequiredSize();
-            minDocCountLocal = bucketCountThresholds.getMinDocCount();
-        }
-
         long sumDocCountError = 0;
         long otherDocCount = 0;
         InternalTerms<A, B> referenceTerms = null;
@@ -464,7 +448,7 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
         }
         final B[] list;
         if (reduceContext.isFinalReduce() || reduceContext.isSliceLevel()) {
-            final int size = Math.min(requiredSizeLocal, reducedBuckets.size());
+            final int size = Math.min(reduceContext.getRequiredSizeLocal(bucketCountThresholds), reducedBuckets.size());
             // final comparator
             final BucketPriorityQueue<B> ordered = new BucketPriorityQueue<>(size, order.comparator());
             for (B bucket : reducedBuckets) {
@@ -474,7 +458,7 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
                     final long finalSumDocCountError = sumDocCountError;
                     bucket.setDocCountError(docCountError -> docCountError + finalSumDocCountError);
                 }
-                if (bucket.getDocCount() >= minDocCountLocal) {
+                if (bucket.getDocCount() >= reduceContext.getMinDocCountLocal(bucketCountThresholds)) {
                     B removed = ordered.insertWithOverflow(bucket);
                     if (removed != null) {
                         otherDocCount += removed.getDocCount();
@@ -493,8 +477,8 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
         } else {
             // we can prune the list on partial reduce if the aggregation is ordered by key
             // and not filtered (minDocCount == 0)
-            int size = isKeyOrder(order) && minDocCountLocal == 0
-                ? Math.min(requiredSizeLocal, reducedBuckets.size())
+            int size = isKeyOrder(order) && reduceContext.getMinDocCountLocal(bucketCountThresholds) == 0
+                ? Math.min(reduceContext.getRequiredSizeLocal(bucketCountThresholds), reducedBuckets.size())
                 : reducedBuckets.size();
             list = createBucketsArray(size);
             for (int i = 0; i < size; i++) {
@@ -515,14 +499,11 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
             docCountError = aggregations.size() == 1 ? 0 : sumDocCountError;
         }
 
-        // Shards must return buckets sorted by key, so we apply the sort here
-        List<B> resultList;
+        // Shards must return buckets sorted by key, so we apply the sort here in shard level reduce
         if (reduceContext.isSliceLevel()) {
-            resultList = Arrays.stream(list).sorted(thisReduceOrder.comparator()).collect(Collectors.toList());
-        } else {
-            resultList = Arrays.asList(list);
+            Arrays.sort(list, thisReduceOrder.comparator());
         }
-        return create(name, resultList, reduceContext.isFinalReduce() ? order : thisReduceOrder, docCountError, otherDocCount);
+        return create(name, Arrays.asList(list), reduceContext.isFinalReduce() ? order : thisReduceOrder, docCountError, otherDocCount);
     }
 
     @Override
