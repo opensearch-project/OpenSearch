@@ -76,9 +76,9 @@ import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.common.util.CancellableThreadsTests;
 import org.opensearch.common.util.set.Sets;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.index.snapshots.IndexShardSnapshotException;
 import org.opensearch.core.index.snapshots.IndexShardSnapshotFailedException;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentLocation;
 import org.opensearch.discovery.MasterNotDiscoveredException;
 import org.opensearch.env.ShardLockObtainFailedException;
@@ -545,12 +545,12 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
         NotSerializableExceptionWrapper ex = serialize(new NotSerializableExceptionWrapper(new NullPointerException()));
         assertEquals(
             "{\"type\":\"null_pointer_exception\",\"reason\":\"null_pointer_exception: null\"}",
-            Strings.toString(XContentType.JSON, ex)
+            Strings.toString(MediaTypeRegistry.JSON, ex)
         );
         ex = serialize(new NotSerializableExceptionWrapper(new IllegalArgumentException("nono!")));
         assertEquals(
             "{\"type\":\"illegal_argument_exception\",\"reason\":\"illegal_argument_exception: nono!\"}",
-            Strings.toString(XContentType.JSON, ex)
+            Strings.toString(MediaTypeRegistry.JSON, ex)
         );
 
         class UnknownException extends Exception {

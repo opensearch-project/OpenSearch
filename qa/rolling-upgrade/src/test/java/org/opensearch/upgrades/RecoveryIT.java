@@ -45,6 +45,7 @@ import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.core.rest.RestStatus;
@@ -733,7 +734,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), softDeletesEnabled);
             }
             Request request = new Request("PUT", "/" + indexName);
-            request.setJsonEntity("{\"settings\": " + Strings.toString(XContentType.JSON, settings.build()) + "}");
+            request.setJsonEntity("{\"settings\": " + Strings.toString(MediaTypeRegistry.JSON, settings.build()) + "}");
             if (softDeletesEnabled == false) {
                 expectSoftDeletesWarning(request, indexName);
             }

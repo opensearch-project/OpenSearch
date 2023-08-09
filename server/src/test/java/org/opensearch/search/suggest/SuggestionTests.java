@@ -35,6 +35,7 @@ package org.opensearch.search.suggest;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.text.Text;
 import org.opensearch.core.xcontent.DeprecationHandler;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedObjectNotFoundException;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContent;
@@ -58,7 +59,7 @@ import java.util.Set;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
-import static org.opensearch.common.xcontent.XContentHelper.toXContent;
+import static org.opensearch.core.xcontent.XContentHelper.toXContent;
 import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.opensearch.test.XContentTestUtils.insertRandomFields;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertToXContentEquivalent;
@@ -229,7 +230,7 @@ public class SuggestionTests extends OpenSearchTestCase {
             entry.addOption(option);
             PhraseSuggestion suggestion = new PhraseSuggestion("suggestionName", 5);
             suggestion.addTerm(entry);
-            BytesReference xContent = toXContent(suggestion, XContentType.JSON, params, randomBoolean());
+            BytesReference xContent = toXContent(suggestion, MediaTypeRegistry.JSON, params, randomBoolean());
             assertEquals(
                 ("{"
                     + "  \"phrase#suggestionName\": ["
@@ -262,7 +263,7 @@ public class SuggestionTests extends OpenSearchTestCase {
             entry.addOption(option);
             PhraseSuggestion suggestion = new PhraseSuggestion("suggestionName", 5);
             suggestion.addTerm(entry);
-            BytesReference xContent = toXContent(suggestion, XContentType.JSON, params, randomBoolean());
+            BytesReference xContent = toXContent(suggestion, MediaTypeRegistry.JSON, params, randomBoolean());
             assertEquals(
                 ("{"
                     + "  \"phrase#suggestionName\": ["
@@ -290,7 +291,7 @@ public class SuggestionTests extends OpenSearchTestCase {
             entry.addOption(option);
             TermSuggestion suggestion = new TermSuggestion("suggestionName", 5, SortBy.SCORE);
             suggestion.addTerm(entry);
-            BytesReference xContent = toXContent(suggestion, XContentType.JSON, params, randomBoolean());
+            BytesReference xContent = toXContent(suggestion, MediaTypeRegistry.JSON, params, randomBoolean());
             assertEquals(
                 ("{"
                     + "  \"term#suggestionName\": ["
@@ -318,7 +319,7 @@ public class SuggestionTests extends OpenSearchTestCase {
             entry.addOption(option);
             CompletionSuggestion suggestion = new CompletionSuggestion("suggestionName", 5, randomBoolean());
             suggestion.addTerm(entry);
-            BytesReference xContent = toXContent(suggestion, XContentType.JSON, params, randomBoolean());
+            BytesReference xContent = toXContent(suggestion, MediaTypeRegistry.JSON, params, randomBoolean());
             assertEquals(
                 ("{"
                     + "  \"completion#suggestionName\": ["

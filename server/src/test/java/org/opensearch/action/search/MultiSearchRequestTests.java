@@ -43,6 +43,8 @@ import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentHelper;
@@ -120,7 +122,7 @@ public class MultiSearchRequestTests extends OpenSearchTestCase {
             + "{\"query\" : {\"match_all\" :{}}}\r\n";
         FakeRestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry()).withContent(
             new BytesArray(requestContent),
-            XContentType.JSON
+            MediaTypeRegistry.JSON
         ).build();
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
@@ -134,7 +136,7 @@ public class MultiSearchRequestTests extends OpenSearchTestCase {
             + "{\"query\" : {\"match_all\" :{}}}\r\n";
         FakeRestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry()).withContent(
             new BytesArray(requestContent),
-            XContentType.JSON
+            MediaTypeRegistry.JSON
         ).build();
         MultiSearchRequest request = RestMultiSearchAction.parseRequest(restRequest, null, true);
         assertThat(request.requests().size(), equalTo(1));
@@ -152,7 +154,7 @@ public class MultiSearchRequestTests extends OpenSearchTestCase {
             + "{\"query\" : {\"match_all\" :{}}}\r\n";
         FakeRestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry()).withContent(
             new BytesArray(requestContent),
-            XContentType.JSON
+            MediaTypeRegistry.JSON
         ).withParams(Collections.singletonMap("cancel_after_time_interval", "20s")).build();
         MultiSearchRequest request = RestMultiSearchAction.parseRequest(restRequest, null, true);
         assertThat(request.requests().size(), equalTo(2));
@@ -169,7 +171,7 @@ public class MultiSearchRequestTests extends OpenSearchTestCase {
             + "{\"query\" : {\"match_all\" :{}}}\r\n";
         FakeRestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry()).withContent(
             new BytesArray(requestContent),
-            XContentType.JSON
+            MediaTypeRegistry.JSON
         ).withParams(Collections.singletonMap("cancel_after_time_interval", "20s")).build();
         MultiSearchRequest request = RestMultiSearchAction.parseRequest(restRequest, null, true);
         assertThat(request.requests().size(), equalTo(1));
@@ -182,7 +184,7 @@ public class MultiSearchRequestTests extends OpenSearchTestCase {
             + "{\"query\" : {\"match_all\" :{}}}\r\n";
         FakeRestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry()).withContent(
             new BytesArray(requestContent),
-            XContentType.JSON
+            MediaTypeRegistry.JSON
         ).withParams(Collections.singletonMap("ignore_unavailable", "true")).build();
         MultiSearchRequest request = RestMultiSearchAction.parseRequest(restRequest, null, true);
         assertThat(request.requests().size(), equalTo(1));
@@ -301,7 +303,7 @@ public class MultiSearchRequestTests extends OpenSearchTestCase {
                 + "\"type\":\"illegal_state_exception\",\"reason\":\"baaaaaazzzz\"},\"status\":500"
                 + "}"
                 + "]}",
-            Strings.toString(XContentType.JSON, response)
+            Strings.toString(MediaTypeRegistry.JSON, response)
         );
     }
 
@@ -315,7 +317,7 @@ public class MultiSearchRequestTests extends OpenSearchTestCase {
         String mserchAction = StreamsUtils.copyToStringFromClasspath("/org/opensearch/action/search/simple-msearch5.json");
         RestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry()).withContent(
             new BytesArray(mserchAction.getBytes(StandardCharsets.UTF_8)),
-            XContentType.JSON
+            MediaTypeRegistry.JSON
         ).build();
         IllegalArgumentException expectThrows = expectThrows(
             IllegalArgumentException.class,
@@ -326,7 +328,7 @@ public class MultiSearchRequestTests extends OpenSearchTestCase {
         String mserchActionWithNewLine = mserchAction + "\n";
         RestRequest restRequestWithNewLine = new FakeRestRequest.Builder(xContentRegistry()).withContent(
             new BytesArray(mserchActionWithNewLine.getBytes(StandardCharsets.UTF_8)),
-            XContentType.JSON
+            MediaTypeRegistry.JSON
         ).build();
         MultiSearchRequest msearchRequest = RestMultiSearchAction.parseRequest(restRequestWithNewLine, null, true);
         assertEquals(3, msearchRequest.requests().size());
@@ -334,14 +336,14 @@ public class MultiSearchRequestTests extends OpenSearchTestCase {
 
     private MultiSearchRequest parseMultiSearchRequestFromString(String request) throws IOException {
         return parseMultiSearchRequest(
-            new FakeRestRequest.Builder(xContentRegistry()).withContent(new BytesArray(request), XContentType.JSON).build()
+            new FakeRestRequest.Builder(xContentRegistry()).withContent(new BytesArray(request), MediaTypeRegistry.JSON).build()
         );
     }
 
     private MultiSearchRequest parseMultiSearchRequestFromFile(String sample) throws IOException {
         byte[] data = StreamsUtils.copyToBytesFromClasspath(sample);
         return parseMultiSearchRequest(
-            new FakeRestRequest.Builder(xContentRegistry()).withContent(new BytesArray(data), XContentType.JSON).build()
+            new FakeRestRequest.Builder(xContentRegistry()).withContent(new BytesArray(data), MediaTypeRegistry.JSON).build()
         );
 
     }
@@ -379,10 +381,10 @@ public class MultiSearchRequestTests extends OpenSearchTestCase {
         int iters = 16;
         for (int i = 0; i < iters; i++) {
             // The only formats that support stream separator
-            XContentType xContentType = randomFrom(XContentType.JSON, XContentType.SMILE);
+            MediaType mediaType = randomFrom(MediaTypeRegistry.JSON, XContentType.SMILE);
             MultiSearchRequest originalRequest = createMultiSearchRequest();
 
-            byte[] originalBytes = MultiSearchRequest.writeMultiLineFormat(originalRequest, xContentType.xContent());
+            byte[] originalBytes = MultiSearchRequest.writeMultiLineFormat(originalRequest, mediaType.xContent());
             MultiSearchRequest parsedRequest = new MultiSearchRequest();
             CheckedBiConsumer<SearchRequest, XContentParser, IOException> consumer = (r, p) -> {
                 SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(p, false);
@@ -393,7 +395,7 @@ public class MultiSearchRequestTests extends OpenSearchTestCase {
             };
             MultiSearchRequest.readMultiLineFormat(
                 new BytesArray(originalBytes),
-                xContentType.xContent(),
+                mediaType.xContent(),
                 consumer,
                 null,
                 null,
@@ -413,7 +415,7 @@ public class MultiSearchRequestTests extends OpenSearchTestCase {
             + "\"cancel_after_time_interval\" : \"10s\"}\r\n{\"query\" : {\"match_all\" :{}}}\r\n";
         FakeRestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry()).withContent(
             new BytesArray(requestContent),
-            XContentType.JSON
+            MediaTypeRegistry.JSON
         ).build();
         Version version = VersionUtils.randomVersion(random());
         MultiSearchRequest originalRequest = RestMultiSearchAction.parseRequest(restRequest, null, true);
@@ -545,7 +547,7 @@ public class MultiSearchRequestTests extends OpenSearchTestCase {
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             MultiSearchRequest.writeSearchRequestParams(request, builder);
             Map<String, Object> map = XContentHelper.convertToMap(
-                XContentType.JSON.xContent(),
+                MediaTypeRegistry.JSON.xContent(),
                 BytesReference.bytes(builder).streamInput(),
                 false
             );

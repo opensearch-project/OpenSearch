@@ -54,9 +54,9 @@ import org.opensearch.client.core.CountRequest;
 import org.opensearch.client.core.CountResponse;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.query.MatchQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
@@ -1200,7 +1200,7 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
         BytesReference actualSource = searchTemplateResponse.getSource();
         assertNotNull(actualSource);
 
-        assertToXContentEquivalent(expectedSource, actualSource, XContentType.JSON);
+        assertToXContentEquivalent(expectedSource, actualSource, MediaTypeRegistry.JSON);
     }
 
     public void testMultiSearchTemplate() throws Exception {

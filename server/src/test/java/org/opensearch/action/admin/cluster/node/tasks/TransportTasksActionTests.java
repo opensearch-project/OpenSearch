@@ -52,7 +52,6 @@ import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -343,7 +342,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
             "local tasks [{}]",
             localTasks.values()
                 .stream()
-                .map(t -> Strings.toString(XContentType.JSON, t.taskInfo(testNodes[0].getNodeId(), true)))
+                .map(t -> Strings.toString(MediaTypeRegistry.JSON, t.taskInfo(testNodes[0].getNodeId(), true)))
                 .collect(Collectors.joining(","))
         );
         assertEquals(2, localTasks.size()); // all node tasks + 1 coordinating task
@@ -761,7 +760,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
     }
 
     private Map<String, Object> serialize(ListTasksResponse response, boolean byParents) throws IOException {
-        XContentBuilder builder = MediaTypeRegistry.contentBuilder(XContentType.JSON);
+        XContentBuilder builder = MediaTypeRegistry.JSON.contentBuilder();
         builder.startObject();
         if (byParents) {
             DiscoveryNodes nodes = testNodes[0].clusterService.state().nodes();

@@ -42,12 +42,12 @@ import org.opensearch.action.get.MultiGetRequest;
 import org.opensearch.action.get.MultiGetResponse;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.search.SearchRequest;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
-import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.search.SearchHit;
 import org.hamcrest.Matcher;
 
@@ -277,12 +277,12 @@ public class BulkProcessorIT extends OpenSearchRestHighLevelClientTestCase {
                 // let's make sure we get at least 1 item in the MultiGetRequest regardless of the randomising roulette
                 if (randomBoolean() || multiGetRequest.getItems().size() == 0) {
                     testDocs++;
-                    processor.add(new IndexRequest("test").id(Integer.toString(testDocs)).source(XContentType.JSON, "field", "value"));
+                    processor.add(new IndexRequest("test").id(Integer.toString(testDocs)).source(MediaTypeRegistry.JSON, "field", "value"));
                     multiGetRequest.add("test", Integer.toString(testDocs));
                 } else {
                     testReadOnlyDocs++;
                     processor.add(
-                        new IndexRequest("test-ro").id(Integer.toString(testReadOnlyDocs)).source(XContentType.JSON, "field", "value")
+                        new IndexRequest("test-ro").id(Integer.toString(testReadOnlyDocs)).source(MediaTypeRegistry.JSON, "field", "value")
                     );
                 }
             }
@@ -333,9 +333,9 @@ public class BulkProcessorIT extends OpenSearchRestHighLevelClientTestCase {
 
 
             processor.add(new IndexRequest() // <1>
-                .source(XContentType.JSON, "user", "some user"));
+                .source(MediaTypeRegistry.JSON, "user", "some user"));
             processor.add(new IndexRequest("blogs").id("1") // <2>
-                .source(XContentType.JSON, "title", "some title"));
+                .source(MediaTypeRegistry.JSON, "title", "some title"));
         }
         // end::bulk-processor-mix-parameters
         latch.await();
@@ -399,11 +399,11 @@ public class BulkProcessorIT extends OpenSearchRestHighLevelClientTestCase {
             if (randomBoolean()) {
                 processor.add(
                     new IndexRequest(localIndex).id(Integer.toString(i))
-                        .source(XContentType.JSON, "field", randomRealisticUnicodeOfLengthBetween(1, 30))
+                        .source(MediaTypeRegistry.JSON, "field", randomRealisticUnicodeOfLengthBetween(1, 30))
                 );
             } else {
                 BytesArray data = bytesBulkRequest(localIndex, i);
-                processor.add(data, globalIndex, globalPipeline, XContentType.JSON);
+                processor.add(data, globalIndex, globalPipeline, MediaTypeRegistry.JSON);
             }
             multiGetRequest.add(localIndex, Integer.toString(i));
         }

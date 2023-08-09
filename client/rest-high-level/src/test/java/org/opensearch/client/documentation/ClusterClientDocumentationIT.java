@@ -65,7 +65,7 @@ import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.core.rest.RestStatus;
 
@@ -138,7 +138,7 @@ public class ClusterClientDocumentationIT extends OpenSearchRestHighLevelClientT
             // tag::put-settings-settings-source
             request.transientSettings(
                     "{\"indices.recovery.max_bytes_per_sec\": \"10b\"}"
-                    , XContentType.JSON); // <1>
+                    , MediaTypeRegistry.JSON); // <1>
             // end::put-settings-settings-source
         }
 

@@ -51,7 +51,7 @@ import java.io.IOException;
 import static org.opensearch.OpenSearchExceptionTests.randomExceptions;
 import static org.opensearch.action.bulk.BulkItemResponseTests.assertBulkItemResponse;
 import static org.opensearch.action.bulk.BulkResponse.NO_INGEST_TOOK;
-import static org.opensearch.common.xcontent.XContentHelper.toXContent;
+import static org.opensearch.core.xcontent.XContentHelper.toXContent;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertToXContentEquivalent;
 
 public class BulkResponseTests extends OpenSearchTestCase {

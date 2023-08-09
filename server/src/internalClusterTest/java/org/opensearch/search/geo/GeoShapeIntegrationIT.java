@@ -40,7 +40,7 @@ import org.opensearch.common.geo.builders.PointBuilder;
 import org.opensearch.common.geo.builders.ShapeBuilder;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.mapper.GeoShapeFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
@@ -196,7 +196,7 @@ public class GeoShapeIntegrationIT extends OpenSearchIntegTestCase {
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> client().admin().indices().preparePutMapping("test").setSource(update, XContentType.JSON).get()
+            () -> client().admin().indices().preparePutMapping("test").setSource(update, MediaTypeRegistry.JSON).get()
         );
         assertThat(e.getMessage(), containsString("using [BKD] strategy cannot be merged with"));
     }
@@ -227,7 +227,7 @@ public class GeoShapeIntegrationIT extends OpenSearchIntegTestCase {
             + "    }\n"
             + "}";
 
-        indexRandom(true, client().prepareIndex("test").setId("0").setSource(source, XContentType.JSON).setRouting("ABC"));
+        indexRandom(true, client().prepareIndex("test").setId("0").setSource(source, MediaTypeRegistry.JSON).setRouting("ABC"));
 
         SearchResponse searchResponse = client().prepareSearch("test")
             .setQuery(geoShapeQuery("shape", "0").indexedShapeIndex("test").indexedShapeRouting("ABC"))
@@ -263,8 +263,8 @@ public class GeoShapeIntegrationIT extends OpenSearchIntegTestCase {
 
         String source = "{\n" + "    \"shape\" : \"POLYGON((179 0, -179 0, -179 2, 179 2, 179 0))\"" + "}";
 
-        indexRandom(true, client().prepareIndex("quad").setId("0").setSource(source, XContentType.JSON));
-        indexRandom(true, client().prepareIndex("vector").setId("0").setSource(source, XContentType.JSON));
+        indexRandom(true, client().prepareIndex("quad").setId("0").setSource(source, MediaTypeRegistry.JSON));
+        indexRandom(true, client().prepareIndex("vector").setId("0").setSource(source, MediaTypeRegistry.JSON));
 
         try {
             ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();

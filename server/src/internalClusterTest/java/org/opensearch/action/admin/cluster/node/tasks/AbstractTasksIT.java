@@ -16,8 +16,8 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.tasks.TaskId;
 import org.opensearch.tasks.TaskInfo;
@@ -182,7 +182,7 @@ abstract class AbstractTasksIT extends OpenSearchIntegTestCase {
         for (int i = 0; i < numDocs; i++) {
             client().prepareIndex(indexName)
                 .setId("test_id_" + String.valueOf(i))
-                .setSource("{\"foo_" + String.valueOf(i) + "\": \"bar_" + String.valueOf(i) + "\"}", XContentType.JSON)
+                .setSource("{\"foo_" + String.valueOf(i) + "\": \"bar_" + String.valueOf(i) + "\"}", MediaTypeRegistry.JSON)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .get();
         }

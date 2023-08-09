@@ -60,8 +60,8 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.index.Index;
@@ -1155,7 +1155,7 @@ public class MetadataIndexTemplateService {
             Optional.ofNullable(template.getDataStreamTemplate())
                 .map(ComposableIndexTemplate.DataStreamTemplate::getDataStreamMappingSnippet)
                 .map(mapping -> {
-                    try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
+                    try (XContentBuilder builder = MediaTypeRegistry.JSON.contentBuilder()) {
                         builder.value(mapping);
                         return new CompressedXContent(BytesReference.bytes(builder));
                     } catch (IOException e) {

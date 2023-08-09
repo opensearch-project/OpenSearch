@@ -41,6 +41,7 @@ import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.RandomCreateIndexGenerator;
 import org.opensearch.test.OpenSearchTestCase;
@@ -78,7 +79,7 @@ public class ResizeRequestTests extends OpenSearchTestCase {
     public void testToXContent() throws IOException {
         {
             ResizeRequest request = new ResizeRequest("target", "source");
-            String actualRequestBody = Strings.toString(XContentType.JSON, request);
+            String actualRequestBody = Strings.toString(MediaTypeRegistry.JSON, request);
             assertEquals("{\"settings\":{},\"aliases\":{}}", actualRequestBody);
         }
         {
@@ -93,7 +94,7 @@ public class ResizeRequestTests extends OpenSearchTestCase {
             settings.put(SETTING_NUMBER_OF_SHARDS, 10);
             target.settings(settings);
             request.setTargetIndex(target);
-            String actualRequestBody = Strings.toString(XContentType.JSON, request);
+            String actualRequestBody = Strings.toString(MediaTypeRegistry.JSON, request);
             String expectedRequestBody = "{\"settings\":{\"index\":{\"number_of_shards\":\"10\"}},"
                 + "\"aliases\":{\"test_alias\":{\"filter\":{\"term\":{\"year\":2016}},\"routing\":\"1\",\"is_write_index\":true}}}";
             assertEquals(expectedRequestBody, actualRequestBody);
