@@ -169,7 +169,7 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         }, listener::onFailure);
 
         getFilesListener.whenComplete(response -> {
-            finalizeReplication(checkpointInfoListener.result(), getFilesListener.result());
+            finalizeReplication(checkpointInfoListener.result());
             listener.onResponse(null);
         }, listener::onFailure);
     }
@@ -200,8 +200,7 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         return diff.missing;
     }
 
-    private void finalizeReplication(CheckpointInfoResponse checkpointInfoResponse, GetSegmentFilesResponse getSegmentFilesResponse)
-        throws OpenSearchCorruptionException {
+    private void finalizeReplication(CheckpointInfoResponse checkpointInfoResponse) throws OpenSearchCorruptionException {
         cancellableThreads.checkForCancel();
         state.setStage(SegmentReplicationState.Stage.FINALIZE_REPLICATION);
         // Handle empty SegmentInfos bytes for recovering replicas

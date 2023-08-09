@@ -8,6 +8,7 @@
 
 package org.opensearch.index.shard;
 
+import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.util.Version;
 import org.hamcrest.MatcherAssert;
@@ -25,10 +26,12 @@ import org.opensearch.indices.replication.common.ReplicationType;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -305,5 +308,45 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
             assertTrue(diff.missing.isEmpty());
             assertTrue(diff.different.isEmpty());
         }
+    }
+
+    public void testRepicaCleansUpOldCommitsWhenReceivingNew() throws Exception {
+        final Path remotePath = createTempDir();
+        try (ReplicationGroup shards = createGroup(1, getIndexSettings(), indexMapping, new NRTReplicationEngineFactory(), remotePath)) {
+            shards.startAll();
+            final IndexShard primary = shards.getPrimary();
+            final IndexShard replica = shards.getReplicas().get(0);
+            shards.indexDocs(1);
+            flushShard(primary);
+            replicateSegments(primary, shards.getReplicas());
+            assertDocCount(primary, 1);
+            assertDocCount(replica, 1);
+            assertEquals("segments_4", replica.store().readLastCommittedSegmentsInfo().getSegmentsFileName());
+            assertSingleSegmentFile(replica, "segments_4");
+
+            shards.indexDocs(1);
+            primary.refresh("test");
+            replicateSegments(primary, shards.getReplicas());
+            assertDocCount(replica, 2);
+            assertSingleSegmentFile(replica, "segments_4");
+
+            shards.indexDocs(1);
+            flushShard(primary);
+            replicateSegments(primary, shards.getReplicas());
+            assertDocCount(replica, 3);
+            assertSingleSegmentFile(replica, "segments_5");
+
+            final Store.RecoveryDiff diff = Store.segmentReplicationDiff(primary.getSegmentMetadataMap(), replica.getSegmentMetadataMap());
+            assertTrue(diff.missing.isEmpty());
+            assertTrue(diff.different.isEmpty());
+        }
+    }
+
+    private void assertSingleSegmentFile(IndexShard shard, String fileName) throws IOException {
+        final Set<String> segmentsFileNames = Arrays.stream(shard.store().directory().listAll())
+            .filter(file -> file.startsWith(IndexFileNames.SEGMENTS))
+            .collect(Collectors.toSet());
+        assertEquals("Expected a single segment file", 1, segmentsFileNames.size());
+        assertEquals(segmentsFileNames.stream().findFirst().get(), fileName);
     }
 }
