@@ -799,7 +799,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
 
         String repoName = "repo";
         final String[] snapshotsList = { "snapshot-1" };
-        final String[] indexList = { "index-1", "index-2" };
+        final String index = "index-1";
         final int shards = randomIntBetween(1, 10);
 
         TestClusterNodes.TestClusterNode clusterManagerNode = testClusterNodes.currentClusterManager(
@@ -808,7 +808,6 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
 
         final StepListener<CreateSnapshotResponse> createSnapshotResponseStepListener = new StepListener<>();
         final String snapshot = snapshotsList[0];
-        final String index = indexList[0];
         continueOrDie(
             createRepoAndIndex(repoName, index, shards),
             createSnapshotResponse -> client().admin()
@@ -828,11 +827,10 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                 assertNotNull("Snapshot list should not be null", repoSnapshotResponse.getSnapshots());
                 assertThat(repoSnapshotResponse.getSnapshots(), hasSize(1));
                 List<SnapshotInfo> snapshotInfos = repoSnapshotResponse.getSnapshots();
-                for (SnapshotInfo snapshotInfo : snapshotInfos) {
-                    assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
-                    assertEquals(0, snapshotInfo.failedShards());
-                    assertTrue(Arrays.stream(snapshotsList).anyMatch(snapshotInfo.snapshotId().getName()::equals));
-                }
+                SnapshotInfo snapshotInfo = snapshotInfos.get(0);
+                assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
+                assertEquals(0, snapshotInfo.failedShards());
+                assertTrue(snapshotInfo.snapshotId().getName().equals(snapshotsList[0]));
             }, exception -> { throw new AssertionError(exception); }));
         });
     }
