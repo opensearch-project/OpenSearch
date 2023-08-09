@@ -41,7 +41,7 @@ import org.opensearch.cluster.ClusterStateListener;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.gateway.GatewayService;
 import org.opensearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
@@ -364,7 +364,7 @@ public class PersistentTasksNodeService implements ClusterStateListener {
 
         @Override
         public String toString() {
-            return Strings.toString(XContentType.JSON, this);
+            return Strings.toString(MediaTypeRegistry.JSON, this);
         }
 
         @Override

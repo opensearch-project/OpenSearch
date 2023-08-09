@@ -82,7 +82,7 @@ import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.gateway.ReplicaShardAllocatorIT;
 import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexService;
@@ -899,14 +899,14 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
         // is a mix of file chunks and translog ops
         int threeFourths = (int) (numDocs * 0.75);
         for (int i = 0; i < threeFourths; i++) {
-            requests.add(client().prepareIndex(indexName).setSource("{}", XContentType.JSON));
+            requests.add(client().prepareIndex(indexName).setSource("{}", MediaTypeRegistry.JSON));
         }
         indexRandom(true, requests);
         flush(indexName);
         requests.clear();
 
         for (int i = threeFourths; i < numDocs; i++) {
-            requests.add(client().prepareIndex(indexName).setSource("{}", XContentType.JSON));
+            requests.add(client().prepareIndex(indexName).setSource("{}", MediaTypeRegistry.JSON));
         }
         indexRandom(true, requests);
         ensureSearchable(indexName);
@@ -1098,7 +1098,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
         List<IndexRequestBuilder> requests = new ArrayList<>();
         int numDocs = scaledRandomIntBetween(25, 250);
         for (int i = 0; i < numDocs; i++) {
-            requests.add(client().prepareIndex(indexName).setSource("{}", XContentType.JSON));
+            requests.add(client().prepareIndex(indexName).setSource("{}", MediaTypeRegistry.JSON));
         }
         indexRandom(true, requests);
         ensureSearchable(indexName);
@@ -1252,7 +1252,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
         List<IndexRequestBuilder> requests = new ArrayList<>();
         int numDocs = scaledRandomIntBetween(25, 250);
         for (int i = 0; i < numDocs; i++) {
-            requests.add(client().prepareIndex(indexName).setSource("{}", XContentType.JSON));
+            requests.add(client().prepareIndex(indexName).setSource("{}", MediaTypeRegistry.JSON));
         }
         indexRandom(true, requests);
         ensureSearchable(indexName);
@@ -1395,7 +1395,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
         final List<IndexRequestBuilder> requests = new ArrayList<>();
         final int replicatedDocCount = scaledRandomIntBetween(25, 250);
         while (requests.size() < replicatedDocCount) {
-            requests.add(client().prepareIndex(indexName).setSource("{}", XContentType.JSON));
+            requests.add(client().prepareIndex(indexName).setSource("{}", MediaTypeRegistry.JSON));
         }
         indexRandom(true, requests);
         if (randomBoolean()) {
@@ -1417,7 +1417,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
 
         final int numNewDocs = scaledRandomIntBetween(25, 250);
         for (int i = 0; i < numNewDocs; i++) {
-            client().prepareIndex(indexName).setSource("{}", XContentType.JSON).setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
+            client().prepareIndex(indexName).setSource("{}", MediaTypeRegistry.JSON).setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
         }
         // Flush twice to update the safe commit's local checkpoint
         assertThat(client().admin().indices().prepareFlush(indexName).setForce(true).execute().get().getFailedShards(), equalTo(0));
@@ -1458,7 +1458,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
         for (int i = 0; i < numDocs; i++) {
             client().prepareIndex("test")
                 .setId("u" + i)
-                .setSource(singletonMap("test_field", Integer.toString(i)), XContentType.JSON)
+                .setSource(singletonMap("test_field", Integer.toString(i)), MediaTypeRegistry.JSON)
                 .get();
         }
         Semaphore recoveryBlocked = new Semaphore(1);
@@ -1610,7 +1610,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
                     throw new AssertionError(
                         "expect an operation-based recovery:"
                             + "retention leases"
-                            + Strings.toString(XContentType.JSON, retentionLeases)
+                            + Strings.toString(MediaTypeRegistry.JSON, retentionLeases)
                             + "]"
                     );
                 }
@@ -2187,7 +2187,10 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
                 while (stopped.get() == false) {
                     try {
                         IndexResponse response = client().prepareIndex(indexName)
-                            .setSource(Collections.singletonMap("f" + randomIntBetween(1, 10), randomNonNegativeLong()), XContentType.JSON)
+                            .setSource(
+                                Collections.singletonMap("f" + randomIntBetween(1, 10), randomNonNegativeLong()),
+                                MediaTypeRegistry.JSON
+                            )
                             .get();
                         assertThat(response.getResult(), isOneOf(CREATED, UPDATED));
                     } catch (IllegalStateException | OpenSearchException ignored) {}

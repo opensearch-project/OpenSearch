@@ -38,7 +38,7 @@ import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.DocumentMapper;
@@ -65,7 +65,7 @@ public class SizeMappingTests extends OpenSearchSingleNodeTestCase {
         DocumentMapper docMapper = service.mapperService().documentMapper();
 
         BytesReference source = BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", "value").endObject());
-        ParsedDocument doc = docMapper.parse(new SourceToParse("test", "1", source, XContentType.JSON));
+        ParsedDocument doc = docMapper.parse(new SourceToParse("test", "1", source, MediaTypeRegistry.JSON));
 
         boolean stored = false;
         boolean points = false;
@@ -82,7 +82,7 @@ public class SizeMappingTests extends OpenSearchSingleNodeTestCase {
         DocumentMapper docMapper = service.mapperService().documentMapper();
 
         BytesReference source = BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", "value").endObject());
-        ParsedDocument doc = docMapper.parse(new SourceToParse("test", "1", source, XContentType.JSON));
+        ParsedDocument doc = docMapper.parse(new SourceToParse("test", "1", source, MediaTypeRegistry.JSON));
 
         assertThat(doc.rootDoc().getField("_size"), nullValue());
     }
@@ -92,7 +92,7 @@ public class SizeMappingTests extends OpenSearchSingleNodeTestCase {
         DocumentMapper docMapper = service.mapperService().documentMapper();
 
         BytesReference source = BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", "value").endObject());
-        ParsedDocument doc = docMapper.parse(new SourceToParse("test", "1", source, XContentType.JSON));
+        ParsedDocument doc = docMapper.parse(new SourceToParse("test", "1", source, MediaTypeRegistry.JSON));
 
         assertThat(doc.rootDoc().getField("_size"), nullValue());
     }

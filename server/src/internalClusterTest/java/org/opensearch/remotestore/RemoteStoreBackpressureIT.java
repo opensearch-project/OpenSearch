@@ -13,10 +13,10 @@ import org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStatsRes
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.unit.ByteSizeUnit;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.remote.RemoteSegmentTransferTracker;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.snapshots.mockstore.MockRepository;
@@ -128,7 +128,7 @@ public class RemoteStoreBackpressureIT extends AbstractRemoteStoreMockRepository
 
     private void indexDocAndRefresh(BytesReference source, int iterations) {
         for (int i = 0; i < iterations; i++) {
-            client().prepareIndex(INDEX_NAME).setSource(source, XContentType.JSON).get();
+            client().prepareIndex(INDEX_NAME).setSource(source, MediaTypeRegistry.JSON).get();
             refresh(INDEX_NAME);
         }
     }

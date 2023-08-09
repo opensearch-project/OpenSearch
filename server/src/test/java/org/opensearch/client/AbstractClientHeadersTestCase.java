@@ -49,7 +49,7 @@ import org.opensearch.action.index.IndexAction;
 import org.opensearch.action.search.SearchAction;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
@@ -130,7 +130,7 @@ public abstract class AbstractClientHeadersTestCase extends OpenSearchTestCase {
             .execute(new AssertingActionListener<>(DeleteStoredScriptAction.NAME, client.threadPool()));
         client.prepareIndex("idx")
             .setId("id")
-            .setSource("source", XContentType.JSON)
+            .setSource("source", MediaTypeRegistry.JSON)
             .execute(new AssertingActionListener<>(IndexAction.NAME, client.threadPool()));
 
         // choosing arbitrary cluster admin actions to test

@@ -36,6 +36,7 @@ import com.fasterxml.jackson.dataformat.cbor.CBORConstants;
 import com.fasterxml.jackson.dataformat.smile.SmileConstants;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.test.OpenSearchTestCase;
@@ -48,7 +49,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class XContentFactoryTests extends OpenSearchTestCase {
     public void testGuessJson() throws IOException {
-        testGuessType(XContentType.JSON);
+        testGuessType(MediaTypeRegistry.JSON);
     }
 
     public void testGuessSmile() throws IOException {
@@ -63,14 +64,14 @@ public class XContentFactoryTests extends OpenSearchTestCase {
         testGuessType(XContentType.CBOR);
     }
 
-    private void testGuessType(XContentType type) throws IOException {
+    private void testGuessType(MediaType type) throws IOException {
         XContentBuilder builder = MediaTypeRegistry.contentBuilder(type);
         builder.startObject();
         builder.field("field1", "value1");
         builder.endObject();
 
         final BytesReference bytes;
-        if (type == XContentType.JSON && randomBoolean()) {
+        if (type == MediaTypeRegistry.JSON && randomBoolean()) {
             final int length = randomIntBetween(0, 8 * MediaTypeRegistry.GUESS_HEADER_LENGTH);
             final String content = builder.toString();
             final StringBuilder sb = new StringBuilder(length + content.length());
@@ -132,15 +133,15 @@ public class XContentFactoryTests extends OpenSearchTestCase {
 
     public void testJsonFromBytesOptionallyPrecededByUtf8Bom() throws Exception {
         byte[] bytes = new byte[] { (byte) '{', (byte) '}' };
-        assertThat(MediaTypeRegistry.xContent(bytes), equalTo(XContentType.JSON));
+        assertThat(MediaTypeRegistry.xContent(bytes), equalTo(MediaTypeRegistry.JSON));
 
         bytes = new byte[] { (byte) 0x20, (byte) '{', (byte) '}' };
-        assertThat(MediaTypeRegistry.xContent(bytes), equalTo(XContentType.JSON));
+        assertThat(MediaTypeRegistry.xContent(bytes), equalTo(MediaTypeRegistry.JSON));
 
         bytes = new byte[] { (byte) 0xef, (byte) 0xbb, (byte) 0xbf, (byte) '{', (byte) '}' };
-        assertThat(MediaTypeRegistry.xContent(bytes), equalTo(XContentType.JSON));
+        assertThat(MediaTypeRegistry.xContent(bytes), equalTo(MediaTypeRegistry.JSON));
 
         bytes = new byte[] { (byte) 0xef, (byte) 0xbb, (byte) 0xbf, (byte) 0x20, (byte) '{', (byte) '}' };
-        assertThat(MediaTypeRegistry.xContent(bytes), equalTo(XContentType.JSON));
+        assertThat(MediaTypeRegistry.xContent(bytes), equalTo(MediaTypeRegistry.JSON));
     }
 }

@@ -36,8 +36,8 @@ import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.query.Operator;
 import org.opensearch.index.query.QueryStringQueryBuilder;
@@ -76,7 +76,7 @@ public class QueryStringIT extends OpenSearchIntegTestCase {
     @Before
     public void setup() throws Exception {
         String indexBody = copyToStringFromClasspath("/org/opensearch/search/query/all-query-index.json");
-        prepareCreate("test").setSource(indexBody, XContentType.JSON).get();
+        prepareCreate("test").setSource(indexBody, MediaTypeRegistry.JSON).get();
         ensureGreen("test");
     }
 
@@ -161,7 +161,7 @@ public class QueryStringIT extends OpenSearchIntegTestCase {
     public void testDocWithAllTypes() throws Exception {
         List<IndexRequestBuilder> reqs = new ArrayList<>();
         String docBody = copyToStringFromClasspath("/org/opensearch/search/query/all-example-document.json");
-        reqs.add(client().prepareIndex("test").setId("1").setSource(docBody, XContentType.JSON));
+        reqs.add(client().prepareIndex("test").setId("1").setSource(docBody, MediaTypeRegistry.JSON));
         indexRandom(true, false, reqs);
 
         SearchResponse resp = client().prepareSearch("test").setQuery(queryStringQuery("foo")).get();
@@ -253,7 +253,7 @@ public class QueryStringIT extends OpenSearchIntegTestCase {
         String indexBody = copyToStringFromClasspath("/org/opensearch/search/query/all-query-index.json");
 
         Settings.Builder settings = Settings.builder().put("index.query.default_field", "*");
-        prepareCreate("test_1").setSource(indexBody, XContentType.JSON).setSettings(settings).get();
+        prepareCreate("test_1").setSource(indexBody, MediaTypeRegistry.JSON).setSettings(settings).get();
         ensureGreen("test_1");
 
         List<IndexRequestBuilder> reqs = new ArrayList<>();

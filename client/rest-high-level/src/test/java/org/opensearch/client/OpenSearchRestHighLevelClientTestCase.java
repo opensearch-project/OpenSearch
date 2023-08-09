@@ -51,6 +51,7 @@ import org.opensearch.common.CheckedRunnable;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
@@ -223,7 +224,7 @@ public abstract class OpenSearchRestHighLevelClientTestCase extends OpenSearchRe
             .endArray()
             .endObject();
 
-        createPipeline(new PutPipelineRequest(id, BytesReference.bytes(pipeline), XContentType.JSON));
+        createPipeline(new PutPipelineRequest(id, BytesReference.bytes(pipeline), MediaTypeRegistry.JSON));
     }
 
     protected static void createPipeline(String pipelineId) throws IOException {

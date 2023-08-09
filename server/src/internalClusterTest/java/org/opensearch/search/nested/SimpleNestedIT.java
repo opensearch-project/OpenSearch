@@ -45,9 +45,9 @@ import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.SearchType;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.search.sort.NestedSortBuilder;
 import org.opensearch.search.sort.SortBuilders;
@@ -783,7 +783,7 @@ public class SimpleNestedIT extends OpenSearchIntegTestCase {
                     + "    }\n"
                     + "  ]\n"
                     + "}",
-                XContentType.JSON
+                MediaTypeRegistry.JSON
             )
             .get();
 
@@ -835,7 +835,7 @@ public class SimpleNestedIT extends OpenSearchIntegTestCase {
                     + "    }\n"
                     + "  ]\n"
                     + "}",
-                XContentType.JSON
+                MediaTypeRegistry.JSON
             )
             .get();
         refresh();
@@ -987,7 +987,7 @@ public class SimpleNestedIT extends OpenSearchIntegTestCase {
                     + "    }\n"
                     + " ]\n"
                     + "}",
-                XContentType.JSON
+                MediaTypeRegistry.JSON
             )
             .get();
 
@@ -1006,7 +1006,7 @@ public class SimpleNestedIT extends OpenSearchIntegTestCase {
                     + "    } \n"
                     + "  ]\n"
                     + "}",
-                XContentType.JSON
+                MediaTypeRegistry.JSON
             )
             .get();
 

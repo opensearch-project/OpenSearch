@@ -47,7 +47,6 @@ import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Map;
@@ -92,7 +91,7 @@ public final class TaskResult implements Writeable, ToXContentObject {
      * Construct a {@linkplain TaskResult} for a task that completed successfully.
      */
     public TaskResult(TaskInfo task, ToXContent response) throws IOException {
-        this(true, task, null, XContentHelper.toXContent(response, Requests.INDEX_CONTENT_TYPE, true));
+        this(true, task, null, org.opensearch.core.xcontent.XContentHelper.toXContent(response, Requests.INDEX_CONTENT_TYPE, true));
     }
 
     public TaskResult(boolean completed, TaskInfo task, @Nullable BytesReference error, @Nullable BytesReference result) {
@@ -208,7 +207,7 @@ public final class TaskResult implements Writeable, ToXContentObject {
 
     @Override
     public String toString() {
-        return Strings.toString(XContentType.JSON, this);
+        return Strings.toString(MediaTypeRegistry.JSON, this);
     }
 
     // Implements equals and hashcode for testing

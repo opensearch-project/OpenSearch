@@ -35,9 +35,9 @@ package org.opensearch.search.aggregations.pipeline;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.script.MockScriptPlugin;
 import org.opensearch.script.Script;
@@ -551,7 +551,7 @@ public class BucketScriptIT extends OpenSearchIntegTestCase {
                 // Script source is not interpreted but it references a pre-defined script from CustomScriptPlugin
                 .setContent(
                     new BytesArray("{ \"script\": {\"lang\": \"" + CustomScriptPlugin.NAME + "\"," + " \"source\": \"my_script\" } }"),
-                    XContentType.JSON
+                    MediaTypeRegistry.JSON
                 )
         );
 

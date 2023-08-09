@@ -48,8 +48,8 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.RunOnce;
 import org.opensearch.common.util.concurrent.UncategorizedExecutionException;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.index.Index;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.mapper.Mapping;
 
 import java.util.concurrent.Semaphore;
@@ -153,7 +153,7 @@ public class MappingUpdatedAction {
     protected void sendUpdateMapping(Index index, Mapping mappingUpdate, ActionListener<Void> listener) {
         PutMappingRequest putMappingRequest = new PutMappingRequest();
         putMappingRequest.setConcreteIndex(index);
-        putMappingRequest.source(mappingUpdate.toString(), XContentType.JSON);
+        putMappingRequest.source(mappingUpdate.toString(), MediaTypeRegistry.JSON);
         putMappingRequest.clusterManagerNodeTimeout(dynamicMappingUpdateTimeout);
         putMappingRequest.timeout(TimeValue.ZERO);
         client.execute(

@@ -44,9 +44,9 @@ import org.opensearch.common.metrics.OperationStats;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.AtomicArray;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.plugins.SearchPipelinePlugin;
@@ -173,7 +173,7 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
                 new PipelineConfiguration(
                     "p1",
                     new BytesArray("{\"request_processors\" : [ { \"scale_request_size\": { \"scale\" : 2 } } ] }"),
-                    XContentType.JSON
+                    MediaTypeRegistry.JSON
                 )
             )
         );
@@ -403,7 +403,7 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
                     + "\"phase_results_processors\" : [ { \"max_score\" : { \"score\": 100 } } ]"
                     + "}"
             ),
-            XContentType.JSON
+            MediaTypeRegistry.JSON
         );
         SearchPipelineMetadata pipelineMetadata = new SearchPipelineMetadata(Map.of("_id", pipeline));
         clusterState = ClusterState.builder(clusterState)
@@ -438,7 +438,7 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
 
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
 
-        PutSearchPipelineRequest putRequest = new PutSearchPipelineRequest(id, new BytesArray("{}"), XContentType.JSON);
+        PutSearchPipelineRequest putRequest = new PutSearchPipelineRequest(id, new BytesArray("{}"), MediaTypeRegistry.JSON);
         ClusterState previousClusterState = clusterState;
         clusterState = SearchPipelineService.innerPut(putRequest, clusterState);
         searchPipelineService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
@@ -450,7 +450,7 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
         assertEquals(0, pipeline.pipeline.getSearchResponseProcessors().size());
 
         // Overwrite pipeline
-        putRequest = new PutSearchPipelineRequest(id, new BytesArray("{ \"description\": \"empty pipeline\"}"), XContentType.JSON);
+        putRequest = new PutSearchPipelineRequest(id, new BytesArray("{ \"description\": \"empty pipeline\"}"), MediaTypeRegistry.JSON);
         previousClusterState = clusterState;
         clusterState = SearchPipelineService.innerPut(putRequest, clusterState);
         searchPipelineService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
@@ -473,7 +473,7 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
         PutSearchPipelineRequest putRequest = new PutSearchPipelineRequest(
             id,
             new BytesArray("{\"request_processors\" : [ { \"scale_request_size\": { \"scale\" : \"foo\" } } ] }"),
-            XContentType.JSON
+            MediaTypeRegistry.JSON
         );
         clusterState = SearchPipelineService.innerPut(putRequest, clusterState);
         try (MockLogAppender mockAppender = MockLogAppender.createForLoggers(LogManager.getLogger(SearchPipelineService.class))) {
@@ -496,7 +496,7 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
         PipelineConfiguration config = new PipelineConfiguration(
             "_id",
             new BytesArray("{\"request_processors\" : [ { \"scale_request_size\": { \"scale\" : 2 } } ] }"),
-            XContentType.JSON
+            MediaTypeRegistry.JSON
         );
         SearchPipelineMetadata searchPipelineMetadata = new SearchPipelineMetadata(Map.of("_id", config));
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
@@ -529,11 +529,11 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
         SearchPipelineMetadata metadata = new SearchPipelineMetadata(
             Map.of(
                 "p1",
-                new PipelineConfiguration("p1", definition, XContentType.JSON),
+                new PipelineConfiguration("p1", definition, MediaTypeRegistry.JSON),
                 "p2",
-                new PipelineConfiguration("p2", definition, XContentType.JSON),
+                new PipelineConfiguration("p2", definition, MediaTypeRegistry.JSON),
                 "q1",
-                new PipelineConfiguration("q1", definition, XContentType.JSON)
+                new PipelineConfiguration("q1", definition, MediaTypeRegistry.JSON)
             )
         );
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
@@ -582,7 +582,7 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
                 new PipelineConfiguration(
                     "p1",
                     new BytesArray("{\"request_processors\" : [ { \"scale_request_size\": { \"scale\" : 2 } } ] }"),
-                    XContentType.JSON
+                    MediaTypeRegistry.JSON
                 )
             )
         );
@@ -617,7 +617,7 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
                 new PipelineConfiguration(
                     "p1",
                     new BytesArray("{\"response_processors\" : [ { \"fixed_score\": { \"score\" : 2 } } ] }"),
-                    XContentType.JSON
+                    MediaTypeRegistry.JSON
                 )
             )
         );
@@ -662,7 +662,7 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
                 new PipelineConfiguration(
                     "p1",
                     new BytesArray("{\"phase_results_processors\" : [ { \"max_score\" : { } } ]}"),
-                    XContentType.JSON
+                    MediaTypeRegistry.JSON
                 )
             )
         );
@@ -747,19 +747,19 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
                 new PipelineConfiguration(
                     "p1",
                     new BytesArray("{\"request_processors\" : [ { \"scale_request_size\": { \"scale\" : 2 } } ] }"),
-                    XContentType.JSON
+                    MediaTypeRegistry.JSON
                 ),
                 "p2",
                 new PipelineConfiguration(
                     "p2",
                     new BytesArray("{\"response_processors\" : [ { \"fixed_score\": { \"score\" : 2 } } ] }"),
-                    XContentType.JSON
+                    MediaTypeRegistry.JSON
                 ),
                 "p3",
                 new PipelineConfiguration(
                     "p3",
                     new BytesArray("{\"phase_results_processors\" : [ { \"max_score\" : { } } ]}"),
-                    XContentType.JSON
+                    MediaTypeRegistry.JSON
                 )
             )
         );
@@ -818,7 +818,7 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
                     + "\"phase_results_processors\" : [ { \"max_score\" : { } } ]"
                     + "}"
             ),
-            XContentType.JSON
+            MediaTypeRegistry.JSON
         );
 
         SearchPipelineInfo completePipelineInfo = new SearchPipelineInfo(
@@ -843,7 +843,7 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
                     + "\"response_processors\": [{ \"fixed_score\": { \"score\" : 2 } }]"
                     + "}"
             ),
-            XContentType.JSON
+            MediaTypeRegistry.JSON
         );
         expectThrows(
             ClassCastException.class,
@@ -1241,25 +1241,25 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
                 new PipelineConfiguration(
                     "good_response_pipeline",
                     new BytesArray("{\"response_processors\" : [ { \"successful_response\": {} } ] }"),
-                    XContentType.JSON
+                    MediaTypeRegistry.JSON
                 ),
                 "bad_response_pipeline",
                 new PipelineConfiguration(
                     "bad_response_pipeline",
                     new BytesArray("{\"response_processors\" : [ { \"throwing_response\": {} } ] }"),
-                    XContentType.JSON
+                    MediaTypeRegistry.JSON
                 ),
                 "good_request_pipeline",
                 new PipelineConfiguration(
                     "good_request_pipeline",
                     new BytesArray("{\"request_processors\" : [ { \"successful_request\": {} } ] }"),
-                    XContentType.JSON
+                    MediaTypeRegistry.JSON
                 ),
                 "bad_request_pipeline",
                 new PipelineConfiguration(
                     "bad_request_pipeline",
                     new BytesArray("{\"request_processors\" : [ { \"throwing_request\": {} } ] }"),
-                    XContentType.JSON
+                    MediaTypeRegistry.JSON
                 )
             )
         );
@@ -1299,7 +1299,7 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
         PutSearchPipelineRequest putRequest = new PutSearchPipelineRequest(
             id,
             new BytesArray("{\"request_processors\":[" + " { \"" + processorType + "\": {}}" + "]}"),
-            XContentType.JSON
+            MediaTypeRegistry.JSON
         );
         ClusterState previousClusterState = clusterState;
         clusterState = SearchPipelineService.innerPut(putRequest, clusterState);

@@ -46,8 +46,8 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.set.Sets;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
@@ -129,9 +129,9 @@ public class IndexMetadataTests extends OpenSearchTestCase {
         final IndexMetadata fromXContentMeta = IndexMetadata.fromXContent(parser);
         assertEquals(
             "expected: "
-                + Strings.toString(XContentType.JSON, metadata)
+                + Strings.toString(MediaTypeRegistry.JSON, metadata)
                 + "\nactual  : "
-                + Strings.toString(XContentType.JSON, fromXContentMeta),
+                + Strings.toString(MediaTypeRegistry.JSON, fromXContentMeta),
             metadata,
             fromXContentMeta
         );
