@@ -59,6 +59,7 @@ import java.util.stream.Stream;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.opensearch.action.search.TransportSearchAction.SEARCH_REQUEST_STATS_ENABLED_KEY;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.search.aggregations.AggregationBuilders.terms;
 
@@ -76,6 +77,12 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
             .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey(), "zone")
             .put("cluster.routing.weighted.fail_open", false)
             .build();
+
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setPersistentSettings(Settings.builder().put(SEARCH_REQUEST_STATS_ENABLED_KEY, true).build())
+            .get();
 
         logger.info("--> starting 6 nodes on different zones");
         List<String> nodes = internalCluster().startNodes(

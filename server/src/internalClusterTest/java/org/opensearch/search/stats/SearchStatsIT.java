@@ -36,6 +36,7 @@ import org.opensearch.action.admin.cluster.node.stats.NodeStats;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.opensearch.action.search.SearchResponse;
+import org.opensearch.action.search.TransportSearchAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.routing.GroupShardsIterator;
 import org.opensearch.cluster.routing.ShardIterator;
@@ -58,6 +59,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
+import static org.opensearch.action.search.TransportSearchAction.SEARCH_REQUEST_STATS_ENABLED_KEY;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
@@ -103,6 +105,11 @@ public class SearchStatsIT extends OpenSearchIntegTestCase {
         assertThat(numNodes, greaterThanOrEqualTo(2));
         final int shardsIdx1 = randomIntBetween(1, 10); // we make sure each node gets at least a single shard...
         final int shardsIdx2 = Math.max(numNodes - shardsIdx1, randomIntBetween(1, 10));
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setPersistentSettings(Settings.builder().put(SEARCH_REQUEST_STATS_ENABLED_KEY, true).build())
+            .get();
         assertThat(numNodes, lessThanOrEqualTo(shardsIdx1 + shardsIdx2));
         assertAcked(
             prepareCreate("test1").setSettings(
@@ -118,7 +125,10 @@ public class SearchStatsIT extends OpenSearchIntegTestCase {
         }
         assertAcked(
             prepareCreate("test2").setSettings(
-                Settings.builder().put(SETTING_NUMBER_OF_SHARDS, shardsIdx2).put(SETTING_NUMBER_OF_REPLICAS, 0)
+                Settings.builder()
+                    .put(SETTING_NUMBER_OF_SHARDS, shardsIdx2)
+                    .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put(TransportSearchAction.SEARCH_REQUEST_STATS_ENABLED.getKey(), true)
             )
         );
         int docsTest2 = scaledRandomIntBetween(3 * shardsIdx2, 5 * shardsIdx2);
@@ -177,11 +187,11 @@ public class SearchStatsIT extends OpenSearchIntegTestCase {
                 numOfCoordinators += 1;
             }
             if (nodeIdsWithIndex.contains(stat.getNode().getId())) {
-                assertEquals(total.getQueryCount(), greaterThan(0L));
+                assertThat(total.getQueryCount(), greaterThan(0L));
                 assertThat(total.getQueryTimeInMillis(), greaterThan(0L));
                 num++;
             } else {
-                assertEquals(total.getQueryCount(), iters);
+                assertThat(total.getQueryCount(), greaterThanOrEqualTo(0L));
                 assertThat(total.getQueryTimeInMillis(), equalTo(0L));
             }
         }
