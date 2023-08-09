@@ -827,6 +827,7 @@ final class RequestConverters {
 
     static HttpEntity createEntity(ToXContent toXContent, MediaType mediaType, ToXContent.Params toXContentParams) throws IOException {
         BytesRef source = org.opensearch.core.xcontent.XContentHelper.toXContent(toXContent, mediaType, toXContentParams, false)
+            .toBytesRef();
         return new NByteArrayEntity(source.bytes, source.offset, source.length, createContentType(mediaType));
     }
 
