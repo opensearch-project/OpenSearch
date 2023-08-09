@@ -634,6 +634,9 @@ public class SegmentReplicationTargetService implements IndexEventListener {
         }
     }
 
+    /**
+     * Async task responsible for failing stale replicas.
+     */
     final static class AsyncFailStaleReplicaTask extends AbstractAsyncTask {
         private final PendingCheckpoints pendingCheckpoints;
         private final IndicesService indicesService;
@@ -674,6 +677,9 @@ public class SegmentReplicationTargetService implements IndexEventListener {
 
     }
 
+    /**
+     * Internal class to track the list of Replication Checkpoints which are still not processed.
+     */
     public static class PendingCheckpoints {
         protected final Map<ShardId, List<Tuple<ReplicationCheckpoint, Long>>> checkpointsTracker = ConcurrentCollections
             .newConcurrentMap();
