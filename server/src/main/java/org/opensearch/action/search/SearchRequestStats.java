@@ -184,6 +184,12 @@ public final class SearchRequestStats implements SearchRequestOperationsListener
         computeStats(statsHolder -> { totalStats.expandSearchCurrent.dec(); });
     }
 
+    /**
+     * Holder of statistics values
+     *
+     * @opensearch.internal
+     */
+
     public static final class StatsHolder {
         public MeanMetric dfsPreQueryMetric = new MeanMetric();
         public CounterMetric dfsPreQueryCurrent = new CounterMetric();

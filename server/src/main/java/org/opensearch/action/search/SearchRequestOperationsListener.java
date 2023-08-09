@@ -50,6 +50,12 @@ public interface SearchRequestOperationsListener {
 
     void onExpandSearchPhaseEnd(SearchPhaseContext context, long tookTime);
 
+    /**
+     * Holder of Composite Listeners
+     *
+     * @opensearch.internal
+     */
+
     final class CompositeListener implements SearchRequestOperationsListener {
         private final List<SearchRequestOperationsListener> listeners;
         private final Logger logger;

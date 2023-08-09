@@ -81,6 +81,12 @@ public class SearchStats implements Writeable, ToXContentFragment {
         public long expandSearchTotal;
     }
 
+    /**
+     * Holder of statistics values
+     *
+     * @opensearch.internal
+     */
+
     public static class Stats implements Writeable, ToXContentFragment {
 
         private long queryCount;
