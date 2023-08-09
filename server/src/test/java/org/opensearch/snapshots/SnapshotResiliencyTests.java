@@ -830,7 +830,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                 SnapshotInfo snapshotInfo = snapshotInfos.get(0);
                 assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
                 assertEquals(0, snapshotInfo.failedShards());
-                assertTrue(snapshotInfo.snapshotId().getName().equals(snapshotsList[0]));
+                assertEquals(snapshotInfo.snapshotId().getName(), snapshotsList[0]);
             }, exception -> { throw new AssertionError(exception); }));
         });
     }
