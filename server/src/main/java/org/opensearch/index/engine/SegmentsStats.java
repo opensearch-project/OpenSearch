@@ -116,6 +116,7 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
         bitsetMemoryInBytes = in.readLong();
         maxUnsafeAutoIdTimestamp = in.readLong();
         fileSizes = in.readMap(StreamInput::readString, StreamInput::readLong);
+        // TODO Update to 2_9_0 when we backport to 2.x
         if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
             remoteSegmentStats = in.readOptionalWriteable(RemoteSegmentStats::new);
         } else {
@@ -241,7 +242,9 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
         builder.humanReadableField(Fields.VERSION_MAP_MEMORY_IN_BYTES, Fields.VERSION_MAP_MEMORY, getVersionMapMemory());
         builder.humanReadableField(Fields.FIXED_BIT_SET_MEMORY_IN_BYTES, Fields.FIXED_BIT_SET, getBitsetMemory());
         builder.field(Fields.MAX_UNSAFE_AUTO_ID_TIMESTAMP, maxUnsafeAutoIdTimestamp);
-        remoteSegmentStats.toXContent(builder, params);
+        if (remoteSegmentStats != null) {
+            remoteSegmentStats.toXContent(builder, params);
+        }
         builder.startObject(Fields.FILE_SIZES);
         for (Map.Entry<String, Long> entry : fileSizes.entrySet()) {
             builder.startObject(entry.getKey());
@@ -308,6 +311,7 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
         out.writeLong(bitsetMemoryInBytes);
         out.writeLong(maxUnsafeAutoIdTimestamp);
         out.writeMap(this.fileSizes, StreamOutput::writeString, StreamOutput::writeLong);
+        // TODO Update to 2_9_0 when we backport to 2.x
         if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
             out.writeOptionalWriteable(remoteSegmentStats);
         }
