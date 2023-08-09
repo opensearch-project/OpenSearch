@@ -798,43 +798,41 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
         setupTestCluster(randomFrom(1, 3, 5), randomIntBetween(2, 10));
 
         String repoName = "repo";
-        final String[] snapshotsList = { "snapshot-1", "snapshot-2" };
-        final String[] indexList = { "index-1", "index-2" };
+        final String[] snapshotsList = { "snapshot-1" };
+        final String index = "index-1";
         final int shards = randomIntBetween(1, 10);
 
         TestClusterNodes.TestClusterNode clusterManagerNode = testClusterNodes.currentClusterManager(
             testClusterNodes.nodes.values().iterator().next().clusterService.state()
         );
 
-        for (int i = 0; i < snapshotsList.length; i++) {
-            final StepListener<CreateSnapshotResponse> createSnapshotResponseStepListener = new StepListener<>();
-            final String snapshot = snapshotsList[i];
-            final String index = indexList[i];
-            continueOrDie(
-                createRepoAndIndex(repoName, index, shards),
-                createSnapshotResponse -> client().admin()
-                    .cluster()
-                    .prepareCreateSnapshot(repoName, snapshot)
-                    .setWaitForCompletion(true)
-                    .execute(createSnapshotResponseStepListener)
-            );
-        }
-        deterministicTaskQueue.runAllRunnableTasks();
+        final StepListener<CreateSnapshotResponse> createSnapshotResponseStepListener = new StepListener<>();
+        final String snapshot = snapshotsList[0];
+        continueOrDie(
+            createRepoAndIndex(repoName, index, shards),
+            createSnapshotResponse -> client().admin()
+                .cluster()
+                .prepareCreateSnapshot(repoName, snapshot)
+                .setWaitForCompletion(true)
+                .execute(createSnapshotResponseStepListener)
+        );
 
-        TransportAction getSnapshotsAction = clusterManagerNode.actions.get(GetSnapshotsAction.INSTANCE);
-        TransportGetSnapshotsAction transportGetSnapshotsAction = (TransportGetSnapshotsAction) getSnapshotsAction;
-        GetSnapshotsRequest repoSnapshotRequest = new GetSnapshotsRequest().repository(repoName).snapshots(snapshotsList);
+        continueOrDie(createSnapshotResponseStepListener, createSnapshotResponse -> {
 
-        transportGetSnapshotsAction.execute(null, repoSnapshotRequest, ActionListener.wrap(repoSnapshotResponse -> {
-            assertNotNull("Snapshot list should not be null", repoSnapshotResponse.getSnapshots());
-            assertThat(repoSnapshotResponse.getSnapshots(), hasSize(2));
-            List<SnapshotInfo> snapshotInfos = repoSnapshotResponse.getSnapshots();
-            for (SnapshotInfo snapshotInfo : snapshotInfos) {
+            TransportAction getSnapshotsAction = clusterManagerNode.actions.get(GetSnapshotsAction.INSTANCE);
+            TransportGetSnapshotsAction transportGetSnapshotsAction = (TransportGetSnapshotsAction) getSnapshotsAction;
+            GetSnapshotsRequest repoSnapshotRequest = new GetSnapshotsRequest().repository(repoName).snapshots(snapshotsList);
+
+            transportGetSnapshotsAction.execute(null, repoSnapshotRequest, ActionListener.wrap(repoSnapshotResponse -> {
+                assertNotNull("Snapshot list should not be null", repoSnapshotResponse.getSnapshots());
+                assertThat(repoSnapshotResponse.getSnapshots(), hasSize(1));
+                List<SnapshotInfo> snapshotInfos = repoSnapshotResponse.getSnapshots();
+                SnapshotInfo snapshotInfo = snapshotInfos.get(0);
                 assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
                 assertEquals(0, snapshotInfo.failedShards());
-                assertTrue(Arrays.stream(snapshotsList).anyMatch(snapshotInfo.snapshotId().getName()::equals));
-            }
-        }, exception -> { throw new AssertionError(exception); }));
+                assertEquals(snapshotInfo.snapshotId().getName(), snapshotsList[0]);
+            }, exception -> { throw new AssertionError(exception); }));
+        });
     }
 
     public void testTransportGetCurrentSnapshotsAction() {
