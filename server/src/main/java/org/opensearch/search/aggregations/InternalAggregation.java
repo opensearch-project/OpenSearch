@@ -40,6 +40,8 @@ import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.rest.action.search.RestSearchAction;
 import org.opensearch.script.ScriptService;
+import org.opensearch.search.aggregations.bucket.LocalBucketCountThresholds;
+import org.opensearch.search.aggregations.bucket.terms.TermsAggregator;
 import org.opensearch.search.aggregations.pipeline.PipelineAggregator;
 import org.opensearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.opensearch.search.aggregations.support.AggregationPath;
@@ -158,6 +160,18 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
 
         public boolean isSliceLevel() {
             return this.isSliceLevel;
+        }
+
+        /**
+         * For slice level partial reduce we will apply shard level `shard_size` and `shard_min_doc_count` limits
+         * whereas for coordinator level partial reduce it will use top level `size` and `min_doc_count`
+         */
+        public LocalBucketCountThresholds asLocalBucketCountThresholds(TermsAggregator.BucketCountThresholds bucketCountThresholds) {
+            if (isSliceLevel()) {
+                return new LocalBucketCountThresholds(bucketCountThresholds.getShardMinDocCount(), bucketCountThresholds.getShardSize());
+            } else {
+                return new LocalBucketCountThresholds(bucketCountThresholds.getMinDocCount(), bucketCountThresholds.getRequiredSize());
+            }
         }
 
         public BigArrays bigArrays() {
