@@ -456,6 +456,7 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
                 order,
                 metadata(),
                 format,
+                bucketCountThresholds.getShardSize(),
                 showTermDocCountError,
                 otherDocCount,
                 Arrays.asList(topBuckets),

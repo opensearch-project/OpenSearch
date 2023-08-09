@@ -89,6 +89,7 @@ public class StringTermsSerializationBenchmark {
             BucketOrder.key(true),
             null,
             DocValueFormat.RAW,
+            buckets,
             false,
             100000,
             resultBuckets,

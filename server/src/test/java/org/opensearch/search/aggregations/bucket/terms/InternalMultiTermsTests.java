@@ -77,6 +77,7 @@ public class InternalMultiTermsTests extends InternalTermsTestCase {
             reduceOrder,
             order,
             metadata,
+            shardSize,
             showTermDocCountError,
             otherDocCount,
             docCountError,

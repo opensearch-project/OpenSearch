@@ -72,7 +72,19 @@ abstract class AbstractStringTermsAggregator extends TermsAggregator {
     }
 
     protected StringTerms buildEmptyTermsAggregation() {
-        return new StringTerms(name, order, order, metadata(), format, showTermDocCountError, 0, emptyList(), 0, bucketCountThresholds);
+        return new StringTerms(
+            name,
+            order,
+            order,
+            metadata(),
+            format,
+            bucketCountThresholds.getShardSize(),
+            showTermDocCountError,
+            0,
+            emptyList(),
+            0,
+            bucketCountThresholds
+        );
     }
 
     protected SignificantStringTerms buildEmptySignificantTermsAggregation(long subsetSize, SignificanceHeuristic significanceHeuristic) {

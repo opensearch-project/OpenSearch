@@ -397,6 +397,7 @@ public class NumericTermsAggregator extends TermsAggregator {
                 order,
                 metadata(),
                 format,
+                bucketCountThresholds.getShardSize(),
                 showTermDocCountError,
                 otherDocCount,
                 List.of(topBuckets),
@@ -407,7 +408,19 @@ public class NumericTermsAggregator extends TermsAggregator {
 
         @Override
         LongTerms buildEmptyResult() {
-            return new LongTerms(name, order, order, metadata(), format, showTermDocCountError, 0, emptyList(), 0, bucketCountThresholds);
+            return new LongTerms(
+                name,
+                order,
+                order,
+                metadata(),
+                format,
+                bucketCountThresholds.getShardSize(),
+                showTermDocCountError,
+                0,
+                emptyList(),
+                0,
+                bucketCountThresholds
+            );
         }
     }
 
@@ -464,6 +477,7 @@ public class NumericTermsAggregator extends TermsAggregator {
                 order,
                 metadata(),
                 format,
+                bucketCountThresholds.getShardSize(),
                 showTermDocCountError,
                 otherDocCount,
                 List.of(topBuckets),
@@ -474,7 +488,19 @@ public class NumericTermsAggregator extends TermsAggregator {
 
         @Override
         DoubleTerms buildEmptyResult() {
-            return new DoubleTerms(name, order, order, metadata(), format, showTermDocCountError, 0, emptyList(), 0, bucketCountThresholds);
+            return new DoubleTerms(
+                name,
+                order,
+                order,
+                metadata(),
+                format,
+                bucketCountThresholds.getShardSize(),
+                showTermDocCountError,
+                0,
+                emptyList(),
+                0,
+                bucketCountThresholds
+            );
         }
     }
 
@@ -530,6 +556,7 @@ public class NumericTermsAggregator extends TermsAggregator {
                 order,
                 metadata(),
                 format,
+                bucketCountThresholds.getShardSize(),
                 showTermDocCountError,
                 otherDocCount,
                 List.of(topBuckets),
@@ -546,6 +573,7 @@ public class NumericTermsAggregator extends TermsAggregator {
                 order,
                 metadata(),
                 format,
+                bucketCountThresholds.getShardSize(),
                 showTermDocCountError,
                 0,
                 emptyList(),

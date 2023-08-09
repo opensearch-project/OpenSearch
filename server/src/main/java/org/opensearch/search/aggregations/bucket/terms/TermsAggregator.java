@@ -196,9 +196,13 @@ public abstract class TermsAggregator extends DeferableBucketAggregator {
         }
     }
 
-    // BucketCountThresholds type that throws an exception when shardMinDocCount and shardSize are accessed. This is used for
-    // deserialization on the coordinator during reduce as shardMinDocCount and shardSize should not be accessed this way on the
-    // coordinator.
+    /**
+     * BucketCountThresholds type that throws an exception when shardMinDocCount or shardSize are accessed. This is used for
+     * deserialization on the coordinator during reduce as shardMinDocCount and shardSize should not be accessed this way on the
+     * coordinator.
+     *
+     * @opensearch.internal
+     */
     public static class CoordinatorBucketCountThresholds extends BucketCountThresholds {
 
         public CoordinatorBucketCountThresholds(long minDocCount, long shardMinDocCount, int requiredSize, int shardSize) {
@@ -207,15 +211,12 @@ public abstract class TermsAggregator extends DeferableBucketAggregator {
 
         @Override
         public long getShardMinDocCount() {
-            throw new AggregationExecutionException("shard_min_doc_count should not be accessed");
+            throw new AggregationExecutionException("shard_min_doc_count should not be accessed via CoordinatorBucketCountThresholds");
         }
 
         @Override
         public int getShardSize() {
-            if (shardSize < 0) {
-                throw new AggregationExecutionException("Invalid shard_size accessed");
-            }
-            return shardSize;
+            throw new AggregationExecutionException("shard_size should not be accessed via CoordinatorBucketCountThresholds");
         }
     }
 

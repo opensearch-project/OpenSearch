@@ -801,6 +801,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                 order,
                 metadata(),
                 format,
+                bucketCountThresholds.getShardSize(),
                 showTermDocCountError,
                 otherDocCount,
                 Arrays.asList(topBuckets),

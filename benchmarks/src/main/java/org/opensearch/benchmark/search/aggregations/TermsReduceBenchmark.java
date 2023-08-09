@@ -173,6 +173,7 @@ public class TermsReduceBenchmark {
                 BucketOrder.count(false),
                 Collections.emptyMap(),
                 DocValueFormat.RAW,
+                numShards,
                 true,
                 0,
                 buckets,
