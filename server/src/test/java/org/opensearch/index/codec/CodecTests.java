@@ -83,6 +83,18 @@ public class CodecTests extends OpenSearchTestCase {
         assertStoredFieldsCompressionEquals(Lucene95Codec.Mode.BEST_COMPRESSION, codec);
     }
 
+    public void testLZ4() throws Exception {
+        Codec codec = createCodecService(false).codec("lz4");
+        assertStoredFieldsCompressionEquals(Lucene95Codec.Mode.BEST_SPEED, codec);
+        assert codec instanceof PerFieldMappingPostingFormatCodec;
+    }
+
+    public void testZlib() throws Exception {
+        Codec codec = createCodecService(false).codec("zlib");
+        assertStoredFieldsCompressionEquals(Lucene95Codec.Mode.BEST_COMPRESSION, codec);
+        assert codec instanceof PerFieldMappingPostingFormatCodec;
+    }
+
     public void testZstd() throws Exception {
         Codec codec = createCodecService(false).codec("zstd");
         assertStoredFieldsCompressionEquals(Lucene95CustomCodec.Mode.ZSTD, codec);
