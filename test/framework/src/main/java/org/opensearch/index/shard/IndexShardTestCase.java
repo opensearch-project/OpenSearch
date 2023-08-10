@@ -793,12 +793,18 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         return new FsBlobContainer(fsBlobStore, blobPath, f);
     }
 
+    protected IndexShard reinitShard(IndexShard current, IndexingOperationListener... listeners) throws IOException {
+        return reinitShard(current, (Path) null, listeners);
+    }
+
     /**
      * Takes an existing shard, closes it and starts a new initialing shard at the same location
      *
+     * @param current The current shard to reinit
+     * @param remotePath Remote path to recover from if remote storage is used
      * @param listeners new listerns to use for the newly created shard
      */
-    protected IndexShard reinitShard(IndexShard current, IndexingOperationListener... listeners) throws IOException {
+    protected IndexShard reinitShard(IndexShard current, Path remotePath, IndexingOperationListener... listeners) throws IOException {
         final ShardRouting shardRouting = current.routingEntry();
         return reinitShard(
             current,
@@ -806,6 +812,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 shardRouting,
                 shardRouting.primary() ? RecoverySource.ExistingStoreRecoverySource.INSTANCE : RecoverySource.PeerRecoverySource.INSTANCE
             ),
+            remotePath,
             listeners
         );
     }
@@ -817,13 +824,18 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
      * @param listeners new listerns to use for the newly created shard
      */
     protected IndexShard reinitShard(IndexShard current, ShardRouting routing, IndexingOperationListener... listeners) throws IOException {
+        return reinitShard(current, routing, null, listeners);
+    }
+
+    protected IndexShard reinitShard(IndexShard current, ShardRouting routing, Path remotePath, IndexingOperationListener... listeners)
+        throws IOException {
         return reinitShard(
             current,
             routing,
             current.indexSettings.getIndexMetadata(),
             current.engineFactory,
             current.engineConfigFactory,
-            null,
+            remotePath,
             listeners
         );
     }

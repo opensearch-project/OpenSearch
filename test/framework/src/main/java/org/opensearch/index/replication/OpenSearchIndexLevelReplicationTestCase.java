@@ -622,8 +622,8 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
             return primary;
         }
 
-        public synchronized void reinitPrimaryShard() throws IOException {
-            primary = reinitShard(primary);
+        public synchronized void reinitPrimaryShard(Path remotePath) throws IOException {
+            primary = reinitShard(primary, remotePath);
             computeReplicationTargets();
         }
 
