@@ -6,13 +6,9 @@
  * compatible open source license.
  */
 
-package org.opensearch.telemetry.tracing.listeners;
+package org.opensearch.telemetry.tracing;
 
-import org.opensearch.telemetry.tracing.Span;
-import org.opensearch.telemetry.tracing.SpanContext;
-import org.opensearch.telemetry.tracing.SpanScope;
-import org.opensearch.telemetry.tracing.Tracer;
-import org.opensearch.telemetry.tracing.TracerWrapper;
+import org.opensearch.telemetry.tracing.listeners.TraceEventListener;
 import org.opensearch.test.OpenSearchTestCase;
 
 import static org.mockito.Mockito.any;
@@ -50,6 +46,7 @@ public class TracerWrapperTests extends OpenSearchTestCase {
         spanScope = mock(SpanScope.class);
 
         when(tracer.startSpan(anyString())).thenReturn(spanScope);
+        when(tracer.startSpan(anyString(), any())).thenReturn(spanScope);
         when(tracer.getCurrentSpan()).thenReturn(spanContext);
         when(traceEventsService.isTracingEnabled()).thenReturn(true);
         when(traceEventsService.getTracer()).thenReturn(tracer);

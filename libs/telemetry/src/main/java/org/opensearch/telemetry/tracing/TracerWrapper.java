@@ -11,7 +11,6 @@ package org.opensearch.telemetry.tracing;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.telemetry.tracing.listeners.SpanEventListener;
-import org.opensearch.telemetry.tracing.listeners.TraceEventsService;
 
 import java.io.IOException;
 
@@ -36,7 +35,7 @@ public class TracerWrapper implements Tracer {
      * @param delegate the underlying Tracer implementation
      * @param traceEventsService  traceEventListenerService
      */
-    public TracerWrapper(Tracer delegate, TraceEventsService traceEventsService) {
+    TracerWrapper(Tracer delegate, TraceEventsService traceEventsService) {
         assert delegate != null;
         this.tracer = delegate;
         this.traceEventsService = traceEventsService;

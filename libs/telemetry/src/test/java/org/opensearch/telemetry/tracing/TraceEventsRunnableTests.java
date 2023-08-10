@@ -6,10 +6,9 @@
  * compatible open source license.
  */
 
-package org.opensearch.telemetry.tracing.listeners;
+package org.opensearch.telemetry.tracing;
 
-import org.opensearch.telemetry.tracing.Span;
-import org.opensearch.telemetry.tracing.Tracer;
+import org.opensearch.telemetry.tracing.listeners.TraceEventListener;
 import org.opensearch.test.OpenSearchTestCase;
 
 import org.mockito.Mockito;
@@ -37,7 +36,7 @@ public class TraceEventsRunnableTests extends OpenSearchTestCase {
         delegate = Mockito.mock(Runnable.class);
 
         Mockito.when(traceEventsService.getTracer()).thenReturn(tracer);
-        Mockito.when(tracer.getCurrentSpan()).thenReturn(span);
+        Mockito.when(tracer.getCurrentSpan()).thenReturn(new SpanContext(span));
         Mockito.when(span.getParentSpan()).thenReturn(null);
 
         traceEventsService.registerTraceEventListener("listener1", traceEventListener1);
@@ -51,7 +50,7 @@ public class TraceEventsRunnableTests extends OpenSearchTestCase {
     public void testRun_InvokeOnRunnableStartAndOnRunnableComplete() {
         Span span1 = Mockito.mock(Span.class);
         Span span2 = Mockito.mock(Span.class);
-        Mockito.when(traceEventsService.getTracer().getCurrentSpan()).thenReturn(span1, span1);
+        Mockito.when(traceEventsService.getTracer().getCurrentSpan()).thenReturn(new SpanContext(span1), new SpanContext(span1));
         Mockito.when(span1.hasEnded()).thenReturn(false);
         Mockito.when(span2.hasEnded()).thenReturn(false);
         Mockito.when(span1.getParentSpan()).thenReturn(span2);

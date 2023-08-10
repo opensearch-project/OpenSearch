@@ -16,7 +16,7 @@ import org.opensearch.telemetry.metrics.MetricEmitter;
 import org.opensearch.telemetry.tracing.listeners.TraceEventListener;
 import org.opensearch.telemetry.tracing.Span;
 import org.opensearch.telemetry.tracing.Tracer;
-import org.opensearch.telemetry.tracing.listeners.TraceEventsService;
+import org.opensearch.telemetry.tracing.TraceEventsService;
 
 import java.util.Collections;
 import java.util.HashMap;

@@ -8,12 +8,9 @@
 
 package org.opensearch.telemetry.tracing.noop;
 
-import org.opensearch.telemetry.tracing.Span;
 import org.opensearch.telemetry.tracing.SpanScope;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.telemetry.tracing.SpanContext;
-
-import java.util.Map;
 
 /**
  * No-op implementation of Tracer.
@@ -46,31 +43,6 @@ public class NoopTracer implements Tracer {
     @Override
     public SpanScope startSpan(String spanName) {
         return SpanScope.NO_OP;
-    }
-
-    /**
-     * Starts a new no-op span with the given spanName and attributes.
-     * The method always returns a {@link SpanScope#NO_OP} instance, indicating that no actual
-     * span-scoping is required.
-     *
-     * @param spanName   the name of the no-op span.
-     * @param attributes a map of attributes to be associated with the no-op span.
-     * @return a {@link SpanScope#NO_OP} instance.
-     */
-    @Override
-    public SpanScope startSpan(String spanName, Map<String, String> attributes) {
-        return SpanScope.NO_OP;
-    }
-
-    /**
-     * Returns the current no-op span.
-     * Since the NoopTracer does not perform any actual tracing, this method always returns null.
-     *
-     * @return null, as there is no current span in the NoopTracer.
-     */
-    @Override
-    public Span getCurrentSpan() {
-        return null;
     }
 
     /**

@@ -6,11 +6,12 @@
  * compatible open source license.
  */
 
-package org.opensearch.telemetry.tracing.listeners;
+package org.opensearch.telemetry.tracing;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.telemetry.tracing.Span;
+import org.opensearch.telemetry.tracing.listeners.RunnableEventListener;
+import org.opensearch.telemetry.tracing.listeners.TraceEventListener;
 
 /**
  * Runnable implementation that wraps another Runnable and adds trace event listener functionality.
@@ -69,7 +70,7 @@ public class TraceEventsRunnable implements Runnable {
      */
     public static void invokeOnRunnableStart(TraceEventsService traceEventsService) {
         if (traceEventsService.isTracingEnabled()) {
-            Span span = traceEventsService.getTracer().getCurrentSpan();
+            Span span = traceEventsService.getTracer().getCurrentSpan().getSpan();
             // repeat it for all the spans in the hierarchy
             while (span != null) {
                 if (!span.hasEnded()) {
@@ -91,7 +92,7 @@ public class TraceEventsRunnable implements Runnable {
      */
     public static void invokeOnRunnableComplete(TraceEventsService traceEventsService) {
         if (traceEventsService.isTracingEnabled()) {
-            Span span = traceEventsService.getTracer().getCurrentSpan();
+            Span span = traceEventsService.getTracer().getCurrentSpan().getSpan();
             while (span != null) {
                 if (!span.hasEnded()) {
                     Span finalSpan = span;
