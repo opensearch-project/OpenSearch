@@ -16,6 +16,8 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.index.remote.RemoteSegmentStats;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
+import java.util.concurrent.TimeUnit;
+
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class RemoteSegmentStatsFromNodesStatsIT extends RemoteStoreBaseIntegTestCase {
     private static final String INDEX_NAME = "remote-index-1";
@@ -34,7 +36,15 @@ public class RemoteSegmentStatsFromNodesStatsIT extends RemoteStoreBaseIntegTest
         ensureStableCluster(DATA_NODE_COUNT + CLUSTER_MANAGER_NODE_COUNT);
     }
 
-    public void testNodesStatsParity() {
+    /**
+     * - Creates two indices with single primary shard, pinned to a single node.
+     * - Index documents in both of them and forces a fresh for both
+     * - Polls the _remotestore/stats API for individual index level stats
+     * - Adds up requisite fields from the API output, repeats this for the 2nd index
+     * - Polls _nodes/stats and verifies that the total values at node level adds up
+     * to the values capture in the previous step
+     */
+    public void testNodesStatsParityWithOnlyPrimaryShards() {
         String[] dataNodes = internalCluster().getDataNodeNames().toArray(String[]::new);
         String randomDataNode = dataNodes[randomIntBetween(0, dataNodes.length - 1)];
         String firstIndex = INDEX_NAME + "1";
@@ -46,8 +56,7 @@ public class RemoteSegmentStatsFromNodesStatsIT extends RemoteStoreBaseIntegTest
             Settings.builder().put(remoteStoreIndexSettings(0, 1)).put("index.routing.allocation.require._name", randomDataNode).build()
         );
         ensureGreen(firstIndex);
-        indexSingleDoc(firstIndex);
-        refresh(firstIndex);
+        indexSingleDoc(firstIndex, true);
 
         // Create second index
         createIndex(
@@ -55,24 +64,32 @@ public class RemoteSegmentStatsFromNodesStatsIT extends RemoteStoreBaseIntegTest
             Settings.builder().put(remoteStoreIndexSettings(0, 1)).put("index.routing.allocation.require._name", randomDataNode).build()
         );
         ensureGreen(secondIndex);
-        indexSingleDoc(secondIndex);
-        refresh(secondIndex);
+        indexSingleDoc(secondIndex, true);
 
-        long cumulativeUploads = 0;
-
+        long cumulativeUploadsSucceeded = 0, cumulativeUploadsStarted = 0, cumulativeUploadsFailed = 0;
+        long max_bytes_lag = 0, max_time_lag = 0;
         // Fetch upload stats
         RemoteStoreStatsResponse remoteStoreStatsFirstIndex = client(randomDataNode).admin()
             .cluster()
             .prepareRemoteStoreStats(firstIndex, "0")
             .setLocal(true)
             .get();
-        cumulativeUploads += remoteStoreStatsFirstIndex.getRemoteStoreStats()[0].getStats().uploadBytesSucceeded;
+        cumulativeUploadsSucceeded += remoteStoreStatsFirstIndex.getRemoteStoreStats()[0].getStats().uploadBytesSucceeded;
+        cumulativeUploadsStarted += remoteStoreStatsFirstIndex.getRemoteStoreStats()[0].getStats().uploadBytesStarted;
+        cumulativeUploadsFailed += remoteStoreStatsFirstIndex.getRemoteStoreStats()[0].getStats().uploadBytesFailed;
+        max_bytes_lag = Math.max(max_bytes_lag, remoteStoreStatsFirstIndex.getRemoteStoreStats()[0].getStats().bytesLag);
+        max_time_lag = Math.max(max_time_lag, remoteStoreStatsFirstIndex.getRemoteStoreStats()[0].getStats().refreshTimeLagMs);
+
         RemoteStoreStatsResponse remoteStoreStatsSecondIndex = client(randomDataNode).admin()
             .cluster()
-            .prepareRemoteStoreStats(firstIndex, "0")
+            .prepareRemoteStoreStats(secondIndex, "0")
             .setLocal(true)
             .get();
-        cumulativeUploads += remoteStoreStatsSecondIndex.getRemoteStoreStats()[0].getStats().uploadBytesSucceeded;
+        cumulativeUploadsSucceeded += remoteStoreStatsSecondIndex.getRemoteStoreStats()[0].getStats().uploadBytesSucceeded;
+        cumulativeUploadsStarted += remoteStoreStatsSecondIndex.getRemoteStoreStats()[0].getStats().uploadBytesStarted;
+        cumulativeUploadsFailed += remoteStoreStatsSecondIndex.getRemoteStoreStats()[0].getStats().uploadBytesFailed;
+        max_bytes_lag = Math.max(max_bytes_lag, remoteStoreStatsSecondIndex.getRemoteStoreStats()[0].getStats().bytesLag);
+        max_time_lag = Math.max(max_time_lag, remoteStoreStatsSecondIndex.getRemoteStoreStats()[0].getStats().refreshTimeLagMs);
 
         // Fetch nodes stats
         NodesStatsResponse nodesStatsResponse = client().admin()
@@ -81,9 +98,42 @@ public class RemoteSegmentStatsFromNodesStatsIT extends RemoteStoreBaseIntegTest
             .setIndices(new CommonStatsFlags().set(CommonStatsFlags.Flag.Segments, true))
             .get();
         RemoteSegmentStats remoteSegmentStats = nodesStatsResponse.getNodes().get(0).getIndices().getSegments().getRemoteSegmentStats();
-        assertEquals(cumulativeUploads, remoteSegmentStats.getUploadBytesSucceeded());
+        assertEquals(cumulativeUploadsSucceeded, remoteSegmentStats.getUploadBytesSucceeded());
+        assertEquals(cumulativeUploadsStarted, remoteSegmentStats.getUploadBytesStarted());
+        assertEquals(cumulativeUploadsFailed, remoteSegmentStats.getUploadBytesFailed());
+        assertEquals(max_bytes_lag, remoteSegmentStats.getMaxRefreshBytesLag());
+        assertEquals(max_time_lag, remoteSegmentStats.getMaxRefreshTimeLag());
     }
 
+    /**
+     * - Creates two indices with single primary shard and single replica
+     * - Index documents in both of them and forces a fresh for both
+     * - Polls the _remotestore/stats API for individual index level stats
+     * - Adds up requisite fields from the API output for both indices
+     * - Polls _nodes/stats and verifies that the total values at node level adds up
+     * to the values capture in the previous step
+     * - Repeats the above 3 steps for the second node
+     */
+    public void testNodesStatsParityWithReplicaShards() throws Exception {
+        String firstIndex = INDEX_NAME + "1";
+        String secondIndex = INDEX_NAME + "2";
+
+        createIndex(firstIndex, Settings.builder().put(remoteStoreIndexSettings(1, 1)).build());
+        ensureGreen(firstIndex);
+        indexSingleDoc(firstIndex, true);
+
+        // Create second index
+        createIndex(secondIndex, Settings.builder().put(remoteStoreIndexSettings(1, 1)).build());
+        ensureGreen(secondIndex);
+        indexSingleDoc(secondIndex, true);
+
+        assertBusy(() -> assertNodeStatsParityAcrossNodes(firstIndex, secondIndex), 15, TimeUnit.SECONDS);
+    }
+
+    /**
+     * Ensures that node stats shows 0 values for dedicated cluster manager nodes
+     * since cluster manager nodes does not participate in indexing
+     */
     public void testZeroRemoteStatsOnNodesStatsForClusterManager() {
         createIndex(INDEX_NAME, remoteStoreIndexSettings(0));
         ensureGreen(INDEX_NAME);
@@ -125,5 +175,63 @@ public class RemoteSegmentStatsFromNodesStatsIT extends RemoteStoreBaseIntegTest
         assertEquals(0, remoteSegmentStats.getDownloadBytesFailed());
         assertEquals(0, remoteSegmentStats.getMaxRefreshBytesLag());
         assertEquals(0, remoteSegmentStats.getMaxRefreshTimeLag());
+    }
+
+    private static void assertNodeStatsParityAcrossNodes(String firstIndex, String secondIndex) {
+        for (String dataNode : internalCluster().getDataNodeNames()) {
+            long cumulativeUploadsSucceeded = 0, cumulativeUploadsStarted = 0, cumulativeUploadsFailed = 0;
+            long cumulativeDownloadsSucceeded = 0, cumulativeDownloadsStarted = 0, cumulativeDownloadsFailed = 0;
+            long max_bytes_lag = 0, max_time_lag = 0;
+            // Fetch upload stats
+            RemoteStoreStatsResponse remoteStoreStatsFirstIndex = client(dataNode).admin()
+                .cluster()
+                .prepareRemoteStoreStats(firstIndex, "0")
+                .setLocal(true)
+                .get();
+            cumulativeUploadsSucceeded += remoteStoreStatsFirstIndex.getRemoteStoreStats()[0].getStats().uploadBytesSucceeded;
+            cumulativeUploadsStarted += remoteStoreStatsFirstIndex.getRemoteStoreStats()[0].getStats().uploadBytesStarted;
+            cumulativeUploadsFailed += remoteStoreStatsFirstIndex.getRemoteStoreStats()[0].getStats().uploadBytesFailed;
+            cumulativeDownloadsSucceeded += remoteStoreStatsFirstIndex.getRemoteStoreStats()[0]
+                .getStats().directoryFileTransferTrackerStats.transferredBytesSucceeded;
+            cumulativeDownloadsStarted += remoteStoreStatsFirstIndex.getRemoteStoreStats()[0]
+                .getStats().directoryFileTransferTrackerStats.transferredBytesStarted;
+            cumulativeDownloadsFailed += remoteStoreStatsFirstIndex.getRemoteStoreStats()[0]
+                .getStats().directoryFileTransferTrackerStats.transferredBytesFailed;
+            max_bytes_lag = Math.max(max_bytes_lag, remoteStoreStatsFirstIndex.getRemoteStoreStats()[0].getStats().bytesLag);
+            max_time_lag = Math.max(max_time_lag, remoteStoreStatsFirstIndex.getRemoteStoreStats()[0].getStats().refreshTimeLagMs);
+
+            RemoteStoreStatsResponse remoteStoreStatsSecondIndex = client(dataNode).admin()
+                .cluster()
+                .prepareRemoteStoreStats(secondIndex, "0")
+                .setLocal(true)
+                .get();
+            cumulativeUploadsSucceeded += remoteStoreStatsSecondIndex.getRemoteStoreStats()[0].getStats().uploadBytesSucceeded;
+            cumulativeUploadsStarted += remoteStoreStatsSecondIndex.getRemoteStoreStats()[0].getStats().uploadBytesStarted;
+            cumulativeUploadsFailed += remoteStoreStatsSecondIndex.getRemoteStoreStats()[0].getStats().uploadBytesFailed;
+            cumulativeDownloadsSucceeded += remoteStoreStatsSecondIndex.getRemoteStoreStats()[0]
+                .getStats().directoryFileTransferTrackerStats.transferredBytesSucceeded;
+            cumulativeDownloadsStarted += remoteStoreStatsSecondIndex.getRemoteStoreStats()[0]
+                .getStats().directoryFileTransferTrackerStats.transferredBytesStarted;
+            cumulativeDownloadsFailed += remoteStoreStatsSecondIndex.getRemoteStoreStats()[0]
+                .getStats().directoryFileTransferTrackerStats.transferredBytesFailed;
+            max_bytes_lag = Math.max(max_bytes_lag, remoteStoreStatsSecondIndex.getRemoteStoreStats()[0].getStats().bytesLag);
+            max_time_lag = Math.max(max_time_lag, remoteStoreStatsSecondIndex.getRemoteStoreStats()[0].getStats().refreshTimeLagMs);
+
+            // Fetch nodes stats
+            NodesStatsResponse nodesStatsResponse = client().admin()
+                .cluster()
+                .prepareNodesStats(dataNode)
+                .setIndices(new CommonStatsFlags().set(CommonStatsFlags.Flag.Segments, true))
+                .get();
+            RemoteSegmentStats remoteSegmentStats = nodesStatsResponse.getNodes().get(0).getIndices().getSegments().getRemoteSegmentStats();
+            assertEquals(cumulativeUploadsSucceeded, remoteSegmentStats.getUploadBytesSucceeded());
+            assertEquals(cumulativeUploadsStarted, remoteSegmentStats.getUploadBytesStarted());
+            assertEquals(cumulativeUploadsFailed, remoteSegmentStats.getUploadBytesFailed());
+            assertEquals(cumulativeDownloadsSucceeded, remoteSegmentStats.getDownloadBytesSucceeded());
+            assertEquals(cumulativeDownloadsStarted, remoteSegmentStats.getDownloadBytesStarted());
+            assertEquals(cumulativeDownloadsFailed, remoteSegmentStats.getDownloadBytesFailed());
+            assertEquals(max_bytes_lag, remoteSegmentStats.getMaxRefreshBytesLag());
+            assertEquals(max_time_lag, remoteSegmentStats.getMaxRefreshTimeLag());
+        }
     }
 }

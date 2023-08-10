@@ -33,7 +33,6 @@
 package org.opensearch.index.engine;
 
 import org.opensearch.Version;
-import org.opensearch.common.Nullable;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -60,9 +59,7 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
     private long maxUnsafeAutoIdTimestamp = Long.MIN_VALUE;
     private long bitsetMemoryInBytes;
     private final Map<String, Long> fileSizes;
-    @Nullable
-    private RemoteSegmentStats remoteSegmentStats;
-
+    private final RemoteSegmentStats remoteSegmentStats;
     private static final ByteSizeValue ZERO_BYTE_SIZE_VALUE = new ByteSizeValue(0L);
 
     /*
@@ -120,7 +117,7 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
         if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
             remoteSegmentStats = in.readOptionalWriteable(RemoteSegmentStats::new);
         } else {
-            remoteSegmentStats = null;
+            remoteSegmentStats = new RemoteSegmentStats();
         }
     }
 
@@ -242,9 +239,7 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
         builder.humanReadableField(Fields.VERSION_MAP_MEMORY_IN_BYTES, Fields.VERSION_MAP_MEMORY, getVersionMapMemory());
         builder.humanReadableField(Fields.FIXED_BIT_SET_MEMORY_IN_BYTES, Fields.FIXED_BIT_SET, getBitsetMemory());
         builder.field(Fields.MAX_UNSAFE_AUTO_ID_TIMESTAMP, maxUnsafeAutoIdTimestamp);
-        if (remoteSegmentStats != null) {
-            remoteSegmentStats.toXContent(builder, params);
-        }
+        remoteSegmentStats.toXContent(builder, params);
         builder.startObject(Fields.FILE_SIZES);
         for (Map.Entry<String, Long> entry : fileSizes.entrySet()) {
             builder.startObject(entry.getKey());

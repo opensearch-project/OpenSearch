@@ -75,6 +75,25 @@ public class RemoteSegmentStats implements Writeable, ToXContentFragment {
         maxRefreshBytesLag = in.readLong();
     }
 
+    /**
+     * Constructor to retrieve metrics from {@link RemoteSegmentTransferTracker.Stats} which is used in {@link RemoteStoreStats} and
+     * provides verbose index level stats of segments transferred to the remote store.
+     * <p>
+     * This method is used in {@link IndexShard} to port over a subset of metrics to be displayed in IndexStats and subsequently rolled up to NodesStats
+     *
+     * @param trackerStats: Source {@link RemoteSegmentTransferTracker.Stats} object from which metrics would be retrieved
+     */
+    public RemoteSegmentStats(RemoteSegmentTransferTracker.Stats trackerStats) {
+        this.uploadBytesStarted = trackerStats.uploadBytesStarted;
+        this.uploadBytesFailed = trackerStats.uploadBytesFailed;
+        this.uploadBytesSucceeded = trackerStats.uploadBytesSucceeded;
+        this.downloadBytesSucceeded = trackerStats.directoryFileTransferTrackerStats.transferredBytesSucceeded;
+        this.downloadBytesStarted = trackerStats.directoryFileTransferTrackerStats.transferredBytesStarted;
+        this.downloadBytesFailed = trackerStats.directoryFileTransferTrackerStats.transferredBytesFailed;
+        this.maxRefreshTimeLag = trackerStats.refreshTimeLagMs;
+        this.maxRefreshBytesLag = trackerStats.bytesLag;
+    }
+
     // Getter and setters. All are visible for testing
     public long getUploadBytesStarted() {
         return uploadBytesStarted;
@@ -156,25 +175,6 @@ public class RemoteSegmentStats implements Writeable, ToXContentFragment {
             this.maxRefreshTimeLag = Math.max(this.maxRefreshTimeLag, existingStats.getMaxRefreshTimeLag());
             this.maxRefreshBytesLag = Math.max(this.maxRefreshBytesLag, existingStats.getMaxRefreshBytesLag());
         }
-    }
-
-    /**
-     * Adapter method to retrieve metrics from {@link RemoteSegmentTransferTracker.Stats} which is used in {@link RemoteStoreStats} and
-     * provides verbose index level stats of segments transferred to the remote store.
-     * <p>
-     * This method is used in {@link IndexShard} to port over a subset of metrics to be displayed in IndexStats and subsequently rolled up to NodesStats
-     *
-     * @param trackerStats: Source {@link RemoteSegmentTransferTracker.Stats} object from which metrics would be retrieved
-     */
-    public void buildRemoteSegmentStats(RemoteSegmentTransferTracker.Stats trackerStats) {
-        this.uploadBytesStarted = trackerStats.uploadBytesStarted;
-        this.uploadBytesFailed = trackerStats.uploadBytesFailed;
-        this.uploadBytesSucceeded = trackerStats.uploadBytesSucceeded;
-        this.downloadBytesSucceeded = trackerStats.directoryFileTransferTrackerStats.transferredBytesSucceeded;
-        this.downloadBytesStarted = trackerStats.directoryFileTransferTrackerStats.transferredBytesStarted;
-        this.downloadBytesFailed = trackerStats.directoryFileTransferTrackerStats.transferredBytesFailed;
-        this.maxRefreshTimeLag = trackerStats.refreshTimeLagMs;
-        this.maxRefreshBytesLag = trackerStats.bytesLag;
     }
 
     @Override
