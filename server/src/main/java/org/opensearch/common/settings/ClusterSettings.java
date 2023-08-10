@@ -87,6 +87,7 @@ import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.crypto.CryptoManagerRegistry;
 import org.opensearch.discovery.DiscoveryModule;
 import org.opensearch.discovery.HandshakingTransportAddressConnector;
 import org.opensearch.discovery.PeerFinder;
@@ -669,7 +670,12 @@ public final class ClusterSettings extends AbstractScopedSettings {
 
                 // Remote cluster state settings
                 RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING,
-                RemoteClusterStateService.REMOTE_CLUSTER_STATE_REPOSITORY_SETTING
+                RemoteClusterStateService.REMOTE_CLUSTER_STATE_REPOSITORY_SETTING,
+
+                // Crypto settings
+                CryptoManagerRegistry.CRYPTO_KEY_REFRESH_INTERVAL,
+                CryptoManagerRegistry.CRYPTO_ALGORITHM,
+                CryptoManagerRegistry.CRYPTO_KEY_CACHE_SIZE
             )
         )
     );

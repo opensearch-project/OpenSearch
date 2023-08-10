@@ -9,6 +9,7 @@
 package org.opensearch;
 
 import org.opensearch.core.index.snapshots.IndexShardSnapshotException;
+import org.opensearch.crypto.CryptoRegistryException;
 
 import static org.opensearch.OpenSearchException.OpenSearchExceptionHandle;
 import static org.opensearch.OpenSearchException.OpenSearchExceptionHandleRegistry.registerExceptionHandle;
@@ -1172,6 +1173,7 @@ public final class OpenSearchServerException {
                 V_2_7_0
             )
         );
+        registerExceptionHandle(new OpenSearchExceptionHandle(CryptoRegistryException.class, CryptoRegistryException::new, 171, V_3_0_0));
         registerExceptionHandle(
             new OpenSearchExceptionHandle(
                 org.opensearch.cluster.block.IndexCreateBlockException.class,
