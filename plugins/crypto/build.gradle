@@ -27,14 +27,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
-import com.github.jengelman.gradle.plugins.shadow.ShadowBasePlugin
-
-apply plugin: 'com.github.johnrengelman.shadow'
+apply plugin: 'opensearch.build'
+apply plugin: 'opensearch.publish'
 
 opensearchplugin {
-  description 'An easy, safe and fast scripting language for OpenSearch'
-  classname 'org.opensearch.crypto.CryptoBasePlugin'
+  description 'Provides encryption and decryption capabilities for OpenSearch'
+  classname 'org.opensearch.cryptoplugin.CryptoBasePlugin'
 }
 
 ext {
@@ -43,20 +41,12 @@ ext {
 }
 
 dependencies {
-
   api project('spi')
   api project(':libs:opensearch-encryption-sdk')
   implementation "com.amazonaws:aws-encryption-sdk-java:2.4.0"
+  implementation "org.slf4j:slf4j-api:${versions.slf4j}"
+  implementation 'commons-logging:commons-logging:1.2'
 }
 
 thirdPartyAudit.enabled = false
 testingConventions.enabled = false
-
-shadowJar {
-  archiveClassifier.set('')
-}
-
-tasks.validateNebulaPom.dependsOn tasks.generatePomFileForShadowPublication
-tasks.validateShadowPom.dependsOn tasks.generatePomFileForNebulaPublication
-tasks.publishNebulaPublicationToMavenLocal.dependsOn tasks.generatePomFileForShadowPublication
-tasks.publishShadowPublicationToMavenLocal.dependsOn tasks.generatePomFileForNebulaPublication
