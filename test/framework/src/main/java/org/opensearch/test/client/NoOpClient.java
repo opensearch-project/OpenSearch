@@ -33,9 +33,9 @@
 package org.opensearch.test.client;
 
 import org.opensearch.OpenSearchException;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.ActionRequest;
-import org.opensearch.action.ActionResponse;
+import org.opensearch.core.action.ActionResponse;
 import org.opensearch.action.ActionType;
 import org.opensearch.client.support.AbstractClient;
 import org.opensearch.common.settings.Settings;

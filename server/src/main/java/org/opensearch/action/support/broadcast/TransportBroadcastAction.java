@@ -33,7 +33,7 @@
 package org.opensearch.action.support.broadcast;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.NoShardAvailableActionException;
 import org.opensearch.action.support.ActionFilters;

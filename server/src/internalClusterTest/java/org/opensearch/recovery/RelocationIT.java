@@ -34,7 +34,7 @@ package org.opensearch.recovery;
 
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.tests.util.English;
-import org.opensearch.action.ActionFuture;
+import org.opensearch.common.action.ActionFuture;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.cluster.reroute.ClusterRerouteResponse;
 import org.opensearch.action.admin.indices.stats.ShardStats;

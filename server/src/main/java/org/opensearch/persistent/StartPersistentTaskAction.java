@@ -31,7 +31,7 @@
 
 package org.opensearch.persistent;
 
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.support.ActionFilters;

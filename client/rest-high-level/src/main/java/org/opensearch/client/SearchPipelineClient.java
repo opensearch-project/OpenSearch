@@ -8,7 +8,7 @@
 
 package org.opensearch.client;
 
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.search.DeleteSearchPipelineRequest;
 import org.opensearch.action.search.GetSearchPipelineRequest;
 import org.opensearch.action.search.GetSearchPipelineResponse;

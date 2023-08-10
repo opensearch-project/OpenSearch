@@ -34,7 +34,7 @@ package org.opensearch.action.resync;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.action.support.replication.PendingReplicationActions;

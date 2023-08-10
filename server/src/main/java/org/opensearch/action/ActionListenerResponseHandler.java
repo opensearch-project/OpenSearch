@@ -32,6 +32,7 @@
 
 package org.opensearch.action;
 
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.threadpool.ThreadPool;

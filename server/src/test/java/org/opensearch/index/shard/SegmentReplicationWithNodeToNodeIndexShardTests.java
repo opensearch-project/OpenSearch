@@ -10,7 +10,7 @@ package org.opensearch.index.shard;
 
 import org.apache.lucene.index.SegmentInfos;
 import org.junit.Assert;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.delete.DeleteRequest;
 import org.opensearch.action.index.IndexRequest;
@@ -353,7 +353,6 @@ public class SegmentReplicationWithNodeToNodeIndexShardTests extends SegmentRepl
     /**
      * Verifies that commits on replica engine resulting from engine or reader close does not cleanup the temporary
      * replication files from ongoing round of segment replication
-     * @throws Exception
      */
     public void testTemporaryFilesNotCleanup() throws Exception {
         String mappings = "{ \"" + MapperService.SINGLE_MAPPING_NAME + "\": { \"properties\": { \"foo\": { \"type\": \"keyword\"} }}}";

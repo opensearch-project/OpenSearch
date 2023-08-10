@@ -32,8 +32,8 @@
 
 package org.opensearch.test.rest;
 
+import org.opensearch.common.action.ActionFuture;
 import org.apache.http.util.EntityUtils;
-import org.opensearch.action.ActionFuture;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;

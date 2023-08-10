@@ -40,7 +40,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TermStatistics;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.rescore.RescoreContext;
-import org.opensearch.tasks.TaskCancelledException;
+import org.opensearch.core.tasks.TaskCancelledException;
 
 import java.io.IOException;
 import java.util.HashMap;

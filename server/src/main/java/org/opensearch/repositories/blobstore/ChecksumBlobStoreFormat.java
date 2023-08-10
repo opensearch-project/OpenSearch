@@ -43,7 +43,7 @@ import org.apache.lucene.util.BytesRef;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.blobstore.BlobContainer;
-import org.opensearch.common.compress.Compressor;
+import org.opensearch.core.common.compress.Compressor;
 import org.opensearch.common.io.Streams;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;

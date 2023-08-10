@@ -7,7 +7,7 @@
  */
 package org.opensearch.action.admin.indices.segments;
 
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.search.ListPitInfo;
 import org.opensearch.action.search.PitService;
 import org.opensearch.action.search.SearchContextId;

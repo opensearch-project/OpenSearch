@@ -11,7 +11,7 @@ package org.opensearch.index.store;
 import org.apache.lucene.store.Directory;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.blobstore.BlobContainer;

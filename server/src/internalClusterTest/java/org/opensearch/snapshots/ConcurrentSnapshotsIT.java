@@ -32,8 +32,8 @@
 package org.opensearch.snapshots;
 
 import org.opensearch.OpenSearchException;
-import org.opensearch.action.ActionFuture;
-import org.opensearch.action.ActionListener;
+import org.opensearch.common.action.ActionFuture;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.StepListener;
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.opensearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;

@@ -30,7 +30,7 @@
  * GitHub history for details.
  */
 
-package org.opensearch.action;
+package org.opensearch.common.action;
 
 import org.opensearch.common.unit.TimeValue;
 

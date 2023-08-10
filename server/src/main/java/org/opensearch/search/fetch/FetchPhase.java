@@ -72,7 +72,7 @@ import org.opensearch.search.fetch.subphase.InnerHitsPhase;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.lookup.SearchLookup;
 import org.opensearch.search.lookup.SourceLookup;
-import org.opensearch.tasks.TaskCancelledException;
+import org.opensearch.core.tasks.TaskCancelledException;
 
 import java.io.IOException;
 import java.util.ArrayList;

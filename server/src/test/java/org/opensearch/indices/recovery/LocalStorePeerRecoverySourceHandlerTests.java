@@ -49,7 +49,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.action.StepListener;
 import org.opensearch.action.support.PlainActionFuture;
