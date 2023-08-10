@@ -21,7 +21,7 @@ import java.lang.annotation.Target;
  */
 @Documented
 @Target({ ElementType.TYPE, ElementType.PACKAGE, ElementType.METHOD, ElementType.CONSTRUCTOR })
-@PublicApi
+@PublicApi(since = "2.10.0")
 public @interface ExperimentalApi {
 
 }

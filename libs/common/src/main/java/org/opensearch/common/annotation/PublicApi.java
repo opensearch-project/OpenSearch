@@ -22,10 +22,10 @@ import java.lang.annotation.Target;
  */
 @Documented
 @Target({ ElementType.TYPE, ElementType.PACKAGE, ElementType.METHOD, ElementType.CONSTRUCTOR })
-@PublicApi
+@PublicApi(since = "2.10.0")
 public @interface PublicApi {
     /**
      * Version when this API was released
      */
-    String since() default "";
+    String since();
 }

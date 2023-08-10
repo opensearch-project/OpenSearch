@@ -11,5 +11,5 @@
  *
  * @opensearch.api
  */
-@PublicApi
+@PublicApi(since = "2.10.0")
 package org.opensearch.common.annotation;
