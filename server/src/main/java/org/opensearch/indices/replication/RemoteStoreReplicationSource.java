@@ -61,8 +61,9 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
         // TODO: Need to figure out a way to pass this information for segment metadata via remote store.
         try (final GatedCloseable<SegmentInfos> segmentInfosSnapshot = indexShard.getSegmentInfosSnapshot()) {
             final Version version = segmentInfosSnapshot.get().getCommitLuceneVersion();
-            RemoteSegmentMetadata mdFile = remoteDirectory.init();            // During initial recovery flow, the remote store might not
-                                                                              // have metadata as primary hasn't uploaded anything yet.
+            RemoteSegmentMetadata mdFile = remoteDirectory.init();
+            // During initial recovery flow, the remote store might not
+            // have metadata as primary hasn't uploaded anything yet.
             if (mdFile == null && indexShard.state().equals(IndexShardState.STARTED) == false) {
                 listener.onResponse(new CheckpointInfoResponse(checkpoint, Collections.emptyMap(), null));
                 return;

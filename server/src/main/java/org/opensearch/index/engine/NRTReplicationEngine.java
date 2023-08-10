@@ -394,6 +394,8 @@ public class NRTReplicationEngine extends Engine {
                  This is a workaround solution which decreases the chances of conflict on replica nodes when same file is copied
                  from two different primaries during failover. Increasing counter helps in avoiding this conflict as counter is
                  used to generate new segment file names. The ideal solution is to identify the counter from previous primary.
+                 This is not required for remote store implementations given on failover the replica re-syncs with the store
+                 during promotion.
                  */
                 if (engineConfig.getIndexSettings().isRemoteStoreEnabled() == false) {
                     latestSegmentInfos.counter = latestSegmentInfos.counter + SI_COUNTER_INCREMENT;

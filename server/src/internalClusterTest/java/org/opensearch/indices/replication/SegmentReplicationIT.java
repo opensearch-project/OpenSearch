@@ -1419,4 +1419,23 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
             .get();
         assertNoFailures(response);
     }
+
+    public void testRestartPrimary_NoReplicas() throws Exception {
+        final String primary = internalCluster().startDataOnlyNode();
+        createIndex(INDEX_NAME);
+        ensureYellow(INDEX_NAME);
+
+        assertEquals(getNodeContainingPrimaryShard().getName(), primary);
+
+        client().prepareIndex(INDEX_NAME).setId("1").setSource("foo", "bar").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        if (randomBoolean()) {
+            flush(INDEX_NAME);
+        } else {
+            refresh(INDEX_NAME);
+        }
+
+        internalCluster().restartNode(primary);
+        ensureYellow(INDEX_NAME);
+        assertDocCounts(1, primary);
+    }
 }

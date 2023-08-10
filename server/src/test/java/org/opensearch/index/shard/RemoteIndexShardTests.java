@@ -252,33 +252,6 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
         }
     }
 
-    public void testPrimaryRestart() throws Exception {
-        final Path remotePath = createTempDir();
-        try (ReplicationGroup shards = createGroup(0, getIndexSettings(), indexMapping, new NRTReplicationEngineFactory(), remotePath)) {
-            shards.startAll();
-            // ensure primary has uploaded something
-            shards.indexDocs(10);
-            IndexShard primary = shards.getPrimary();
-            if (randomBoolean()) {
-                flushShard(primary);
-            } else {
-                primary.refresh("test");
-            }
-            assertDocCount(primary, 10);
-            // get a metadata map - we'll use segrep diff to ensure segments on reader are identical after restart.
-            final Map<String, StoreFileMetadata> metadataBeforeRestart = primary.getSegmentMetadataMap();
-            // restart the primary
-            shards.reinitPrimaryShard(remotePath);
-            // the store is open at this point but the shard has not yet run through recovery
-            primary = shards.getPrimary();
-            shards.startPrimary();
-            assertDocCount(primary, 10);
-            final Store.RecoveryDiff diff = Store.segmentReplicationDiff(metadataBeforeRestart, primary.getSegmentMetadataMap());
-            assertTrue(diff.missing.isEmpty());
-            assertTrue(diff.different.isEmpty());
-        }
-    }
-
     public void testPrimaryRestart_PrimaryHasExtraCommits() throws Exception {
         final Path remotePath = createTempDir();
         try (ReplicationGroup shards = createGroup(0, getIndexSettings(), indexMapping, new NRTReplicationEngineFactory(), remotePath)) {
