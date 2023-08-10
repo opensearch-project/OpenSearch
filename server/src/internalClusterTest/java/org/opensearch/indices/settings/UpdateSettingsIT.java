@@ -100,7 +100,7 @@ public class UpdateSettingsIT extends OpenSearchIntegTestCase {
         assertNotEquals(indexMetadata.getSettings().get("index.dummy"), "invalid dynamic value");
     }
 
-    public void testArchivedSettingUpdateOpenIndex() {
+    public void testArchivedSettingUpdate() {
         createIndex("test");
 
         // Archived setting update should fail on open index.
@@ -114,6 +114,22 @@ public class UpdateSettingsIT extends OpenSearchIntegTestCase {
                 .actionGet()
         );
         assertThat(exception.getMessage(), startsWith("Can't update non dynamic settings [[archived.*]] for open indices [[test"));
+
+        // close the index.
+        client().admin().indices().prepareClose("test").get();
+
+        // Setting update on closed index shouldn't fail during validation.
+        // It'll still fail with SettingsException as the setting doesn't exist though.
+        SettingsException settingsException = expectThrows(
+            SettingsException.class,
+            () -> client().admin()
+                .indices()
+                .prepareUpdateSettings("test")
+                .setSettings(Settings.builder().put("archived.*", "null"))
+                .execute()
+                .actionGet()
+        );
+        assertTrue(settingsException.getMessage().startsWith("test setting [archived.*], not recognized"));
     }
 
     @Override
