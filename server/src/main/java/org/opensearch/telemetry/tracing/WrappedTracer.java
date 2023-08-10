@@ -37,7 +37,7 @@ final class WrappedTracer implements Tracer {
 
     @Override
     public SpanScope startSpan(String spanName) {
-        return startSpan(spanName, Attributes.create());
+        return startSpan(spanName, Attributes.EMPTY);
     }
 
     @Override

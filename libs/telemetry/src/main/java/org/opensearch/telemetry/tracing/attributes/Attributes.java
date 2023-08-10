@@ -8,28 +8,34 @@
 
 package org.opensearch.telemetry.tracing.attributes;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import org.opensearch.common.Nonnull;
 
 /**
  * Class to create attributes for a span.
  */
 public class Attributes {
-    private final Map<AttributeKey, Object> attributesMap;
+    private final Map<String, Object> attributesMap;
+    /**
+     * Empty value.
+     */
+    public final static Attributes EMPTY = new Attributes(Collections.emptyMap());
 
     /**
      * Factory method.
      * @return attributes.
      */
     public static Attributes create() {
-        return new Attributes();
+        return new Attributes(new HashMap<>());
     }
 
     /**
      * Constructor.
      */
-    private Attributes() {
-        this.attributesMap = new HashMap<>();
+    private Attributes(Map<String, Object> attributesMap) {
+        this.attributesMap = attributesMap;
     }
 
     /**
@@ -38,8 +44,8 @@ public class Attributes {
      * @param value value
      * @return Same instance.
      */
-    public Attributes addAttribute(String key, String value) {
-        attributesMap.put(new AttributeKey(key, AttributeType.STRING), value);
+    public Attributes addAttribute(String key, @Nonnull String value) {
+        attributesMap.put(key, value);
         return this;
     }
 
@@ -50,7 +56,7 @@ public class Attributes {
      * @return Same instance.
      */
     public Attributes addAttribute(String key, long value) {
-        attributesMap.put(new AttributeKey(key, AttributeType.LONG), value);
+        attributesMap.put(key, value);
         return this;
     };
 
@@ -61,7 +67,7 @@ public class Attributes {
      * @return Same instance.
      */
     public Attributes addAttribute(String key, double value) {
-        attributesMap.put(new AttributeKey(key, AttributeType.DOUBLE), value);
+        attributesMap.put(key, value);
         return this;
     };
 
@@ -72,7 +78,7 @@ public class Attributes {
      * @return Same instance.
      */
     public Attributes addAttribute(String key, boolean value) {
-        attributesMap.put(new AttributeKey(key, AttributeType.BOOLEAN), value);
+        attributesMap.put(key, value);
         return this;
     };
 
@@ -80,8 +86,8 @@ public class Attributes {
      * Returns the attribute map.
      * @return attributes map
      */
-    public Map<AttributeKey, ?> getAttributesMap() {
-        return attributesMap;
+    public Map<String, ?> getAttributesMap() {
+        return Collections.unmodifiableMap(attributesMap);
     }
 
 }

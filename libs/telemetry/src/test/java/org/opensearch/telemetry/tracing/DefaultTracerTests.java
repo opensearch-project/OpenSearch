@@ -75,10 +75,16 @@ public class DefaultTracerTests extends OpenSearchTestCase {
             new ThreadContextBasedTracerContextStorage(new ThreadContext(Settings.EMPTY), tracingTelemetry)
         );
 
-        defaultTracer.startSpan("span_name", Attributes.create().addAttribute("name", "value"));
+        defaultTracer.startSpan(
+            "span_name",
+            Attributes.create().addAttribute("key1", 1.0).addAttribute("key2", 2l).addAttribute("key3", true).addAttribute("key4", "key4")
+        );
 
         Assert.assertEquals("span_name", defaultTracer.getCurrentSpan().getSpan().getSpanName());
-        Assert.assertEquals("value", ((MockSpan) defaultTracer.getCurrentSpan().getSpan()).getAttribute("name"));
+        Assert.assertEquals(1.0, ((MockSpan) defaultTracer.getCurrentSpan().getSpan()).getAttribute("key1"));
+        Assert.assertEquals(2l, ((MockSpan) defaultTracer.getCurrentSpan().getSpan()).getAttribute("key2"));
+        Assert.assertEquals(true, ((MockSpan) defaultTracer.getCurrentSpan().getSpan()).getAttribute("key3"));
+        Assert.assertEquals("key4", ((MockSpan) defaultTracer.getCurrentSpan().getSpan()).getAttribute("key4"));
     }
 
     public void testCreateSpanWithParent() {
@@ -92,7 +98,7 @@ public class DefaultTracerTests extends OpenSearchTestCase {
 
         SpanContext parentSpan = defaultTracer.getCurrentSpan();
 
-        defaultTracer.startSpan("span_name_1", parentSpan, Attributes.create());
+        defaultTracer.startSpan("span_name_1", parentSpan, Attributes.EMPTY);
 
         Assert.assertEquals("span_name_1", defaultTracer.getCurrentSpan().getSpan().getSpanName());
         Assert.assertEquals(parentSpan.getSpan(), defaultTracer.getCurrentSpan().getSpan().getParentSpan());
@@ -105,7 +111,7 @@ public class DefaultTracerTests extends OpenSearchTestCase {
             new ThreadContextBasedTracerContextStorage(new ThreadContext(Settings.EMPTY), tracingTelemetry)
         );
 
-        defaultTracer.startSpan("span_name", null);
+        defaultTracer.startSpan("span_name", null, Attributes.EMPTY);
 
         Assert.assertEquals("span_name", defaultTracer.getCurrentSpan().getSpan().getSpanName());
         Assert.assertEquals(null, defaultTracer.getCurrentSpan().getSpan().getParentSpan());

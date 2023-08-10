@@ -8,11 +8,9 @@
 
 package org.opensearch.test.telemetry.tracing;
 
-import java.util.Locale;
 import org.opensearch.telemetry.tracing.Span;
 import org.opensearch.telemetry.tracing.TracingContextPropagator;
 import org.opensearch.telemetry.tracing.TracingTelemetry;
-import org.opensearch.telemetry.tracing.attributes.AttributeKey;
 import org.opensearch.telemetry.tracing.attributes.Attributes;
 import org.opensearch.test.telemetry.tracing.validators.AllSpansAreEndedProperly;
 import org.opensearch.test.telemetry.tracing.validators.AllSpansHaveUniqueId;
@@ -36,10 +34,7 @@ public class MockTracingTelemetry implements TracingTelemetry {
 
     @Override
     public Span createSpan(String spanName, Span parentSpan, Attributes attributes) {
-        Span span = new MockSpan(spanName, parentSpan, spanProcessor);
-        if (attributes != null) {
-            attributes.getAttributesMap().forEach((x, y) -> addSpanAttribute(x, y, span));
-        }
+        Span span = new MockSpan(spanName, parentSpan, spanProcessor, attributes);
         spanProcessor.onStart(span);
         return span;
     }
@@ -57,25 +52,6 @@ public class MockTracingTelemetry implements TracingTelemetry {
                 Arrays.asList(new AllSpansAreEndedProperly(), new AllSpansHaveUniqueId())
             );
             validators.validate(spanData, 1);
-        }
-    }
-
-    private void addSpanAttribute(AttributeKey key, Object value, Span span) {
-        switch (key.getType()) {
-            case BOOLEAN:
-                span.addAttribute(key.getKey(), (Boolean) value);
-                break;
-            case LONG:
-                span.addAttribute(key.getKey(), (Long) value);
-                break;
-            case DOUBLE:
-                span.addAttribute(key.getKey(), (Double) value);
-                break;
-            case STRING:
-                span.addAttribute(key.getKey(), (String) value);
-                break;
-            default:
-                throw new IllegalArgumentException(String.format(Locale.ROOT, "Span attribute value %s type not supported", value));
         }
     }
 }
