@@ -9,7 +9,7 @@
 package org.opensearch.plugin.correlation;
 
 import org.opensearch.action.ActionRequest;
-import org.opensearch.action.ActionResponse;
+import org.opensearch.core.action.ActionResponse;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodes;

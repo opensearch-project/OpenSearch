@@ -35,7 +35,7 @@ package org.opensearch.http.netty4;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelPipeline;
 
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.concurrent.CompletableContext;
 import org.opensearch.http.HttpChannel;

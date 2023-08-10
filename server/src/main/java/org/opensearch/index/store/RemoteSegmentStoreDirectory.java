@@ -26,7 +26,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.Version;
 import org.opensearch.ExceptionsHelper;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.blobstore.VerifyingMultiStreamBlobContainer;
 import org.opensearch.common.blobstore.exception.CorruptFileException;

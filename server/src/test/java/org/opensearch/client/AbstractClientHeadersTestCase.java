@@ -34,7 +34,7 @@ package org.opensearch.client;
 
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.ActionType;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.admin.cluster.reroute.ClusterRerouteAction;
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotAction;
 import org.opensearch.action.admin.cluster.stats.ClusterStatsAction;

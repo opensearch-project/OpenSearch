@@ -33,7 +33,7 @@
 package org.opensearch.action.get;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.TransportActions;
 import org.opensearch.action.support.single.shard.TransportSingleShardAction;

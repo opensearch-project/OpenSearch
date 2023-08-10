@@ -32,7 +32,7 @@
 
 package org.opensearch.action.admin.cluster.remote;
 
-import org.opensearch.action.ActionResponse;
+import org.opensearch.core.action.ActionResponse;
 import org.opensearch.transport.RemoteConnectionInfo;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;

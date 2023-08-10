@@ -32,7 +32,7 @@
 
 package org.opensearch.index;
 
-import org.opensearch.action.ActionFuture;
+import org.opensearch.common.action.ActionFuture;
 import org.opensearch.action.DocWriteResponse;
 import org.opensearch.action.bulk.BulkItemResponse;
 import org.opensearch.action.bulk.BulkRequestBuilder;

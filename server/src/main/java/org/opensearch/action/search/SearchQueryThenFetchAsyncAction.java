@@ -34,7 +34,7 @@ package org.opensearch.action.search;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.TopFieldDocs;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.routing.GroupShardsIterator;
 import org.opensearch.search.SearchPhaseResult;

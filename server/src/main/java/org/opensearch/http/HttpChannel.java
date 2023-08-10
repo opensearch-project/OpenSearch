@@ -32,7 +32,7 @@
 
 package org.opensearch.http;
 
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.common.network.CloseableChannel;
 
 import java.net.InetSocketAddress;

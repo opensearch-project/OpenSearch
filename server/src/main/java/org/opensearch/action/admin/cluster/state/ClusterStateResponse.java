@@ -32,7 +32,7 @@
 
 package org.opensearch.action.admin.cluster.state;
 
-import org.opensearch.action.ActionResponse;
+import org.opensearch.core.action.ActionResponse;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.node.DiscoveryNodes;

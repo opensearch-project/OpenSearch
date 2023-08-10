@@ -30,17 +30,12 @@
  * GitHub history for details.
  */
 
-package org.opensearch.common.xcontent;
+package org.opensearch.core.xcontent;
 
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.core.xcontent.AbstractObjectParser;
-import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.ObjectParser.ValueType;
-import org.opensearch.common.xcontent.json.JsonXContent;
-import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.function.BiConsumer;
@@ -62,7 +57,7 @@ public final class ObjectParserHelper<Value, Context> {
         final ParseField field
     ) {
         final CheckedFunction<XContentParser, BytesReference, IOException> bytesParser = p -> {
-            try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+            try (XContentBuilder builder = MediaTypeRegistry.JSON.contentBuilder()) {
                 builder.copyCurrentStructure(p);
                 return BytesReference.bytes(builder);
             }

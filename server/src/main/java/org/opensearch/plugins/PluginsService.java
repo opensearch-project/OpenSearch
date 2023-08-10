@@ -51,7 +51,7 @@ import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.Strings;
 import org.opensearch.index.IndexModule;
-import org.opensearch.node.ReportingService;
+import org.opensearch.core.service.ReportingService;
 import org.opensearch.threadpool.ExecutorBuilder;
 import org.opensearch.transport.TransportSettings;
 

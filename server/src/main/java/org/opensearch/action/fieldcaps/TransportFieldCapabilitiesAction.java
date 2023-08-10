@@ -32,7 +32,7 @@
 
 package org.opensearch.action.fieldcaps;
 
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;

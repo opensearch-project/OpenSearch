@@ -37,7 +37,7 @@ import org.apache.logging.log4j.Logger;
 import org.mockito.Mockito;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.ActionModule.DynamicActionRegistry;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.RequestValidators;

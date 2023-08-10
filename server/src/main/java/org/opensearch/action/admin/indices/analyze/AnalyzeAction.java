@@ -33,7 +33,7 @@
 package org.opensearch.action.admin.indices.analyze;
 
 import org.opensearch.action.ActionRequestValidationException;
-import org.opensearch.action.ActionResponse;
+import org.opensearch.core.action.ActionResponse;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.support.single.shard.SingleShardRequest;
 import org.opensearch.core.common.Strings;

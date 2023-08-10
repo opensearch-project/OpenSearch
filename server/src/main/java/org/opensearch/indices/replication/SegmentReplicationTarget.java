@@ -15,7 +15,7 @@ import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.OpenSearchCorruptionException;
 import org.opensearch.OpenSearchException;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.StepListener;
 import org.opensearch.common.UUIDs;
 import org.opensearch.core.common.bytes.BytesReference;

@@ -36,6 +36,8 @@ import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.concurrent.FutureUtils;
 import org.opensearch.common.util.concurrent.ListenableFuture;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.action.NotifyOnceListener;
 
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;

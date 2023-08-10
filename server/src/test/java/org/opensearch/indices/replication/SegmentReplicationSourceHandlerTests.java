@@ -14,7 +14,7 @@ import org.junit.Assert;
 import org.mockito.Mockito;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.settings.Settings;

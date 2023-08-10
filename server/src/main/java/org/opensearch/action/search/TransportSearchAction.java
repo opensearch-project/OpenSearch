@@ -32,7 +32,7 @@
 
 package org.opensearch.action.search;
 
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
@@ -86,7 +86,7 @@ import org.opensearch.search.profile.ProfileShardResult;
 import org.opensearch.search.profile.SearchProfileShardResults;
 import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.Task;
-import org.opensearch.tasks.TaskId;
+import org.opensearch.core.tasks.TaskId;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.RemoteClusterAware;
 import org.opensearch.transport.RemoteClusterService;

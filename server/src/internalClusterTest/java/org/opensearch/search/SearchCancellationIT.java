@@ -36,7 +36,7 @@ import org.apache.logging.log4j.LogManager;
 
 import org.junit.After;
 import org.opensearch.ExceptionsHelper;
-import org.opensearch.action.ActionFuture;
+import org.opensearch.common.action.ActionFuture;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.opensearch.action.bulk.BulkRequestBuilder;
@@ -58,7 +58,7 @@ import org.opensearch.script.MockScriptPlugin;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
 import org.opensearch.search.lookup.LeafFieldsLookup;
-import org.opensearch.tasks.TaskCancelledException;
+import org.opensearch.core.tasks.TaskCancelledException;
 import org.opensearch.tasks.TaskInfo;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.transport.TransportException;

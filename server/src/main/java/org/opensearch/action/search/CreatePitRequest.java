@@ -20,7 +20,7 @@ import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.tasks.Task;
-import org.opensearch.tasks.TaskId;
+import org.opensearch.core.tasks.TaskId;
 
 import java.io.IOException;
 import java.util.Map;

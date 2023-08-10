@@ -32,7 +32,7 @@
 
 package org.opensearch.client;
 
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.ingest.DeletePipelineRequest;
 import org.opensearch.action.ingest.GetPipelineRequest;
 import org.opensearch.action.ingest.GetPipelineResponse;

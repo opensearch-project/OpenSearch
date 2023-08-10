@@ -85,7 +85,7 @@ import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.support.TransportActions;
 import org.opensearch.cluster.metadata.IndexMetadata;

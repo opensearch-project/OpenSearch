@@ -36,7 +36,7 @@ import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
-import org.opensearch.tasks.TaskId;
+import org.opensearch.core.tasks.TaskId;
 
 import java.util.List;
 import java.util.function.Supplier;

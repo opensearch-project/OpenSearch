@@ -33,7 +33,7 @@
 package org.opensearch.repositories.s3;
 
 import org.mockito.ArgumentCaptor;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;

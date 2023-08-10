@@ -31,7 +31,7 @@
 
 package org.opensearch.cluster;
 
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.cluster.ack.AckedRequest;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.Nullable;
