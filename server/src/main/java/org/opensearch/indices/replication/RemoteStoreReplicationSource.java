@@ -11,9 +11,11 @@ package org.opensearch.indices.replication;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.Version;
+import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardState;
@@ -57,10 +59,11 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
     ) {
         Map<String, StoreFileMetadata> metadataMap;
         // TODO: Need to figure out a way to pass this information for segment metadata via remote store.
-        final Version version = indexShard.getSegmentInfosSnapshot().get().getCommitLuceneVersion();
-        try {
+        try (final GatedCloseable<SegmentInfos> segmentInfosSnapshot = indexShard.getSegmentInfosSnapshot()) {
+            final Version version = segmentInfosSnapshot.get().getCommitLuceneVersion();
             RemoteSegmentMetadata mdFile = remoteDirectory.init();
-            // During initial recovery flow, the remote store might not have metadata as primary hasn't uploaded anything yet.
+            // During initial recovery flow, the remote store might not
+            // have metadata as primary hasn't uploaded anything yet.
             if (mdFile == null && indexShard.state().equals(IndexShardState.STARTED) == false) {
                 listener.onResponse(new CheckpointInfoResponse(checkpoint, Collections.emptyMap(), null));
                 return;
