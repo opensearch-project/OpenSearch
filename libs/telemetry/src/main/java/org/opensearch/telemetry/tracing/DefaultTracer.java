@@ -10,8 +10,7 @@ package org.opensearch.telemetry.tracing;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.Collections;
-import java.util.Map;
+import org.opensearch.telemetry.tracing.attributes.Attributes;
 
 /**
  *
@@ -39,16 +38,16 @@ class DefaultTracer implements Tracer {
 
     @Override
     public SpanScope startSpan(String spanName) {
-        return startSpan(spanName, Collections.emptyMap());
+        return startSpan(spanName, Attributes.create());
     }
 
     @Override
-    public SpanScope startSpan(String spanName, Map<String, String> attributes) {
+    public SpanScope startSpan(String spanName, Attributes attributes) {
         return startSpan(spanName, null, attributes);
     }
 
     @Override
-    public SpanScope startSpan(String spanName, SpanContext parentSpan, Map<String, String> attributes) {
+    public SpanScope startSpan(String spanName, SpanContext parentSpan, Attributes attributes) {
         Span span = null;
         if (parentSpan != null) {
             span = createSpan(spanName, parentSpan.getSpan(), attributes);
@@ -81,7 +80,7 @@ class DefaultTracer implements Tracer {
         }
     }
 
-    private Span createSpan(String spanName, Span parentSpan, Map<String, String> attributes) {
+    private Span createSpan(String spanName, Span parentSpan, Attributes attributes) {
         return tracingTelemetry.createSpan(spanName, parentSpan, attributes);
     }
 

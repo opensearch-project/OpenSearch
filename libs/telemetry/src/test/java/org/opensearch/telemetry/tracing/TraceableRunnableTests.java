@@ -8,12 +8,11 @@
 
 package org.opensearch.telemetry.tracing;
 
-import java.util.Collections;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.telemetry.tracing.attributes.Attributes;
 import org.opensearch.telemetry.tracing.runnable.TraceableRunnable;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.telemetry.tracing.MockSpan;
@@ -30,10 +29,16 @@ public class TraceableRunnableTests extends OpenSearchTestCase {
         String spanName = "testRunnable";
         DefaultTracer defaultTracer = new DefaultTracer(new MockTracingTelemetry(), contextStorage);
         final AtomicBoolean isRunnableCompleted = new AtomicBoolean(false);
-        Map<String, String> attributes = Collections.singletonMap("name", "value");
-        TraceableRunnable traceableRunnable = new TraceableRunnable(defaultTracer, spanName, null, attributes, () -> {
-            isRunnableCompleted.set(true);
-        });
+
+        TraceableRunnable traceableRunnable = new TraceableRunnable(
+            defaultTracer,
+            spanName,
+            null,
+            Attributes.create().addAttribute("name", "value"),
+            () -> {
+                isRunnableCompleted.set(true);
+            }
+        );
         traceableRunnable.run();
         assertTrue(isRunnableCompleted.get());
         assertEquals(spanName, defaultTracer.getCurrentSpan().getSpan().getSpanName());
@@ -50,7 +55,7 @@ public class TraceableRunnableTests extends OpenSearchTestCase {
         SpanContext parentSpan = defaultTracer.getCurrentSpan();
         AtomicReference<SpanContext> currrntSpan = new AtomicReference<>(new SpanContext(null));
         final AtomicBoolean isRunnableCompleted = new AtomicBoolean(false);
-        TraceableRunnable traceableRunnable = new TraceableRunnable(defaultTracer, spanName, parentSpan, Collections.emptyMap(), () -> {
+        TraceableRunnable traceableRunnable = new TraceableRunnable(defaultTracer, spanName, parentSpan, Attributes.create(), () -> {
             isRunnableCompleted.set(true);
             currrntSpan.set(defaultTracer.getCurrentSpan());
         });

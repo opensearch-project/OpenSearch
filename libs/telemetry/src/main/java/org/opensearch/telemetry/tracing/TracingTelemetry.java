@@ -9,7 +9,7 @@
 package org.opensearch.telemetry.tracing;
 
 import java.io.Closeable;
-import java.util.Map;
+import org.opensearch.telemetry.tracing.attributes.Attributes;
 
 /**
  * Interface for tracing telemetry providers
@@ -25,7 +25,7 @@ public interface TracingTelemetry extends Closeable {
      * @param attributes attributes to be added.
      * @return span instance
      */
-    Span createSpan(String spanName, Span parentSpan, Map<String, String> attributes);
+    Span createSpan(String spanName, Span parentSpan, Attributes attributes);
 
     /**
      * provides tracing context propagator

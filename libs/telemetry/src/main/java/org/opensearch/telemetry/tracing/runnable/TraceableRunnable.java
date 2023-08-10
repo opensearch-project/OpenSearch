@@ -8,10 +8,10 @@
 
 package org.opensearch.telemetry.tracing.runnable;
 
-import java.util.Map;
 import org.opensearch.telemetry.tracing.SpanContext;
 import org.opensearch.telemetry.tracing.SpanScope;
 import org.opensearch.telemetry.tracing.Tracer;
+import org.opensearch.telemetry.tracing.attributes.Attributes;
 
 /**
  * Wraps the runnable and add instrumentation to trace the {@link Runnable}
@@ -21,7 +21,7 @@ public class TraceableRunnable implements Runnable {
     private final SpanContext parent;
     private final Tracer tracer;
     private final String spanName;
-    private final Map<String, String> initialAttributes;
+    private final Attributes attributes;
 
     /**
      * Constructor.
@@ -31,17 +31,17 @@ public class TraceableRunnable implements Runnable {
      * @param attributes attributes.
      * @param runnable runnable.
      */
-    public TraceableRunnable(Tracer tracer, String spanName, SpanContext parent, Map<String, String> attributes, Runnable runnable) {
+    public TraceableRunnable(Tracer tracer, String spanName, SpanContext parent, Attributes attributes, Runnable runnable) {
         this.tracer = tracer;
         this.spanName = spanName;
         this.parent = parent;
-        this.initialAttributes = attributes;
+        this.attributes = attributes;
         this.runnable = runnable;
     }
 
     @Override
     public void run() {
-        try (SpanScope spanScope = tracer.startSpan(spanName, parent, initialAttributes)) {
+        try (SpanScope spanScope = tracer.startSpan(spanName, parent, attributes)) {
             runnable.run();
         }
     }
