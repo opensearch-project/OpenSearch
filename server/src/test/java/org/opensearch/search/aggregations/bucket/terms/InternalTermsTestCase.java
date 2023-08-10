@@ -73,7 +73,7 @@ public abstract class InternalTermsTestCase extends InternalMultiBucketAggregati
     @Override
     protected InternalTerms<?, ?> createUnmappedInstance(String name, Map<String, Object> metadata) {
         InternalTerms<?, ?> testInstance = createTestInstance(name, metadata);
-        return new UnmappedTerms(name, testInstance.order, testInstance.requiredSize, testInstance.minDocCount, metadata);
+        return new UnmappedTerms(name, testInstance.order, testInstance.bucketCountThresholds, metadata);
     }
 
     @Override

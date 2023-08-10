@@ -75,8 +75,8 @@ import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.util.CollectionUtils;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Assert;
 import org.opensearch.core.common.unit.ByteSizeValue;
@@ -858,7 +858,7 @@ public class IndicesRequestConvertersTests extends OpenSearchTestCase {
                     + "\" : { \"type\" : \""
                     + OpenSearchTestCase.randomFrom("text", "keyword")
                     + "\" }}}",
-                XContentType.JSON
+                MediaTypeRegistry.JSON
             );
         }
         if (OpenSearchTestCase.randomBoolean()) {

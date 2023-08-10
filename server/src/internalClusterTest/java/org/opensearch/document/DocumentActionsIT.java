@@ -43,9 +43,9 @@ import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.support.WriteRequest.RefreshPolicy;
 import org.opensearch.cluster.health.ClusterHealthStatus;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.hamcrest.OpenSearchAssertions;
 
@@ -210,7 +210,7 @@ public class DocumentActionsIT extends OpenSearchIntegTestCase {
             .add(client().prepareIndex().setIndex("test").setSource(source("3", "test")))
             .add(client().prepareIndex().setIndex("test").setCreate(true).setSource(source("4", "test")))
             .add(client().prepareDelete().setIndex("test").setId("1"))
-            .add(client().prepareIndex().setIndex("test").setSource("{ xxx }", XContentType.JSON)) // failure
+            .add(client().prepareIndex().setIndex("test").setSource("{ xxx }", MediaTypeRegistry.JSON)) // failure
             .execute()
             .actionGet();
 
