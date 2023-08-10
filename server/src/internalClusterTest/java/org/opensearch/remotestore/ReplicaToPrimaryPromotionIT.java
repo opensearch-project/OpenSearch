@@ -126,7 +126,7 @@ public class ReplicaToPrimaryPromotionIT extends RemoteStoreBaseIntegTestCase {
         internalCluster().startNode();
         internalCluster().startNode();
         final String indexName = randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
-        shard_count = 1;
+        shard_count = scaledRandomIntBetween(1, 5);
         createIndex(indexName);
         ensureGreen(indexName);
         int docCount = scaledRandomIntBetween(20, 50);
