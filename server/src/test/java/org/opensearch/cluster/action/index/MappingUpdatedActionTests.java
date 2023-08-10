@@ -32,7 +32,7 @@
 package org.opensearch.cluster.action.index;
 
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.admin.indices.mapping.put.AutoPutMappingAction;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.client.AdminClient;

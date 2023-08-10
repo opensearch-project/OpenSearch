@@ -33,7 +33,7 @@
 package org.opensearch.action.support;
 
 import org.opensearch.OpenSearchTimeoutException;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool;

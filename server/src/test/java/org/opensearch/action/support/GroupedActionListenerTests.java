@@ -31,7 +31,7 @@
 
 package org.opensearch.action.support;
 
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;

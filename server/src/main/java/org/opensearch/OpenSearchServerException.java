@@ -989,14 +989,6 @@ public final class OpenSearchServerException {
         );
         registerExceptionHandle(
             new OpenSearchExceptionHandle(
-                org.opensearch.tasks.TaskCancelledException.class,
-                org.opensearch.tasks.TaskCancelledException::new,
-                146,
-                UNKNOWN_VERSION_ADDED
-            )
-        );
-        registerExceptionHandle(
-            new OpenSearchExceptionHandle(
                 org.opensearch.env.ShardLockObtainFailedException.class,
                 org.opensearch.env.ShardLockObtainFailedException::new,
                 147,

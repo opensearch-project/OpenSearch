@@ -31,7 +31,7 @@
 
 package org.opensearch.search.aggregations;
 
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.ParsingException;
 import org.opensearch.common.SetOnce;
 import org.opensearch.core.common.bytes.BytesReference;

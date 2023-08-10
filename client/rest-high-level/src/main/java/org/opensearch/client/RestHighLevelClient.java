@@ -35,7 +35,7 @@ package org.opensearch.client;
 import org.apache.hc.core5.http.HttpEntity;
 import org.opensearch.OpenSearchException;
 import org.opensearch.OpenSearchStatusException;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksResponse;

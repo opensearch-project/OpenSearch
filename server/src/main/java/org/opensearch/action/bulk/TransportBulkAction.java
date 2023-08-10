@@ -40,7 +40,7 @@ import org.opensearch.core.Assertions;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.ResourceAlreadyExistsException;
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.DocWriteRequest;
 import org.opensearch.action.DocWriteResponse;

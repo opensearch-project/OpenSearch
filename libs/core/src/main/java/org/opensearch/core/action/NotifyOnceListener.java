@@ -30,7 +30,7 @@
  * GitHub history for details.
  */
 
-package org.opensearch.action;
+package org.opensearch.core.action;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 

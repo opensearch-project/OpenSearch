@@ -9,7 +9,7 @@
 package org.opensearch.indices.replication;
 
 import org.opensearch.OpenSearchCorruptionException;
-import org.opensearch.action.ActionFuture;
+import org.opensearch.common.action.ActionFuture;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.cluster.reroute.ClusterRerouteResponse;
 import org.opensearch.action.admin.indices.replication.SegmentReplicationStatsResponse;

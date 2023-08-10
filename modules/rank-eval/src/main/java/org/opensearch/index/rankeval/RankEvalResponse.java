@@ -33,7 +33,7 @@
 package org.opensearch.index.rankeval;
 
 import org.opensearch.OpenSearchException;
-import org.opensearch.action.ActionResponse;
+import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.ParseField;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.core.common.Strings;

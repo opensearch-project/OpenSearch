@@ -36,8 +36,8 @@ import org.opensearch.OpenSearchParseException;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
-import org.opensearch.common.compress.Compressor;
 import org.opensearch.common.compress.CompressorFactory;
+import org.opensearch.core.common.compress.Compressor;
 import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
@@ -490,33 +490,6 @@ public class XContentHelper {
     @Deprecated
     public static BytesReference toXContent(ToXContent toXContent, XContentType xContentType, boolean humanReadable) throws IOException {
         return org.opensearch.core.xcontent.XContentHelper.toXContent(toXContent, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
-    }
-
-    /**
-    * Returns the bytes that represent the XContent output of the provided {@link ToXContent} object, using the provided
-    * {@link XContentType}. Wraps the output into a new anonymous object according to the value returned
-    * by the {@link ToXContent#isFragment()} method returns.
-    *
-    * @deprecated use {@link org.opensearch.core.xcontent.XContentHelper#toXContent(ToXContent, MediaType, ToXContent.Params, boolean)} instead
-    */
-    @Deprecated
-    public static BytesReference toXContent(
-        ToXContent toXContent,
-        XContentType xContentType,
-        ToXContent.Params params,
-        boolean humanReadable
-    ) throws IOException {
-        try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
-            builder.humanReadable(humanReadable);
-            if (toXContent.isFragment()) {
-                builder.startObject();
-            }
-            toXContent.toXContent(builder, params);
-            if (toXContent.isFragment()) {
-                builder.endObject();
-            }
-            return BytesReference.bytes(builder);
-        }
     }
 
     /**

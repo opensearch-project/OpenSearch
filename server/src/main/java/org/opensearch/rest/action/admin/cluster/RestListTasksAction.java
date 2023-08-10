@@ -32,7 +32,7 @@
 
 package org.opensearch.rest.action.admin.cluster;
 
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.opensearch.client.node.NodeClient;
@@ -48,7 +48,7 @@ import org.opensearch.rest.RestResponse;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.rest.action.RestBuilderListener;
 import org.opensearch.rest.action.RestToXContentListener;
-import org.opensearch.tasks.TaskId;
+import org.opensearch.core.tasks.TaskId;
 
 import java.io.IOException;
 import java.util.List;

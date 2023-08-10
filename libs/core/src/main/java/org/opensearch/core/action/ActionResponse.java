@@ -15,7 +15,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -24,30 +24,29 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 /*
  * Modifications Copyright OpenSearch Contributors. See
  * GitHub history for details.
  */
 
-package org.opensearch.tasks;
+package org.opensearch.core.action;
 
-import org.opensearch.OpenSearchException;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.transport.TransportResponse;
 
 import java.io.IOException;
 
 /**
- * A generic exception that can be thrown by a task when it's cancelled by the task manager API
+ * Base class for responses to action requests implemented by plugins.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
-public class TaskCancelledException extends OpenSearchException {
+public abstract class ActionResponse extends TransportResponse {
 
-    public TaskCancelledException(String msg) {
-        super(msg);
-    }
+    public ActionResponse() {}
 
-    public TaskCancelledException(StreamInput in) throws IOException {
+    public ActionResponse(StreamInput in) throws IOException {
         super(in);
     }
 }

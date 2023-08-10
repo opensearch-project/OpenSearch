@@ -34,6 +34,7 @@ package org.opensearch.common.compress;
 
 import org.opensearch.common.Nullable;
 import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.compress.Compressor;
 import org.opensearch.core.common.compress.NotXContentException;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 

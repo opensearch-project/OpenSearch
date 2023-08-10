@@ -33,7 +33,7 @@
 package org.opensearch.action.admin.indices.alias.get;
 
 import org.opensearch.action.ActionType;
-import org.opensearch.action.ActionResponse;
+import org.opensearch.core.action.ActionResponse;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeReadOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
