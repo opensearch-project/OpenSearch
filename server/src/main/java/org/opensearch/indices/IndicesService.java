@@ -82,7 +82,6 @@ import org.opensearch.common.util.concurrent.OpenSearchThreadPoolExecutor;
 import org.opensearch.common.util.iterable.Iterables;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
@@ -193,7 +192,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.opensearch.common.collect.MapBuilder.newMapBuilder;
-import static org.opensearch.common.util.CollectionUtils.arrayAsArrayList;
+import static org.opensearch.core.common.util.CollectionUtils.arrayAsArrayList;
 import static org.opensearch.common.util.concurrent.OpenSearchExecutors.daemonThreadFactory;
 import static org.opensearch.index.IndexService.IndexCreationContext.CREATE_INDEX;
 import static org.opensearch.index.IndexService.IndexCreationContext.METADATA_VERIFICATION;
@@ -950,7 +949,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 .indices()
                 .preparePutMapping()
                 .setConcreteIndex(shardRouting.index()) // concrete index - no name clash, it uses uuid
-                .setSource(mapping.source().string(), XContentType.JSON)
+                .setSource(mapping.source().string(), MediaTypeRegistry.JSON)
                 .get();
         }, this);
         return indexShard;

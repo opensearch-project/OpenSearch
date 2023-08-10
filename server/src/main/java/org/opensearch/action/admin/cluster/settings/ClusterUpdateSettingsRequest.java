@@ -38,11 +38,11 @@ import org.opensearch.core.ParseField;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Map;
@@ -120,8 +120,8 @@ public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpd
     /**
      * Sets the source containing the transient settings to be updated. They will not survive a full cluster restart
      */
-    public ClusterUpdateSettingsRequest transientSettings(String source, XContentType xContentType) {
-        this.transientSettings = Settings.builder().loadFromSource(source, xContentType).build();
+    public ClusterUpdateSettingsRequest transientSettings(String source, final MediaType mediaType) {
+        this.transientSettings = Settings.builder().loadFromSource(source, mediaType).build();
         return this;
     }
 
@@ -152,8 +152,8 @@ public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpd
     /**
      * Sets the source containing the persistent settings to be updated. They will get applied cross restarts
      */
-    public ClusterUpdateSettingsRequest persistentSettings(String source, XContentType xContentType) {
-        this.persistentSettings = Settings.builder().loadFromSource(source, xContentType).build();
+    public ClusterUpdateSettingsRequest persistentSettings(String source, final MediaType mediaType) {
+        this.persistentSettings = Settings.builder().loadFromSource(source, mediaType).build();
         return this;
     }
 

@@ -49,7 +49,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
 
-import static org.opensearch.common.xcontent.XContentHelper.toXContent;
+import static org.opensearch.core.xcontent.XContentHelper.toXContent;
 import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.opensearch.core.xcontent.XContentParserUtils.ensureFieldName;
 import static org.opensearch.test.XContentTestUtils.insertRandomFields;

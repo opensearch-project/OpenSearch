@@ -67,6 +67,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.snapshots.EmptySnapshotsInfoService;
 import org.opensearch.snapshots.InternalSnapshotsInfoService;
@@ -439,7 +440,9 @@ public class NodeVersionAllocationDeciderTests extends OpenSearchAllocationTestC
             .routingTable(routingTable)
             .nodes(DiscoveryNodes.builder().add(newNode).add(oldNode1).add(oldNode2))
             .build();
-        AllocationDeciders allocationDeciders = new AllocationDeciders(Collections.singleton(new NodeVersionAllocationDecider()));
+        AllocationDeciders allocationDeciders = new AllocationDeciders(
+            Collections.singleton(new NodeVersionAllocationDecider(Settings.EMPTY))
+        );
         AllocationService strategy = new MockAllocationService(
             allocationDeciders,
             new TestGatewayAllocator(),
@@ -509,7 +512,7 @@ public class NodeVersionAllocationDeciderTests extends OpenSearchAllocationTestC
             .nodes(DiscoveryNodes.builder().add(newNode).add(oldNode1).add(oldNode2))
             .build();
         AllocationDeciders allocationDeciders = new AllocationDeciders(
-            Arrays.asList(new ReplicaAfterPrimaryActiveAllocationDecider(), new NodeVersionAllocationDecider())
+            Arrays.asList(new ReplicaAfterPrimaryActiveAllocationDecider(), new NodeVersionAllocationDecider(Settings.EMPTY))
         );
         AllocationService strategy = new MockAllocationService(
             allocationDeciders,
@@ -524,6 +527,148 @@ public class NodeVersionAllocationDeciderTests extends OpenSearchAllocationTestC
         for (int i = 0; i < numberOfShards; i++) {
             assertEquals("newNode", state.routingTable().index("test").getShards().get(i).primaryShard().currentNodeId());
         }
+    }
+
+    public void testRebalanceDoesNotAllocatePrimaryOnHigherVersionNodesSegrepEnabled() {
+        ShardId shard1 = new ShardId("test1", "_na_", 0);
+        ShardId shard2 = new ShardId("test2", "_na_", 0);
+        final DiscoveryNode newNode1 = new DiscoveryNode(
+            "newNode1",
+            buildNewFakeTransportAddress(),
+            emptyMap(),
+            CLUSTER_MANAGER_DATA_ROLES,
+            Version.CURRENT
+        );
+        final DiscoveryNode newNode2 = new DiscoveryNode(
+            "newNode2",
+            buildNewFakeTransportAddress(),
+            emptyMap(),
+            CLUSTER_MANAGER_DATA_ROLES,
+            Version.CURRENT
+        );
+        final DiscoveryNode oldNode1 = new DiscoveryNode(
+            "oldNode1",
+            buildNewFakeTransportAddress(),
+            emptyMap(),
+            CLUSTER_MANAGER_DATA_ROLES,
+            VersionUtils.getPreviousVersion()
+        );
+        final DiscoveryNode oldNode2 = new DiscoveryNode(
+            "oldNode2",
+            buildNewFakeTransportAddress(),
+            emptyMap(),
+            CLUSTER_MANAGER_DATA_ROLES,
+            VersionUtils.getPreviousVersion()
+        );
+        AllocationId allocationId1P = AllocationId.newInitializing();
+        AllocationId allocationId1R = AllocationId.newInitializing();
+        AllocationId allocationId2P = AllocationId.newInitializing();
+        AllocationId allocationId2R = AllocationId.newInitializing();
+
+        Settings segmentReplicationSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            .build();
+        Metadata metadata = Metadata.builder()
+            .put(
+                IndexMetadata.builder(shard1.getIndexName())
+                    .settings(settings(Version.CURRENT).put(segmentReplicationSettings))
+                    .numberOfShards(1)
+                    .numberOfReplicas(1)
+                    .putInSyncAllocationIds(0, Sets.newHashSet(allocationId1P.getId(), allocationId1R.getId()))
+            )
+            .put(
+                IndexMetadata.builder(shard2.getIndexName())
+                    .settings(settings(Version.CURRENT).put(segmentReplicationSettings))
+                    .numberOfShards(1)
+                    .numberOfReplicas(1)
+                    .putInSyncAllocationIds(0, Sets.newHashSet(allocationId2P.getId(), allocationId2R.getId()))
+            )
+            .build();
+        RoutingTable routingTable = RoutingTable.builder()
+            .add(
+                IndexRoutingTable.builder(shard1.getIndex())
+                    .addIndexShard(
+                        new IndexShardRoutingTable.Builder(shard1).addShard(
+                            TestShardRouting.newShardRouting(
+                                shard1.getIndexName(),
+                                shard1.getId(),
+                                oldNode1.getId(),
+                                null,
+                                true,
+                                ShardRoutingState.STARTED,
+                                allocationId1P
+                            )
+                        )
+                            .addShard(
+                                TestShardRouting.newShardRouting(
+                                    shard1.getIndexName(),
+                                    shard1.getId(),
+                                    oldNode2.getId(),
+                                    null,
+                                    false,
+                                    ShardRoutingState.STARTED,
+                                    allocationId1R
+                                )
+                            )
+                            .build()
+                    )
+            )
+            .add(
+                IndexRoutingTable.builder(shard2.getIndex())
+                    .addIndexShard(
+                        new IndexShardRoutingTable.Builder(shard2).addShard(
+                            TestShardRouting.newShardRouting(
+                                shard2.getIndexName(),
+                                shard2.getId(),
+                                oldNode2.getId(),
+                                null,
+                                true,
+                                ShardRoutingState.STARTED,
+                                allocationId2P
+                            )
+                        )
+                            .addShard(
+                                TestShardRouting.newShardRouting(
+                                    shard2.getIndexName(),
+                                    shard2.getId(),
+                                    oldNode1.getId(),
+                                    null,
+                                    false,
+                                    ShardRoutingState.STARTED,
+                                    allocationId2R
+                                )
+                            )
+                            .build()
+                    )
+            )
+            .build();
+        ClusterState state = ClusterState.builder(org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metadata(metadata)
+            .routingTable(routingTable)
+            .nodes(DiscoveryNodes.builder().add(newNode1).add(newNode2).add(oldNode1).add(oldNode2))
+            .build();
+        AllocationDeciders allocationDeciders = new AllocationDeciders(
+            Collections.singleton(new NodeVersionAllocationDecider(segmentReplicationSettings))
+        );
+        AllocationService strategy = new MockAllocationService(
+            allocationDeciders,
+            new TestGatewayAllocator(),
+            new BalancedShardsAllocator(Settings.EMPTY),
+            EmptyClusterInfoService.INSTANCE,
+            EmptySnapshotsInfoService.INSTANCE
+        );
+        state = strategy.reroute(state, new AllocationCommands(), true, false).getClusterState();
+        // the two indices must stay as is, the replicas cannot move to oldNode2 because versions don't match
+        assertThat(state.routingTable().index(shard2.getIndex()).shardsWithState(ShardRoutingState.RELOCATING).size(), equalTo(1));
+        assertThat(
+            state.routingTable().index(shard2.getIndex()).shardsWithState(ShardRoutingState.RELOCATING).get(0).primary(),
+            equalTo(false)
+        );
+        assertThat(state.routingTable().index(shard1.getIndex()).shardsWithState(ShardRoutingState.RELOCATING).size(), equalTo(1));
+        assertThat(
+            state.routingTable().index(shard1.getIndex()).shardsWithState(ShardRoutingState.RELOCATING).get(0).primary(),
+            equalTo(false)
+        );
     }
 
     private ClusterState stabilize(ClusterState clusterState, AllocationService service) {
@@ -626,7 +771,7 @@ public class NodeVersionAllocationDeciderTests extends OpenSearchAllocationTestC
         RoutingAllocation routingAllocation = new RoutingAllocation(null, clusterState.getRoutingNodes(), clusterState, null, null, 0);
         routingAllocation.debugDecision(true);
 
-        final NodeVersionAllocationDecider allocationDecider = new NodeVersionAllocationDecider();
+        final NodeVersionAllocationDecider allocationDecider = new NodeVersionAllocationDecider(Settings.EMPTY);
         Decision decision = allocationDecider.canAllocate(primaryShard, newNode, routingAllocation);
         assertThat(decision.type(), is(Decision.Type.YES));
         assertThat(decision.getExplanation(), is("the primary shard is new or already existed on the node"));

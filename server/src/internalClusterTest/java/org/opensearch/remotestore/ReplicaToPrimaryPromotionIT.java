@@ -142,7 +142,7 @@ public class ReplicaToPrimaryPromotionIT extends RemoteStoreBaseIntegTestCase {
                     .setSource("field", numAutoGenDocs.get())
                     .get();
 
-                if (indexResponse.status() == RestStatus.CREATED || indexResponse.status() == RestStatus.ACCEPTED) {
+                if (indexResponse.status() == RestStatus.CREATED || indexResponse.status() == RestStatus.OK) {
                     numAutoGenDocs.incrementAndGet();
                     if (numAutoGenDocs.get() == docCount / 2) {
                         if (random().nextInt(3) == 0) {

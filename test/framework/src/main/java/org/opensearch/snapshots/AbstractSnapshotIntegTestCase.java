@@ -49,7 +49,7 @@ import org.opensearch.cluster.metadata.RepositoriesMetadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.Strings;
+import org.opensearch.core.common.Strings;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
@@ -466,7 +466,7 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
             JsonXContent.jsonXContent.createParser(
                 NamedXContentRegistry.EMPTY,
                 DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                Strings.toString(jsonBuilder).replace(Version.CURRENT.toString(), version.toString())
+                jsonBuilder.toString().replace(Version.CURRENT.toString(), version.toString())
             ),
             repositoryData.getGenId()
         );

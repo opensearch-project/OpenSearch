@@ -52,9 +52,9 @@ import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.unit.ByteSizeValue;
-import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.XContentHelper;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.cache.request.ShardRequestCache;
 import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.core.index.shard.ShardId;
@@ -75,7 +75,7 @@ public class IndicesRequestCacheTests extends OpenSearchTestCase {
         writer.addDocument(newDoc(0, "foo"));
         DirectoryReader reader = OpenSearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "bar", 1));
         TermQueryBuilder termQuery = new TermQueryBuilder("id", "0");
-        BytesReference termBytes = XContentHelper.toXContent(termQuery, XContentType.JSON, false);
+        BytesReference termBytes = XContentHelper.toXContent(termQuery, MediaTypeRegistry.JSON, false);
         AtomicBoolean indexShard = new AtomicBoolean(true);
 
         // initial cache
@@ -131,7 +131,7 @@ public class IndicesRequestCacheTests extends OpenSearchTestCase {
         writer.addDocument(newDoc(0, "foo"));
         DirectoryReader reader = OpenSearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "bar", 1));
         TermQueryBuilder termQuery = new TermQueryBuilder("id", "0");
-        BytesReference termBytes = XContentHelper.toXContent(termQuery, XContentType.JSON, false);
+        BytesReference termBytes = XContentHelper.toXContent(termQuery, MediaTypeRegistry.JSON, false);
         if (randomBoolean()) {
             writer.flush();
             IOUtils.close(writer);
@@ -227,7 +227,7 @@ public class IndicesRequestCacheTests extends OpenSearchTestCase {
             writer.addDocument(newDoc(0, "foo"));
             DirectoryReader reader = OpenSearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "bar", 1));
             TermQueryBuilder termQuery = new TermQueryBuilder("id", "0");
-            BytesReference termBytes = XContentHelper.toXContent(termQuery, XContentType.JSON, false);
+            BytesReference termBytes = XContentHelper.toXContent(termQuery, MediaTypeRegistry.JSON, false);
             TestEntity entity = new TestEntity(requestCacheStats, indexShard);
             Loader loader = new Loader(reader, 0);
 
@@ -254,7 +254,7 @@ public class IndicesRequestCacheTests extends OpenSearchTestCase {
         writer.addDocument(newDoc(0, "foo"));
         DirectoryReader reader = OpenSearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "bar", 1));
         TermQueryBuilder termQuery = new TermQueryBuilder("id", "0");
-        BytesReference termBytes = XContentHelper.toXContent(termQuery, XContentType.JSON, false);
+        BytesReference termBytes = XContentHelper.toXContent(termQuery, MediaTypeRegistry.JSON, false);
         TestEntity entity = new TestEntity(requestCacheStats, indexShard);
         Loader loader = new Loader(reader, 0);
 
@@ -291,7 +291,7 @@ public class IndicesRequestCacheTests extends OpenSearchTestCase {
         writer.addDocument(newDoc(0, "foo"));
         DirectoryReader reader = OpenSearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "bar", 1));
         TermQueryBuilder termQuery = new TermQueryBuilder("id", "0");
-        BytesReference termBytes = XContentHelper.toXContent(termQuery, XContentType.JSON, false);
+        BytesReference termBytes = XContentHelper.toXContent(termQuery, MediaTypeRegistry.JSON, false);
         TestEntity entity = new TestEntity(requestCacheStats, indexShard);
         Loader loader = new Loader(reader, 0);
 
@@ -373,7 +373,7 @@ public class IndicesRequestCacheTests extends OpenSearchTestCase {
         writer.addDocument(newDoc(0, "foo"));
         DirectoryReader reader = OpenSearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "bar", 1));
         TermQueryBuilder termQuery = new TermQueryBuilder("id", "0");
-        BytesReference termBytes = XContentHelper.toXContent(termQuery, XContentType.JSON, false);
+        BytesReference termBytes = XContentHelper.toXContent(termQuery, MediaTypeRegistry.JSON, false);
         AtomicBoolean indexShard = new AtomicBoolean(true);
 
         // initial cache

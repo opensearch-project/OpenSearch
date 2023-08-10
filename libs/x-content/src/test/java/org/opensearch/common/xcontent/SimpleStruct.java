@@ -33,7 +33,7 @@
 package org.opensearch.common.xcontent;
 
 import org.opensearch.core.ParseField;
-import org.opensearch.common.Strings;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.ConstructingObjectParser;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;

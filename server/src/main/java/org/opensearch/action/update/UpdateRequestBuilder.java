@@ -39,8 +39,8 @@ import org.opensearch.action.support.replication.ReplicationRequest;
 import org.opensearch.action.support.single.instance.InstanceShardOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.Nullable;
+import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.VersionType;
 import org.opensearch.script.Script;
 
@@ -230,7 +230,7 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
     /**
      * Sets the doc to use for updates when a script is not specified.
      */
-    public UpdateRequestBuilder setDoc(Map<String, Object> source, XContentType contentType) {
+    public UpdateRequestBuilder setDoc(Map<String, Object> source, MediaType contentType) {
         request.doc(source, contentType);
         return this;
     }
@@ -238,24 +238,24 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
     /**
      * Sets the doc to use for updates when a script is not specified.
      */
-    public UpdateRequestBuilder setDoc(String source, XContentType xContentType) {
-        request.doc(source, xContentType);
+    public UpdateRequestBuilder setDoc(String source, MediaType mediaType) {
+        request.doc(source, mediaType);
         return this;
     }
 
     /**
      * Sets the doc to use for updates when a script is not specified.
      */
-    public UpdateRequestBuilder setDoc(byte[] source, XContentType xContentType) {
-        request.doc(source, xContentType);
+    public UpdateRequestBuilder setDoc(byte[] source, MediaType mediaType) {
+        request.doc(source, mediaType);
         return this;
     }
 
     /**
      * Sets the doc to use for updates when a script is not specified.
      */
-    public UpdateRequestBuilder setDoc(byte[] source, int offset, int length, XContentType xContentType) {
-        request.doc(source, offset, length, xContentType);
+    public UpdateRequestBuilder setDoc(byte[] source, int offset, int length, MediaType mediaType) {
+        request.doc(source, offset, length, mediaType);
         return this;
     }
 
@@ -272,8 +272,8 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
      * Sets the doc to use for updates when a script is not specified, the doc provided
      * is a field and value pairs.
      */
-    public UpdateRequestBuilder setDoc(XContentType xContentType, Object... source) {
-        request.doc(xContentType, source);
+    public UpdateRequestBuilder setDoc(MediaType mediaType, Object... source) {
+        request.doc(mediaType, source);
         return this;
     }
 
@@ -305,32 +305,32 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
     /**
      * Sets the doc source of the update request to be used when the document does not exists.
      */
-    public UpdateRequestBuilder setUpsert(Map<String, Object> source, XContentType contentType) {
-        request.upsert(source, contentType);
+    public UpdateRequestBuilder setUpsert(Map<String, Object> source, MediaType mediaType) {
+        request.upsert(source, mediaType);
         return this;
     }
 
     /**
      * Sets the doc source of the update request to be used when the document does not exists.
      */
-    public UpdateRequestBuilder setUpsert(String source, XContentType xContentType) {
-        request.upsert(source, xContentType);
+    public UpdateRequestBuilder setUpsert(String source, MediaType mediaType) {
+        request.upsert(source, mediaType);
         return this;
     }
 
     /**
      * Sets the doc source of the update request to be used when the document does not exists.
      */
-    public UpdateRequestBuilder setUpsert(byte[] source, XContentType xContentType) {
-        request.upsert(source, xContentType);
+    public UpdateRequestBuilder setUpsert(byte[] source, MediaType mediaType) {
+        request.upsert(source, mediaType);
         return this;
     }
 
     /**
      * Sets the doc source of the update request to be used when the document does not exists.
      */
-    public UpdateRequestBuilder setUpsert(byte[] source, int offset, int length, XContentType xContentType) {
-        request.upsert(source, offset, length, xContentType);
+    public UpdateRequestBuilder setUpsert(byte[] source, int offset, int length, MediaType mediaType) {
+        request.upsert(source, offset, length, mediaType);
         return this;
     }
 
@@ -347,8 +347,8 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
      * Sets the doc source of the update request to be used when the document does not exists. The doc
      * includes field and value pairs.
      */
-    public UpdateRequestBuilder setUpsert(XContentType xContentType, Object... source) {
-        request.upsert(xContentType, source);
+    public UpdateRequestBuilder setUpsert(MediaType mediaType, Object... source) {
+        request.upsert(mediaType, source);
         return this;
     }
 

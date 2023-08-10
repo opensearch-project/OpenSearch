@@ -43,7 +43,7 @@ import org.opensearch.client.node.NodeClient;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.identity.IdentityService;
 import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.rest.RestController;
@@ -182,7 +182,7 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
     private RestRequest createRestRequest(String content) {
         return new FakeRestRequest.Builder(xContentRegistry()).withPath("index1/type1/_validate/query")
             .withParams(emptyMap())
-            .withContent(new BytesArray(content), XContentType.JSON)
+            .withContent(new BytesArray(content), MediaTypeRegistry.JSON)
             .build();
     }
 }

@@ -40,7 +40,6 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.MetadataIndexTemplateService.PutRequest;
 import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.Strings;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.IndexScopedSettings;
@@ -48,10 +47,10 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.env.Environment;
 import org.opensearch.core.index.Index;
 import org.opensearch.index.mapper.MapperParsingException;
@@ -191,17 +190,16 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
         PutRequest request = new PutRequest("api", "validate_template");
         request.patterns(singletonList("te*"));
         request.mappings(
-            Strings.toString(
-                XContentFactory.jsonBuilder()
-                    .startObject()
-                    .startObject("properties")
-                    .startObject("field2")
-                    .field("type", "text")
-                    .field("analyzer", "custom_1")
-                    .endObject()
-                    .endObject()
-                    .endObject()
-            )
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("properties")
+                .startObject("field2")
+                .field("type", "text")
+                .field("analyzer", "custom_1")
+                .endObject()
+                .endObject()
+                .endObject()
+                .toString()
         );
 
         List<Throwable> errors = putTemplateDetail(request);
@@ -2148,7 +2146,7 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
                 Map<String, Object> actualMappings;
                 Map<String, Object> expectedMappings;
                 try (
-                    XContentParser parser = XContentType.JSON.xContent()
+                    XContentParser parser = MediaTypeRegistry.JSON.xContent()
                         .createParser(
                             new NamedXContentRegistry(Collections.emptyList()),
                             LoggingDeprecationHandler.INSTANCE,
@@ -2160,7 +2158,7 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
                     throw new AssertionError(e);
                 }
                 try (
-                    XContentParser parser = XContentType.JSON.xContent()
+                    XContentParser parser = MediaTypeRegistry.JSON.xContent()
                         .createParser(
                             new NamedXContentRegistry(Collections.emptyList()),
                             LoggingDeprecationHandler.INSTANCE,

@@ -67,7 +67,6 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Numbers;
 import org.opensearch.common.SetOnce;
-import org.opensearch.common.Strings;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
@@ -75,6 +74,7 @@ import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.blobstore.DeleteResult;
 import org.opensearch.common.blobstore.fs.FsBlobContainer;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
@@ -96,9 +96,9 @@ import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.core.util.BytesRefUtils;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.mapper.MapperService;
@@ -1987,7 +1987,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     private RepositoryData repositoryDataFromCachedEntry(Tuple<Long, BytesReference> cacheEntry) throws IOException {
         try (InputStream input = CompressorFactory.defaultCompressor().threadLocalInputStream(cacheEntry.v2().streamInput())) {
             return RepositoryData.snapshotsFromXContent(
-                XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, input),
+                MediaTypeRegistry.JSON.xContent().createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, input),
                 cacheEntry.v1()
             );
         }
@@ -2080,7 +2080,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             // EMPTY is safe here because RepositoryData#fromXContent calls namedObject
             try (
                 InputStream blob = blobContainer().readBlob(snapshotsIndexBlobName);
-                XContentParser parser = XContentType.JSON.xContent()
+                XContentParser parser = MediaTypeRegistry.JSON.xContent()
                     .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, blob)
             ) {
                 return RepositoryData.snapshotsFromXContent(parser, indexGen);

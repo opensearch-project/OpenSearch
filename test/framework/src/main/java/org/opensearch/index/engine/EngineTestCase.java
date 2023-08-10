@@ -73,7 +73,6 @@ import org.opensearch.cluster.routing.AllocationId;
 import org.opensearch.common.CheckedBiFunction;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Randomness;
-import org.opensearch.common.Strings;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressedXContent;
@@ -84,10 +83,10 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.set.Sets;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexSettings;
@@ -423,23 +422,22 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
         } else {
             document.add(new StoredField(SourceFieldMapper.NAME, ref.bytes, ref.offset, ref.length));
         }
-        return new ParsedDocument(versionField, seqID, id, routing, Arrays.asList(document), source, XContentType.JSON, mappingUpdate);
+        return new ParsedDocument(versionField, seqID, id, routing, Arrays.asList(document), source, MediaTypeRegistry.JSON, mappingUpdate);
     }
 
     public static CheckedBiFunction<String, Integer, ParsedDocument, IOException> nestedParsedDocFactory() throws Exception {
         final MapperService mapperService = createMapperService();
-        final String nestedMapping = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("type")
-                .startObject("properties")
-                .startObject("nested_field")
-                .field("type", "nested")
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
+        final String nestedMapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("type")
+            .startObject("properties")
+            .startObject("nested_field")
+            .field("type", "nested")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
         final DocumentMapper nestedMapper = mapperService.documentMapperParser().parse("type", new CompressedXContent(nestedMapping));
         return (docId, nestedFieldValues) -> {
             final XContentBuilder source = XContentFactory.jsonBuilder().startObject().field("field", "value");
@@ -451,7 +449,7 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
                 source.endObject();
             }
             source.endObject();
-            return nestedMapper.parse(new SourceToParse("test", docId, BytesReference.bytes(source), XContentType.JSON));
+            return nestedMapper.parse(new SourceToParse("test", docId, BytesReference.bytes(source), MediaTypeRegistry.JSON));
         };
     }
 
@@ -480,7 +478,7 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
                     null,
                     Collections.singletonList(doc),
                     new BytesArray("{}"),
-                    XContentType.JSON,
+                    MediaTypeRegistry.JSON,
                     null
                 );
             }
@@ -498,7 +496,16 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
                 doc.add(versionField);
                 BytesRef byteRef = new BytesRef(reason);
                 doc.add(new StoredField(SourceFieldMapper.NAME, byteRef.bytes, byteRef.offset, byteRef.length));
-                return new ParsedDocument(versionField, seqID, null, null, Collections.singletonList(doc), null, XContentType.JSON, null);
+                return new ParsedDocument(
+                    versionField,
+                    seqID,
+                    null,
+                    null,
+                    Collections.singletonList(doc),
+                    null,
+                    MediaTypeRegistry.JSON,
+                    null
+                );
             }
         };
     }

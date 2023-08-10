@@ -73,7 +73,6 @@ import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.Randomness;
-import org.opensearch.common.Strings;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.concurrent.GatedCloseable;
@@ -88,11 +87,11 @@ import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.AtomicArray;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.Assertions;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.env.NodeEnvironment;
@@ -1706,7 +1705,7 @@ public class IndexShardTests extends IndexShardTestCase {
         builder.startObject();
         stats.toXContent(builder, EMPTY_PARAMS);
         builder.endObject();
-        String xContent = Strings.toString(builder);
+        String xContent = builder.toString();
         StringBuilder expectedSubSequence = new StringBuilder("\"shard_path\":{\"state_path\":\"");
         expectedSubSequence.append(shard.shardPath().getRootStatePath().toString());
         expectedSubSequence.append("\",\"data_path\":\"");
@@ -2310,7 +2309,7 @@ public class IndexShardTests extends IndexShardTestCase {
             1,
             IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
             false,
-            new SourceToParse(shard.shardId().getIndexName(), "id", new BytesArray("{}"), XContentType.JSON)
+            new SourceToParse(shard.shardId().getIndexName(), "id", new BytesArray("{}"), MediaTypeRegistry.JSON)
         );
         shard.applyIndexOperationOnReplica(
             UUID.randomUUID().toString(),
@@ -2319,7 +2318,7 @@ public class IndexShardTests extends IndexShardTestCase {
             3,
             IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
             false,
-            new SourceToParse(shard.shardId().getIndexName(), "id-3", new BytesArray("{}"), XContentType.JSON)
+            new SourceToParse(shard.shardId().getIndexName(), "id-3", new BytesArray("{}"), MediaTypeRegistry.JSON)
         );
         // Flushing a new commit with local checkpoint=1 allows to skip the translog gen #1 in recovery.
         shard.flush(new FlushRequest().force(true).waitIfOngoing(true));
@@ -2330,7 +2329,7 @@ public class IndexShardTests extends IndexShardTestCase {
             3,
             IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
             false,
-            new SourceToParse(shard.shardId().getIndexName(), "id-2", new BytesArray("{}"), XContentType.JSON)
+            new SourceToParse(shard.shardId().getIndexName(), "id-2", new BytesArray("{}"), MediaTypeRegistry.JSON)
         );
         shard.applyIndexOperationOnReplica(
             UUID.randomUUID().toString(),
@@ -2339,7 +2338,7 @@ public class IndexShardTests extends IndexShardTestCase {
             1,
             IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
             false,
-            new SourceToParse(shard.shardId().getIndexName(), "id-5", new BytesArray("{}"), XContentType.JSON)
+            new SourceToParse(shard.shardId().getIndexName(), "id-5", new BytesArray("{}"), MediaTypeRegistry.JSON)
         );
         shard.sync(); // advance local checkpoint
 
@@ -2479,7 +2478,7 @@ public class IndexShardTests extends IndexShardTestCase {
         // start a replica shard and index the second doc
         final IndexShard otherShard = newStartedShard(false);
         updateMappings(otherShard, shard.indexSettings().getIndexMetadata());
-        SourceToParse sourceToParse = new SourceToParse(shard.shardId().getIndexName(), "1", new BytesArray("{}"), XContentType.JSON);
+        SourceToParse sourceToParse = new SourceToParse(shard.shardId().getIndexName(), "1", new BytesArray("{}"), MediaTypeRegistry.JSON);
         otherShard.applyIndexOperationOnReplica(
             UUID.randomUUID().toString(),
             1,
@@ -2615,7 +2614,7 @@ public class IndexShardTests extends IndexShardTestCase {
             1,
             IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
             false,
-            new SourceToParse(indexName, "doc-0", new BytesArray("{}"), XContentType.JSON)
+            new SourceToParse(indexName, "doc-0", new BytesArray("{}"), MediaTypeRegistry.JSON)
         );
         flushShard(shard);
         shard.updateGlobalCheckpointOnReplica(0, "test"); // stick the global checkpoint here.
@@ -2626,7 +2625,7 @@ public class IndexShardTests extends IndexShardTestCase {
             1,
             IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
             false,
-            new SourceToParse(indexName, "doc-1", new BytesArray("{}"), XContentType.JSON)
+            new SourceToParse(indexName, "doc-1", new BytesArray("{}"), MediaTypeRegistry.JSON)
         );
         flushShard(shard);
         assertThat(getShardDocUIDs(shard), containsInAnyOrder("doc-0", "doc-1"));
@@ -2639,7 +2638,7 @@ public class IndexShardTests extends IndexShardTestCase {
             1,
             IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
             false,
-            new SourceToParse(indexName, "doc-2", new BytesArray("{}"), XContentType.JSON)
+            new SourceToParse(indexName, "doc-2", new BytesArray("{}"), MediaTypeRegistry.JSON)
         );
         flushShard(shard);
         assertThat(getShardDocUIDs(shard), containsInAnyOrder("doc-0", "doc-1", "doc-2"));
@@ -3634,14 +3633,13 @@ public class IndexShardTests extends IndexShardTestCase {
 
             int numDoc = randomIntBetween(100, 200);
             for (int i = 0; i < numDoc; i++) {
-                String doc = Strings.toString(
-                    XContentFactory.jsonBuilder()
-                        .startObject()
-                        .field("count", randomInt())
-                        .field("point", randomFloat())
-                        .field("description", randomUnicodeOfCodepointLength(100))
-                        .endObject()
-                );
+                String doc = XContentFactory.jsonBuilder()
+                    .startObject()
+                    .field("count", randomInt())
+                    .field("point", randomFloat())
+                    .field("description", randomUnicodeOfCodepointLength(100))
+                    .endObject()
+                    .toString();
                 indexDoc(indexShard, "_doc", Integer.toString(i), doc);
             }
 
@@ -4053,7 +4051,7 @@ public class IndexShardTests extends IndexShardTestCase {
                     indexShard.shardId().getIndexName(),
                     id,
                     new BytesArray("{}"),
-                    XContentType.JSON
+                    MediaTypeRegistry.JSON
                 );
                 indexShard.applyIndexOperationOnReplica(
                     UUID.randomUUID().toString(),
@@ -4687,7 +4685,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 1,
                 IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
                 false,
-                new SourceToParse(shard.shardId.getIndexName(), Long.toString(i), new BytesArray("{}"), XContentType.JSON)
+                new SourceToParse(shard.shardId.getIndexName(), Long.toString(i), new BytesArray("{}"), MediaTypeRegistry.JSON)
             );
             shard.updateGlobalCheckpointOnReplica(shard.getLocalCheckpoint(), "test");
             if (randomInt(100) < 10) {

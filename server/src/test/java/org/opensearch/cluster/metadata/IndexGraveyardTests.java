@@ -32,13 +32,13 @@
 
 package org.opensearch.cluster.metadata;
 
-import org.opensearch.common.Strings;
 import org.opensearch.common.UUIDs;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentOpenSearchExtension;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
@@ -87,7 +87,7 @@ public class IndexGraveyardTests extends OpenSearchTestCase {
         if (graveyard.getTombstones().size() > 0) {
             // check that date properly printed
             assertThat(
-                Strings.toString(XContentType.JSON, graveyard, false, true),
+                Strings.toString(MediaTypeRegistry.JSON, graveyard, false, true),
                 containsString(
                     XContentOpenSearchExtension.DEFAULT_DATE_PRINTER.print(graveyard.getTombstones().get(0).getDeleteDateInMillis())
                 )

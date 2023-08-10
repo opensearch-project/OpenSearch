@@ -41,7 +41,6 @@ import org.opensearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.Strings;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -226,8 +225,8 @@ public class PutIndexTemplateRequest extends ClusterManagerNodeRequest<PutIndexT
     /**
      * The settings to create the index template with (either json/yaml format).
      */
-    public PutIndexTemplateRequest settings(String source, XContentType xContentType) {
-        this.settings = Settings.builder().loadFromSource(source, xContentType).build();
+    public PutIndexTemplateRequest settings(String source, MediaType mediaType) {
+        this.settings = Settings.builder().loadFromSource(source, mediaType).build();
         return this;
     }
 
@@ -298,7 +297,7 @@ public class PutIndexTemplateRequest extends ClusterManagerNodeRequest<PutIndexT
         try {
             XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.map(source);
-            mappings = Strings.toString(builder);
+            mappings = builder.toString();
             return this;
         } catch (IOException e) {
             throw new OpenSearchGenerationException("Failed to generate [" + source + "]", e);
@@ -398,15 +397,15 @@ public class PutIndexTemplateRequest extends ClusterManagerNodeRequest<PutIndexT
     /**
      * The template source definition.
      */
-    public PutIndexTemplateRequest source(byte[] source, XContentType xContentType) {
-        return source(source, 0, source.length, xContentType);
+    public PutIndexTemplateRequest source(byte[] source, MediaType mediaType) {
+        return source(source, 0, source.length, mediaType);
     }
 
     /**
      * The template source definition.
      */
-    public PutIndexTemplateRequest source(byte[] source, int offset, int length, XContentType xContentType) {
-        return source(new BytesArray(source, offset, length), xContentType);
+    public PutIndexTemplateRequest source(byte[] source, int offset, int length, MediaType mediaType) {
+        return source(new BytesArray(source, offset, length), mediaType);
     }
 
     /**

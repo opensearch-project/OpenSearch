@@ -54,7 +54,7 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
@@ -374,12 +374,12 @@ public class RelocationIT extends OpenSearchIntegTestCase {
 
             List<IndexRequestBuilder> builders1 = new ArrayList<>();
             for (int numDocs = randomIntBetween(10, 30); numDocs > 0; numDocs--) {
-                builders1.add(client().prepareIndex("test").setSource("{}", XContentType.JSON));
+                builders1.add(client().prepareIndex("test").setSource("{}", MediaTypeRegistry.JSON));
             }
 
             List<IndexRequestBuilder> builders2 = new ArrayList<>();
             for (int numDocs = randomIntBetween(10, 30); numDocs > 0; numDocs--) {
-                builders2.add(client().prepareIndex("test").setSource("{}", XContentType.JSON));
+                builders2.add(client().prepareIndex("test").setSource("{}", MediaTypeRegistry.JSON));
             }
 
             logger.info("--> START relocate the shard from {} to {}", nodes[fromNode], nodes[toNode]);
@@ -439,7 +439,7 @@ public class RelocationIT extends OpenSearchIntegTestCase {
         List<IndexRequestBuilder> requests = new ArrayList<>();
         int numDocs = scaledRandomIntBetween(25, 250);
         for (int i = 0; i < numDocs; i++) {
-            requests.add(client().prepareIndex(indexName).setSource("{}", XContentType.JSON));
+            requests.add(client().prepareIndex(indexName).setSource("{}", MediaTypeRegistry.JSON));
         }
         indexRandom(true, requests);
         assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes("3").setWaitForGreenStatus().get().isTimedOut());

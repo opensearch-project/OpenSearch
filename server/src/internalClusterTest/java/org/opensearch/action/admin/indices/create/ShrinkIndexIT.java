@@ -67,8 +67,8 @@ import org.opensearch.common.Priority;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.index.Index;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.engine.SegmentsStats;
 import org.opensearch.index.query.TermsQueryBuilder;
@@ -109,7 +109,7 @@ public class ShrinkIndexIT extends OpenSearchIntegTestCase {
         for (int i = 0; i < 20; i++) {
             client().prepareIndex("source")
                 .setId(Integer.toString(i))
-                .setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON)
+                .setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", MediaTypeRegistry.JSON)
                 .get();
         }
         final Map<String, DiscoveryNode> dataNodes = client().admin().cluster().prepareState().get().getState().nodes().getDataNodes();
@@ -147,7 +147,7 @@ public class ShrinkIndexIT extends OpenSearchIntegTestCase {
         for (int i = 0; i < 20; i++) { // now update
             client().prepareIndex("first_shrink")
                 .setId(Integer.toString(i))
-                .setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON)
+                .setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", MediaTypeRegistry.JSON)
                 .get();
         }
         flushAndRefresh();
@@ -190,7 +190,7 @@ public class ShrinkIndexIT extends OpenSearchIntegTestCase {
         for (int i = 0; i < 20; i++) { // now update
             client().prepareIndex("second_shrink")
                 .setId(Integer.toString(i))
-                .setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON)
+                .setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", MediaTypeRegistry.JSON)
                 .get();
         }
         flushAndRefresh();
@@ -232,7 +232,7 @@ public class ShrinkIndexIT extends OpenSearchIntegTestCase {
                         final int hash = Math.floorMod(Murmur3HashFunction.hash(s), numberOfShards);
                         if (hash == shardId) {
                             final IndexRequest request = new IndexRequest("source").id(s)
-                                .source("{ \"f\": \"" + s + "\"}", XContentType.JSON);
+                                .source("{ \"f\": \"" + s + "\"}", MediaTypeRegistry.JSON);
                             client().index(request).get();
                             break;
                         } else {
@@ -283,7 +283,7 @@ public class ShrinkIndexIT extends OpenSearchIntegTestCase {
         ).get();
         final int docs = randomIntBetween(0, 128);
         for (int i = 0; i < docs; i++) {
-            client().prepareIndex("source").setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON).get();
+            client().prepareIndex("source").setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", MediaTypeRegistry.JSON).get();
         }
         final Map<String, DiscoveryNode> dataNodes = client().admin().cluster().prepareState().get().getState().nodes().getDataNodes();
         assertTrue("at least 2 nodes but was: " + dataNodes.size(), dataNodes.size() >= 2);
@@ -378,7 +378,7 @@ public class ShrinkIndexIT extends OpenSearchIntegTestCase {
         }
 
         for (int i = docs; i < 2 * docs; i++) {
-            client().prepareIndex("target").setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON).get();
+            client().prepareIndex("target").setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", MediaTypeRegistry.JSON).get();
         }
         flushAndRefresh();
         assertHitCount(client().prepareSearch("target").setSize(2 * size).setQuery(new TermsQueryBuilder("foo", "bar")).get(), 2 * docs);
@@ -405,7 +405,7 @@ public class ShrinkIndexIT extends OpenSearchIntegTestCase {
             Settings.builder().put(indexSettings()).put("number_of_shards", randomIntBetween(2, 7)).put("number_of_replicas", 0)
         ).get();
         for (int i = 0; i < 20; i++) {
-            client().prepareIndex("source").setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON).get();
+            client().prepareIndex("source").setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", MediaTypeRegistry.JSON).get();
         }
         final Map<String, DiscoveryNode> dataNodes = client().admin().cluster().prepareState().get().getState().nodes().getDataNodes();
         assertTrue("at least 2 nodes but was: " + dataNodes.size(), dataNodes.size() >= 2);
@@ -506,7 +506,7 @@ public class ShrinkIndexIT extends OpenSearchIntegTestCase {
         for (int i = 0; i < 20; i++) {
             client().prepareIndex("source")
                 .setId(Integer.toString(i))
-                .setSource("{\"foo\" : \"bar\", \"id\" : " + i + "}", XContentType.JSON)
+                .setSource("{\"foo\" : \"bar\", \"id\" : " + i + "}", MediaTypeRegistry.JSON)
                 .get();
         }
         final Map<String, DiscoveryNode> dataNodes = client().admin().cluster().prepareState().get().getState().nodes().getDataNodes();
@@ -569,7 +569,7 @@ public class ShrinkIndexIT extends OpenSearchIntegTestCase {
 
         // ... and that the index sort is also applied to updates
         for (int i = 20; i < 40; i++) {
-            client().prepareIndex("target").setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON).get();
+            client().prepareIndex("target").setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", MediaTypeRegistry.JSON).get();
         }
         flushAndRefresh();
         assertSortedSegments("target", expectedIndexSort);
@@ -580,7 +580,7 @@ public class ShrinkIndexIT extends OpenSearchIntegTestCase {
             Settings.builder().put(indexSettings()).put("index.number_of_replicas", 0).put("number_of_shards", 5)
         ).get();
         for (int i = 0; i < 30; i++) {
-            client().prepareIndex("source").setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON).get();
+            client().prepareIndex("source").setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", MediaTypeRegistry.JSON).get();
         }
         client().admin().indices().prepareFlush("source").get();
         final Map<String, DiscoveryNode> dataNodes = client().admin().cluster().prepareState().get().getState().nodes().getDataNodes();
@@ -737,7 +737,7 @@ public class ShrinkIndexIT extends OpenSearchIntegTestCase {
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, shardCount)
         ).get();
         for (int i = 0; i < 20; i++) {
-            client().prepareIndex("source").setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON).get();
+            client().prepareIndex("source").setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", MediaTypeRegistry.JSON).get();
         }
         client().admin().indices().prepareFlush("source").get();
         ensureGreen();

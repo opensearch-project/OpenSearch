@@ -53,7 +53,6 @@ import org.opensearch.core.Assertions;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Randomness;
-import org.opensearch.common.Strings;
 import org.opensearch.common.UUIDs;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
@@ -68,10 +67,10 @@ import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.util.concurrent.ReleasableLock;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.VersionType;
@@ -520,7 +519,7 @@ public class LocalTranslogTests extends OpenSearchTestCase {
                 copy.toXContent(builder, ToXContent.EMPTY_PARAMS);
                 builder.endObject();
                 assertThat(
-                    Strings.toString(builder),
+                    builder.toString(),
                     equalTo(
                         "{\"translog\":{\"operations\":4,\"size_in_bytes\":"
                             + 326
@@ -3506,7 +3505,7 @@ public class LocalTranslogTests extends OpenSearchTestCase {
         document.add(seqID.seqNo);
         document.add(seqID.seqNoDocValue);
         document.add(seqID.primaryTerm);
-        ParsedDocument doc = new ParsedDocument(versionField, seqID, "1", null, Arrays.asList(document), B_1, XContentType.JSON, null);
+        ParsedDocument doc = new ParsedDocument(versionField, seqID, "1", null, Arrays.asList(document), B_1, MediaTypeRegistry.JSON, null);
 
         Engine.Index eIndex = new Engine.Index(
             newUid(doc),
