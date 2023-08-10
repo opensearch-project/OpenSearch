@@ -40,7 +40,7 @@ import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.blobstore.fs.FsBlobStore;
 import org.opensearch.core.common.bytes.BytesArray;
-import org.opensearch.common.compress.Compressor;
+import org.opensearch.core.common.compress.Compressor;
 import org.opensearch.common.compress.CompressorFactory;
 import org.opensearch.common.compress.CompressorType;
 import org.opensearch.common.io.Streams;

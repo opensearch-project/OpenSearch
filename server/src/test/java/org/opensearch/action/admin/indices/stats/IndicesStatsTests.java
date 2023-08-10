@@ -32,7 +32,7 @@
 
 package org.opensearch.action.admin.indices.stats;
 
-import org.opensearch.action.ActionFuture;
+import org.opensearch.common.action.ActionFuture;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.core.action.support.DefaultShardOperationFailedException;
 import org.opensearch.action.support.WriteRequest.RefreshPolicy;

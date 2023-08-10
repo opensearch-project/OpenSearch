@@ -9,7 +9,7 @@
 package org.opensearch.indices.recovery;
 
 import org.apache.lucene.index.IndexCommit;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.StepListener;
 import org.opensearch.action.support.ThreadedActionListener;
 import org.opensearch.action.support.replication.ReplicationResponse;

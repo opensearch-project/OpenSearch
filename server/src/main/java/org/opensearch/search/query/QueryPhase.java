@@ -67,7 +67,7 @@ import org.opensearch.search.profile.query.InternalProfileCollector;
 import org.opensearch.search.rescore.RescoreProcessor;
 import org.opensearch.search.sort.SortAndFormats;
 import org.opensearch.search.suggest.SuggestProcessor;
-import org.opensearch.tasks.TaskCancelledException;
+import org.opensearch.core.tasks.TaskCancelledException;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;

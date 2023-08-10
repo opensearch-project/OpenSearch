@@ -44,7 +44,7 @@ import org.opensearch.search.dfs.AggregatedDfs;
 import org.opensearch.search.internal.ShardSearchContextId;
 import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.tasks.Task;
-import org.opensearch.tasks.TaskId;
+import org.opensearch.core.tasks.TaskId;
 import org.opensearch.transport.TransportRequest;
 
 import java.io.IOException;

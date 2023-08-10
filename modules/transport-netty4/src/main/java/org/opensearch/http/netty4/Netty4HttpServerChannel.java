@@ -33,7 +33,7 @@
 package org.opensearch.http.netty4;
 
 import io.netty.channel.Channel;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.common.concurrent.CompletableContext;
 import org.opensearch.http.HttpServerChannel;
 import org.opensearch.transport.netty4.Netty4TcpChannel;

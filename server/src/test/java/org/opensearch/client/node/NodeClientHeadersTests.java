@@ -34,7 +34,7 @@ package org.opensearch.client.node;
 
 import org.opensearch.action.ActionType;
 import org.opensearch.action.ActionModule.DynamicActionRegistry;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.TransportAction;

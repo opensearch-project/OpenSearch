@@ -60,7 +60,7 @@ import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.rest.action.document.RestTermVectorsAction;
-import org.opensearch.tasks.TaskId;
+import org.opensearch.core.tasks.TaskId;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.StreamsUtils;
 import org.hamcrest.Matchers;
