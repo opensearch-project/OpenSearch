@@ -32,7 +32,9 @@
 
 package org.opensearch.action.admin.cluster.repositories.put;
 
+import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.admin.cluster.crypto.CryptoSettings;
 import org.opensearch.action.support.master.AcknowledgedRequest;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -48,6 +50,7 @@ import static org.opensearch.action.ValidateActions.addValidationError;
 import static org.opensearch.common.settings.Settings.readSettingsFromStream;
 import static org.opensearch.common.settings.Settings.writeSettingsToStream;
 import static org.opensearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
+import static org.opensearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 
 /**
  * Register repository request.
@@ -67,12 +70,22 @@ public class PutRepositoryRequest extends AcknowledgedRequest<PutRepositoryReque
 
     private Settings settings = EMPTY_SETTINGS;
 
+    private Boolean encrypted;
+    private CryptoSettings cryptoSettings;
+
     public PutRepositoryRequest(StreamInput in) throws IOException {
         super(in);
         name = in.readString();
         type = in.readString();
         settings = readSettingsFromStream(in);
         verify = in.readBoolean();
+
+        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+            encrypted = in.readOptionalBoolean();
+            if (Boolean.TRUE.equals(encrypted)) {
+                cryptoSettings = new CryptoSettings(in);
+            }
+        }
     }
 
     public PutRepositoryRequest() {}
@@ -92,6 +105,13 @@ public class PutRepositoryRequest extends AcknowledgedRequest<PutRepositoryReque
         }
         if (type == null) {
             validationException = addValidationError("type is missing", validationException);
+        }
+        if (Boolean.TRUE.equals(encrypted)) {
+            if (cryptoSettings == null) {
+                validationException = addValidationError("crypto_settings is missing", validationException);
+            } else {
+                validationException = cryptoSettings.validate();
+            }
         }
         return validationException;
     }
@@ -208,6 +228,41 @@ public class PutRepositoryRequest extends AcknowledgedRequest<PutRepositoryReque
     }
 
     /**
+     * Sets whether repository data should be encrypted and stored.
+     */
+    public PutRepositoryRequest encrypted(Boolean encrypted) {
+        this.encrypted = encrypted;
+        return this;
+    }
+
+    /**
+     * Returns true if repository should be encrypted
+     */
+    public Boolean encrypted() {
+        return encrypted;
+    }
+
+    /**
+     * Sets the repository crypto settings
+     *
+     * @param cryptoSettings repository crypto settings
+     * @return this request
+     */
+    public PutRepositoryRequest cryptoSettings(CryptoSettings cryptoSettings) {
+        this.cryptoSettings = cryptoSettings;
+        return this;
+    }
+
+    /**
+     * Returns repository encryption settings
+     *
+     * @return repository encryption settings
+     */
+    public CryptoSettings cryptoSettings() {
+        return cryptoSettings;
+    }
+
+    /**
      * Parses repository definition.
      *
      * @param repositoryDefinition repository definition
@@ -224,6 +279,16 @@ public class PutRepositoryRequest extends AcknowledgedRequest<PutRepositoryReque
                 @SuppressWarnings("unchecked")
                 Map<String, Object> sub = (Map<String, Object>) entry.getValue();
                 settings(sub);
+            } else if (name.equals("encrypted")) {
+                encrypted(nodeBooleanValue(entry.getValue(), "encrypted"));
+            } else if (name.equals("crypto_settings")) {
+                if (!(entry.getValue() instanceof Map)) {
+                    throw new IllegalArgumentException("Malformed encryption_settings section, should include an inner object");
+                }
+                @SuppressWarnings("unchecked")
+                Map<String, Object> sub = (Map<String, Object>) entry.getValue();
+                CryptoSettings cryptoSettings = new CryptoSettings(sub);
+                cryptoSettings(cryptoSettings);
             }
         }
         return this;
@@ -236,6 +301,12 @@ public class PutRepositoryRequest extends AcknowledgedRequest<PutRepositoryReque
         out.writeString(type);
         writeSettingsToStream(settings, out);
         out.writeBoolean(verify);
+        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+            out.writeOptionalBoolean(encrypted);
+            if (Boolean.TRUE.equals(encrypted)) {
+                cryptoSettings.writeTo(out);
+            }
+        }
     }
 
     @Override
@@ -249,6 +320,16 @@ public class PutRepositoryRequest extends AcknowledgedRequest<PutRepositoryReque
         builder.endObject();
 
         builder.field("verify", verify);
+
+        if (null != encrypted) {
+            builder.field("encrypted", encrypted);
+            if (encrypted == true) {
+                builder.startObject("crypto_settings");
+                cryptoSettings.toXContent(builder, params);
+                builder.endObject();
+            }
+        }
+
         builder.endObject();
         return builder;
     }
