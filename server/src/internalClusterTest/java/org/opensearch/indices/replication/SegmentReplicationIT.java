@@ -615,7 +615,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
 
         createIndex(INDEX_NAME);
         ensureGreen(INDEX_NAME);
-        final int initialDocCount = scaledRandomIntBetween(0, 200);
+        final int initialDocCount = scaledRandomIntBetween(1, 20);
         try (
             BackgroundIndexer indexer = new BackgroundIndexer(
                 INDEX_NAME,
@@ -632,7 +632,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
             refresh(INDEX_NAME);
             waitForSearchableDocs(initialDocCount, nodeA, nodeB);
 
-            final int additionalDocCount = scaledRandomIntBetween(0, 200);
+            final int additionalDocCount = scaledRandomIntBetween(0, 20);
             final int expectedHitCount = initialDocCount + additionalDocCount;
             indexer.start(additionalDocCount);
             waitForDocs(expectedHitCount, indexer);
@@ -641,6 +641,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
             ensureGreen(INDEX_NAME);
 
             Set<String> ids = indexer.getIds();
+            assertFalse(ids.isEmpty());
             String id = ids.toArray()[0].toString();
             client(nodeA).prepareDelete(INDEX_NAME, id).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
 
