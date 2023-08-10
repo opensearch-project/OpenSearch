@@ -8,6 +8,7 @@
 
 package org.opensearch.index.store;
 
+import com.jcraft.jzlib.JZlib;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -48,8 +49,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.zip.CRC32;
-
-import com.jcraft.jzlib.JZlib;
 
 /**
  * A {@code RemoteDirectory} provides an abstraction layer for storing a list of files to a remote store.
