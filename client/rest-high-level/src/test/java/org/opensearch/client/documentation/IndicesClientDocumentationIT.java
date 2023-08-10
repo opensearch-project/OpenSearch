@@ -107,9 +107,9 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
@@ -329,7 +329,7 @@ public class IndicesClientDocumentationIT extends OpenSearchRestHighLevelClientT
                         "    }\n" +
                         "  }\n" +
                         "}", // <2>
-                        XContentType.JSON);
+                        MediaTypeRegistry.JSON);
                 // end::create-index-request-mappings
                 CreateIndexResponse createIndexResponse = client.indices().create(request, RequestOptions.DEFAULT);
                 assertTrue(createIndexResponse.isAcknowledged());
@@ -407,7 +407,7 @@ public class IndicesClientDocumentationIT extends OpenSearchRestHighLevelClientT
                     "    \"aliases\" : {\n" +
                     "        \"twitter_alias\" : {}\n" +
                     "    }\n" +
-                    "}", XContentType.JSON); // <1>
+                    "}", MediaTypeRegistry.JSON); // <1>
             // end::create-index-whole-source
 
             // tag::create-index-execute
@@ -480,7 +480,7 @@ public class IndicesClientDocumentationIT extends OpenSearchRestHighLevelClientT
                     "    }\n" +
                     "  }\n" +
                     "}", // <1>
-                    XContentType.JSON);
+                    MediaTypeRegistry.JSON);
                 // end::put-mapping-request-source
                 AcknowledgedResponse putMappingResponse = client.indices().putMapping(request, RequestOptions.DEFAULT);
                 assertTrue(putMappingResponse.isAcknowledged());
@@ -585,7 +585,7 @@ public class IndicesClientDocumentationIT extends OpenSearchRestHighLevelClientT
             CreateIndexResponse createIndexResponse = client.indices().create(new CreateIndexRequest("twitter"), RequestOptions.DEFAULT);
             assertTrue(createIndexResponse.isAcknowledged());
             PutMappingRequest request = new PutMappingRequest("twitter");
-            request.source("{ \"properties\": { \"message\": { \"type\": \"text\" } } }", XContentType.JSON);
+            request.source("{ \"properties\": { \"message\": { \"type\": \"text\" } } }", MediaTypeRegistry.JSON);
             AcknowledgedResponse putMappingResponse = client.indices().putMapping(request, RequestOptions.DEFAULT);
             assertTrue(putMappingResponse.isAcknowledged());
         }
@@ -631,7 +631,7 @@ public class IndicesClientDocumentationIT extends OpenSearchRestHighLevelClientT
             CreateIndexResponse createIndexResponse = client.indices().create(new CreateIndexRequest("twitter"), RequestOptions.DEFAULT);
             assertTrue(createIndexResponse.isAcknowledged());
             PutMappingRequest request = new PutMappingRequest("twitter");
-            request.source("{ \"properties\": { \"message\": { \"type\": \"text\" } } }", XContentType.JSON);
+            request.source("{ \"properties\": { \"message\": { \"type\": \"text\" } } }", MediaTypeRegistry.JSON);
             AcknowledgedResponse putMappingResponse = client.indices().putMapping(request, RequestOptions.DEFAULT);
             assertTrue(putMappingResponse.isAcknowledged());
         }
@@ -703,7 +703,7 @@ public class IndicesClientDocumentationIT extends OpenSearchRestHighLevelClientT
                     + "    }\n"
                     + "  }\n"
                     + "}", // <1>
-                XContentType.JSON
+                MediaTypeRegistry.JSON
             );
             AcknowledgedResponse putMappingResponse = client.indices().putMapping(request, RequestOptions.DEFAULT);
             assertTrue(putMappingResponse.isAcknowledged());
@@ -1127,7 +1127,8 @@ public class IndicesClientDocumentationIT extends OpenSearchRestHighLevelClientT
         {
             Settings settings = Settings.builder().put("number_of_shards", 3).build();
             String mappings = "{\"properties\":{\"field-1\":{\"type\":\"integer\"}}}";
-            CreateIndexRequest createIndexRequest = new CreateIndexRequest("index").settings(settings).mapping(mappings, XContentType.JSON);
+            CreateIndexRequest createIndexRequest = new CreateIndexRequest("index").settings(settings)
+                .mapping(mappings, MediaTypeRegistry.JSON);
             CreateIndexResponse createIndexResponse = client.indices().create(createIndexRequest, RequestOptions.DEFAULT);
             assertTrue(createIndexResponse.isAcknowledged());
         }
@@ -1830,7 +1831,7 @@ public class IndicesClientDocumentationIT extends OpenSearchRestHighLevelClientT
         // end::rollover-index-request-settings
         // tag::rollover-index-request-mapping
         String mappings = "{\"properties\":{\"field-1\":{\"type\":\"keyword\"}}}";
-        request.getCreateIndexRequest().mapping(mappings, XContentType.JSON); // <1>
+        request.getCreateIndexRequest().mapping(mappings, MediaTypeRegistry.JSON); // <1>
         // end::rollover-index-request-mapping
         // tag::rollover-index-request-alias
         request.getCreateIndexRequest().alias(new Alias("another_alias")); // <1>
@@ -2009,7 +2010,7 @@ public class IndicesClientDocumentationIT extends OpenSearchRestHighLevelClientT
             // tag::indices-put-settings-settings-source
             request.settings(
                     "{\"index.number_of_replicas\": \"2\"}"
-                    , XContentType.JSON); // <1>
+                    , MediaTypeRegistry.JSON); // <1>
             // end::indices-put-settings-settings-source
         }
 
@@ -2090,7 +2091,7 @@ public class IndicesClientDocumentationIT extends OpenSearchRestHighLevelClientT
                     "    }\n" +
                     "  }\n" +
                     "}",
-                XContentType.JSON);
+                MediaTypeRegistry.JSON);
             // end::put-template-request-mappings-json
             assertTrue(client.indices().putTemplate(request, RequestOptions.DEFAULT).isAcknowledged());
         }
@@ -2165,7 +2166,7 @@ public class IndicesClientDocumentationIT extends OpenSearchRestHighLevelClientT
             "    \"alias-1\": {},\n" +
             "    \"{index}-alias\": {}\n" +
             "  }\n" +
-            "}", XContentType.JSON); // <1>
+            "}", MediaTypeRegistry.JSON); // <1>
         // end::put-template-whole-source
 
         // tag::put-template-request-create
@@ -2220,7 +2221,7 @@ public class IndicesClientDocumentationIT extends OpenSearchRestHighLevelClientT
             PutIndexTemplateRequest putRequest = new PutIndexTemplateRequest("my-template");
             putRequest.patterns(Arrays.asList("pattern-1", "log-*"));
             putRequest.settings(Settings.builder().put("index.number_of_shards", 3).put("index.number_of_replicas", 1));
-            putRequest.mapping("{ \"properties\": { \"message\": { \"type\": \"text\" } } }", XContentType.JSON);
+            putRequest.mapping("{ \"properties\": { \"message\": { \"type\": \"text\" } } }", MediaTypeRegistry.JSON);
             assertTrue(client.indices().putTemplate(putRequest, RequestOptions.DEFAULT).isAcknowledged());
         }
 

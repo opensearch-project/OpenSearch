@@ -164,7 +164,7 @@ public class GetIndexTemplatesResponseTests extends OpenSearchTestCase {
     private static void assertEqualInstances(GetIndexTemplatesResponse expectedInstance, GetIndexTemplatesResponse newInstance) {
         assertEquals(expectedInstance, newInstance);
         // Check there's no doc types at the root of the mapping
-        Map<String, Object> expectedMap = XContentHelper.convertToMap(new BytesArray(mappingString), true, XContentType.JSON).v2();
+        Map<String, Object> expectedMap = XContentHelper.convertToMap(new BytesArray(mappingString), true, MediaTypeRegistry.JSON).v2();
         for (IndexTemplateMetadata template : newInstance.getIndexTemplates()) {
             MappingMetadata mappingMD = template.mappings();
             if (mappingMD != null) {
@@ -194,7 +194,7 @@ public class GetIndexTemplatesResponseTests extends OpenSearchTestCase {
                 templateBuilder.version(between(0, 100));
             }
             if (randomBoolean()) {
-                Map<String, Object> map = XContentHelper.convertToMap(new BytesArray(mappingString), true, XContentType.JSON).v2();
+                Map<String, Object> map = XContentHelper.convertToMap(new BytesArray(mappingString), true, MediaTypeRegistry.JSON).v2();
                 MappingMetadata mapping = new MappingMetadata(MapperService.SINGLE_MAPPING_NAME, map);
                 templateBuilder.mapping(mapping);
             }

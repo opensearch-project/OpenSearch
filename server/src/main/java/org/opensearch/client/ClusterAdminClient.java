@@ -159,7 +159,7 @@ import org.opensearch.action.search.GetSearchPipelineResponse;
 import org.opensearch.action.search.PutSearchPipelineRequest;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.tasks.TaskId;
 
 /**
@@ -669,7 +669,7 @@ public interface ClusterAdminClient extends OpenSearchClient {
     /**
      * Stores an ingest pipeline
      */
-    PutPipelineRequestBuilder preparePutPipeline(String id, BytesReference source, XContentType xContentType);
+    PutPipelineRequestBuilder preparePutPipeline(String id, BytesReference source, MediaType mediaType);
 
     /**
      * Deletes a stored ingest pipeline
@@ -719,7 +719,7 @@ public interface ClusterAdminClient extends OpenSearchClient {
     /**
      * Simulates an ingest pipeline
      */
-    SimulatePipelineRequestBuilder prepareSimulatePipeline(BytesReference source, XContentType xContentType);
+    SimulatePipelineRequestBuilder prepareSimulatePipeline(BytesReference source, MediaType mediaType);
 
     /**
      * Explain the allocation of a shard

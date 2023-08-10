@@ -47,9 +47,9 @@ import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.logging.MockAppender;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.index.Index;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.IndexingSlowLog.IndexingSlowLogMessage;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.InternalEngineTests;
@@ -227,7 +227,7 @@ public class IndexingSlowLogTests extends OpenSearchTestCase {
             "routingValue",
             null,
             source,
-            XContentType.JSON,
+            MediaTypeRegistry.JSON,
             null
         );
         Index index = new Index("foo", "123");
@@ -255,7 +255,7 @@ public class IndexingSlowLogTests extends OpenSearchTestCase {
             null,
             null,
             source,
-            XContentType.JSON,
+            MediaTypeRegistry.JSON,
             null
         );
         Index index = new Index("foo", "123");
@@ -285,7 +285,7 @@ public class IndexingSlowLogTests extends OpenSearchTestCase {
             null,
             null,
             source,
-            XContentType.JSON,
+            MediaTypeRegistry.JSON,
             null
         );
 

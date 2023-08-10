@@ -38,7 +38,6 @@ import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
@@ -125,7 +124,7 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractSerializingTes
     public void testToXContent() throws IOException {
         FieldCapabilitiesResponse response = createSimpleResponse();
 
-        XContentBuilder builder = MediaTypeRegistry.contentBuilder(XContentType.JSON);
+        XContentBuilder builder = MediaTypeRegistry.contentBuilder(MediaTypeRegistry.JSON);
         response.toXContent(builder, ToXContent.EMPTY_PARAMS);
 
         String generatedResponse = BytesReference.bytes(builder).utf8ToString();

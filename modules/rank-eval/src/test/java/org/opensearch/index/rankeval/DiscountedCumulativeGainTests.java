@@ -323,12 +323,12 @@ public class DiscountedCumulativeGainTests extends OpenSearchTestCase {
                     + ",\"unrated_docs\":"
                     + unratedDocs
                     + "}}",
-                Strings.toString(XContentType.JSON, detail)
+                Strings.toString(MediaTypeRegistry.JSON, detail)
             );
         } else {
             assertEquals(
                 "{\"dcg\":{\"dcg\":" + dcg + ",\"unrated_docs\":" + unratedDocs + "}}",
-                Strings.toString(XContentType.JSON, detail)
+                Strings.toString(MediaTypeRegistry.JSON, detail)
             );
         }
     }

@@ -47,10 +47,10 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.env.Environment;
 import org.opensearch.core.index.Index;
 import org.opensearch.index.mapper.MapperParsingException;
@@ -2146,7 +2146,7 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
                 Map<String, Object> actualMappings;
                 Map<String, Object> expectedMappings;
                 try (
-                    XContentParser parser = XContentType.JSON.xContent()
+                    XContentParser parser = MediaTypeRegistry.JSON.xContent()
                         .createParser(
                             new NamedXContentRegistry(Collections.emptyList()),
                             LoggingDeprecationHandler.INSTANCE,
@@ -2158,7 +2158,7 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
                     throw new AssertionError(e);
                 }
                 try (
-                    XContentParser parser = XContentType.JSON.xContent()
+                    XContentParser parser = MediaTypeRegistry.JSON.xContent()
                         .createParser(
                             new NamedXContentRegistry(Collections.emptyList()),
                             LoggingDeprecationHandler.INSTANCE,

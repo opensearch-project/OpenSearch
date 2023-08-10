@@ -117,9 +117,9 @@ import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.util.concurrent.ReleasableLock;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.codec.CodecService;
@@ -5712,7 +5712,7 @@ public class InternalEngineTests extends EngineTestCase {
                 "routing",
                 Collections.singletonList(document),
                 source,
-                XContentType.JSON,
+                MediaTypeRegistry.JSON,
                 null
             );
 

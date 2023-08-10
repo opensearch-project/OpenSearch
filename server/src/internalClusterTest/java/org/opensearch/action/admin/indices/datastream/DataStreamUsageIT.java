@@ -14,8 +14,8 @@ import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.cluster.metadata.DataStream;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.rest.RestStatus;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 
 import java.util.Arrays;
 import java.util.List;
@@ -93,13 +93,18 @@ public class DataStreamUsageIT extends DataStreamTestCase {
         Exception exception;
 
         // Only op_type=create requests should be allowed.
-        exception = expectThrows(Exception.class, () -> index(new IndexRequest("logs-demo").id("doc-1").source("{}", XContentType.JSON)));
+        exception = expectThrows(
+            Exception.class,
+            () -> index(new IndexRequest("logs-demo").id("doc-1").source("{}", MediaTypeRegistry.JSON))
+        );
         assertThat(exception.getMessage(), containsString("only write ops with an op_type of create are allowed in data streams"));
 
         // Documents must contain a valid timestamp field.
         exception = expectThrows(
             Exception.class,
-            () -> index(new IndexRequest("logs-demo").id("doc-1").source("{}", XContentType.JSON).opType(DocWriteRequest.OpType.CREATE))
+            () -> index(
+                new IndexRequest("logs-demo").id("doc-1").source("{}", MediaTypeRegistry.JSON).opType(DocWriteRequest.OpType.CREATE)
+            )
         );
         assertThat(
             exception.getMessage(),

@@ -42,9 +42,9 @@ import org.opensearch.common.geo.builders.EnvelopeBuilder;
 import org.opensearch.common.geo.builders.GeometryCollectionBuilder;
 import org.opensearch.common.geo.builders.MultiPolygonBuilder;
 import org.opensearch.common.geo.builders.PolygonBuilder;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.geometry.Geometry;
 import org.opensearch.geometry.Rectangle;
 import org.opensearch.index.query.GeoShapeQueryBuilder;
@@ -87,7 +87,7 @@ public abstract class GeoQueryTests extends OpenSearchSingleNodeTestCase {
 
         client().prepareIndex(defaultIndexName)
             .setId("aNullshape")
-            .setSource("{\"geo\": null}", XContentType.JSON)
+            .setSource("{\"geo\": null}", MediaTypeRegistry.JSON)
             .setRefreshPolicy(IMMEDIATE)
             .get();
         GetResponse result = client().prepareGet(defaultIndexName, "aNullshape").get();

@@ -38,7 +38,7 @@ import org.opensearch.action.get.MultiGetRequest;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
@@ -102,7 +102,7 @@ public class SearchIdleIT extends OpenSearchSingleNodeTestCase {
         int numDocs = scaledRandomIntBetween(25, 100);
         totalNumDocs.set(numDocs);
         CountDownLatch indexingDone = new CountDownLatch(numDocs);
-        client().prepareIndex("test").setId("0").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
+        client().prepareIndex("test").setId("0").setSource("{\"foo\" : \"bar\"}", MediaTypeRegistry.JSON).get();
         indexingDone.countDown(); // one doc is indexed above blocking
         IndexShard shard = indexService.getShard(0);
         boolean hasRefreshed = shard.scheduledRefresh();
@@ -135,7 +135,7 @@ public class SearchIdleIT extends OpenSearchSingleNodeTestCase {
         for (int i = 1; i < numDocs; i++) {
             client().prepareIndex("test")
                 .setId("" + i)
-                .setSource("{\"foo\" : \"bar\"}", XContentType.JSON)
+                .setSource("{\"foo\" : \"bar\"}", MediaTypeRegistry.JSON)
                 .execute(new ActionListener<IndexResponse>() {
                     @Override
                     public void onResponse(IndexResponse indexResponse) {
@@ -159,7 +159,7 @@ public class SearchIdleIT extends OpenSearchSingleNodeTestCase {
         IndexService indexService = createIndex("test", builder.build());
         assertFalse(indexService.getIndexSettings().isExplicitRefresh());
         ensureGreen();
-        client().prepareIndex("test").setId("0").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
+        client().prepareIndex("test").setId("0").setSource("{\"foo\" : \"bar\"}", MediaTypeRegistry.JSON).get();
         IndexShard shard = indexService.getShard(0);
         assertFalse(shard.scheduledRefresh());
         assertTrue(shard.isSearchIdle());
@@ -167,7 +167,7 @@ public class SearchIdleIT extends OpenSearchSingleNodeTestCase {
         client().admin().indices().prepareRefresh().execute(ActionListener.wrap(refreshLatch::countDown));// async on purpose to make sure
                                                                                                           // it happens concurrently
         assertHitCount(client().prepareSearch().get(), 1);
-        client().prepareIndex("test").setId("1").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
+        client().prepareIndex("test").setId("1").setSource("{\"foo\" : \"bar\"}", MediaTypeRegistry.JSON).get();
         assertFalse(shard.scheduledRefresh());
         assertTrue(shard.hasRefreshPending());
 
@@ -186,7 +186,7 @@ public class SearchIdleIT extends OpenSearchSingleNodeTestCase {
         // We need to ensure a `scheduledRefresh` triggered by the internal refresh setting update is executed before we index a new doc;
         // otherwise, it will compete to call `Engine#maybeRefresh` with the `scheduledRefresh` that we are going to verify.
         ensureNoPendingScheduledRefresh(indexService.getThreadPool());
-        client().prepareIndex("test").setId("2").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
+        client().prepareIndex("test").setId("2").setSource("{\"foo\" : \"bar\"}", MediaTypeRegistry.JSON).get();
         assertTrue(shard.scheduledRefresh());
         assertFalse(shard.hasRefreshPending());
         assertTrue(shard.isSearchIdle());

@@ -34,7 +34,7 @@ package org.opensearch.test.search.aggregations.bucket;
 
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.search.aggregations.Aggregation;
 import org.opensearch.search.aggregations.bucket.terms.SignificantTerms;
 import org.opensearch.search.aggregations.bucket.terms.StringTerms;
@@ -99,7 +99,7 @@ public class SharedSignificantTermsTestMethods {
         }
         assertAcked(
             testCase.prepareCreate(INDEX_NAME)
-                .setSettings(settings, XContentType.JSON)
+                .setSettings(settings, MediaTypeRegistry.JSON)
                 .setMapping("text", textMappings, CLASS_FIELD, "type=keyword")
         );
         String[] gb = { "0", "1" };
@@ -122,7 +122,7 @@ public class SharedSignificantTermsTestMethods {
         }
         assertAcked(
             testCase.prepareCreate(INDEX_NAME)
-                .setSettings(settings, XContentType.JSON)
+                .setSettings(settings, MediaTypeRegistry.JSON)
                 .setMapping("text", textMappings, CLASS_FIELD, "type=keyword")
         );
         String[] gb = { "0", "1" };

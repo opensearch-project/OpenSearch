@@ -59,7 +59,7 @@ import org.opensearch.action.support.replication.TransportReplicationActionTests
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.tasks.Task;
@@ -287,7 +287,9 @@ public class TasksIT extends AbstractTasksIT {
         ensureGreen("test"); // Make sure all shards are allocated to catch replication tasks
         // ensures the mapping is available on all nodes so we won't retry the request (in case replicas don't have the right mapping).
         client().admin().indices().preparePutMapping("test").setSource("foo", "type=keyword").get();
-        client().prepareBulk().add(client().prepareIndex("test").setId("test_id").setSource("{\"foo\": \"bar\"}", XContentType.JSON)).get();
+        client().prepareBulk()
+            .add(client().prepareIndex("test").setId("test_id").setSource("{\"foo\": \"bar\"}", MediaTypeRegistry.JSON))
+            .get();
 
         // the bulk operation should produce one main task
         List<TaskInfo> topTask = findEvents(BulkAction.NAME, Tuple::v1);
@@ -338,7 +340,7 @@ public class TasksIT extends AbstractTasksIT {
         ensureGreen("test"); // Make sure all shards are allocated to catch replication tasks
         client().prepareIndex("test")
             .setId("test_id")
-            .setSource("{\"foo\": \"bar\"}", XContentType.JSON)
+            .setSource("{\"foo\": \"bar\"}", MediaTypeRegistry.JSON)
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
 

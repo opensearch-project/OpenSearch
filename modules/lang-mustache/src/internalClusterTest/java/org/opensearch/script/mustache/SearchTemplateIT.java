@@ -36,8 +36,8 @@ import org.opensearch.action.admin.cluster.storedscripts.GetStoredScriptResponse
 import org.opensearch.action.bulk.BulkRequestBuilder;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.core.common.bytes.BytesArray;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.script.ScriptType;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
@@ -177,7 +177,7 @@ public class SearchTemplateIT extends OpenSearchSingleNodeTestCase {
                             + "  }"
                             + "}"
                     ),
-                    XContentType.JSON
+                    MediaTypeRegistry.JSON
                 )
         );
 
@@ -185,11 +185,11 @@ public class SearchTemplateIT extends OpenSearchSingleNodeTestCase {
         assertNotNull(getResponse.getSource());
 
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
-        bulkRequestBuilder.add(client().prepareIndex("test").setId("1").setSource("{\"theField\":\"foo\"}", XContentType.JSON));
-        bulkRequestBuilder.add(client().prepareIndex("test").setId("2").setSource("{\"theField\":\"foo 2\"}", XContentType.JSON));
-        bulkRequestBuilder.add(client().prepareIndex("test").setId("3").setSource("{\"theField\":\"foo 3\"}", XContentType.JSON));
-        bulkRequestBuilder.add(client().prepareIndex("test").setId("4").setSource("{\"theField\":\"foo 4\"}", XContentType.JSON));
-        bulkRequestBuilder.add(client().prepareIndex("test").setId("5").setSource("{\"theField\":\"bar\"}", XContentType.JSON));
+        bulkRequestBuilder.add(client().prepareIndex("test").setId("1").setSource("{\"theField\":\"foo\"}", MediaTypeRegistry.JSON));
+        bulkRequestBuilder.add(client().prepareIndex("test").setId("2").setSource("{\"theField\":\"foo 2\"}", MediaTypeRegistry.JSON));
+        bulkRequestBuilder.add(client().prepareIndex("test").setId("3").setSource("{\"theField\":\"foo 3\"}", MediaTypeRegistry.JSON));
+        bulkRequestBuilder.add(client().prepareIndex("test").setId("4").setSource("{\"theField\":\"foo 4\"}", MediaTypeRegistry.JSON));
+        bulkRequestBuilder.add(client().prepareIndex("test").setId("5").setSource("{\"theField\":\"bar\"}", MediaTypeRegistry.JSON));
         bulkRequestBuilder.get();
         client().admin().indices().prepareRefresh().get();
 
@@ -224,16 +224,22 @@ public class SearchTemplateIT extends OpenSearchSingleNodeTestCase {
             + "  }"
             + "}";
 
-        assertAcked(client().admin().cluster().preparePutStoredScript().setId("1a").setContent(new BytesArray(script), XContentType.JSON));
-        assertAcked(client().admin().cluster().preparePutStoredScript().setId("2").setContent(new BytesArray(script), XContentType.JSON));
-        assertAcked(client().admin().cluster().preparePutStoredScript().setId("3").setContent(new BytesArray(script), XContentType.JSON));
+        assertAcked(
+            client().admin().cluster().preparePutStoredScript().setId("1a").setContent(new BytesArray(script), MediaTypeRegistry.JSON)
+        );
+        assertAcked(
+            client().admin().cluster().preparePutStoredScript().setId("2").setContent(new BytesArray(script), MediaTypeRegistry.JSON)
+        );
+        assertAcked(
+            client().admin().cluster().preparePutStoredScript().setId("3").setContent(new BytesArray(script), MediaTypeRegistry.JSON)
+        );
 
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
-        bulkRequestBuilder.add(client().prepareIndex("test").setId("1").setSource("{\"theField\":\"foo\"}", XContentType.JSON));
-        bulkRequestBuilder.add(client().prepareIndex("test").setId("2").setSource("{\"theField\":\"foo 2\"}", XContentType.JSON));
-        bulkRequestBuilder.add(client().prepareIndex("test").setId("3").setSource("{\"theField\":\"foo 3\"}", XContentType.JSON));
-        bulkRequestBuilder.add(client().prepareIndex("test").setId("4").setSource("{\"theField\":\"foo 4\"}", XContentType.JSON));
-        bulkRequestBuilder.add(client().prepareIndex("test").setId("5").setSource("{\"theField\":\"bar\"}", XContentType.JSON));
+        bulkRequestBuilder.add(client().prepareIndex("test").setId("1").setSource("{\"theField\":\"foo\"}", MediaTypeRegistry.JSON));
+        bulkRequestBuilder.add(client().prepareIndex("test").setId("2").setSource("{\"theField\":\"foo 2\"}", MediaTypeRegistry.JSON));
+        bulkRequestBuilder.add(client().prepareIndex("test").setId("3").setSource("{\"theField\":\"foo 3\"}", MediaTypeRegistry.JSON));
+        bulkRequestBuilder.add(client().prepareIndex("test").setId("4").setSource("{\"theField\":\"foo 4\"}", MediaTypeRegistry.JSON));
+        bulkRequestBuilder.add(client().prepareIndex("test").setId("5").setSource("{\"theField\":\"bar\"}", MediaTypeRegistry.JSON));
         bulkRequestBuilder.get();
         client().admin().indices().prepareRefresh().get();
 
@@ -295,7 +301,7 @@ public class SearchTemplateIT extends OpenSearchSingleNodeTestCase {
                     .cluster()
                     .preparePutStoredScript()
                     .setId("git01")
-                    .setContent(new BytesArray(query.replace("{{slop}}", Integer.toString(-1))), XContentType.JSON)
+                    .setContent(new BytesArray(query.replace("{{slop}}", Integer.toString(-1))), MediaTypeRegistry.JSON)
             );
 
             GetStoredScriptResponse getResponse = client().admin().cluster().prepareGetStoredScript("git01").get();
@@ -319,7 +325,7 @@ public class SearchTemplateIT extends OpenSearchSingleNodeTestCase {
                     .cluster()
                     .preparePutStoredScript()
                     .setId("git01")
-                    .setContent(new BytesArray(query.replace("{{slop}}", Integer.toString(0))), XContentType.JSON)
+                    .setContent(new BytesArray(query.replace("{{slop}}", Integer.toString(0))), MediaTypeRegistry.JSON)
             );
 
             SearchTemplateResponse searchResponse = new SearchTemplateRequestBuilder(client()).setRequest(new SearchRequest("testindex"))
@@ -349,14 +355,14 @@ public class SearchTemplateIT extends OpenSearchSingleNodeTestCase {
             + "  }\n"
             + "}";
         assertAcked(
-            client().admin().cluster().preparePutStoredScript().setId("4").setContent(new BytesArray(multiQuery), XContentType.JSON)
+            client().admin().cluster().preparePutStoredScript().setId("4").setContent(new BytesArray(multiQuery), MediaTypeRegistry.JSON)
         );
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
-        bulkRequestBuilder.add(client().prepareIndex("test").setId("1").setSource("{\"theField\":\"foo\"}", XContentType.JSON));
-        bulkRequestBuilder.add(client().prepareIndex("test").setId("2").setSource("{\"theField\":\"foo 2\"}", XContentType.JSON));
-        bulkRequestBuilder.add(client().prepareIndex("test").setId("3").setSource("{\"theField\":\"foo 3\"}", XContentType.JSON));
-        bulkRequestBuilder.add(client().prepareIndex("test").setId("4").setSource("{\"theField\":\"foo 4\"}", XContentType.JSON));
-        bulkRequestBuilder.add(client().prepareIndex("test").setId("5").setSource("{\"theField\":\"bar\"}", XContentType.JSON));
+        bulkRequestBuilder.add(client().prepareIndex("test").setId("1").setSource("{\"theField\":\"foo\"}", MediaTypeRegistry.JSON));
+        bulkRequestBuilder.add(client().prepareIndex("test").setId("2").setSource("{\"theField\":\"foo 2\"}", MediaTypeRegistry.JSON));
+        bulkRequestBuilder.add(client().prepareIndex("test").setId("3").setSource("{\"theField\":\"foo 3\"}", MediaTypeRegistry.JSON));
+        bulkRequestBuilder.add(client().prepareIndex("test").setId("4").setSource("{\"theField\":\"foo 4\"}", MediaTypeRegistry.JSON));
+        bulkRequestBuilder.add(client().prepareIndex("test").setId("5").setSource("{\"theField\":\"bar\"}", MediaTypeRegistry.JSON));
         bulkRequestBuilder.get();
         client().admin().indices().prepareRefresh().get();
 
