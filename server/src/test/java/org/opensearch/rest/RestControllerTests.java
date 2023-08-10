@@ -33,21 +33,23 @@
 package org.opensearch.rest;
 
 import org.opensearch.client.node.NodeClient;
-import org.opensearch.core.common.breaker.CircuitBreaker;
-import org.opensearch.core.common.bytes.BytesArray;
-import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.common.transport.BoundTransportAddress;
-import org.opensearch.core.common.transport.TransportAddress;
-import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.core.rest.RestStatus;
-import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.yaml.YamlXContent;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.core.common.breaker.CircuitBreaker;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.transport.BoundTransportAddress;
+import org.opensearch.core.common.transport.TransportAddress;
+import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.core.rest.RestStatus;
+import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.http.HttpInfo;
 import org.opensearch.http.HttpRequest;
 import org.opensearch.http.HttpResponse;
@@ -289,7 +291,7 @@ public class RestControllerTests extends OpenSearchTestCase {
             return (RestRequest request, RestChannel channel, NodeClient client) -> wrapperCalled.set(true);
         }, client, circuitBreakerService, usageService, identityService);
         restController.registerHandler(RestRequest.Method.GET, "/wrapped", handler);
-        RestRequest request = testRestRequest("/wrapped", "{}", XContentType.JSON);
+        RestRequest request = testRestRequest("/wrapped", "{}", MediaTypeRegistry.JSON);
         AssertingChannel channel = new AssertingChannel(request, true, RestStatus.BAD_REQUEST);
         restController.dispatchRequest(request, channel, client.threadPool().getThreadContext());
         httpServerTransport.start();
@@ -300,7 +302,7 @@ public class RestControllerTests extends OpenSearchTestCase {
     public void testDispatchRequestAddsAndFreesBytesOnSuccess() {
         int contentLength = BREAKER_LIMIT.bytesAsInt();
         String content = randomAlphaOfLength((int) Math.round(contentLength / inFlightRequestsBreaker.getOverhead()));
-        RestRequest request = testRestRequest("/", content, XContentType.JSON);
+        RestRequest request = testRestRequest("/", content, MediaTypeRegistry.JSON);
         AssertingChannel channel = new AssertingChannel(request, true, RestStatus.OK);
 
         restController.dispatchRequest(request, channel, client.threadPool().getThreadContext());
@@ -312,7 +314,7 @@ public class RestControllerTests extends OpenSearchTestCase {
     public void testDispatchRequestAddsAndFreesBytesOnError() {
         int contentLength = BREAKER_LIMIT.bytesAsInt();
         String content = randomAlphaOfLength((int) Math.round(contentLength / inFlightRequestsBreaker.getOverhead()));
-        RestRequest request = testRestRequest("/error", content, XContentType.JSON);
+        RestRequest request = testRestRequest("/error", content, MediaTypeRegistry.JSON);
         AssertingChannel channel = new AssertingChannel(request, true, RestStatus.BAD_REQUEST);
 
         restController.dispatchRequest(request, channel, client.threadPool().getThreadContext());
@@ -325,7 +327,7 @@ public class RestControllerTests extends OpenSearchTestCase {
         int contentLength = BREAKER_LIMIT.bytesAsInt();
         String content = randomAlphaOfLength((int) Math.round(contentLength / inFlightRequestsBreaker.getOverhead()));
         // we will produce an error in the rest handler and one more when sending the error response
-        RestRequest request = testRestRequest("/error", content, XContentType.JSON);
+        RestRequest request = testRestRequest("/error", content, MediaTypeRegistry.JSON);
         ExceptionThrowingChannel channel = new ExceptionThrowingChannel(request, true);
 
         restController.dispatchRequest(request, channel, client.threadPool().getThreadContext());
@@ -337,7 +339,7 @@ public class RestControllerTests extends OpenSearchTestCase {
     public void testDispatchRequestLimitsBytes() {
         int contentLength = BREAKER_LIMIT.bytesAsInt() + 1;
         String content = randomAlphaOfLength((int) Math.round(contentLength / inFlightRequestsBreaker.getOverhead()));
-        RestRequest request = testRestRequest("/", content, XContentType.JSON);
+        RestRequest request = testRestRequest("/", content, MediaTypeRegistry.JSON);
         AssertingChannel channel = new AssertingChannel(request, true, RestStatus.TOO_MANY_REQUESTS);
 
         restController.dispatchRequest(request, channel, client.threadPool().getThreadContext());
@@ -716,10 +718,10 @@ public class RestControllerTests extends OpenSearchTestCase {
         }
     }
 
-    private static RestRequest testRestRequest(String path, String content, XContentType xContentType) {
+    private static RestRequest testRestRequest(String path, String content, MediaType mediaType) {
         FakeRestRequest.Builder builder = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY);
         builder.withPath(path);
-        builder.withContent(new BytesArray(content), xContentType);
+        builder.withContent(new BytesArray(content), mediaType);
         return builder.build();
     }
 }

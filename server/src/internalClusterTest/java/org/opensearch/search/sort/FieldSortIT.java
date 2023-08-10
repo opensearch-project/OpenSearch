@@ -46,9 +46,9 @@ import org.opensearch.action.search.ShardSearchFailure;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Numbers;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.fielddata.ScriptDocValues;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.index.query.functionscore.ScoreFunctionBuilders;
@@ -145,7 +145,7 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
                 assertAcked(prepareCreate("test_" + i).addAlias(new Alias("test")));
             }
             if (i > 0) {
-                client().prepareIndex("test_" + i).setId("" + i).setSource("{\"entry\": " + i + "}", XContentType.JSON).get();
+                client().prepareIndex("test_" + i).setId("" + i).setSource("{\"entry\": " + i + "}", MediaTypeRegistry.JSON).get();
             }
         }
         refresh();
@@ -497,9 +497,9 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
     public void testIssue2986() {
         assertAcked(client().admin().indices().prepareCreate("test").setMapping("field1", "type=keyword").get());
 
-        client().prepareIndex("test").setId("1").setSource("{\"field1\":\"value1\"}", XContentType.JSON).get();
-        client().prepareIndex("test").setId("2").setSource("{\"field1\":\"value2\"}", XContentType.JSON).get();
-        client().prepareIndex("test").setId("3").setSource("{\"field1\":\"value3\"}", XContentType.JSON).get();
+        client().prepareIndex("test").setId("1").setSource("{\"field1\":\"value1\"}", MediaTypeRegistry.JSON).get();
+        client().prepareIndex("test").setId("2").setSource("{\"field1\":\"value2\"}", MediaTypeRegistry.JSON).get();
+        client().prepareIndex("test").setId("3").setSource("{\"field1\":\"value3\"}", MediaTypeRegistry.JSON).get();
         refresh();
         SearchResponse result = client().prepareSearch("test")
             .setQuery(matchAllQuery())
@@ -2259,7 +2259,7 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
                 bulkBuilder = client().prepareBulk();
             }
             String source = "{\"long_field\":" + randomLong() + "}";
-            bulkBuilder.add(client().prepareIndex("test1").setId(Integer.toString(i)).setSource(source, XContentType.JSON));
+            bulkBuilder.add(client().prepareIndex("test1").setId(Integer.toString(i)).setSource(source, MediaTypeRegistry.JSON));
         }
         refresh();
 

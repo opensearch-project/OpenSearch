@@ -42,7 +42,7 @@ import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.TestThreadPool;
@@ -208,7 +208,7 @@ public class BulkProcessorTests extends OpenSearchTestCase {
                         if (randomBoolean()) {
                             bulkProcessor.add(indexRequest);
                         } else {
-                            bulkProcessor.add(bytesReference, null, null, XContentType.JSON);
+                            bulkProcessor.add(bytesReference, null, null, MediaTypeRegistry.JSON);
                         }
                     } catch (Exception e) {
                         throw ExceptionsHelper.convertToRuntime(e);
@@ -334,7 +334,7 @@ public class BulkProcessorTests extends OpenSearchTestCase {
                         if (randomBoolean()) {
                             bulkProcessor.add(indexRequest);
                         } else {
-                            bulkProcessor.add(bytesReference, null, null, XContentType.JSON);
+                            bulkProcessor.add(bytesReference, null, null, MediaTypeRegistry.JSON);
                         }
                     } catch (Exception e) {
                         throw ExceptionsHelper.convertToRuntime(e);

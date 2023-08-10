@@ -16,10 +16,10 @@ import java.util.Map;
 
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.http.HttpRequest;
 import org.opensearch.http.HttpResponse;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.rest.RestRequest.Method;
@@ -110,7 +110,7 @@ public class ExtensionRestResponseTests extends OpenSearchTestCase {
     }
 
     public void testConstructorWithBuilder() throws IOException {
-        XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent());
+        XContentBuilder builder = MediaTypeRegistry.JSON.contentBuilder();
         builder.startObject();
         builder.field("status", ACCEPTED);
         builder.endObject();

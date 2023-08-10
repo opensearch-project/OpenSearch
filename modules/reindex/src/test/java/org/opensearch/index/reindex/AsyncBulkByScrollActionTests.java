@@ -76,8 +76,8 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.index.Index;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.engine.VersionConflictEngineException;
 import org.opensearch.index.reindex.ScrollableHitSource.Hit;
 import org.opensearch.index.reindex.ScrollableHitSource.SearchFailure;
@@ -448,7 +448,7 @@ public class AsyncBulkByScrollActionTests extends OpenSearchTestCase {
             }
         };
         ScrollableHitSource.BasicHit hit = new ScrollableHitSource.BasicHit("index", "id", 0);
-        hit.setSource(new BytesArray("{}"), XContentType.JSON);
+        hit.setSource(new BytesArray("{}"), MediaTypeRegistry.JSON);
         ScrollableHitSource.Response response = new ScrollableHitSource.Response(false, emptyList(), 1, singletonList(hit), null);
         simulateScrollResponse(action, System.nanoTime(), 0, response);
         ExecutionException e = expectThrows(ExecutionException.class, () -> listener.get());

@@ -36,9 +36,9 @@ import org.apache.lucene.index.IndexableField;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
@@ -102,7 +102,7 @@ public class GeoContextMappingTests extends OpenSearchSingleNodeTestCase {
                             .endArray()
                             .endObject()
                     ),
-                    XContentType.JSON
+                    MediaTypeRegistry.JSON
                 )
             );
         IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.name());
@@ -147,7 +147,7 @@ public class GeoContextMappingTests extends OpenSearchSingleNodeTestCase {
                             .endArray()
                             .endObject()
                     ),
-                    XContentType.JSON
+                    MediaTypeRegistry.JSON
                 )
             );
         IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.name());
@@ -196,7 +196,7 @@ public class GeoContextMappingTests extends OpenSearchSingleNodeTestCase {
                             .endObject()
                             .endObject()
                     ),
-                    XContentType.JSON
+                    MediaTypeRegistry.JSON
                 )
             );
         IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.name());
@@ -237,7 +237,7 @@ public class GeoContextMappingTests extends OpenSearchSingleNodeTestCase {
             .endArray()
             .endObject();
         ParsedDocument parsedDocument = mapperService.documentMapper()
-            .parse(new SourceToParse("test", "1", BytesReference.bytes(builder), XContentType.JSON));
+            .parse(new SourceToParse("test", "1", BytesReference.bytes(builder), MediaTypeRegistry.JSON));
         IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.name());
         assertContextSuggestFields(fields, 3);
     }

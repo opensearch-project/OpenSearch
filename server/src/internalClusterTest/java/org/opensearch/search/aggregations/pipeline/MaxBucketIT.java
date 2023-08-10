@@ -36,9 +36,9 @@ import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.support.WriteRequest;
 import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.search.aggregations.AggregationBuilders;
 import org.opensearch.search.aggregations.BucketOrder;
 import org.opensearch.search.aggregations.PipelineAggregatorBuilders;
@@ -585,7 +585,7 @@ public class MaxBucketIT extends OpenSearchIntegTestCase {
         groupByLicenseAgg.subAggregation(peakPipelineAggBuilder);
 
         SearchResponse response = client().prepareSearch("foo_*").setSize(0).addAggregation(groupByLicenseAgg).get();
-        BytesReference bytes = XContentHelper.toXContent(response, XContentType.JSON, false);
-        XContentHelper.convertToMap(bytes, false, XContentType.JSON);
+        BytesReference bytes = org.opensearch.core.xcontent.XContentHelper.toXContent(response, MediaTypeRegistry.JSON, false);
+        XContentHelper.convertToMap(bytes, false, MediaTypeRegistry.JSON);
     }
 }

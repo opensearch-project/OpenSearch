@@ -46,8 +46,8 @@ import org.opensearch.action.support.replication.ReplicationRequest;
 import org.opensearch.action.update.UpdateRequest;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.ingest.IngestTestPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.core.rest.RestStatus;
@@ -84,7 +84,7 @@ public class BulkIntegrationIT extends OpenSearchIntegTestCase {
     public void testBulkIndexCreatesMapping() throws Exception {
         String bulkAction = copyToStringFromClasspath("/org/opensearch/action/bulk/bulk-log.json");
         BulkRequestBuilder bulkBuilder = client().prepareBulk();
-        bulkBuilder.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON);
+        bulkBuilder.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, MediaTypeRegistry.JSON);
         bulkBuilder.get();
         assertBusy(() -> {
             GetMappingsResponse mappingsResponse = client().admin().indices().prepareGetMappings().get();
@@ -155,7 +155,7 @@ public class BulkIntegrationIT extends OpenSearchIntegTestCase {
         String bulkAction = copyToStringFromClasspath("/org/opensearch/action/bulk/simple-bulk-missing-index-type.json");
         {
             BulkRequestBuilder bulkBuilder = client().prepareBulk();
-            bulkBuilder.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON);
+            bulkBuilder.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, MediaTypeRegistry.JSON);
             ActionRequestValidationException ex = expectThrows(ActionRequestValidationException.class, bulkBuilder::get);
 
             assertThat(ex.validationErrors(), containsInAnyOrder("index is missing", "index is missing", "index is missing"));
@@ -165,7 +165,7 @@ public class BulkIntegrationIT extends OpenSearchIntegTestCase {
             createSamplePipeline("pipeline");
             BulkRequestBuilder bulkBuilder = client().prepareBulk("test").routing("routing").pipeline("pipeline");
 
-            bulkBuilder.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON);
+            bulkBuilder.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, MediaTypeRegistry.JSON);
             BulkResponse bulkItemResponses = bulkBuilder.get();
             assertFalse(bulkItemResponses.hasFailures());
         }
@@ -183,7 +183,7 @@ public class BulkIntegrationIT extends OpenSearchIntegTestCase {
 
         AcknowledgedResponse acknowledgedResponse = client().admin()
             .cluster()
-            .putPipeline(new PutPipelineRequest(pipelineId, BytesReference.bytes(pipeline), XContentType.JSON))
+            .putPipeline(new PutPipelineRequest(pipelineId, BytesReference.bytes(pipeline), MediaTypeRegistry.JSON))
             .get();
 
         assertTrue(acknowledgedResponse.isAcknowledged());
@@ -201,7 +201,7 @@ public class BulkIntegrationIT extends OpenSearchIntegTestCase {
                 try {
                     IndexResponse response = client().prepareIndex(index)
                         .setId(id)
-                        .setSource(Collections.singletonMap("f" + randomIntBetween(1, 10), randomNonNegativeLong()), XContentType.JSON)
+                        .setSource(Collections.singletonMap("f" + randomIntBetween(1, 10), randomNonNegativeLong()), MediaTypeRegistry.JSON)
                         .get();
                     assertThat(response.getResult(), is(oneOf(CREATED, UPDATED)));
                     logger.info("--> index id={} seq_no={}", response.getId(), response.getSeqNo());

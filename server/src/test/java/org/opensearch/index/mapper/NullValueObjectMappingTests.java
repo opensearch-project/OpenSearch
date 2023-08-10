@@ -35,7 +35,7 @@ package org.opensearch.index.mapper;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
 import java.io.IOException;
@@ -67,7 +67,7 @@ public class NullValueObjectMappingTests extends OpenSearchSingleNodeTestCase {
                 BytesReference.bytes(
                     XContentFactory.jsonBuilder().startObject().startObject("obj1").endObject().field("value1", "test1").endObject()
                 ),
-                XContentType.JSON
+                MediaTypeRegistry.JSON
             )
         );
 
@@ -78,7 +78,7 @@ public class NullValueObjectMappingTests extends OpenSearchSingleNodeTestCase {
                 "test",
                 "1",
                 BytesReference.bytes(XContentFactory.jsonBuilder().startObject().nullField("obj1").field("value1", "test1").endObject()),
-                XContentType.JSON
+                MediaTypeRegistry.JSON
             )
         );
 
@@ -97,7 +97,7 @@ public class NullValueObjectMappingTests extends OpenSearchSingleNodeTestCase {
                         .field("value1", "test1")
                         .endObject()
                 ),
-                XContentType.JSON
+                MediaTypeRegistry.JSON
             )
         );
 

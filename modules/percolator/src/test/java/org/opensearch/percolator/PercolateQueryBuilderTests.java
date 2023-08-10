@@ -43,9 +43,9 @@ import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.lucene.uid.Versions;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.get.GetResult;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.query.QueryBuilder;
@@ -152,7 +152,7 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
                 indexedDocumentVersion
             );
         } else {
-            queryBuilder = new PercolateQueryBuilder(queryField, documentSource, XContentType.JSON);
+            queryBuilder = new PercolateQueryBuilder(queryField, documentSource, MediaTypeRegistry.JSON);
         }
         if (randomBoolean()) {
             queryBuilder.setName(randomAlphaOfLength(4));
@@ -221,7 +221,7 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> pqb.toQuery(createShardContext()));
         assertThat(e.getMessage(), equalTo("query builder must be rewritten first"));
         QueryBuilder rewrite = rewriteAndFetch(pqb, createShardContext());
-        PercolateQueryBuilder geoShapeQueryBuilder = new PercolateQueryBuilder(pqb.getField(), documentSource, XContentType.JSON);
+        PercolateQueryBuilder geoShapeQueryBuilder = new PercolateQueryBuilder(pqb.getField(), documentSource, MediaTypeRegistry.JSON);
         assertEquals(geoShapeQueryBuilder, rewrite);
     }
 
@@ -243,13 +243,13 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
 
     public void testRequiredParameters() {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
-            new PercolateQueryBuilder(null, new BytesArray("{}"), XContentType.JSON);
+            new PercolateQueryBuilder(null, new BytesArray("{}"), MediaTypeRegistry.JSON);
         });
         assertThat(e.getMessage(), equalTo("[field] is a required argument"));
 
         e = expectThrows(
             IllegalArgumentException.class,
-            () -> new PercolateQueryBuilder("_field", (List<BytesReference>) null, XContentType.JSON)
+            () -> new PercolateQueryBuilder("_field", (List<BytesReference>) null, MediaTypeRegistry.JSON)
         );
         assertThat(e.getMessage(), equalTo("[document] is a required argument"));
 

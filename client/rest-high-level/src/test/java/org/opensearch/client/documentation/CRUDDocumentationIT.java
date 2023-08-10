@@ -80,9 +80,9 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.get.GetResult;
@@ -173,7 +173,7 @@ public class CRUDDocumentationIT extends OpenSearchRestHighLevelClientTestCase {
                     "\"postDate\":\"2013-01-30\"," +
                     "\"message\":\"trying out OpenSearch\"" +
                     "}";
-            request.source(jsonString, XContentType.JSON); // <3>
+            request.source(jsonString, MediaTypeRegistry.JSON); // <3>
             //end::index-request-string
 
             // tag::index-execute
@@ -380,7 +380,7 @@ public class CRUDDocumentationIT extends OpenSearchRestHighLevelClientTestCase {
                     "\"updated\":\"2017-01-01\"," +
                     "\"reason\":\"daily update\"" +
                     "}";
-            request.doc(jsonString, XContentType.JSON); // <1>
+            request.doc(jsonString, MediaTypeRegistry.JSON); // <1>
             //end::update-request-with-doc-as-string
             request.fetchSource(true);
             // tag::update-execute
@@ -524,7 +524,7 @@ public class CRUDDocumentationIT extends OpenSearchRestHighLevelClientTestCase {
             // end::update-request-detect-noop
             // tag::update-request-upsert
             String jsonString = "{\"created\":\"2017-01-01\"}";
-            request.upsert(jsonString, XContentType.JSON);  // <1>
+            request.upsert(jsonString, MediaTypeRegistry.JSON);  // <1>
             // end::update-request-upsert
             // tag::update-request-scripted-upsert
             request.scriptedUpsert(true); // <1>
@@ -698,11 +698,11 @@ public class CRUDDocumentationIT extends OpenSearchRestHighLevelClientTestCase {
             // tag::bulk-request
             BulkRequest request = new BulkRequest(); // <1>
             request.add(new IndexRequest("posts").id("1")  // <2>
-                    .source(XContentType.JSON,"field", "foo"));
+                    .source(MediaTypeRegistry.JSON,"field", "foo"));
             request.add(new IndexRequest("posts").id("2")  // <3>
-                    .source(XContentType.JSON,"field", "bar"));
+                    .source(MediaTypeRegistry.JSON,"field", "bar"));
             request.add(new IndexRequest("posts").id("3")  // <4>
-                    .source(XContentType.JSON,"field", "baz"));
+                    .source(MediaTypeRegistry.JSON,"field", "baz"));
             // end::bulk-request
             // tag::bulk-execute
             BulkResponse bulkResponse = client.bulk(request, RequestOptions.DEFAULT);
@@ -715,9 +715,9 @@ public class CRUDDocumentationIT extends OpenSearchRestHighLevelClientTestCase {
             BulkRequest request = new BulkRequest();
             request.add(new DeleteRequest("posts", "3")); // <1>
             request.add(new UpdateRequest("posts", "2") // <2>
-                    .doc(XContentType.JSON,"other", "test"));
+                    .doc(MediaTypeRegistry.JSON,"other", "test"));
             request.add(new IndexRequest("posts").id("4")  // <3>
-                    .source(XContentType.JSON,"field", "baz"));
+                    .source(MediaTypeRegistry.JSON,"field", "baz"));
             // end::bulk-request-with-mixed-operations
             BulkResponse bulkResponse = client.bulk(request, RequestOptions.DEFAULT);
             assertSame(RestStatus.OK, bulkResponse.status());
@@ -1580,13 +1580,13 @@ public class CRUDDocumentationIT extends OpenSearchRestHighLevelClientTestCase {
 
             // tag::bulk-processor-add
             IndexRequest one = new IndexRequest("posts").id("1")
-                    .source(XContentType.JSON, "title",
+                    .source(MediaTypeRegistry.JSON, "title",
                             "In which order are my OpenSearch queries executed?");
             IndexRequest two = new IndexRequest("posts").id("2")
-                    .source(XContentType.JSON, "title",
+                    .source(MediaTypeRegistry.JSON, "title",
                             "Current status and upcoming changes in OpenSearch");
             IndexRequest three = new IndexRequest("posts").id("3")
-                    .source(XContentType.JSON, "title",
+                    .source(MediaTypeRegistry.JSON, "title",
                             "The Future of Federated Search in OpenSearch");
 
             bulkProcessor.add(one);

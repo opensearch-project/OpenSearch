@@ -34,12 +34,12 @@ package org.opensearch.test;
 
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.DeprecationHandler;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
 
 import java.io.IOException;
@@ -111,28 +111,28 @@ public class XContentTestUtilsTests extends OpenSearchTestCase {
         builder.startObject();
         builder.endObject();
         builder = XContentTestUtils.insertIntoXContent(
-            XContentType.JSON.xContent(),
+            MediaTypeRegistry.JSON.xContent(),
             BytesReference.bytes(builder),
             Collections.singletonList(""),
             () -> "inn.er1",
             () -> new HashMap<>()
         );
         builder = XContentTestUtils.insertIntoXContent(
-            XContentType.JSON.xContent(),
+            MediaTypeRegistry.JSON.xContent(),
             BytesReference.bytes(builder),
             Collections.singletonList(""),
             () -> "field1",
             () -> "value1"
         );
         builder = XContentTestUtils.insertIntoXContent(
-            XContentType.JSON.xContent(),
+            MediaTypeRegistry.JSON.xContent(),
             BytesReference.bytes(builder),
             Collections.singletonList("inn\\.er1"),
             () -> "inner2",
             () -> new HashMap<>()
         );
         builder = XContentTestUtils.insertIntoXContent(
-            XContentType.JSON.xContent(),
+            MediaTypeRegistry.JSON.xContent(),
             BytesReference.bytes(builder),
             Collections.singletonList("inn\\.er1"),
             () -> "field2",
@@ -194,7 +194,7 @@ public class XContentTestUtilsTests extends OpenSearchTestCase {
 
         try (
             XContentParser parser = createParser(
-                XContentType.JSON.xContent(),
+                MediaTypeRegistry.JSON.xContent(),
                 insertRandomFields(builder.contentType(), BytesReference.bytes(builder), null, random())
             )
         ) {
@@ -212,7 +212,7 @@ public class XContentTestUtilsTests extends OpenSearchTestCase {
         Predicate<String> pathsToExclude = path -> path.endsWith("foo1");
         try (
             XContentParser parser = createParser(
-                XContentType.JSON.xContent(),
+                MediaTypeRegistry.JSON.xContent(),
                 insertRandomFields(builder.contentType(), BytesReference.bytes(builder), pathsToExclude, random())
             )
         ) {
@@ -230,7 +230,7 @@ public class XContentTestUtilsTests extends OpenSearchTestCase {
         pathsToExclude = path -> path.contains("foo1");
         try (
             XContentParser parser = createParser(
-                XContentType.JSON.xContent(),
+                MediaTypeRegistry.JSON.xContent(),
                 insertRandomFields(builder.contentType(), BytesReference.bytes(builder), pathsToExclude, random())
             )
         ) {

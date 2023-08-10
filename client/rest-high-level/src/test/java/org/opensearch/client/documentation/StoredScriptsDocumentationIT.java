@@ -45,9 +45,9 @@ import org.opensearch.client.RestHighLevelClient;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.script.Script;
 import org.opensearch.script.StoredScriptSource;
 
@@ -88,7 +88,7 @@ public class StoredScriptsDocumentationIT extends OpenSearchRestHighLevelClientT
         final StoredScriptSource scriptSource = new StoredScriptSource(
             "painless",
             "Math.log(_score * 2) + params.my_modifier",
-            Collections.singletonMap(Script.CONTENT_TYPE_OPTION, XContentType.JSON.mediaType())
+            Collections.singletonMap(Script.CONTENT_TYPE_OPTION, MediaTypeRegistry.JSON.mediaType())
         );
 
         putStoredScript("calculate-score", scriptSource);
@@ -152,7 +152,7 @@ public class StoredScriptsDocumentationIT extends OpenSearchRestHighLevelClientT
         final StoredScriptSource scriptSource = new StoredScriptSource(
             "painless",
             "Math.log(_score * 2) + params.my_modifier",
-            Collections.singletonMap(Script.CONTENT_TYPE_OPTION, XContentType.JSON.mediaType())
+            Collections.singletonMap(Script.CONTENT_TYPE_OPTION, MediaTypeRegistry.JSON.mediaType())
         );
 
         putStoredScript("calculate-score", scriptSource);
@@ -221,7 +221,7 @@ public class StoredScriptsDocumentationIT extends OpenSearchRestHighLevelClientT
                     "\"source\": \"Math.log(_score * 2) + params.multiplier\"" +
                     "}\n" +
                     "}\n"
-            ), XContentType.JSON); // <2>
+            ), MediaTypeRegistry.JSON); // <2>
             // end::put-stored-script-request
 
             // tag::put-stored-script-context
@@ -255,7 +255,7 @@ public class StoredScriptsDocumentationIT extends OpenSearchRestHighLevelClientT
                 builder.endObject();
             }
             builder.endObject();
-            request.content(BytesReference.bytes(builder), XContentType.JSON); // <1>
+            request.content(BytesReference.bytes(builder), MediaTypeRegistry.JSON); // <1>
             // end::put-stored-script-content-painless
 
             // tag::put-stored-script-execute
@@ -310,7 +310,7 @@ public class StoredScriptsDocumentationIT extends OpenSearchRestHighLevelClientT
                 builder.endObject();
             }
             builder.endObject();
-            request.content(BytesReference.bytes(builder), XContentType.JSON); // <1>
+            request.content(BytesReference.bytes(builder), MediaTypeRegistry.JSON); // <1>
             // end::put-stored-script-content-mustache
 
             client.putScript(request, RequestOptions.DEFAULT);
@@ -322,7 +322,13 @@ public class StoredScriptsDocumentationIT extends OpenSearchRestHighLevelClientT
     }
 
     private void putStoredScript(String id, StoredScriptSource scriptSource) throws IOException {
-        PutStoredScriptRequest request = new PutStoredScriptRequest(id, "score", new BytesArray("{}"), XContentType.JSON, scriptSource);
+        PutStoredScriptRequest request = new PutStoredScriptRequest(
+            id,
+            "score",
+            new BytesArray("{}"),
+            MediaTypeRegistry.JSON,
+            scriptSource
+        );
         assertAcked(execute(request, highLevelClient()::putScript, highLevelClient()::putScriptAsync));
     }
 }

@@ -217,10 +217,10 @@ public class PutIndexTemplateRequest extends ClusterManagerNodeRequest<PutIndexT
      * Adds mapping that will be added when the index gets created.
      *
      * @param source The mapping source
-     * @param xContentType The type of content contained within the source
+     * @param mediaType The type of content contained within the source
      */
-    public PutIndexTemplateRequest mapping(String source, XContentType xContentType) {
-        internalMapping(XContentHelper.convertToMap(new BytesArray(source), true, xContentType).v2());
+    public PutIndexTemplateRequest mapping(String source, MediaType mediaType) {
+        internalMapping(XContentHelper.convertToMap(new BytesArray(source), true, mediaType).v2());
         return this;
     }
 
@@ -268,7 +268,7 @@ public class PutIndexTemplateRequest extends ClusterManagerNodeRequest<PutIndexT
 
     private PutIndexTemplateRequest internalMapping(Map<String, Object> source) {
         try {
-            XContentBuilder builder = MediaTypeRegistry.contentBuilder(XContentType.JSON);
+            XContentBuilder builder = MediaTypeRegistry.JSON.contentBuilder();
             builder.map(source);
             MediaType mediaType = builder.contentType();
             Objects.requireNonNull(mediaType);

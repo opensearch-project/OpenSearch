@@ -38,6 +38,7 @@ import org.opensearch.client.Response;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
@@ -124,7 +125,7 @@ public class ClientYamlTestResponse {
     public String getBodyAsString() {
         if (bodyAsString == null && body != null) {
             // content-type null means that text was returned
-            if (bodyContentType == null || bodyContentType == XContentType.JSON || bodyContentType == XContentType.YAML) {
+            if (bodyContentType == null || bodyContentType == MediaTypeRegistry.JSON || bodyContentType == XContentType.YAML) {
                 bodyAsString = new String(body, StandardCharsets.UTF_8);
             } else {
                 // if the body is in a binary format and gets requested as a string (e.g. to log a test failure), we convert it to json

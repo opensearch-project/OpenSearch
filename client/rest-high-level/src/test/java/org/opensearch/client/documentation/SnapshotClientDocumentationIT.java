@@ -64,7 +64,7 @@ import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.snapshots.RestoreInfo;
@@ -156,7 +156,7 @@ public class SnapshotClientDocumentationIT extends OpenSearchRestHighLevelClient
         {
             // tag::create-repository-settings-source
             request.settings("{\"location\": \".\", \"compress\": \"true\"}",
-                XContentType.JSON); // <1>
+                MediaTypeRegistry.JSON); // <1>
             // end::create-repository-settings-source
         }
 
@@ -818,7 +818,7 @@ public class SnapshotClientDocumentationIT extends OpenSearchRestHighLevelClient
     private void createTestRepositories() throws IOException {
         PutRepositoryRequest request = new PutRepositoryRequest(repositoryName);
         request.type(FsRepository.TYPE);
-        request.settings("{\"location\": \".\"}", XContentType.JSON);
+        request.settings("{\"location\": \".\"}", MediaTypeRegistry.JSON);
         assertTrue(highLevelClient().snapshot().createRepository(request, RequestOptions.DEFAULT).isAcknowledged());
     }
 

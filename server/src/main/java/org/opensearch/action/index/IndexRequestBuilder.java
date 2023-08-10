@@ -38,8 +38,8 @@ import org.opensearch.action.support.replication.ReplicationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.Nullable;
 import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.VersionType;
 
 import java.util.Map;
@@ -82,8 +82,8 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
     /**
      * Sets the source.
      */
-    public IndexRequestBuilder setSource(BytesReference source, XContentType xContentType) {
-        request.source(source, xContentType);
+    public IndexRequestBuilder setSource(BytesReference source, MediaType mediaType) {
+        request.source(source, mediaType);
         return this;
     }
 
@@ -102,7 +102,7 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
      *
      * @param source The map to index
      */
-    public IndexRequestBuilder setSource(Map<String, ?> source, XContentType contentType) {
+    public IndexRequestBuilder setSource(Map<String, ?> source, MediaType contentType) {
         request.source(source, contentType);
         return this;
     }
@@ -111,10 +111,10 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
      * Sets the document source to index.
      * <p>
      * Note, its preferable to either set it using {@link #setSource(XContentBuilder)}
-     * or using the {@link #setSource(byte[], XContentType)}.
+     * or using the {@link #setSource(byte[], MediaType)}.
      */
-    public IndexRequestBuilder setSource(String source, XContentType xContentType) {
-        request.source(source, xContentType);
+    public IndexRequestBuilder setSource(String source, MediaType mediaType) {
+        request.source(source, mediaType);
         return this;
     }
 
@@ -129,8 +129,8 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
     /**
      * Sets the document to index in bytes form.
      */
-    public IndexRequestBuilder setSource(byte[] source, XContentType xContentType) {
-        request.source(source, xContentType);
+    public IndexRequestBuilder setSource(byte[] source, MediaType mediaType) {
+        request.source(source, mediaType);
         return this;
     }
 
@@ -141,10 +141,10 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
      * @param source The source to index
      * @param offset The offset in the byte array
      * @param length The length of the data
-     * @param xContentType The type/format of the source
+     * @param mediaType The type/format of the source
      */
-    public IndexRequestBuilder setSource(byte[] source, int offset, int length, XContentType xContentType) {
-        request.source(source, offset, length, xContentType);
+    public IndexRequestBuilder setSource(byte[] source, int offset, int length, MediaType mediaType) {
+        request.source(source, offset, length, mediaType);
         return this;
     }
 
@@ -169,8 +169,8 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
      * valid String representation.</b>
      * </p>
      */
-    public IndexRequestBuilder setSource(XContentType xContentType, Object... source) {
-        request.source(xContentType, source);
+    public IndexRequestBuilder setSource(MediaType mediaType, Object... source) {
+        request.source(mediaType, source);
         return this;
     }
 
