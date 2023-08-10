@@ -139,6 +139,7 @@ import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.IndicesQueryCache;
 import org.opensearch.indices.IndicesRequestCache;
+import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.indices.store.IndicesStore;
 import org.opensearch.monitor.os.OsInfo;
 import org.opensearch.node.NodeMocksPlugin;
@@ -152,6 +153,7 @@ import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchService;
 import org.opensearch.telemetry.TelemetrySettings;
 import org.opensearch.test.client.RandomizingClient;
+import org.opensearch.test.client.SegmentReplicationClient;
 import org.opensearch.test.disruption.NetworkDisruption;
 import org.opensearch.test.disruption.ServiceDisruptionScheme;
 import org.opensearch.test.store.MockFSIndexStore;
@@ -208,6 +210,7 @@ import static org.opensearch.discovery.DiscoveryModule.DISCOVERY_SEED_PROVIDERS_
 import static org.opensearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
 import static org.opensearch.index.IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
+import static org.opensearch.indices.IndicesService.CLUSTER_REPLICATION_TYPE_SETTING;
 import static org.opensearch.test.XContentTestUtils.convertToMap;
 import static org.opensearch.test.XContentTestUtils.differenceBetweenMapsIgnoringArrayOrder;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
@@ -664,6 +667,9 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             return internalCluster().client(node);
         }
         Client client = cluster().client();
+        if (FeatureFlags.isEnabled(FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL)) {
+            client = new SegmentReplicationClient(client, random());
+        }
         if (frequently()) {
             client = new RandomizingClient(client, random());
         }
@@ -672,6 +678,9 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
 
     public static Client dataNodeClient() {
         Client client = internalCluster().dataNodeClient();
+        if (FeatureFlags.isEnabled(FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL)) {
+            client = new SegmentReplicationClient(client, random());
+        }
         if (frequently()) {
             client = new RandomizingClient(client, random());
         }
@@ -1914,6 +1923,9 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             .putList(DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), "file")
             .put(featureFlagSettings());
 
+        if (FeatureFlags.isEnabled(FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL)) {
+            builder.put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT);
+        }
         // Enable tracer only when Telemetry Setting is enabled
         if (featureFlagSettings().getAsBoolean(FeatureFlags.TELEMETRY_SETTING.getKey(), false)) {
             builder.put(TelemetrySettings.TRACER_ENABLED_SETTING.getKey(), true);
@@ -2070,6 +2082,9 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
      * Returns {@code true} if this test cluster can use a mock internal engine. Defaults to true.
      */
     protected boolean addMockInternalEngine() {
+        if (FeatureFlags.isEnabled(FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL)) {
+            return false;
+        }
         return true;
     }
 
