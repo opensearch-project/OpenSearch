@@ -1,0 +1,6 @@
+#
+# Copyright OpenSearch Contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+
+org.opensearch.cryptoplugin.sampleextension.SampleExtensionPlugin

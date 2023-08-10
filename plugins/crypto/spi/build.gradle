@@ -13,7 +13,10 @@ apply plugin: 'opensearch.build'
 apply plugin: 'opensearch.publish'
 
 group = 'org.opensearch.plugin'
-archivesBaseName = 'opensearch-extension-crypto-spi'
+
+base {
+  archivesName = "opensearch-extension-crypto-spi"
+}
 
 dependencies {
   api project(":server")
