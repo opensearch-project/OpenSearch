@@ -33,7 +33,7 @@
 package org.opensearch.update;
 
 import org.opensearch.OpenSearchTimeoutException;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.DocWriteResponse;
 import org.opensearch.action.admin.indices.alias.Alias;

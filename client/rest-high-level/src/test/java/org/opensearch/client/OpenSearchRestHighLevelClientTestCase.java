@@ -33,7 +33,7 @@
 package org.opensearch.client;
 
 import org.opensearch.OpenSearchParseException;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.opensearch.action.admin.cluster.node.tasks.list.TaskGroup;
@@ -60,7 +60,7 @@ import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.ingest.Pipeline;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchModule;
-import org.opensearch.tasks.TaskId;
+import org.opensearch.core.tasks.TaskId;
 import org.opensearch.test.rest.OpenSearchRestTestCase;
 import org.apache.hc.core5.http.ParseException;
 import org.apache.hc.core5.http.io.entity.EntityUtils;

@@ -35,7 +35,7 @@ package org.opensearch.index.seqno;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.ExceptionsHelper;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.replication.ReplicationRequest;
 import org.opensearch.action.support.replication.ReplicationResponse;

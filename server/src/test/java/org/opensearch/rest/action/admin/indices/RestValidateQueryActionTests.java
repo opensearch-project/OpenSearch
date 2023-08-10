@@ -32,7 +32,7 @@
 package org.opensearch.rest.action.admin.indices;
 
 import java.util.List;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.ActionModule.DynamicActionRegistry;

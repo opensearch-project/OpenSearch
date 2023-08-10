@@ -31,7 +31,7 @@
 
 package org.opensearch.action.bulk;
 
-import org.opensearch.action.ActionFuture;
+import org.opensearch.common.action.ActionFuture;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.support.WriteRequest;
 import org.opensearch.common.settings.Settings;

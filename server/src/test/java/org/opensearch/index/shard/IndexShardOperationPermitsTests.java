@@ -31,7 +31,7 @@
 
 package org.opensearch.index.shard;
 
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.common.CheckedRunnable;
 import org.opensearch.common.settings.Settings;
