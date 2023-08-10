@@ -197,7 +197,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
 
         if (metadataFiles.isEmpty() == false) {
             String latestMetadataFile = metadataFiles.get(0);
-            logger.info("Reading latest Metadata file {}", latestMetadataFile);
+            logger.trace("Reading latest Metadata file {}", latestMetadataFile);
             remoteSegmentMetadata = readMetadataFile(latestMetadataFile);
         } else {
             logger.info("No metadata file found, this can happen for new index with no data uploaded to remote segment store");
