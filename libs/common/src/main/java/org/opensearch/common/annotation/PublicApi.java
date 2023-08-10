@@ -22,6 +22,7 @@ import java.lang.annotation.Target;
  */
 @Documented
 @Target({ ElementType.TYPE, ElementType.PACKAGE, ElementType.METHOD, ElementType.CONSTRUCTOR })
+@PublicApi
 public @interface PublicApi {
     /**
      * Version when this API was released

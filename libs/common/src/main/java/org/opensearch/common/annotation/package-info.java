@@ -11,4 +11,5 @@
  *
  * @opensearch.api
  */
+@PublicApi
 package org.opensearch.common.annotation;
