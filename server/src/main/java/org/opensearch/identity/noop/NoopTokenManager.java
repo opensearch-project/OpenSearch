@@ -11,7 +11,9 @@ package org.opensearch.identity.noop;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.identity.IdentityService;
+import org.opensearch.identity.Subject;
 import org.opensearch.identity.tokens.AuthToken;
+import org.opensearch.identity.tokens.OnBehalfOfClaims;
 import org.opensearch.identity.tokens.TokenManager;
 
 /**
@@ -26,8 +28,17 @@ public class NoopTokenManager implements TokenManager {
      * @return a new Noop Token
      */
     @Override
-    public AuthToken issueToken(String audience) {
+    public AuthToken issueOnBehalfOfToken(final Subject subject, final OnBehalfOfClaims claims) {
         return new AuthToken() {
+            @Override
+            public String asAuthHeaderValue() {
+                return "noopToken";
+            }
         };
+    }
+
+    @Override
+    public Subject authenticateToken(AuthToken authToken) {
+        return null;
     }
 }
