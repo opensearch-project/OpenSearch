@@ -8,7 +8,6 @@
 
 package org.opensearch.extensions.rest;
 
-import org.opensearch.OpenSearchException;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
