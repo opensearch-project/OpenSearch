@@ -87,27 +87,8 @@ public class RemoteStoreStatsTests extends OpenSearchTestCase {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             stats.writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {
-                RemoteSegmentTransferTracker.Stats deserializedStats = new RemoteStoreStats(in).getStats();
-                assertEquals(stats.getStats().refreshTimeLagMs, deserializedStats.refreshTimeLagMs);
-                assertEquals(stats.getStats().localRefreshNumber, deserializedStats.localRefreshNumber);
-                assertEquals(stats.getStats().remoteRefreshNumber, deserializedStats.remoteRefreshNumber);
-                assertEquals(stats.getStats().uploadBytesStarted, deserializedStats.uploadBytesStarted);
-                assertEquals(stats.getStats().uploadBytesSucceeded, deserializedStats.uploadBytesSucceeded);
-                assertEquals(stats.getStats().uploadBytesFailed, deserializedStats.uploadBytesFailed);
-                assertEquals(stats.getStats().totalUploadsStarted, deserializedStats.totalUploadsStarted);
-                assertEquals(stats.getStats().totalUploadsFailed, deserializedStats.totalUploadsFailed);
-                assertEquals(stats.getStats().totalUploadsSucceeded, deserializedStats.totalUploadsSucceeded);
-                assertEquals(stats.getStats().rejectionCount, deserializedStats.rejectionCount);
-                assertEquals(stats.getStats().consecutiveFailuresCount, deserializedStats.consecutiveFailuresCount);
-                assertEquals(stats.getStats().uploadBytesMovingAverage, deserializedStats.uploadBytesMovingAverage, 0);
-                assertEquals(stats.getStats().uploadBytesPerSecMovingAverage, deserializedStats.uploadBytesPerSecMovingAverage, 0);
-                assertEquals(stats.getStats().uploadTimeMovingAverage, deserializedStats.uploadTimeMovingAverage, 0);
-                assertEquals(stats.getStats().bytesLag, deserializedStats.bytesLag);
-                assertEquals(0, deserializedStats.directoryFileTransferTrackerStats.transferredBytesStarted);
-                assertEquals(0, deserializedStats.directoryFileTransferTrackerStats.transferredBytesFailed);
-                assertEquals(0, deserializedStats.directoryFileTransferTrackerStats.transferredBytesSucceeded);
-                assertEquals(0, deserializedStats.directoryFileTransferTrackerStats.lastSuccessfulTransferInBytes);
-                assertEquals(0, deserializedStats.directoryFileTransferTrackerStats.lastTransferTimestampMs);
+                RemoteStoreStats deserializedStats = new RemoteStoreStats(in);
+                assertEquals(stats.getSegmentStats(), deserializedStats.getSegmentStats());
             }
         }
     }
@@ -118,49 +99,8 @@ public class RemoteStoreStatsTests extends OpenSearchTestCase {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             stats.writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {
-                RemoteSegmentTransferTracker.Stats deserializedStats = new RemoteStoreStats(in).getStats();
-                assertEquals(0, deserializedStats.refreshTimeLagMs);
-                assertEquals(0, deserializedStats.localRefreshNumber);
-                assertEquals(0, deserializedStats.remoteRefreshNumber);
-                assertEquals(0, deserializedStats.uploadBytesStarted);
-                assertEquals(0, deserializedStats.uploadBytesSucceeded);
-                assertEquals(0, deserializedStats.uploadBytesFailed);
-                assertEquals(0, deserializedStats.totalUploadsStarted);
-                assertEquals(0, deserializedStats.totalUploadsFailed);
-                assertEquals(0, deserializedStats.totalUploadsSucceeded);
-                assertEquals(0, deserializedStats.rejectionCount);
-                assertEquals(0, deserializedStats.consecutiveFailuresCount);
-                assertEquals(0, deserializedStats.bytesLag);
-                assertEquals(
-                    stats.getStats().directoryFileTransferTrackerStats.transferredBytesStarted,
-                    deserializedStats.directoryFileTransferTrackerStats.transferredBytesStarted
-                );
-                assertEquals(
-                    stats.getStats().directoryFileTransferTrackerStats.transferredBytesFailed,
-                    deserializedStats.directoryFileTransferTrackerStats.transferredBytesFailed
-                );
-                assertEquals(
-                    stats.getStats().directoryFileTransferTrackerStats.transferredBytesSucceeded,
-                    deserializedStats.directoryFileTransferTrackerStats.transferredBytesSucceeded
-                );
-                assertEquals(
-                    stats.getStats().directoryFileTransferTrackerStats.lastSuccessfulTransferInBytes,
-                    deserializedStats.directoryFileTransferTrackerStats.lastSuccessfulTransferInBytes
-                );
-                assertEquals(
-                    stats.getStats().directoryFileTransferTrackerStats.lastTransferTimestampMs,
-                    deserializedStats.directoryFileTransferTrackerStats.lastTransferTimestampMs
-                );
-                assertEquals(
-                    stats.getStats().directoryFileTransferTrackerStats.transferredBytesPerSecMovingAverage,
-                    deserializedStats.directoryFileTransferTrackerStats.transferredBytesPerSecMovingAverage,
-                    0
-                );
-                assertEquals(
-                    stats.getStats().directoryFileTransferTrackerStats.transferredBytesMovingAverage,
-                    deserializedStats.directoryFileTransferTrackerStats.transferredBytesMovingAverage,
-                    0
-                );
+                RemoteStoreStats deserializedStats = new RemoteStoreStats(in);
+                assertEquals(stats.getSegmentStats(), deserializedStats.getSegmentStats());
             }
         }
     }
@@ -171,52 +111,8 @@ public class RemoteStoreStatsTests extends OpenSearchTestCase {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             stats.writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {
-                RemoteSegmentTransferTracker.Stats deserializedStats = new RemoteStoreStats(in).getStats();
-                assertEquals(stats.getStats().refreshTimeLagMs, deserializedStats.refreshTimeLagMs);
-                assertEquals(stats.getStats().localRefreshNumber, deserializedStats.localRefreshNumber);
-                assertEquals(stats.getStats().remoteRefreshNumber, deserializedStats.remoteRefreshNumber);
-                assertEquals(stats.getStats().uploadBytesStarted, deserializedStats.uploadBytesStarted);
-                assertEquals(stats.getStats().uploadBytesSucceeded, deserializedStats.uploadBytesSucceeded);
-                assertEquals(stats.getStats().uploadBytesFailed, deserializedStats.uploadBytesFailed);
-                assertEquals(stats.getStats().totalUploadsStarted, deserializedStats.totalUploadsStarted);
-                assertEquals(stats.getStats().totalUploadsFailed, deserializedStats.totalUploadsFailed);
-                assertEquals(stats.getStats().totalUploadsSucceeded, deserializedStats.totalUploadsSucceeded);
-                assertEquals(stats.getStats().rejectionCount, deserializedStats.rejectionCount);
-                assertEquals(stats.getStats().consecutiveFailuresCount, deserializedStats.consecutiveFailuresCount);
-                assertEquals(stats.getStats().uploadBytesMovingAverage, deserializedStats.uploadBytesMovingAverage, 0);
-                assertEquals(stats.getStats().uploadBytesPerSecMovingAverage, deserializedStats.uploadBytesPerSecMovingAverage, 0);
-                assertEquals(stats.getStats().uploadTimeMovingAverage, deserializedStats.uploadTimeMovingAverage, 0);
-                assertEquals(stats.getStats().bytesLag, deserializedStats.bytesLag);
-                assertEquals(
-                    stats.getStats().directoryFileTransferTrackerStats.transferredBytesStarted,
-                    deserializedStats.directoryFileTransferTrackerStats.transferredBytesStarted
-                );
-                assertEquals(
-                    stats.getStats().directoryFileTransferTrackerStats.transferredBytesFailed,
-                    deserializedStats.directoryFileTransferTrackerStats.transferredBytesFailed
-                );
-                assertEquals(
-                    stats.getStats().directoryFileTransferTrackerStats.transferredBytesSucceeded,
-                    deserializedStats.directoryFileTransferTrackerStats.transferredBytesSucceeded
-                );
-                assertEquals(
-                    stats.getStats().directoryFileTransferTrackerStats.lastSuccessfulTransferInBytes,
-                    deserializedStats.directoryFileTransferTrackerStats.lastSuccessfulTransferInBytes
-                );
-                assertEquals(
-                    stats.getStats().directoryFileTransferTrackerStats.lastTransferTimestampMs,
-                    deserializedStats.directoryFileTransferTrackerStats.lastTransferTimestampMs
-                );
-                assertEquals(
-                    stats.getStats().directoryFileTransferTrackerStats.transferredBytesPerSecMovingAverage,
-                    deserializedStats.directoryFileTransferTrackerStats.transferredBytesPerSecMovingAverage,
-                    0
-                );
-                assertEquals(
-                    stats.getStats().directoryFileTransferTrackerStats.transferredBytesMovingAverage,
-                    deserializedStats.directoryFileTransferTrackerStats.transferredBytesMovingAverage,
-                    0
-                );
+                RemoteStoreStats deserializedStats = new RemoteStoreStats(in);
+                assertEquals(stats.getSegmentStats(), deserializedStats.getSegmentStats());
             }
         }
     }

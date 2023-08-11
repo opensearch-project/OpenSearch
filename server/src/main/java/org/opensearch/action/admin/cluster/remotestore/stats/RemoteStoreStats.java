@@ -39,7 +39,7 @@ public class RemoteStoreStats implements Writeable, ToXContentFragment {
         this.shardRouting = new ShardRouting(in);
     }
 
-    public RemoteSegmentTransferTracker.Stats getStats() {
+    public RemoteSegmentTransferTracker.Stats getSegmentStats() {
         return remoteSegmentShardStats;
     }
 
@@ -55,7 +55,7 @@ public class RemoteStoreStats implements Writeable, ToXContentFragment {
         builder.startObject(SubFields.DOWNLOAD);
         // Ensuring that we are not showing 0 metrics to the user
         if (remoteSegmentShardStats.directoryFileTransferTrackerStats.transferredBytesStarted != 0) {
-            buildDownloadStats(builder);
+            buildSegmentDownloadStats(builder);
         }
         builder.endObject();
         builder.startObject(SubFields.UPLOAD);
@@ -104,7 +104,7 @@ public class RemoteStoreStats implements Writeable, ToXContentFragment {
         builder.endObject();
     }
 
-    private void buildDownloadStats(XContentBuilder builder) throws IOException {
+    private void buildSegmentDownloadStats(XContentBuilder builder) throws IOException {
         builder.field(
             DownloadStatsFields.LAST_SYNC_TIMESTAMP,
             remoteSegmentShardStats.directoryFileTransferTrackerStats.lastTransferTimestampMs

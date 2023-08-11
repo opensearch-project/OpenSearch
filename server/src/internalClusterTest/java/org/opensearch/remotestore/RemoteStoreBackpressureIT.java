@@ -120,10 +120,10 @@ public class RemoteStoreBackpressureIT extends AbstractRemoteStoreMockRepository
         RemoteStoreStatsResponse response = client().admin().cluster().prepareRemoteStoreStats(INDEX_NAME, shardId).get();
         final String indexShardId = String.format(Locale.ROOT, "[%s][%s]", INDEX_NAME, shardId);
         List<RemoteStoreStats> matches = Arrays.stream(response.getRemoteStoreStats())
-            .filter(stat -> indexShardId.equals(stat.getStats().shardId.toString()))
+            .filter(stat -> indexShardId.equals(stat.getSegmentStats().shardId.toString()))
             .collect(Collectors.toList());
         assertEquals(1, matches.size());
-        return matches.get(0).getStats();
+        return matches.get(0).getSegmentStats();
     }
 
     private void indexDocAndRefresh(BytesReference source, int iterations) {

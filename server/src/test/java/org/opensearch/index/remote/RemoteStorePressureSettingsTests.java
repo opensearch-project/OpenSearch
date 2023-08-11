@@ -228,11 +228,7 @@ public class RemoteStorePressureSettingsTests extends OpenSearchTestCase {
             return null;
         }).when(pressureService).updateUploadTimeMsMovingAverageWindowSize(anyInt());
 
-        RemoteStorePressureSettings pressureSettings = new RemoteStorePressureSettings(
-            clusterService,
-            Settings.EMPTY,
-            pressureService
-        );
+        RemoteStorePressureSettings pressureSettings = new RemoteStorePressureSettings(clusterService, Settings.EMPTY, pressureService);
         Settings newSettings = Settings.builder()
             .put(RemoteStorePressureSettings.UPLOAD_BYTES_MOVING_AVERAGE_WINDOW_SIZE.getKey(), toUpdateVal1)
             .put(RemoteStorePressureSettings.UPLOAD_BYTES_PER_SEC_MOVING_AVERAGE_WINDOW_SIZE.getKey(), toUpdateVal2)
