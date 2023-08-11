@@ -31,6 +31,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import static java.util.Objects.requireNonNull;
 
 /**
  * Request to execute REST actions on extension node.
@@ -87,7 +88,7 @@ public class ExtensionRestRequest extends TransportRequest {
         this.headers = headers;
         this.mediaType = mediaType;
         this.content = content;
-        this.principalIdentifierToken = principalIdentifier;
+        this.principalIdentifierToken = requireNonNull(principalIdentifier);
         this.httpVersion = httpVersion;
     }
 
@@ -119,7 +120,6 @@ public class ExtensionRestRequest extends TransportRequest {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        validateRequestIssuerIdentity();
         out.writeEnum(method);
         out.writeString(uri);
         out.writeString(path);
@@ -293,7 +293,7 @@ public class ExtensionRestRequest extends TransportRequest {
         if (!hasContent() || getXContentType() == null) {
             throw new OpenSearchParseException("There is no request body or the ContentType is invalid.");
         }
-        if (!hasContent() || getRequestIssuerIdentity() == null) {
+        if (getRequestIssuerIdentity() == null) {
             throw new OpenSearchParseException("There is no request body or the requester identity is invalid.");
         }
         return getXContentType().xContent().createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, content.streamInput());
@@ -304,15 +304,6 @@ public class ExtensionRestRequest extends TransportRequest {
      */
     public String getRequestIssuerIdentity() {
         return principalIdentifierToken;
-    }
-
-    /**
-     * Assert that the principal identifier token is not null.
-     */
-    public void validateRequestIssuerIdentity() {
-        if (principalIdentifierToken == null) {
-            throw new OpenSearchException("Principal identifier token is null");
-        }
     }
 
     /**

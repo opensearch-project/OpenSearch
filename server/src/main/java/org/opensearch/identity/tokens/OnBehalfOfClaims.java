@@ -43,7 +43,7 @@ public class OnBehalfOfClaims {
      * @param not_before the not_before time in seconds for the token
      */
     public OnBehalfOfClaims(String aud, String subject, Long expiration, Long not_before) {
-        this(aud, subject, expiration, not_before, System.nanoTime() / 1000000);
+        this(aud, subject, expiration, not_before, System.currentTimeMillis() / 1000);
     }
 
     /**
@@ -53,7 +53,7 @@ public class OnBehalfOfClaims {
      * @param expiration the expiration time in seconds for the token
      */
     public OnBehalfOfClaims(String aud, String subject, Long expiration) {
-        this(aud, subject, expiration, System.nanoTime() / 1000000);
+        this(aud, subject, expiration, System.currentTimeMillis() / 1000);
     }
 
     /**
@@ -62,7 +62,7 @@ public class OnBehalfOfClaims {
      * @param subject the subject of the token
      */
     public OnBehalfOfClaims(String aud, String subject) {
-        this(aud, subject, System.nanoTime() / 1000000 + 300000);
+        this(aud, subject, System.currentTimeMillis() / 1000 + 300);
     }
 
     public String getAudience() {
