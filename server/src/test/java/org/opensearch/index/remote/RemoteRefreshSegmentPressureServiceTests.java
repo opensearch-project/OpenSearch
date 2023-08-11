@@ -64,7 +64,7 @@ public class RemoteRefreshSegmentPressureServiceTests extends OpenSearchTestCase
         assertFalse(pressureService.isSegmentsUploadBackpressureEnabled());
 
         Settings newSettings = Settings.builder()
-            .put(RemoteRefreshSegmentPressureSettings.REMOTE_REFRESH_SEGMENT_PRESSURE_ENABLED.getKey(), "true")
+            .put(RemoteStorePressureSettings.REMOTE_REFRESH_SEGMENT_PRESSURE_ENABLED.getKey(), "true")
             .build();
         clusterService.getClusterSettings().applySettings(newSettings);
 

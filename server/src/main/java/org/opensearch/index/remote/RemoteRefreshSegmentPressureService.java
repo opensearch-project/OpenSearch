@@ -42,13 +42,13 @@ public class RemoteRefreshSegmentPressureService implements IndexEventListener {
     /**
      * Remote refresh segment pressure settings which is used for creation of the backpressure tracker and as well as rejection.
      */
-    private final RemoteRefreshSegmentPressureSettings pressureSettings;
+    private final RemoteStorePressureSettings pressureSettings;
 
     private final List<LagValidator> lagValidators;
 
     @Inject
     public RemoteRefreshSegmentPressureService(ClusterService clusterService, Settings settings) {
-        pressureSettings = new RemoteRefreshSegmentPressureSettings(clusterService, settings, this);
+        pressureSettings = new RemoteStorePressureSettings(clusterService, settings, this);
         lagValidators = Arrays.asList(
             new ConsecutiveFailureValidator(pressureSettings),
             new BytesLagValidator(pressureSettings),
@@ -146,9 +146,9 @@ public class RemoteRefreshSegmentPressureService implements IndexEventListener {
      */
     private static abstract class LagValidator {
 
-        final RemoteRefreshSegmentPressureSettings pressureSettings;
+        final RemoteStorePressureSettings pressureSettings;
 
-        private LagValidator(RemoteRefreshSegmentPressureSettings pressureSettings) {
+        private LagValidator(RemoteStorePressureSettings pressureSettings) {
             this.pressureSettings = pressureSettings;
         }
 
@@ -180,7 +180,7 @@ public class RemoteRefreshSegmentPressureService implements IndexEventListener {
 
         private static final String NAME = "bytes_lag";
 
-        private BytesLagValidator(RemoteRefreshSegmentPressureSettings pressureSettings) {
+        private BytesLagValidator(RemoteStorePressureSettings pressureSettings) {
             super(pressureSettings);
         }
 
@@ -226,7 +226,7 @@ public class RemoteRefreshSegmentPressureService implements IndexEventListener {
 
         private static final String NAME = "time_lag";
 
-        private TimeLagValidator(RemoteRefreshSegmentPressureSettings pressureSettings) {
+        private TimeLagValidator(RemoteStorePressureSettings pressureSettings) {
             super(pressureSettings);
         }
 
@@ -272,7 +272,7 @@ public class RemoteRefreshSegmentPressureService implements IndexEventListener {
 
         private static final String NAME = "consecutive_failures_lag";
 
-        private ConsecutiveFailureValidator(RemoteRefreshSegmentPressureSettings pressureSettings) {
+        private ConsecutiveFailureValidator(RemoteStorePressureSettings pressureSettings) {
             super(pressureSettings);
         }
 

@@ -18,7 +18,7 @@ import org.opensearch.common.settings.Settings;
  *
  * @opensearch.internal
  */
-public class RemoteRefreshSegmentPressureSettings {
+public class RemoteStorePressureSettings {
 
     private static class Defaults {
         private static final double BYTES_LAG_VARIANCE_FACTOR = 10.0;
@@ -103,7 +103,7 @@ public class RemoteRefreshSegmentPressureSettings {
 
     private volatile int uploadTimeMovingAverageWindowSize;
 
-    public RemoteRefreshSegmentPressureSettings(
+    public RemoteStorePressureSettings(
         ClusterService clusterService,
         Settings settings,
         RemoteRefreshSegmentPressureService remoteUploadPressureService
