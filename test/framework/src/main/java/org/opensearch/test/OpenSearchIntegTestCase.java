@@ -379,9 +379,11 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
      * The lucene_default {@link Codec} is not added to the list as it internally maps to Asserting {@link Codec}.
      * The override to fetch the {@link CompletionFieldMapper.CompletionFieldType} postings format is not available for this codec.
      */
-    public static List<String> CODECS = List.of(
+    public static final List<String> CODECS = List.of(
         CodecService.DEFAULT_CODEC,
+        CodecService.LZ4,
         CodecService.BEST_COMPRESSION_CODEC,
+        CodecService.ZLIB,
         CodecService.ZSTD_CODEC,
         CodecService.ZSTD_NO_DICT_CODEC
     );
