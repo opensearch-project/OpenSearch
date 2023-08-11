@@ -16,7 +16,6 @@ import org.apache.logging.log4j.Logger;
 import java.io.Closeable;
 import java.io.IOException;
 import org.opensearch.telemetry.tracing.attributes.Attributes;
-import org.opensearch.telemetry.tracing.exporter.OTelAttributesConverter;
 
 /**
  * OTel based Telemetry provider
