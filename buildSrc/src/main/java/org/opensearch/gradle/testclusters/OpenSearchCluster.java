@@ -579,35 +579,7 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
                     );
                     wait.setUsername(getFirstNode().getCredentials().get(0).get("username"));
                     wait.setPassword(getFirstNode().getCredentials().get(0).get("password"));
-                    // create a temporary file
-                    Path tempFile = Files.createTempFile("root-ca.pem", null);
-                    // Writes a string to the above temporary file
-                    Files.write(tempFile, ("-----BEGIN CERTIFICATE-----\n" +
-                                    "MIIEQjCCAyqgAwIBAgIUFhF0GAuR4yaen/L/JyIXdSxFstcwDQYJKoZIhvcNAQEL\n" +
-                                    "BQAwga4xEzARBgoJkiaJk/IsZAEZFgNjb20xFzAVBgoJkiaJk/IsZAEZFgdleGFt\n" +
-                                    "cGxlMRkwFwYDVQQKDBBFeGFtcGxlIENvbSBJbmMuMSEwHwYDVQQLDBhFeGFtcGxl\n" +
-                                    "IENvbSBJbmMuIFJvb3QgQ0ExQDA+BgNVBAMMN0V4YW1wbGUgQ29tIEluYy4gUm9v\n" +
-                                    "dCBDQSwgQ04gPSBFeGFtcGxlIENvbSBJbmMuIFJvb3QgQ0EwHhcNMjMwODEwMjEx\n" +
-                                    "NDUxWhcNMjUwODA5MjExNDUxWjCBrjETMBEGCgmSJomT8ixkARkWA2NvbTEXMBUG\n" +
-                                    "CgmSJomT8ixkARkWB2V4YW1wbGUxGTAXBgNVBAoMEEV4YW1wbGUgQ29tIEluYy4x\n" +
-                                    "ITAfBgNVBAsMGEV4YW1wbGUgQ29tIEluYy4gUm9vdCBDQTFAMD4GA1UEAww3RXhh\n" +
-                                    "bXBsZSBDb20gSW5jLiBSb290IENBLCBDTiA9IEV4YW1wbGUgQ29tIEluYy4gUm9v\n" +
-                                    "dCBDQTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAKrZtvfOZimo0YWw\n" +
-                                    "CWqLeujnEITxQyFM+LKpw7vhcvu2xwFYUsT9lx3OaZKjivT5icKoKRXB95aKAwUE\n" +
-                                    "vvqvP8Mg7/ZRIG6zH90oMoRjADUMx1eHTm6/y5R7YqETfFj1jvRwIkVH+XUmPN2f\n" +
-                                    "OkTtsYGnfI2qrf99rmgd5OB0KZhrgn4NaTG/UbX3HlzOWhqdL1q5iJFOTJwXDUQ5\n" +
-                                    "uw/OG2t8zngxxrO2hXCc8WA/uM6PrgXhkZq3s03C91/0wFscAJygYGPAPMzeL78P\n" +
-                                    "UqFiuPy3XaKnEVfjxVaruVaEpG+q5lm4a6/KgI2OlR/KExCr+XOQzvwPdHrSSQQm\n" +
-                                    "ZshOxd0CAwEAAaNWMFQwHQYDVR0OBBYEFOmyUSOJJvSM2TWnN2Lficp/SpLJMB8G\n" +
-                                    "A1UdIwQYMBaAFOmyUSOJJvSM2TWnN2Lficp/SpLJMBIGA1UdEwEB/wQIMAYBAf8C\n" +
-                                    "AQEwDQYJKoZIhvcNAQELBQADggEBAGd8tl2b04fbb5ACYZNtYC4LFyj8D9CMuy+G\n" +
-                                    "XBXx4KdXevduEoXlz8EZUrvL6KyCtYN4EW1I65JY60eJ74Ugntbl9lxHdscKfz4n\n" +
-                                    "Yy5PRAxqS+9BQQxJJ4fxn0rKh7oR2qrf7rhRRl/BI3JLbk8c7nuMquVlTvBqAhto\n" +
-                                    "KpGEF0YIw/lP4LF73ew8UCVk/AnH1cyso7QWZZj/EmJiwi3TtntviRJwezQMEkkQ\n" +
-                                    "FMxwO9E85H3eyP53hOjg99EV7JZhtMlMmQB3Jw6lXq1jZEdsMlagalI/jYjsGU7x\n" +
-                                    "p82p85JT+Z7s3VQnSC1w+r17lYQxjHJzjRRUdT1Dip65bGsq4GA=\n" +
-                                    "-----END CERTIFICATE-----\n").getBytes(StandardCharsets.UTF_8));
-                    wait.setCertificateAuthorities(tempFile.toFile());
+                    wait.setCertificateAuthorities(getFirstNode().getExtraConfigFilesMap().get("root-ca.pem"));
                 }
                 return wait.wait(500);
             } catch (IOException e) {

@@ -1377,6 +1377,11 @@ public class OpenSearchNode implements TestClusterConfiguration {
         return extraConfigFiles.getNormalizedCollection();
     }
 
+    @Internal
+    public Map<String, File> getExtraConfigFilesMap() {
+        return extraConfigFiles;
+    }
+
     @Override
     @Internal
     public boolean isProcessAlive() {
