@@ -315,6 +315,34 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
         }
     }
 
+    public void testPrimaryRestart() throws Exception {
+        final Path remotePath = createTempDir();
+        try (ReplicationGroup shards = createGroup(0, getIndexSettings(), indexMapping, new NRTReplicationEngineFactory(), remotePath)) {
+            shards.startAll();
+            // ensure primary has uploaded something
+            shards.indexDocs(10);
+            IndexShard primary = shards.getPrimary();
+            if (randomBoolean()) {
+                flushShard(primary);
+            } else {
+                primary.refresh("test");
+            }
+            assertDocCount(primary, 10);
+            // get a metadata map - we'll use segrep diff to ensure segments on reader are identical after restart.
+            final Map<String, StoreFileMetadata> metadataBeforeRestart = primary.getSegmentMetadataMap();
+            // restart the primary
+            shards.reinitPrimaryShard(remotePath);
+            // the store is open at this point but the shard has not yet run through recovery
+            primary = shards.getPrimary();
+            shards.startPrimary();
+            assertDocCount(primary, 10);
+            final Store.RecoveryDiff diff = Store.segmentReplicationDiff(metadataBeforeRestart, primary.getSegmentMetadataMap());
+            assertTrue(diff.missing.isEmpty());
+            logger.info("DIFF FILE {}", diff.different);
+            assertTrue(diff.different.isEmpty());
+        }
+    }
+
     private void assertSingleSegmentFile(IndexShard shard, String fileName) throws IOException {
         final Set<String> segmentsFileNames = Arrays.stream(shard.store().directory().listAll())
             .filter(file -> file.startsWith(IndexFileNames.SEGMENTS))
