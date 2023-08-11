@@ -51,7 +51,7 @@ import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.core.xcontent.XContentParser.Token;
 import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.Task;
-import org.opensearch.tasks.TaskId;
+import org.opensearch.core.tasks.TaskId;
 import org.opensearch.tasks.TaskInfo;
 
 import java.io.IOException;

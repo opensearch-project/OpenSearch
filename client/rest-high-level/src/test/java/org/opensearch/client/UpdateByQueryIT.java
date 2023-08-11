@@ -32,7 +32,7 @@
 
 package org.opensearch.client;
 
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.opensearch.action.bulk.BulkItemResponse;
 import org.opensearch.action.bulk.BulkRequest;
@@ -49,7 +49,7 @@ import org.opensearch.index.reindex.UpdateByQueryRequest;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.script.Script;
 import org.opensearch.tasks.RawTaskStatus;
-import org.opensearch.tasks.TaskId;
+import org.opensearch.core.tasks.TaskId;
 
 import java.io.IOException;
 import java.util.Collections;

@@ -35,7 +35,7 @@ package org.opensearch.indices.recovery;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.support.PlainActionFuture;

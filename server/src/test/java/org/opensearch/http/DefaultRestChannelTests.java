@@ -33,7 +33,7 @@
 package org.opensearch.http;
 
 import org.opensearch.Build;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.bytes.ReleasableBytesReference;

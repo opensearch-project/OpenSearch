@@ -32,7 +32,7 @@
 
 package org.opensearch.action.support;
 
-import org.opensearch.action.ActionFuture;
+import org.opensearch.common.action.ActionFuture;
 import org.opensearch.action.admin.indices.create.CreateIndexResponse;
 import org.opensearch.common.Priority;
 import org.opensearch.common.settings.Settings;

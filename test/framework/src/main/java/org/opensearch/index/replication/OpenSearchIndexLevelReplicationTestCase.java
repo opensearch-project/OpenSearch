@@ -34,7 +34,7 @@ package org.opensearch.index.replication;
 
 import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.DocWriteRequest;
 import org.opensearch.action.DocWriteResponse;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
@@ -622,8 +622,8 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
             return primary;
         }
 
-        public synchronized void reinitPrimaryShard() throws IOException {
-            primary = reinitShard(primary);
+        public synchronized void reinitPrimaryShard(Path remotePath) throws IOException {
+            primary = reinitShard(primary, remotePath);
             computeReplicationTargets();
         }
 

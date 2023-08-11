@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.tasks;
+package org.opensearch.core.tasks.resourcetracker;
 
 /**
  * Information about resource usage

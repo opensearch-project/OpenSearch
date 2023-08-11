@@ -32,7 +32,7 @@
 
 package org.opensearch.snapshots;
 
-import org.opensearch.action.ActionFuture;
+import org.opensearch.common.action.ActionFuture;
 import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.opensearch.action.admin.indices.recovery.RecoveryResponse;
 import org.opensearch.action.support.IndicesOptions;

@@ -13,7 +13,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.opensearch.OpenSearchTimeoutException;
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
 import org.opensearch.action.admin.cluster.configuration.TransportClearVotingConfigExclusionsAction;
 import org.opensearch.action.support.ActionFilters;

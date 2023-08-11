@@ -1185,14 +1185,14 @@ final class RequestConverters {
             return this;
         }
 
-        Params withTaskId(org.opensearch.tasks.TaskId taskId) {
+        Params withTaskId(org.opensearch.core.tasks.TaskId taskId) {
             if (taskId != null && taskId.isSet()) {
                 return putParam("task_id", taskId.toString());
             }
             return this;
         }
 
-        Params withParentTaskId(org.opensearch.tasks.TaskId parentTaskId) {
+        Params withParentTaskId(org.opensearch.core.tasks.TaskId parentTaskId) {
             if (parentTaskId != null && parentTaskId.isSet()) {
                 return putParam("parent_task_id", parentTaskId.toString());
             }

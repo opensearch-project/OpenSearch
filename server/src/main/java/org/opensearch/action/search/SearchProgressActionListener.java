@@ -32,7 +32,7 @@
 
 package org.opensearch.action.search;
 
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 
 /**
  * An {@link ActionListener} for search requests that allows to track progress of the {@link SearchAction}.

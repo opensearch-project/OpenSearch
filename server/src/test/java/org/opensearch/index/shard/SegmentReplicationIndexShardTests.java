@@ -13,7 +13,7 @@ import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.junit.Assert;
 import org.opensearch.ExceptionsHelper;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.opensearch.action.index.IndexRequest;
@@ -107,7 +107,6 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
     /**
      * Validates happy path of segment replication where primary index docs which are replicated to replica shards. Assertions
      * made on doc count on both primary and replica.
-     * @throws Exception
      */
     public void testReplication() throws Exception {
         try (ReplicationGroup shards = createGroup(1, getIndexSettings(), indexMapping, new NRTReplicationEngineFactory());) {

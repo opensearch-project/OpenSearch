@@ -10,7 +10,7 @@ package org.opensearch.index.translog.transfer;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.mockito.Mockito;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;

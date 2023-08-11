@@ -21,7 +21,7 @@ import org.apache.lucene.index.StandardDirectoryReader;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.junit.Before;
-import org.opensearch.action.ActionFuture;
+import org.opensearch.common.action.ActionFuture;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
@@ -282,7 +282,6 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
     }
 
     public void testScrollWithConcurrentIndexAndSearch() throws Exception {
-        assumeFalse("Skipping the test with Remote store as its flaky.", segmentReplicationWithRemoteEnabled());
         final String primary = internalCluster().startDataOnlyNode();
         final String replica = internalCluster().startDataOnlyNode();
         createIndex(INDEX_NAME);
@@ -616,7 +615,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
 
         createIndex(INDEX_NAME);
         ensureGreen(INDEX_NAME);
-        final int initialDocCount = scaledRandomIntBetween(0, 200);
+        final int initialDocCount = scaledRandomIntBetween(1, 20);
         try (
             BackgroundIndexer indexer = new BackgroundIndexer(
                 INDEX_NAME,
@@ -633,7 +632,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
             refresh(INDEX_NAME);
             waitForSearchableDocs(initialDocCount, nodeA, nodeB);
 
-            final int additionalDocCount = scaledRandomIntBetween(0, 200);
+            final int additionalDocCount = scaledRandomIntBetween(0, 20);
             final int expectedHitCount = initialDocCount + additionalDocCount;
             indexer.start(additionalDocCount);
             waitForDocs(expectedHitCount, indexer);
@@ -642,6 +641,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
             ensureGreen(INDEX_NAME);
 
             Set<String> ids = indexer.getIds();
+            assertFalse(ids.isEmpty());
             String id = ids.toArray()[0].toString();
             client(nodeA).prepareDelete(INDEX_NAME, id).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
 
@@ -657,7 +657,6 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
      * from xlog.
      */
     public void testReplicationPostDeleteAndForceMerge() throws Exception {
-        assumeFalse("Skipping the test with Remote store as its flaky.", segmentReplicationWithRemoteEnabled());
         final String primary = internalCluster().startDataOnlyNode();
         createIndex(INDEX_NAME);
         final String replica = internalCluster().startDataOnlyNode();
@@ -966,7 +965,6 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
      * @throws Exception when issue is encountered
      */
     public void testScrollCreatedOnReplica() throws Exception {
-        assumeFalse("Skipping the test with Remote store as its flaky.", segmentReplicationWithRemoteEnabled());
         // create the cluster with one primary node containing primary shard and replica node containing replica shard
         final String primary = internalCluster().startDataOnlyNode();
         createIndex(INDEX_NAME);
@@ -1059,8 +1057,9 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
      * @throws Exception when issue is encountered
      */
     public void testScrollWithOngoingSegmentReplication() throws Exception {
+        // this test stubs transport calls specific to node-node replication.
         assumeFalse(
-            "Skipping the test as its not compatible with segment replication with remote store yet.",
+            "Skipping the test as its not compatible with segment replication with remote store.",
             segmentReplicationWithRemoteEnabled()
         );
 
@@ -1188,10 +1187,6 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
     }
 
     public void testPitCreatedOnReplica() throws Exception {
-        assumeFalse(
-            "Skipping the test as it is flaky with remote store. Tracking issue https://github.com/opensearch-project/OpenSearch/issues/8850",
-            segmentReplicationWithRemoteEnabled()
-        );
         final String primary = internalCluster().startDataOnlyNode();
         createIndex(INDEX_NAME);
         ensureYellowAndNoInitializingShards(INDEX_NAME);
@@ -1424,5 +1419,24 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
             .setExplain(true)
             .get();
         assertNoFailures(response);
+    }
+
+    public void testRestartPrimary_NoReplicas() throws Exception {
+        final String primary = internalCluster().startDataOnlyNode();
+        createIndex(INDEX_NAME);
+        ensureYellow(INDEX_NAME);
+
+        assertEquals(getNodeContainingPrimaryShard().getName(), primary);
+
+        client().prepareIndex(INDEX_NAME).setId("1").setSource("foo", "bar").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        if (randomBoolean()) {
+            flush(INDEX_NAME);
+        } else {
+            refresh(INDEX_NAME);
+        }
+
+        internalCluster().restartNode(primary);
+        ensureYellow(INDEX_NAME);
+        assertDocCounts(1, primary);
     }
 }

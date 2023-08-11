@@ -32,7 +32,7 @@
 
 package org.opensearch.action.search;
 
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.ActionListenerResponseHandler;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.OriginalIndices;

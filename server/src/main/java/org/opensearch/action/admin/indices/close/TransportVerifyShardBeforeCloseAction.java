@@ -33,7 +33,7 @@ package org.opensearch.action.admin.indices.close;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.replication.ReplicationOperation;
@@ -52,7 +52,7 @@ import org.opensearch.common.lease.Releasable;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.indices.IndicesService;
-import org.opensearch.tasks.TaskId;
+import org.opensearch.core.tasks.TaskId;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 

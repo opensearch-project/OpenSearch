@@ -10,7 +10,7 @@ package org.opensearch.indices.replication;
 
 import org.apache.logging.log4j.Logger;
 import org.opensearch.OpenSearchException;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.StepListener;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;

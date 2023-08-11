@@ -10,7 +10,7 @@ package org.opensearch.action.search;
 
 import org.junit.Assert;
 import org.opensearch.Version;
-import org.opensearch.action.ActionFuture;
+import org.opensearch.common.action.ActionFuture;
 import org.opensearch.action.admin.cluster.state.ClusterStateRequest;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentResponse;

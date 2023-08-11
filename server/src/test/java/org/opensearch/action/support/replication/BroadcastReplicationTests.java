@@ -32,7 +32,7 @@
 package org.opensearch.action.support.replication;
 
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.NoShardAvailableActionException;
 import org.opensearch.action.UnavailableShardsException;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
