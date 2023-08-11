@@ -915,7 +915,8 @@ public class Node implements Closeable {
                 transportService,
                 clusterService,
                 environment.settings(),
-                client
+                client,
+                identityService
             );
             final PersistedStateRegistry persistedStateRegistry = new PersistedStateRegistry();
             final GatewayMetaState gatewayMetaState = new GatewayMetaState();
