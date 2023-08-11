@@ -97,7 +97,7 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
                     validateSegmentUploadStats(stats);
                     assertEquals(0, stats.directoryFileTransferTrackerStats.transferredBytesStarted);
                 } else {
-                    validateDownloadStats(stats);
+                    validateSegmentDownloadStats(stats);
                     assertEquals(0, stats.totalUploadsStarted);
                 }
             }
@@ -142,7 +142,7 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
                 validateSegmentUploadStats(segmentStats);
                 assertEquals(0, segmentStats.directoryFileTransferTrackerStats.transferredBytesStarted);
             } else {
-                validateDownloadStats(segmentStats);
+                validateSegmentDownloadStats(segmentStats);
                 assertEquals(0, segmentStats.totalUploadsStarted);
             }
         }
@@ -192,7 +192,7 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
                     validateSegmentUploadStats(stats);
                     assertEquals(0, stats.directoryFileTransferTrackerStats.transferredBytesStarted);
                 } else {
-                    validateDownloadStats(stats);
+                    validateSegmentDownloadStats(stats);
                     assertEquals(0, stats.totalUploadsStarted);
                 }
             }
@@ -584,7 +584,7 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
         assertTrue(stats.uploadTimeMovingAverage > 0);
     }
 
-    private void validateDownloadStats(RemoteSegmentTransferTracker.Stats stats) {
+    private void validateSegmentDownloadStats(RemoteSegmentTransferTracker.Stats stats) {
         assertTrue(stats.directoryFileTransferTrackerStats.lastTransferTimestampMs > 0);
         assertTrue(stats.directoryFileTransferTrackerStats.transferredBytesStarted > 0);
         assertTrue(stats.directoryFileTransferTrackerStats.transferredBytesSucceeded > 0);

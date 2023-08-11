@@ -49,41 +49,41 @@ public class RemoteStoreStatsTests extends OpenSearchTestCase {
     }
 
     public void testXContentBuilderWithPrimaryShard() throws IOException {
-        RemoteSegmentTransferTracker.Stats uploadStats = createStatsForNewPrimary(shardId);
+        RemoteSegmentTransferTracker.Stats segmentStats = createStatsForNewPrimary(shardId);
         ShardRouting routing = createShardRouting(shardId, true);
-        RemoteStoreStats stats = new RemoteStoreStats(uploadStats, routing);
+        RemoteStoreStats stats = new RemoteStoreStats(segmentStats, routing);
 
         XContentBuilder builder = XContentFactory.jsonBuilder();
         stats.toXContent(builder, EMPTY_PARAMS);
         Map<String, Object> jsonObject = XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();
-        compareStatsResponse(jsonObject, uploadStats, routing);
+        compareStatsResponse(jsonObject, segmentStats, routing);
     }
 
     public void testXContentBuilderWithReplicaShard() throws IOException {
-        RemoteSegmentTransferTracker.Stats downloadStats = createStatsForNewReplica(shardId);
+        RemoteSegmentTransferTracker.Stats segmentStats = createStatsForNewReplica(shardId);
         ShardRouting routing = createShardRouting(shardId, false);
-        RemoteStoreStats stats = new RemoteStoreStats(downloadStats, routing);
+        RemoteStoreStats stats = new RemoteStoreStats(segmentStats, routing);
 
         XContentBuilder builder = XContentFactory.jsonBuilder();
         stats.toXContent(builder, EMPTY_PARAMS);
         Map<String, Object> jsonObject = XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();
-        compareStatsResponse(jsonObject, downloadStats, routing);
+        compareStatsResponse(jsonObject, segmentStats, routing);
     }
 
     public void testXContentBuilderWithRemoteStoreRestoredShard() throws IOException {
-        RemoteSegmentTransferTracker.Stats remotestoreRestoredShardStats = createStatsForRemoteStoreRestoredPrimary(shardId);
+        RemoteSegmentTransferTracker.Stats segmentStats = createStatsForRemoteStoreRestoredPrimary(shardId);
         ShardRouting routing = createShardRouting(shardId, true);
-        RemoteStoreStats stats = new RemoteStoreStats(remotestoreRestoredShardStats, routing);
+        RemoteStoreStats stats = new RemoteStoreStats(segmentStats, routing);
 
         XContentBuilder builder = XContentFactory.jsonBuilder();
         stats.toXContent(builder, EMPTY_PARAMS);
         Map<String, Object> jsonObject = XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();
-        compareStatsResponse(jsonObject, remotestoreRestoredShardStats, routing);
+        compareStatsResponse(jsonObject, segmentStats, routing);
     }
 
     public void testSerializationForPrimaryShard() throws Exception {
-        RemoteSegmentTransferTracker.Stats primaryShardStats = createStatsForNewPrimary(shardId);
-        RemoteStoreStats stats = new RemoteStoreStats(primaryShardStats, createShardRouting(shardId, true));
+        RemoteSegmentTransferTracker.Stats segmentStats = createStatsForNewPrimary(shardId);
+        RemoteStoreStats stats = new RemoteStoreStats(segmentStats, createShardRouting(shardId, true));
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             stats.writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {

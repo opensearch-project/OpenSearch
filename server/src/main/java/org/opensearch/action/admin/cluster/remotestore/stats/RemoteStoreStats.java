@@ -24,7 +24,9 @@ import java.io.IOException;
  * @opensearch.internal
  */
 public class RemoteStoreStats implements Writeable, ToXContentFragment {
-
+    /**
+     * Stats related to Remote Segment Store operations
+     */
     private final RemoteSegmentTransferTracker.Stats remoteSegmentShardStats;
 
     private final ShardRouting shardRouting;
@@ -57,14 +59,14 @@ public class RemoteStoreStats implements Writeable, ToXContentFragment {
         if (remoteSegmentShardStats.directoryFileTransferTrackerStats.transferredBytesStarted != 0) {
             buildSegmentDownloadStats(builder);
         }
-        builder.endObject();
+        builder.endObject(); // segment.download
         builder.startObject(SubFields.UPLOAD);
         // Ensuring that we are not showing 0 metrics to the user
         if (remoteSegmentShardStats.totalUploadsStarted != 0) {
-            buildUploadStats(builder);
+            buildSegmentUploadStats(builder);
         }
-        builder.endObject();
-        builder.endObject();
+        builder.endObject(); // segment.upload
+        builder.endObject(); // segment
         return builder.endObject();
     }
 
@@ -74,7 +76,7 @@ public class RemoteStoreStats implements Writeable, ToXContentFragment {
         shardRouting.writeTo(out);
     }
 
-    private void buildUploadStats(XContentBuilder builder) throws IOException {
+    private void buildSegmentUploadStats(XContentBuilder builder) throws IOException {
         builder.field(UploadStatsFields.LOCAL_REFRESH_TIMESTAMP, remoteSegmentShardStats.localRefreshClockTimeMs)
             .field(UploadStatsFields.REMOTE_REFRESH_TIMESTAMP, remoteSegmentShardStats.remoteRefreshClockTimeMs)
             .field(UploadStatsFields.REFRESH_TIME_LAG_IN_MILLIS, remoteSegmentShardStats.refreshTimeLagMs)
