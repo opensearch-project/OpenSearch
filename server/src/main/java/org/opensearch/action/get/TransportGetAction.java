@@ -91,19 +91,33 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
         return true;
     }
 
+    /**
+     * Returns true if GET request should be routed to primary shards, else false.
+     */
+    protected boolean isPrimaryBasedRouting(ClusterState state, InternalRequest request) {
+        try {
+            if (state.getMetadata()
+                .index(request.concreteIndex())
+                .getSettings()
+                .get(IndexMetadata.SETTING_REPLICATION_TYPE)
+                .equals(ReplicationType.SEGMENT.toString())
+                && request.request().realtime()
+                && request.request().routing() == null
+                && request.request().preference() == null) {
+                return true;
+            }
+        } catch (NullPointerException e) {
+            return false;
+        }
+        return false;
+    }
+
     @Override
     protected ShardIterator shards(ClusterState state, InternalRequest request) {
         String preference = request.request().preference();
         // route realtime GET requests when segment replication is enabled to primary shards,
         // iff there are no other preferences/routings enabled for routing to a specific shard
-        if (state.getMetadata()
-            .index(request.concreteIndex())
-            .getSettings()
-            .get(IndexMetadata.SETTING_REPLICATION_TYPE)
-            .equals(ReplicationType.SEGMENT.toString())
-            && request.request().realtime()
-            && request.request().routing() == null
-            && request.request().preference() == null) {
+        if (isPrimaryBasedRouting(state, request)) {
             preference = Preference.PRIMARY.type();
         }
         return clusterService.operationRouting()
