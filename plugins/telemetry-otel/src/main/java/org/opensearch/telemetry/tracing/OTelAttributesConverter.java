@@ -20,14 +20,14 @@ final class OTelAttributesConverter {
     /**
      * Constructor.
      */
-    OTelAttributesConverter() {}
+    private OTelAttributesConverter() {}
 
     /**
      * Attribute converter.
      * @param attributes attributes
      * @return otel attributes.
      */
-    Attributes convert(org.opensearch.telemetry.tracing.attributes.Attributes attributes) {
+    static Attributes convert(org.opensearch.telemetry.tracing.attributes.Attributes attributes) {
         AttributesBuilder attributesBuilder = Attributes.builder();
         if (attributes != null) {
             attributes.getAttributesMap().forEach((x, y) -> addSpanAttribute(x, y, attributesBuilder));
@@ -35,7 +35,7 @@ final class OTelAttributesConverter {
         return attributesBuilder.build();
     }
 
-    private void addSpanAttribute(String key, Object value, AttributesBuilder attributesBuilder) {
+    private static void addSpanAttribute(String key, Object value, AttributesBuilder attributesBuilder) {
         if (value instanceof Boolean) {
             attributesBuilder.put(key, (Boolean) value);
         } else if (value instanceof Long) {

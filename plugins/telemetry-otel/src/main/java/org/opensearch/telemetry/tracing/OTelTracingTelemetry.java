@@ -23,8 +23,6 @@ import org.opensearch.telemetry.tracing.attributes.Attributes;
 public class OTelTracingTelemetry implements TracingTelemetry {
 
     private static final Logger logger = LogManager.getLogger(OTelTracingTelemetry.class);
-    private static final OTelAttributesConverter OTEL_ATTRIBUTES_CONVERTER = new OTelAttributesConverter();
-
     private final OpenTelemetry openTelemetry;
     private final io.opentelemetry.api.trace.Tracer otelTracer;
 
@@ -58,7 +56,7 @@ public class OTelTracingTelemetry implements TracingTelemetry {
     }
 
     private Span createOtelSpan(String spanName, Span parentSpan, Attributes attributes) {
-        io.opentelemetry.api.trace.Span otelSpan = otelSpan(spanName, parentSpan, OTEL_ATTRIBUTES_CONVERTER.convert(attributes));
+        io.opentelemetry.api.trace.Span otelSpan = otelSpan(spanName, parentSpan, OTelAttributesConverter.convert(attributes));
         return new OTelSpan(spanName, otelSpan, parentSpan);
     }
 
