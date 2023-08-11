@@ -282,9 +282,8 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
     }
 
     public void testScrollWithConcurrentIndexAndSearch() throws Exception {
-        assumeFalse("Skipping the test with Remote store as its flaky.", segmentReplicationWithRemoteEnabled());
-        final String primary = internalCluster().startNode();
-        final String replica = internalCluster().startNode();
+        final String primary = internalCluster().startDataOnlyNode();
+        final String replica = internalCluster().startDataOnlyNode();
         createIndex(INDEX_NAME);
         ensureGreen(INDEX_NAME);
         final List<ActionFuture<IndexResponse>> pendingIndexResponses = new ArrayList<>();
@@ -572,7 +571,6 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         assertDocCounts(docCount, primaryNode);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/5669")
     public void testStartReplicaAfterPrimaryIndexesDocs() throws Exception {
         final String primaryNode = internalCluster().startDataOnlyNode();
         createIndex(INDEX_NAME, Settings.builder().put(indexSettings()).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build());
@@ -658,7 +656,6 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
      * from xlog.
      */
     public void testReplicationPostDeleteAndForceMerge() throws Exception {
-        assumeFalse("Skipping the test with Remote store as its flaky.", segmentReplicationWithRemoteEnabled());
         final String primary = internalCluster().startDataOnlyNode();
         createIndex(INDEX_NAME);
         final String replica = internalCluster().startDataOnlyNode();
@@ -967,7 +964,6 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
      * @throws Exception when issue is encountered
      */
     public void testScrollCreatedOnReplica() throws Exception {
-        assumeFalse("Skipping the test with Remote store as its flaky.", segmentReplicationWithRemoteEnabled());
         // create the cluster with one primary node containing primary shard and replica node containing replica shard
         final String primary = internalCluster().startDataOnlyNode();
         createIndex(INDEX_NAME);
@@ -1060,8 +1056,9 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
      * @throws Exception when issue is encountered
      */
     public void testScrollWithOngoingSegmentReplication() throws Exception {
+        // this test stubs transport calls specific to node-node replication.
         assumeFalse(
-            "Skipping the test as its not compatible with segment replication with remote store yet.",
+            "Skipping the test as its not compatible with segment replication with remote store.",
             segmentReplicationWithRemoteEnabled()
         );
 
@@ -1189,10 +1186,6 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
     }
 
     public void testPitCreatedOnReplica() throws Exception {
-        assumeFalse(
-            "Skipping the test as it is flaky with remote store. Tracking issue https://github.com/opensearch-project/OpenSearch/issues/8850",
-            segmentReplicationWithRemoteEnabled()
-        );
         final String primary = internalCluster().startDataOnlyNode();
         createIndex(INDEX_NAME);
         ensureYellowAndNoInitializingShards(INDEX_NAME);
@@ -1425,5 +1418,24 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
             .setExplain(true)
             .get();
         assertNoFailures(response);
+    }
+
+    public void testRestartPrimary_NoReplicas() throws Exception {
+        final String primary = internalCluster().startDataOnlyNode();
+        createIndex(INDEX_NAME);
+        ensureYellow(INDEX_NAME);
+
+        assertEquals(getNodeContainingPrimaryShard().getName(), primary);
+
+        client().prepareIndex(INDEX_NAME).setId("1").setSource("foo", "bar").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        if (randomBoolean()) {
+            flush(INDEX_NAME);
+        } else {
+            refresh(INDEX_NAME);
+        }
+
+        internalCluster().restartNode(primary);
+        ensureYellow(INDEX_NAME);
+        assertDocCounts(1, primary);
     }
 }
