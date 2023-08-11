@@ -13,7 +13,7 @@ apply plugin: 'opensearch.build'
 apply plugin: 'opensearch.publish'
 
 base {
-  archivesName = 'opensearch-common'
+  archivesName = 'opensearch-compress'
 }
 
 dependencies {
