@@ -18,9 +18,14 @@ import java.util.Locale;
 public class OTelAttributesConverter {
 
     /**
+     * Constructor.
+     */
+    public OTelAttributesConverter() {}
+
+    /**
      * Attribute converter.
-     * @param attributes
-     * @return
+     * @param attributes attributes
+     * @return otel attributes.
      */
     public Attributes convert(org.opensearch.telemetry.tracing.attributes.Attributes attributes) {
         AttributesBuilder attributesBuilder = Attributes.builder();
