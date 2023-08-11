@@ -32,7 +32,7 @@
 
 package org.opensearch.transport;
 
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.network.CloseableChannel;
 import org.opensearch.common.unit.TimeValue;

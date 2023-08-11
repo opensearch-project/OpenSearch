@@ -115,8 +115,8 @@ public class PutIndexTemplateRequestTests extends AbstractXContentTestCase<PutIn
             request1 = new PutIndexTemplateRequest("foo");
             request2 = new PutIndexTemplateRequest("bar");
             String nakedMapping = "{\"properties\": {\"foo\": {\"type\": \"integer\"}}}";
-            request1.mapping(nakedMapping, XContentType.JSON);
-            request2.mapping(nakedMapping, XContentType.JSON);
+            request1.mapping(nakedMapping, MediaTypeRegistry.JSON);
+            request2.mapping(nakedMapping, MediaTypeRegistry.JSON);
             assertEquals(request1.mappings(), request2.mappings());
         }
         {

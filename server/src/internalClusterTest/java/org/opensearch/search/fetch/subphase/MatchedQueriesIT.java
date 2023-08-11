@@ -34,8 +34,8 @@ package org.opensearch.search.fetch.subphase;
 
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.XContentHelper;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.query.MatchQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
@@ -354,9 +354,9 @@ public class MatchedQueriesIT extends OpenSearchIntegTestCase {
         refresh();
 
         MatchQueryBuilder matchQueryBuilder = matchQuery("content", "amet").queryName("abc");
-        BytesReference matchBytes = XContentHelper.toXContent(matchQueryBuilder, XContentType.JSON, false);
+        BytesReference matchBytes = XContentHelper.toXContent(matchQueryBuilder, MediaTypeRegistry.JSON, false);
         TermQueryBuilder termQueryBuilder = termQuery("content", "amet").queryName("abc");
-        BytesReference termBytes = XContentHelper.toXContent(termQueryBuilder, XContentType.JSON, false);
+        BytesReference termBytes = XContentHelper.toXContent(termQueryBuilder, MediaTypeRegistry.JSON, false);
         QueryBuilder[] queries = new QueryBuilder[] { wrapperQuery(matchBytes), constantScoreQuery(wrapperQuery(termBytes)) };
         for (QueryBuilder query : queries) {
             SearchResponse searchResponse = client().prepareSearch().setQuery(query).get();

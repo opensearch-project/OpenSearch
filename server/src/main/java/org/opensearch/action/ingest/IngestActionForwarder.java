@@ -33,7 +33,7 @@
 package org.opensearch.action.ingest;
 
 import org.opensearch.action.ActionType;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.ActionListenerResponseHandler;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.cluster.ClusterChangedEvent;

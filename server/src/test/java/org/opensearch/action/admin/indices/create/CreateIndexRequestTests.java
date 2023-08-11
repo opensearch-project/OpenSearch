@@ -94,7 +94,7 @@ public class CreateIndexRequestTests extends OpenSearchTestCase {
         CreateIndexRequest request = new CreateIndexRequest();
         OpenSearchParseException e = expectThrows(
             OpenSearchParseException.class,
-            () -> { request.source(createIndex, XContentType.JSON); }
+            () -> { request.source(createIndex, MediaTypeRegistry.JSON); }
         );
         assertEquals("unknown key [FOO_SHOULD_BE_ILLEGAL_HERE] for create index", e.getMessage());
     }

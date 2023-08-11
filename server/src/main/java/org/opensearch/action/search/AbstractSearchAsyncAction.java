@@ -37,7 +37,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.NoShardAvailableActionException;
 import org.opensearch.core.action.ShardOperationFailedException;
 import org.opensearch.action.support.TransportActions;

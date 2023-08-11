@@ -19,8 +19,8 @@ import org.opensearch.cluster.metadata.Template;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.List;
@@ -90,7 +90,7 @@ public class DataStreamTestCase extends OpenSearchIntegTestCase {
     }
 
     public AcknowledgedResponse createIndexTemplate(String name, String jsonContent) throws Exception {
-        XContentParser parser = XContentHelper.createParser(xContentRegistry(), null, new BytesArray(jsonContent), XContentType.JSON);
+        XContentParser parser = XContentHelper.createParser(xContentRegistry(), null, new BytesArray(jsonContent), MediaTypeRegistry.JSON);
 
         return createIndexTemplate(name, ComposableIndexTemplate.parse(parser));
     }

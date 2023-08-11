@@ -35,7 +35,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
@@ -72,9 +72,9 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.concurrent.ListenableFuture;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.common.lease.Releasable;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.discovery.Discovery;
 import org.opensearch.discovery.DiscoveryModule;
 import org.opensearch.discovery.DiscoveryStats;
@@ -1320,20 +1320,24 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     // deserialized from the resulting JSON
     private boolean assertPreviousStateConsistency(ClusterChangedEvent event) {
         assert event.previousState() == coordinationState.get().getLastAcceptedState()
-            || XContentHelper.convertToMap(JsonXContent.jsonXContent, Strings.toString(XContentType.JSON, event.previousState()), false)
+            || XContentHelper.convertToMap(
+                JsonXContent.jsonXContent,
+                Strings.toString(MediaTypeRegistry.JSON, event.previousState()),
+                false
+            )
                 .equals(
                     XContentHelper.convertToMap(
                         JsonXContent.jsonXContent,
                         Strings.toString(
-                            XContentType.JSON,
+                            MediaTypeRegistry.JSON,
                             clusterStateWithNoClusterManagerBlock(coordinationState.get().getLastAcceptedState())
                         ),
                         false
                     )
-                ) : Strings.toString(XContentType.JSON, event.previousState())
+                ) : Strings.toString(MediaTypeRegistry.JSON, event.previousState())
                     + " vs "
                     + Strings.toString(
-                        XContentType.JSON,
+                        MediaTypeRegistry.JSON,
                         clusterStateWithNoClusterManagerBlock(coordinationState.get().getLastAcceptedState())
                     );
         return true;

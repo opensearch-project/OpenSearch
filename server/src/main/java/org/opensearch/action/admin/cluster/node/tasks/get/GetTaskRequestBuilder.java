@@ -35,7 +35,7 @@ package org.opensearch.action.admin.cluster.node.tasks.get;
 import org.opensearch.action.ActionRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.tasks.TaskId;
+import org.opensearch.core.tasks.TaskId;
 
 /**
  * Builder for the request to retrieve the list of tasks running on the specified nodes

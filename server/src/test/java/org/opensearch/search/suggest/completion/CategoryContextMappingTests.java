@@ -44,10 +44,10 @@ import org.apache.lucene.util.BytesRef;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParseException;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.index.mapper.CompletionFieldMapper.CompletionFieldType;
 import org.opensearch.index.mapper.DocumentMapper;
@@ -115,7 +115,7 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
                         .endArray()
                         .endObject()
                 ),
-                XContentType.JSON
+                MediaTypeRegistry.JSON
             )
         );
         IndexableField[] fields = parsedDocument.rootDoc().getFields(fieldMapper.name());
@@ -159,7 +159,7 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
                         .endArray()
                         .endObject()
                 ),
-                XContentType.JSON
+                MediaTypeRegistry.JSON
             )
         );
         IndexableField[] fields = parsedDocument.rootDoc().getFields(fieldMapper.name());
@@ -203,7 +203,7 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
                         .endArray()
                         .endObject()
                 ),
-                XContentType.JSON
+                MediaTypeRegistry.JSON
             )
         );
         IndexableField[] fields = parsedDocument.rootDoc().getFields(fieldMapper.name());
@@ -247,7 +247,7 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
                         .endArray()
                         .endObject()
                 ),
-                XContentType.JSON
+                MediaTypeRegistry.JSON
             )
         );
         IndexableField[] fields = parsedDocument.rootDoc().getFields(fieldMapper.name());
@@ -287,7 +287,7 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
 
         Exception e = expectThrows(
             MapperParsingException.class,
-            () -> defaultMapper.parse(new SourceToParse("test", "1", BytesReference.bytes(builder), XContentType.JSON))
+            () -> defaultMapper.parse(new SourceToParse("test", "1", BytesReference.bytes(builder), MediaTypeRegistry.JSON))
         );
         assertEquals(
             "contexts must be a string, number or boolean or a list of string, number or boolean, but was [VALUE_NULL]",
@@ -330,7 +330,7 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
                         .endObject()
                         .endObject()
                 ),
-                XContentType.JSON
+                MediaTypeRegistry.JSON
             )
         );
         IndexableField[] fields = parsedDocument.rootDoc().getFields(fieldMapper.name());
@@ -372,7 +372,7 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
                         .endObject()
                         .endObject()
                 ),
-                XContentType.JSON
+                MediaTypeRegistry.JSON
             )
         );
         IndexableField[] fields = parsedDocument.rootDoc().getFields(fieldMapper.name());
@@ -410,7 +410,7 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
 
         Exception e = expectThrows(
             MapperParsingException.class,
-            () -> defaultMapper.parse(new SourceToParse("test", "1", BytesReference.bytes(builder), XContentType.JSON))
+            () -> defaultMapper.parse(new SourceToParse("test", "1", BytesReference.bytes(builder), MediaTypeRegistry.JSON))
         );
         assertEquals("context array must have string, number or boolean values, but was [VALUE_NULL]", e.getCause().getMessage());
     }
@@ -452,7 +452,7 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
             .endArray()
             .endObject();
         ParsedDocument parsedDocument = defaultMapper.parse(
-            new SourceToParse("test", "1", BytesReference.bytes(builder), XContentType.JSON)
+            new SourceToParse("test", "1", BytesReference.bytes(builder), MediaTypeRegistry.JSON)
         );
         IndexableField[] fields = parsedDocument.rootDoc().getFields(fieldMapper.name());
         assertContextSuggestFields(fields, 3);

@@ -32,7 +32,7 @@
 
 package org.opensearch.search.slice;
 
-import org.opensearch.action.ActionFuture;
+import org.opensearch.common.action.ActionFuture;
 import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest;
 
 import org.opensearch.action.index.IndexRequestBuilder;

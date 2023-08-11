@@ -41,13 +41,12 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.InstantiatingObjectParser;
-import org.opensearch.common.xcontent.ObjectParserHelper;
+import org.opensearch.core.xcontent.ObjectParserHelper;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.XContentHelper;
 
 import java.io.IOException;
 import java.util.Map;
@@ -55,9 +54,10 @@ import java.util.Objects;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Objects.requireNonNull;
+import static org.opensearch.common.xcontent.XContentHelper.convertToMap;
+import static org.opensearch.common.xcontent.XContentHelper.writeRawField;
 import static org.opensearch.core.xcontent.ConstructingObjectParser.constructorArg;
 import static org.opensearch.core.xcontent.ConstructingObjectParser.optionalConstructorArg;
-import static org.opensearch.common.xcontent.XContentHelper.convertToMap;
 
 /**
  * Information about a running task or a task that stored its result. Running tasks just have a {@link #getTask()} while
@@ -182,10 +182,10 @@ public final class TaskResult implements Writeable, ToXContentObject {
         task.toXContent(builder, params);
         builder.endObject();
         if (error != null) {
-            XContentHelper.writeRawField("error", error, builder, params);
+            writeRawField("error", error, builder, params);
         }
         if (response != null) {
-            XContentHelper.writeRawField("response", response, builder, params);
+            writeRawField("response", response, builder, params);
         }
         return builder;
     }
@@ -208,7 +208,7 @@ public final class TaskResult implements Writeable, ToXContentObject {
 
     @Override
     public String toString() {
-        return Strings.toString(XContentType.JSON, this);
+        return Strings.toString(MediaTypeRegistry.JSON, this);
     }
 
     // Implements equals and hashcode for testing

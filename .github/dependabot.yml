@@ -7,6 +7,14 @@ updates:
     labels:
       - "dependabot"
       - "dependencies"
+  - directory: /
+    open-pull-requests-limit: 1
+    package-ecosystem: "github-actions"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /benchmarks/
     open-pull-requests-limit: 1
     package-ecosystem: gradle

@@ -6,14 +6,14 @@
  * compatible open source license.
  */
 
-package org.opensearch.tasks;
+package org.opensearch.core.tasks.resourcetracker;
 
 import org.opensearch.Version;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
@@ -22,8 +22,6 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-
-import static org.opensearch.tasks.Task.THREAD_INFO;
 
 /**
  * Resource information about a currently running task.
@@ -36,6 +34,8 @@ import static org.opensearch.tasks.Task.THREAD_INFO;
 public class TaskResourceStats implements Writeable, ToXContentFragment {
     private final Map<String, TaskResourceUsage> resourceUsage;
     private final TaskThreadUsage threadUsage;
+
+    public static final String THREAD_INFO = "thread_info";
 
     public TaskResourceStats(Map<String, TaskResourceUsage> resourceUsage, TaskThreadUsage threadUsage) {
         this.resourceUsage = Objects.requireNonNull(resourceUsage, "resource usage is required");
@@ -117,7 +117,7 @@ public class TaskResourceStats implements Writeable, ToXContentFragment {
 
     @Override
     public String toString() {
-        return Strings.toString(XContentType.JSON, this, true, true);
+        return Strings.toString(MediaTypeRegistry.JSON, this, true, true);
     }
 
     // Implements equals and hashcode for testing
