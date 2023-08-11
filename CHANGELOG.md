@@ -113,6 +113,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `com.squareup.okio:okio` from 2.8.0 to 3.5.0 ([#9252](https://github.com/opensearch-project/OpenSearch/pull/9252))
 - Bump `com.google.code.gson:gson` from 2.9.0 to 2.10.1 ([#9230](https://github.com/opensearch-project/OpenSearch/pull/9230))
 - Bump `lycheeverse/lychee-action` from 1.2.0 to 1.8.0 ([#9228](https://github.com/opensearch-project/OpenSearch/pull/9228))
+- Bump `snakeyaml` from 2.0 to 2.1 ([#9269](https://github.com/opensearch-project/OpenSearch/pull/9269))
 
 ### Changed
 - Perform aggregation postCollection in ContextIndexSearcher after searching leaves ([#8303](https://github.com/opensearch-project/OpenSearch/pull/8303))
