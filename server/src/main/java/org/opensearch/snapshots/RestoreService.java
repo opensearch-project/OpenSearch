@@ -986,7 +986,7 @@ public class RestoreService implements ClusterStateApplier {
         private final Snapshot snapshot;
         private final RestoreInfo restoreInfo;
 
-        private RestoreCompletionResponse(final String uuid, final Snapshot snapshot, final RestoreInfo restoreInfo) {
+        public RestoreCompletionResponse(final String uuid, final Snapshot snapshot, final RestoreInfo restoreInfo) {
             this.uuid = uuid;
             this.snapshot = snapshot;
             this.restoreInfo = restoreInfo;
