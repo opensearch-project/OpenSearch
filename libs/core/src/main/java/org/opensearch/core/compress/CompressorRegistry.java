@@ -14,6 +14,7 @@ import org.opensearch.core.compress.spi.CompressorProvider;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 
 import java.io.IOException;
+import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
 import java.util.Map;
 import java.util.Objects;
@@ -39,38 +40,12 @@ public final class CompressorRegistry {
     private CompressorRegistry() {}
 
     static {
-        ArrayList<Entry> compressors = new ArrayList<>();
+        ArrayList<SimpleEntry<String, Compressor>> compressors = new ArrayList<>();
         for (CompressorProvider provider : ServiceLoader.load(CompressorProvider.class, CompressorProvider.class.getClassLoader())) {
             compressors.addAll(provider.getCompressors());
         }
-        registeredCompressors = Map.copyOf(compressors.stream().collect(Collectors.toMap(Entry::getName, Entry::getCompressor)));
+        registeredCompressors = Map.copyOf(compressors.stream().collect(Collectors.toMap(SimpleEntry::getKey, SimpleEntry::getValue)));
         NONE = registeredCompressors.get(NoneCompressor.NAME);
-    }
-
-    /**
-     * An entry for registering a concrete {@link Compressor} identified by a unique String key
-     *
-     * @opensearch.api
-     * @opensearch.experimental
-     */
-    public static class Entry {
-        /** a unique key name to identify the compressor; this is typically the Compressor's Header as a string */
-        private String name;
-        /** the compressor to register */
-        private Compressor compressor;
-
-        public Entry(final String name, final Compressor compressor) {
-            this.name = name;
-            this.compressor = compressor;
-        }
-
-        public String getName() {
-            return this.name;
-        }
-
-        public Compressor getCompressor() {
-            return compressor;
-        }
     }
 
     /**

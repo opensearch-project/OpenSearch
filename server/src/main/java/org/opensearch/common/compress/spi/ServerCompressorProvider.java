@@ -10,9 +10,9 @@ package org.opensearch.common.compress.spi;
 
 import org.opensearch.common.compress.DeflateCompressor;
 import org.opensearch.core.compress.Compressor;
-import org.opensearch.core.compress.CompressorRegistry;
 import org.opensearch.core.compress.spi.CompressorProvider;
 
+import java.util.AbstractMap.SimpleEntry;
 import java.util.List;
 
 /**
@@ -27,8 +27,9 @@ import java.util.List;
 @Deprecated
 public class ServerCompressorProvider implements CompressorProvider {
     /** Returns the concrete {@link Compressor}s provided by the server module */
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     @Override
-    public List<CompressorRegistry.Entry> getCompressors() {
-        return List.of(new CompressorRegistry.Entry(DeflateCompressor.NAME, new DeflateCompressor()));
+    public List<SimpleEntry<String, Compressor>> getCompressors() {
+        return List.of(new SimpleEntry(DeflateCompressor.NAME, new DeflateCompressor()));
     }
 }

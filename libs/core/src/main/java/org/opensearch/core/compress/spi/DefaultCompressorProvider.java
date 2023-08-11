@@ -9,9 +9,9 @@
 package org.opensearch.core.compress.spi;
 
 import org.opensearch.core.compress.Compressor;
-import org.opensearch.core.compress.CompressorRegistry;
 import org.opensearch.core.compress.NoneCompressor;
 
+import java.util.AbstractMap.SimpleEntry;
 import java.util.List;
 
 /**
@@ -22,8 +22,9 @@ import java.util.List;
  */
 public class DefaultCompressorProvider implements CompressorProvider {
     /** Returns the default {@link Compressor}s provided by the core library */
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     @Override
-    public List<CompressorRegistry.Entry> getCompressors() {
-        return List.of(new CompressorRegistry.Entry(NoneCompressor.NAME, new NoneCompressor()));
+    public List<SimpleEntry<String, Compressor>> getCompressors() {
+        return List.of(new SimpleEntry(NoneCompressor.NAME, new NoneCompressor()));
     }
 }

@@ -19,7 +19,6 @@ import java.io.BufferedOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
 /**
@@ -40,7 +39,7 @@ public class ZstdCompressor implements Compressor {
      *
      * @opensearch.api - requires BWC support
      */
-    public static final String NAME = new String(HEADER, StandardCharsets.UTF_8);
+    public static final String NAME = "ZSTD";
 
     private static final int LEVEL = 3;
 
