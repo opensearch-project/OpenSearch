@@ -126,7 +126,7 @@ public class MultiGetRequestTests extends OpenSearchTestCase {
             MultiGetRequest expected = createTestInstance();
             XContentType xContentType = randomFrom(XContentType.values());
             BytesReference shuffled = toShuffledXContent(expected, xContentType, ToXContent.EMPTY_PARAMS, false);
-            try (XContentParser parser = createParser(XContentFactory.xContent(xContentType), shuffled)) {
+            try (XContentParser parser = createParser(xContentType.xContent(), shuffled)) {
                 MultiGetRequest actual = new MultiGetRequest();
                 actual.add(null, null, null, null, parser, true);
                 assertThat(parser.nextToken(), nullValue());

@@ -35,9 +35,9 @@ package org.opensearch.index.mapper;
 import org.opensearch.common.geo.GeometryFormat;
 import org.opensearch.common.geo.GeometryParser;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.xcontent.MapXContentParser;
 import org.opensearch.geometry.Geometry;
 
@@ -75,7 +75,7 @@ public class GeoShapeParser extends AbstractGeometryFieldMapper.Parser<Geometry>
                 NamedXContentRegistry.EMPTY,
                 LoggingDeprecationHandler.INSTANCE,
                 Collections.singletonMap("dummy_field", value),
-                XContentType.JSON
+                MediaTypeRegistry.JSON
             )
         ) {
             parser.nextToken(); // start object

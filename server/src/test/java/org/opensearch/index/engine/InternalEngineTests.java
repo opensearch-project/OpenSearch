@@ -85,7 +85,7 @@ import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.support.TransportActions;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -111,15 +111,15 @@ import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.lucene.uid.VersionsAndSeqNoResolver;
 import org.opensearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndSeqNo;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.util.concurrent.ReleasableLock;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.codec.CodecService;
@@ -151,7 +151,7 @@ import org.opensearch.index.translog.TranslogConfig;
 import org.opensearch.index.translog.TranslogDeletionPolicyFactory;
 import org.opensearch.index.translog.TranslogException;
 import org.opensearch.index.translog.listener.TranslogEventListener;
-import org.opensearch.indices.breaker.NoneCircuitBreakerService;
+import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.VersionUtils;
 import org.opensearch.threadpool.ThreadPool;
@@ -2541,6 +2541,7 @@ public class InternalEngineTests extends EngineTestCase {
         final Term uidTerm = newUid(doc);
         engine.index(indexForDoc(doc));
         final BiFunction<String, Engine.SearcherScope, Engine.Searcher> searcherFactory = engine::acquireSearcher;
+
         for (int i = 0; i < thread.length; i++) {
             thread[i] = new Thread(() -> {
                 startGun.countDown();
@@ -2549,10 +2550,12 @@ public class InternalEngineTests extends EngineTestCase {
                 } catch (InterruptedException e) {
                     throw new AssertionError(e);
                 }
+
                 for (int op = 0; op < opsPerThread; op++) {
                     try (Engine.GetResult get = engine.get(new Engine.Get(true, false, doc.id(), uidTerm), searcherFactory)) {
+
                         FieldsVisitor visitor = new FieldsVisitor(true);
-                        get.docIdAndVersion().reader.document(get.docIdAndVersion().docId, visitor);
+                        get.docIdAndVersion().reader.storedFields().document(get.docIdAndVersion().docId, visitor);
                         List<String> values = new ArrayList<>(Strings.commaDelimitedListToSet(visitor.source().utf8ToString()));
                         String removed = op % 3 == 0 && values.size() > 0 ? values.remove(0) : null;
                         String added = "v_" + idGenerator.incrementAndGet();
@@ -2608,7 +2611,7 @@ public class InternalEngineTests extends EngineTestCase {
 
         try (Engine.GetResult get = engine.get(new Engine.Get(true, false, doc.id(), uidTerm), searcherFactory)) {
             FieldsVisitor visitor = new FieldsVisitor(true);
-            get.docIdAndVersion().reader.document(get.docIdAndVersion().docId, visitor);
+            get.docIdAndVersion().reader.storedFields().document(get.docIdAndVersion().docId, visitor);
             List<String> values = Arrays.asList(Strings.commaDelimitedListToStringArray(visitor.source().utf8ToString()));
             assertThat(currentValues, equalTo(new HashSet<>(values)));
         }
@@ -5709,7 +5712,7 @@ public class InternalEngineTests extends EngineTestCase {
                 "routing",
                 Collections.singletonList(document),
                 source,
-                XContentType.JSON,
+                MediaTypeRegistry.JSON,
                 null
             );
 

@@ -32,7 +32,7 @@
 
 package org.opensearch.discovery;
 
-import org.opensearch.common.transport.TransportAddress;
+import org.opensearch.core.common.transport.TransportAddress;
 
 import java.util.List;
 

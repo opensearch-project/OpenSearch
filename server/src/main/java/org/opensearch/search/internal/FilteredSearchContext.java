@@ -546,8 +546,8 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public InternalAggregation.ReduceContext partial() {
-        return in.partial();
+    public InternalAggregation.ReduceContext partialOnShard() {
+        return in.partialOnShard();
     }
 
     @Override
@@ -558,5 +558,15 @@ public abstract class FilteredSearchContext extends SearchContext {
     @Override
     public BucketCollectorProcessor bucketCollectorProcessor() {
         return in.bucketCollectorProcessor();
+    }
+
+    @Override
+    public boolean isConcurrentSegmentSearchEnabled() {
+        return in.isConcurrentSegmentSearchEnabled();
+    }
+
+    @Override
+    public int getTargetMaxSliceCount() {
+        return in.getTargetMaxSliceCount();
     }
 }

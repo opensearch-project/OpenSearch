@@ -32,7 +32,7 @@
 
 package org.opensearch.action.search;
 
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
@@ -57,7 +57,7 @@ import org.opensearch.cluster.routing.OperationRouting;
 import org.opensearch.cluster.routing.ShardIterator;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.breaker.CircuitBreaker;
+import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -70,7 +70,7 @@ import org.opensearch.core.common.Strings;
 import org.opensearch.core.index.Index;
 import org.opensearch.index.query.Rewriteable;
 import org.opensearch.core.index.shard.ShardId;
-import org.opensearch.indices.breaker.CircuitBreakerService;
+import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.SearchService;
 import org.opensearch.search.SearchShardTarget;
@@ -86,7 +86,7 @@ import org.opensearch.search.profile.ProfileShardResult;
 import org.opensearch.search.profile.SearchProfileShardResults;
 import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.Task;
-import org.opensearch.tasks.TaskId;
+import org.opensearch.core.tasks.TaskId;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.RemoteClusterAware;
 import org.opensearch.transport.RemoteClusterService;

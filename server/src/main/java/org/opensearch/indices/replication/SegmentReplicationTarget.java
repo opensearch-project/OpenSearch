@@ -12,14 +12,11 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
+import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.apache.lucene.store.BufferedChecksumIndexInput;
-import org.apache.lucene.store.ByteBuffersDataInput;
-import org.apache.lucene.store.ByteBuffersIndexInput;
-import org.apache.lucene.store.ChecksumIndexInput;
 import org.opensearch.OpenSearchCorruptionException;
 import org.opensearch.OpenSearchException;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.StepListener;
 import org.opensearch.common.UUIDs;
 import org.opensearch.core.common.bytes.BytesReference;
@@ -36,8 +33,6 @@ import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
 import org.opensearch.indices.replication.common.ReplicationTarget;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 
@@ -55,13 +50,14 @@ public class SegmentReplicationTarget extends ReplicationTarget {
 
     public final static String REPLICATION_PREFIX = "replication.";
 
-    public ReplicationCheckpoint getCheckpoint() {
-        return this.checkpoint;
-    }
-
-    public SegmentReplicationTarget(IndexShard indexShard, SegmentReplicationSource source, ReplicationListener listener) {
+    public SegmentReplicationTarget(
+        IndexShard indexShard,
+        ReplicationCheckpoint checkpoint,
+        SegmentReplicationSource source,
+        ReplicationListener listener
+    ) {
         super("replication_target", indexShard, new ReplicationLuceneIndex(), listener);
-        this.checkpoint = indexShard.getLatestReplicationCheckpoint();
+        this.checkpoint = checkpoint;
         this.source = source;
         this.state = new SegmentReplicationState(
             indexShard.routingEntry(),
@@ -98,12 +94,19 @@ public class SegmentReplicationTarget extends ReplicationTarget {
     }
 
     public SegmentReplicationTarget retryCopy() {
-        return new SegmentReplicationTarget(indexShard, source, listener);
+        return new SegmentReplicationTarget(indexShard, checkpoint, source, listener);
     }
 
     @Override
     public String description() {
-        return String.format(Locale.ROOT, "Id:[%d] Shard:[%s] Source:[%s]", getId(), shardId(), source.getDescription());
+        return String.format(
+            Locale.ROOT,
+            "Id:[%d] Checkpoint [%s] Shard:[%s] Source:[%s]",
+            getId(),
+            getCheckpoint(),
+            shardId(),
+            source.getDescription()
+        );
     }
 
     @Override
@@ -115,6 +118,10 @@ public class SegmentReplicationTarget extends ReplicationTarget {
     public boolean reset(CancellableThreads newTargetCancellableThreads) throws IOException {
         // TODO
         return false;
+    }
+
+    public ReplicationCheckpoint getCheckpoint() {
+        return this.checkpoint;
     }
 
     @Override
@@ -194,23 +201,22 @@ public class SegmentReplicationTarget extends ReplicationTarget {
     }
 
     private void finalizeReplication(CheckpointInfoResponse checkpointInfoResponse) throws OpenSearchCorruptionException {
-        // TODO: Refactor the logic so that finalize doesn't have to be invoked for remote store as source
-        if (source instanceof RemoteStoreReplicationSource) {
-            state.setStage(SegmentReplicationState.Stage.FINALIZE_REPLICATION);
-            return;
-        }
         cancellableThreads.checkForCancel();
         state.setStage(SegmentReplicationState.Stage.FINALIZE_REPLICATION);
+        // Handle empty SegmentInfos bytes for recovering replicas
+        if (checkpointInfoResponse.getInfosBytes() == null) {
+            return;
+        }
         Store store = null;
         try {
             store = store();
             store.incRef();
-            store.buildInfosFromBytes(
-                multiFileWriter.getTempFileNames(),
+            multiFileWriter.renameAllTempFiles();
+            final SegmentInfos infos = store.buildSegmentInfos(
                 checkpointInfoResponse.getInfosBytes(),
-                checkpointInfoResponse.getCheckpoint().getSegmentsGen(),
-                indexShard::finalizeReplication
+                checkpointInfoResponse.getCheckpoint().getSegmentsGen()
             );
+            indexShard.finalizeReplication(infos);
         } catch (CorruptIndexException | IndexFormatTooNewException | IndexFormatTooOldException ex) {
             // this is a fatal exception at this stage.
             // this means we transferred files from the remote that have not be checksummed and they are
@@ -245,16 +251,6 @@ public class SegmentReplicationTarget extends ReplicationTarget {
                 store.decRef();
             }
         }
-    }
-
-    /**
-     * This method formats our byte[] containing the primary's SegmentInfos into lucene's {@link ChecksumIndexInput} that can be
-     * passed to SegmentInfos.readCommit
-     */
-    private ChecksumIndexInput toIndexInput(byte[] input) {
-        return new BufferedChecksumIndexInput(
-            new ByteBuffersIndexInput(new ByteBuffersDataInput(Arrays.asList(ByteBuffer.wrap(input))), "SegmentInfos")
-        );
     }
 
     /**

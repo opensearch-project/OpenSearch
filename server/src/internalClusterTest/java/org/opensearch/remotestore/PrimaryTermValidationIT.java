@@ -21,7 +21,7 @@ import org.opensearch.cluster.health.ClusterIndexHealth;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.shard.ShardNotFoundException;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -61,6 +61,7 @@ public class PrimaryTermValidationIT extends RemoteStoreBaseIntegTestCase {
             .put(FollowersChecker.FOLLOWER_CHECK_TIMEOUT_SETTING.getKey(), "1s")
             .put(FollowersChecker.FOLLOWER_CHECK_INTERVAL_SETTING.getKey(), "1s")
             .put(FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING.getKey(), 1)
+            .put(remoteStoreClusterSettings(REPOSITORY_NAME, REPOSITORY_2_NAME, true))
             .build();
         internalCluster().startClusterManagerOnlyNode(clusterSettings);
 
@@ -69,10 +70,12 @@ public class PrimaryTermValidationIT extends RemoteStoreBaseIntegTestCase {
         assertAcked(
             clusterAdmin().preparePutRepository(REPOSITORY_NAME).setType("fs").setSettings(Settings.builder().put("location", absolutePath))
         );
+        absolutePath2 = randomRepoPath().toAbsolutePath();
+        putRepository(absolutePath2, REPOSITORY_2_NAME);
 
         // Start data nodes and create index
         internalCluster().startDataOnlyNodes(2, clusterSettings);
-        createIndex(INDEX_NAME, remoteTranslogIndexSettings(1));
+        createIndex(INDEX_NAME, remoteStoreIndexSettings(1));
         ensureYellowAndNoInitializingShards(INDEX_NAME);
         ensureGreen(INDEX_NAME);
 
@@ -160,7 +163,7 @@ public class PrimaryTermValidationIT extends RemoteStoreBaseIntegTestCase {
     private IndexResponse indexSameDoc(String nodeName, String indexName) {
         return client(nodeName).prepareIndex(indexName)
             .setId(UUIDs.randomBase64UUID())
-            .setSource("{\"foo\" : \"bar\"}", XContentType.JSON)
+            .setSource("{\"foo\" : \"bar\"}", MediaTypeRegistry.JSON)
             .get();
     }
 }

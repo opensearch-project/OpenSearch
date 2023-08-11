@@ -36,8 +36,8 @@ import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.master.AcknowledgedRequestBuilder;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.client.OpenSearchClient;
+import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.index.Index;
 
 import java.util.Map;
@@ -95,8 +95,8 @@ public class PutMappingRequestBuilder extends AcknowledgedRequestBuilder<
     /**
      * The mapping source definition.
      */
-    public PutMappingRequestBuilder setSource(String mappingSource, XContentType xContentType) {
-        request.source(mappingSource, xContentType);
+    public PutMappingRequestBuilder setSource(String mappingSource, MediaType mediaType) {
+        request.source(mappingSource, mediaType);
         return this;
     }
 

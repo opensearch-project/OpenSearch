@@ -47,7 +47,7 @@ import org.apache.lucene.store.RateLimiter;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.StepListener;
 import org.opensearch.action.support.GroupedActionListener;
@@ -67,7 +67,6 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Numbers;
 import org.opensearch.common.SetOnce;
-import org.opensearch.common.Strings;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
@@ -75,11 +74,12 @@ import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.blobstore.DeleteResult;
 import org.opensearch.common.blobstore.fs.FsBlobContainer;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
-import org.opensearch.common.component.AbstractLifecycleComponent;
-import org.opensearch.common.compress.Compressor;
+import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
+import org.opensearch.core.common.compress.Compressor;
 import org.opensearch.common.compress.CompressorFactory;
 import org.opensearch.common.compress.CompressorType;
 import org.opensearch.core.common.compress.NotXContentException;
@@ -89,16 +89,16 @@ import org.opensearch.common.lucene.store.InputStreamIndexInput;
 import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.unit.ByteSizeUnit;
-import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.core.util.BytesRefUtils;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.mapper.MapperService;
@@ -113,11 +113,12 @@ import org.opensearch.index.snapshots.blobstore.IndexShardSnapshot;
 import org.opensearch.index.snapshots.blobstore.RateLimitingInputStream;
 import org.opensearch.index.snapshots.blobstore.SlicedInputStream;
 import org.opensearch.index.snapshots.blobstore.SnapshotFiles;
+import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.index.store.lockmanager.FileLockInfo;
+import org.opensearch.index.store.lockmanager.RemoteStoreLockManager;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManagerFactory;
-import org.opensearch.index.store.lockmanager.RemoteStoreMetadataLockManager;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.repositories.IndexId;
@@ -616,7 +617,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             RemoteStoreShardShallowCopySnapshot remStoreBasedShardMetadata = (RemoteStoreShardShallowCopySnapshot) indexShardSnapshot;
             String indexUUID = remStoreBasedShardMetadata.getIndexUUID();
             String remoteStoreRepository = remStoreBasedShardMetadata.getRemoteStoreRepository();
-            RemoteStoreMetadataLockManager remoteStoreMetadataLockManger = remoteStoreLockManagerFactory.newLockManager(
+            RemoteStoreLockManager remoteStoreMetadataLockManger = remoteStoreLockManagerFactory.newLockManager(
                 remoteStoreRepository,
                 indexUUID,
                 String.valueOf(shardId.shardId())
@@ -1072,11 +1073,24 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                 // Releasing lock file before deleting the shallow-snap-UUID file because in case of any failure while
                                 // releasing the lock file, we would still have the shallow-snap-UUID file and that would be used during
                                 // next delete operation for releasing this lock file
-                                RemoteStoreMetadataLockManager remoteStoreMetadataLockManager = remoteStoreLockManagerFactory
-                                    .newLockManager(remoteStoreRepoForIndex, indexUUID, shardId);
+                                RemoteStoreLockManager remoteStoreMetadataLockManager = remoteStoreLockManagerFactory.newLockManager(
+                                    remoteStoreRepoForIndex,
+                                    indexUUID,
+                                    shardId
+                                );
                                 remoteStoreMetadataLockManager.release(
                                     FileLockInfo.getLockInfoBuilder().withAcquirerId(snapshotUUID).build()
                                 );
+                                if (!isIndexPresent(clusterService, indexUUID)) {
+                                    // this is a temporary solution where snapshot deletion triggers remote store side
+                                    // cleanup if index is already deleted. We will add a poller in future to take
+                                    // care of remote store side cleanup.
+                                    // see https://github.com/opensearch-project/OpenSearch/issues/8469
+                                    new RemoteSegmentStoreDirectoryFactory(
+                                        remoteStoreLockManagerFactory.getRepositoriesService(),
+                                        threadPool
+                                    ).newDirectory(remoteStoreRepoForIndex, indexUUID, shardId).close();
+                                }
                             }
                         }
                     }
@@ -1487,6 +1501,15 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
     }
 
+    private static boolean isIndexPresent(ClusterService clusterService, String indexUUID) {
+        for (final IndexMetadata indexMetadata : clusterService.state().metadata().getIndices().values()) {
+            if (indexUUID.equals(indexMetadata.getIndexUUID())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private void executeOneStaleIndexDelete(
         BlockingQueue<Map.Entry<String, BlobContainer>> staleIndicesToDelete,
         RemoteStoreLockManagerFactory remoteStoreLockManagerFactory,
@@ -1519,11 +1542,21 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                         // Releasing lock files before deleting the shallow-snap-UUID file because in case of any failure
                                         // while releasing the lock file, we would still have the corresponding shallow-snap-UUID file
                                         // and that would be used during next delete operation for releasing this stale lock file
-                                        RemoteStoreMetadataLockManager remoteStoreMetadataLockManager = remoteStoreLockManagerFactory
+                                        RemoteStoreLockManager remoteStoreMetadataLockManager = remoteStoreLockManagerFactory
                                             .newLockManager(remoteStoreRepoForIndex, indexUUID, shardBlob.getKey());
                                         remoteStoreMetadataLockManager.release(
                                             FileLockInfo.getLockInfoBuilder().withAcquirerId(snapshotUUID).build()
                                         );
+                                        if (!isIndexPresent(clusterService, indexUUID)) {
+                                            // this is a temporary solution where snapshot deletion triggers remote store side
+                                            // cleanup if index is already deleted. We will add a poller in future to take
+                                            // care of remote store side cleanup.
+                                            // see https://github.com/opensearch-project/OpenSearch/issues/8469
+                                            new RemoteSegmentStoreDirectoryFactory(
+                                                remoteStoreLockManagerFactory.getRepositoriesService(),
+                                                threadPool
+                                            ).newDirectory(remoteStoreRepoForIndex, indexUUID, shardBlob.getKey()).close();
+                                        }
                                     }
                                 }
                             }
@@ -1954,7 +1987,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     private RepositoryData repositoryDataFromCachedEntry(Tuple<Long, BytesReference> cacheEntry) throws IOException {
         try (InputStream input = CompressorFactory.defaultCompressor().threadLocalInputStream(cacheEntry.v2().streamInput())) {
             return RepositoryData.snapshotsFromXContent(
-                XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, input),
+                MediaTypeRegistry.JSON.xContent().createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, input),
                 cacheEntry.v1()
             );
         }
@@ -2047,7 +2080,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             // EMPTY is safe here because RepositoryData#fromXContent calls namedObject
             try (
                 InputStream blob = blobContainer().readBlob(snapshotsIndexBlobName);
-                XContentParser parser = XContentType.JSON.xContent()
+                XContentParser parser = MediaTypeRegistry.JSON.xContent()
                     .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, blob)
             ) {
                 return RepositoryData.snapshotsFromXContent(parser, indexGen);

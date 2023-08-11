@@ -42,6 +42,7 @@ import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.text.Text;
 import org.opensearch.common.util.BigArrays;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentParser;
@@ -190,7 +191,7 @@ public class SearchAfterBuilderTests extends OpenSearchTestCase {
     public void testFromXContent() throws Exception {
         for (int runs = 0; runs < 20; runs++) {
             SearchAfterBuilder searchAfterBuilder = randomJsonSearchFromBuilder();
-            XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
+            XContentBuilder builder = MediaTypeRegistry.contentBuilder(randomFrom(XContentType.values()));
             if (randomBoolean()) {
                 builder.prettyPrint();
             }
@@ -213,10 +214,10 @@ public class SearchAfterBuilderTests extends OpenSearchTestCase {
         for (XContentType type : XContentType.values()) {
             // BIG_DECIMAL
             // ignore json and yaml, they parse floating point numbers as floats/doubles
-            if (type == XContentType.JSON || type == XContentType.YAML) {
+            if (type == MediaTypeRegistry.JSON || type == XContentType.YAML) {
                 continue;
             }
-            XContentBuilder xContent = XContentFactory.contentBuilder(type);
+            XContentBuilder xContent = MediaTypeRegistry.contentBuilder(type);
             xContent.startObject().startArray("search_after").value(new BigDecimal("9223372036854776003.3")).endArray().endObject();
             try (XContentParser parser = createParser(xContent)) {
                 parser.nextToken();

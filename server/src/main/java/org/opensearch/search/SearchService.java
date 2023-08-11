@@ -37,7 +37,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.TopDocs;
 import org.opensearch.OpenSearchException;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.search.DeletePitInfo;
@@ -53,8 +53,8 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.CheckedSupplier;
 import org.opensearch.common.UUIDs;
-import org.opensearch.common.breaker.CircuitBreaker;
-import org.opensearch.common.component.AbstractLifecycleComponent;
+import org.opensearch.core.common.breaker.CircuitBreaker;
+import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.common.lucene.Lucene;
@@ -63,7 +63,7 @@ import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
-import org.opensearch.common.util.CollectionUtils;
+import org.opensearch.core.common.util.CollectionUtils;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.util.concurrent.ConcurrentMapLong;
 import org.opensearch.common.util.io.IOUtils;
@@ -87,7 +87,7 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.SearchOperationListener;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.indices.IndicesService;
-import org.opensearch.indices.breaker.CircuitBreakerService;
+import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
 import org.opensearch.node.ResponseCollectorService;
 import org.opensearch.script.FieldScript;
@@ -250,6 +250,20 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     public static final Setting<Boolean> CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING = Setting.boolSetting(
         "search.concurrent_segment_search.enabled",
         true,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
+    // settings to configure maximum slice created per search request using OS custom slice computation mechanism. Default lucene
+    // mechanism will not be used if this setting is set with value > 0
+    public static final String CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_KEY = "search.concurrent.max_slice_count";
+    public static final int CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_DEFAULT_VALUE = 0;
+
+    // value == 0 means lucene slice computation will be used
+    public static final Setting<Integer> CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING = Setting.intSetting(
+        CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_KEY,
+        CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_DEFAULT_VALUE,
+        CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_DEFAULT_VALUE,
         Property.Dynamic,
         Property.NodeScope
     );
@@ -1270,7 +1284,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             context.minimumScore(source.minScore());
         }
         if (source.profile()) {
-            context.setProfilers(new Profilers(context.searcher()));
+            context.setProfilers(new Profilers(context.searcher(), context.isConcurrentSegmentSearchEnabled()));
         }
         if (source.timeout() != null) {
             context.timeout(source.timeout());

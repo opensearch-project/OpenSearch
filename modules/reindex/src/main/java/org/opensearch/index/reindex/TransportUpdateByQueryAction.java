@@ -33,7 +33,7 @@
 package org.opensearch.index.reindex;
 
 import org.apache.logging.log4j.Logger;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
@@ -138,7 +138,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
             IndexRequest index = new IndexRequest();
             index.index(doc.getIndex());
             index.id(doc.getId());
-            index.source(doc.getSource(), doc.getXContentType());
+            index.source(doc.getSource(), doc.getMediaType());
             index.setIfSeqNo(doc.getSeqNo());
             index.setIfPrimaryTerm(doc.getPrimaryTerm());
             index.setPipeline(mainRequest.getPipeline());

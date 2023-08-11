@@ -32,12 +32,18 @@
 
 package org.opensearch.core.xcontent;
 
+import org.opensearch.core.common.io.stream.Writeable;
+
+import java.io.IOException;
+import java.io.OutputStream;
+import java.util.Locale;
+
 /**
  * Abstracts a <a href="http://en.wikipedia.org/wiki/Internet_media_type">Media Type</a> and a format parameter.
  * Media types are used as values on Content-Type and Accept headers
  * format is an URL parameter, specifies response media type.
  */
-public interface MediaType {
+public interface MediaType extends Writeable {
     /**
      * Returns a type part of a MediaType
      * i.e. application for application/json
@@ -65,9 +71,54 @@ public interface MediaType {
 
     XContent xContent();
 
+    boolean detectedXContent(final byte[] bytes, int offset, int length);
+
+    boolean detectedXContent(final CharSequence content, final int length);
+
     default String mediaType() {
         return mediaTypeWithoutParameters();
     }
 
     String mediaTypeWithoutParameters();
+
+    XContentBuilder contentBuilder() throws IOException;
+
+    XContentBuilder contentBuilder(final OutputStream os) throws IOException;
+
+    /**
+     * Accepts a format string, which is most of the time is equivalent to {@link MediaType#subtype()}
+     * and attempts to match the value to an {@link MediaType}.
+     * The comparisons are done in lower case format.
+     * This method will return {@code null} if no match is found
+     */
+    static MediaType fromFormat(String mediaType) {
+        return MediaTypeRegistry.fromFormat(mediaType);
+    }
+
+    /**
+     * Attempts to match the given media type with the known {@link MediaType} values. This match is done in a case-insensitive manner.
+     * The provided media type can optionally has parameters.
+     * This method is suitable for parsing of the {@code Content-Type} and {@code Accept} HTTP headers.
+     * This method will return {@code null} if no match is found
+     */
+    static MediaType fromMediaType(String mediaTypeHeaderValue) {
+        mediaTypeHeaderValue = removeVersionInMediaType(mediaTypeHeaderValue);
+        return MediaTypeRegistry.fromMediaType(mediaTypeHeaderValue);
+    }
+
+    /**
+     * Clients compatible with ES 7.x might start sending media types with versioned media type
+     * in a form of application/vnd.elasticsearch+json;compatible-with=7.
+     * This has to be removed in order to be used in 7.x server.
+     * The same client connecting using that media type will be able to communicate with ES 8 thanks to compatible API.
+     * @param mediaType - a media type used on Content-Type header, might contain versioned media type.
+     *
+     * @return a media type string without
+     */
+    private static String removeVersionInMediaType(String mediaType) {
+        if (mediaType != null && (mediaType = mediaType.toLowerCase(Locale.ROOT)).contains("vnd.opensearch")) {
+            return mediaType.replaceAll("vnd.opensearch\\+", "").replaceAll("\\s*;\\s*compatible-with=\\d+", "");
+        }
+        return mediaType;
+    }
 }

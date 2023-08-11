@@ -34,7 +34,7 @@ package org.opensearch.action.search;
 
 import org.apache.lucene.search.TotalHits;
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.OriginalIndicesTests;
@@ -54,7 +54,7 @@ import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.transport.TransportAddress;
+import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.index.Index;
 import org.opensearch.index.query.InnerHitBuilder;

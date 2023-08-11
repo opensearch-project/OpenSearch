@@ -34,7 +34,7 @@ package org.opensearch.action.support.tasks;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.ResourceNotFoundException;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.NoSuchNodeException;
 import org.opensearch.action.TaskOperationFailure;
@@ -57,7 +57,7 @@ import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportRequestHandler;
 import org.opensearch.transport.TransportRequestOptions;
-import org.opensearch.transport.TransportResponse;
+import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
 

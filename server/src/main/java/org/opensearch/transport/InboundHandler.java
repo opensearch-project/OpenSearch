@@ -41,10 +41,11 @@ import org.opensearch.core.common.io.stream.ByteBufferStreamInput;
 import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.common.transport.TransportAddress;
+import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.EOFException;

@@ -12,7 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.RateLimiter;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.support.ChannelActionListener;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.Nullable;
@@ -28,7 +28,7 @@ import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.recovery.FileChunkRequest;
 import org.opensearch.indices.recovery.RecoveryTransportRequest;
 import org.opensearch.transport.TransportChannel;
-import org.opensearch.transport.TransportResponse;
+import org.opensearch.core.transport.TransportResponse;
 
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;

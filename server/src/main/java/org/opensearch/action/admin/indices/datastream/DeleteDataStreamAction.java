@@ -33,7 +33,7 @@ package org.opensearch.action.admin.indices.datastream;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.IndicesRequest;
@@ -59,7 +59,7 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.CollectionUtils;
+import org.opensearch.core.common.util.CollectionUtils;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.index.Index;
 import org.opensearch.snapshots.SnapshotInProgressException;

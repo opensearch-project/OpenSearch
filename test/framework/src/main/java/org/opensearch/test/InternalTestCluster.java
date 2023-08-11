@@ -31,8 +31,6 @@
 
 package org.opensearch.test;
 
-import com.carrotsearch.hppc.ObjectLongMap;
-import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.SeedUtils;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
@@ -60,7 +58,6 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.IndexRoutingTable;
-import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.OperationRouting;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.allocation.DiskThresholdSettings;
@@ -68,15 +65,15 @@ import org.opensearch.cluster.routing.allocation.decider.ThrottlingAllocationDec
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Randomness;
-import org.opensearch.common.breaker.CircuitBreaker;
-import org.opensearch.common.component.LifecycleListener;
+import org.opensearch.core.common.breaker.CircuitBreaker;
+import org.opensearch.common.lifecycle.LifecycleListener;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.SecureSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.Settings.Builder;
-import org.opensearch.common.unit.ByteSizeUnit;
-import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
@@ -104,7 +101,7 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.indices.IndicesService;
-import org.opensearch.indices.breaker.CircuitBreakerService;
+import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.opensearch.indices.recovery.RecoverySettings;
@@ -1492,14 +1489,14 @@ public final class InternalTestCluster extends TestCluster {
         assertBusy(() -> {
             final ClusterState state = clusterService().state();
             for (final IndexRoutingTable indexRoutingTable : state.routingTable().indicesRouting().values()) {
-                for (IntObjectCursor<IndexShardRoutingTable> indexShardRoutingTable : indexRoutingTable.shards()) {
-                    ShardRouting primaryShardRouting = indexShardRoutingTable.value.primaryShard();
+                for (var indexShardRoutingTable : indexRoutingTable.shards().values()) {
+                    ShardRouting primaryShardRouting = indexShardRoutingTable.primaryShard();
                     final IndexShard primaryShard = getShardOrNull(state, primaryShardRouting);
                     if (primaryShard == null) {
                         continue; // just ignore - shard movement
                     }
                     final SeqNoStats primarySeqNoStats;
-                    final ObjectLongMap<String> syncGlobalCheckpoints;
+                    final Map<String, Long> syncGlobalCheckpoints;
                     try {
                         primarySeqNoStats = primaryShard.seqNoStats();
                         syncGlobalCheckpoints = primaryShard.getInSyncGlobalCheckpoints();
@@ -1511,7 +1508,7 @@ public final class InternalTestCluster extends TestCluster {
                         primarySeqNoStats.getGlobalCheckpoint(),
                         not(equalTo(SequenceNumbers.UNASSIGNED_SEQ_NO))
                     );
-                    for (ShardRouting replicaShardRouting : indexShardRoutingTable.value.replicaShards()) {
+                    for (ShardRouting replicaShardRouting : indexShardRoutingTable.replicaShards()) {
                         final IndexShard replicaShard = getShardOrNull(state, replicaShardRouting);
                         if (replicaShard == null) {
                             continue; // just ignore - shard movement
@@ -1544,8 +1541,8 @@ public final class InternalTestCluster extends TestCluster {
         assertBusy(() -> {
             ClusterState state = client().admin().cluster().prepareState().get().getState();
             for (final IndexRoutingTable indexRoutingTable : state.routingTable().indicesRouting().values()) {
-                for (IntObjectCursor<IndexShardRoutingTable> indexShardRoutingTable : indexRoutingTable.shards()) {
-                    ShardRouting primaryShardRouting = indexShardRoutingTable.value.primaryShard();
+                for (var indexShardRoutingTable : indexRoutingTable.shards().values()) {
+                    ShardRouting primaryShardRouting = indexShardRoutingTable.primaryShard();
                     IndexShard primaryShard = getShardOrNull(state, primaryShardRouting);
                     if (primaryShard == null) {
                         continue;
@@ -1556,7 +1553,7 @@ public final class InternalTestCluster extends TestCluster {
                     } catch (AlreadyClosedException ex) {
                         continue;
                     }
-                    for (ShardRouting replicaShardRouting : indexShardRoutingTable.value.replicaShards()) {
+                    for (ShardRouting replicaShardRouting : indexShardRoutingTable.replicaShards()) {
                         IndexShard replicaShard = getShardOrNull(state, replicaShardRouting);
                         if (replicaShard == null) {
                             continue;

@@ -33,7 +33,7 @@ package org.opensearch.cluster.coordination;
 
 import org.apache.logging.log4j.Level;
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.ActionListenerResponseHandler;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.ClusterName;
@@ -53,7 +53,7 @@ import org.opensearch.transport.BytesTransportRequest;
 import org.opensearch.transport.RemoteTransportException;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportRequest;
-import org.opensearch.transport.TransportResponse;
+import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;

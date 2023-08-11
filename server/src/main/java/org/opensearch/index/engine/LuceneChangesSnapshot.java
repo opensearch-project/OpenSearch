@@ -289,7 +289,7 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
             ? SourceFieldMapper.RECOVERY_SOURCE_NAME
             : SourceFieldMapper.NAME;
         final FieldsVisitor fields = new FieldsVisitor(true, sourceField);
-        leaf.reader().document(segmentDocID, fields);
+        leaf.reader().storedFields().document(segmentDocID, fields);
 
         final Translog.Operation op;
         final boolean isTombstone = parallelArray.isTombStone[docIndex];

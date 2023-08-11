@@ -290,14 +290,6 @@ public final class OpenSearchServerException {
         );
         registerExceptionHandle(
             new OpenSearchExceptionHandle(
-                org.opensearch.OpenSearchParseException.class,
-                org.opensearch.OpenSearchParseException::new,
-                35,
-                UNKNOWN_VERSION_ADDED
-            )
-        );
-        registerExceptionHandle(
-            new OpenSearchExceptionHandle(
                 org.opensearch.search.SearchException.class,
                 org.opensearch.search.SearchException::new,
                 36,
@@ -917,14 +909,6 @@ public final class OpenSearchServerException {
         );
         registerExceptionHandle(
             new OpenSearchExceptionHandle(
-                org.opensearch.common.breaker.CircuitBreakingException.class,
-                org.opensearch.common.breaker.CircuitBreakingException::new,
-                133,
-                UNKNOWN_VERSION_ADDED
-            )
-        );
-        registerExceptionHandle(
-            new OpenSearchExceptionHandle(
                 org.opensearch.transport.NodeNotConnectedException.class,
                 org.opensearch.transport.NodeNotConnectedException::new,
                 134,
@@ -1000,14 +984,6 @@ public final class OpenSearchServerException {
                 org.opensearch.OpenSearchStatusException.class,
                 org.opensearch.OpenSearchStatusException::new,
                 145,
-                UNKNOWN_VERSION_ADDED
-            )
-        );
-        registerExceptionHandle(
-            new OpenSearchExceptionHandle(
-                org.opensearch.tasks.TaskCancelledException.class,
-                org.opensearch.tasks.TaskCancelledException::new,
-                146,
                 UNKNOWN_VERSION_ADDED
             )
         );

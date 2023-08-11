@@ -8,7 +8,7 @@
 
 package org.opensearch.index.translog.transfer;
 
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
@@ -125,8 +125,14 @@ public interface TransferService {
      */
     InputStream downloadBlob(Iterable<String> path, String fileName) throws IOException;
 
-    void listAllInSortedOrder(Iterable<String> path, int limit, ActionListener<List<BlobMetadata>> listener);
+    void listAllInSortedOrder(Iterable<String> path, String filenamePrefix, int limit, ActionListener<List<BlobMetadata>> listener);
 
-    void listAllInSortedOrderAsync(String threadpoolName, Iterable<String> path, int limit, ActionListener<List<BlobMetadata>> listener);
+    void listAllInSortedOrderAsync(
+        String threadpoolName,
+        Iterable<String> path,
+        String filenamePrefix,
+        int limit,
+        ActionListener<List<BlobMetadata>> listener
+    );
 
 }

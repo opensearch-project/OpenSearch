@@ -56,7 +56,6 @@ import org.opensearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.Strings;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.IndexScopedSettings;
@@ -101,6 +100,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.Locale;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
@@ -113,7 +113,6 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonList;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
@@ -131,8 +130,7 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_RE
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_ENABLED;
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_REPOSITORY;
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
@@ -144,10 +142,9 @@ import static org.opensearch.cluster.metadata.MetadataCreateIndexService.parseV1
 import static org.opensearch.cluster.metadata.MetadataCreateIndexService.resolveAndValidateAliases;
 import static org.opensearch.index.IndexSettings.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING;
 import static org.opensearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
-import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_STORE_REPOSITORY_SETTING;
+import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING;
 import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING;
 import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_STORE_ENABLED_SETTING;
-import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_TRANSLOG_STORE_ENABLED_SETTING;
 import static org.opensearch.indices.IndicesService.CLUSTER_REPLICATION_TYPE_SETTING;
 import static org.opensearch.indices.ShardLimitValidatorTests.createTestShardLimitService;
 
@@ -673,7 +670,11 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
                 false,
                 new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings())
             );
-            validateIndexName(checkerService, "index?name", "must not contain the following characters " + Strings.INVALID_FILENAME_CHARS);
+            validateIndexName(
+                checkerService,
+                "index?name",
+                "must not contain the following characters " + org.opensearch.core.common.Strings.INVALID_FILENAME_CHARS
+            );
 
             validateIndexName(checkerService, "index#name", "must not contain '#'");
 
@@ -1193,42 +1194,11 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         threadPool.shutdown();
     }
 
-    public void testRemoteStoreNoUserOverrideConflictingReplicationTypeIndexSettings() {
-        Settings settings = Settings.builder()
-            .put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.DOCUMENT)
-            .put(CLUSTER_REMOTE_STORE_ENABLED_SETTING.getKey(), true)
-            .put(CLUSTER_REMOTE_STORE_REPOSITORY_SETTING.getKey(), "my-segment-repo-1")
-            .put(CLUSTER_REMOTE_TRANSLOG_STORE_ENABLED_SETTING.getKey(), true)
-            .put(CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING.getKey(), "my-translog-repo-1")
-            .build();
-        FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
-
-        request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
-        IllegalArgumentException exc = expectThrows(
-            IllegalArgumentException.class,
-            () -> aggregateIndexSettings(
-                ClusterState.EMPTY_STATE,
-                request,
-                Settings.EMPTY,
-                null,
-                settings,
-                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
-                randomShardLimitService(),
-                Collections.emptySet()
-            )
-        );
-        assertThat(
-            exc.getMessage(),
-            containsString("Cannot enable [index.remote_store.enabled] when [index.replication.type] is DOCUMENT")
-        );
-    }
-
     public void testRemoteStoreNoUserOverrideExceptReplicationTypeSegmentIndexSettings() {
         Settings settings = Settings.builder()
             .put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.DOCUMENT)
             .put(CLUSTER_REMOTE_STORE_ENABLED_SETTING.getKey(), true)
-            .put(CLUSTER_REMOTE_STORE_REPOSITORY_SETTING.getKey(), "my-segment-repo-1")
-            .put(CLUSTER_REMOTE_TRANSLOG_STORE_ENABLED_SETTING.getKey(), true)
+            .put(CLUSTER_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING.getKey(), "my-segment-repo-1")
             .put(CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING.getKey(), "my-translog-repo-1")
             .build();
         FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
@@ -1251,7 +1221,6 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             indexSettings,
             "true",
             "my-segment-repo-1",
-            "true",
             "my-translog-repo-1",
             ReplicationType.SEGMENT.toString(),
             IndexSettings.DEFAULT_REMOTE_TRANSLOG_BUFFER_INTERVAL
@@ -1262,8 +1231,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         Settings settings = Settings.builder()
             .put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT)
             .put(CLUSTER_REMOTE_STORE_ENABLED_SETTING.getKey(), true)
-            .put(CLUSTER_REMOTE_STORE_REPOSITORY_SETTING.getKey(), "my-segment-repo-1")
-            .put(CLUSTER_REMOTE_TRANSLOG_STORE_ENABLED_SETTING.getKey(), true)
+            .put(CLUSTER_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING.getKey(), "my-segment-repo-1")
             .put(CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING.getKey(), "my-translog-repo-1")
             .build();
         FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
@@ -1283,7 +1251,6 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             indexSettings,
             "true",
             "my-segment-repo-1",
-            "true",
             "my-translog-repo-1",
             ReplicationType.SEGMENT.toString(),
             IndexSettings.DEFAULT_REMOTE_TRANSLOG_BUFFER_INTERVAL
@@ -1291,176 +1258,103 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
     }
 
     public void testRemoteStoreDisabledByUserIndexSettings() {
-        Settings settings = Settings.builder()
-            .put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT)
-            .put(CLUSTER_REMOTE_STORE_ENABLED_SETTING.getKey(), true)
-            .put(CLUSTER_REMOTE_STORE_REPOSITORY_SETTING.getKey(), "my-segment-repo-1")
-            .put(CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING.getKey(), "my-translog-repo-1")
-            .build();
-        FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
-
-        request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
         final Settings.Builder requestSettings = Settings.builder();
         requestSettings.put(SETTING_REMOTE_STORE_ENABLED, false);
-        request.settings(requestSettings.build());
-        Settings indexSettings = aggregateIndexSettings(
-            ClusterState.EMPTY_STATE,
-            request,
-            Settings.EMPTY,
-            null,
-            settings,
-            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
-            randomShardLimitService(),
-            Collections.emptySet()
-        );
-        verifyRemoteStoreIndexSettings(
-            indexSettings,
-            "false",
-            null,
-            null,
-            null,
-            ReplicationType.SEGMENT.toString(),
-            IndexSettings.DEFAULT_REMOTE_TRANSLOG_BUFFER_INTERVAL
-        );
-    }
+        withTemporaryClusterService(((clusterService, threadPool) -> {
+            MetadataCreateIndexService checkerService = new MetadataCreateIndexService(
+                Settings.EMPTY,
+                clusterService,
+                null,
+                null,
+                null,
+                createTestShardLimitService(randomIntBetween(1, 1000), false, clusterService),
+                new Environment(Settings.builder().put("path.home", "dummy").build(), null),
+                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+                threadPool,
+                null,
+                new SystemIndices(Collections.emptyMap()),
+                true,
+                new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings())
+            );
 
-    public void testRemoteStoreTranslogDisabledByUserIndexSettings() {
-        Settings settings = Settings.builder()
-            .put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT)
-            .put(CLUSTER_REMOTE_STORE_ENABLED_SETTING.getKey(), true)
-            .put(CLUSTER_REMOTE_STORE_REPOSITORY_SETTING.getKey(), "my-segment-repo-1")
-            .put(CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING.getKey(), "my-translog-repo-1")
-            .build();
-        FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
-
-        request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
-        final Settings.Builder requestSettings = Settings.builder();
-        requestSettings.put(SETTING_REMOTE_TRANSLOG_STORE_ENABLED, false);
-        request.settings(requestSettings.build());
-        Settings indexSettings = aggregateIndexSettings(
-            ClusterState.EMPTY_STATE,
-            request,
-            Settings.EMPTY,
-            null,
-            settings,
-            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
-            randomShardLimitService(),
-            Collections.emptySet()
-        );
-        verifyRemoteStoreIndexSettings(
-            indexSettings,
-            "true",
-            "my-segment-repo-1",
-            "false",
-            null,
-            ReplicationType.SEGMENT.toString(),
-            IndexSettings.DEFAULT_REMOTE_TRANSLOG_BUFFER_INTERVAL
-        );
+            final List<String> validationErrors = checkerService.getIndexSettingsValidationErrors(
+                requestSettings.build(),
+                true,
+                Optional.empty()
+            );
+            assertThat(validationErrors.size(), is(1));
+            assertThat(
+                validationErrors.get(0),
+                is(String.format(Locale.ROOT, "expected [%s] to be private but it was not", SETTING_REMOTE_STORE_ENABLED))
+            );
+        }));
     }
 
     public void testRemoteStoreOverrideSegmentRepoIndexSettings() {
-        Settings settings = Settings.builder()
-            .put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT)
-            .put(CLUSTER_REMOTE_STORE_ENABLED_SETTING.getKey(), true)
-            .put(CLUSTER_REMOTE_STORE_REPOSITORY_SETTING.getKey(), "my-segment-repo-1")
-            .put(CLUSTER_REMOTE_TRANSLOG_STORE_ENABLED_SETTING.getKey(), true)
-            .put(CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING.getKey(), "my-translog-repo-1")
-            .build();
-        FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
-
-        request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
         final Settings.Builder requestSettings = Settings.builder();
         requestSettings.put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
-            .put(SETTING_REMOTE_STORE_ENABLED, true)
-            .put(SETTING_REMOTE_STORE_REPOSITORY, "my-custom-repo");
-        request.settings(requestSettings.build());
-        Settings indexSettings = aggregateIndexSettings(
-            ClusterState.EMPTY_STATE,
-            request,
-            Settings.EMPTY,
-            null,
-            settings,
-            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
-            randomShardLimitService(),
-            Collections.emptySet()
-        );
-        verifyRemoteStoreIndexSettings(
-            indexSettings,
-            "true",
-            "my-custom-repo",
-            "true",
-            "my-translog-repo-1",
-            ReplicationType.SEGMENT.toString(),
-            IndexSettings.DEFAULT_REMOTE_TRANSLOG_BUFFER_INTERVAL
-        );
+            .put(SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, "my-custom-repo");
+        withTemporaryClusterService(((clusterService, threadPool) -> {
+            MetadataCreateIndexService checkerService = new MetadataCreateIndexService(
+                Settings.EMPTY,
+                clusterService,
+                null,
+                null,
+                null,
+                createTestShardLimitService(randomIntBetween(1, 1000), false, clusterService),
+                new Environment(Settings.builder().put("path.home", "dummy").build(), null),
+                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+                threadPool,
+                null,
+                new SystemIndices(Collections.emptyMap()),
+                true,
+                new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings())
+            );
+
+            final List<String> validationErrors = checkerService.getIndexSettingsValidationErrors(
+                requestSettings.build(),
+                true,
+                Optional.empty()
+            );
+            assertThat(validationErrors.size(), is(1));
+            assertThat(
+                validationErrors.get(0),
+                is(String.format(Locale.ROOT, "expected [%s] to be private but it was not", SETTING_REMOTE_SEGMENT_STORE_REPOSITORY))
+            );
+        }));
     }
 
     public void testRemoteStoreOverrideTranslogRepoIndexSettings() {
-        Settings settings = Settings.builder()
-            .put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT)
-            .put(CLUSTER_REMOTE_STORE_ENABLED_SETTING.getKey(), true)
-            .put(CLUSTER_REMOTE_STORE_REPOSITORY_SETTING.getKey(), "my-segment-repo-1")
-            .put(CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING.getKey(), "my-translog-repo-1")
-            .build();
-        FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
-
-        request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
         final Settings.Builder requestSettings = Settings.builder();
-        requestSettings.put(SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "my-custom-repo").put(SETTING_REMOTE_TRANSLOG_STORE_ENABLED, true);
-        request.settings(requestSettings.build());
-        Settings indexSettings = aggregateIndexSettings(
-            ClusterState.EMPTY_STATE,
-            request,
-            Settings.EMPTY,
-            null,
-            settings,
-            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
-            randomShardLimitService(),
-            Collections.emptySet()
-        );
-        verifyRemoteStoreIndexSettings(
-            indexSettings,
-            "true",
-            "my-segment-repo-1",
-            "true",
-            "my-custom-repo",
-            ReplicationType.SEGMENT.toString(),
-            IndexSettings.DEFAULT_REMOTE_TRANSLOG_BUFFER_INTERVAL
-        );
-    }
+        requestSettings.put(SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "my-custom-repo");
+        withTemporaryClusterService(((clusterService, threadPool) -> {
+            MetadataCreateIndexService checkerService = new MetadataCreateIndexService(
+                Settings.EMPTY,
+                clusterService,
+                null,
+                null,
+                null,
+                createTestShardLimitService(randomIntBetween(1, 1000), false, clusterService),
+                new Environment(Settings.builder().put("path.home", "dummy").build(), null),
+                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+                threadPool,
+                null,
+                new SystemIndices(Collections.emptyMap()),
+                true,
+                new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings())
+            );
 
-    public void testRemoteStoreOverrideReplicationTypeIndexSettings() {
-        Settings settings = Settings.builder()
-            .put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT)
-            .put(CLUSTER_REMOTE_STORE_ENABLED_SETTING.getKey(), true)
-            .put(CLUSTER_REMOTE_STORE_REPOSITORY_SETTING.getKey(), "my-segment-repo-1")
-            .put(CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING.getKey(), "my-translog-repo-1")
-            .build();
-        FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
-
-        request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
-        final Settings.Builder requestSettings = Settings.builder();
-        requestSettings.put(SETTING_REPLICATION_TYPE, ReplicationType.DOCUMENT);
-        request.settings(requestSettings.build());
-        Settings indexSettings = aggregateIndexSettings(
-            ClusterState.EMPTY_STATE,
-            request,
-            Settings.EMPTY,
-            null,
-            settings,
-            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
-            randomShardLimitService(),
-            Collections.emptySet()
-        );
-        verifyRemoteStoreIndexSettings(
-            indexSettings,
-            null,
-            null,
-            null,
-            null,
-            ReplicationType.DOCUMENT.toString(),
-            IndexSettings.DEFAULT_REMOTE_TRANSLOG_BUFFER_INTERVAL
-        );
+            final List<String> validationErrors = checkerService.getIndexSettingsValidationErrors(
+                requestSettings.build(),
+                true,
+                Optional.empty()
+            );
+            assertThat(validationErrors.size(), is(1));
+            assertThat(
+                validationErrors.get(0),
+                is(String.format(Locale.ROOT, "expected [%s] to be private but it was not", SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY))
+            );
+        }));
     }
 
     public void testBuildIndexMetadata() {
@@ -1665,18 +1559,17 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
 
     private CompressedXContent createMapping(String fieldName, String fieldType) {
         try {
-            final String mapping = Strings.toString(
-                XContentFactory.jsonBuilder()
-                    .startObject()
-                    .startObject(MapperService.SINGLE_MAPPING_NAME)
-                    .startObject("properties")
-                    .startObject(fieldName)
-                    .field("type", fieldType)
-                    .endObject()
-                    .endObject()
-                    .endObject()
-                    .endObject()
-            );
+            final String mapping = XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject(MapperService.SINGLE_MAPPING_NAME)
+                .startObject("properties")
+                .startObject(fieldName)
+                .field("type", fieldType)
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                .toString();
 
             return new CompressedXContent(mapping);
         } catch (IOException e) {
@@ -1702,15 +1595,13 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         Settings indexSettings,
         String isRemoteSegmentEnabled,
         String remoteSegmentRepo,
-        String isRemoteTranslogEnabled,
         String remoteTranslogRepo,
         String replicationType,
         TimeValue translogBufferInterval
     ) {
         assertEquals(replicationType, indexSettings.get(SETTING_REPLICATION_TYPE));
         assertEquals(isRemoteSegmentEnabled, indexSettings.get(SETTING_REMOTE_STORE_ENABLED));
-        assertEquals(remoteSegmentRepo, indexSettings.get(SETTING_REMOTE_STORE_REPOSITORY));
-        assertEquals(isRemoteTranslogEnabled, indexSettings.get(SETTING_REMOTE_TRANSLOG_STORE_ENABLED));
+        assertEquals(remoteSegmentRepo, indexSettings.get(SETTING_REMOTE_SEGMENT_STORE_REPOSITORY));
         assertEquals(remoteTranslogRepo, indexSettings.get(SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY));
         assertEquals(translogBufferInterval, INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.get(indexSettings));
     }

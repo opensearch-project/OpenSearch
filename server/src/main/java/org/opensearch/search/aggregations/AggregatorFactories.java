@@ -33,12 +33,12 @@ package org.opensearch.search.aggregations;
 
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.core.common.ParsingException;
-import org.opensearch.common.Strings;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.common.xcontent.SuggestingErrorOnUnknown;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedObjectNotFoundException;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -591,7 +591,7 @@ public class AggregatorFactories {
 
         @Override
         public String toString() {
-            return Strings.toString(XContentType.JSON, this, true, true);
+            return Strings.toString(MediaTypeRegistry.JSON, this, true, true);
         }
 
         @Override

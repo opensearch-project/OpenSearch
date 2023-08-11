@@ -8,7 +8,7 @@
 
 package org.opensearch.indices.replication;
 
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.common.util.CancellableThreads.ExecutionCancelledException;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.store.StoreFileMetadata;

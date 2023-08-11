@@ -34,7 +34,7 @@ package org.opensearch.indices.recovery;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -48,7 +48,7 @@ import org.opensearch.indices.replication.RemoteSegmentFileChunkWriter;
 import org.opensearch.indices.replication.SegmentReplicationTargetService;
 import org.opensearch.transport.EmptyTransportResponseHandler;
 import org.opensearch.transport.TransportRequestOptions;
-import org.opensearch.transport.TransportResponse;
+import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.transport.TransportService;
 
 import java.util.List;

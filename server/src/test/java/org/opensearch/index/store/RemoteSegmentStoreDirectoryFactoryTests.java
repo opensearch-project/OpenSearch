@@ -11,7 +11,7 @@ package org.opensearch.index.store;
 import org.apache.lucene.store.Directory;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.blobstore.BlobContainer;
@@ -61,7 +61,7 @@ public class RemoteSegmentStoreDirectoryFactoryTests extends OpenSearchTestCase 
     public void testNewDirectory() throws IOException {
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_INDEX_UUID, "uuid_1")
-            .put(IndexMetadata.SETTING_REMOTE_STORE_REPOSITORY, "remote_store_repository")
+            .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, "remote_store_repository")
             .build();
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("foo", settings);
         Path tempDir = createTempDir().resolve(indexSettings.getUUID()).resolve("0");
@@ -101,7 +101,9 @@ public class RemoteSegmentStoreDirectoryFactoryTests extends OpenSearchTestCase 
     }
 
     public void testNewDirectoryRepositoryDoesNotExist() {
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_REMOTE_STORE_REPOSITORY, "remote_store_repository").build();
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, "remote_store_repository")
+            .build();
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("foo", settings);
         Path tempDir = createTempDir().resolve(indexSettings.getUUID()).resolve("0");
         ShardPath shardPath = new ShardPath(false, tempDir, tempDir, new ShardId(indexSettings.getIndex(), 0));

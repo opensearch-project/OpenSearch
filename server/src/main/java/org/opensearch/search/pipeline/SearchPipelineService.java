@@ -13,7 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.ResourceNotFoundException;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.search.DeleteSearchPipelineRequest;
 import org.opensearch.action.search.PutSearchPipelineRequest;
 import org.opensearch.action.search.SearchRequest;
@@ -41,7 +41,7 @@ import org.opensearch.gateway.GatewayService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.AnalysisRegistry;
 import org.opensearch.ingest.ConfigurationUtils;
-import org.opensearch.node.ReportingService;
+import org.opensearch.core.service.ReportingService;
 import org.opensearch.plugins.SearchPipelinePlugin;
 import org.opensearch.script.ScriptService;
 import org.opensearch.threadpool.ThreadPool;
@@ -85,8 +85,6 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
     private final OperationMetrics totalRequestProcessingMetrics = new OperationMetrics();
     private final OperationMetrics totalResponseProcessingMetrics = new OperationMetrics();
 
-    private final boolean isEnabled;
-
     public SearchPipelineService(
         ClusterService clusterService,
         ThreadPool threadPool,
@@ -96,8 +94,7 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
         NamedXContentRegistry namedXContentRegistry,
         NamedWriteableRegistry namedWriteableRegistry,
         List<SearchPipelinePlugin> searchPipelinePlugins,
-        Client client,
-        boolean isEnabled
+        Client client
     ) {
         this.clusterService = clusterService;
         this.scriptService = scriptService;
@@ -123,7 +120,6 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
         );
         putPipelineTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.PUT_SEARCH_PIPELINE_KEY, true);
         deletePipelineTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.DELETE_SEARCH_PIPELINE_KEY, true);
-        this.isEnabled = isEnabled;
     }
 
     private static <T extends Processor> Map<String, Processor.Factory<T>> processorFactories(
@@ -233,10 +229,6 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
         PutSearchPipelineRequest request,
         ActionListener<AcknowledgedResponse> listener
     ) throws Exception {
-        if (isEnabled == false) {
-            throw new IllegalArgumentException("Experimental search pipeline feature is not enabled");
-        }
-
         validatePipeline(searchPipelineInfos, request);
         clusterService.submitStateUpdateTask(
             "put-search-pipeline-" + request.getId(),
@@ -267,7 +259,7 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
         } else {
             pipelines = new HashMap<>();
         }
-        pipelines.put(request.getId(), new PipelineConfiguration(request.getId(), request.getSource(), request.getXContentType()));
+        pipelines.put(request.getId(), new PipelineConfiguration(request.getId(), request.getSource(), request.getMediaType()));
         ClusterState.Builder newState = ClusterState.builder(currentState);
         newState.metadata(
             Metadata.builder(currentState.getMetadata())
@@ -281,7 +273,7 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
         if (searchPipelineInfos.isEmpty()) {
             throw new IllegalStateException("Search pipeline info is empty");
         }
-        Map<String, Object> pipelineConfig = XContentHelper.convertToMap(request.getSource(), false, request.getXContentType()).v2();
+        Map<String, Object> pipelineConfig = XContentHelper.convertToMap(request.getSource(), false, request.getMediaType()).v2();
         Pipeline pipeline = PipelineWithMetrics.create(
             request.getId(),
             pipelineConfig,
@@ -371,9 +363,6 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
     public PipelinedRequest resolvePipeline(SearchRequest searchRequest) {
         Pipeline pipeline = Pipeline.NO_OP_PIPELINE;
 
-        if (isEnabled == false) {
-            return new PipelinedRequest(pipeline, searchRequest);
-        }
         if (searchRequest.source() != null && searchRequest.source().searchPipelineSource() != null) {
             // Pipeline defined in search request (ad hoc pipeline).
             if (searchRequest.pipeline() != null) {
@@ -401,7 +390,7 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
             if (searchRequest.pipeline() != null) {
                 // Named pipeline specified for the request
                 pipelineId = searchRequest.pipeline();
-            } else if (searchRequest.indices() != null && searchRequest.indices().length == 1) {
+            } else if (state != null && searchRequest.indices() != null && searchRequest.indices().length == 1) {
                 // Check for index default pipeline
                 IndexMetadata indexMetadata = state.metadata().index(searchRequest.indices()[0]);
                 if (indexMetadata != null) {

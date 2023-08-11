@@ -36,7 +36,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
 import org.opensearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
@@ -57,8 +57,7 @@ import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.service.ClusterManagerTaskKeys;
 import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.Strings;
-import org.opensearch.common.component.AbstractLifecycleComponent;
+import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
@@ -66,6 +65,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.core.common.Strings;
 import org.opensearch.repositories.blobstore.MeteredBlobStoreRepository;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
@@ -599,7 +599,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     }
 
     private static void validate(final String repositoryName) {
-        if (org.opensearch.core.common.Strings.hasLength(repositoryName) == false) {
+        if (Strings.hasLength(repositoryName) == false) {
             throw new RepositoryException(repositoryName, "cannot be empty");
         }
         if (repositoryName.contains("#")) {

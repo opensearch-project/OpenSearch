@@ -32,13 +32,14 @@
 
 package org.opensearch.index.translog;
 
-import com.carrotsearch.hppc.LongObjectHashMap;
 import org.opensearch.index.seqno.CountedBitSet;
 import org.opensearch.index.seqno.SequenceNumbers;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * A snapshot composed out of multiple snapshots
@@ -105,7 +106,7 @@ final class MultiSnapshot implements Translog.Snapshot {
      */
     static final class SeqNoSet {
         static final short BIT_SET_SIZE = 1024;
-        private final LongObjectHashMap<CountedBitSet> bitSets = new LongObjectHashMap<>();
+        private final Map<Long, CountedBitSet> bitSets = new HashMap<>();
 
         /**
          * Marks this sequence number and returns {@code true} if it is seen before.

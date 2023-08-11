@@ -63,7 +63,7 @@ import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.TriFunction;
-import org.opensearch.common.breaker.CircuitBreaker;
+import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.network.NetworkAddress;
@@ -111,8 +111,8 @@ import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.indices.IndicesModule;
-import org.opensearch.indices.breaker.CircuitBreakerService;
-import org.opensearch.indices.breaker.NoneCircuitBreakerService;
+import org.opensearch.core.indices.breaker.CircuitBreakerService;
+import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.opensearch.indices.mapper.MapperRegistry;
 import org.opensearch.plugins.SearchPlugin;
@@ -352,6 +352,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         when(searchContext.aggregations()).thenReturn(new SearchContextAggregations(AggregatorFactories.EMPTY, bucketConsumer));
         when(searchContext.query()).thenReturn(query);
         when(searchContext.bucketCollectorProcessor()).thenReturn(new BucketCollectorProcessor());
+        when(searchContext.asLocalBucketCountThresholds(any())).thenCallRealMethod();
         /*
          * Always use the circuit breaking big arrays instance so that the CircuitBreakerService
          * we're passed gets a chance to break.

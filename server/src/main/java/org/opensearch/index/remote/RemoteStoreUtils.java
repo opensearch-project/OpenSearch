@@ -48,4 +48,25 @@ public class RemoteStoreUtils {
         }
         return Long.MAX_VALUE - num;
     }
+
+    /**
+     * Extracts the segment name from the provided segment file name
+     * @param filename Segment file name to parse
+     * @return Name of the segment that the segment file belongs to
+     */
+    public static String getSegmentName(String filename) {
+        // Segment file names follow patterns like "_0.cfe" or "_0_1_Lucene90_0.dvm".
+        // Here, the segment name is "_0", which is the set of characters
+        // starting with "_" until the next "_" or first ".".
+        int endIdx = filename.indexOf('_', 1);
+        if (endIdx == -1) {
+            endIdx = filename.indexOf('.');
+        }
+
+        if (endIdx == -1) {
+            throw new IllegalArgumentException("Unable to infer segment name for segment file " + filename);
+        }
+
+        return filename.substring(0, endIdx);
+    }
 }

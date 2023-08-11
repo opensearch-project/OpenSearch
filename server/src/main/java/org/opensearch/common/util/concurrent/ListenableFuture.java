@@ -32,7 +32,7 @@
 
 package org.opensearch.common.util.concurrent;
 
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.support.ContextPreservingActionListener;
 import org.opensearch.common.collect.Tuple;

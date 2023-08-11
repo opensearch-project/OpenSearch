@@ -11,7 +11,7 @@ package org.opensearch.indices.replication;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.util.Version;
 import org.junit.Assert;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.service.ClusterService;

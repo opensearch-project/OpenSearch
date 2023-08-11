@@ -54,8 +54,8 @@ plugins {
   id 'lifecycle-base'
   id 'opensearch.docker-support'
   id 'opensearch.global-build-info'
-  id "com.diffplug.spotless" version "6.19.0" apply false
-  id "org.gradle.test-retry" version "1.5.3" apply false
+  id "com.diffplug.spotless" version "6.20.0" apply false
+  id "org.gradle.test-retry" version "1.5.4" apply false
   id "test-report-aggregation"
   id 'jacoco-report-aggregation'
 }
@@ -470,6 +470,81 @@ subprojects {
         maxFailures = 10
       }
       failOnPassedAfterRetry = false
+      filter {
+        includeClasses.add("org.opensearch.action.admin.cluster.node.tasks.ResourceAwareTasksTests")
+        includeClasses.add("org.opensearch.action.admin.cluster.tasks.PendingTasksBlocksIT")
+        includeClasses.add("org.opensearch.action.admin.indices.create.CreateIndexIT")
+        includeClasses.add("org.opensearch.action.admin.indices.create.ShrinkIndexIT")
+        includeClasses.add("org.opensearch.aliases.IndexAliasesIT")
+        includeClasses.add("org.opensearch.backwards.MixedClusterClientYamlTestSuiteIT")
+        includeClasses.add("org.opensearch.blocks.SimpleBlocksIT")
+        includeClasses.add("org.opensearch.client.PitIT")
+        includeClasses.add("org.opensearch.client.ReindexIT")
+        includeClasses.add("org.opensearch.cluster.ClusterHealthIT")
+        includeClasses.add("org.opensearch.cluster.allocation.AwarenessAllocationIT")
+        includeClasses.add("org.opensearch.cluster.allocation.ClusterRerouteIT")
+        includeClasses.add("org.opensearch.cluster.coordination.AwarenessAttributeDecommissionIT")
+        includeClasses.add("org.opensearch.cluster.metadata.IndexGraveyardTests")
+        includeClasses.add("org.opensearch.cluster.routing.MovePrimaryFirstTests")
+        includeClasses.add("org.opensearch.cluster.routing.allocation.decider.DiskThresholdDeciderIT")
+        includeClasses.add("org.opensearch.common.util.concurrent.QueueResizableOpenSearchThreadPoolExecutorTests")
+        includeClasses.add("org.opensearch.gateway.RecoveryFromGatewayIT")
+        includeClasses.add("org.opensearch.gateway.ReplicaShardAllocatorIT")
+        includeClasses.add("org.opensearch.http.SearchRestCancellationIT")
+        includeClasses.add("org.opensearch.http.netty4.Netty4HttpServerTransportTests")
+        includeClasses.add("org.opensearch.index.IndexServiceTests")
+        includeClasses.add("org.opensearch.index.IndexSettingsTests")
+        includeClasses.add("org.opensearch.index.SegmentReplicationPressureIT")
+        includeClasses.add("org.opensearch.index.ShardIndexingPressureIT")
+        includeClasses.add("org.opensearch.index.ShardIndexingPressureSettingsIT")
+        includeClasses.add("org.opensearch.index.reindex.BulkByScrollResponseTests")
+        includeClasses.add("org.opensearch.index.reindex.DeleteByQueryBasicTests")
+        includeClasses.add("org.opensearch.index.reindex.UpdateByQueryBasicTests")
+        includeClasses.add("org.opensearch.index.shard.IndexShardIT")
+        includeClasses.add("org.opensearch.index.shard.RemoteStoreRefreshListenerTests")
+        includeClasses.add("org.opensearch.index.translog.RemoteFSTranslogTests")
+        includeClasses.add("org.opensearch.indices.DateMathIndexExpressionsIntegrationIT")
+        includeClasses.add("org.opensearch.indices.replication.RemoteStoreReplicationSourceTests")
+        includeClasses.add("org.opensearch.indices.replication.SegmentReplicationAllocationIT")
+        includeClasses.add("org.opensearch.indices.replication.SegmentReplicationIT")
+        includeClasses.add("org.opensearch.indices.replication.SegmentReplicationRelocationIT")
+        includeClasses.add("org.opensearch.indices.replication.SegmentReplicationTargetServiceTests")
+        includeClasses.add("org.opensearch.indices.state.CloseWhileRelocatingShardsIT")
+        includeClasses.add("org.opensearch.monitor.fs.FsHealthServiceTests")
+        includeClasses.add("org.opensearch.recovery.ReplicationCollectionTests")
+        includeClasses.add("org.opensearch.remotestore.CreateRemoteIndexClusterDefaultDocRep")
+        includeClasses.add("org.opensearch.remotestore.CreateRemoteIndexIT")
+        includeClasses.add("org.opensearch.remotestore.CreateRemoteIndexTranslogDisabledIT")
+        includeClasses.add("org.opensearch.remotestore.RemoteIndexPrimaryRelocationIT")
+        includeClasses.add("org.opensearch.remotestore.RemoteStoreBackpressureIT")
+        includeClasses.add("org.opensearch.remotestore.RemoteStoreIT")
+        includeClasses.add("org.opensearch.remotestore.RemoteStoreRefreshListenerIT")
+        includeClasses.add("org.opensearch.remotestore.RemoteStoreStatsIT")
+        includeClasses.add("org.opensearch.remotestore.SegmentReplicationRemoteStoreIT")
+        includeClasses.add("org.opensearch.remotestore.SegmentReplicationUsingRemoteStoreIT")
+        includeClasses.add("org.opensearch.remotestore.multipart.RemoteStoreMultipartIT")
+        includeClasses.add("org.opensearch.repositories.azure.AzureBlobContainerRetriesTests")
+        includeClasses.add("org.opensearch.repositories.azure.AzureBlobStoreRepositoryTests")
+        includeClasses.add("org.opensearch.repositories.gcs.GoogleCloudStorageBlobContainerRetriesTests")
+        includeClasses.add("org.opensearch.repositories.gcs.GoogleCloudStorageBlobStoreRepositoryTests")
+        includeClasses.add("org.opensearch.repositories.s3.S3BlobStoreRepositoryTests")
+        includeClasses.add("org.opensearch.search.ConcurrentSegmentSearchTimeoutIT")
+        includeClasses.add("org.opensearch.search.SearchTimeoutIT")
+        includeClasses.add("org.opensearch.search.SearchWeightedRoutingIT")
+        includeClasses.add("org.opensearch.search.aggregations.bucket.DoubleTermsIT")
+        includeClasses.add("org.opensearch.search.aggregations.bucket.terms.StringTermsIT")
+        includeClasses.add("org.opensearch.search.aggregations.metrics.CardinalityIT")
+        includeClasses.add("org.opensearch.search.backpressure.SearchBackpressureIT")
+        includeClasses.add("org.opensearch.search.basic.SearchWithRandomIOExceptionsIT")
+        includeClasses.add("org.opensearch.search.pit.DeletePitMultiNodeIT")
+        includeClasses.add("org.opensearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT")
+        includeClasses.add("org.opensearch.snapshots.CloneSnapshotIT")
+        includeClasses.add("org.opensearch.snapshots.DedicatedClusterSnapshotRestoreIT")
+        includeClasses.add("org.opensearch.snapshots.RestoreSnapshotIT")
+        includeClasses.add("org.opensearch.snapshots.SnapshotStatusApisIT")
+        includeClasses.add("org.opensearch.test.rest.ClientYamlTestSuiteIT")
+        includeClasses.add("org.opensearch.upgrade.DetectEsInstallationTaskTests")
+      }
     }
   }
 }

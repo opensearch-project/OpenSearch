@@ -35,7 +35,7 @@ package org.opensearch.action.fieldcaps;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.NoShardAvailableActionException;

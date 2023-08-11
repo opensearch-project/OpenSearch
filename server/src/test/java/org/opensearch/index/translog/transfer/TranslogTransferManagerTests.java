@@ -10,14 +10,14 @@ package org.opensearch.index.translog.transfer;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.mockito.Mockito;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
-import org.opensearch.common.blobstore.support.PlainBlobMetadata;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
+import org.opensearch.common.blobstore.support.PlainBlobMetadata;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.translog.Translog;
@@ -205,11 +205,12 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
             null
         );
         doAnswer(invocation -> {
-            LatchedActionListener<List<BlobMetadata>> latchedActionListener = invocation.getArgument(2);
+            LatchedActionListener<List<BlobMetadata>> latchedActionListener = invocation.getArgument(3);
             List<BlobMetadata> bmList = new LinkedList<>();
             latchedActionListener.onResponse(bmList);
             return null;
-        }).when(transferService).listAllInSortedOrder(any(BlobPath.class), anyInt(), any(ActionListener.class));
+        }).when(transferService)
+            .listAllInSortedOrder(any(BlobPath.class), eq(TranslogTransferMetadata.METADATA_PREFIX), anyInt(), any(ActionListener.class));
 
         assertNull(translogTransferManager.readMetadata());
     }
@@ -225,12 +226,13 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         TranslogTransferMetadata tm = new TranslogTransferMetadata(1, 1, 1, 2);
         String mdFilename = tm.getFileName();
         doAnswer(invocation -> {
-            LatchedActionListener<List<BlobMetadata>> latchedActionListener = invocation.getArgument(2);
+            LatchedActionListener<List<BlobMetadata>> latchedActionListener = invocation.getArgument(3);
             List<BlobMetadata> bmList = new LinkedList<>();
             bmList.add(new PlainBlobMetadata(mdFilename, 1));
             latchedActionListener.onResponse(bmList);
             return null;
-        }).when(transferService).listAllInSortedOrder(any(BlobPath.class), anyInt(), any(ActionListener.class));
+        }).when(transferService)
+            .listAllInSortedOrder(any(BlobPath.class), eq(TranslogTransferMetadata.METADATA_PREFIX), anyInt(), any(ActionListener.class));
 
         TranslogTransferMetadata metadata = createTransferSnapshot().getTranslogTransferMetadata();
         when(transferService.downloadBlob(any(BlobPath.class), eq(mdFilename))).thenReturn(
@@ -252,12 +254,13 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         String mdFilename = tm.getFileName();
 
         doAnswer(invocation -> {
-            LatchedActionListener<List<BlobMetadata>> latchedActionListener = invocation.getArgument(2);
+            LatchedActionListener<List<BlobMetadata>> latchedActionListener = invocation.getArgument(3);
             List<BlobMetadata> bmList = new LinkedList<>();
             bmList.add(new PlainBlobMetadata(mdFilename, 1));
             latchedActionListener.onResponse(bmList);
             return null;
-        }).when(transferService).listAllInSortedOrder(any(BlobPath.class), anyInt(), any(ActionListener.class));
+        }).when(transferService)
+            .listAllInSortedOrder(any(BlobPath.class), eq(TranslogTransferMetadata.METADATA_PREFIX), anyInt(), any(ActionListener.class));
 
         when(transferService.downloadBlob(any(BlobPath.class), eq(mdFilename))).thenThrow(new IOException("Something went wrong"));
 
@@ -283,10 +286,11 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         );
 
         doAnswer(invocation -> {
-            LatchedActionListener<List<BlobMetadata>> latchedActionListener = invocation.getArgument(2);
+            LatchedActionListener<List<BlobMetadata>> latchedActionListener = invocation.getArgument(3);
             latchedActionListener.onFailure(new IOException("Issue while listing"));
             return null;
-        }).when(transferService).listAllInSortedOrder(any(BlobPath.class), anyInt(), any(ActionListener.class));
+        }).when(transferService)
+            .listAllInSortedOrder(any(BlobPath.class), eq(TranslogTransferMetadata.METADATA_PREFIX), anyInt(), any(ActionListener.class));
 
         when(transferService.downloadBlob(any(BlobPath.class), any(String.class))).thenThrow(new IOException("Something went wrong"));
 
@@ -416,7 +420,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         String tm2 = new TranslogTransferMetadata(1, 2, 1, 2).getFileName();
         String tm3 = new TranslogTransferMetadata(2, 3, 1, 2).getFileName();
         doAnswer(invocation -> {
-            ActionListener<List<BlobMetadata>> actionListener = invocation.getArgument(3);
+            ActionListener<List<BlobMetadata>> actionListener = invocation.getArgument(4);
             List<BlobMetadata> bmList = new LinkedList<>();
             bmList.add(new PlainBlobMetadata(tm1, 1));
             bmList.add(new PlainBlobMetadata(tm2, 1));
@@ -424,12 +428,19 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
             actionListener.onResponse(bmList);
             return null;
         }).when(transferService)
-            .listAllInSortedOrderAsync(eq(ThreadPool.Names.REMOTE_PURGE), any(BlobPath.class), anyInt(), any(ActionListener.class));
+            .listAllInSortedOrderAsync(
+                eq(ThreadPool.Names.REMOTE_PURGE),
+                any(BlobPath.class),
+                eq(TranslogTransferMetadata.METADATA_PREFIX),
+                anyInt(),
+                any(ActionListener.class)
+            );
         List<String> files = List.of(tm2, tm3);
         translogTransferManager.deleteStaleTranslogMetadataFilesAsync(() -> {
             verify(transferService).listAllInSortedOrderAsync(
                 eq(ThreadPool.Names.REMOTE_PURGE),
                 any(BlobPath.class),
+                eq(TranslogTransferMetadata.METADATA_PREFIX),
                 eq(Integer.MAX_VALUE),
                 any()
             );

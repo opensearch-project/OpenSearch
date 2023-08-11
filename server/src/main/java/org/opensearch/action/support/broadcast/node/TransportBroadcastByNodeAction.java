@@ -33,7 +33,7 @@
 package org.opensearch.action.support.broadcast.node;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.NoShardAvailableActionException;
@@ -63,7 +63,7 @@ import org.opensearch.transport.TransportChannel;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportRequestHandler;
-import org.opensearch.transport.TransportResponse;
+import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
 import org.opensearch.transport.TransportRequestOptions;

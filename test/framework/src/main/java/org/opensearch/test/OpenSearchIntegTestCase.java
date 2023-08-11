@@ -38,12 +38,13 @@ import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
 import org.apache.hc.core5.http.HttpHost;
+import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.DocWriteResponse;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
@@ -105,9 +106,9 @@ import org.opensearch.common.settings.FeatureFlagSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.transport.TransportAddress;
-import org.opensearch.common.unit.ByteSizeUnit;
-import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.core.common.transport.TransportAddress;
+import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.concurrent.ThreadContext;
@@ -117,6 +118,7 @@ import org.opensearch.common.xcontent.smile.SmileXContent;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -132,6 +134,7 @@ import org.opensearch.index.MergeSchedulerConfig;
 import org.opensearch.index.MockEngineFactoryPlugin;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.engine.Segment;
+import org.opensearch.index.mapper.CompletionFieldMapper;
 import org.opensearch.index.mapper.MockFieldFilterPlugin;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.Translog;
@@ -148,12 +151,13 @@ import org.opensearch.script.MockScriptService;
 import org.opensearch.search.MockSearchService;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchService;
+import org.opensearch.telemetry.TelemetrySettings;
 import org.opensearch.test.client.RandomizingClient;
 import org.opensearch.test.disruption.NetworkDisruption;
 import org.opensearch.test.disruption.ServiceDisruptionScheme;
 import org.opensearch.test.store.MockFSIndexStore;
-import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.test.telemetry.MockTelemetryPlugin;
+import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.transport.TransportInterceptor;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportRequestHandler;
@@ -200,7 +204,7 @@ import java.util.stream.Collectors;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.opensearch.common.unit.TimeValue.timeValueMillis;
-import static org.opensearch.common.util.CollectionUtils.eagerPartition;
+import static org.opensearch.core.common.util.CollectionUtils.eagerPartition;
 import static org.opensearch.discovery.DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING;
 import static org.opensearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
 import static org.opensearch.index.IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING;
@@ -270,6 +274,19 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
      * Property that controls whether ThirdParty Integration tests are run (not the default).
      */
     public static final String SYSPROP_THIRDPARTY = "tests.thirdparty";
+
+    /**
+     * The lucene_default {@link Codec} is not added to the list as it internally maps to Asserting {@link Codec}.
+     * The override to fetch the {@link CompletionFieldMapper.CompletionFieldType} postings format is not available for this codec.
+     */
+    public static final List<String> CODECS = List.of(
+        CodecService.DEFAULT_CODEC,
+        CodecService.LZ4,
+        CodecService.BEST_COMPRESSION_CODEC,
+        CodecService.ZLIB,
+        CodecService.ZSTD_CODEC,
+        CodecService.ZSTD_NO_DICT_CODEC
+    );
 
     /**
      * Annotation for third-party integration tests.
@@ -427,7 +444,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             // otherwise, use it, it has assertions and so on that can find bugs.
             SuppressCodecs annotation = getClass().getAnnotation(SuppressCodecs.class);
             if (annotation != null && annotation.value().length == 1 && "*".equals(annotation.value()[0])) {
-                randomSettingsBuilder.put("index.codec", randomFrom(CodecService.DEFAULT_CODEC, CodecService.BEST_COMPRESSION_CODEC));
+                randomSettingsBuilder.put("index.codec", randomFrom(CODECS));
             } else {
                 randomSettingsBuilder.put("index.codec", CodecService.LUCENE_DEFAULT_CODEC);
             }
@@ -577,44 +594,34 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
     }
 
     private void afterInternal(boolean afterClass) throws Exception {
-        boolean success = false;
+        final Scope currentClusterScope = getCurrentClusterScope();
+        if (isInternalCluster()) {
+            internalCluster().clearDisruptionScheme();
+        }
         try {
-            final Scope currentClusterScope = getCurrentClusterScope();
-            if (isInternalCluster()) {
-                internalCluster().clearDisruptionScheme();
-            }
-            try {
-                if (cluster() != null) {
-                    if (currentClusterScope != Scope.TEST) {
-                        Metadata metadata = client().admin().cluster().prepareState().execute().actionGet().getState().getMetadata();
+            if (cluster() != null) {
+                if (currentClusterScope != Scope.TEST) {
+                    Metadata metadata = client().admin().cluster().prepareState().execute().actionGet().getState().getMetadata();
 
-                        final Set<String> persistentKeys = new HashSet<>(metadata.persistentSettings().keySet());
-                        assertThat("test leaves persistent cluster metadata behind", persistentKeys, empty());
+                    final Set<String> persistentKeys = new HashSet<>(metadata.persistentSettings().keySet());
+                    assertThat("test leaves persistent cluster metadata behind", persistentKeys, empty());
 
-                        final Set<String> transientKeys = new HashSet<>(metadata.transientSettings().keySet());
-                        assertThat("test leaves transient cluster metadata behind", transientKeys, empty());
-                    }
-                    ensureClusterSizeConsistency();
-                    ensureClusterStateConsistency();
-                    ensureClusterStateCanBeReadByNodeTool();
-                    beforeIndexDeletion();
-                    cluster().wipe(excludeTemplates()); // wipe after to make sure we fail in the test that didn't ack the delete
-                    if (afterClass || currentClusterScope == Scope.TEST) {
-                        cluster().close();
-                    }
-                    cluster().assertAfterTest();
+                    final Set<String> transientKeys = new HashSet<>(metadata.transientSettings().keySet());
+                    assertThat("test leaves transient cluster metadata behind", transientKeys, empty());
                 }
-            } finally {
-                if (currentClusterScope == Scope.TEST) {
-                    clearClusters(); // it is ok to leave persistent / transient cluster state behind if scope is TEST
+                ensureClusterSizeConsistency();
+                ensureClusterStateConsistency();
+                ensureClusterStateCanBeReadByNodeTool();
+                beforeIndexDeletion();
+                cluster().wipe(excludeTemplates()); // wipe after to make sure we fail in the test that didn't ack the delete
+                if (afterClass || currentClusterScope == Scope.TEST) {
+                    cluster().close();
                 }
+                cluster().assertAfterTest();
             }
-            success = true;
         } finally {
-            if (!success) {
-                // if we failed here that means that something broke horribly so we should clear all clusters
-                // TODO: just let the exception happen, WTF is all this horseshit
-                // afterTestRule.forceFailure();
+            if (currentClusterScope == Scope.TEST) {
+                clearClusters(); // it is ok to leave persistent / transient cluster state behind if scope is TEST
             }
         }
     }
@@ -778,6 +785,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         for (Setting builtInFlag : FeatureFlagSettings.BUILT_IN_FEATURE_FLAGS) {
             featureSettings.put(builtInFlag.getKey(), builtInFlag.getDefaultRaw(Settings.EMPTY));
         }
+        // Enabling Telemetry setting by default
         featureSettings.put(FeatureFlags.TELEMETRY_SETTING.getKey(), true);
         return featureSettings.build();
     }
@@ -1398,7 +1406,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
      */
     @Deprecated
     protected final IndexResponse index(String index, String type, String id, String source) {
-        return client().prepareIndex(index).setId(id).setSource(source, XContentType.JSON).execute().actionGet();
+        return client().prepareIndex(index).setId(id).setSource(source, MediaTypeRegistry.JSON).execute().actionGet();
     }
 
     /**
@@ -1570,7 +1578,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
                 String index = RandomPicks.randomFrom(random, indices);
                 bogusIds.add(Arrays.asList(index, id));
                 // We configure a routing key in case the mapping requires it
-                builders.add(client().prepareIndex().setIndex(index).setId(id).setSource("{}", XContentType.JSON).setRouting(id));
+                builders.add(client().prepareIndex().setIndex(index).setId(id).setSource("{}", MediaTypeRegistry.JSON).setRouting(id));
             }
         }
         Collections.shuffle(builders, random());
@@ -1888,6 +1896,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
      * In other words subclasses must ensure this method is idempotent.
      */
     protected Settings nodeSettings(int nodeOrdinal) {
+        final Settings featureFlagSettings = featureFlagSettings();
         Settings.Builder builder = Settings.builder()
             // Default the watermarks to absurdly low to prevent the tests
             // from failing on nodes without enough disk space
@@ -1905,6 +1914,16 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             .putList(DISCOVERY_SEED_HOSTS_SETTING.getKey()) // empty list disables a port scan for other nodes
             .putList(DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), "file")
             .put(featureFlagSettings());
+
+        // Enable tracer only when Telemetry Setting is enabled
+        if (featureFlagSettings().getAsBoolean(FeatureFlags.TELEMETRY_SETTING.getKey(), false)) {
+            builder.put(TelemetrySettings.TRACER_ENABLED_SETTING.getKey(), true);
+        }
+        if (FeatureFlags.CONCURRENT_SEGMENT_SEARCH_SETTING.get(featureFlagSettings)) {
+            // By default, for tests we will put the target slice count of 2. This will increase the probability of having multiple slices
+            // when tests are run with concurrent segment search enabled
+            builder.put(SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_KEY, 2);
+        }
         return builder.build();
     }
 
@@ -2060,6 +2079,11 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         return true;
     }
 
+    /** Returns {@code true} if this test cluster should have tracing enabled with MockTelemetryPlugin */
+    protected boolean addMockTelemetryPlugin() {
+        return true;
+    }
+
     /**
      * Returns a function that allows to wrap / filter all clients that are exposed by the test cluster. This is useful
      * for debugging or request / response pre and post processing. It also allows to intercept all calls done by the test
@@ -2104,8 +2128,9 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         if (addMockGeoShapeFieldMapper()) {
             mocks.add(TestGeoShapeFieldMapperPlugin.class);
         }
-        mocks.add(MockTelemetryPlugin.class);
-
+        if (addMockTelemetryPlugin()) {
+            mocks.add(MockTelemetryPlugin.class);
+        }
         return Collections.unmodifiableList(mocks);
     }
 

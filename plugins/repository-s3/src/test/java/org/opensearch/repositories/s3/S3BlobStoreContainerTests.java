@@ -33,14 +33,14 @@
 package org.opensearch.repositories.s3;
 
 import org.mockito.ArgumentCaptor;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStoreException;
 import org.opensearch.common.blobstore.DeleteResult;
 import org.opensearch.common.collect.Tuple;
-import org.opensearch.common.unit.ByteSizeUnit;
+import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.test.OpenSearchTestCase;
 import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.core.sync.RequestBody;

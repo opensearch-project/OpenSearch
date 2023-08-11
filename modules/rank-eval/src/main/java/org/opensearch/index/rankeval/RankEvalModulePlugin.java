@@ -33,7 +33,7 @@
 package org.opensearch.index.rankeval;
 
 import org.opensearch.action.ActionRequest;
-import org.opensearch.action.ActionResponse;
+import org.opensearch.core.action.ActionResponse;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;

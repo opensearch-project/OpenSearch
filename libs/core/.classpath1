@@ -253,12 +253,6 @@
 			<attribute name="test" value="true"/>
 		</attributes>
 	</classpathentry>
-	<classpathentry sourcepath="/home/alpar/.gradle/caches/modules-2/files-2.1/com.carrotsearch/hppc/0.8.1/b338e50c3f98c7ec2bf67a5efb7fa8726a4a9b2d/hppc-0.8.1-sources.jar" kind="lib" path="/home/alpar/.gradle/caches/modules-2/files-2.1/com.carrotsearch/hppc/0.8.1/ffc7ba8f289428b9508ab484b8001dea944ae603/hppc-0.8.1.jar">
-		<attributes>
-			<attribute name="gradle_used_by_scope" value="test"/>
-			<attribute name="test" value="true"/>
-		</attributes>
-	</classpathentry>
 	<classpathentry sourcepath="/home/alpar/.gradle/caches/modules-2/files-2.1/joda-time/joda-time/2.10.2/fbf6cbd712c30629c77cefa42fe15ca888e609d5/joda-time-2.10.2-sources.jar" kind="lib" path="/home/alpar/.gradle/caches/modules-2/files-2.1/joda-time/joda-time/2.10.2/a079fc39ccc3de02acdeb7117443e5d9bd431687/joda-time-2.10.2.jar">
 		<attributes>
 			<attribute name="gradle_used_by_scope" value="test"/>

@@ -31,7 +31,6 @@
 
 package org.opensearch.index.store;
 
-import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.SegmentCommitInfo;
@@ -67,8 +66,8 @@ import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.unit.ByteSizeUnit;
-import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.core.index.Index;
@@ -113,7 +112,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 import static org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest.Metric.FS;
-import static org.opensearch.common.util.CollectionUtils.iterableAsArrayList;
+import static org.opensearch.core.common.util.CollectionUtils.iterableAsArrayList;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAllSuccessful;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
@@ -674,9 +673,9 @@ public class CorruptedFileIT extends OpenSearchIntegTestCase {
 
         final IndicesShardStoresResponse stores = client().admin().indices().prepareShardStores(index.getName()).get();
 
-        for (IntObjectCursor<List<IndicesShardStoresResponse.StoreStatus>> shards : stores.getStoreStatuses().get(index.getName())) {
-            for (IndicesShardStoresResponse.StoreStatus store : shards.value) {
-                final ShardId shardId = new ShardId(index, shards.key);
+        for (var shards : stores.getStoreStatuses().get(index.getName()).entrySet()) {
+            for (IndicesShardStoresResponse.StoreStatus store : shards.getValue()) {
+                final ShardId shardId = new ShardId(index, shards.getKey());
                 if (store.getAllocationStatus().equals(IndicesShardStoresResponse.StoreStatus.AllocationStatus.UNUSED)) {
                     for (Path path : findFilesToCorruptOnNode(store.getNode().getName(), shardId)) {
                         try (OutputStream os = Files.newOutputStream(path)) {

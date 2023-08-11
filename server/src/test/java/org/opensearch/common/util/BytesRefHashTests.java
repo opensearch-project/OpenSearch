@@ -32,14 +32,11 @@
 
 package org.opensearch.common.util;
 
-import com.carrotsearch.hppc.ObjectLongHashMap;
-import com.carrotsearch.hppc.ObjectLongMap;
-import com.carrotsearch.hppc.cursors.ObjectLongCursor;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.tests.util.TestUtil;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.indices.breaker.NoneCircuitBreakerService;
+import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.HashMap;
@@ -77,7 +74,7 @@ public class BytesRefHashTests extends OpenSearchTestCase {
         for (int i = 0; i < values.length; ++i) {
             values[i] = new BytesRef(randomAlphaOfLength(5));
         }
-        final ObjectLongMap<BytesRef> valueToId = new ObjectLongHashMap<>();
+        final Map<BytesRef, Integer> valueToId = new HashMap<>();
         final BytesRef[] idToValue = new BytesRef[values.length];
         final int iters = randomInt(1000000);
         for (int i = 0; i < iters; ++i) {
@@ -92,8 +89,8 @@ public class BytesRefHashTests extends OpenSearchTestCase {
         }
 
         assertEquals(valueToId.size(), hash.size());
-        for (final ObjectLongCursor<BytesRef> next : valueToId) {
-            assertEquals(next.value, hash.find(next.key, next.key.hashCode()));
+        for (final var next : valueToId.entrySet()) {
+            assertEquals(next.getValue().longValue(), hash.find(next.getKey(), next.getKey().hashCode()));
         }
 
         for (long i = 0; i < hash.capacity(); ++i) {

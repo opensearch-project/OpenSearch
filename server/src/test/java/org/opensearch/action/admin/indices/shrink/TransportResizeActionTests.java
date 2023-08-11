@@ -52,7 +52,7 @@ import org.opensearch.cluster.routing.allocation.allocator.BalancedShardsAllocat
 import org.opensearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.opensearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.index.shard.DocsStats;
 import org.opensearch.index.store.StoreStats;
 import org.opensearch.snapshots.EmptySnapshotsInfoService;

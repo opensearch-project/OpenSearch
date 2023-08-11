@@ -37,7 +37,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.MessageSupplier;
 import org.opensearch.ExceptionsHelper;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.ActionListenerResponseHandler;
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.DocWriteRequest;
@@ -78,8 +78,8 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.lease.Releasable;
+import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.index.IndexingPressureService;
 import org.opensearch.index.SegmentReplicationPressureService;
@@ -99,7 +99,7 @@ import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.SystemIndices;
 import org.opensearch.node.NodeClosedException;
 import org.opensearch.tasks.Task;
-import org.opensearch.tasks.TaskId;
+import org.opensearch.core.tasks.TaskId;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.threadpool.ThreadPool.Names;
 import org.opensearch.transport.TransportChannel;
@@ -752,7 +752,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
                 if (updateRequest.fetchSource() != null && updateRequest.fetchSource().fetchSource()) {
                     final BytesReference indexSourceAsBytes = updateIndexRequest.source();
-                    final Tuple<XContentType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(
+                    final Tuple<? extends MediaType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(
                         indexSourceAsBytes,
                         true,
                         updateIndexRequest.getContentType()

@@ -10,11 +10,11 @@ package org.opensearch.indices.recovery;
 
 import org.apache.logging.log4j.Logger;
 import org.opensearch.ExceptionsHelper;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.ActionListenerResponseHandler;
 import org.opensearch.action.support.RetryableAction;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.common.breaker.CircuitBreakingException;
+import org.opensearch.core.common.breaker.CircuitBreakingException;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.CancellableThreads;
@@ -26,7 +26,7 @@ import org.opensearch.transport.RemoteTransportException;
 import org.opensearch.transport.SendRequestTransportException;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportRequestOptions;
-import org.opensearch.transport.TransportResponse;
+import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.transport.TransportService;
 
 import java.util.Map;

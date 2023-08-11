@@ -121,29 +121,27 @@ public class UnsignedLongTerms extends InternalMappedTerms<UnsignedLongTerms, Un
         String name,
         BucketOrder reduceOrder,
         BucketOrder order,
-        int requiredSize,
-        long minDocCount,
         Map<String, Object> metadata,
         DocValueFormat format,
         int shardSize,
         boolean showTermDocCountError,
         long otherDocCount,
         List<Bucket> buckets,
-        long docCountError
+        long docCountError,
+        TermsAggregator.BucketCountThresholds bucketCountThresholds
     ) {
         super(
             name,
             reduceOrder,
             order,
-            requiredSize,
-            minDocCount,
             metadata,
             format,
             shardSize,
             showTermDocCountError,
             otherDocCount,
             buckets,
-            docCountError
+            docCountError,
+            bucketCountThresholds
         );
     }
 
@@ -165,15 +163,14 @@ public class UnsignedLongTerms extends InternalMappedTerms<UnsignedLongTerms, Un
             name,
             reduceOrder,
             order,
-            requiredSize,
-            minDocCount,
             metadata,
             format,
             shardSize,
             showTermDocCountError,
             otherDocCount,
             buckets,
-            docCountError
+            docCountError,
+            bucketCountThresholds
         );
     }
 
@@ -195,15 +192,14 @@ public class UnsignedLongTerms extends InternalMappedTerms<UnsignedLongTerms, Un
             name,
             reduceOrder,
             order,
-            requiredSize,
-            minDocCount,
             getMetadata(),
             format,
             shardSize,
             showTermDocCountError,
             otherDocCount,
             buckets,
-            docCountError
+            docCountError,
+            bucketCountThresholds
         );
     }
 
@@ -272,15 +268,14 @@ public class UnsignedLongTerms extends InternalMappedTerms<UnsignedLongTerms, Un
             unsignedLongTerms.getName(),
             unsignedLongTerms.reduceOrder,
             unsignedLongTerms.order,
-            unsignedLongTerms.requiredSize,
-            unsignedLongTerms.minDocCount,
             unsignedLongTerms.metadata,
             unsignedLongTerms.format,
             unsignedLongTerms.shardSize,
             unsignedLongTerms.showTermDocCountError,
             unsignedLongTerms.otherDocCount,
             newBuckets,
-            unsignedLongTerms.docCountError
+            unsignedLongTerms.docCountError,
+            unsignedLongTerms.bucketCountThresholds
         );
     }
 }

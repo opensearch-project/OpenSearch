@@ -11,7 +11,7 @@ package org.opensearch.index.translog.transfer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
@@ -213,17 +213,18 @@ public class BlobStoreTransferService implements TransferService {
         });
     }
 
-    public void listAllInSortedOrder(Iterable<String> path, int limit, ActionListener<List<BlobMetadata>> listener) {
-        blobStore.blobContainer((BlobPath) path).listBlobsByPrefixInSortedOrder("", limit, LEXICOGRAPHIC, listener);
+    public void listAllInSortedOrder(Iterable<String> path, String filenamePrefix, int limit, ActionListener<List<BlobMetadata>> listener) {
+        blobStore.blobContainer((BlobPath) path).listBlobsByPrefixInSortedOrder(filenamePrefix, limit, LEXICOGRAPHIC, listener);
     }
 
     public void listAllInSortedOrderAsync(
         String threadpoolName,
         Iterable<String> path,
+        String filenamePrefix,
         int limit,
         ActionListener<List<BlobMetadata>> listener
     ) {
-        threadPool.executor(threadpoolName).execute(() -> { listAllInSortedOrder(path, limit, listener); });
+        threadPool.executor(threadpoolName).execute(() -> { listAllInSortedOrder(path, filenamePrefix, limit, listener); });
     }
 
 }

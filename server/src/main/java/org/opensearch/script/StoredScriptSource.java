@@ -35,24 +35,23 @@ package org.opensearch.script;
 import org.opensearch.cluster.AbstractDiffable;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.Diff;
+import org.opensearch.common.logging.DeprecationLogger;
+import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.ParsingException;
-import org.opensearch.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.common.logging.DeprecationLogger;
-import org.opensearch.common.xcontent.LoggingDeprecationHandler;
+import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.ObjectParser.ValueType;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.core.xcontent.XContentParser.Token;
-import org.opensearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -123,9 +122,9 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
             try {
                 if (parser.currentToken() == Token.START_OBJECT) {
                     // this is really for search templates, that need to be converted to json format
-                    XContentBuilder builder = XContentFactory.jsonBuilder();
-                    source = Strings.toString(builder.copyCurrentStructure(parser));
-                    options.put(Script.CONTENT_TYPE_OPTION, XContentType.JSON.mediaType());
+                    XContentBuilder builder = MediaTypeRegistry.JSON.contentBuilder();
+                    source = builder.copyCurrentStructure(parser).toString();
+                    options.put(Script.CONTENT_TYPE_OPTION, MediaTypeRegistry.JSON.mediaType());
                 } else {
                     source = parser.text();
                 }
@@ -197,71 +196,72 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
 
     /**
      * This will parse XContent into a {@link StoredScriptSource}.  The following formats can be parsed:
-     *
+     * <p>
      * The simple script format with no compiler options or user-defined params:
-     *
+     * <p>
      * Example:
      * {@code
      * {"script": "return Math.log(doc.popularity) * 100;"}
      * }
-     *
+     * <p>
      * The above format requires the lang to be specified using the deprecated stored script namespace
      * (as a url parameter during a put request).  See {@link ScriptMetadata} for more information about
      * the stored script namespaces.
-     *
+     * <p>
      * The complex script format using the new stored script namespace
      * where lang and source are required but options is optional:
-     *
+     * <p>
      * {@code
      * {
-     *     "script" : {
-     *         "lang" : "<lang>",
-     *         "source" : "<source>",
-     *         "options" : {
-     *             "option0" : "<option0>",
-     *             "option1" : "<option1>",
-     *             ...
-     *         }
-     *     }
+     * "script" : {
+     * "lang" : "<lang>",
+     * "source" : "<source>",
+     * "options" : {
+     * "option0" : "<option0>",
+     * "option1" : "<option1>",
+     * ...
      * }
      * }
-     *
+     * }
+     * }
+     * <p>
      * Example:
      * {@code
      * {
-     *     "script": {
-     *         "lang" : "painless",
-     *         "source" : "return Math.log(doc.popularity) * params.multiplier"
-     *     }
+     * "script": {
+     * "lang" : "painless",
+     * "source" : "return Math.log(doc.popularity) * params.multiplier"
      * }
      * }
-     *
+     * }
+     * <p>
      * The use of "source" may also be substituted with "code" for backcompat with 5.3 to 5.5 format. For example:
-     *
+     * <p>
      * {@code
      * {
-     *     "script" : {
-     *         "lang" : "<lang>",
-     *         "code" : "<source>",
-     *         "options" : {
-     *             "option0" : "<option0>",
-     *             "option1" : "<option1>",
-     *             ...
-     *         }
-     *     }
+     * "script" : {
+     * "lang" : "<lang>",
+     * "code" : "<source>",
+     * "options" : {
+     * "option0" : "<option0>",
+     * "option1" : "<option1>",
+     * ...
      * }
      * }
-     *
+     * }
+     * }
+     * <p>
      * Note that the "source" parameter can also handle template parsing including from
      * a complex JSON object.
      *
-     * @param content The content from the request to be parsed as described above.
-     * @return        The parsed {@link StoredScriptSource}.
+     * @param content   The content from the request to be parsed as described above.
+     * @param mediaType The media type of the request
+     * @return The parsed {@link StoredScriptSource}.
      */
-    public static StoredScriptSource parse(BytesReference content, XContentType xContentType) {
+    public static StoredScriptSource parse(BytesReference content, MediaType mediaType) {
         try (
             InputStream stream = content.streamInput();
-            XContentParser parser = xContentType.xContent()
+            XContentParser parser = mediaType.xContent()
                 .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)
         ) {
             Token token = parser.nextToken();

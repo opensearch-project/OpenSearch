@@ -10,15 +10,14 @@ package org.opensearch.remotestore;
 
 import org.junit.After;
 import org.junit.Before;
-import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.SegmentReplicationPressureIT;
-import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.nio.file.Path;
 
+import static org.opensearch.remotestore.RemoteStoreBaseIntegTestCase.remoteStoreClusterSettings;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 /**
@@ -32,14 +31,8 @@ public class SegmentReplicationWithRemoteStorePressureIT extends SegmentReplicat
     private static final String REPOSITORY_NAME = "test-remote-store-repo";
 
     @Override
-    public Settings indexSettings() {
-        return Settings.builder()
-            .put(super.indexSettings())
-            .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
-            .put(IndexMetadata.SETTING_REMOTE_STORE_REPOSITORY, REPOSITORY_NAME)
-            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED, false)
-            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
-            .build();
+    protected boolean segmentReplicationWithRemoteEnabled() {
+        return true;
     }
 
     @Override
@@ -49,6 +42,11 @@ public class SegmentReplicationWithRemoteStorePressureIT extends SegmentReplicat
             .put(FeatureFlags.REMOTE_STORE, "true")
             .put(FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL, "true")
             .build();
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal)).put(remoteStoreClusterSettings(REPOSITORY_NAME)).build();
     }
 
     @Before

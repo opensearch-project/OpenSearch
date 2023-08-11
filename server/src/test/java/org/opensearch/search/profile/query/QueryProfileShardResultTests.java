@@ -45,7 +45,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.opensearch.common.xcontent.XContentHelper.toXContent;
+import static org.opensearch.core.xcontent.XContentHelper.toXContent;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertToXContentEquivalent;
 
 public class QueryProfileShardResultTests extends OpenSearchTestCase {
@@ -54,7 +54,7 @@ public class QueryProfileShardResultTests extends OpenSearchTestCase {
         int size = randomIntBetween(0, 5);
         List<ProfileResult> queryProfileResults = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
-            queryProfileResults.add(ProfileResultTests.createTestItem(1));
+            queryProfileResults.add(ProfileResultTests.createTestItem(1, false));
         }
         CollectorResult profileCollector = CollectorResultTests.createTestItem(2, false);
         long rewriteTime = randomNonNegativeLong();

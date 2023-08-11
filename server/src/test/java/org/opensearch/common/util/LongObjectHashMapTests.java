@@ -32,10 +32,12 @@
 
 package org.opensearch.common.util;
 
-import com.carrotsearch.hppc.LongObjectHashMap;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.indices.breaker.NoneCircuitBreakerService;
+import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.test.OpenSearchTestCase;
+
+import java.util.HashMap;
+import java.util.Map;
 
 public class LongObjectHashMapTests extends OpenSearchTestCase {
 
@@ -44,7 +46,7 @@ public class LongObjectHashMapTests extends OpenSearchTestCase {
     }
 
     public void testDuel() {
-        final LongObjectHashMap<Object> map1 = new LongObjectHashMap<>();
+        final Map<Long, Object> map1 = new HashMap<>();
         final LongObjectPagedHashMap<Object> map2 = new LongObjectPagedHashMap<>(
             randomInt(42),
             0.6f + randomFloat() * 0.39f,
@@ -66,10 +68,10 @@ public class LongObjectHashMapTests extends OpenSearchTestCase {
                 assertEquals(map1.size(), map2.size());
             }
         }
-        for (int i = 0; i <= maxKey; ++i) {
+        for (long i = 0; i <= maxKey; ++i) {
             assertSame(map1.get(i), map2.get(i));
         }
-        final LongObjectHashMap<Object> copy = new LongObjectHashMap<>();
+        final Map<Long, Object> copy = new HashMap<>();
         for (LongObjectPagedHashMap.Cursor<Object> cursor : map2) {
             copy.put(cursor.key, cursor.value);
         }

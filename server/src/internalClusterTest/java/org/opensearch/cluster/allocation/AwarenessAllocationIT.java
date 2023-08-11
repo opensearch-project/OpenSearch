@@ -32,7 +32,6 @@
 
 package org.opensearch.cluster.allocation;
 
-import com.carrotsearch.hppc.ObjectIntHashMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
@@ -53,7 +52,9 @@ import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -126,11 +127,11 @@ public class AwarenessAllocationIT extends OpenSearchIntegTestCase {
             assertThat("Some indices not closed", notClosedIndices, empty());
 
             // verify that we have all the primaries on node3
-            ObjectIntHashMap<String> counts = new ObjectIntHashMap<>();
+            final Map<String, Integer> counts = new HashMap<>();
             for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
                 for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
                     for (ShardRouting shardRouting : indexShardRoutingTable) {
-                        counts.addTo(clusterState.nodes().get(shardRouting.currentNodeId()).getName(), 1);
+                        counts.merge(clusterState.nodes().get(shardRouting.currentNodeId()).getName(), 1, Integer::sum);
                     }
                 }
             }
@@ -182,12 +183,12 @@ public class AwarenessAllocationIT extends OpenSearchIntegTestCase {
         assertThat(health.isTimedOut(), equalTo(false));
 
         ClusterState clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
-        ObjectIntHashMap<String> counts = new ObjectIntHashMap<>();
+        final Map<String, Integer> counts = new HashMap<>();
 
         for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
             for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
                 for (ShardRouting shardRouting : indexShardRoutingTable) {
-                    counts.addTo(clusterState.nodes().get(shardRouting.currentNodeId()).getName(), 1);
+                    counts.merge(clusterState.nodes().get(shardRouting.currentNodeId()).getName(), 1, Integer::sum);
                 }
             }
         }
@@ -232,12 +233,12 @@ public class AwarenessAllocationIT extends OpenSearchIntegTestCase {
             .actionGet();
         assertThat(health.isTimedOut(), equalTo(false));
         ClusterState clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
-        ObjectIntHashMap<String> counts = new ObjectIntHashMap<>();
+        Map<String, Integer> counts = new HashMap<>();
 
         for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
             for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
                 for (ShardRouting shardRouting : indexShardRoutingTable) {
-                    counts.addTo(clusterState.nodes().get(shardRouting.currentNodeId()).getName(), 1);
+                    counts.merge(clusterState.nodes().get(shardRouting.currentNodeId()).getName(), 1, Integer::sum);
                 }
             }
         }
@@ -272,12 +273,12 @@ public class AwarenessAllocationIT extends OpenSearchIntegTestCase {
         assertThat(health.isTimedOut(), equalTo(false));
         clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
 
-        counts = new ObjectIntHashMap<>();
+        counts = new HashMap<>();
 
         for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
             for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
                 for (ShardRouting shardRouting : indexShardRoutingTable) {
-                    counts.addTo(clusterState.nodes().get(shardRouting.currentNodeId()).getName(), 1);
+                    counts.merge(clusterState.nodes().get(shardRouting.currentNodeId()).getName(), 1, Integer::sum);
                 }
             }
         }
@@ -312,12 +313,12 @@ public class AwarenessAllocationIT extends OpenSearchIntegTestCase {
         assertThat(health.isTimedOut(), equalTo(false));
         clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
 
-        counts = new ObjectIntHashMap<>();
+        counts = new HashMap<>();
 
         for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
             for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
                 for (ShardRouting shardRouting : indexShardRoutingTable) {
-                    counts.addTo(clusterState.nodes().get(shardRouting.currentNodeId()).getName(), 1);
+                    counts.merge(clusterState.nodes().get(shardRouting.currentNodeId()).getName(), 1, Integer::sum);
                 }
             }
         }
@@ -347,12 +348,12 @@ public class AwarenessAllocationIT extends OpenSearchIntegTestCase {
         assertThat(health.isTimedOut(), equalTo(false));
         clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
 
-        counts = new ObjectIntHashMap<>();
+        counts = new HashMap<>();
 
         for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
             for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
                 for (ShardRouting shardRouting : indexShardRoutingTable) {
-                    counts.addTo(clusterState.nodes().get(shardRouting.currentNodeId()).getName(), 1);
+                    counts.merge(clusterState.nodes().get(shardRouting.currentNodeId()).getName(), 1, Integer::sum);
                 }
             }
         }
@@ -415,12 +416,12 @@ public class AwarenessAllocationIT extends OpenSearchIntegTestCase {
         assertFalse(health.isTimedOut());
 
         ClusterState clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
-        ObjectIntHashMap<String> counts = new ObjectIntHashMap<>();
+        final Map<String, Integer> counts = new HashMap<>();
 
         for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
             for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
                 for (ShardRouting shardRouting : indexShardRoutingTable) {
-                    counts.addTo(clusterState.nodes().get(shardRouting.currentNodeId()).getName(), 1);
+                    counts.merge(clusterState.nodes().get(shardRouting.currentNodeId()).getName(), 1, Integer::sum);
                 }
             }
         }

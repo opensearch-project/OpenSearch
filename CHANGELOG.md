@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Add getter for path field in NestedQueryBuilder ([#4636](https://github.com/opensearch-project/OpenSearch/pull/4636))
 - Allow mmap to use new JDK-19 preview APIs in Apache Lucene 9.4+ ([#5151](https://github.com/opensearch-project/OpenSearch/pull/5151))
 - Add events correlation engine plugin ([#6854](https://github.com/opensearch-project/OpenSearch/issues/6854))
+- Introduce new dynamic cluster setting to control slice computation for concurrent segment search ([#9107](https://github.com/opensearch-project/OpenSearch/pull/9107))
 - Add Field Mapping correlation metadata ([#7082](https://github.com/opensearch-project/OpenSearch/issues/7082))
 
 ### Dependencies
@@ -46,7 +47,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Migrate client transports to Apache HttpClient / Core 5.x ([#4459](https://github.com/opensearch-project/OpenSearch/pull/4459))
 - Change http code on create index API with bad input raising NotXContentException from 500 to 400 ([#4773](https://github.com/opensearch-project/OpenSearch/pull/4773))
 - Improve summary error message for invalid setting updates ([#4792](https://github.com/opensearch-project/OpenSearch/pull/4792))
-
+- Remote Segment Store Repository setting moved from `index.remote_store.repository` to `index.remote_store.segment.repository` and `cluster.remote_store.repository` to `cluster.remote_store.segment.repository` respectively for Index and Cluster level settings ([#8719](https://github.com/opensearch-project/OpenSearch/pull/8719))
+- [Remote Store] Add support to restore only unassigned shards of an index ([#8792](https://github.com/opensearch-project/OpenSearch/pull/8792))
+- Replace the deprecated IndexReader APIs with new storedFields() & termVectors() ([#7792](https://github.com/opensearch-project/OpenSearch/pull/7792))
+- [Remote Store] Restrict user override for remote store index level settings ([#8812](https://github.com/opensearch-project/OpenSearch/pull/8812))
+- Removed blocking wait in TransportGetSnapshotsAction which was exhausting generic threadpool ([#8377](https://github.com/opensearch-project/OpenSearch/pull/8377))
+- Update Field capacity API with the adding the Alias information ([#7082](https://github.com/opensearch-project/OpenSearch/issues/7082))
 ### Deprecated
 
 ### Removed
@@ -64,6 +70,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Remove LegacyESVersion.V_7_10_ Constants ([#5018](https://github.com/opensearch-project/OpenSearch/pull/5018))
 - Remove Version.V_1_ Constants ([#5021](https://github.com/opensearch-project/OpenSearch/pull/5021))
 - Remove custom Map, List and Set collection classes ([#6871](https://github.com/opensearch-project/OpenSearch/pull/6871))
+- Remove provision to create Remote Indices without Remote Translog Store ([#8719](https://github.com/opensearch-project/OpenSearch/pull/8719))
 
 ### Fixed
 - Fix 'org.apache.hc.core5.http.ParseException: Invalid protocol version' under JDK 16+ ([#4827](https://github.com/opensearch-project/OpenSearch/pull/4827))
@@ -75,21 +82,61 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Added
 - Add server version as REST response header [#6583](https://github.com/opensearch-project/OpenSearch/issues/6583)
 - Start replication checkpointTimers on primary before segments upload to remote store. ([#8221]()https://github.com/opensearch-project/OpenSearch/pull/8221)
+- [distribution/archives] [Linux] [x64] Provide the variant of the distributions bundled with JRE ([#8195]()https://github.com/opensearch-project/OpenSearch/pull/8195)
+- Add configuration for file cache size to max remote data ratio to prevent oversubscription of file cache ([#8606](https://github.com/opensearch-project/OpenSearch/pull/8606))
+- Disallow compression level to be set for default and best_compression index codecs ([#8737]()https://github.com/opensearch-project/OpenSearch/pull/8737)
+- Prioritize replica shard movement during shard relocation ([#8875](https://github.com/opensearch-project/OpenSearch/pull/8875))
+- Introducing Default and Best Compression codecs as their algorithm name ([#9123]()https://github.com/opensearch-project/OpenSearch/pull/9123)
 
 ### Dependencies
 - Bump `org.apache.logging.log4j:log4j-core` from 2.17.1 to 2.20.0 ([#8307](https://github.com/opensearch-project/OpenSearch/pull/8307))
+- Bump `io.grpc:grpc-context` from 1.46.0 to 1.57.1 ([#8726](https://github.com/opensearch-project/OpenSearch/pull/8726), [#9145](https://github.com/opensearch-project/OpenSearch/pull/9145))
+- Bump `com.netflix.nebula:gradle-info-plugin` from 12.1.5 to 12.1.6 ([#8724](https://github.com/opensearch-project/OpenSearch/pull/8724))
+- Bump `commons-codec:commons-codec` from 1.15 to 1.16.0 ([#8725](https://github.com/opensearch-project/OpenSearch/pull/8725))
+- Bump `org.apache.zookeeper:zookeeper` from 3.8.1 to 3.9.0 ([#8844](https://github.com/opensearch-project/OpenSearch/pull/8844), [#9146](https://github.com/opensearch-project/OpenSearch/pull/9146))
+- Bump `org.gradle.test-retry` from 1.5.3 to 1.5.4 ([#8842](https://github.com/opensearch-project/OpenSearch/pull/8842))
+- Bump `com.netflix.nebula.ospackage-base` from 11.3.0 to 11.4.0 ([#8838](https://github.com/opensearch-project/OpenSearch/pull/8838))
+- Bump `com.google.http-client:google-http-client-gson` from 1.43.2 to 1.43.3 ([#8840](https://github.com/opensearch-project/OpenSearch/pull/8840))
+- OpenJDK Update (July 2023 Patch releases) ([#8868](https://github.com/opensearch-project/OpenSearch/pull/8868)
+- Bump `hadoop` libraries from 3.3.4 to 3.3.6 ([#6995](https://github.com/opensearch-project/OpenSearch/pull/6995))
+- Bump `com.gradle.enterprise` from 3.13.3 to 3.14.1 ([#8996](https://github.com/opensearch-project/OpenSearch/pull/8996))
+- Bump `org.apache.commons:commons-lang3` from 3.12.0 to 3.13.0 ([#8995](https://github.com/opensearch-project/OpenSearch/pull/8995))
+- Bump `com.google.cloud:google-cloud-core-http` from 2.21.0 to 2.21.1 ([#8999](https://github.com/opensearch-project/OpenSearch/pull/8999))
+- Bump `com.maxmind.geoip2:geoip2` from 4.0.1 to 4.1.0 ([#8998](https://github.com/opensearch-project/OpenSearch/pull/8998))
+- Bump `org.apache.commons:commons-lang3` from 3.12.0 to 3.13.0 in /plugins/repository-hdfs ([#8997](https://github.com/opensearch-project/OpenSearch/pull/8997))
+- Bump `netty` from 4.1.94.Final to 4.1.96.Final ([#9030](https://github.com/opensearch-project/OpenSearch/pull/9030))
+- Bump `io.projectreactor.netty:reactor-netty-http` from 1.1.8 to 1.1.9 ([#9147](https://github.com/opensearch-project/OpenSearch/pull/9147))
+- Bump `org.apache.maven:maven-model` from 3.9.3 to 3.9.4 ([#9148](https://github.com/opensearch-project/OpenSearch/pull/9148))
+- Bump `com.azure:azure-storage-blob` from 12.22.3 to 12.23.0 ([#9231](https://github.com/opensearch-project/OpenSearch/pull/9231))
+- Bump `com.diffplug.spotless` from 6.19.0 to 6.20.0 ([#9227](https://github.com/opensearch-project/OpenSearch/pull/9227))
+- Bump `org.xerial.snappy:snappy-java` from 1.1.8.2 to 1.1.10.3 ([#9252](https://github.com/opensearch-project/OpenSearch/pull/9252))
+- Bump `com.squareup.okhttp3:okhttp` from 4.9.3 to 4.11.0 ([#9252](https://github.com/opensearch-project/OpenSearch/pull/9252))
+- Bump `com.squareup.okio:okio` from 2.8.0 to 3.5.0 ([#9252](https://github.com/opensearch-project/OpenSearch/pull/9252))
+- Bump `com.google.code.gson:gson` from 2.9.0 to 2.10.1 ([#9230](https://github.com/opensearch-project/OpenSearch/pull/9230))
+- Bump `lycheeverse/lychee-action` from 1.2.0 to 1.8.0 ([#9228](https://github.com/opensearch-project/OpenSearch/pull/9228))
+- Bump `snakeyaml` from 2.0 to 2.1 ([#9269](https://github.com/opensearch-project/OpenSearch/pull/9269))
 
 ### Changed
 - Perform aggregation postCollection in ContextIndexSearcher after searching leaves ([#8303](https://github.com/opensearch-project/OpenSearch/pull/8303))
 - Make Span exporter configurable ([#8620](https://github.com/opensearch-project/OpenSearch/issues/8620))
+- Change InternalSignificantTerms to sum shard-level superset counts only in final reduce ([#8735](https://github.com/opensearch-project/OpenSearch/pull/8735))
+- Exclude 'benchmarks' from codecov report ([#8805](https://github.com/opensearch-project/OpenSearch/pull/8805))
+- Adds support for tracing runnable scenarios ([#8831](https://github.com/opensearch-project/OpenSearch/pull/8831))
+- [Refactor] MediaTypeParser to MediaTypeParserRegistry ([#8636](https://github.com/opensearch-project/OpenSearch/pull/8636))
+- Create separate SourceLookup instance per segment slice in SignificantTextAggregatorFactory ([#8807](https://github.com/opensearch-project/OpenSearch/pull/8807))
+- Add support for aggregation profiler with concurrent aggregation ([#8801](https://github.com/opensearch-project/OpenSearch/pull/8801))
+- [Remove] Deprecated Fractional ByteSizeValue support #9005 ([#9005](https://github.com/opensearch-project/OpenSearch/pull/9005))
+- Make MultiBucketConsumerService thread safe to use across slices during search ([#9047](https://github.com/opensearch-project/OpenSearch/pull/9047))
+- Change shard_size and shard_min_doc_count evaluation to happen in shard level reduce phase ([#9085](https://github.com/opensearch-project/OpenSearch/pull/9085))
 
 ### Deprecated
 
 ### Removed
 
 ### Fixed
+- Fix flaky ResourceAwareTasksTests.testBasicTaskResourceTracking test ([#8993](https://github.com/opensearch-project/OpenSearch/pull/8993))
 
 ### Security
 
 [Unreleased 3.0]: https://github.com/opensearch-project/OpenSearch/compare/2.x...HEAD
-[Unreleased 2.x]: https://github.com/opensearch-project/OpenSearch/compare/2.8...2.x
+[Unreleased 2.x]: https://github.com/opensearch-project/OpenSearch/compare/2.10...2.x

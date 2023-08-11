@@ -32,7 +32,7 @@
 
 package org.opensearch.search.searchafter;
 
-import org.opensearch.action.ActionFuture;
+import org.opensearch.common.action.ActionFuture;
 import org.opensearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.CreatePitAction;

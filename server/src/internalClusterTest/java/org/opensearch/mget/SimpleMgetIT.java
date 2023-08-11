@@ -41,7 +41,7 @@ import org.opensearch.action.get.MultiGetResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
@@ -159,7 +159,7 @@ public class SimpleMgetIT extends OpenSearchIntegTestCase {
                 .endObject()
         );
         for (int i = 0; i < 100; i++) {
-            client().prepareIndex("test").setId(Integer.toString(i)).setSource(sourceBytesRef, XContentType.JSON).get();
+            client().prepareIndex("test").setId(Integer.toString(i)).setSource(sourceBytesRef, MediaTypeRegistry.JSON).get();
         }
 
         MultiGetRequestBuilder request = client().prepareMultiGet();

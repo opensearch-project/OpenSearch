@@ -29,9 +29,10 @@ import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.remote.RemoteRefreshSegmentPressureService;
-import org.opensearch.index.remote.RemoteRefreshSegmentTracker;
+import org.opensearch.index.remote.RemoteSegmentTransferTracker;
 import org.opensearch.index.shard.IndexShardTestCase;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.FeatureFlagSetter;
 import org.opensearch.test.transport.MockTransport;
 import org.opensearch.transport.TransportService;
@@ -45,8 +46,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUID;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_ENABLED;
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_REPOSITORY;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY;
 
 public class TransportRemoteStoreStatsActionTests extends IndexShardTestCase {
     private IndicesService indicesService;
@@ -70,8 +72,9 @@ public class TransportRemoteStoreStatsActionTests extends IndexShardTestCase {
         remoteStoreIndexMetadata = IndexMetadata.builder(INDEX.getName())
             .settings(
                 settings(Version.CURRENT).put(SETTING_INDEX_UUID, INDEX.getUUID())
+                    .put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
                     .put(SETTING_REMOTE_STORE_ENABLED, true)
-                    .put(SETTING_REMOTE_STORE_REPOSITORY, "my-test-repo")
+                    .put(SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, "my-test-repo")
                     .build()
             )
             .numberOfShards(2)
@@ -86,7 +89,7 @@ public class TransportRemoteStoreStatsActionTests extends IndexShardTestCase {
             Collections.emptySet()
         );
 
-        when(pressureService.getRemoteRefreshSegmentTracker(any())).thenReturn(mock(RemoteRefreshSegmentTracker.class));
+        when(pressureService.getRemoteRefreshSegmentTracker(any())).thenReturn(mock(RemoteSegmentTransferTracker.class));
         when(indicesService.indexService(INDEX)).thenReturn(indexService);
         when(indexService.getIndexSettings()).thenReturn(new IndexSettings(remoteStoreIndexMetadata, Settings.EMPTY));
         statsAction = new TransportRemoteStoreStatsAction(
@@ -108,7 +111,7 @@ public class TransportRemoteStoreStatsActionTests extends IndexShardTestCase {
         clusterService.close();
     }
 
-    public void testOnlyPrimaryShards() throws Exception {
+    public void testAllShardCopies() throws Exception {
         FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
         RoutingTable routingTable = RoutingTable.builder().addAsNew(remoteStoreIndexMetadata).build();
         Metadata metadata = Metadata.builder().put(remoteStoreIndexMetadata, false).build();
@@ -125,7 +128,7 @@ public class TransportRemoteStoreStatsActionTests extends IndexShardTestCase {
             new String[] { INDEX.getName() }
         );
 
-        assertEquals(shardsIterator.size(), 2);
+        assertEquals(shardsIterator.size(), 4);
     }
 
     public void testOnlyLocalShards() throws Exception {
@@ -153,10 +156,10 @@ public class TransportRemoteStoreStatsActionTests extends IndexShardTestCase {
         remoteStoreStatsRequest.local(true);
         ShardsIterator shardsIterator = statsAction.shards(clusterService.state(), remoteStoreStatsRequest, concreteIndices);
 
-        assertEquals(shardsIterator.size(), 1);
+        assertEquals(shardsIterator.size(), 2);
     }
 
-    public void testOnlyRemoteStoreEnabledShards() throws Exception {
+    public void testOnlyRemoteStoreEnabledShardCopies() throws Exception {
         FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
         Index NEW_INDEX = new Index("newIndex", "newUUID");
         IndexMetadata indexMetadataWithoutRemoteStore = IndexMetadata.builder(NEW_INDEX.getName())
@@ -189,6 +192,6 @@ public class TransportRemoteStoreStatsActionTests extends IndexShardTestCase {
             new String[] { INDEX.getName() }
         );
 
-        assertEquals(shardsIterator.size(), 2);
+        assertEquals(shardsIterator.size(), 4);
     }
 }

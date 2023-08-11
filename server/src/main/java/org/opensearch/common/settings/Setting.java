@@ -38,22 +38,23 @@ import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.Strings;
 import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.regex.Regex;
+import org.opensearch.common.unit.MemorySizeValue;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.common.regex.Regex;
-import org.opensearch.common.unit.ByteSizeValue;
-import org.opensearch.common.unit.MemorySizeValue;
-import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.DeprecationHandler;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -602,7 +603,7 @@ public class Setting<T> implements ToXContentObject {
 
     @Override
     public String toString() {
-        return Strings.toString(XContentType.JSON, this, true, true);
+        return Strings.toString(MediaTypeRegistry.JSON, this, true, true);
     }
 
     /**
@@ -1104,7 +1105,7 @@ public class Setting<T> implements ToXContentObject {
                 builder.startObject();
                 subSettings.toXContent(builder, EMPTY_PARAMS);
                 builder.endObject();
-                return Strings.toString(builder);
+                return builder.toString();
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
@@ -2047,7 +2048,7 @@ public class Setting<T> implements ToXContentObject {
     }
 
     public static Setting<ByteSizeValue> byteSizeSetting(String key, ByteSizeValue value, Property... properties) {
-        return byteSizeSetting(key, (s) -> value.toString(), properties);
+        return byteSizeSetting(key, (s) -> value.getBytes() + ByteSizeUnit.BYTES.getSuffix(), properties);
     }
 
     public static Setting<ByteSizeValue> byteSizeSetting(String key, Setting<ByteSizeValue> fallbackSetting, Property... properties) {
@@ -2337,7 +2338,7 @@ public class Setting<T> implements ToXContentObject {
     private static List<String> parseableStringToList(String parsableString) {
         // fromXContent doesn't use named xcontent or deprecation.
         try (
-            XContentParser xContentParser = XContentType.JSON.xContent()
+            XContentParser xContentParser = MediaTypeRegistry.JSON.xContent()
                 .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, parsableString)
         ) {
             XContentParser.Token token = xContentParser.nextToken();
@@ -2359,13 +2360,13 @@ public class Setting<T> implements ToXContentObject {
 
     private static String arrayToParsableString(List<String> array) {
         try {
-            XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent());
+            XContentBuilder builder = XContentBuilder.builder(MediaTypeRegistry.JSON.xContent());
             builder.startArray();
             for (String element : array) {
                 builder.value(element);
             }
             builder.endArray();
-            return Strings.toString(builder);
+            return builder.toString();
         } catch (IOException ex) {
             throw new OpenSearchException(ex);
         }

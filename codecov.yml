@@ -3,6 +3,7 @@ codecov:
 
 ignore:
   - "test"
+  - "benchmarks"
 
 coverage:
   precision: 2

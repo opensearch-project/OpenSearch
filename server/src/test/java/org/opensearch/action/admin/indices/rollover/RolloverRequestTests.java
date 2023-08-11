@@ -40,9 +40,10 @@ import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.common.unit.ByteSizeUnit;
-import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
@@ -146,7 +147,7 @@ public class RolloverRequestTests extends OpenSearchTestCase {
         String mapping = createIndexRequest.mappings();
         assertNotNull(mapping);
 
-        Map<String, Object> parsedMapping = XContentHelper.convertToMap(new BytesArray(mapping), false, XContentType.JSON).v2();
+        Map<String, Object> parsedMapping = XContentHelper.convertToMap(new BytesArray(mapping), false, MediaTypeRegistry.JSON).v2();
 
         @SuppressWarnings("unchecked")
         Map<String, Object> properties = (Map<String, Object>) parsedMapping.get(MapperService.SINGLE_MAPPING_NAME);
@@ -179,7 +180,7 @@ public class RolloverRequestTests extends OpenSearchTestCase {
     public void testUnknownFields() throws IOException {
         final RolloverRequest request = new RolloverRequest();
         XContentType xContentType = randomFrom(XContentType.values());
-        final XContentBuilder builder = XContentFactory.contentBuilder(xContentType);
+        final XContentBuilder builder = MediaTypeRegistry.contentBuilder(xContentType);
         builder.startObject();
         {
             builder.startObject("conditions");

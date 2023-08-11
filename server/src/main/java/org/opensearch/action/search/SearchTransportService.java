@@ -32,7 +32,7 @@
 
 package org.opensearch.action.search;
 
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.ActionListenerResponseHandler;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.OriginalIndices;
@@ -65,7 +65,7 @@ import org.opensearch.transport.TransportActionProxy;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportRequestOptions;
-import org.opensearch.transport.TransportResponse;
+import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;

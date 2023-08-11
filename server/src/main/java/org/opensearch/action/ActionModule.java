@@ -297,6 +297,7 @@ import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.common.util.FeatureFlags;
+import org.opensearch.core.action.ActionResponse;
 import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.extensions.action.ExtensionProxyAction;
 import org.opensearch.extensions.action.ExtensionProxyTransportAction;
@@ -304,7 +305,7 @@ import org.opensearch.extensions.rest.RestInitializeExtensionAction;
 import org.opensearch.index.seqno.RetentionLeaseActions;
 import org.opensearch.identity.IdentityService;
 import org.opensearch.indices.SystemIndices;
-import org.opensearch.indices.breaker.CircuitBreakerService;
+import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.persistent.CompletionPersistentTaskAction;
 import org.opensearch.persistent.RemovePersistentTaskAction;
 import org.opensearch.persistent.StartPersistentTaskAction;
@@ -956,11 +957,9 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestDeleteDecommissionStateAction());
 
         // Search pipelines API
-        if (FeatureFlags.isEnabled(FeatureFlags.SEARCH_PIPELINE)) {
-            registerHandler.accept(new RestPutSearchPipelineAction());
-            registerHandler.accept(new RestGetSearchPipelineAction());
-            registerHandler.accept(new RestDeleteSearchPipelineAction());
-        }
+        registerHandler.accept(new RestPutSearchPipelineAction());
+        registerHandler.accept(new RestGetSearchPipelineAction());
+        registerHandler.accept(new RestDeleteSearchPipelineAction());
 
         // Extensions API
         if (FeatureFlags.isEnabled(FeatureFlags.EXTENSIONS)) {

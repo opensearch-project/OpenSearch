@@ -32,8 +32,8 @@
 
 package org.opensearch.client;
 
-import org.opensearch.action.ActionFuture;
-import org.opensearch.action.ActionListener;
+import org.opensearch.common.action.ActionFuture;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.opensearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
 import org.opensearch.action.admin.indices.alias.get.GetAliasesRequest;

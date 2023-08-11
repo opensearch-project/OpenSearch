@@ -29,11 +29,13 @@ import java.util.Collections;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.opensearch.remotestore.RemoteStoreBaseIntegTestCase.remoteStoreClusterSettings;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 public abstract class AbstractRemoteStoreMockRepositoryIntegTestCase extends AbstractSnapshotIntegTestCase {
 
     protected static final String REPOSITORY_NAME = "my-segment-repo-1";
+    protected static final String TRANSLOG_REPOSITORY_NAME = "my-translog-repo-1";
     protected static final String INDEX_NAME = "remote-store-test-idx-1";
 
     @Override
@@ -44,7 +46,8 @@ public abstract class AbstractRemoteStoreMockRepositoryIntegTestCase extends Abs
     @Before
     public void setup() {
         FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
-        internalCluster().startClusterManagerOnlyNode();
+        FeatureFlagSetter.set(FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL);
+        internalCluster().startClusterManagerOnlyNode(remoteStoreClusterSettings(REPOSITORY_NAME, TRANSLOG_REPOSITORY_NAME));
     }
 
     @Override
@@ -60,14 +63,14 @@ public abstract class AbstractRemoteStoreMockRepositoryIntegTestCase extends Abs
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas)
             .put(IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING.getKey(), false)
             .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
-            .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
-            .put(IndexMetadata.SETTING_REMOTE_STORE_REPOSITORY, REPOSITORY_NAME)
             .build();
     }
 
     protected void deleteRepo() {
         logger.info("--> Deleting the repository={}", REPOSITORY_NAME);
         assertAcked(clusterAdmin().prepareDeleteRepository(REPOSITORY_NAME));
+        logger.info("--> Deleting the repository={}", TRANSLOG_REPOSITORY_NAME);
+        assertAcked(clusterAdmin().prepareDeleteRepository(TRANSLOG_REPOSITORY_NAME));
     }
 
     protected String setup(Path repoLocation, double ioFailureRate, String skipExceptionBlobList, long maxFailure) {
@@ -87,6 +90,8 @@ public abstract class AbstractRemoteStoreMockRepositoryIntegTestCase extends Abs
                 .put("skip_exception_on_blobs", skipExceptionBlobList)
                 .put("max_failure_number", maxFailure)
         );
+        logger.info("--> Creating repository={} at the path={}", TRANSLOG_REPOSITORY_NAME, repoLocation);
+        createRepository(TRANSLOG_REPOSITORY_NAME, "mock", Settings.builder().put("location", repoLocation));
 
         String dataNodeName = internalCluster().startDataOnlyNodes(1).get(0);
         createIndex(INDEX_NAME);

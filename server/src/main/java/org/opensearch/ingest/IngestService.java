@@ -38,7 +38,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.ResourceNotFoundException;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.DocWriteRequest;
 import org.opensearch.action.bulk.TransportBulkAction;
 import org.opensearch.action.index.IndexRequest;
@@ -71,7 +71,7 @@ import org.opensearch.gateway.GatewayService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.analysis.AnalysisRegistry;
-import org.opensearch.node.ReportingService;
+import org.opensearch.core.service.ReportingService;
 import org.opensearch.plugins.IngestPlugin;
 import org.opensearch.script.ScriptService;
 import org.opensearch.threadpool.ThreadPool;
@@ -474,7 +474,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             pipelines = new HashMap<>();
         }
 
-        pipelines.put(request.getId(), new PipelineConfiguration(request.getId(), request.getSource(), request.getXContentType()));
+        pipelines.put(request.getId(), new PipelineConfiguration(request.getId(), request.getSource(), request.getMediaType()));
         ClusterState.Builder newState = ClusterState.builder(currentState);
         newState.metadata(
             Metadata.builder(currentState.getMetadata()).putCustom(IngestMetadata.TYPE, new IngestMetadata(pipelines)).build()
@@ -487,7 +487,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             throw new IllegalStateException("Ingest info is empty");
         }
 
-        Map<String, Object> pipelineConfig = XContentHelper.convertToMap(request.getSource(), false, request.getXContentType()).v2();
+        Map<String, Object> pipelineConfig = XContentHelper.convertToMap(request.getSource(), false, request.getMediaType()).v2();
         Pipeline pipeline = Pipeline.create(request.getId(), pipelineConfig, processorFactories, scriptService);
         List<Exception> exceptions = new ArrayList<>();
         for (Processor processor : pipeline.flattenAllProcessors()) {

@@ -39,7 +39,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.similarities.Similarity;
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.client.Client;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.core.common.ParsingException;

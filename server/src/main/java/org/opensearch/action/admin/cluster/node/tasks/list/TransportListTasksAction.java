@@ -32,7 +32,7 @@
 
 package org.opensearch.action.admin.cluster.node.tasks.list;
 
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.TaskOperationFailure;
 import org.opensearch.action.support.ActionFilters;

@@ -31,10 +31,10 @@ import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.PageCacheRecycler;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.extensions.ExtensionsSettings;
-import org.opensearch.indices.breaker.NoneCircuitBreakerService;
+import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
@@ -103,7 +103,7 @@ public class RestInitializeExtensionActionTests extends OpenSearchTestCase {
             + "\"minimumCompatibleVersion\":\""
             + Version.CURRENT.minimumCompatibilityVersion().toString()
             + "\"}";
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withContent(new BytesArray(content), XContentType.JSON)
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withContent(new BytesArray(content), MediaTypeRegistry.JSON)
             .withMethod(RestRequest.Method.POST)
             .build();
 
@@ -125,7 +125,7 @@ public class RestInitializeExtensionActionTests extends OpenSearchTestCase {
             + "\"minimumCompatibleVersion\":\""
             + Version.CURRENT.minimumCompatibilityVersion().toString()
             + "\"}";
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withContent(new BytesArray(content), XContentType.JSON)
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withContent(new BytesArray(content), MediaTypeRegistry.JSON)
             .withMethod(RestRequest.Method.POST)
             .build();
 
@@ -163,7 +163,7 @@ public class RestInitializeExtensionActionTests extends OpenSearchTestCase {
             + "\"minimumCompatibleVersion\":\""
             + Version.CURRENT.minimumCompatibilityVersion().toString()
             + "\",\"boolSetting\":true,\"stringSetting\":\"customSetting\",\"intSetting\":5,\"listSetting\":[\"one\",\"two\",\"three\"]}";
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withContent(new BytesArray(content), XContentType.JSON)
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withContent(new BytesArray(content), MediaTypeRegistry.JSON)
             .withMethod(RestRequest.Method.POST)
             .build();
 
@@ -210,7 +210,7 @@ public class RestInitializeExtensionActionTests extends OpenSearchTestCase {
             + "\"minimumCompatibleVersion\":\""
             + Version.CURRENT.minimumCompatibilityVersion().toString()
             + "\"}";
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withContent(new BytesArray(content), XContentType.JSON)
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withContent(new BytesArray(content), MediaTypeRegistry.JSON)
             .withMethod(RestRequest.Method.POST)
             .build();
 

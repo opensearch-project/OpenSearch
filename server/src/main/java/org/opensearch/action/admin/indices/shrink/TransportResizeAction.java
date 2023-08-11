@@ -33,7 +33,7 @@
 package org.opensearch.action.admin.indices.shrink;
 
 import org.apache.lucene.index.IndexWriter;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.opensearch.action.admin.indices.create.CreateIndexRequest;
 import org.opensearch.action.admin.indices.stats.IndexShardStats;
@@ -57,7 +57,7 @@ import org.opensearch.index.shard.DocsStats;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
-import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.index.store.StoreStats;
 
 import java.io.IOException;

@@ -37,7 +37,7 @@ import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
@@ -60,8 +60,8 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.index.Index;
@@ -302,9 +302,11 @@ public class MetadataIndexTemplateService {
         if (stringMappings != null) {
             Map<String, Object> parsedMappings = MapperService.parseMapping(xContentRegistry, stringMappings);
             if (parsedMappings.size() > 0) {
-                stringMappings = org.opensearch.common.Strings.toString(
-                    XContentFactory.jsonBuilder().startObject().field(MapperService.SINGLE_MAPPING_NAME, parsedMappings).endObject()
-                );
+                stringMappings = XContentFactory.jsonBuilder()
+                    .startObject()
+                    .field(MapperService.SINGLE_MAPPING_NAME, parsedMappings)
+                    .endObject()
+                    .toString();
             }
         }
 
@@ -591,9 +593,11 @@ public class MetadataIndexTemplateService {
             if (stringMappings != null) {
                 Map<String, Object> parsedMappings = MapperService.parseMapping(xContentRegistry, stringMappings);
                 if (parsedMappings.size() > 0) {
-                    stringMappings = org.opensearch.common.Strings.toString(
-                        XContentFactory.jsonBuilder().startObject().field(MapperService.SINGLE_MAPPING_NAME, parsedMappings).endObject()
-                    );
+                    stringMappings = XContentFactory.jsonBuilder()
+                        .startObject()
+                        .field(MapperService.SINGLE_MAPPING_NAME, parsedMappings)
+                        .endObject()
+                        .toString();
                 }
             }
             final Template finalTemplate = new Template(
@@ -1151,7 +1155,7 @@ public class MetadataIndexTemplateService {
             Optional.ofNullable(template.getDataStreamTemplate())
                 .map(ComposableIndexTemplate.DataStreamTemplate::getDataStreamMappingSnippet)
                 .map(mapping -> {
-                    try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
+                    try (XContentBuilder builder = MediaTypeRegistry.JSON.contentBuilder()) {
                         builder.value(mapping);
                         return new CompressedXContent(BytesReference.bytes(builder));
                     } catch (IOException e) {
@@ -1502,12 +1506,9 @@ public class MetadataIndexTemplateService {
             if (indexPattern.startsWith("_")) {
                 validationErrors.add("index_pattern [" + indexPattern + "] must not start with '_'");
             }
-            if (org.opensearch.common.Strings.validFileNameExcludingAstrix(indexPattern) == false) {
+            if (Strings.validFileNameExcludingAstrix(indexPattern) == false) {
                 validationErrors.add(
-                    "index_pattern ["
-                        + indexPattern
-                        + "] must not contain the following characters "
-                        + org.opensearch.common.Strings.INVALID_FILENAME_CHARS
+                    "index_pattern [" + indexPattern + "] must not contain the following characters " + Strings.INVALID_FILENAME_CHARS
                 );
             }
         }

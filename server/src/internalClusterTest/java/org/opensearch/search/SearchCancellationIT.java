@@ -36,7 +36,7 @@ import org.apache.logging.log4j.LogManager;
 
 import org.junit.After;
 import org.opensearch.ExceptionsHelper;
-import org.opensearch.action.ActionFuture;
+import org.opensearch.common.action.ActionFuture;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.opensearch.action.bulk.BulkRequestBuilder;
@@ -48,17 +48,17 @@ import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.SearchScrollAction;
 import org.opensearch.action.search.ShardSearchFailure;
 import org.opensearch.action.support.WriteRequest;
-import org.opensearch.common.Strings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.script.MockScriptPlugin;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
 import org.opensearch.search.lookup.LeafFieldsLookup;
-import org.opensearch.tasks.TaskCancelledException;
+import org.opensearch.core.tasks.TaskCancelledException;
 import org.opensearch.tasks.TaskInfo;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.transport.TransportException;
@@ -229,7 +229,7 @@ public class SearchCancellationIT extends OpenSearchIntegTestCase {
         awaitForBlock(plugins);
         cancelSearch(SearchAction.NAME);
         disableBlocks(plugins);
-        logger.info("Segments {}", Strings.toString(XContentType.JSON, client().admin().indices().prepareSegments("test").get()));
+        logger.info("Segments {}", Strings.toString(MediaTypeRegistry.JSON, client().admin().indices().prepareSegments("test").get()));
         ensureSearchWasCancelled(searchResponse);
     }
 
@@ -283,7 +283,7 @@ public class SearchCancellationIT extends OpenSearchIntegTestCase {
         awaitForBlock(plugins);
         cancelSearch(SearchAction.NAME);
         disableBlocks(plugins);
-        logger.info("Segments {}", Strings.toString(XContentType.JSON, client().admin().indices().prepareSegments("test").get()));
+        logger.info("Segments {}", Strings.toString(MediaTypeRegistry.JSON, client().admin().indices().prepareSegments("test").get()));
         ensureSearchWasCancelled(searchResponse);
     }
 

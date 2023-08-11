@@ -36,10 +36,10 @@ import org.opensearch.action.admin.indices.stats.IndexStats.IndexStatsBuilder;
 import org.opensearch.core.action.support.DefaultShardOperationFailedException;
 import org.opensearch.action.support.broadcast.BroadcastResponse;
 import org.opensearch.cluster.routing.ShardRouting;
-import org.opensearch.common.Strings;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.index.Index;
 
@@ -226,6 +226,6 @@ public class IndicesStatsResponse extends BroadcastResponse {
 
     @Override
     public String toString() {
-        return Strings.toString(XContentType.JSON, this, true, false);
+        return Strings.toString(MediaTypeRegistry.JSON, this, true, false);
     }
 }

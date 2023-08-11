@@ -34,7 +34,7 @@ package org.opensearch.cluster.action.shard;
 
 import org.apache.lucene.index.CorruptIndexException;
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.support.replication.ClusterStateCreationUtils;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateObserver;
@@ -64,7 +64,7 @@ import org.opensearch.transport.NodeDisconnectedException;
 import org.opensearch.transport.NodeNotConnectedException;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportRequest;
-import org.opensearch.transport.TransportResponse;
+import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.transport.TransportService;
 import org.junit.After;
 import org.junit.AfterClass;

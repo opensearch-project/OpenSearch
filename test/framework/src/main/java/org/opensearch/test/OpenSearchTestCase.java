@@ -89,20 +89,20 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.time.DateUtils;
 import org.opensearch.common.time.FormatNames;
-import org.opensearch.common.transport.TransportAddress;
+import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.common.util.MockBigArrays;
 import org.opensearch.common.util.MockPageCacheRecycler;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
-import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContent;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentHelper;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.core.xcontent.XContentParser.Token;
 import org.opensearch.env.Environment;
@@ -117,6 +117,7 @@ import org.opensearch.index.analysis.IndexAnalyzers;
 import org.opensearch.index.analysis.NamedAnalyzer;
 import org.opensearch.index.analysis.TokenFilterFactory;
 import org.opensearch.index.analysis.TokenizerFactory;
+import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.indices.analysis.AnalysisModule;
 import org.opensearch.monitor.jvm.JvmInfo;
 import org.opensearch.plugins.AnalysisPlugin;
@@ -173,7 +174,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
-import static org.opensearch.common.util.CollectionUtils.arrayAsArrayList;
+import static org.opensearch.core.common.util.CollectionUtils.arrayAsArrayList;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -363,7 +364,7 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
     @AfterClass
     public static void restoreContentType() {
         Requests.CONTENT_TYPE = XContentType.SMILE;
-        Requests.INDEX_CONTENT_TYPE = XContentType.JSON;
+        Requests.INDEX_CONTENT_TYPE = MediaTypeRegistry.JSON;
     }
 
     @BeforeClass
@@ -1201,6 +1202,7 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
 
     public static Settings.Builder remoteIndexSettings(Version version) {
         Settings.Builder builder = Settings.builder()
+            .put(FileCache.DATA_TO_FILE_CACHE_SIZE_RATIO_SETTING.getKey(), 5)
             .put(IndexMetadata.SETTING_VERSION_CREATED, version)
             .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.REMOTE_SNAPSHOT.getSettingsKey());
         return builder;
@@ -1309,7 +1311,7 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
         boolean humanReadable,
         String... exceptFieldNames
     ) throws IOException {
-        BytesReference bytes = XContentHelper.toXContent(toXContent, mediaType, params, humanReadable);
+        BytesReference bytes = org.opensearch.core.xcontent.XContentHelper.toXContent(toXContent, mediaType, params, humanReadable);
         try (XContentParser parser = createParser(mediaType.xContent(), bytes)) {
             try (XContentBuilder builder = shuffleXContent(parser, rarely(), exceptFieldNames)) {
                 return BytesReference.bytes(builder);
@@ -1337,7 +1339,7 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
      */
     public static XContentBuilder shuffleXContent(XContentParser parser, boolean prettyPrint, String... exceptFieldNames)
         throws IOException {
-        XContentBuilder xContentBuilder = XContentFactory.contentBuilder(parser.contentType());
+        XContentBuilder xContentBuilder = MediaTypeRegistry.contentBuilder(parser.contentType());
         if (prettyPrint) {
             xContentBuilder.prettyPrint();
         }

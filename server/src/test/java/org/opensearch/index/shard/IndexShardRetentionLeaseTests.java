@@ -32,7 +32,7 @@
 
 package org.opensearch.index.shard;
 
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.ShardRoutingHelper;
 import org.opensearch.common.collect.Tuple;

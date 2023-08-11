@@ -12,7 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.OutputStreamIndexOutput;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.blobstore.BlobMetadata;
@@ -210,7 +210,12 @@ public class TranslogTransferManager {
         );
 
         try {
-            transferService.listAllInSortedOrder(remoteMetadataTransferPath, 1, latchedActionListener);
+            transferService.listAllInSortedOrder(
+                remoteMetadataTransferPath,
+                TranslogTransferMetadata.METADATA_PREFIX,
+                1,
+                latchedActionListener
+            );
             latch.await();
         } catch (InterruptedException e) {
             throw new IOException("Exception while reading/downloading metadafile", e);
@@ -367,6 +372,7 @@ public class TranslogTransferManager {
             transferService.listAllInSortedOrderAsync(
                 ThreadPool.Names.REMOTE_PURGE,
                 remoteMetadataTransferPath,
+                TranslogTransferMetadata.METADATA_PREFIX,
                 Integer.MAX_VALUE,
                 new ActionListener<>() {
                     @Override

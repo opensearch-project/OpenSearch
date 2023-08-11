@@ -8,13 +8,11 @@
 
 package org.opensearch.cluster.routing;
 
-import com.carrotsearch.hppc.ObjectIntHashMap;
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.ResourceNotFoundException;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.admin.cluster.shards.routing.weighted.delete.ClusterDeleteWeightedRoutingRequest;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.admin.cluster.shards.routing.weighted.delete.ClusterDeleteWeightedRoutingResponse;
@@ -212,10 +210,10 @@ public class WeightedRoutingService {
     private void ensureWeightsSetForAllDiscoveredAndForcedAwarenessValues(ClusterState state, ClusterPutWeightedRoutingRequest request) {
         String attributeName = request.getWeightedRouting().attributeName();
         // build attr_value -> nodes map
-        ObjectIntHashMap<String> nodesPerAttribute = state.getRoutingNodes().nodesPerAttributesCounts(attributeName);
+        final Set<String> nodesPerAttribute = state.getRoutingNodes().nodesPerAttributesCounts(attributeName);
         Set<String> discoveredAwarenessValues = new HashSet<>();
-        for (ObjectCursor<String> stringObjectCursor : nodesPerAttribute.keys()) {
-            if (stringObjectCursor.value != null) discoveredAwarenessValues.add(stringObjectCursor.value);
+        for (String stringObjectCursor : nodesPerAttribute) {
+            if (stringObjectCursor != null) discoveredAwarenessValues.add(stringObjectCursor);
         }
         Set<String> allAwarenessValues;
         if (forcedAwarenessAttributes.get(attributeName) == null) {
