@@ -8,7 +8,7 @@
 
 package org.opensearch.core.compress.spi;
 
-import org.opensearch.core.common.compress.Compressor;
+import org.opensearch.core.compress.Compressor;
 import org.opensearch.core.compress.CompressorRegistry;
 
 import java.util.List;

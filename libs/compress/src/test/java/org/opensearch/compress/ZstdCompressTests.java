@@ -8,7 +8,7 @@
 
 package org.opensearch.compress;
 
-import org.opensearch.core.common.compress.Compressor;
+import org.opensearch.core.compress.Compressor;
 import org.opensearch.test.core.compress.AbstractCompressorTestCase;
 
 /**

@@ -39,7 +39,7 @@ import org.opensearch.common.recycler.Recycler;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.core.common.compress.Compressor;
+import org.opensearch.core.compress.Compressor;
 import org.opensearch.core.compress.CompressorRegistry;
 
 import java.io.Closeable;

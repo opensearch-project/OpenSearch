@@ -10,7 +10,7 @@ package org.opensearch.test.core.compress;
 
 import org.apache.lucene.tests.util.LineFileDocs;
 import org.apache.lucene.tests.util.TestUtil;
-import org.opensearch.core.common.compress.Compressor;
+import org.opensearch.core.compress.Compressor;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.ByteArrayInputStream;

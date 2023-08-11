@@ -43,7 +43,7 @@ import org.opensearch.common.CheckedRunnable;
 import org.opensearch.common.CheckedSupplier;
 import org.opensearch.common.Nullable;
 import org.opensearch.core.action.ShardOperationFailedException;
-import org.opensearch.core.common.compress.NotXContentException;
+import org.opensearch.core.compress.NotXContentException;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.rest.RestStatus;

@@ -10,9 +10,6 @@ package org.opensearch.core.compress;
 
 import org.opensearch.common.Nullable;
 import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.core.common.compress.Compressor;
-import org.opensearch.core.common.compress.NotCompressedException;
-import org.opensearch.core.common.compress.NotXContentException;
 import org.opensearch.core.compress.spi.CompressorProvider;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 
@@ -50,6 +47,12 @@ public final class CompressorRegistry {
         NONE = registeredCompressors.get(NoneCompressor.NAME);
     }
 
+    /**
+     * An entry for registering a concrete {@link Compressor} identified by a unique String key
+     *
+     * @opensearch.api
+     * @opensearch.experimental
+     */
     public static class Entry {
         /** a unique key name to identify the compressor; this is typically the Compressor's Header as a string */
         private String name;

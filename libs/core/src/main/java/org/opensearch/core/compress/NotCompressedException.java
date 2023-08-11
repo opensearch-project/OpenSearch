@@ -30,7 +30,7 @@
  * GitHub history for details.
  */
 
-package org.opensearch.core.common.compress;
+package org.opensearch.core.compress;
 
 /**
  * Exception indicating that we were expecting something compressed, which

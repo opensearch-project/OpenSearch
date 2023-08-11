@@ -9,6 +9,7 @@
 package org.opensearch.compress.spi;
 
 import org.opensearch.compress.ZstdCompressor;
+import org.opensearch.core.compress.Compressor;
 import org.opensearch.core.compress.CompressorRegistry;
 import org.opensearch.core.compress.spi.CompressorProvider;
 
@@ -21,7 +22,7 @@ import java.util.List;
  */
 public class CompressionProvider implements CompressorProvider {
 
-    /** Returns the concrete {@link org.opensearch.core.common.compress.Compressor}s provided by the compress library */
+    /** Returns the concrete {@link Compressor}s provided by the compress library */
     @Override
     public List<CompressorRegistry.Entry> getCompressors() {
         return List.of(new CompressorRegistry.Entry(ZstdCompressor.NAME, new ZstdCompressor()));

@@ -36,7 +36,7 @@ import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.core.common.compress.Compressor;
+import org.opensearch.core.compress.Compressor;
 import org.opensearch.core.compress.CompressorRegistry;
 import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.MediaType;
