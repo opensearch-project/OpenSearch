@@ -48,7 +48,6 @@ import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.xcontent.XContentHelper;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.mapper.MappingLookup;
