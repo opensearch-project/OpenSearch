@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import static java.util.Objects.requireNonNull;
 
 /**
  * Request to execute REST actions on extension node.
@@ -86,7 +87,7 @@ public class ExtensionRestRequest extends TransportRequest {
         this.headers = headers;
         this.mediaType = mediaType;
         this.content = content;
-        this.principalIdentifierToken = principalIdentifier;
+        this.principalIdentifierToken = requireNonNull(principalIdentifier);
         this.httpVersion = httpVersion;
     }
 
@@ -280,7 +281,7 @@ public class ExtensionRestRequest extends TransportRequest {
     }
 
     /**
-     * Gets a parser for the contents of this request if there is content and an xContentType.
+     * Gets a parser for the contents of this request if there is content, an xContentType, and a principal identifier.
      *
      * @param xContentRegistry The extension's xContentRegistry
      * @return A parser for the given content and content type.
@@ -290,6 +291,9 @@ public class ExtensionRestRequest extends TransportRequest {
     public final XContentParser contentParser(NamedXContentRegistry xContentRegistry) throws IOException {
         if (!hasContent() || getXContentType() == null) {
             throw new OpenSearchParseException("There is no request body or the ContentType is invalid.");
+        }
+        if (getRequestIssuerIdentity() == null) {
+            throw new OpenSearchParseException("There is no request body or the requester identity is invalid.");
         }
         return getXContentType().xContent().createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, content.streamInput());
     }
