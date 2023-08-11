@@ -41,6 +41,8 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE
 
 /**
  * Service responsible for restoring index data from remote store
+ *
+ * @opensearch.internal
  */
 public class RemoteStoreRestoreService {
     private static final Logger logger = LogManager.getLogger(RemoteStoreRestoreService.class);
