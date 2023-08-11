@@ -8,6 +8,9 @@
 
 package org.opensearch.search.profile;
 
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.Collector;
+
 /**
  * Provide contextual profile breakdowns which are associated with freestyle context. Used when concurrent
  * search over segments is activated and each collector needs own non-shareable profile breakdown instance.
@@ -15,6 +18,7 @@ package org.opensearch.search.profile;
  * @opensearch.internal
  */
 public abstract class ContextualProfileBreakdown<T extends Enum<T>> extends AbstractProfileBreakdown<T> {
+
     public ContextualProfileBreakdown(Class<T> clazz) {
         super(clazz);
     }
@@ -25,4 +29,8 @@ public abstract class ContextualProfileBreakdown<T extends Enum<T>> extends Abst
      * @return contextual profile breakdown instance
      */
     public abstract AbstractProfileBreakdown<T> context(Object context);
+
+    public void associateLeafToCollector(LeafReaderContext leaf, Collector collector) {}
+
+    public void buildCollectorList(Collector collector) {}
 }

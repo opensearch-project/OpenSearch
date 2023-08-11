@@ -186,7 +186,10 @@ public abstract class AbstractInternalProfileTree<PB extends AbstractProfileBrea
             breakdown.toBreakdownMap(),
             breakdown.toDebugMap(),
             breakdown.toNodeTime(),
-            childrenProfileResults
+            childrenProfileResults,
+            breakdown.getMaxSliceNodeTime(),
+            breakdown.getMinSliceNodeTime(),
+            breakdown.getAvgSliceNodeTime()
         );
     }
 

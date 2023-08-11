@@ -80,6 +80,7 @@ public abstract class AbstractProfileBreakdown<T extends Enum<T>> {
         for (T timingType : this.timingTypes) {
             map.put(timingType.toString(), this.timings[timingType.ordinal()].getApproximateTiming());
             map.put(timingType + TIMING_TYPE_COUNT_SUFFIX, this.timings[timingType.ordinal()].getCount());
+            map.put(timingType + TIMING_TYPE_START_TIME_SUFFIX, this.timings[timingType.ordinal()].getEarliestTimerStartTime());
         }
         return Collections.unmodifiableMap(map);
     }
@@ -91,11 +92,23 @@ public abstract class AbstractProfileBreakdown<T extends Enum<T>> {
         return emptyMap();
     }
 
-    public final long toNodeTime() {
+    public long toNodeTime() {
         long total = 0;
         for (T timingType : timingTypes) {
             total += timings[timingType.ordinal()].getApproximateTiming();
         }
         return total;
+    }
+
+    public Long getMaxSliceNodeTime() {
+        return null;
+    }
+
+    public Long getMinSliceNodeTime() {
+        return null;
+    }
+
+    public Long getAvgSliceNodeTime() {
+        return null;
     }
 }
