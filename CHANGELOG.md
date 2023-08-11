@@ -35,6 +35,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `io.projectreactor.netty:reactor-netty-http` from 1.1.8 to 1.1.9 ([#9147](https://github.com/opensearch-project/OpenSearch/pull/9147))
 - Bump `org.apache.maven:maven-model` from 3.9.3 to 3.9.4 ([#9148](https://github.com/opensearch-project/OpenSearch/pull/9148))
 - Bump `com.azure:azure-storage-blob` from 12.22.3 to 12.23.0 ([#9231](https://github.com/opensearch-project/OpenSearch/pull/9231))
+- Bump `com.diffplug.spotless` from 6.19.0 to 6.20.0 ([#9227](https://github.com/opensearch-project/OpenSearch/pull/9227))
+- Bump `org.xerial.snappy:snappy-java` from 1.1.8.2 to 1.1.10.3 ([#9252](https://github.com/opensearch-project/OpenSearch/pull/9252))
+- Bump `com.squareup.okhttp3:okhttp` from 4.9.3 to 4.11.0 ([#9252](https://github.com/opensearch-project/OpenSearch/pull/9252))
+- Bump `com.squareup.okio:okio` from 2.8.0 to 3.5.0 ([#9252](https://github.com/opensearch-project/OpenSearch/pull/9252))
+- Bump `com.google.code.gson:gson` from 2.9.0 to 2.10.1 ([#9230](https://github.com/opensearch-project/OpenSearch/pull/9230))
+- Bump `lycheeverse/lychee-action` from 1.2.0 to 1.8.0 ([#9228](https://github.com/opensearch-project/OpenSearch/pull/9228))
 
 ### Changed
 - Perform aggregation postCollection in ContextIndexSearcher after searching leaves ([#8303](https://github.com/opensearch-project/OpenSearch/pull/8303))
