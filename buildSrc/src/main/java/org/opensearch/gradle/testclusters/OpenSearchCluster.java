@@ -31,7 +31,6 @@
 
 package org.opensearch.gradle.testclusters;
 
-import java.nio.file.Path;
 import org.opensearch.gradle.FileSupplier;
 import org.opensearch.gradle.PropertyNormalization;
 import org.opensearch.gradle.ReaperService;
@@ -563,18 +562,14 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
             try {
                 WaitForHttpResource wait;
                 if (getFirstNode().getCredentials().isEmpty()) {
-                     wait = new WaitForHttpResource(
-                            getFirstNode().getHttpProtocol(),
-                            getFirstNode().getHttpSocketURI(),
-                            nodes.size()
-                    );
+                    wait = new WaitForHttpResource(getFirstNode().getHttpProtocol(), getFirstNode().getHttpSocketURI(), nodes.size());
                 } else {
                     wait = new WaitForHttpResource(
-                            getFirstNode().getHttpProtocol(),
-                            getFirstNode().getHttpSocketURI(),
-                            getFirstNode().getCredentials().get(0).get("username"),
-                            getFirstNode().getCredentials().get(0).get("password"),
-                            nodes.size()
+                        getFirstNode().getHttpProtocol(),
+                        getFirstNode().getHttpSocketURI(),
+                        getFirstNode().getCredentials().get(0).get("username"),
+                        getFirstNode().getCredentials().get(0).get("password"),
+                        nodes.size()
                     );
                     wait.setUsername(getFirstNode().getCredentials().get(0).get("username"));
                     wait.setPassword(getFirstNode().getCredentials().get(0).get("password"));

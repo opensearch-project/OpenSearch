@@ -82,8 +82,22 @@ public class WaitForHttpResource {
         this(new URL(protocol + "://" + host + "/_cluster/health?wait_for_nodes=>=" + numberOfNodes + "&wait_for_status=yellow"));
     }
 
-    public WaitForHttpResource(String protocol, String host, String username, String password, int numberOfNodes) throws MalformedURLException {
-        this(new URL(protocol + "://" + username + ":" + password + "@" + host + "/_cluster/health?wait_for_nodes=>=" + numberOfNodes + "&wait_for_status=yellow"));
+    public WaitForHttpResource(String protocol, String host, String username, String password, int numberOfNodes)
+        throws MalformedURLException {
+        this(
+            new URL(
+                protocol
+                    + "://"
+                    + username
+                    + ":"
+                    + password
+                    + "@"
+                    + host
+                    + "/_cluster/health?wait_for_nodes=>="
+                    + numberOfNodes
+                    + "&wait_for_status=yellow"
+            )
+        );
     }
 
     public WaitForHttpResource(URL url) {
