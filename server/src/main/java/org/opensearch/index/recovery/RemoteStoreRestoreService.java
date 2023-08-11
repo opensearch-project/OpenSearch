@@ -47,13 +47,9 @@ public class RemoteStoreRestoreService {
 
     private final ClusterService clusterService;
 
-
     private final AllocationService allocationService;
 
-    public RemoteStoreRestoreService(
-        ClusterService clusterService,
-        AllocationService allocationService
-    ) {
+    public RemoteStoreRestoreService(ClusterService clusterService, AllocationService allocationService) {
         this.clusterService = clusterService;
         this.allocationService = allocationService;
     }

@@ -84,20 +84,17 @@ public final class TransportRestoreRemoteStoreAction extends TransportClusterMan
         final ClusterState state,
         final ActionListener<RestoreRemoteStoreResponse> listener
     ) {
-        restoreService.restore(
-            request,
-            ActionListener.delegateFailure(listener, (delegatedListener, restoreCompletionResponse) -> {
-                if (restoreCompletionResponse.getRestoreInfo() == null && request.waitForCompletion()) {
-                    RestoreClusterStateListener.createAndRegisterListener(
-                        clusterService,
-                        restoreCompletionResponse,
-                        delegatedListener,
-                        RestoreRemoteStoreResponse::new
-                    );
-                } else {
-                    delegatedListener.onResponse(new RestoreRemoteStoreResponse(restoreCompletionResponse.getRestoreInfo()));
-                }
-            })
-        );
+        restoreService.restore(request, ActionListener.delegateFailure(listener, (delegatedListener, restoreCompletionResponse) -> {
+            if (restoreCompletionResponse.getRestoreInfo() == null && request.waitForCompletion()) {
+                RestoreClusterStateListener.createAndRegisterListener(
+                    clusterService,
+                    restoreCompletionResponse,
+                    delegatedListener,
+                    RestoreRemoteStoreResponse::new
+                );
+            } else {
+                delegatedListener.onResponse(new RestoreRemoteStoreResponse(restoreCompletionResponse.getRestoreInfo()));
+            }
+        }));
     }
 }
