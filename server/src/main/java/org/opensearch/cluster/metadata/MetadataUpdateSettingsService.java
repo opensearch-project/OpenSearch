@@ -309,6 +309,8 @@ public class MetadataUpdateSettingsService {
                                 Settings finalSettings = indexSettings.build();
                                 indexScopedSettings.validate(
                                     finalSettings.filter(k -> indexScopedSettings.isPrivateSetting(k) == false),
+                                    true,
+                                    false,
                                     true
                                 );
                                 metadataBuilder.put(IndexMetadata.builder(indexMetadata).settings(finalSettings));

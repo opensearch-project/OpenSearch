@@ -56,7 +56,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
-import static org.hamcrest.Matchers.startsWith;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_METADATA;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_READ;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_WRITE;
@@ -70,6 +69,8 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.nullValue;
 
 public class UpdateSettingsIT extends OpenSearchIntegTestCase {
+    List<Class<? extends Plugin>> nodePlugins = Arrays.asList(DummySettingPlugin.class, FinalSettingPlugin.class);
+
     public void testInvalidUpdateOnClosedIndex() {
         createIndex("test");
         assertAcked(client().admin().indices().prepareClose("test").get());
@@ -98,38 +99,6 @@ public class UpdateSettingsIT extends OpenSearchIntegTestCase {
         assertEquals(exception.getCause().getMessage(), "this setting goes boom");
         IndexMetadata indexMetadata = client().admin().cluster().prepareState().execute().actionGet().getState().metadata().index("test");
         assertNotEquals(indexMetadata.getSettings().get("index.dummy"), "invalid dynamic value");
-    }
-
-    public void testArchivedSettingUpdate() {
-        createIndex("test");
-
-        // Archived setting update should fail on open index.
-        IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> client().admin()
-                .indices()
-                .prepareUpdateSettings("test")
-                .setSettings(Settings.builder().put("archived.*", "null"))
-                .execute()
-                .actionGet()
-        );
-        assertThat(exception.getMessage(), startsWith("Can't update non dynamic settings [[archived.*]] for open indices [[test"));
-
-        // close the index.
-        client().admin().indices().prepareClose("test").get();
-
-        // Setting update on closed index shouldn't fail during validation.
-        // It'll still fail with SettingsException as the setting doesn't exist though.
-        SettingsException settingsException = expectThrows(
-            SettingsException.class,
-            () -> client().admin()
-                .indices()
-                .prepareUpdateSettings("test")
-                .setSettings(Settings.builder().put("archived.*", "null"))
-                .execute()
-                .actionGet()
-        );
-        assertTrue(settingsException.getMessage().startsWith("test setting [archived.*], not recognized"));
     }
 
     @Override
