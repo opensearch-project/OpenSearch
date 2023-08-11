@@ -560,8 +560,13 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
         waitConditions.put("cluster health yellow", (node) -> {
             try {
                 WaitForHttpResource wait;
-                if (getFirstNode().getCredentials().isEmpty()) {
+                if (!getFirstNode().getCredentials().get(0).containsKey("username")) {
                     wait = new WaitForHttpResource(getFirstNode().getHttpProtocol(), getFirstNode().getHttpSocketURI(), nodes.size());
+                    List<Map<String, String>> credentials = getFirstNode().getCredentials();
+                    if (getFirstNode().getCredentials().isEmpty() == false) {
+                        wait.setUsername(credentials.get(0).get("useradd"));
+                        wait.setPassword(credentials.get(0).get("-p"));
+                    }
                 } else {
                     wait = new WaitForHttpResource(
                         getFirstNode().getHttpProtocol(),
