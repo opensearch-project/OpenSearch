@@ -32,7 +32,7 @@
 
 package org.opensearch.action.support.broadcast;
 
-import org.opensearch.action.ActionResponse;
+import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.action.support.DefaultShardOperationFailedException;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.io.stream.StreamInput;

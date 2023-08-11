@@ -45,7 +45,7 @@ import org.opensearch.persistent.TestPersistentTasksPlugin.TestParams;
 import org.opensearch.persistent.TestPersistentTasksPlugin.TestPersistentTasksExecutor;
 import org.opensearch.persistent.TestPersistentTasksPlugin.TestTasksRequestBuilder;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.tasks.TaskId;
+import org.opensearch.core.tasks.TaskId;
 import org.opensearch.tasks.TaskInfo;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.junit.After;

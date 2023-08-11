@@ -12,7 +12,7 @@ import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFileNames;
 import org.junit.Assert;
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.util.CancellableThreads;

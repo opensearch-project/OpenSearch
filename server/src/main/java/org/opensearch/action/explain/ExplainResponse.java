@@ -34,7 +34,7 @@ package org.opensearch.action.explain;
 
 import org.apache.lucene.search.Explanation;
 import org.opensearch.Version;
-import org.opensearch.action.ActionResponse;
+import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;

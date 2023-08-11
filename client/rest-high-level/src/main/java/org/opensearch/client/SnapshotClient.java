@@ -32,7 +32,7 @@
 
 package org.opensearch.client;
 
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryRequest;
 import org.opensearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryResponse;
 import org.opensearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;

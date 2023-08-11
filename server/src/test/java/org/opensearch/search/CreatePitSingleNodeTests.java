@@ -9,7 +9,7 @@
 package org.opensearch.search;
 
 import org.hamcrest.Matchers;
-import org.opensearch.action.ActionFuture;
+import org.opensearch.common.action.ActionFuture;
 import org.opensearch.action.search.CreatePitAction;
 import org.opensearch.action.search.CreatePitController;
 import org.opensearch.action.search.CreatePitRequest;

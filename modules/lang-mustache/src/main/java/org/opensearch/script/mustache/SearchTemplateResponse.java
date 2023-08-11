@@ -32,7 +32,7 @@
 
 package org.opensearch.script.mustache;
 
-import org.opensearch.action.ActionResponse;
+import org.opensearch.core.action.ActionResponse;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.bytes.BytesReference;

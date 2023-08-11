@@ -34,8 +34,9 @@ package org.opensearch.common.compress;
 
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.core.Assertions;
 import org.opensearch.common.lease.Releasable;
+import org.opensearch.core.Assertions;
+import org.opensearch.core.common.compress.Compressor;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;

@@ -33,7 +33,7 @@
 package org.opensearch.action.update;
 
 import org.opensearch.ResourceAlreadyExistsException;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.DocWriteRequest;
 import org.opensearch.action.RoutingMissingException;

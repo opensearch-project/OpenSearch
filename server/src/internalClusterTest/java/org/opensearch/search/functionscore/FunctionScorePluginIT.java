@@ -33,7 +33,7 @@
 package org.opensearch.search.functionscore;
 
 import org.apache.lucene.search.Explanation;
-import org.opensearch.action.ActionFuture;
+import org.opensearch.common.action.ActionFuture;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.SearchType;
 import org.opensearch.common.Priority;

@@ -33,7 +33,7 @@
 package org.opensearch.index.reindex;
 
 import java.util.Optional;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.AutoCreateIndex;
 import org.opensearch.action.support.HandledTransportAction;

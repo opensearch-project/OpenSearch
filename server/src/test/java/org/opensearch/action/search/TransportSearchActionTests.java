@@ -34,7 +34,7 @@ package org.opensearch.action.search;
 
 import org.apache.lucene.search.TotalHits;
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.OriginalIndicesTests;

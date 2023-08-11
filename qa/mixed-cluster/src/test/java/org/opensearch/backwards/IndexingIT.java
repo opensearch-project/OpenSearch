@@ -45,6 +45,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.common.xcontent.support.XContentMapValues;
+import org.opensearch.core.common.Strings;
 import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.core.rest.RestStatus;

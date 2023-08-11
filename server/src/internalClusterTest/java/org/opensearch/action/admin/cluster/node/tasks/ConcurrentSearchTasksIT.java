@@ -19,7 +19,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.tasks.TaskInfo;
-import org.opensearch.tasks.ThreadResourceInfo;
+import org.opensearch.core.tasks.resourcetracker.ThreadResourceInfo;
 
 import java.util.List;
 import java.util.Map;

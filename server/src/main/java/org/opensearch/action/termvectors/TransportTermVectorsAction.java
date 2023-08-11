@@ -32,7 +32,7 @@
 
 package org.opensearch.action.termvectors;
 
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.RoutingMissingException;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.single.shard.TransportSingleShardAction;

@@ -32,7 +32,7 @@
 
 package org.opensearch.transport;
 
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.common.concurrent.CompletableContext;
 
 /**

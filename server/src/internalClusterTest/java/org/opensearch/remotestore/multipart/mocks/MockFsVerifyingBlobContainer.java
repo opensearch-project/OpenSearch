@@ -9,7 +9,7 @@
 package org.opensearch.remotestore.multipart.mocks;
 
 import org.apache.lucene.index.CorruptIndexException;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.common.blobstore.VerifyingMultiStreamBlobContainer;
 import org.opensearch.common.io.InputStreamContainer;
 import org.opensearch.common.StreamContext;

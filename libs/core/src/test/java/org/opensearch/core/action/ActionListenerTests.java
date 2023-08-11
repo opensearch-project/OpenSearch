@@ -29,7 +29,7 @@
  * GitHub history for details.
  */
 
-package org.opensearch.action;
+package org.opensearch.core.action;
 
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.common.CheckedConsumer;
