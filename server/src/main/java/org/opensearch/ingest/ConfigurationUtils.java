@@ -512,7 +512,9 @@ public final class ConfigurationUtils {
         String type,
         Object config
     ) throws Exception {
-        if (config instanceof Map) {
+        if (config == null) {
+            throw newConfigurationException(type, null, null, "processor [" + type + "] cannot be null");
+        } else if (config instanceof Map) {
             return readProcessor(processorFactories, scriptService, type, (Map<String, Object>) config);
         } else if (config instanceof String && "script".equals(type)) {
             Map<String, Object> normalizedScript = new HashMap<>(1);

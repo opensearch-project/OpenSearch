@@ -179,6 +179,16 @@ public class ConfigurationUtilsTests extends OpenSearchTestCase {
         assertThat(e2.getMetadata("opensearch.processor_tag"), equalTo(Collections.singletonList("my_second_unknown")));
         assertThat(e2.getMetadata("opensearch.processor_type"), equalTo(Collections.singletonList("second_unknown_processor")));
         assertThat(e2.getMetadata("opensearch.property_name"), is(nullValue()));
+
+        // test null config
+        List<Map<String, Object>> config3 = new ArrayList<>();
+        config3.add(Collections.singletonMap("null_processor", null));
+
+        OpenSearchParseException ex = expectThrows(
+            OpenSearchParseException.class,
+            () -> ConfigurationUtils.readProcessorConfigs(config3, scriptService, registry)
+        );
+        assertEquals(ex.getMessage(), "processor [null_processor] cannot be null");
     }
 
     public void testReadProcessorNullDescription() throws Exception {
