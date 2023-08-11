@@ -297,9 +297,11 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
         return thisReduceOrder != null ? thisReduceOrder : order;
     }
 
-    private long getDocCountError(InternalTerms<?, ?> terms) {
+    private long getDocCountError(InternalTerms<?, ?> terms, ReduceContext reduceContext) {
         int size = terms.getBuckets().size();
-        if (size == 0 || size < terms.getShardSize() || isKeyOrder(terms.order)) {
+        // doc_count_error is always computed at the coordinator based on the buckets returned by the shards. This should be 0 during the
+        // shard level reduce as no buckets are being pruned at this stage.
+        if (reduceContext.isSliceLevel() || size == 0 || size < terms.getShardSize() || isKeyOrder(terms.order)) {
             return 0;
         } else if (InternalOrder.isCountDesc(terms.order)) {
             if (terms.getDocCountError() > 0) {
@@ -412,7 +414,7 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
                 );
             }
             otherDocCount += terms.getSumOfOtherDocCounts();
-            final long thisAggDocCountError = getDocCountError(terms);
+            final long thisAggDocCountError = getDocCountError(terms, reduceContext);
             if (sumDocCountError != -1) {
                 if (thisAggDocCountError == -1) {
                     sumDocCountError = -1;
