@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.common.compress;
+package org.opensearch.test.core.compress;
 
 import org.apache.lucene.tests.util.LineFileDocs;
 import org.apache.lucene.tests.util.TestUtil;
@@ -22,7 +22,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
 
-abstract class AbstractCompressorTests extends OpenSearchTestCase {
+public abstract class AbstractCompressorTestCase extends OpenSearchTestCase {
 
     public void testRandom() throws IOException {
         Random r = random();
@@ -404,6 +404,6 @@ abstract class AbstractCompressorTests extends OpenSearchTestCase {
         assertArrayEquals(bytes, uncompressedOut.toByteArray());
     }
 
-    abstract Compressor compressor();
+    protected abstract Compressor compressor();
 
 }

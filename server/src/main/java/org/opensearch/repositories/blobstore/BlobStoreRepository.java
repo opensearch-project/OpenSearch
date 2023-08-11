@@ -47,6 +47,7 @@ import org.apache.lucene.store.RateLimiter;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.Version;
+import org.opensearch.common.compress.DeflateCompressor;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.StepListener;
@@ -80,8 +81,6 @@ import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.core.common.compress.Compressor;
-import org.opensearch.common.compress.CompressorFactory;
-import org.opensearch.common.compress.CompressorType;
 import org.opensearch.core.common.compress.NotXContentException;
 import org.opensearch.common.io.Streams;
 import org.opensearch.common.lucene.Lucene;
@@ -97,6 +96,7 @@ import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.lease.Releasable;
+import org.opensearch.core.compress.CompressorRegistry;
 import org.opensearch.core.util.BytesRefUtils;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
@@ -265,10 +265,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     public static final Setting<Boolean> COMPRESS_SETTING = Setting.boolSetting("compress", false, Setting.Property.NodeScope);
 
-    public static final Setting<CompressorType> COMPRESSION_TYPE_SETTING = new Setting<>(
+    public static final Setting<Compressor> COMPRESSION_TYPE_SETTING = new Setting<>(
         "compression_type",
-        CompressorType.DEFLATE.name().toLowerCase(Locale.ROOT),
-        s -> CompressorType.valueOf(s.toUpperCase(Locale.ROOT)),
+        DeflateCompressor.NAME.toLowerCase(Locale.ROOT),
+        s -> CompressorRegistry.getCompressor(s.toUpperCase(Locale.ROOT)),
         Setting.Property.NodeScope
     );
 
@@ -402,7 +402,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         cacheRepositoryData = CACHE_REPOSITORY_DATA.get(metadata.settings());
         bufferSize = Math.toIntExact(BUFFER_SIZE_SETTING.get(metadata.settings()).getBytes());
         maxShardBlobDeleteBatch = MAX_SNAPSHOT_SHARD_BLOB_DELETE_BATCH_SIZE.get(metadata.settings());
-        this.compressor = compress ? COMPRESSION_TYPE_SETTING.get(metadata.settings()).compressor() : CompressorFactory.NONE_COMPRESSOR;
+        this.compressor = compress ? COMPRESSION_TYPE_SETTING.get(metadata.settings()) : CompressorRegistry.NONE;
     }
 
     @Override
@@ -770,7 +770,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * @return true if compression is needed
      */
     protected final boolean isCompress() {
-        return compressor != CompressorFactory.NONE_COMPRESSOR;
+        return compressor != CompressorRegistry.NONE;
     }
 
     /**
@@ -1949,7 +1949,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         if (cacheRepositoryData && bestEffortConsistency == false) {
             final BytesReference serialized;
             try {
-                serialized = CompressorFactory.defaultCompressor().compress(updated);
+                serialized = CompressorRegistry.defaultCompressor().compress(updated);
                 final int len = serialized.length();
                 if (len > ByteSizeUnit.KB.toBytes(500)) {
                     logger.debug(
@@ -1985,7 +1985,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     private RepositoryData repositoryDataFromCachedEntry(Tuple<Long, BytesReference> cacheEntry) throws IOException {
-        try (InputStream input = CompressorFactory.defaultCompressor().threadLocalInputStream(cacheEntry.v2().streamInput())) {
+        try (InputStream input = CompressorRegistry.defaultCompressor().threadLocalInputStream(cacheEntry.v2().streamInput())) {
             return RepositoryData.snapshotsFromXContent(
                 MediaTypeRegistry.JSON.xContent().createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, input),
                 cacheEntry.v1()

@@ -6,19 +6,20 @@
  * compatible open source license.
  */
 
-package org.opensearch.common.compress;
+package org.opensearch.compress;
 
 import org.opensearch.core.common.compress.Compressor;
+import org.opensearch.test.core.compress.AbstractCompressorTestCase;
 
 /**
  * Test streaming compression
  */
-public class ZstdCompressTests extends AbstractCompressorTests {
+public class ZstdCompressTests extends AbstractCompressorTestCase {
 
     private final Compressor compressor = new ZstdCompressor();
 
     @Override
-    Compressor compressor() {
+    protected Compressor compressor() {
         return compressor;
     }
 }

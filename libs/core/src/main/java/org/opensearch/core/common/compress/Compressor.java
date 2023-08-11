@@ -39,9 +39,15 @@ import java.io.InputStream;
 import java.io.OutputStream;
 
 /**
- * Compressor interface
+ * Compressor interface used for compressing {@link org.opensearch.core.xcontent.MediaType} and
+ * {@code org.opensearch.repositories.blobstore.BlobStoreRepository} implementations.
  *
- * @opensearch.internal
+ * This is not to be confused with {@link org.apache.lucene.codecs.compressing.Compressor} which is used
+ * for codec implementations such as {@code org.opensearch.index.codec.customcodecs.Lucene95CustomCodec}
+ * for compressing {@link org.apache.lucene.document.StoredField}s
+ *
+ * @opensearch.api - intended to be extended
+ * @opensearch.experimental - however, bwc is not guaranteed at this time
  */
 public interface Compressor {
 

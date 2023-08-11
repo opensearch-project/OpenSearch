@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.common.compress;
+package org.opensearch.compress;
 
 import com.github.luben.zstd.RecyclingBufferPool;
 import com.github.luben.zstd.ZstdInputStreamNoFinalizer;
@@ -19,12 +19,14 @@ import java.io.BufferedOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
 /**
  * {@link Compressor} implementation based on the ZSTD compression algorithm.
  *
- * @opensearch.internal
+ * @opensearch.api - registered name requires BWC support
+ * @opensearch.experimental - class methods might change
  */
 public class ZstdCompressor implements Compressor {
     // An arbitrary header that we use to identify compressed streams
@@ -32,6 +34,13 @@ public class ZstdCompressor implements Compressor {
     // enough so that no stream starting with these bytes could be detected as
     // a XContent
     private static final byte[] HEADER = new byte[] { 'Z', 'S', 'T', 'D', '\0' };
+
+    /**
+     * The name to register the compressor by
+     *
+     * @opensearch.api - requires BWC support
+     */
+    public static final String NAME = new String(HEADER, StandardCharsets.UTF_8);
 
     private static final int LEVEL = 3;
 
