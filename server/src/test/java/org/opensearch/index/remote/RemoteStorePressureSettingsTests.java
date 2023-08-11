@@ -48,7 +48,7 @@ public class RemoteStorePressureSettingsTests extends OpenSearchTestCase {
         RemoteStorePressureSettings pressureSettings = new RemoteStorePressureSettings(
             clusterService,
             Settings.EMPTY,
-            mock(RemoteRefreshSegmentPressureService.class)
+            mock(RemoteStorePressureService.class)
         );
 
         // Check remote refresh segment pressure enabled is false
@@ -86,7 +86,7 @@ public class RemoteStorePressureSettingsTests extends OpenSearchTestCase {
         RemoteStorePressureSettings pressureSettings = new RemoteStorePressureSettings(
             clusterService,
             settings,
-            mock(RemoteRefreshSegmentPressureService.class)
+            mock(RemoteStorePressureService.class)
         );
 
         // Check remote refresh segment pressure enabled is true
@@ -115,7 +115,7 @@ public class RemoteStorePressureSettingsTests extends OpenSearchTestCase {
         RemoteStorePressureSettings pressureSettings = new RemoteStorePressureSettings(
             clusterService,
             Settings.EMPTY,
-            mock(RemoteRefreshSegmentPressureService.class)
+            mock(RemoteStorePressureService.class)
         );
 
         Settings newSettings = Settings.builder()
@@ -164,7 +164,7 @@ public class RemoteStorePressureSettingsTests extends OpenSearchTestCase {
         RemoteStorePressureSettings pressureSettings = new RemoteStorePressureSettings(
             clusterService,
             settings,
-            mock(RemoteRefreshSegmentPressureService.class)
+            mock(RemoteStorePressureService.class)
         );
 
         Settings newSettings = Settings.builder()
@@ -208,7 +208,7 @@ public class RemoteStorePressureSettingsTests extends OpenSearchTestCase {
         AtomicInteger updatedUploadBytesPerSecWindowSize = new AtomicInteger();
         AtomicInteger updatedUploadTimeWindowSize = new AtomicInteger();
 
-        RemoteRefreshSegmentPressureService pressureService = mock(RemoteRefreshSegmentPressureService.class);
+        RemoteStorePressureService pressureService = mock(RemoteStorePressureService.class);
 
         // Upload bytes
         doAnswer(invocation -> {

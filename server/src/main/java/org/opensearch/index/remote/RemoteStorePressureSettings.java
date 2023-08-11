@@ -106,7 +106,7 @@ public class RemoteStorePressureSettings {
     public RemoteStorePressureSettings(
         ClusterService clusterService,
         Settings settings,
-        RemoteRefreshSegmentPressureService remoteUploadPressureService
+        RemoteStorePressureService remoteUploadPressureService
     ) {
         ClusterSettings clusterSettings = clusterService.getClusterSettings();
 

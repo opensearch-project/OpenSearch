@@ -48,7 +48,7 @@ public class RemoteSegmentTransferTrackerTests extends OpenSearchTestCase {
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             threadPool
         );
-        pressureSettings = new RemoteStorePressureSettings(clusterService, Settings.EMPTY, mock(RemoteRefreshSegmentPressureService.class));
+        pressureSettings = new RemoteStorePressureSettings(clusterService, Settings.EMPTY, mock(RemoteStorePressureService.class));
         shardId = new ShardId("index", "uuid", 0);
         directoryFileTransferTracker = new DirectoryFileTransferTracker();
     }

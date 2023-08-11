@@ -30,9 +30,9 @@ import java.util.function.BiConsumer;
  *
  * @opensearch.internal
  */
-public class RemoteRefreshSegmentPressureService implements IndexEventListener {
+public class RemoteStorePressureService implements IndexEventListener {
 
-    private static final Logger logger = LogManager.getLogger(RemoteRefreshSegmentPressureService.class);
+    private static final Logger logger = LogManager.getLogger(RemoteStorePressureService.class);
 
     /**
      * Keeps map of remote-backed index shards and their corresponding backpressure tracker.
@@ -47,7 +47,7 @@ public class RemoteRefreshSegmentPressureService implements IndexEventListener {
     private final List<LagValidator> lagValidators;
 
     @Inject
-    public RemoteRefreshSegmentPressureService(ClusterService clusterService, Settings settings) {
+    public RemoteStorePressureService(ClusterService clusterService, Settings settings) {
         pressureSettings = new RemoteStorePressureSettings(clusterService, settings, this);
         lagValidators = Arrays.asList(
             new ConsecutiveFailureValidator(pressureSettings),

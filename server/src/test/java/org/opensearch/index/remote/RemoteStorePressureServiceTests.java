@@ -31,7 +31,7 @@ import java.util.stream.IntStream;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class RemoteRefreshSegmentPressureServiceTests extends OpenSearchTestCase {
+public class RemoteStorePressureServiceTests extends OpenSearchTestCase {
 
     private ClusterService clusterService;
 
@@ -39,7 +39,7 @@ public class RemoteRefreshSegmentPressureServiceTests extends OpenSearchTestCase
 
     private ShardId shardId;
 
-    private RemoteRefreshSegmentPressureService pressureService;
+    private RemoteStorePressureService pressureService;
 
     @Override
     public void setUp() throws Exception {
@@ -60,7 +60,7 @@ public class RemoteRefreshSegmentPressureServiceTests extends OpenSearchTestCase
     }
 
     public void testIsSegmentsUploadBackpressureEnabled() {
-        pressureService = new RemoteRefreshSegmentPressureService(clusterService, Settings.EMPTY);
+        pressureService = new RemoteStorePressureService(clusterService, Settings.EMPTY);
         assertFalse(pressureService.isSegmentsUploadBackpressureEnabled());
 
         Settings newSettings = Settings.builder()
@@ -73,21 +73,21 @@ public class RemoteRefreshSegmentPressureServiceTests extends OpenSearchTestCase
 
     public void testAfterIndexShardCreatedForRemoteBackedIndex() {
         IndexShard indexShard = createIndexShard(shardId, true);
-        pressureService = new RemoteRefreshSegmentPressureService(clusterService, Settings.EMPTY);
+        pressureService = new RemoteStorePressureService(clusterService, Settings.EMPTY);
         pressureService.afterIndexShardCreated(indexShard);
         assertNotNull(pressureService.getRemoteRefreshSegmentTracker(indexShard.shardId()));
     }
 
     public void testAfterIndexShardCreatedForNonRemoteBackedIndex() {
         IndexShard indexShard = createIndexShard(shardId, false);
-        pressureService = new RemoteRefreshSegmentPressureService(clusterService, Settings.EMPTY);
+        pressureService = new RemoteStorePressureService(clusterService, Settings.EMPTY);
         pressureService.afterIndexShardCreated(indexShard);
         assertNull(pressureService.getRemoteRefreshSegmentTracker(indexShard.shardId()));
     }
 
     public void testAfterIndexShardClosed() {
         IndexShard indexShard = createIndexShard(shardId, true);
-        pressureService = new RemoteRefreshSegmentPressureService(clusterService, Settings.EMPTY);
+        pressureService = new RemoteStorePressureService(clusterService, Settings.EMPTY);
         pressureService.afterIndexShardCreated(indexShard);
         assertNotNull(pressureService.getRemoteRefreshSegmentTracker(shardId));
 
@@ -98,7 +98,7 @@ public class RemoteRefreshSegmentPressureServiceTests extends OpenSearchTestCase
     public void testValidateSegmentUploadLag() {
         // Create the pressure tracker
         IndexShard indexShard = createIndexShard(shardId, true);
-        pressureService = new RemoteRefreshSegmentPressureService(clusterService, Settings.EMPTY);
+        pressureService = new RemoteStorePressureService(clusterService, Settings.EMPTY);
         pressureService.afterIndexShardCreated(indexShard);
 
         RemoteSegmentTransferTracker pressureTracker = pressureService.getRemoteRefreshSegmentTracker(shardId);
