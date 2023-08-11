@@ -11,7 +11,7 @@ package org.opensearch.telemetry.tracing.attributes;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import org.opensearch.common.Nonnull;
+import java.util.Objects;
 
 /**
  * Class to create attributes for a span.
@@ -44,7 +44,8 @@ public class Attributes {
      * @param value value
      * @return Same instance.
      */
-    public Attributes addAttribute(String key, @Nonnull String value) {
+    public Attributes addAttribute(String key, String value) {
+        Objects.requireNonNull(value, "value cannot be null");
         attributesMap.put(key, value);
         return this;
     }
