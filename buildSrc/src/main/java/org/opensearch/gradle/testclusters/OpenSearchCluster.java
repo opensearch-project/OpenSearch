@@ -353,7 +353,6 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
 
     @Override
     public void start() {
-        LOGGER.info("Starting cluster");
         commonNodeConfig();
         nodes.stream().filter(node -> {
             if (node.getVersion().onOrAfter("6.5.0")) {
