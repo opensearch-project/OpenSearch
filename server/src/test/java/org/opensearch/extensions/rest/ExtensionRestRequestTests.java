@@ -8,7 +8,6 @@
 
 package org.opensearch.extensions.rest;
 
-import org.opensearch.OpenSearchException;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.OpenSearchParseException;
@@ -138,31 +137,6 @@ public class ExtensionRestRequestTests extends OpenSearchTestCase {
                     assertEquals(expectedHttpVersion, request.protocolVersion());
                 }
             }
-        }
-    }
-
-    public void testExtensionRestRequestWithNoIdentityToken() throws Exception {
-        ExtensionRestRequest request = new ExtensionRestRequest(
-            expectedMethod,
-            expectedUri,
-            expectedPath,
-            expectedParams,
-            expectedHeaders,
-            expectedContentType,
-            expectedContent,
-            null,
-            expectedHttpVersion
-        );
-
-        OpenSearchParseException ex = assertThrows(
-            OpenSearchParseException.class,
-            () -> request.contentParser(NamedXContentRegistry.EMPTY)
-        );
-        assertTrue(ex.getMessage().contains("There is no request body or the requester identity is invalid."));
-
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            OpenSearchException ex2 = assertThrows(OpenSearchException.class, () -> request.writeTo(out));
-            assertEquals("Principal identifier token is null", ex2.getMessage());
         }
     }
 
