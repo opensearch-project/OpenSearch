@@ -210,6 +210,8 @@ public class OpenSearchNode implements TestClusterConfiguration {
         setTestDistribution(TestDistribution.INTEG_TEST);
         setVersion(VersionProperties.getOpenSearch());
         this.zone = zone;
+        this.credentials.add(new HashMap<>());
+        LOGGER.info("System properties are: " +System.getProperties());
     }
 
     @Input
@@ -482,6 +484,18 @@ public class OpenSearchNode implements TestClusterConfiguration {
     @Override
     public synchronized void start() {
         LOGGER.info("Starting `{}`", this);
+        if (System.getProperty("tests.opensearch.http.protocol") != null) {
+            httpProtocol = System.getProperty("tests.opensearch.http.protocol");
+            LOGGER.info("Overwriting HTTP protocol to: " + httpProtocol);
+        }
+        if (System.getProperty("tests.opensearch.username") != null) {
+            this.credentials.get(0).put("username", System.getProperty("tests.opensearch.username"));
+            LOGGER.info("Overwriting username to: " + httpProtocol);
+        }
+        if (System.getProperty("tests.opensearch.password") != null) {
+            this.credentials.get(0).put("password", System.getProperty("tests.opensearch.password"));
+            LOGGER.info("Overwriting password to: " + httpProtocol);
+        }
         if (Files.exists(getExtractedDistributionDir()) == false) {
             throw new TestClustersException("Can not start " + this + ", missing: " + getExtractedDistributionDir());
         }
