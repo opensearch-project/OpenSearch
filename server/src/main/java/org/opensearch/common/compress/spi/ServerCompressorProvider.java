@@ -21,7 +21,7 @@ import java.util.List;
  *
  * @opensearch.internal
  *
- * @Deprecated This class is deprecated and will be removed when the {@link DeflateCompressor} is moved to the compress
+ * @deprecated This class is deprecated and will be removed when the {@link DeflateCompressor} is moved to the compress
  * library as a default compression option
  */
 @Deprecated
