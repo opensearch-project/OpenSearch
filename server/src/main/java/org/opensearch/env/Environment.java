@@ -73,12 +73,6 @@ public class Environment {
         Property.NodeScope
     );
     public static final Setting<String> PATH_LOGS_SETTING = new Setting<>("path.logs", "", Function.identity(), Property.NodeScope);
-    public static final Setting<String> HTTP_PROTOCOL_SETTING = new Setting<>(
-        "http.protocol",
-        "http",
-        Function.identity(),
-        Property.NodeScope
-    );
     public static final Setting<List<String>> PATH_REPO_SETTING = Setting.listSetting(
         "path.repo",
         Collections.emptyList(),

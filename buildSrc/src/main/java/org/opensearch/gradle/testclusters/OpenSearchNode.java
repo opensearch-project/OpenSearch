@@ -1167,9 +1167,6 @@ public class OpenSearchNode implements TestClusterConfiguration {
             baseConfig.put("cluster.routing.allocation.awareness.attributes", "zone");
             baseConfig.put("node.attr.zone", zone);
         }
-        if (StringUtils.isNotBlank(httpProtocol)) { // Set to input if present
-            baseConfig.put("http.protocol", httpProtocol);
-        }
         baseConfig.put("node.portsfile", "true");
         baseConfig.put("http.port", httpPort);
         baseConfig.put("transport.port", transportPort);
