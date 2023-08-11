@@ -50,9 +50,9 @@ import org.opensearch.common.regex.Regex;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.unit.Fuzziness;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.analysis.CharFilterFactory;
 import org.opensearch.index.analysis.NormalizingCharFilterFactory;
 import org.opensearch.index.analysis.TokenizerFactory;
@@ -1897,8 +1897,8 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
     }
 
     public void testSearchEmptyDoc() {
-        assertAcked(prepareCreate("test").setSettings("{\"index.analysis.analyzer.default.type\":\"keyword\"}", XContentType.JSON));
-        client().prepareIndex("test").setId("1").setSource("{}", XContentType.JSON).get();
+        assertAcked(prepareCreate("test").setSettings("{\"index.analysis.analyzer.default.type\":\"keyword\"}", MediaTypeRegistry.JSON));
+        client().prepareIndex("test").setId("1").setSource("{}", MediaTypeRegistry.JSON).get();
 
         refresh();
         assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), 1L);

@@ -43,6 +43,7 @@ import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentType;
@@ -749,6 +750,6 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
 
     @Override
     public String toString() {
-        return Strings.toString(XContentType.JSON, this);
+        return Strings.toString(MediaTypeRegistry.JSON, this);
     }
 }

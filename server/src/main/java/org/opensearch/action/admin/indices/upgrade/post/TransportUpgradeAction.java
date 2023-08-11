@@ -33,7 +33,7 @@
 package org.opensearch.action.admin.indices.upgrade.post;
 
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.PrimaryMissingActionException;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.core.action.support.DefaultShardOperationFailedException;

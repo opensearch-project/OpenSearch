@@ -8,7 +8,7 @@
 
 package org.opensearch.index.replication;
 
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.replication.CheckpointInfoResponse;

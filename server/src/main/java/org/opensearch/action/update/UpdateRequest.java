@@ -56,7 +56,6 @@ import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.core.index.shard.ShardId;
@@ -663,32 +662,32 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     /**
      * Sets the doc to use for updates when a script is not specified.
      */
-    public UpdateRequest doc(Map<String, Object> source, XContentType contentType) {
-        safeDoc().source(source, contentType);
+    public UpdateRequest doc(Map<String, Object> source, MediaType mediaType) {
+        safeDoc().source(source, mediaType);
         return this;
     }
 
     /**
      * Sets the doc to use for updates when a script is not specified.
      */
-    public UpdateRequest doc(String source, XContentType xContentType) {
-        safeDoc().source(source, xContentType);
+    public UpdateRequest doc(String source, MediaType mediaType) {
+        safeDoc().source(source, mediaType);
         return this;
     }
 
     /**
      * Sets the doc to use for updates when a script is not specified.
      */
-    public UpdateRequest doc(byte[] source, XContentType xContentType) {
-        safeDoc().source(source, xContentType);
+    public UpdateRequest doc(byte[] source, MediaType mediaType) {
+        safeDoc().source(source, mediaType);
         return this;
     }
 
     /**
      * Sets the doc to use for updates when a script is not specified.
      */
-    public UpdateRequest doc(byte[] source, int offset, int length, XContentType xContentType) {
-        safeDoc().source(source, offset, length, xContentType);
+    public UpdateRequest doc(byte[] source, int offset, int length, MediaType mediaType) {
+        safeDoc().source(source, offset, length, mediaType);
         return this;
     }
 
@@ -705,8 +704,8 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
      * Sets the doc to use for updates when a script is not specified, the doc provided
      * is a field and value pairs.
      */
-    public UpdateRequest doc(XContentType xContentType, Object... source) {
-        safeDoc().source(xContentType, source);
+    public UpdateRequest doc(MediaType mediaType, Object... source) {
+        safeDoc().source(mediaType, source);
         return this;
     }
 
@@ -749,32 +748,32 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     /**
      * Sets the doc source of the update request to be used when the document does not exists.
      */
-    public UpdateRequest upsert(Map<String, Object> source, XContentType contentType) {
-        safeUpsertRequest().source(source, contentType);
+    public UpdateRequest upsert(Map<String, Object> source, MediaType mediaType) {
+        safeUpsertRequest().source(source, mediaType);
         return this;
     }
 
     /**
      * Sets the doc source of the update request to be used when the document does not exists.
      */
-    public UpdateRequest upsert(String source, XContentType xContentType) {
-        safeUpsertRequest().source(source, xContentType);
+    public UpdateRequest upsert(String source, MediaType mediaType) {
+        safeUpsertRequest().source(source, mediaType);
         return this;
     }
 
     /**
      * Sets the doc source of the update request to be used when the document does not exists.
      */
-    public UpdateRequest upsert(byte[] source, XContentType xContentType) {
-        safeUpsertRequest().source(source, xContentType);
+    public UpdateRequest upsert(byte[] source, MediaType mediaType) {
+        safeUpsertRequest().source(source, mediaType);
         return this;
     }
 
     /**
      * Sets the doc source of the update request to be used when the document does not exists.
      */
-    public UpdateRequest upsert(byte[] source, int offset, int length, XContentType xContentType) {
-        safeUpsertRequest().source(source, offset, length, xContentType);
+    public UpdateRequest upsert(byte[] source, int offset, int length, MediaType mediaType) {
+        safeUpsertRequest().source(source, offset, length, mediaType);
         return this;
     }
 
@@ -791,8 +790,8 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
      * Sets the doc source of the update request to be used when the document does not exists. The doc
      * includes field and value pairs.
      */
-    public UpdateRequest upsert(XContentType xContentType, Object... source) {
-        safeUpsertRequest().source(xContentType, source);
+    public UpdateRequest upsert(MediaType mediaType, Object... source) {
+        safeUpsertRequest().source(mediaType, source);
         return this;
     }
 

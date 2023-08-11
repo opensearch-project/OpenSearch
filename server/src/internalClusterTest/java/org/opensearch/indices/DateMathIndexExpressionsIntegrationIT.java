@@ -41,7 +41,7 @@ import org.opensearch.action.get.MultiGetResponse;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import org.joda.time.DateTime;
@@ -71,9 +71,9 @@ public class DateMathIndexExpressionsIntegrationIT extends OpenSearchIntegTestCa
         String dateMathExp1 = "<.marvel-{now/d}>";
         String dateMathExp2 = "<.marvel-{now/d-1d}>";
         String dateMathExp3 = "<.marvel-{now/d-2d}>";
-        client().prepareIndex(dateMathExp1).setId("1").setSource("{}", XContentType.JSON).get();
-        client().prepareIndex(dateMathExp2).setId("2").setSource("{}", XContentType.JSON).get();
-        client().prepareIndex(dateMathExp3).setId("3").setSource("{}", XContentType.JSON).get();
+        client().prepareIndex(dateMathExp1).setId("1").setSource("{}", MediaTypeRegistry.JSON).get();
+        client().prepareIndex(dateMathExp2).setId("2").setSource("{}", MediaTypeRegistry.JSON).get();
+        client().prepareIndex(dateMathExp3).setId("3").setSource("{}", MediaTypeRegistry.JSON).get();
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch(dateMathExp1, dateMathExp2, dateMathExp3).get();
@@ -131,9 +131,9 @@ public class DateMathIndexExpressionsIntegrationIT extends OpenSearchIntegTestCa
         String dateMathExp1 = "<.marvel-{now/d}>";
         String dateMathExp2 = "<.marvel-{now/d-1d}>";
         String dateMathExp3 = "<.marvel-{now/d-2d}>";
-        client().prepareIndex(dateMathExp1).setId("1").setSource("{}", XContentType.JSON).get();
-        client().prepareIndex(dateMathExp2).setId("2").setSource("{}", XContentType.JSON).get();
-        client().prepareIndex(dateMathExp3).setId("3").setSource("{}", XContentType.JSON).get();
+        client().prepareIndex(dateMathExp1).setId("1").setSource("{}", MediaTypeRegistry.JSON).get();
+        client().prepareIndex(dateMathExp2).setId("2").setSource("{}", MediaTypeRegistry.JSON).get();
+        client().prepareIndex(dateMathExp3).setId("3").setSource("{}", MediaTypeRegistry.JSON).get();
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch(dateMathExp1, dateMathExp2, dateMathExp3).get();

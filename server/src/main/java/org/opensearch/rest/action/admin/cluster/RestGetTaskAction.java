@@ -38,7 +38,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestToXContentListener;
-import org.opensearch.tasks.TaskId;
+import org.opensearch.core.tasks.TaskId;
 
 import java.io.IOException;
 import java.util.List;

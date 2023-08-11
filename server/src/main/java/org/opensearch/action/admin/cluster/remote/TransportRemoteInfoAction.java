@@ -32,7 +32,7 @@
 
 package org.opensearch.action.admin.cluster.remote;
 
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.search.SearchTransportService;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;

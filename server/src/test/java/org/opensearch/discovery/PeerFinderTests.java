@@ -34,7 +34,7 @@ package org.opensearch.discovery;
 
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.cluster.coordination.DeterministicTaskQueue;
 import org.opensearch.cluster.coordination.PeersResponse;
 import org.opensearch.cluster.node.DiscoveryNode;

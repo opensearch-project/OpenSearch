@@ -32,8 +32,8 @@
 
 package org.opensearch.index.reindex;
 
-import org.opensearch.action.ActionListener;
-import org.opensearch.tasks.TaskId;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.tasks.TaskId;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;

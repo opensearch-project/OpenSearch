@@ -33,10 +33,10 @@
 package org.opensearch.test.client;
 
 import org.opensearch.OpenSearchException;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.ActionModule.DynamicActionRegistry;
 import org.opensearch.action.ActionRequest;
-import org.opensearch.action.ActionResponse;
+import org.opensearch.core.action.ActionResponse;
 import org.opensearch.action.ActionType;
 import org.opensearch.client.Client;
 import org.opensearch.client.node.NodeClient;

@@ -57,7 +57,7 @@ import org.apache.lucene.util.BytesRef;
 import org.opensearch.OpenSearchException;
 import org.opensearch.ResourceNotFoundException;
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.get.GetRequest;
 import org.opensearch.common.SetOnce;
 import org.opensearch.core.common.bytes.BytesReference;
@@ -139,10 +139,10 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
      *
      * @param field                     The field that contains the percolator query
      * @param document                  The binary blob containing document to percolate
-     * @param documentXContentType      The content type of the binary blob containing the document to percolate
+     * @param documentMediaType      The content type of the binary blob containing the document to percolate
      */
-    public PercolateQueryBuilder(String field, BytesReference document, XContentType documentXContentType) {
-        this(field, Collections.singletonList(document), documentXContentType);
+    public PercolateQueryBuilder(String field, BytesReference document, MediaType documentMediaType) {
+        this(field, Collections.singletonList(document), documentMediaType);
     }
 
     /**
@@ -369,9 +369,9 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         if (indexedDocId != null) {
             return new PercolateQueryBuilder(field, indexedDocIndex, indexedDocId, indexDocRouting, indexDocPreference, indexedDocVersion);
         } else if (document != null) {
-            return new PercolateQueryBuilder(field, Collections.singletonList(document), XContentType.JSON);
+            return new PercolateQueryBuilder(field, Collections.singletonList(document), MediaTypeRegistry.JSON);
         } else {
-            return new PercolateQueryBuilder(field, documents, XContentType.JSON);
+            return new PercolateQueryBuilder(field, documents, MediaTypeRegistry.JSON);
         }
     });
     static {

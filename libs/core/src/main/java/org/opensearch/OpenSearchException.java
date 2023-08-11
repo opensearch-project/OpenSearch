@@ -150,6 +150,14 @@ public class OpenSearchException extends RuntimeException implements Writeable, 
                 UNKNOWN_VERSION_ADDED
             )
         );
+        registerExceptionHandle(
+            new OpenSearchExceptionHandle(
+                org.opensearch.core.tasks.TaskCancelledException.class,
+                org.opensearch.core.tasks.TaskCancelledException::new,
+                146,
+                UNKNOWN_VERSION_ADDED
+            )
+        );
     }
 
     /**

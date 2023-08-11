@@ -45,6 +45,9 @@ dependencies {
     exclude module: 'protobuf-java'
     exclude group: 'org.codehaus.jackson'
     exclude group: "org.bouncycastle"
+    exclude group: "com.squareup.okhttp3"
+    exclude group: "org.xerial.snappy"
+    exclude module: "json-io"
   }
   api "org.codehaus.jettison:jettison:${versions.jettison}"
   api "org.apache.commons:commons-compress:1.23.0"
@@ -61,9 +64,13 @@ dependencies {
   api "org.jetbrains.kotlin:kotlin-stdlib:${versions.kotlin}"
   api "org.eclipse.jetty:jetty-server:${versions.jetty}"
   api "org.eclipse.jetty.websocket:javax-websocket-server-impl:${versions.jetty}"
-  api 'org.apache.zookeeper:zookeeper:3.8.2'
+  api 'org.apache.zookeeper:zookeeper:3.9.0'
   api "org.apache.commons:commons-text:1.10.0"
   api "commons-net:commons-net:3.9.0"
   runtimeOnly "com.google.guava:guava:${versions.guava}"
-
+  runtimeOnly("com.squareup.okhttp3:okhttp:4.11.0") {
+    exclude group: "com.squareup.okio"
+  }
+  runtimeOnly "com.squareup.okio:okio:3.5.0"
+  runtimeOnly "org.xerial.snappy:snappy-java:1.1.10.3"
 }

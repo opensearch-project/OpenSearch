@@ -10,6 +10,7 @@ package org.opensearch.telemetry.tracing;
 
 import java.io.Closeable;
 import java.io.IOException;
+import org.opensearch.telemetry.tracing.attributes.Attributes;
 
 /**
  *
@@ -37,7 +38,22 @@ class DefaultTracer implements Tracer {
 
     @Override
     public SpanScope startSpan(String spanName) {
-        Span span = createSpan(spanName, getCurrentSpan());
+        return startSpan(spanName, Attributes.EMPTY);
+    }
+
+    @Override
+    public SpanScope startSpan(String spanName, Attributes attributes) {
+        return startSpan(spanName, null, attributes);
+    }
+
+    @Override
+    public SpanScope startSpan(String spanName, SpanContext parentSpan, Attributes attributes) {
+        Span span = null;
+        if (parentSpan != null) {
+            span = createSpan(spanName, parentSpan.getSpan(), attributes);
+        } else {
+            span = createSpan(spanName, getCurrentSpanInternal(), attributes);
+        }
         setCurrentSpanInContext(span);
         addDefaultAttributes(span);
         return new DefaultSpanScope(span, (scopeSpan) -> endSpan(scopeSpan));
@@ -48,9 +64,13 @@ class DefaultTracer implements Tracer {
         ((Closeable) tracingTelemetry).close();
     }
 
-    // Visible for testing
-    Span getCurrentSpan() {
+    private Span getCurrentSpanInternal() {
         return tracerContextStorage.get(TracerContextStorage.CURRENT_SPAN);
+    }
+
+    public SpanContext getCurrentSpan() {
+        final Span currentSpan = tracerContextStorage.get(TracerContextStorage.CURRENT_SPAN);
+        return (currentSpan == null) ? null : new SpanContext(currentSpan);
     }
 
     private void endSpan(Span span) {
@@ -60,8 +80,8 @@ class DefaultTracer implements Tracer {
         }
     }
 
-    private Span createSpan(String spanName, Span parentSpan) {
-        return tracingTelemetry.createSpan(spanName, parentSpan);
+    private Span createSpan(String spanName, Span parentSpan, Attributes attributes) {
+        return tracingTelemetry.createSpan(spanName, parentSpan, attributes);
     }
 
     private void setCurrentSpanInContext(Span span) {

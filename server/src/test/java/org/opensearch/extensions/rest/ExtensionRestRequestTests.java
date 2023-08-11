@@ -16,9 +16,10 @@ import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.BytesStreamInput;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.identity.IdentityService;
 import org.opensearch.identity.Subject;
@@ -44,7 +45,7 @@ public class ExtensionRestRequestTests extends OpenSearchTestCase {
     private String expectedUri;
     Map<String, String> expectedParams;
     Map<String, List<String>> expectedHeaders;
-    XContentType expectedContentType;
+    MediaType expectedContentType;
     BytesReference expectedContent;
     String extensionUniqueId1;
     Principal userPrincipal;
@@ -64,7 +65,7 @@ public class ExtensionRestRequestTests extends OpenSearchTestCase {
             entry("Content-Type", Arrays.asList("application/json")),
             entry("foo", Arrays.asList("hello", "world"))
         );
-        expectedContentType = XContentType.JSON;
+        expectedContentType = MediaTypeRegistry.JSON;
         expectedContent = new BytesArray("{\"key\": \"value\"}".getBytes(StandardCharsets.UTF_8));
         extensionUniqueId1 = "ext_1";
         userPrincipal = () -> "user1";

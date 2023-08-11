@@ -34,7 +34,7 @@ package org.opensearch.cluster.routing.allocation;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.cluster.ClusterInfo;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;

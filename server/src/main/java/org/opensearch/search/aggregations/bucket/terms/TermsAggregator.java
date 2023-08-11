@@ -39,6 +39,7 @@ import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.search.DocValueFormat;
+import org.opensearch.search.aggregations.AggregationExecutionException;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorFactories;
 import org.opensearch.search.aggregations.BucketOrder;
@@ -192,6 +193,30 @@ public abstract class TermsAggregator extends DeferableBucketAggregator {
                 && Objects.equals(shardSize, other.shardSize)
                 && Objects.equals(minDocCount, other.minDocCount)
                 && Objects.equals(shardMinDocCount, other.shardMinDocCount);
+        }
+    }
+
+    /**
+     * BucketCountThresholds type that throws an exception when shardMinDocCount or shardSize are accessed. This is used for
+     * deserialization on the coordinator during reduce as shardMinDocCount and shardSize should not be accessed this way on the
+     * coordinator.
+     *
+     * @opensearch.internal
+     */
+    public static class CoordinatorBucketCountThresholds extends BucketCountThresholds {
+
+        public CoordinatorBucketCountThresholds(long minDocCount, long shardMinDocCount, int requiredSize, int shardSize) {
+            super(minDocCount, shardMinDocCount, requiredSize, shardSize);
+        }
+
+        @Override
+        public long getShardMinDocCount() {
+            throw new AggregationExecutionException("shard_min_doc_count should not be accessed via CoordinatorBucketCountThresholds");
+        }
+
+        @Override
+        public int getShardSize() {
+            throw new AggregationExecutionException("shard_size should not be accessed via CoordinatorBucketCountThresholds");
         }
     }
 

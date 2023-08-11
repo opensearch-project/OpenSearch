@@ -34,7 +34,7 @@ package org.opensearch.cluster.action.shard;
 
 import org.apache.lucene.index.CorruptIndexException;
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.support.replication.ClusterStateCreationUtils;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateObserver;

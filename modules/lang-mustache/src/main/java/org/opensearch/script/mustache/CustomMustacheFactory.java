@@ -44,8 +44,8 @@ import com.github.mustachejava.codes.DefaultMustache;
 import com.github.mustachejava.codes.IterableCode;
 import com.github.mustachejava.codes.WriteCode;
 
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.StringWriter;
@@ -214,7 +214,7 @@ public class CustomMustacheFactory extends DefaultMustacheFactory {
                 if (resolved == null) {
                     return null;
                 }
-                try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
+                try (XContentBuilder builder = MediaTypeRegistry.JSON.contentBuilder()) {
                     if (resolved instanceof Iterable) {
                         builder.startArray();
                         for (Object o : (Iterable<?>) resolved) {

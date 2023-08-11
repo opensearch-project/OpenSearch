@@ -35,7 +35,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.StepListener;
 import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStoreRequest;
 import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
@@ -134,7 +134,7 @@ import static org.opensearch.snapshots.SnapshotUtils.filterIndices;
  * <p>
  * Restore operation is performed in several stages.
  * <p>
- * First {@link #restoreSnapshot(RestoreSnapshotRequest, org.opensearch.action.ActionListener)}
+ * First {@link #restoreSnapshot(RestoreSnapshotRequest, ActionListener)}
  * method reads information about snapshot and metadata from repository. In update cluster state task it checks restore
  * preconditions, restores global state if needed, creates {@link RestoreInProgress} record with list of shards that needs
  * to be restored and adds this shard to the routing table using
@@ -986,7 +986,7 @@ public class RestoreService implements ClusterStateApplier {
         private final Snapshot snapshot;
         private final RestoreInfo restoreInfo;
 
-        private RestoreCompletionResponse(final String uuid, final Snapshot snapshot, final RestoreInfo restoreInfo) {
+        public RestoreCompletionResponse(final String uuid, final Snapshot snapshot, final RestoreInfo restoreInfo) {
             this.uuid = uuid;
             this.snapshot = snapshot;
             this.restoreInfo = restoreInfo;

@@ -13,7 +13,7 @@ import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.junit.Assert;
 import org.opensearch.ExceptionsHelper;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.opensearch.action.index.IndexRequest;
@@ -29,7 +29,7 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.CancellableThreads;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.InternalEngineFactory;
@@ -107,7 +107,6 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
     /**
      * Validates happy path of segment replication where primary index docs which are replicated to replica shards. Assertions
      * made on doc count on both primary and replica.
-     * @throws Exception
      */
     public void testReplication() throws Exception {
         try (ReplicationGroup shards = createGroup(1, getIndexSettings(), indexMapping, new NRTReplicationEngineFactory());) {
@@ -274,7 +273,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             final int numDocs = randomIntBetween(10, 20);
             logger.info("--> Inserting documents {}", numDocs);
             for (int i = 0; i < numDocs; i++) {
-                shards.index(new IndexRequest(index.getName()).id(String.valueOf(i)).source("{\"foo\": \"bar\"}", XContentType.JSON));
+                shards.index(new IndexRequest(index.getName()).id(String.valueOf(i)).source("{\"foo\": \"bar\"}", MediaTypeRegistry.JSON));
             }
             assertEqualTranslogOperations(shards, primaryShard);
             primaryShard.refresh("Test");
@@ -288,7 +287,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             // Step 2. Ingest numDocs documents again & replicate to replica shard
             logger.info("--> Ingest {} docs again", numDocs);
             for (int i = 0; i < numDocs; i++) {
-                shards.index(new IndexRequest(index.getName()).id(String.valueOf(i)).source("{\"foo\": \"bar\"}", XContentType.JSON));
+                shards.index(new IndexRequest(index.getName()).id(String.valueOf(i)).source("{\"foo\": \"bar\"}", MediaTypeRegistry.JSON));
             }
             assertEqualTranslogOperations(shards, primaryShard);
             primaryShard.flush(new FlushRequest().waitIfOngoing(true).force(true));
@@ -323,7 +322,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             final int numDocs = randomIntBetween(10, 20);
             logger.info("--> Inserting documents {}", numDocs);
             for (int i = 0; i < numDocs; i++) {
-                shards.index(new IndexRequest(index.getName()).id(String.valueOf(i)).source("{\"foo\": \"bar\"}", XContentType.JSON));
+                shards.index(new IndexRequest(index.getName()).id(String.valueOf(i)).source("{\"foo\": \"bar\"}", MediaTypeRegistry.JSON));
             }
             assertEqualTranslogOperations(shards, primaryShard);
             primaryShard.refresh("Test");
@@ -334,7 +333,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             // Step 2. Ingest numDocs documents again to create a new commit
             logger.info("--> Ingest {} docs again", numDocs);
             for (int i = 0; i < numDocs; i++) {
-                shards.index(new IndexRequest(index.getName()).id(String.valueOf(i)).source("{\"foo\": \"bar\"}", XContentType.JSON));
+                shards.index(new IndexRequest(index.getName()).id(String.valueOf(i)).source("{\"foo\": \"bar\"}", MediaTypeRegistry.JSON));
             }
             assertEqualTranslogOperations(shards, primaryShard);
             primaryShard.flush(new FlushRequest().waitIfOngoing(true).force(true));

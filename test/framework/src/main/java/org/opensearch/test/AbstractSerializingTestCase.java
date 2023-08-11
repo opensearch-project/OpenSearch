@@ -34,6 +34,7 @@ package org.opensearch.test;
 
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
@@ -75,7 +76,7 @@ public abstract class AbstractSerializingTestCase<T extends ToXContent & Writeab
      * Override this method if the random instance that you build
      * should be aware of the {@link XContentType} used in the test.
      */
-    protected T createXContextTestInstance(XContentType xContentType) {
+    protected T createXContextTestInstance(final MediaType mediaType) {
         return createTestInstance();
     }
 
