@@ -33,10 +33,6 @@
 package org.opensearch.search.lookup;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.opensearch.index.query.functionscore.TermFrequencyFunction;
-import org.opensearch.index.query.functionscore.TermFrequencyFunctionFactory;
-
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -89,17 +85,5 @@ public class LeafSearchLookup {
         docMap.setDocument(docId);
         sourceLookup.setSegmentAndDocument(ctx, docId);
         fieldsLookup.setDocument(docId);
-    }
-
-    public Object getTermFrequency(
-        TermFrequencyFunctionFactory.TermFrequencyFunctionName functionName,
-        Map<Object, Object> context,
-        String field,
-        String val,
-        int docId
-    ) throws IOException {
-        TermFrequencyFunction termFreqFunction = TermFrequencyFunctionFactory.createFunction(functionName, context, field, val, ctx);
-        // execute the function
-        return termFreqFunction.execute(docId);
     }
 }

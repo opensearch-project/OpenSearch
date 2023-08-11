@@ -41,13 +41,13 @@ import org.opensearch.index.fielddata.ScriptDocValues;
 import org.opensearch.index.query.functionscore.TermFrequencyFunctionFactory.TermFrequencyFunctionName;
 
 import org.opensearch.search.lookup.LeafSearchLookup;
+import org.opensearch.search.lookup.LeafTermFrequencyLookup;
 import org.opensearch.search.lookup.SearchLookup;
 import org.opensearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.HashMap;
-import java.util.Locale;
 import java.util.Map;
 import java.util.function.DoubleSupplier;
 import java.util.function.Function;
@@ -111,6 +111,9 @@ public abstract class ScoreScript {
     /** A leaf lookup for the bound segment this script will operate on. */
     private final LeafSearchLookup leafLookup;
 
+    /** A leaf term frequency lookup for the bound segment this script will operate on. */
+    private final LeafTermFrequencyLookup leafTermFrequencyLookup;
+
     private DoubleSupplier scoreSupplier = () -> 0.0;
 
     private final int docBase;
@@ -119,10 +122,6 @@ public abstract class ScoreScript {
     private String indexName = null;
     private Version indexVersion = null;
 
-    private final IndexSearcher indexSearcher;
-
-    private final Map<String, Object> termFreqCache = new HashMap<>();
-
     public ScoreScript(Map<String, Object> params, SearchLookup lookup, IndexSearcher indexSearcher, LeafReaderContext leafContext) {
         // null check needed b/c of expression engine subclass
         if (lookup == null) {
@@ -130,15 +129,15 @@ public abstract class ScoreScript {
             assert leafContext == null;
             this.params = null;
             this.leafLookup = null;
+            this.leafTermFrequencyLookup = null;
             this.docBase = 0;
-            this.indexSearcher = null;
         } else {
             this.leafLookup = lookup.getLeafSearchLookup(leafContext);
+            this.leafTermFrequencyLookup = new LeafTermFrequencyLookup(indexSearcher, leafLookup);
             params = new HashMap<>(params);
             params.putAll(leafLookup.asMap());
             this.params = new DynamicMap(params, PARAMS_FUNCTIONS);
             this.docBase = leafContext.docBase;
-            this.indexSearcher = indexSearcher;
         }
     }
 
@@ -155,22 +154,7 @@ public abstract class ScoreScript {
     }
 
     public Object getTermFrequency(TermFrequencyFunctionName functionName, String field, String val) throws IOException {
-        String cacheKey = (val == null)
-            ? String.format(Locale.ROOT, "%s-%s", functionName, field)
-            : String.format(Locale.ROOT, "%s-%s-%s", functionName, field, val);
-
-        if (!termFreqCache.containsKey(cacheKey)) {
-            Map<Object, Object> context = new HashMap<>() {
-                {
-                    put("searcher", indexSearcher);
-                }
-            };
-
-            Object termFrequency = leafLookup.getTermFrequency(functionName, context, field, val, docId);
-            termFreqCache.put(cacheKey, termFrequency);
-        }
-
-        return termFreqCache.get(cacheKey);
+        return leafTermFrequencyLookup.getTermFrequency(functionName, field, val, docId);
     }
 
     /** Set the current document to run the script on next. */

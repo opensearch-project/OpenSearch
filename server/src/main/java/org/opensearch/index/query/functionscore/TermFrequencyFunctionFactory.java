@@ -9,6 +9,7 @@
 package org.opensearch.index.query.functionscore;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.queries.function.FunctionValues;
 import org.apache.lucene.queries.function.valuesource.SumTotalTermFreqValueSource;
 import org.apache.lucene.queries.function.valuesource.TFValueSource;
 import org.apache.lucene.queries.function.valuesource.TermFreqValueSource;
@@ -17,6 +18,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.opensearch.common.lucene.BytesRefs;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -28,21 +30,27 @@ import java.util.Map;
  * @opensearch.internal
  */
 public class TermFrequencyFunctionFactory {
-
     public static TermFrequencyFunction createFunction(
         TermFrequencyFunctionName functionName,
-        Map<Object, Object> context,
         String field,
         String term,
-        LeafReaderContext readerContext
+        LeafReaderContext readerContext,
+        IndexSearcher indexSearcher
     ) throws IOException {
         switch (functionName) {
             case TERM_FREQ:
                 TermFreqValueSource termFreqValueSource = new TermFreqValueSource(field, term, field, BytesRefs.toBytesRef(term));
-                return docId -> termFreqValueSource.getValues(null, readerContext).intVal(docId);
+                FunctionValues functionValues = termFreqValueSource.getValues(null, readerContext);
+                return docId -> functionValues.intVal(docId);
             case TF:
                 TFValueSource tfValueSource = new TFValueSource(field, term, field, BytesRefs.toBytesRef(term));
-                return docId -> tfValueSource.getValues(context, readerContext).floatVal(docId);
+                Map<Object, Object> tfContext = new HashMap<>() {
+                    {
+                        put("searcher", indexSearcher);
+                    }
+                };
+                functionValues = tfValueSource.getValues(tfContext, readerContext);
+                return docId -> functionValues.floatVal(docId);
             case TOTAL_TERM_FREQ:
                 TotalTermFreqValueSource totalTermFreqValueSource = new TotalTermFreqValueSource(
                     field,
@@ -50,12 +58,16 @@ public class TermFrequencyFunctionFactory {
                     field,
                     BytesRefs.toBytesRef(term)
                 );
-                totalTermFreqValueSource.createWeight(context, (IndexSearcher) context.get("searcher"));
-                return docId -> totalTermFreqValueSource.getValues(context, readerContext).longVal(docId);
+                Map<Object, Object> ttfContext = new HashMap<>();
+                totalTermFreqValueSource.createWeight(ttfContext, indexSearcher);
+                functionValues = totalTermFreqValueSource.getValues(ttfContext, readerContext);
+                return docId -> functionValues.longVal(docId);
             case SUM_TOTAL_TERM_FREQ:
                 SumTotalTermFreqValueSource sumTotalTermFreqValueSource = new SumTotalTermFreqValueSource(field);
-                sumTotalTermFreqValueSource.createWeight(context, (IndexSearcher) context.get("searcher"));
-                return docId -> sumTotalTermFreqValueSource.getValues(context, readerContext).longVal(docId);
+                Map<Object, Object> sttfContext = new HashMap<>();
+                sumTotalTermFreqValueSource.createWeight(sttfContext, indexSearcher);
+                functionValues = sumTotalTermFreqValueSource.getValues(sttfContext, readerContext);
+                return docId -> functionValues.longVal(docId);
             default:
                 throw new IllegalArgumentException("Unsupported function: " + functionName);
         }
