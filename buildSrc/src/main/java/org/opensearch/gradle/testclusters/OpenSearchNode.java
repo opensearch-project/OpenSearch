@@ -211,7 +211,6 @@ public class OpenSearchNode implements TestClusterConfiguration {
         setVersion(VersionProperties.getOpenSearch());
         this.zone = zone;
         this.credentials.add(new HashMap<>());
-        LOGGER.info("System properties are: " +System.getProperties());
     }
 
     @Input
