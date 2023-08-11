@@ -33,7 +33,6 @@
 package org.opensearch.indices.mapping;
 
 import org.opensearch.action.admin.indices.mapping.get.GetFieldAliasesMappingsResponse;
-import org.opensearch.common.Strings;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.xcontent.ToXContent;
@@ -201,22 +200,22 @@ public class SimpleGetFieldAliasesMappingsIT extends OpenSearchIntegTestCase {
             .get();
         XContentBuilder responseBuilder = XContentFactory.jsonBuilder().prettyPrint();
         response.toXContent(responseBuilder, new ToXContent.MapParams(params));
-        String responseStrings = Strings.toString(responseBuilder);
+        String responseStrings = responseBuilder.toString();
 
         XContentBuilder prettyJsonBuilder = XContentFactory.jsonBuilder().prettyPrint();
         prettyJsonBuilder.copyCurrentStructure(createParser(JsonXContent.jsonXContent, responseStrings));
-        assertThat(responseStrings, equalTo(Strings.toString(prettyJsonBuilder)));
+        assertThat(responseStrings, equalTo(prettyJsonBuilder.toString()));
 
         params.put("pretty", "false");
 
         response = client().admin().indices().prepareGetFieldAliasesMappings("index").setFields("field1", "obj.subfield").get();
         responseBuilder = XContentFactory.jsonBuilder().prettyPrint().lfAtEnd();
         response.toXContent(responseBuilder, new ToXContent.MapParams(params));
-        responseStrings = Strings.toString(responseBuilder);
+        responseStrings = responseBuilder.toString();
 
         prettyJsonBuilder = XContentFactory.jsonBuilder().prettyPrint();
         prettyJsonBuilder.copyCurrentStructure(createParser(JsonXContent.jsonXContent, responseStrings));
-        assertThat(responseStrings, not(equalTo(Strings.toString(prettyJsonBuilder))));
+        assertThat(responseStrings, not(equalTo(prettyJsonBuilder.toString())));
 
     }
 
