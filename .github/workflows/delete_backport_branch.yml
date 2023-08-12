@@ -7,7 +7,7 @@ on:
 jobs:
   delete-branch:
     runs-on: ubuntu-latest
-    if: startsWith(github.event.pull_request.head.ref,'backport/')
+    if: github.repository == 'opensearch-project/OpenSearch' && startsWith(github.event.pull_request.head.ref,'backport/')
     steps:
       - name: Delete merged branch
         uses: SvanBoxel/delete-merged-branch@main

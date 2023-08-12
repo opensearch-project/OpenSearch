@@ -8,7 +8,7 @@ env:
 
 jobs:
   create-issue:
-    if: ${{ github.event.label.name == 'needs-documentation' }}
+    if: github.repository == 'opensearch-project/OpenSearch' && ${{ github.event.label.name == 'needs-documentation' }}
     runs-on: ubuntu-latest
     name: Create Documentation Issue
     steps:

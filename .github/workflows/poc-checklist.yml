@@ -5,7 +5,7 @@ on:
       - labeled
 jobs:
   add-comment:
-    if: github.event.label.name == 'poc'
+    if: github.repository == 'opensearch-project/OpenSearch' && github.event.label.name == 'poc'
     runs-on: ubuntu-latest
     permissions:
       issues: write
