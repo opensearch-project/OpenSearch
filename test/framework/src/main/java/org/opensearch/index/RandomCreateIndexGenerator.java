@@ -115,7 +115,7 @@ public final class RandomCreateIndexGenerator {
 
         int fieldsNo = randomIntBetween(0, 5);
         Set<String> uniqueFields = new HashSet<>();
-        for (int i = 0; i < fieldsNo; i++) {
+        while (uniqueFields.size() < fieldsNo) {
             uniqueFields.add(randomAlphaOfLength(5));
         }
         for (String uniqueField : uniqueFields) {
