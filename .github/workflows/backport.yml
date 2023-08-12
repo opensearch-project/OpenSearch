@@ -12,8 +12,7 @@ jobs:
     # Only react to merged PRs for security reasons.
     # See https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows#pull_request_target.
     if: >
-      github.repository == 'opensearch-project/OpenSearch'
-      && github.event.pull_request.merged
+      github.event.pull_request.merged
       && (
         github.event.action == 'closed'
         || (

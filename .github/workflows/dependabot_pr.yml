@@ -7,7 +7,7 @@ jobs:
     permissions:
       pull-requests: write
       contents: write
-    if: github.repository == 'opensearch-project/OpenSearch' && ${{ github.actor == 'dependabot[bot]' }}
+    if: ${{ github.actor == 'dependabot[bot]' }}
     steps:
       - name: GitHub App token
         id: github_app_token
