@@ -33,7 +33,7 @@
 package org.opensearch.action.search;
 
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.support.ActionFilter;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.ActionTestUtils;

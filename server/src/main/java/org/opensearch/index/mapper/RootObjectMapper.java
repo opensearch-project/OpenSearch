@@ -37,8 +37,8 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.time.DateFormatter;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.mapper.DynamicTemplate.XContentFieldType;
@@ -459,7 +459,7 @@ public class RootObjectMapper extends ObjectMapper {
                 Locale.ROOT,
                 "dynamic template [%s] has invalid content [%s]",
                 dynamicTemplate.getName(),
-                Strings.toString(XContentType.JSON, dynamicTemplate)
+                Strings.toString(MediaTypeRegistry.JSON, dynamicTemplate)
             );
 
             final String deprecationMessage;

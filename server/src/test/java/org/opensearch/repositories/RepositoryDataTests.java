@@ -36,6 +36,7 @@ import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
 import org.opensearch.common.UUIDs;
 import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
@@ -296,7 +297,7 @@ public class RepositoryDataTests extends OpenSearchTestCase {
     }
 
     public void testIndexThatReferenceANullSnapshot() throws IOException {
-        final XContentBuilder builder = XContentBuilder.builder(randomFrom(XContentType.JSON).xContent());
+        final XContentBuilder builder = MediaTypeRegistry.JSON.contentBuilder();
         builder.startObject();
         {
             builder.startArray("snapshots");

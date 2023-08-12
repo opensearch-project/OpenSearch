@@ -48,7 +48,6 @@ import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -388,7 +387,7 @@ public class CreateSnapshotRequest extends ClusterManagerNodeRequest<CreateSnaps
      */
     public CreateSnapshotRequest settings(Map<String, Object> source) {
         try {
-            XContentBuilder builder = MediaTypeRegistry.contentBuilder(XContentType.JSON);
+            XContentBuilder builder = MediaTypeRegistry.contentBuilder(MediaTypeRegistry.JSON);
             builder.map(source);
             settings(builder.toString(), builder.contentType());
         } catch (IOException e) {

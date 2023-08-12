@@ -10,10 +10,10 @@ package org.opensearch.search.pit;
 
 import org.junit.After;
 import org.junit.Before;
-import org.opensearch.action.ActionFuture;
+import org.opensearch.common.action.ActionFuture;
 import org.opensearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.action.search.CreatePitAction;
 import org.opensearch.action.search.CreatePitRequest;

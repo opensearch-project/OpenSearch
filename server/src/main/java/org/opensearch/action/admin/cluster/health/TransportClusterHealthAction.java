@@ -35,7 +35,7 @@ package org.opensearch.action.admin.cluster.health;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.action.support.IndicesOptions;

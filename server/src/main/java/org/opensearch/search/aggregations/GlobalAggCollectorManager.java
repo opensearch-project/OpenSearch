@@ -14,6 +14,7 @@ import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.profile.query.CollectorResult;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Objects;
 
 /**
@@ -37,5 +38,14 @@ public class GlobalAggCollectorManager extends AggregationCollectorManager {
         } else {
             return super.newCollector();
         }
+    }
+
+    @Override
+    protected AggregationReduceableSearchResult buildAggregationResult(InternalAggregations internalAggregations) {
+        // Reduce the aggregations across slices before sending to the coordinator. We will perform shard level reduce as long as any slices
+        // were created so that we can apply shard level bucket count thresholds in the reduce phase.
+        return new AggregationReduceableSearchResult(
+            InternalAggregations.reduce(Collections.singletonList(internalAggregations), context.partialOnShard())
+        );
     }
 }

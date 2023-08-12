@@ -53,7 +53,7 @@ import org.opensearch.index.VersionType;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.script.Script;
 import org.opensearch.search.sort.SortOrder;
-import org.opensearch.tasks.TaskId;
+import org.opensearch.core.tasks.TaskId;
 
 import java.io.IOException;
 import java.io.InputStream;

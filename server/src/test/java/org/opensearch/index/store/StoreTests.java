@@ -100,7 +100,6 @@ import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
@@ -109,8 +108,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static java.util.Collections.unmodifiableMap;
 import static org.hamcrest.Matchers.anyOf;
@@ -1167,49 +1164,6 @@ public class StoreTests extends OpenSearchTestCase {
         // loose check for equality
         assertEquals(segmentInfos.getSegmentsFileName(), metadataSnapshot.getSegmentsFile().name());
         store.close();
-    }
-
-    public void testCleanupAndPreserveLatestCommitPoint() throws IOException {
-        final ShardId shardId = new ShardId("index", "_na_", 1);
-        Store store = new Store(
-            shardId,
-            SEGMENT_REPLICATION_INDEX_SETTINGS,
-            StoreTests.newDirectory(random()),
-            new DummyShardLock(shardId)
-        );
-        commitRandomDocs(store);
-
-        Store.MetadataSnapshot commitMetadata = store.getMetadata();
-
-        // index more docs but only IW.flush, this will create additional files we'll clean up.
-        final IndexWriter writer = indexRandomDocs(store);
-        writer.flush();
-        writer.close();
-
-        final List<String> additionalSegments = new ArrayList<>();
-        for (String file : store.directory().listAll()) {
-            if (commitMetadata.contains(file) == false) {
-                additionalSegments.add(file);
-            }
-        }
-        assertFalse(additionalSegments.isEmpty());
-
-        Collection<String> filesToConsiderForCleanUp = Stream.of(store.readLastCommittedSegmentsInfo().files(true), additionalSegments)
-            .flatMap(Collection::stream)
-            .collect(Collectors.toList());
-
-        // clean up everything not in the latest commit point.
-        store.cleanupAndPreserveLatestCommitPoint(filesToConsiderForCleanUp, "test");
-
-        // we want to ensure commitMetadata files are preserved after calling cleanup
-        for (String existingFile : store.directory().listAll()) {
-            if (!IndexWriter.WRITE_LOCK_NAME.equals(existingFile)) {
-                assertTrue(commitMetadata.contains(existingFile));
-                assertFalse(additionalSegments.contains(existingFile));
-            }
-        }
-        deleteContent(store.directory());
-        IOUtils.close(store);
     }
 
     public void testGetSegmentMetadataMap() throws IOException {

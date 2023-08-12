@@ -43,7 +43,7 @@ import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.ActionListenerResponseHandler;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.node.DiscoveryNode;

@@ -43,6 +43,7 @@ import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContent;
 import org.opensearch.core.xcontent.XContentParser;
@@ -105,7 +106,7 @@ public final class BulkRequestParser {
         MediaType mediaType
     ) {
         final int length;
-        if (XContentType.JSON == mediaType && bytesReference.get(nextMarker - 1) == (byte) '\r') {
+        if (MediaTypeRegistry.JSON == mediaType && bytesReference.get(nextMarker - 1) == (byte) '\r') {
             length = nextMarker - from - 1;
         } else {
             length = nextMarker - from;

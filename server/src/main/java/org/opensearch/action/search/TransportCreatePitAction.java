@@ -9,7 +9,7 @@
 package org.opensearch.action.search;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.StepListener;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;

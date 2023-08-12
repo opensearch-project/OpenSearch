@@ -16,7 +16,7 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.tasks.ResourceStats;
+import org.opensearch.core.tasks.resourcetracker.ResourceStats;
 import org.opensearch.tasks.Task;
 
 import java.util.Comparator;

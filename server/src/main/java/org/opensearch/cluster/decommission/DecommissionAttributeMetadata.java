@@ -17,7 +17,7 @@ import org.opensearch.cluster.metadata.Metadata.Custom;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
@@ -282,6 +282,6 @@ public class DecommissionAttributeMetadata extends AbstractNamedDiffable<Custom>
 
     @Override
     public String toString() {
-        return Strings.toString(XContentType.JSON, this);
+        return Strings.toString(MediaTypeRegistry.JSON, this);
     }
 }

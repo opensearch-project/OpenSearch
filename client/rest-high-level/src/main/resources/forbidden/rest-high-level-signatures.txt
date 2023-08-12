@@ -14,7 +14,7 @@
 # either express or implied. See the License for the specific
 # language governing permissions and limitations under the License.
 
-@defaultMessage Use Request#createContentType(XContentType) to be sure to pass the right MIME type
+@defaultMessage Use Request#createContentType(MediaType) to be sure to pass the right MIME type
 org.apache.hc.core5.http.ContentType#create(java.lang.String)
 org.apache.hc.core5.http.ContentType#create(java.lang.String,java.lang.String)
 org.apache.hc.core5.http.ContentType#create(java.lang.String,java.nio.charset.Charset)

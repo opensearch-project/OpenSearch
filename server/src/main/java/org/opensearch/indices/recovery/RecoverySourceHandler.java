@@ -39,7 +39,7 @@ import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.store.RateLimiter;
 import org.apache.lucene.util.ArrayUtil;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.StepListener;
 import org.opensearch.action.support.PlainActionFuture;

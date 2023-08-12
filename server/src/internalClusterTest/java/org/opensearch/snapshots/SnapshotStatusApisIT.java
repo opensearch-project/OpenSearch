@@ -33,7 +33,7 @@
 package org.opensearch.snapshots;
 
 import org.opensearch.Version;
-import org.opensearch.action.ActionFuture;
+import org.opensearch.common.action.ActionFuture;
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.opensearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.opensearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;

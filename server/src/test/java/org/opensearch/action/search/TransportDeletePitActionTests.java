@@ -9,7 +9,7 @@ package org.opensearch.action.search;
 
 import org.junit.Before;
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.support.ActionFilter;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.PlainActionFuture;
@@ -27,7 +27,7 @@ import org.opensearch.index.query.MatchAllQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.tasks.Task;
-import org.opensearch.tasks.TaskId;
+import org.opensearch.core.tasks.TaskId;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.threadpool.ThreadPool;

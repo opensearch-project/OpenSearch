@@ -6,6 +6,7 @@ This document contains a list of maintainers in this repo. See [opensearch-proje
 
 | Maintainer               | GitHub ID                                               | Affiliation |
 |--------------------------| ------------------------------------------------------- | ----------- |
+| Abbas Hussain           | [abbashus](https://github.com/abbashus)     | Meta        |
 | Anas Alkouz              | [anasalkouz](https://github.com/anasalkouz)             | Amazon      |
 | Andrew Ross              | [andrross](https://github.com/andrross)                 | Amazon      |
 | Andriy Redko             | [reta](https://github.com/reta)                         | Aiven       |
@@ -20,6 +21,7 @@ This document contains a list of maintainers in this repo. See [opensearch-proje
 | Marc Handalian           | [mch2](https://github.com/mch2)                         | Amazon      |
 | Nick Knize               | [nknize](https://github.com/nknize)                     | Amazon      |
 | Owais Kazi               | [owaiskazi19](https://github.com/owaiskazi19)           | Amazon      |
+| Rabi Panda              | [adnapibar](https://github.com/adnapibar)   | Independent |
 | Rishikesh Pasham         | [Rishikesh1159](https://github.com/Rishikesh1159)       | Amazon      |
 | Ryan Bogan               | [ryanbogan](https://github.com/ryanbogan)               | Amazon      |
 | Sachin Kale              | [sachinpkale](https://github.com/sachinpkale)           | Amazon      |
@@ -33,8 +35,6 @@ This document contains a list of maintainers in this repo. See [opensearch-proje
 ## Emeritus
 
 | Maintainer              | GitHub ID                                   | Affiliation |
-|-------------------------|---------------------------------------------| ----------- |
-| Abbas Hussain           | [abbashus](https://github.com/abbashus)     | Amazon      |
+|-------------------------|---------------------------------------------|-------------|
 | Megha Sai Kavikondala   | [meghasaik](https://github.com/meghasaik)   | Amazon      |
-| Rabi Panda              | [adnapibar](https://github.com/adnapibar)   | Amazon      |
 | Xue Zhou                | [xuezhou25](https://github.com/xuezhou25)   | Amazon      |

@@ -33,7 +33,7 @@
 package org.opensearch.index.seqno;
 
 import org.opensearch.OpenSearchException;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.action.support.replication.ReplicationResponse;
 import org.opensearch.cluster.node.DiscoveryNode;

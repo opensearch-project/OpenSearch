@@ -8,7 +8,7 @@
 
 package org.opensearch.clustermanager;
 
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.opensearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.opensearch.cluster.metadata.ProcessClusterEventTimeoutException;

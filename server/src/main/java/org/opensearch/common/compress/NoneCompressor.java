@@ -9,6 +9,7 @@
 package org.opensearch.common.compress;
 
 import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.compress.Compressor;
 
 import java.io.IOException;
 import java.io.InputStream;

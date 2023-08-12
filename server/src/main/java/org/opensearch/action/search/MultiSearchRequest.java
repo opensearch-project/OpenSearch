@@ -50,7 +50,7 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.Task;
-import org.opensearch.tasks.TaskId;
+import org.opensearch.core.tasks.TaskId;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;

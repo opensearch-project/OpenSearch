@@ -14,12 +14,12 @@ import org.opensearch.Version;
 import org.opensearch.cluster.ClusterModule;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
@@ -114,7 +114,7 @@ public class CorrelationQueryBuilderTests extends OpenSearchTestCase {
         XContentParser contentParser = createParser(JsonXContent.jsonXContent, correlationQuery);
         contentParser.nextToken();
         CorrelationQueryBuilder actualBuilder = CorrelationQueryBuilder.parse(contentParser);
-        Assert.assertEquals(correlationQuery.replace("\n", "").replace(" ", ""), Strings.toString(XContentType.JSON, actualBuilder));
+        Assert.assertEquals(correlationQuery.replace("\n", "").replace(" ", ""), Strings.toString(MediaTypeRegistry.JSON, actualBuilder));
     }
 
     /**

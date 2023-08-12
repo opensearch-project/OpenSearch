@@ -47,7 +47,7 @@ import org.apache.lucene.store.RateLimiter;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.StepListener;
 import org.opensearch.action.support.GroupedActionListener;
@@ -79,7 +79,7 @@ import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
-import org.opensearch.common.compress.Compressor;
+import org.opensearch.core.common.compress.Compressor;
 import org.opensearch.common.compress.CompressorFactory;
 import org.opensearch.common.compress.CompressorType;
 import org.opensearch.core.common.compress.NotXContentException;
@@ -96,9 +96,9 @@ import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.core.util.BytesRefUtils;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.mapper.MapperService;
@@ -1987,7 +1987,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     private RepositoryData repositoryDataFromCachedEntry(Tuple<Long, BytesReference> cacheEntry) throws IOException {
         try (InputStream input = CompressorFactory.defaultCompressor().threadLocalInputStream(cacheEntry.v2().streamInput())) {
             return RepositoryData.snapshotsFromXContent(
-                XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, input),
+                MediaTypeRegistry.JSON.xContent().createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, input),
                 cacheEntry.v1()
             );
         }
@@ -2080,7 +2080,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             // EMPTY is safe here because RepositoryData#fromXContent calls namedObject
             try (
                 InputStream blob = blobContainer().readBlob(snapshotsIndexBlobName);
-                XContentParser parser = XContentType.JSON.xContent()
+                XContentParser parser = MediaTypeRegistry.JSON.xContent()
                     .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, blob)
             ) {
                 return RepositoryData.snapshotsFromXContent(parser, indexGen);

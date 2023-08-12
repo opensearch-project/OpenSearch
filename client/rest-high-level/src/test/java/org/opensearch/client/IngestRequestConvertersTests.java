@@ -38,7 +38,7 @@ import org.opensearch.action.ingest.PutPipelineRequest;
 import org.opensearch.action.ingest.SimulatePipelineRequest;
 import org.opensearch.action.support.master.AcknowledgedRequest;
 import org.opensearch.core.common.bytes.BytesArray;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.test.OpenSearchTestCase;
 import org.apache.hc.client5.http.classic.methods.HttpDelete;
 import org.apache.hc.client5.http.classic.methods.HttpGet;
@@ -59,7 +59,7 @@ public class IngestRequestConvertersTests extends OpenSearchTestCase {
         PutPipelineRequest request = new PutPipelineRequest(
             "some_pipeline_id",
             new BytesArray("{}".getBytes(StandardCharsets.UTF_8)),
-            XContentType.JSON
+            MediaTypeRegistry.JSON
         );
         Map<String, String> expectedParams = new HashMap<>();
         RequestConvertersTests.setRandomClusterManagerTimeout(request, expectedParams);
@@ -130,7 +130,7 @@ public class IngestRequestConvertersTests extends OpenSearchTestCase {
             + "}";
         SimulatePipelineRequest request = new SimulatePipelineRequest(
             new BytesArray(json.getBytes(StandardCharsets.UTF_8)),
-            XContentType.JSON
+            MediaTypeRegistry.JSON
         );
         request.setId(pipelineId);
         request.setVerbose(verbose);

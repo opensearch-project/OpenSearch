@@ -46,7 +46,6 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.ParsingException;
 import org.opensearch.core.common.Strings;
@@ -978,7 +977,7 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
      * be rendered like the REST API does when the "error_trace" parameter is set to true.
      */
     private static void assertToXContentAsJson(ToXContent e, String expectedJson) throws IOException {
-        BytesReference actual = XContentHelper.toXContent(e, XContentType.JSON, randomBoolean());
+        BytesReference actual = org.opensearch.core.xcontent.XContentHelper.toXContent(e, MediaTypeRegistry.JSON, randomBoolean());
         assertToXContentEquivalent(new BytesArray(expectedJson), actual, MediaTypeRegistry.JSON);
     }
 

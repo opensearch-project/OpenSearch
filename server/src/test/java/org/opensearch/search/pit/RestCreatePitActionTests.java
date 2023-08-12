@@ -8,7 +8,7 @@
 
 package org.opensearch.search.pit;
 
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.search.CreatePitRequest;
 import org.opensearch.action.search.CreatePitResponse;
 import org.opensearch.client.node.NodeClient;

@@ -35,6 +35,7 @@ package org.opensearch.search;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.common.lucene.LuceneTests;
+import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
@@ -48,13 +49,13 @@ import java.util.Arrays;
 
 public class SearchSortValuesTests extends AbstractSerializingTestCase<SearchSortValues> {
 
-    public static SearchSortValues createTestItem(XContentType xContentType, boolean transportSerialization) {
+    public static SearchSortValues createTestItem(final MediaType mediaType, boolean transportSerialization) {
         int size = randomIntBetween(1, 20);
         Object[] values = new Object[size];
         if (transportSerialization) {
             DocValueFormat[] sortValueFormats = new DocValueFormat[size];
             for (int i = 0; i < size; i++) {
-                Object sortValue = randomSortValue(xContentType, transportSerialization);
+                Object sortValue = randomSortValue(mediaType, transportSerialization);
                 values[i] = sortValue;
                 // make sure that for BytesRef, we provide a specific doc value format that overrides format(BytesRef)
                 sortValueFormats[i] = sortValue instanceof BytesRef ? DocValueFormat.RAW : randomDocValueFormat();
@@ -63,7 +64,7 @@ public class SearchSortValuesTests extends AbstractSerializingTestCase<SearchSor
         } else {
             // xcontent serialization doesn't write/parse the raw sort values, only the formatted ones
             for (int i = 0; i < size; i++) {
-                Object sortValue = randomSortValue(xContentType, transportSerialization);
+                Object sortValue = randomSortValue(mediaType, transportSerialization);
                 // make sure that BytesRef are not provided as formatted values
                 sortValue = sortValue instanceof BytesRef ? DocValueFormat.RAW.format((BytesRef) sortValue) : sortValue;
                 values[i] = sortValue;
@@ -72,10 +73,10 @@ public class SearchSortValuesTests extends AbstractSerializingTestCase<SearchSor
         }
     }
 
-    private static Object randomSortValue(XContentType xContentType, boolean transportSerialization) {
+    private static Object randomSortValue(final MediaType mediaType, boolean transportSerialization) {
         Object randomSortValue = LuceneTests.randomSortValue();
         // to simplify things, we directly serialize what we expect we would parse back when testing xcontent serialization
-        return transportSerialization ? randomSortValue : RandomObjects.getExpectedParsedValue(xContentType, randomSortValue);
+        return transportSerialization ? randomSortValue : RandomObjects.getExpectedParsedValue(mediaType, randomSortValue);
     }
 
     private static DocValueFormat randomDocValueFormat() {
@@ -102,8 +103,8 @@ public class SearchSortValuesTests extends AbstractSerializingTestCase<SearchSor
     }
 
     @Override
-    protected SearchSortValues createXContextTestInstance(XContentType xContentType) {
-        return createTestItem(xContentType, false);
+    protected SearchSortValues createXContextTestInstance(final MediaType mediaType) {
+        return createTestItem(mediaType, false);
     }
 
     @Override

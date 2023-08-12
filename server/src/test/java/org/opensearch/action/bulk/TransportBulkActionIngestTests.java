@@ -33,7 +33,7 @@
 package org.opensearch.action.bulk;
 
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.DocWriteRequest;
 import org.opensearch.action.admin.indices.create.CreateIndexResponse;
 import org.opensearch.action.index.IndexAction;

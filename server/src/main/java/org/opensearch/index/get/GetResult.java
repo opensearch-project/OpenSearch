@@ -41,11 +41,11 @@ import org.opensearch.common.document.DocumentField;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.mapper.IgnoredFieldMapper;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.SourceFieldMapper;
@@ -477,6 +477,6 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
 
     @Override
     public String toString() {
-        return Strings.toString(XContentType.JSON, this, true, true);
+        return Strings.toString(MediaTypeRegistry.JSON, this, true, true);
     }
 }

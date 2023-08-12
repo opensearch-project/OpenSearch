@@ -46,7 +46,7 @@ import org.opensearch.ingest.IngestInfo;
 import org.opensearch.monitor.jvm.JvmInfo;
 import org.opensearch.monitor.os.OsInfo;
 import org.opensearch.monitor.process.ProcessInfo;
-import org.opensearch.node.ReportingService;
+import org.opensearch.core.service.ReportingService;
 import org.opensearch.search.aggregations.support.AggregationInfo;
 import org.opensearch.search.pipeline.SearchPipelineInfo;
 import org.opensearch.threadpool.ThreadPoolInfo;
