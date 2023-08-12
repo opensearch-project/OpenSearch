@@ -46,6 +46,7 @@ import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexingPressureService;
 import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.threadpool.RunnableTaskExecutionListener;
+import org.opensearch.index.recovery.RemoteStoreRestoreService;
 import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.store.remote.filecache.FileCacheCleaner;
@@ -947,6 +948,10 @@ public class Node implements Closeable {
                 indicesService,
                 clusterInfoService::getClusterInfo
             );
+            RemoteStoreRestoreService remoteStoreRestoreService = new RemoteStoreRestoreService(
+                clusterService,
+                clusterModule.getAllocationService()
+            );
 
             final DiskThresholdMonitor diskThresholdMonitor = new DiskThresholdMonitor(
                 settings,
@@ -1143,6 +1148,7 @@ public class Node implements Closeable {
                 b.bind(SnapshotShardsService.class).toInstance(snapshotShardsService);
                 b.bind(TransportNodesSnapshotsStatus.class).toInstance(nodesSnapshotsStatus);
                 b.bind(RestoreService.class).toInstance(restoreService);
+                b.bind(RemoteStoreRestoreService.class).toInstance(remoteStoreRestoreService);
                 b.bind(RerouteService.class).toInstance(rerouteService);
                 b.bind(ShardLimitValidator.class).toInstance(shardLimitValidator);
                 b.bind(FsHealthService.class).toInstance(fsHealthService);
