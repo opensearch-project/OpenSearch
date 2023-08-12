@@ -669,6 +669,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         Client client = cluster().client();
         if (FeatureFlags.isEnabled(FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL)) {
             client = new SegmentReplicationClient(client, random());
+            return client;
         }
         if (frequently()) {
             client = new RandomizingClient(client, random());
@@ -680,6 +681,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         Client client = internalCluster().dataNodeClient();
         if (FeatureFlags.isEnabled(FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL)) {
             client = new SegmentReplicationClient(client, random());
+            return client;
         }
         if (frequently()) {
             client = new RandomizingClient(client, random());

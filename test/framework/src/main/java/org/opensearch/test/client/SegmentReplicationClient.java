@@ -125,10 +125,17 @@ public class SegmentReplicationClient extends FilterClient {
 
     @Override
     public ActionFuture<SearchResponse> search(SearchRequest request) {
+        String[] indexes;
+        if (request.indices().length == 0) {
+            indexes = this.admin().indices().prepareGetIndex().get().indices();
+            ;
+        } else {
+            indexes = request.indices();
+        }
         try {
             // wait until replica shard is caught up before performing search request.
             assertBusy(() -> {
-                for (String index : request.indices()) {
+                for (String index : indexes) {
                     final SegmentReplicationStatsResponse segmentReplicationStatsResponse = this.admin()
                         .indices()
                         .prepareSegmentReplicationStats(index)
