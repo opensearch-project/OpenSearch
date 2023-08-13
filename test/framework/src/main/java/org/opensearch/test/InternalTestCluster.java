@@ -522,7 +522,7 @@ public final class InternalTestCluster extends TestCluster {
      * Remove any plugin that was added in test. This doesn't affect the existing nodes in the cluster
      * and only the newer nodes which are started after the plugin removal.
      * @param plugin to be removed
-     * @return
+     * @return true if the plugin was found and removed.
      */
     public boolean removePlugin(Class<? extends Plugin> plugin) {
         return nodePlugins.remove(plugin);
