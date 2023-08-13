@@ -40,6 +40,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.appender.AbstractAppender;
 import org.apache.logging.log4j.core.filter.RegexFilter;
+import org.apache.lucene.codecs.LiveDocsFormat;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.KeywordField;
 import org.apache.lucene.document.LongPoint;
@@ -152,6 +153,7 @@ import org.opensearch.index.translog.TranslogDeletionPolicyFactory;
 import org.opensearch.index.translog.TranslogException;
 import org.opensearch.index.translog.listener.TranslogEventListener;
 import org.opensearch.test.IndexSettingsModule;
+import org.opensearch.test.MockLogAppender;
 import org.opensearch.test.VersionUtils;
 import org.opensearch.threadpool.ThreadPool;
 import org.hamcrest.MatcherAssert;
@@ -3226,6 +3228,300 @@ public class InternalEngineTests extends EngineTestCase {
                 holder.close();
                 assertEquals(store.refCount(), refCount);
             }
+        }
+    }
+
+    public void testUnreferencedFileCleanUpOnSegmentMergeFailureWithCleanUpEnabled() throws Exception {
+        MockDirectoryWrapper wrapper = newMockDirectory();
+        MockDirectoryWrapper.Failure fail = new MockDirectoryWrapper.Failure() {
+            public boolean didFail1;
+            public boolean didFail2;
+
+            @Override
+            public void eval(MockDirectoryWrapper dir) throws IOException {
+                if (!doFail) {
+                    return;
+                }
+
+                // Fail segment merge with diskfull during merging terms.
+                if (callStackContainsAnyOf("mergeTerms") && !didFail1) {
+                    didFail1 = true;
+                    throw new IOException("No space left on device");
+                }
+                if (callStackContains(LiveDocsFormat.class, "writeLiveDocs") && !didFail2) {
+                    didFail2 = true;
+                    throw new IOException("No space left on device");
+                }
+            }
+        };
+
+        wrapper.failOn(fail);
+        try {
+            Store store = createStore(wrapper);
+            final Engine.EventListener eventListener = new Engine.EventListener() {
+                @Override
+                public void onFailedEngine(String reason, Exception e) {
+                    try {
+                        // Since only one document is committed and unreferenced files are cleaned up,
+                        // there are 4 files (*cfs, *cfe, *si and segments_*).
+                        assertThat(store.directory().listAll().length, equalTo(4));
+                        wrapper.close();
+                        store.close();
+                        engine.close();
+                    } catch (IOException ex) {
+                        throw new AssertionError(ex);
+                    }
+                }
+            };
+
+            final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+            final long primaryTerm = randomLongBetween(1, Long.MAX_VALUE);
+            final AtomicLong retentionLeasesVersion = new AtomicLong();
+            final AtomicReference<RetentionLeases> retentionLeasesHolder = new AtomicReference<>(
+                new RetentionLeases(primaryTerm, retentionLeasesVersion.get(), Collections.emptyList())
+            );
+            InternalEngine engine = createEngine(
+                config(
+                    defaultSettings,
+                    store,
+                    createTempDir(),
+                    newMergePolicy(),
+                    null,
+                    null,
+                    null,
+                    globalCheckpoint::get,
+                    retentionLeasesHolder::get,
+                    new NoneCircuitBreakerService(),
+                    eventListener
+                )
+            );
+
+            List<Segment> segments = engine.segments(true);
+            assertThat(segments.isEmpty(), equalTo(true));
+
+            ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(), B_1, null);
+            engine.index(indexForDoc(doc));
+            engine.refresh("test");
+            engine.flush();
+
+            segments = engine.segments(false);
+            assertThat(segments.size(), equalTo(1));
+
+            ParsedDocument doc2 = testParsedDocument("2", null, testDocumentWithTextField(), B_2, null);
+            engine.index(indexForDoc(doc2));
+            engine.refresh("test");
+
+            segments = engine.segments(false);
+            assertThat(segments.size(), equalTo(2));
+
+            fail.setDoFail();
+            // IndexWriter can throw either IOException or IllegalStateException depending on whether tragedy is set or not.
+            expectThrowsAnyOf(
+                Arrays.asList(IOException.class, IllegalStateException.class),
+                () -> engine.forceMerge(true, 1, false, false, false, UUIDs.randomBase64UUID())
+            );
+        } catch (Exception ex) {
+            throw new AssertionError(ex);
+        }
+    }
+
+    public void testUnreferencedFileCleanUpOnSegmentMergeFailureWithCleanUpDisabled() throws Exception {
+        MockDirectoryWrapper wrapper = newMockDirectory();
+        MockDirectoryWrapper.Failure fail = new MockDirectoryWrapper.Failure() {
+            public boolean didFail1;
+            public boolean didFail2;
+
+            @Override
+            public void eval(MockDirectoryWrapper dir) throws IOException {
+                if (!doFail) {
+                    return;
+                }
+                if (callStackContainsAnyOf("mergeTerms") && !didFail1) {
+                    didFail1 = true;
+                    throw new IOException("No space left on device");
+                }
+                if (callStackContains(LiveDocsFormat.class, "writeLiveDocs") && !didFail2) {
+                    didFail2 = true;
+                    throw new IOException("No space left on device");
+                }
+            }
+        };
+
+        wrapper.failOn(fail);
+        try {
+            Store store = createStore(wrapper);
+            final Engine.EventListener eventListener = new Engine.EventListener() {
+                @Override
+                public void onFailedEngine(String reason, Exception e) {
+                    try {
+                        // Since now cleanup is not happening now, all unrefrenced files now be present as well.
+                        assertThat(store.directory().listAll().length, equalTo(13));
+                        wrapper.close();
+                        store.close();
+                        engine.close();
+                    } catch (IOException ex) {
+                        throw new AssertionError(ex);
+                    }
+                }
+            };
+
+            final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+            final long primaryTerm = randomLongBetween(1, Long.MAX_VALUE);
+            final AtomicLong retentionLeasesVersion = new AtomicLong();
+            final AtomicReference<RetentionLeases> retentionLeasesHolder = new AtomicReference<>(
+                new RetentionLeases(primaryTerm, retentionLeasesVersion.get(), Collections.emptyList())
+            );
+            InternalEngine engine = createEngine(
+                config(
+                    defaultSettings,
+                    store,
+                    createTempDir(),
+                    newMergePolicy(),
+                    null,
+                    null,
+                    null,
+                    globalCheckpoint::get,
+                    retentionLeasesHolder::get,
+                    new NoneCircuitBreakerService(),
+                    eventListener
+                )
+            );
+
+            // Disable cleanup
+            final IndexSettings indexSettings = engine.config().getIndexSettings();
+            final IndexMetadata indexMetadata = IndexMetadata.builder(indexSettings.getIndexMetadata())
+                .settings(
+                    Settings.builder().put(indexSettings.getSettings()).put(IndexSettings.INDEX_UNREFERENCED_FILE_CLEANUP.getKey(), false)
+                )
+                .build();
+            indexSettings.updateIndexMetadata(indexMetadata);
+
+            List<Segment> segments = engine.segments(true);
+            assertThat(segments.isEmpty(), equalTo(true));
+
+            ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(), B_1, null);
+            engine.index(indexForDoc(doc));
+            engine.refresh("test");
+            engine.flush();
+
+            segments = engine.segments(false);
+            assertThat(segments.size(), equalTo(1));
+
+            ParsedDocument doc2 = testParsedDocument("2", null, testDocumentWithTextField(), B_2, null);
+            engine.index(indexForDoc(doc2));
+            engine.refresh("test");
+
+            segments = engine.segments(false);
+            assertThat(segments.size(), equalTo(2));
+
+            fail.setDoFail();
+            // IndexWriter can throw either IOException or IllegalStateException depending on whether tragedy is set or not.
+            expectThrowsAnyOf(
+                Arrays.asList(IOException.class, IllegalStateException.class),
+                () -> engine.forceMerge(true, 1, false, false, false, UUIDs.randomBase64UUID())
+            );
+        } catch (Exception ex) {
+            throw new AssertionError(ex);
+        }
+    }
+
+    public void testUnreferencedFileCleanUpFailsOnSegmentMergeFailureWhenDirectoryClosed() throws Exception {
+        MockDirectoryWrapper wrapper = newMockDirectory();
+        MockDirectoryWrapper.Failure fail = new MockDirectoryWrapper.Failure() {
+            public boolean didFail1;
+            public boolean didFail2;
+
+            @Override
+            public void eval(MockDirectoryWrapper dir) throws IOException {
+                if (!doFail) {
+                    return;
+                }
+                if (callStackContainsAnyOf("mergeTerms") && !didFail1) {
+                    didFail1 = true;
+                    throw new IOException("No space left on device");
+                }
+                if (callStackContains(LiveDocsFormat.class, "writeLiveDocs") && !didFail2) {
+                    didFail2 = true;
+                    throw new IOException("No space left on device");
+                }
+            }
+        };
+
+        wrapper.failOn(fail);
+        MockLogAppender mockAppender = MockLogAppender.createForLoggers(Loggers.getLogger(Engine.class, shardId));
+        try {
+            Store store = createStore(wrapper);
+            final Engine.EventListener eventListener = new Engine.EventListener() {
+                @Override
+                public void onFailedEngine(String reason, Exception e) {
+                    try {
+                        store.close();
+                        engine.close();
+                        mockAppender.assertAllExpectationsMatched();
+                        mockAppender.close();
+                    } catch (IOException ex) {
+                        throw new RuntimeException(ex);
+                    }
+                }
+            };
+
+            final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+            final long primaryTerm = randomLongBetween(1, Long.MAX_VALUE);
+            final AtomicLong retentionLeasesVersion = new AtomicLong();
+            final AtomicReference<RetentionLeases> retentionLeasesHolder = new AtomicReference<>(
+                new RetentionLeases(primaryTerm, retentionLeasesVersion.get(), Collections.emptyList())
+            );
+            InternalEngine engine = createEngine(
+                config(
+                    defaultSettings,
+                    store,
+                    createTempDir(),
+                    newMergePolicy(),
+                    null,
+                    null,
+                    null,
+                    globalCheckpoint::get,
+                    retentionLeasesHolder::get,
+                    new NoneCircuitBreakerService(),
+                    eventListener
+                )
+            );
+
+            List<Segment> segments = engine.segments(true);
+            assertThat(segments.isEmpty(), equalTo(true));
+
+            ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(), B_1, null);
+            engine.index(indexForDoc(doc));
+            engine.refresh("test");
+            engine.flush();
+
+            segments = engine.segments(false);
+            assertThat(segments.size(), equalTo(1));
+
+            ParsedDocument doc2 = testParsedDocument("2", null, testDocumentWithTextField(), B_2, null);
+            engine.index(indexForDoc(doc2));
+            engine.refresh("test");
+
+            segments = engine.segments(false);
+            assertThat(segments.size(), equalTo(2));
+
+            fail.setDoFail();
+            // Close the store so that unreferenced file cleanup will fail.
+            store.close();
+
+            final String message = "Error while deleting unreferenced file *";
+            mockAppender.start();
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation("expected message", Engine.class.getCanonicalName(), Level.ERROR, message)
+            );
+
+            // IndexWriter can throw either IOException or IllegalStateException depending on whether tragedy is set or not.
+            expectThrowsAnyOf(
+                Arrays.asList(IOException.class, IllegalStateException.class),
+                () -> engine.forceMerge(true, 1, false, false, false, UUIDs.randomBase64UUID())
+            );
+        } catch (Exception ex) {
+            throw new AssertionError(ex);
         }
     }
 
