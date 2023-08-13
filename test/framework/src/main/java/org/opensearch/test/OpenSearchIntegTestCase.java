@@ -1457,6 +1457,18 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         return actionGet;
     }
 
+    protected ForceMergeResponse forceMerge(int maxNumSegments) {
+        waitForRelocation();
+        ForceMergeResponse actionGet = client().admin()
+            .indices()
+            .prepareForceMerge()
+            .setMaxNumSegments(maxNumSegments)
+            .execute()
+            .actionGet();
+        assertNoFailures(actionGet);
+        return actionGet;
+    }
+
     /**
      * Returns <code>true</code> iff the given index exists otherwise <code>false</code>
      */
