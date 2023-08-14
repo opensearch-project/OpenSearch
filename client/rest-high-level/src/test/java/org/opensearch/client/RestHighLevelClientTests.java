@@ -34,7 +34,7 @@ package org.opensearch.client;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import org.opensearch.OpenSearchException;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.search.ClearScrollRequest;

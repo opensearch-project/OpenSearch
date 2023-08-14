@@ -52,7 +52,7 @@ import org.apache.lucene.util.Constants;
 import org.junit.Assert;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.opensearch.action.admin.indices.stats.CommonStats;
@@ -74,6 +74,7 @@ import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.Randomness;
 import org.opensearch.common.UUIDs;
+import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.io.PathUtils;
@@ -123,6 +124,8 @@ import org.opensearch.index.mapper.SourceFieldMapper;
 import org.opensearch.index.mapper.SourceToParse;
 import org.opensearch.index.mapper.Uid;
 import org.opensearch.index.mapper.VersionFieldMapper;
+import org.opensearch.index.remote.RemoteSegmentStats;
+import org.opensearch.index.remote.RemoteSegmentTransferTracker;
 import org.opensearch.index.seqno.ReplicationTracker;
 import org.opensearch.index.seqno.RetentionLease;
 import org.opensearch.index.seqno.RetentionLeaseSyncer;
@@ -1810,6 +1813,31 @@ public class IndexShardTests extends IndexShardTestCase {
                 assertTrue(store.isMarkedCorrupted());
             }
         }
+    }
+
+    public void testShardStatsWithRemoteStoreEnabled() throws IOException {
+        IndexShard shard = newStartedShard(
+            Settings.builder()
+                .put(IndexMetadata.SETTING_REPLICATION_TYPE, "SEGMENT")
+                .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
+                .build()
+        );
+        RemoteSegmentTransferTracker remoteRefreshSegmentTracker = shard.getRemoteRefreshSegmentPressureService()
+            .getRemoteRefreshSegmentTracker(shard.shardId);
+        populateSampleRemoteStoreStats(remoteRefreshSegmentTracker);
+        ShardStats shardStats = new ShardStats(
+            shard.routingEntry(),
+            shard.shardPath(),
+            new CommonStats(new IndicesQueryCache(Settings.EMPTY), shard, new CommonStatsFlags()),
+            shard.commitStats(),
+            shard.seqNoStats(),
+            shard.getRetentionLeaseStats()
+        );
+        RemoteSegmentStats remoteSegmentStats = shardStats.getStats().getSegments().getRemoteSegmentStats();
+        assertEquals(remoteRefreshSegmentTracker.getUploadBytesStarted(), remoteSegmentStats.getUploadBytesStarted());
+        assertEquals(remoteRefreshSegmentTracker.getUploadBytesSucceeded(), remoteSegmentStats.getUploadBytesSucceeded());
+        assertEquals(remoteRefreshSegmentTracker.getUploadBytesFailed(), remoteSegmentStats.getUploadBytesFailed());
+        closeShards(shard);
     }
 
     public void testRefreshMetric() throws IOException {
@@ -4872,5 +4900,11 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat(thirdForceMergeUUID, not(equalTo(secondForceMergeUUID)));
         assertThat(thirdForceMergeUUID, equalTo(secondForceMergeRequest.forceMergeUUID()));
         closeShards(shard);
+    }
+
+    private void populateSampleRemoteStoreStats(RemoteSegmentTransferTracker tracker) {
+        tracker.addUploadBytesStarted(10L);
+        tracker.addUploadBytesSucceeded(10L);
+        tracker.addUploadBytesFailed(10L);
     }
 }

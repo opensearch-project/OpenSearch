@@ -32,7 +32,7 @@
 
 package org.opensearch.action.admin.indices.get;
 
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.replication.ClusterStateCreationUtils;

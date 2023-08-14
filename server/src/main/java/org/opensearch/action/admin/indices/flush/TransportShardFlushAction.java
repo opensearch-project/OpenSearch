@@ -33,7 +33,7 @@
 package org.opensearch.action.admin.indices.flush;
 
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.replication.ReplicationResponse;
 import org.opensearch.action.support.replication.TransportReplicationAction;

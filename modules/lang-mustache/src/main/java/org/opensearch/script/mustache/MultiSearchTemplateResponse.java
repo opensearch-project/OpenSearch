@@ -33,7 +33,7 @@
 package org.opensearch.script.mustache;
 
 import org.opensearch.OpenSearchException;
-import org.opensearch.action.ActionResponse;
+import org.opensearch.core.action.ActionResponse;
 import org.opensearch.action.search.MultiSearchResponse;
 import org.opensearch.common.Nullable;
 import org.opensearch.core.common.Strings;

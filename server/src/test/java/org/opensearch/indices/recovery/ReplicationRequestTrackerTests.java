@@ -33,7 +33,7 @@
 package org.opensearch.indices.recovery;
 
 import org.opensearch.OpenSearchException;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.indices.replication.common.ReplicationRequestTracker;

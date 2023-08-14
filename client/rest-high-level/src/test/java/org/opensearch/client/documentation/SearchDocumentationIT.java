@@ -34,7 +34,7 @@ package org.opensearch.client.documentation;
 
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.TotalHits;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.action.bulk.BulkRequest;
 import org.opensearch.action.bulk.BulkResponse;

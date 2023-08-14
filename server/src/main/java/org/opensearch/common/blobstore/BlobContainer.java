@@ -32,7 +32,7 @@
 
 package org.opensearch.common.blobstore;
 
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 
 import java.io.IOException;
 import java.io.InputStream;

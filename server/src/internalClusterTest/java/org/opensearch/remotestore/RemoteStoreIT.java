@@ -87,12 +87,8 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
             .filter(rs -> rs.getRecoverySource().getType() == RecoverySource.Type.PEER)
             .findFirst();
         assertFalse(recoverySource.isEmpty());
-        if (numberOfIterations == 1 && invokeFlush) {
-            // segments_N file is copied to new replica
-            assertEquals(1, recoverySource.get().getIndex().recoveredFileCount());
-        } else {
-            assertEquals(0, recoverySource.get().getIndex().recoveredFileCount());
-        }
+        // segments_N file is copied to new replica
+        assertEquals(1, recoverySource.get().getIndex().recoveredFileCount());
 
         IndexResponse response = indexSingleDoc(INDEX_NAME);
         assertEquals(indexStats.get(MAX_SEQ_NO_TOTAL) + 1, response.getSeqNo());
