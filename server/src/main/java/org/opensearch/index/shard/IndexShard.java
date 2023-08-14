@@ -1386,7 +1386,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // Populate remote_store stats only if the index is remote store backed
         if (indexSettings.isRemoteStoreEnabled()) {
             segmentsStats.addRemoteSegmentStats(
-                new RemoteSegmentStats(remoteRefreshSegmentPressureService.getRemoteRefreshSegmentTracker(shardId).stats())
+                new RemoteSegmentStats(remoteStorePressureService.getRemoteRefreshSegmentTracker(shardId).stats())
             );
         }
         return segmentsStats;
