@@ -19,7 +19,15 @@ import java.lang.annotation.Target;
  * @opensearch.api
  */
 @Documented
-@Target({ ElementType.TYPE, ElementType.PACKAGE, ElementType.METHOD, ElementType.CONSTRUCTOR })
+@Target({
+    ElementType.TYPE,
+    ElementType.PACKAGE,
+    ElementType.METHOD,
+    ElementType.CONSTRUCTOR,
+    ElementType.PARAMETER,
+    ElementType.FIELD,
+    ElementType.ANNOTATION_TYPE,
+    ElementType.MODULE })
 @PublicApi(since = "2.10.0")
 public @interface InternalApi {
 
