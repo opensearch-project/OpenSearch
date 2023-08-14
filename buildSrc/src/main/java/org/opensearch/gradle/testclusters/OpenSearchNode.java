@@ -489,11 +489,11 @@ public class OpenSearchNode implements TestClusterConfiguration {
         }
         if (System.getProperty("tests.opensearch.username") != null) {
             this.credentials.get(0).put("username", System.getProperty("tests.opensearch.username"));
-            LOGGER.info("Overwriting username to: " + httpProtocol);
+            LOGGER.info("Overwriting username to: " + this.getCredentials().get(0).get("username"));
         }
         if (System.getProperty("tests.opensearch.password") != null) {
             this.credentials.get(0).put("password", System.getProperty("tests.opensearch.password"));
-            LOGGER.info("Overwriting password to: " + httpProtocol);
+            LOGGER.info("Overwriting password to: " + this.getCredentials().get(0).get("password"));
         }
         if (Files.exists(getExtractedDistributionDir()) == false) {
             throw new TestClustersException("Can not start " + this + ", missing: " + getExtractedDistributionDir());

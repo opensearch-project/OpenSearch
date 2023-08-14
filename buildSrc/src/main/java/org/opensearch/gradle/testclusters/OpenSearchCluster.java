@@ -31,6 +31,7 @@
 
 package org.opensearch.gradle.testclusters;
 
+import groovy.util.logging.Log;
 import org.opensearch.gradle.FileSupplier;
 import org.opensearch.gradle.PropertyNormalization;
 import org.opensearch.gradle.ReaperService;
