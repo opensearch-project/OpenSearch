@@ -10,6 +10,7 @@ on:
 
 jobs:
   build-and-publish-snapshots:
+    if: github.repository == 'opensearch-project/OpenSearch'
     runs-on: ubuntu-latest
 
     permissions:
