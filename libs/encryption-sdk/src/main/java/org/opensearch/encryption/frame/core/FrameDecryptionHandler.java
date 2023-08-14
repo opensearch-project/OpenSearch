@@ -20,7 +20,6 @@ import java.util.Arrays;
 
 /**
  * This class implementation has been referenced from AWS encryption SDK.
- * https://tiny.amazon.com/1j988pk3f/codeamazpackblobheadamaz4
  *
  * The frame decryption handler is a subclass of the decryption handler and thereby provides an
  * implementation of the Cryptography handler.
@@ -235,10 +234,7 @@ class FrameDecryptionHandler implements CryptoHandler {
         long frames = (encryptedSize - lastFrameHeaderOverhead) / (frameSize + nonceLen + tagLenBytes + (Integer.SIZE / Byte.SIZE)) + 1;
 
         // Calculate the size of the actual content in frames
-        long contentSize = frames * frameSize;
-
-        // Calculate the size of the last frame
-        long lastFrameSize = 0;
+        long contentSizeWithoutLastFrame = (frames - 1) * frameSize;
 
         // Calculate the sequence number size for all frames
         long seqNumberSize = frames * (Integer.SIZE / Byte.SIZE);
@@ -247,9 +243,9 @@ class FrameDecryptionHandler implements CryptoHandler {
         long headerOverhead = (nonceLen + tagLenBytes) * frames + seqNumberSize;
 
         // Calculate the size of the last frame content
-        lastFrameSize = encryptedSize - contentSize - headerOverhead - lastFrameHeaderOverhead;
+        long lastFrameSize = encryptedSize - contentSizeWithoutLastFrame - headerOverhead - lastFrameHeaderOverhead;
 
-        return contentSize + lastFrameSize;
+        return contentSizeWithoutLastFrame + lastFrameSize;
     }
 
     @Override

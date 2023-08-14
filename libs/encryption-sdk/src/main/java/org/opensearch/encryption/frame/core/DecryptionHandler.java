@@ -41,7 +41,6 @@ import java.util.Map;
 
 /**
  * This class implementation is referenced from AWS Encryption SDK
- * https://tiny.amazon.com/lfkvesll/codeamazpackblobheadamaz4
  *
  * This class implements the CryptoHandler interface by providing methods for the decryption of
  * ciphertext produced by the methods in {@link EncryptionHandler}.
