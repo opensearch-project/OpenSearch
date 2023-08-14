@@ -36,6 +36,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.Matchers;
 
 import javax.net.ssl.X509ExtendedKeyManager;
+
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;

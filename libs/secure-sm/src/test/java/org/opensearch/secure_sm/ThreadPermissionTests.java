@@ -32,9 +32,9 @@
 
 package org.opensearch.secure_sm;
 
-import junit.framework.TestCase;
-
 import java.security.AllPermission;
+
+import junit.framework.TestCase;
 
 /**
  * Simple tests for ThreadPermission
