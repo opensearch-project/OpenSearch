@@ -34,16 +34,18 @@ package org.opensearch.dissect;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+
 import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matchers;
-import org.mockito.internal.util.collections.Sets;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+
+import org.mockito.internal.util.collections.Sets;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiAlphanumOfLengthBetween;
 

@@ -51,16 +51,16 @@ import java.util.function.Function;
 import java.util.function.IntConsumer;
 import java.util.function.LongConsumer;
 
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.nullValue;
 import static org.opensearch.grok.GrokCaptureType.BOOLEAN;
 import static org.opensearch.grok.GrokCaptureType.DOUBLE;
 import static org.opensearch.grok.GrokCaptureType.FLOAT;
 import static org.opensearch.grok.GrokCaptureType.INTEGER;
 import static org.opensearch.grok.GrokCaptureType.LONG;
 import static org.opensearch.grok.GrokCaptureType.STRING;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class GrokTests extends OpenSearchTestCase {
     public void testMatchWithoutCaptures() {
