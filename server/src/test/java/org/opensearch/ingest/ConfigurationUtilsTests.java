@@ -245,6 +245,12 @@ public class ConfigurationUtilsTests extends OpenSearchTestCase {
             () -> ConfigurationUtils.readProcessor(registry, scriptService, "unknown_processor", invalidConfig)
         );
         assertThat(ex.getMessage(), equalTo("property isn't a map, but of type [" + invalidConfig.getClass().getName() + "]"));
+
+        ex = expectThrows(
+            OpenSearchParseException.class,
+            () -> ConfigurationUtils.readProcessor(registry, scriptService, "null_processor", null)
+        );
+        assertEquals(ex.getMessage(), "expect the config of processor [null_processor] to be map, but is null");
     }
 
     public void testNoScriptCompilation() {
