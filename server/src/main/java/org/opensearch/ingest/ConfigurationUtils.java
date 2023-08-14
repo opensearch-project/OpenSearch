@@ -514,7 +514,7 @@ public final class ConfigurationUtils {
         @Nullable Object config
     ) throws Exception {
         if (config == null) {
-            throw newConfigurationException(type, null, null, "processor [" + type + "] cannot be null");
+            throw newConfigurationException(type, null, null, "the config of processor [" + type + "] cannot be null");
         } else if (config instanceof Map) {
             return readProcessor(processorFactories, scriptService, type, (Map<String, Object>) config);
         } else if (config instanceof String && "script".equals(type)) {

@@ -188,7 +188,7 @@ public class ConfigurationUtilsTests extends OpenSearchTestCase {
             OpenSearchParseException.class,
             () -> ConfigurationUtils.readProcessorConfigs(config3, scriptService, registry)
         );
-        assertEquals(ex.getMessage(), "processor [null_processor] cannot be null");
+        assertEquals(ex.getMessage(), "the config of processor [null_processor] cannot be null");
     }
 
     public void testReadProcessorNullDescription() throws Exception {
