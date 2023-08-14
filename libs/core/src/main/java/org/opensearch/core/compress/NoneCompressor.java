@@ -8,6 +8,7 @@
 
 package org.opensearch.core.compress;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.bytes.BytesReference;
 
 import java.io.IOException;
@@ -26,6 +27,7 @@ public class NoneCompressor implements Compressor {
      *
      * @opensearch.api - requires BWC support
      */
+    @PublicApi(since = "2.10.0")
     public static final String NAME = "NONE";
 
     @Override

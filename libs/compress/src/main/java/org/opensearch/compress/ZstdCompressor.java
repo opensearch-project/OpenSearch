@@ -11,6 +11,7 @@ package org.opensearch.compress;
 import com.github.luben.zstd.RecyclingBufferPool;
 import com.github.luben.zstd.ZstdInputStreamNoFinalizer;
 import com.github.luben.zstd.ZstdOutputStreamNoFinalizer;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.compress.Compressor;
 
@@ -39,6 +40,7 @@ public class ZstdCompressor implements Compressor {
      *
      * @opensearch.api - requires BWC support
      */
+    @PublicApi(since = "2.10.0")
     public static final String NAME = "ZSTD";
 
     private static final int LEVEL = 3;

@@ -8,6 +8,8 @@
 
 package org.opensearch.core.compress.spi;
 
+import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.compress.Compressor;
 
 import java.util.List;
@@ -24,6 +26,8 @@ import java.util.Map;
  * @opensearch.experimental
  * @opensearch.api
  */
+@ExperimentalApi
+@PublicApi(since = "2.10.0")
 public interface CompressorProvider {
     /** Extensions that implement their own concrete {@link Compressor}s provide them through this interface method*/
     List<Map.Entry<String, Compressor>> getCompressors();

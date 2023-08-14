@@ -32,6 +32,8 @@
 
 package org.opensearch.core.compress;
 
+import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.bytes.BytesReference;
 
 import java.io.IOException;
@@ -49,6 +51,8 @@ import java.io.OutputStream;
  * @opensearch.api - intended to be extended
  * @opensearch.experimental - however, bwc is not guaranteed at this time
  */
+@ExperimentalApi
+@PublicApi(since = "2.10.0")
 public interface Compressor {
 
     boolean isCompressed(BytesReference bytes);

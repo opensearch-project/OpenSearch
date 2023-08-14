@@ -32,6 +32,7 @@
 
 package org.opensearch.common.compress;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.core.Assertions;
@@ -69,6 +70,7 @@ public class DeflateCompressor implements Compressor {
      *
      * @opensearch.api - requires BWC support
      */
+    @PublicApi(since = "2.10.0")
     public static String NAME = "DEFLATE";
 
     // 3 is a good trade-off between speed and compression ratio

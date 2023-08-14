@@ -9,6 +9,7 @@
 package org.opensearch.core.compress;
 
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.InternalApi;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.compress.spi.CompressorProvider;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
@@ -25,8 +26,10 @@ import java.util.stream.Collectors;
  *
  * This enables plugins, modules, extensions to register their own compression implementations through SPI
  *
+ * @opensearch.experimental
  * @opensearch.internal
  */
+@InternalApi
 public final class CompressorRegistry {
     /** No compression singleton - we still register so users can specify NONE in the API*/
     public static final Compressor NONE;
