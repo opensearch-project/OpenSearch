@@ -10,8 +10,8 @@ package org.opensearch.core.compress.spi;
 
 import org.opensearch.core.compress.Compressor;
 
-import java.util.AbstractMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Service Provider Interface for plugins, modules, extensions providing custom
@@ -26,5 +26,5 @@ import java.util.List;
  */
 public interface CompressorProvider {
     /** Extensions that implement their own concrete {@link Compressor}s provide them through this interface method*/
-    List<AbstractMap.SimpleEntry<String, Compressor>> getCompressors();
+    List<Map.Entry<String, Compressor>> getCompressors();
 }

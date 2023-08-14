@@ -14,8 +14,6 @@ import org.opensearch.core.compress.spi.CompressorProvider;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 
 import java.io.IOException;
-import java.util.AbstractMap.SimpleEntry;
-import java.util.ArrayList;
 import java.util.Map;
 import java.util.Objects;
 import java.util.ServiceLoader;
@@ -40,11 +38,10 @@ public final class CompressorRegistry {
     private CompressorRegistry() {}
 
     static {
-        ArrayList<SimpleEntry<String, Compressor>> compressors = new ArrayList<>();
-        for (CompressorProvider provider : ServiceLoader.load(CompressorProvider.class, CompressorProvider.class.getClassLoader())) {
-            compressors.addAll(provider.getCompressors());
-        }
-        registeredCompressors = Map.copyOf(compressors.stream().collect(Collectors.toMap(SimpleEntry::getKey, SimpleEntry::getValue)));
+        registeredCompressors = ServiceLoader.load(CompressorProvider.class, CompressorProvider.class.getClassLoader())
+            .stream()
+            .flatMap(p -> p.get().getCompressors().stream())
+            .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
         NONE = registeredCompressors.get(NoneCompressor.NAME);
     }
 
@@ -56,7 +53,7 @@ public final class CompressorRegistry {
     }
 
     public static Compressor none() {
-        return registeredCompressors.get("NONE");
+        return registeredCompressors.get(NoneCompressor.NAME);
     }
 
     public static boolean isCompressed(BytesReference bytes) {
