@@ -37,6 +37,7 @@ import java.io.InputStream;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.OpenSearchParseException;
+import org.opensearch.common.Nullable;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
@@ -510,7 +511,7 @@ public final class ConfigurationUtils {
         Map<String, Processor.Factory> processorFactories,
         ScriptService scriptService,
         String type,
-        Object config
+        @Nullable Object config
     ) throws Exception {
         if (config == null) {
             throw newConfigurationException(type, null, null, "processor [" + type + "] cannot be null");
@@ -529,8 +530,11 @@ public final class ConfigurationUtils {
         Map<String, Processor.Factory> processorFactories,
         ScriptService scriptService,
         String type,
-        Map<String, Object> config
+        @Nullable Map<String, Object> config
     ) throws Exception {
+        if (config == null) {
+            throw newConfigurationException(type, null, null, "expect the config of processor [" + type + "] to be map, but is null");
+        }
         String tag = ConfigurationUtils.readOptionalStringProperty(null, null, config, TAG_KEY);
         String description = ConfigurationUtils.readOptionalStringProperty(null, tag, config, DESCRIPTION_KEY);
         boolean ignoreFailure = ConfigurationUtils.readBooleanProperty(null, null, config, IGNORE_FAILURE_KEY, false);
