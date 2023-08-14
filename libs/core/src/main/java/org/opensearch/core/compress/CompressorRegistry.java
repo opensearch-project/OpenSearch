@@ -31,22 +31,18 @@ import java.util.stream.Collectors;
  */
 @InternalApi
 public final class CompressorRegistry {
-    /** No compression singleton - we still register so users can specify NONE in the API*/
-    public static final Compressor NONE;
 
     // the backing registry map
-    private static final Map<String, Compressor> registeredCompressors;
+    private static final Map<String, Compressor> registeredCompressors = ServiceLoader.load(
+        CompressorProvider.class,
+        CompressorProvider.class.getClassLoader()
+    )
+        .stream()
+        .flatMap(p -> p.get().getCompressors().stream())
+        .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
 
     // no instance:
     private CompressorRegistry() {}
-
-    static {
-        registeredCompressors = ServiceLoader.load(CompressorProvider.class, CompressorProvider.class.getClassLoader())
-            .stream()
-            .flatMap(p -> p.get().getCompressors().stream())
-            .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
-        NONE = registeredCompressors.get(NoneCompressor.NAME);
-    }
 
     /**
      * Returns the default compressor

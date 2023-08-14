@@ -119,7 +119,7 @@ public class BlobStoreFormatTests extends OpenSearchTestCase {
         ChecksumBlobStoreFormat<BlobObj> checksumSMILE = new ChecksumBlobStoreFormat<>(BLOB_CODEC, "%s", BlobObj::fromXContent);
 
         // Write blobs in different formats
-        checksumSMILE.write(new BlobObj("checksum smile"), blobContainer, "check-smile", CompressorRegistry.NONE);
+        checksumSMILE.write(new BlobObj("checksum smile"), blobContainer, "check-smile", CompressorRegistry.none());
         checksumSMILE.write(
             new BlobObj("checksum smile compressed"),
             blobContainer,
@@ -142,7 +142,7 @@ public class BlobStoreFormatTests extends OpenSearchTestCase {
         ChecksumBlobStoreFormat<BlobObj> checksumFormat = new ChecksumBlobStoreFormat<>(BLOB_CODEC, "%s", BlobObj::fromXContent);
         BlobObj blobObj = new BlobObj(veryRedundantText.toString());
         checksumFormat.write(blobObj, blobContainer, "blob-comp", CompressorRegistry.getCompressor(DeflateCompressor.NAME));
-        checksumFormat.write(blobObj, blobContainer, "blob-not-comp", CompressorRegistry.NONE);
+        checksumFormat.write(blobObj, blobContainer, "blob-not-comp", CompressorRegistry.none());
         Map<String, BlobMetadata> blobs = blobContainer.listBlobsByPrefix("blob-");
         assertEquals(blobs.size(), 2);
         assertThat(blobs.get("blob-not-comp").length(), greaterThan(blobs.get("blob-comp").length()));
