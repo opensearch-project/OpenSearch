@@ -200,7 +200,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
             logger.trace("Reading latest Metadata file {}", latestMetadataFile);
             remoteSegmentMetadata = readMetadataFile(latestMetadataFile);
         } else {
-            logger.info("No metadata file found, this can happen for new index with no data uploaded to remote segment store");
+            logger.trace("No metadata file found, this can happen for new index with no data uploaded to remote segment store");
         }
 
         return remoteSegmentMetadata;
@@ -786,7 +786,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
             Integer.MAX_VALUE
         );
         if (sortedMetadataFileList.size() <= lastNMetadataFilesToKeep) {
-            logger.info(
+            logger.trace(
                 "Number of commits in remote segment store={}, lastNMetadataFilesToKeep={}",
                 sortedMetadataFileList.size(),
                 lastNMetadataFilesToKeep
@@ -849,7 +849,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
                 }
             });
             if (deletionSuccessful.get()) {
-                logger.info("Deleting stale metadata file {} from remote segment store", metadataFile);
+                logger.trace("Deleting stale metadata file {} from remote segment store", metadataFile);
                 remoteMetadataDirectory.deleteFile(metadataFile);
             }
         }
