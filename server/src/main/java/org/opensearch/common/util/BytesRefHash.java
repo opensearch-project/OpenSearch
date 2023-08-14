@@ -6,17 +6,38 @@
  * compatible open source license.
  */
 
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+/*
+ * Modifications Copyright OpenSearch Contributors. See
+ * GitHub history for details.
+ */
+
 package org.opensearch.common.util;
 
-import net.openhft.hashing.LongHashFunction;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.Numbers;
+import org.opensearch.common.hash.T1ha;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.core.common.util.ByteArray;
-
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 
 /**
  * Specialized hash table implementation that maps a {@link BytesRef} key to a long ordinal.
@@ -31,15 +52,11 @@ import java.security.PrivilegedAction;
  *
  * @opensearch.internal
  */
-public class BytesRefHash implements Releasable {
-    private static final LongHashFunction XX3 = AccessController.doPrivileged(
-        (PrivilegedAction<LongHashFunction>) () -> LongHashFunction.xx3(System.nanoTime())
-    );
-
+public final class BytesRefHash implements Releasable {
     private static final long MAX_CAPACITY = 1L << 32;
     private static final long DEFAULT_INITIAL_CAPACITY = 32;
     private static final float DEFAULT_LOAD_FACTOR = 0.6f;
-    private static final Hasher DEFAULT_HASHER = key -> XX3.hashBytes(key.bytes, key.offset, key.length);
+    private static final Hasher DEFAULT_HASHER = key -> T1ha.hash(key.bytes, key.offset, key.length);
 
     private static final long MASK_ORDINAL = 0x00000000FFFFFFFFL;  // extract ordinal
     private static final long MASK_FINGERPRINT = 0xFFFFFFFF00000000L;  // extract fingerprint

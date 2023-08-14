@@ -9,6 +9,7 @@
 package org.opensearch.common.util;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.StringHelper;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -19,15 +20,17 @@ import org.openjdk.jmh.annotations.Param;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
-import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
+import org.opensearch.common.hash.T1ha;
+import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 
 import java.util.HashSet;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 @Fork(value = 3)
@@ -41,16 +44,23 @@ public class BytesRefHashBenchmark {
 
     @Benchmark
     public void add(Blackhole bh, Options opts) {
+        HashTable[] tables = Stream.generate(opts.type::create).limit(NUM_TABLES).toArray(HashTable[]::new);
+
         for (int hit = 0; hit < NUM_HITS; hit++) {
             BytesRef key = opts.keys[hit % opts.keys.length];
-            for (BytesRefHash table : opts.tables) {
+            for (HashTable table : tables) {
                 bh.consume(table.add(key));
             }
         }
+
+        Releasables.close(tables);
     }
 
     @State(Scope.Benchmark)
     public static class Options {
+        @Param({ "MURMUR3", "T1HA" })
+        public Type type;
+
         @Param({
             "1",
             "2",
@@ -152,23 +162,19 @@ public class BytesRefHashBenchmark {
             "753883",
             "851888",
             "971153" })
-
         public Integer size;
 
-        @Param({ "8", "32", "128" })
+        @Param({ "5", "28", "59", "105" })
         public Integer length;
-
-        private BytesRefHash[] tables;
 
         private BytesRef[] keys;
 
         @Setup
         public void setup() {
             assert size <= Math.pow(26, length) : "key length too small to generate the required number of keys";
-            tables = Stream.generate(() -> new BytesRefHash(BigArrays.NON_RECYCLING_INSTANCE))
-                .limit(NUM_TABLES)
-                .toArray(BytesRefHash[]::new);
-            Random random = new Random(0);
+            // Seeding with size will help produce deterministic results for the same size, and avoid similar
+            // looking clusters for different sizes, in case one hash function got unlucky.
+            Random random = new Random(size);
             Set<BytesRef> seen = new HashSet<>();
             keys = new BytesRef[size];
             for (int i = 0; i < size; i++) {
@@ -185,10 +191,59 @@ public class BytesRefHashBenchmark {
                 seen.add(key);
             }
         }
+    }
 
-        @TearDown
-        public void tearDown() {
-            Releasables.close(tables);
+    public enum Type {
+        MURMUR3(() -> new HashTable() {
+            private final BytesRefHash table = new BytesRefHash(1, 0.6f, key -> {
+                // Repeating the lower bits into upper bits to make the fingerprint work.
+                // Alternatively, use a 64-bit murmur3 hash, but that won't represent the baseline.
+                long h = StringHelper.murmurhash3_x86_32(key.bytes, key.offset, key.length, 0) & 0xFFFFFFFFL;
+                return h | (h << 32);
+            }, BigArrays.NON_RECYCLING_INSTANCE);
+
+            @Override
+            public long add(BytesRef key) {
+                return table.add(key);
+            }
+
+            @Override
+            public void close() {
+                table.close();
+            }
+        }),
+
+        T1HA(() -> new HashTable() {
+            private final BytesRefHash table = new BytesRefHash(
+                1,
+                0.6f,
+                key -> T1ha.hash(key.bytes, key.offset, key.length, 0),
+                BigArrays.NON_RECYCLING_INSTANCE
+            );
+
+            @Override
+            public long add(BytesRef key) {
+                return table.add(key);
+            }
+
+            @Override
+            public void close() {
+                table.close();
+            }
+        });
+
+        private final Supplier<HashTable> supplier;
+
+        Type(Supplier<HashTable> supplier) {
+            this.supplier = supplier;
         }
+
+        public HashTable create() {
+            return supplier.get();
+        }
+    }
+
+    interface HashTable extends Releasable {
+        long add(BytesRef key);
     }
 }

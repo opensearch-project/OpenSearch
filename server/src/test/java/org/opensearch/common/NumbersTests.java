@@ -238,6 +238,7 @@ public class NumbersTests extends OpenSearchTestCase {
             long nextPowerOfTwo = Numbers.nextPowerOfTwo(value);
 
             assertTrue(nextPowerOfTwo > value); // must be strictly greater
+            assertTrue((nextPowerOfTwo >>> 1) <= value); // must be greater by no more than one power of two
             assertEquals(0, nextPowerOfTwo & (nextPowerOfTwo - 1)); // must be a power of two
         }
     }
