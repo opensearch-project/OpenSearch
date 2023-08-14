@@ -156,7 +156,7 @@ public final class RandomObjects {
      */
     public static Object getExpectedParsedValue(MediaType mediaType, Object value) {
         if (value instanceof BytesArray) {
-            if (mediaType == XContentType.JSON) {
+            if (mediaType == MediaTypeRegistry.JSON) {
                 // JSON writes base64 format
                 return Base64.getEncoder().encodeToString(((BytesArray) value).toBytesRef().bytes);
             }
@@ -194,8 +194,8 @@ public final class RandomObjects {
      *
      * @param random Random generator
      */
-    public static BytesReference randomSource(Random random, XContentType xContentType) {
-        return randomSource(random, xContentType, 1);
+    public static BytesReference randomSource(Random random, final MediaType mediaType) {
+        return randomSource(random, mediaType, 1);
     }
 
     /**
@@ -204,8 +204,8 @@ public final class RandomObjects {
      *
      * @param random Random generator
      */
-    public static BytesReference randomSource(Random random, XContentType xContentType, int minNumFields) {
-        try (XContentBuilder builder = MediaTypeRegistry.contentBuilder(xContentType)) {
+    public static BytesReference randomSource(Random random, final MediaType mediaType, int minNumFields) {
+        try (XContentBuilder builder = mediaType.contentBuilder()) {
             builder.startObject();
             addFields(random, builder, minNumFields, 0);
             builder.endObject();

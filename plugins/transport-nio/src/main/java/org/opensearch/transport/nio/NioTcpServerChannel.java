@@ -32,7 +32,7 @@
 
 package org.opensearch.transport.nio;
 
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.nio.NioServerSocketChannel;
 import org.opensearch.transport.TcpServerChannel;
 

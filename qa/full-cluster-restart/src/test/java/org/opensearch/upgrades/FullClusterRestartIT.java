@@ -46,6 +46,7 @@ import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.test.NotEqualMessageBuilder;
@@ -1365,7 +1366,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                 if (randomBoolean()) {
                     settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true);
                 }
-                shrinkRequest.setJsonEntity("{\"settings\":" + Strings.toString(XContentType.JSON, settings.build()) + "}");
+                shrinkRequest.setJsonEntity("{\"settings\":" + Strings.toString(MediaTypeRegistry.JSON, settings.build()) + "}");
                 client().performRequest(shrinkRequest);
                 ensureGreenLongWait(target);
                 assertNumHits(target, numDocs + moreDocs, 1);
@@ -1377,7 +1378,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                     settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true);
                 }
                 Request splitRequest = new Request("PUT", "/" + index + "/_split/" + target);
-                splitRequest.setJsonEntity("{\"settings\":" + Strings.toString(XContentType.JSON, settings.build()) + "}");
+                splitRequest.setJsonEntity("{\"settings\":" + Strings.toString(MediaTypeRegistry.JSON, settings.build()) + "}");
                 client().performRequest(splitRequest);
                 ensureGreenLongWait(target);
                 assertNumHits(target, numDocs + moreDocs, 6);

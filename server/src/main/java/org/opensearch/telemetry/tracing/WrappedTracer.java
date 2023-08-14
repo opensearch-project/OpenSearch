@@ -9,6 +9,7 @@
 package org.opensearch.telemetry.tracing;
 
 import org.opensearch.telemetry.TelemetrySettings;
+import org.opensearch.telemetry.tracing.attributes.Attributes;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
 
 import java.io.IOException;
@@ -36,7 +37,12 @@ final class WrappedTracer implements Tracer {
 
     @Override
     public SpanScope startSpan(String spanName) {
-        return startSpan(spanName, null);
+        return startSpan(spanName, Attributes.EMPTY);
+    }
+
+    @Override
+    public SpanScope startSpan(String spanName, Attributes attributes) {
+        return startSpan(spanName, null, attributes);
     }
 
     @Override
@@ -46,9 +52,9 @@ final class WrappedTracer implements Tracer {
     }
 
     @Override
-    public SpanScope startSpan(String spanName, SpanContext parentSpan) {
+    public SpanScope startSpan(String spanName, SpanContext parentSpan, Attributes attributes) {
         Tracer delegateTracer = getDelegateTracer();
-        return delegateTracer.startSpan(spanName, parentSpan);
+        return delegateTracer.startSpan(spanName, parentSpan, attributes);
     }
 
     @Override

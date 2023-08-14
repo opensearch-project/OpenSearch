@@ -36,6 +36,7 @@ import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentType;
@@ -48,15 +49,19 @@ import java.nio.charset.StandardCharsets;
 public class PutPipelineRequestTests extends OpenSearchTestCase {
 
     public void testSerializationWithXContent() throws IOException {
-        PutPipelineRequest request = new PutPipelineRequest("1", new BytesArray("{}".getBytes(StandardCharsets.UTF_8)), XContentType.JSON);
-        assertEquals(XContentType.JSON, request.getMediaType());
+        PutPipelineRequest request = new PutPipelineRequest(
+            "1",
+            new BytesArray("{}".getBytes(StandardCharsets.UTF_8)),
+            MediaTypeRegistry.JSON
+        );
+        assertEquals(MediaTypeRegistry.JSON, request.getMediaType());
 
         BytesStreamOutput output = new BytesStreamOutput();
         request.writeTo(output);
         StreamInput in = StreamInput.wrap(output.bytes().toBytesRef().bytes);
 
         PutPipelineRequest serialized = new PutPipelineRequest(in);
-        assertEquals(XContentType.JSON, serialized.getMediaType());
+        assertEquals(MediaTypeRegistry.JSON, serialized.getMediaType());
         assertEquals("{}", serialized.getSource().utf8ToString());
     }
 

@@ -35,7 +35,7 @@ package org.opensearch.action.explain;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Explanation;
 import org.opensearch.OpenSearchException;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.RoutingMissingException;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.single.shard.TransportSingleShardAction;

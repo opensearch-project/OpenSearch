@@ -67,7 +67,7 @@ import java.util.OptionalInt;
 import java.util.function.Predicate;
 
 import static java.util.Collections.singleton;
-import static org.opensearch.common.xcontent.XContentHelper.toXContent;
+import static org.opensearch.core.xcontent.XContentHelper.toXContent;
 import static org.opensearch.test.TestSearchContext.SHARD_TARGET;
 import static org.opensearch.test.XContentTestUtils.insertRandomFields;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertToXContentEquivalent;
@@ -177,7 +177,7 @@ public class RankEvalResponseTests extends OpenSearchTestCase {
             Collections.singletonMap("coffee_query", coffeeQueryQuality),
             Collections.singletonMap("beer_query", new ParsingException(new XContentLocation(0, 0), "someMsg"))
         );
-        XContentBuilder builder = MediaTypeRegistry.contentBuilder(XContentType.JSON);
+        XContentBuilder builder = MediaTypeRegistry.contentBuilder(MediaTypeRegistry.JSON);
         String xContent = BytesReference.bytes(response.toXContent(builder, ToXContent.EMPTY_PARAMS)).utf8ToString();
         assertEquals(
             ("{"

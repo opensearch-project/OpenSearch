@@ -31,7 +31,7 @@
 
 package org.opensearch.index.query;
 
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.ParsingException;
 
 import java.io.IOException;

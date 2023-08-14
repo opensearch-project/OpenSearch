@@ -39,6 +39,7 @@ import org.opensearch.core.common.ParsingException;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContent;
 import org.opensearch.common.xcontent.XContentHelper;
@@ -111,7 +112,7 @@ public class SearchPhaseExecutionExceptionTests extends OpenSearchTestCase {
                 + "  ]"
                 + "}"
         );
-        assertEquals(expectedJson, Strings.toString(XContentType.JSON, exception));
+        assertEquals(expectedJson, Strings.toString(MediaTypeRegistry.JSON, exception));
     }
 
     public void testToAndFromXContent() throws IOException {

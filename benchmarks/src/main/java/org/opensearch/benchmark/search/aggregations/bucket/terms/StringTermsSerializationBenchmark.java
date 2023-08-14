@@ -51,6 +51,7 @@ import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
+import org.opensearch.search.aggregations.bucket.terms.TermsAggregator;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -86,15 +87,14 @@ public class StringTermsSerializationBenchmark {
             "test",
             BucketOrder.key(true),
             BucketOrder.key(true),
-            buckets,
-            1,
             null,
             DocValueFormat.RAW,
             buckets,
             false,
             100000,
             resultBuckets,
-            0
+            0,
+            new TermsAggregator.BucketCountThresholds(1, 0, buckets, buckets)
         );
     }
 

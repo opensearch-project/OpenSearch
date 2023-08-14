@@ -11,7 +11,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.fielddata.AbstractFieldDataTestCase;
 import org.opensearch.index.fielddata.IndexFieldData;
@@ -41,7 +41,7 @@ public class FlatObjectFieldDataTests extends AbstractFieldDataTestCase {
         final DocumentMapper mapper = mapperService.documentMapperParser().parse("test", new CompressedXContent(mapping));
 
         XContentBuilder json = XContentFactory.jsonBuilder().startObject().startObject("field").field("foo", "bar").endObject().endObject();
-        ParsedDocument d = mapper.parse(new SourceToParse("test", "1", BytesReference.bytes(json), XContentType.JSON));
+        ParsedDocument d = mapper.parse(new SourceToParse("test", "1", BytesReference.bytes(json), MediaTypeRegistry.JSON));
         writer.addDocument(d.rootDoc());
         writer.commit();
 

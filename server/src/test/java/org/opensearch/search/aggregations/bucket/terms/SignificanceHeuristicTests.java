@@ -125,7 +125,16 @@ public class SignificanceHeuristicTests extends OpenSearchTestCase {
                 DocValueFormat.RAW,
                 randomDoubleBetween(0, 100, true)
             );
-            return new SignificantLongTerms("some_name", 1, 1, null, DocValueFormat.RAW, 10, 20, heuristic, singletonList(bucket));
+            return new SignificantLongTerms(
+                "some_name",
+                null,
+                DocValueFormat.RAW,
+                10,
+                20,
+                heuristic,
+                singletonList(bucket),
+                new TermsAggregator.BucketCountThresholds(1, 0, 1, 0)
+            );
         } else {
             SignificantStringTerms.Bucket bucket = new SignificantStringTerms.Bucket(
                 new BytesRef("someterm"),
@@ -137,7 +146,16 @@ public class SignificanceHeuristicTests extends OpenSearchTestCase {
                 DocValueFormat.RAW,
                 randomDoubleBetween(0, 100, true)
             );
-            return new SignificantStringTerms("some_name", 1, 1, null, DocValueFormat.RAW, 10, 20, heuristic, singletonList(bucket));
+            return new SignificantStringTerms(
+                "some_name",
+                null,
+                DocValueFormat.RAW,
+                10,
+                20,
+                heuristic,
+                singletonList(bucket),
+                new TermsAggregator.BucketCountThresholds(1, 0, 1, 0)
+            );
         }
     }
 
@@ -204,14 +222,13 @@ public class SignificanceHeuristicTests extends OpenSearchTestCase {
         ) {
             return new SignificantStringTerms(
                 "sig_terms",
-                2,
-                -1,
                 emptyMap(),
                 DocValueFormat.RAW,
                 subsetSize,
                 supersetSize,
                 significanceHeuristic,
-                buckets
+                buckets,
+                new TermsAggregator.BucketCountThresholds(-1, 0, 2, 0)
             );
         }
 
@@ -240,14 +257,13 @@ public class SignificanceHeuristicTests extends OpenSearchTestCase {
         ) {
             return new SignificantLongTerms(
                 "sig_terms",
-                2,
-                -1,
                 emptyMap(),
                 DocValueFormat.RAW,
                 subsetSize,
                 supersetSize,
                 significanceHeuristic,
-                buckets
+                buckets,
+                new TermsAggregator.BucketCountThresholds(-1, 0, 2, 0)
             );
         }
 

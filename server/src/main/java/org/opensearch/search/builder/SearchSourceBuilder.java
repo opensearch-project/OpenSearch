@@ -42,13 +42,13 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.ParseField;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentHelper;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryRewriteContext;
@@ -1803,7 +1803,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
     public String toString(Params params) {
         try {
-            return XContentHelper.toXContent(this, XContentType.JSON, params, true).utf8ToString();
+            return XContentHelper.toXContent(this, MediaTypeRegistry.JSON, params, true).utf8ToString();
         } catch (IOException e) {
             throw new OpenSearchException(e);
         }

@@ -32,7 +32,7 @@
 package org.opensearch.versioning;
 
 import org.apache.lucene.tests.util.TestUtil;
-import org.opensearch.action.ActionResponse;
+import org.opensearch.core.action.ActionResponse;
 import org.opensearch.action.DocWriteRequest;
 import org.opensearch.action.DocWriteResponse;
 import org.opensearch.action.bulk.BulkResponse;

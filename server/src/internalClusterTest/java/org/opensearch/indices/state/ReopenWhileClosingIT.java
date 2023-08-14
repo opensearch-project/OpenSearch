@@ -32,7 +32,7 @@
 
 package org.opensearch.indices.state;
 
-import org.opensearch.action.ActionFuture;
+import org.opensearch.common.action.ActionFuture;
 import org.opensearch.action.admin.indices.close.CloseIndexResponse;
 import org.opensearch.action.admin.indices.close.TransportVerifyShardBeforeCloseAction;
 import org.opensearch.cluster.ClusterState;
