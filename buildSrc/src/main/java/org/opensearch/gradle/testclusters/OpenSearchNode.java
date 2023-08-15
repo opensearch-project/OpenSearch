@@ -483,7 +483,7 @@ public class OpenSearchNode implements TestClusterConfiguration {
     @Override
     public synchronized void start() {
         LOGGER.info("Starting `{}`", this);
-        if (System.getProperty("tests.opensearch.secure").equalsIgnoreCase("true")) {
+        if (System.getProperty("tests.opensearch.secure") != null && System.getProperty("tests.opensearch.secure").equalsIgnoreCase("true")) {
             secure = Boolean.getBoolean(System.getProperty("tests.opensearch.secure"));
         }
         if (System.getProperty("tests.opensearch.username") != null) {
