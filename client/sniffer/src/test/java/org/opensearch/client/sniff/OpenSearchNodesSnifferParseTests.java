@@ -33,6 +33,7 @@
 package org.opensearch.client.sniff;
 
 import com.fasterxml.jackson.core.JsonFactory;
+
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
 import org.apache.http.entity.ContentType;

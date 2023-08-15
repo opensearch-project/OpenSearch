@@ -35,6 +35,7 @@ package org.opensearch.client;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
+
 import org.apache.http.Header;
 import org.apache.http.message.BasicHeader;
 
