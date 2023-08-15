@@ -21,9 +21,6 @@ import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.StandardDirectoryReader;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
-import org.junit.Before;
-import org.opensearch.common.action.ActionFuture;
-import org.opensearch.OpenSearchException;
 import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.admin.indices.stats.IndicesStatsRequest;
@@ -51,6 +48,7 @@ import org.opensearch.cluster.routing.Preference;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.allocation.command.CancelAllocationCommand;
+import org.opensearch.common.action.ActionFuture;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lease.Releasable;
@@ -81,6 +79,7 @@ import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.transport.TransportService;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -93,8 +92,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static java.util.Arrays.asList;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
 import static org.opensearch.action.search.PitTestsUtil.assertSegments;
 import static org.opensearch.action.search.SearchContextId.decode;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -109,6 +106,8 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAllSuccess
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchHits;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class SegmentReplicationIT extends SegmentReplicationBaseIT {
@@ -1458,12 +1457,15 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
      */
     public void testRealtimeGetRequestsSuccessful() {
         final String primary = internalCluster().startDataOnlyNode();
+        // refresh interval disabled to ensure refresh rate of index (when data is ready for search) doesn't affect realtime get
         assertAcked(
             prepareCreate(INDEX_NAME).setSettings(Settings.builder().put("index.refresh_interval", -1).put(indexSettings()))
                 .addAlias(new Alias("alias"))
         );
         final String replica = internalCluster().startDataOnlyNode();
         ensureGreen(INDEX_NAME);
+
+        final String id = routingKeyForShard(INDEX_NAME, 0);
 
         GetResponse response = client(replica).prepareGet(indexOrAlias(), "1").get();
         assertFalse(response.isExists());
@@ -1475,11 +1477,20 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         response = client().prepareGet(indexOrAlias(), "1").setRealtime(false).get();
         assertFalse(response.isExists());
 
-        // realtime get 1 (on replica shard only)
+        // realtime get 1
         response = client(replica).prepareGet(indexOrAlias(), "1").get();
         assertTrue(response.isExists());
         assertThat(response.getIndex(), equalTo(INDEX_NAME));
         assertThat(response.getSourceAsMap().get("foo").toString(), equalTo("bar"));
+
+        // index doc 2
+        client().prepareIndex(indexOrAlias()).setId("2").setSource("foo2", "bar2").setRouting(id).get();
+
+        // realtime get 2 (with routing)
+        response = client(replica).prepareGet(indexOrAlias(), "2").setRouting(id).get();
+        assertTrue(response.isExists());
+        assertThat(response.getIndex(), equalTo(INDEX_NAME));
+        assertThat(response.getSourceAsMap().get("foo2").toString(), equalTo("bar2"));
     }
 
     public void testRealtimeGetRequestsUnsuccessful() {
@@ -1518,15 +1529,22 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
      */
     public void testRealtimeMultiGetRequestsSuccessful() {
         final String primary = internalCluster().startDataOnlyNode();
+        // refresh interval disabled to ensure refresh rate of index (when data is ready for search) doesn't affect realtime multi get
         assertAcked(
-            prepareCreate(INDEX_NAME).setSettings(Settings.builder().put("index.refresh_interval", -1).put(indexSettings()))
-                .addAlias(new Alias("alias"))
+            prepareCreate(INDEX_NAME).setSettings(
+                Settings.builder().put("index.refresh_interval", -1).put(indexSettings()).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
+            ).addAlias(new Alias("alias"))
         );
         final String replica = internalCluster().startDataOnlyNode();
         ensureGreen(INDEX_NAME);
 
+        final String id = routingKeyForShard(INDEX_NAME, 0);
+
         // index doc 1
         client().prepareIndex(INDEX_NAME).setId("1").setSource("foo", "bar").get();
+
+        // index doc 2
+        client().prepareIndex(INDEX_NAME).setId("2").setSource("foo2", "bar2").setRouting(id).get();
 
         // multi get non realtime 1
         MultiGetResponse mgetResponse = client().prepareMultiGet()
@@ -1543,21 +1561,22 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         // multi get realtime 1
         mgetResponse = client(replica).prepareMultiGet()
             .add(new MultiGetRequest.Item(INDEX_NAME, "1"))
+            .add(new MultiGetRequest.Item(INDEX_NAME, "2").routing(id))
             .add(new MultiGetRequest.Item("nonExistingIndex", "1"))
             .get();
 
-        assertThat(mgetResponse.getResponses().length, is(2));
+        assertThat(mgetResponse.getResponses().length, is(3));
         assertThat(mgetResponse.getResponses()[0].getIndex(), is(INDEX_NAME));
         assertFalse(mgetResponse.getResponses()[0].isFailed());
         assertThat(mgetResponse.getResponses()[0].getResponse().getSourceAsMap().get("foo").toString(), equalTo("bar"));
 
-        assertThat(mgetResponse.getResponses()[1].getIndex(), is("nonExistingIndex"));
-        assertTrue(mgetResponse.getResponses()[1].isFailed());
-        assertThat(mgetResponse.getResponses()[1].getFailure().getMessage(), is("no such index [nonExistingIndex]"));
-        assertThat(
-            ((OpenSearchException) mgetResponse.getResponses()[1].getFailure().getFailure()).getIndex().getName(),
-            is("nonExistingIndex")
-        );
+        assertThat(mgetResponse.getResponses()[1].getIndex(), is(INDEX_NAME));
+        assertFalse(mgetResponse.getResponses()[1].isFailed());
+        assertThat(mgetResponse.getResponses()[1].getResponse().getSourceAsMap().get("foo2").toString(), equalTo("bar2"));
+
+        assertThat(mgetResponse.getResponses()[2].getIndex(), is("nonExistingIndex"));
+        assertTrue(mgetResponse.getResponses()[2].isFailed());
+        assertThat(mgetResponse.getResponses()[2].getFailure().getMessage(), is("no such index [nonExistingIndex]"));
     }
 
     public void testRealtimeMultiGetRequestsUnsuccessful() {
@@ -1596,6 +1615,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
             .get();
         assertThat(mgetResponse.getResponses().length, is(2));
         assertThat(mgetResponse.getResponses()[0].getIndex(), is(INDEX_NAME));
+        // expecting failure since we explicitly route request to a shard on which it doesn't exist
         assertFalse(mgetResponse.getResponses()[0].getResponse().isExists());
         assertThat(mgetResponse.getResponses()[1].getIndex(), is("nonExistingIndex"));
         assertTrue(mgetResponse.getResponses()[1].isFailed());
