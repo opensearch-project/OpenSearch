@@ -233,8 +233,6 @@ public final class InternalTestCluster extends TestCluster {
     static final int DEFAULT_MIN_NUM_CLIENT_NODES = 0;
     static final int DEFAULT_MAX_NUM_CLIENT_NODES = 1;
 
-    private final Set<Class<? extends Plugin>> nodePlugins;
-
     /* Sorted map to make traverse order reproducible.
      * The map of nodes is never mutated so individual reads are safe without synchronization.
      * Updates are intended to follow a copy-on-write approach. */
@@ -400,7 +398,6 @@ public final class InternalTestCluster extends TestCluster {
             autoManageClusterManagerNodes ? "auto-managed" : "manual"
         );
         this.nodeConfigurationSource = nodeConfigurationSource;
-        this.nodePlugins = new HashSet<>(nodeConfigurationSource.nodePlugins());
 
         numDataPaths = random.nextInt(5) == 0 ? 2 + random.nextInt(3) : 1;
         Builder builder = Settings.builder();
@@ -513,19 +510,9 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     public Collection<Class<? extends Plugin>> getPlugins() {
-        Set<Class<? extends Plugin>> plugins = new HashSet<>(nodePlugins);
+        Set<Class<? extends Plugin>> plugins = new HashSet<>(nodeConfigurationSource.nodePlugins());
         plugins.addAll(mockPlugins);
         return plugins;
-    }
-
-    /**
-     * Remove any plugin that was added in test. This doesn't affect the existing nodes in the cluster
-     * and only the newer nodes which are started after the plugin removal.
-     * @param plugin to be removed
-     * @return true if the plugin was found and removed.
-     */
-    public boolean removePlugin(Class<? extends Plugin> plugin) {
-        return nodePlugins.remove(plugin);
     }
 
     private static Settings getRandomNodeSettings(long seed) {

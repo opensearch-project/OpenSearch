@@ -16,14 +16,18 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 
 import static org.hamcrest.Matchers.startsWith;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0, supportsDedicatedMasters = false)
 public class ArchivedIndexSettingsIT extends OpenSearchIntegTestCase {
+    private volatile boolean installPlugin;
+
     public void testArchiveSettings() throws Exception {
-        // Setup the cluster with an index containing dummy setting(owned by dummy plugin)
+        installPlugin = true;
+        // Set up the cluster with an index containing dummy setting(owned by dummy plugin)
         String oldClusterManagerNode = internalCluster().startClusterManagerOnlyNode();
         String oldDataNode = internalCluster().startDataOnlyNode();
         assertEquals(2, internalCluster().numDataAndClusterManagerNodes());
@@ -38,7 +42,7 @@ public class ArchivedIndexSettingsIT extends OpenSearchIntegTestCase {
             .actionGet();
 
         // Remove dummy plugin and replace the cluster manager node so that the stale plugin setting moves to "archived".
-        internalCluster().removePlugin(DummySettingPlugin.class);
+        installPlugin = false;
         String newClusterManagerNode = internalCluster().startClusterManagerOnlyNode();
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(oldClusterManagerNode));
         internalCluster().restartNode(newClusterManagerNode);
@@ -102,7 +106,7 @@ public class ArchivedIndexSettingsIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(DummySettingPlugin.class);
+        return installPlugin ? Arrays.asList(DummySettingPlugin.class) : Collections.emptyList();
     }
 
     public static class DummySettingPlugin extends Plugin {
