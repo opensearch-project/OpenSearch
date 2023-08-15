@@ -7,12 +7,17 @@ on:
 jobs:
   build:
     if: github.repository == 'opensearch-project/OpenSearch'
+    permissions:
+      contents: read # to fetch code (actions/checkout)
+      pull-requests: write # to create or update comment (peter-evans/create-or-update-comment)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Run compatibility task
-        run: ./gradlew checkCompatibility -i | tee $HOME/gradlew-check.out
+        run: ./gradlew checkCompatibility -i -PrepositoryUrls=https://github.com/opensearch-project/common-utils | tee $HOME/gradlew-check.out
 
       - name: Get results
         run: |
@@ -22,17 +27,8 @@ jobs:
           echo "### Skipped components"      >> "${{ github.workspace }}/results.txt" && grep -e 'Skipped component'      $HOME/gradlew-check.out | sed -e 's/Skipped component: \[\(.*\)\]/- \1/'      >> "${{ github.workspace }}/results.txt"
           echo "### Compatible components"   >> "${{ github.workspace }}/results.txt" && grep -e 'Compatible component'   $HOME/gradlew-check.out | sed -e 's/Compatible component: \[\(.*\)\]/- \1/'   >> "${{ github.workspace }}/results.txt"
 
-      - name: GitHub App token
-        id: github_app_token
-        uses: tibdex/github-app-token@v1.6.0
-        with:
-          app_id: ${{ secrets.APP_ID }}
-          private_key: ${{ secrets.APP_PRIVATE_KEY }}
-          installation_id: 22958780
-
       - name: Add comment on the PR
         uses: peter-evans/create-or-update-comment@v3
         with:
-          token: ${{ steps.github_app_token.outputs.token }}
           issue-number: ${{ github.event.number }}
           body-path: "${{ github.workspace }}/results.txt"
