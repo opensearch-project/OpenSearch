@@ -39,7 +39,6 @@ import com.microsoft.windowsazure.management.compute.models.InstanceEndpoint;
 import com.microsoft.windowsazure.management.compute.models.RoleInstance;
 import com.microsoft.windowsazure.management.compute.models.RoleInstancePowerState;
 import org.opensearch.action.admin.cluster.node.info.NodesInfoResponse;
-
 import org.opensearch.cloud.azure.classic.management.AzureComputeService;
 import org.opensearch.cloud.azure.classic.management.AzureComputeService.Discovery;
 import org.opensearch.cloud.azure.classic.management.AzureComputeService.Management;
@@ -53,7 +52,6 @@ import org.opensearch.plugin.discovery.azure.classic.AzureDiscoveryPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.transport.TransportService;
-
 import org.junit.After;
 
 import java.util.ArrayList;

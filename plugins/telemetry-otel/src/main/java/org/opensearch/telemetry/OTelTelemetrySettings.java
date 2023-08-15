@@ -8,15 +8,17 @@
 
 package org.opensearch.telemetry;
 
-import io.opentelemetry.exporter.logging.LoggingSpanExporter;
-import io.opentelemetry.sdk.trace.export.SpanExporter;
-import java.security.AccessController;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
 import org.opensearch.SpecialPermission;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.telemetry.tracing.exporter.OTelSpanExporterFactory;
+
+import java.security.AccessController;
+import java.security.PrivilegedActionException;
+import java.security.PrivilegedExceptionAction;
+
+import io.opentelemetry.exporter.logging.LoggingSpanExporter;
+import io.opentelemetry.sdk.trace.export.SpanExporter;
 
 /**
  * OTel specific telemetry settings.
