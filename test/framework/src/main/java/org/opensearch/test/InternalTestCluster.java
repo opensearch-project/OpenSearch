@@ -398,7 +398,6 @@ public final class InternalTestCluster extends TestCluster {
             autoManageClusterManagerNodes ? "auto-managed" : "manual"
         );
         this.nodeConfigurationSource = nodeConfigurationSource;
-
         numDataPaths = random.nextInt(5) == 0 ? 2 + random.nextInt(3) : 1;
         Builder builder = Settings.builder();
         builder.put(Environment.PATH_HOME_SETTING.getKey(), baseDir);

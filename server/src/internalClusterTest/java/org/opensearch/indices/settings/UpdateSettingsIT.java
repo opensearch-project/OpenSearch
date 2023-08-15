@@ -69,8 +69,6 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.nullValue;
 
 public class UpdateSettingsIT extends OpenSearchIntegTestCase {
-    List<Class<? extends Plugin>> nodePlugins = Arrays.asList(DummySettingPlugin.class, FinalSettingPlugin.class);
-
     public void testInvalidUpdateOnClosedIndex() {
         createIndex("test");
         assertAcked(client().admin().indices().prepareClose("test").get());
