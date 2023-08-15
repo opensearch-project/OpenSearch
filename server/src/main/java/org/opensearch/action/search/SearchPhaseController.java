@@ -48,6 +48,9 @@ import org.apache.lucene.search.grouping.CollapseTopFieldDocs;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
@@ -92,6 +95,24 @@ public final class SearchPhaseController {
 
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final Function<SearchSourceBuilder, InternalAggregation.ReduceContextBuilder> requestToAggReduceContextBuilder;
+
+    private ByteSizeValue requestLevelMemoryLimit = new ByteSizeValue(-1);
+    public static final Setting<ByteSizeValue> MAX_REQUEST_MEMORY_SETTING = Setting.memorySizeSetting(
+        "search.breaker.request_level_limit",
+        new ByteSizeValue(-1),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    public SearchPhaseController(
+        NamedWriteableRegistry namedWriteableRegistry,
+        Function<SearchSourceBuilder, InternalAggregation.ReduceContextBuilder> requestToAggReduceContextBuilder,
+        ClusterSettings settings
+    ) {
+        this.namedWriteableRegistry = namedWriteableRegistry;
+        this.requestToAggReduceContextBuilder = requestToAggReduceContextBuilder;
+        settings.addSettingsUpdateConsumer(MAX_REQUEST_MEMORY_SETTING, this::setRequestLevelMemoryLimit);
+    }
 
     public SearchPhaseController(
         NamedWriteableRegistry namedWriteableRegistry,
@@ -634,6 +655,14 @@ public final class SearchPhaseController {
             }
         }
         return false;
+    }
+
+    private void setRequestLevelMemoryLimit(ByteSizeValue byteSizeValue) {
+        this.requestLevelMemoryLimit = byteSizeValue;
+    }
+
+    ByteSizeValue getRequestLevelMemoryLimit() {
+        return requestLevelMemoryLimit;
     }
 
     /*

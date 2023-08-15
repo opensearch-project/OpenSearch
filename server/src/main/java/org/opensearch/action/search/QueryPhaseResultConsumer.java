@@ -48,6 +48,7 @@ import org.opensearch.search.aggregations.InternalAggregation.ReduceContextBuild
 import org.opensearch.search.aggregations.InternalAggregations;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.query.QuerySearchResult;
+import org.opensearch.common.unit.ByteSizeValue;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -87,6 +88,8 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
     private final PendingMerges pendingMerges;
     private final Consumer<Exception> onPartialMergeFailure;
 
+    private final ByteSizeValue requestLevelMemoryLimit;
+
     /**
      * Creates a {@link QueryPhaseResultConsumer} that incrementally reduces aggregation results
      * as shard results are consumed.
@@ -117,6 +120,8 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         this.hasAggs = source != null && source.aggregations() != null;
         int batchReduceSize = (hasAggs || hasTopDocs) ? Math.min(request.getBatchedReduceSize(), expectedResultSize) : expectedResultSize;
         this.pendingMerges = new PendingMerges(batchReduceSize, request.resolveTrackTotalHitsUpTo());
+
+        this.requestLevelMemoryLimit = controller.getRequestLevelMemoryLimit();
     }
 
     @Override
@@ -148,7 +153,9 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         long breakerSize = pendingMerges.circuitBreakerBytes;
         if (hasAggs) {
             // Add an estimate of the final reduce size
-            breakerSize = pendingMerges.addEstimateAndMaybeBreak(pendingMerges.estimateRamBytesUsedForReduce(breakerSize));
+            long estimateSize = pendingMerges.estimateRamBytesUsedForReduce(breakerSize);
+            pendingMerges.requestLevelMaybeBreak(estimateSize);
+            breakerSize = pendingMerges.addEstimateAndMaybeBreak(estimateSize);
         }
         SearchPhaseController.ReducedQueryPhase reducePhase = controller.reducedQueryPhase(
             results.asList(),
@@ -315,6 +322,26 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             return circuitBreakerBytes;
         }
 
+        void requestLevelMaybeBreak(long estimatedSize) {
+            long requestLevelLimitBytes = requestLevelMemoryLimit.getBytes();
+            long bytesNeeded = (long) ((circuitBreakerBytes + estimatedSize) * circuitBreaker.getOverhead());
+            if (requestLevelLimitBytes > 0 && bytesNeeded >= requestLevelLimitBytes) {
+                // todo: do we need to add the tripped count?
+                final String message = "[request level coordinator reduce] Data too large, data for [<big_query>]"
+                    + " would be ["
+                    + bytesNeeded
+                    + "/"
+                    + new ByteSizeValue(bytesNeeded)
+                    + "]"
+                    + ", which is larger than the limit of ["
+                    + requestLevelLimitBytes
+                    + "/"
+                    + new ByteSizeValue(requestLevelLimitBytes)
+                    + "]";
+                throw new CircuitBreakingException(message, bytesNeeded, requestLevelLimitBytes, CircuitBreaker.Durability.TRANSIENT);
+            }
+        }
+
         /**
          * Returns the size of the serialized aggregation that is contained in the
          * provided {@link QuerySearchResult}.
@@ -361,12 +388,18 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                         queue.add(task);
                         tryExecuteNext();
                     }
-                    if (hasAggs) {
-                        long aggsSize = ramBytesUsedQueryResult(result);
-                        addWithoutBreaking(aggsSize);
-                        aggsCurrentBufferSize += aggsSize;
-                    }
                     buffer.add(result);
+
+                    if (hasAggs) {
+                        try {
+                            long aggsSize = ramBytesUsedQueryResult(result);
+                            requestLevelMaybeBreak(aggsSize);
+                            addWithoutBreaking(aggsSize);
+                            aggsCurrentBufferSize += aggsSize;
+                        } catch (Exception t) {
+                            onMergeFailure(t);
+                        }
+                    }
                 }
             }
             if (executeNextImmediately) {
@@ -446,6 +479,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                             return;
                         }
                         long estimatedMergeSize = estimateRamBytesUsedForReduce(estimatedTotalSize);
+                        requestLevelMaybeBreak(estimatedMergeSize);
                         addEstimateAndMaybeBreak(estimatedMergeSize);
                         estimatedTotalSize += estimatedMergeSize;
                         ++numReducePhases;
