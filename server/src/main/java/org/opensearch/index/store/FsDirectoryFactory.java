@@ -100,14 +100,20 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
             case HYBRIDFS:
                 // Use Lucene defaults
                 final FSDirectory primaryDirectory = FSDirectory.open(location, lockFactory);
-                Set<String> nioExtensions = new HashSet<>(indexSettings.getValue(IndexModule.INDEX_STORE_HYBRID_NIO_EXTENSIONS));
-                if (indexSettings.getValue(IndexModule.INDEX_STORE_HYBRID_MMAP_EXTENSIONS)
-                    .equals(IndexModule.INDEX_STORE_HYBRID_MMAP_EXTENSIONS.getDefault(Settings.EMPTY)) == false) {
+                final Set<String> nioExtensions;
+                final Set<String> mmapExtensions = Set.copyOf(indexSettings.getValue(IndexModule.INDEX_STORE_HYBRID_MMAP_EXTENSIONS));
+                if (mmapExtensions.equals(
+                    new HashSet(IndexModule.INDEX_STORE_HYBRID_MMAP_EXTENSIONS.getDefault(Settings.EMPTY))
+                ) == false) {
+                    // If the mmap extension setting was defined, then compute nio extensions by subtracting out the
+                    // mmap extensions from the set of all extensions.
                     nioExtensions = Stream.concat(
                         IndexModule.INDEX_STORE_HYBRID_NIO_EXTENSIONS.getDefault(Settings.EMPTY).stream(),
                         IndexModule.INDEX_STORE_HYBRID_MMAP_EXTENSIONS.getDefault(Settings.EMPTY).stream()
-                    ).collect(Collectors.toSet());
-                    nioExtensions.removeAll(indexSettings.getValue(IndexModule.INDEX_STORE_HYBRID_MMAP_EXTENSIONS));
+                    ).filter(e -> mmapExtensions.contains(e) == false).collect(Collectors.toUnmodifiableSet());
+                } else {
+                    // Otherwise, get the list of nio extensions from the nio setting
+                    nioExtensions = Set.copyOf(indexSettings.getValue(IndexModule.INDEX_STORE_HYBRID_NIO_EXTENSIONS));
                 }
                 if (primaryDirectory instanceof MMapDirectory) {
                     MMapDirectory mMapDirectory = (MMapDirectory) primaryDirectory;
