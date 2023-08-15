@@ -269,6 +269,11 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
     }
 
     @Override
+    public void setSecurityProtocol(String protocol) {
+        nodes.all(each -> each.setSecurityProtocol(protocol));
+    }
+
+    @Override
     public void cliSetup(String binTool, CharSequence... args) {
         nodes.all(each -> each.cliSetup(binTool, args));
     }
@@ -371,12 +376,11 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
             nodeNames = nodes.stream().map(OpenSearchNode::getName).map(this::safeName).collect(Collectors.joining(","));
         }
 
-        String httpProtocol = nodes.stream().map(OpenSearchNode::getHttpProtocol).findFirst().orElse("http");
         OpenSearchNode firstNode = null;
         for (OpenSearchNode node : nodes) {
             // Can only configure master nodes if we have node names defined
             if (nodeNames != null) {
-                commonNodeConfig(node, nodeNames, firstNode, httpProtocol);
+                commonNodeConfig(node, nodeNames, firstNode);
             }
             if (firstNode == null) {
                 firstNode = node;
@@ -388,7 +392,7 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
         }
     }
 
-    private void commonNodeConfig(OpenSearchNode node, String nodeNames, OpenSearchNode firstNode, String httpProtocol) {
+    private void commonNodeConfig(OpenSearchNode node, String nodeNames, OpenSearchNode firstNode) {
         if (node.getVersion().onOrAfter("7.0.0")) {
             node.defaultConfig.keySet()
                 .stream()
@@ -493,7 +497,7 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
         OpenSearchNode node = nodes.getByName(clusterName + "-" + nodeIndex);
         node.stop(false);
         node.goToNextVersion();
-        commonNodeConfig(node, null, null, node.getHttpProtocol());
+        commonNodeConfig(node, null, null);
         nodeIndex += 1;
         return node;
     }
@@ -558,10 +562,11 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
 
     private void addWaitForClusterHealth() {
         waitConditions.put("cluster health yellow", (node) -> {
+            String resolvedProtocol = determineProtocol(getFirstNode().getHttpProtocol(), getFirstNode().getSecurityProtocol());
             try {
                 WaitForHttpResource wait;
-                if (!getFirstNode().getCredentials().get(0).containsKey("username")) {
-                    wait = new WaitForHttpResource(getFirstNode().getHttpProtocol(), getFirstNode().getHttpSocketURI(), nodes.size());
+                if (resolvedProtocol.equals("http")) {
+                    wait = new WaitForHttpResource(resolvedProtocol, getFirstNode().getHttpSocketURI(), nodes.size());
                     List<Map<String, String>> credentials = getFirstNode().getCredentials();
                     if (getFirstNode().getCredentials().isEmpty() == false) {
                         wait.setUsername(credentials.get(0).get("useradd"));
@@ -569,7 +574,7 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
                     }
                 } else {
                     wait = new WaitForHttpResource(
-                        getFirstNode().getHttpProtocol(),
+                        resolvedProtocol,
                         getFirstNode().getHttpSocketURI(),
                         getFirstNode().getCredentials().get(0).get("username"),
                         getFirstNode().getCredentials().get(0).get("password"),
@@ -616,5 +621,26 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
     @Override
     public String toString() {
         return "cluster{" + path + ":" + clusterName + "}";
+    }
+
+    /**
+     * Determine the protocol to use for the waitForHttpResource call
+     * @param httpProtocol The http protocol version to use
+     * @param securityProtocol The security protocol to use
+     * @return a string representing the uri protocol
+     */
+    private String determineProtocol(String httpProtocol, String securityProtocol) {
+        switch (httpProtocol) {
+            case "http/1.1":
+            case "http/2":
+            case "http/3":
+                if (securityProtocol.equalsIgnoreCase("TLS") || securityProtocol.equalsIgnoreCase("DTLS")) {
+                    return "https";
+                } else {
+                    return "http";
+                }
+            default:
+                return "http";
+        }
     }
 }

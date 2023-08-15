@@ -161,6 +161,7 @@ public class OpenSearchNode implements TestClusterConfiguration {
     private final Path tmpDir;
 
     private String httpProtocol = "http";
+    private String securityProtocol = "";
     private int currentDistro = 0;
     private TestDistribution testDistribution;
     private final List<OpenSearchDistribution> distributions = new ArrayList<>();
@@ -222,6 +223,11 @@ public class OpenSearchNode implements TestClusterConfiguration {
     @Internal
     public String getHttpProtocol() {
         return httpProtocol;
+    }
+
+    @Internal
+    public String getSecurityProtocol() {
+        return securityProtocol;
     }
 
     @Internal
@@ -465,6 +471,11 @@ public class OpenSearchNode implements TestClusterConfiguration {
     }
 
     @Override
+    public void setSecurityProtocol(String protocol) {
+        this.securityProtocol = protocol;
+    }
+
+    @Override
     public void freeze() {
         requireNonNull(testDistribution, "null testDistribution passed when configuring test cluster `" + this + "`");
         LOGGER.info("Locking configuration of `{}`", this);
@@ -486,6 +497,10 @@ public class OpenSearchNode implements TestClusterConfiguration {
         if (System.getProperty("tests.opensearch.http.protocol") != null) {
             httpProtocol = System.getProperty("tests.opensearch.http.protocol");
             LOGGER.info("Overwriting HTTP protocol to: " + httpProtocol);
+        }
+        if (System.getProperty("tests.opensearch.security.protocol") != null) {
+            securityProtocol = System.getProperty("tests.opensearch.security.protocol");
+            LOGGER.info("Overwriting security protocol to: " + securityProtocol);
         }
         if (System.getProperty("tests.opensearch.username") != null) {
             this.credentials.get(0).put("username", System.getProperty("tests.opensearch.username"));
