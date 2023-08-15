@@ -39,7 +39,6 @@ import org.opensearch.Version;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.index.fielddata.ScriptDocValues;
 import org.opensearch.index.query.functionscore.TermFrequencyFunctionFactory.TermFrequencyFunctionName;
-
 import org.opensearch.search.lookup.LeafSearchLookup;
 import org.opensearch.search.lookup.LeafTermFrequencyLookup;
 import org.opensearch.search.lookup.SearchLookup;

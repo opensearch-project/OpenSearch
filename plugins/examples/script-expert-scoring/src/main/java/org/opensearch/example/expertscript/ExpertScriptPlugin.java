@@ -131,7 +131,6 @@ public class ExpertScriptPlugin extends Plugin implements ScriptPlugin {
         private static class PureDfLeafFactory implements LeafFactory {
             private final Map<String, Object> params;
             private final SearchLookup lookup;
-
             private final IndexSearcher indexSearcher;
             private final String field;
             private final String term;

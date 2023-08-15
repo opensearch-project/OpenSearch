@@ -33,6 +33,7 @@
 package org.opensearch.search.lookup;
 
 import org.apache.lucene.index.LeafReaderContext;
+
 import java.util.HashMap;
 import java.util.Map;
 
