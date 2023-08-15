@@ -44,8 +44,8 @@ import org.opensearch.indices.analysis.AnalysisModule;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptContext;
 import org.opensearch.script.ScriptService;
-import org.opensearch.test.OpenSearchTokenStreamTestCase;
 import org.opensearch.test.IndexSettingsModule;
+import org.opensearch.test.OpenSearchTokenStreamTestCase;
 
 import java.util.Collections;
 

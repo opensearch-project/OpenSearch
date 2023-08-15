@@ -34,8 +34,8 @@ package org.opensearch.script.expression;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DoubleValues;
-import org.opensearch.index.fielddata.LeafGeoPointFieldData;
 import org.opensearch.index.fielddata.IndexFieldData;
+import org.opensearch.index.fielddata.LeafGeoPointFieldData;
 import org.opensearch.index.fielddata.MultiGeoPointValues;
 
 import java.io.IOException;

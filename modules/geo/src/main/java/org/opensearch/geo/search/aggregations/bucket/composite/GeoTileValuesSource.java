@@ -38,9 +38,9 @@ import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.search.DocValueFormat;
+import org.opensearch.search.aggregations.bucket.GeoTileUtils;
 import org.opensearch.search.aggregations.bucket.composite.LongValuesSource;
 import org.opensearch.search.aggregations.bucket.composite.SingleDimensionValuesSource;
-import org.opensearch.search.aggregations.bucket.GeoTileUtils;
 import org.opensearch.search.aggregations.bucket.missing.MissingOrder;
 
 import java.io.IOException;

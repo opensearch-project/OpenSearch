@@ -33,10 +33,10 @@ package org.opensearch.script.mustache;
 
 import com.github.mustachejava.MustacheFactory;
 
-import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.json.JsonXContent;
-import org.opensearch.script.TemplateScript;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.script.Script;
+import org.opensearch.script.TemplateScript;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
