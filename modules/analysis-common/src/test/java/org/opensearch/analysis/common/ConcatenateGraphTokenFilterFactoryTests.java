@@ -8,12 +8,12 @@
 
 package org.opensearch.analysis.common;
 
-import org.apache.lucene.tests.analysis.CannedTokenStream;
-import org.apache.lucene.tests.analysis.Token;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.apache.lucene.analysis.miscellaneous.ConcatenateGraphFilter;
+import org.apache.lucene.tests.analysis.CannedTokenStream;
+import org.apache.lucene.tests.analysis.Token;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.cluster.metadata.IndexMetadata;

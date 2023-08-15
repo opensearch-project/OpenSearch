@@ -5,10 +5,11 @@
 
 package org.opensearch.index.reindex.spi;
 
-import java.util.Optional;
 import org.apache.http.HttpRequestInterceptor;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.index.reindex.ReindexRequest;
+
+import java.util.Optional;
 
 public interface ReindexRestInterceptorProvider {
     /**

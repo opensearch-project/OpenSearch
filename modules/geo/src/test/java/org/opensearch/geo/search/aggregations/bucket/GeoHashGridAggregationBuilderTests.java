@@ -40,19 +40,18 @@ import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.search.aggregations.BaseAggregationTestCase;
-import org.opensearch.test.VersionUtils;
-
-import java.util.Collections;
-
-import static org.hamcrest.Matchers.equalTo;
 import org.opensearch.geo.GeoModulePlugin;
 import org.opensearch.geo.search.aggregations.bucket.geogrid.GeoGridAggregationBuilder;
 import org.opensearch.geo.search.aggregations.bucket.geogrid.GeoHashGridAggregationBuilder;
 import org.opensearch.geo.tests.common.RandomGeoGenerator;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.search.aggregations.BaseAggregationTestCase;
+import org.opensearch.test.VersionUtils;
 
 import java.util.Collection;
+import java.util.Collections;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class GeoHashGridAggregationBuilderTests extends BaseAggregationTestCase<GeoGridAggregationBuilder> {
 
