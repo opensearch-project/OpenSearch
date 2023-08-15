@@ -95,6 +95,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.Iterator;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
@@ -154,14 +155,106 @@ public final class IndexModule {
         Property.NodeScope
     );
 
-    /** Which lucene file extensions to load with the mmap directory when using hybridfs store.
+    /** Which lucene file extensions to load with the mmap directory when using hybridfs store. This settings is ignored if {@link #INDEX_STORE_HYBRID_NIO_EXTENSIONS} is set.
      *  This is an expert setting.
-     *  @see <a href="https://lucene.apache.org/core/9_2_0/core/org/apache/lucene/codecs/lucene92/package-summary.html#file-names">Lucene File Extensions</a>.
+     *  @see <a href="https://lucene.apache.org/core/9_5_0/core/org/apache/lucene/codecs/lucene95/package-summary.html#file-names">Lucene File Extensions</a>.
+     *
+     * @deprecated This setting will be removed in OpenSearch 3.x. Use {@link #INDEX_STORE_HYBRID_NIO_EXTENSIONS} instead.
      */
+    @Deprecated
     public static final Setting<List<String>> INDEX_STORE_HYBRID_MMAP_EXTENSIONS = Setting.listSetting(
         "index.store.hybrid.mmap.extensions",
         List.of("nvd", "dvd", "tim", "tip", "dim", "kdd", "kdi", "cfs", "doc"),
         Function.identity(),
+        new Setting.Validator<List<String>>() {
+
+            @Override
+            public void validate(final List<String> value) {}
+
+            @Override
+            public void validate(final List<String> value, final Map<Setting<?>, Object> settings) {
+                if (value.equals(INDEX_STORE_HYBRID_MMAP_EXTENSIONS.getDefault(Settings.EMPTY)) == false) {
+                    final List<String> nioExtensions = (List<String>) settings.get(INDEX_STORE_HYBRID_NIO_EXTENSIONS);
+                    final List<String> defaultNioExtensions = INDEX_STORE_HYBRID_NIO_EXTENSIONS.getDefault(Settings.EMPTY);
+                    if (nioExtensions.equals(defaultNioExtensions) == false) {
+                        throw new IllegalArgumentException(
+                            "Settings "
+                                + INDEX_STORE_HYBRID_NIO_EXTENSIONS.getKey()
+                                + " & "
+                                + INDEX_STORE_HYBRID_MMAP_EXTENSIONS.getKey()
+                                + " cannot both be set. Use "
+                                + INDEX_STORE_HYBRID_NIO_EXTENSIONS.getKey()
+                                + " only."
+                        );
+                    }
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                return List.<Setting<?>>of(INDEX_STORE_HYBRID_NIO_EXTENSIONS).iterator();
+            }
+        },
+        Property.IndexScope,
+        Property.NodeScope,
+        Property.Deprecated
+    );
+
+    /** Which lucene file extensions to load with nio. All others will default to mmap. Takes precedence over {@link #INDEX_STORE_HYBRID_MMAP_EXTENSIONS}.
+     *  This is an expert setting.
+     *  @see <a href="https://lucene.apache.org/core/9_5_0/core/org/apache/lucene/codecs/lucene95/package-summary.html#file-names">Lucene File Extensions</a>.
+     */
+    public static final Setting<List<String>> INDEX_STORE_HYBRID_NIO_EXTENSIONS = Setting.listSetting(
+        "index.store.hybrid.nio.extensions",
+        List.of(
+            "segments_N",
+            "write.lock",
+            "si",
+            "cfe",
+            "fnm",
+            "fdx",
+            "fdt",
+            "pos",
+            "pay",
+            "nvm",
+            "dvm",
+            "tvx",
+            "tvd",
+            "liv",
+            "dii",
+            "vec",
+            "vem"
+        ),
+        Function.identity(),
+        new Setting.Validator<List<String>>() {
+
+            @Override
+            public void validate(final List<String> value) {}
+
+            @Override
+            public void validate(final List<String> value, final Map<Setting<?>, Object> settings) {
+                if (value.equals(INDEX_STORE_HYBRID_NIO_EXTENSIONS.getDefault(Settings.EMPTY)) == false) {
+                    final List<String> mmapExtensions = (List<String>) settings.get(INDEX_STORE_HYBRID_MMAP_EXTENSIONS);
+                    final List<String> defaultMmapExtensions = INDEX_STORE_HYBRID_MMAP_EXTENSIONS.getDefault(Settings.EMPTY);
+                    if (mmapExtensions.equals(defaultMmapExtensions) == false) {
+                        throw new IllegalArgumentException(
+                            "Settings "
+                                + INDEX_STORE_HYBRID_NIO_EXTENSIONS.getKey()
+                                + " & "
+                                + INDEX_STORE_HYBRID_MMAP_EXTENSIONS.getKey()
+                                + " cannot both be set. Use "
+                                + INDEX_STORE_HYBRID_NIO_EXTENSIONS.getKey()
+                                + " only."
+                        );
+                    }
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                return List.<Setting<?>>of(INDEX_STORE_HYBRID_MMAP_EXTENSIONS).iterator();
+            }
+        },
         Property.IndexScope,
         Property.NodeScope
     );
