@@ -161,7 +161,7 @@ public class OpenSearchNode implements TestClusterConfiguration {
     private final Path tmpDir;
 
     private String httpProtocol = "http";
-    private String securityProtocol = "";
+    private boolean secure = false;
     private int currentDistro = 0;
     private TestDistribution testDistribution;
     private final List<OpenSearchDistribution> distributions = new ArrayList<>();
@@ -226,8 +226,8 @@ public class OpenSearchNode implements TestClusterConfiguration {
     }
 
     @Internal
-    public String getSecurityProtocol() {
-        return securityProtocol;
+    public boolean isSecure() {
+        return secure;
     }
 
     @Internal
@@ -471,8 +471,8 @@ public class OpenSearchNode implements TestClusterConfiguration {
     }
 
     @Override
-    public void setSecurityProtocol(String protocol) {
-        this.securityProtocol = protocol;
+    public void setSecure(boolean secure) {
+        this.secure = secure;
     }
 
     @Override
@@ -499,8 +499,8 @@ public class OpenSearchNode implements TestClusterConfiguration {
             LOGGER.info("Overwriting HTTP protocol to: " + httpProtocol);
         }
         if (System.getProperty("tests.opensearch.security.protocol") != null) {
-            securityProtocol = System.getProperty("tests.opensearch.security.protocol");
-            LOGGER.info("Overwriting security protocol to: " + securityProtocol);
+            secure = Boolean.getBoolean(System.getProperty("tests.opensearch.security.protocol"));
+            LOGGER.info("Security being configured to secure=" + secure);
         }
         if (System.getProperty("tests.opensearch.username") != null) {
             this.credentials.get(0).put("username", System.getProperty("tests.opensearch.username"));

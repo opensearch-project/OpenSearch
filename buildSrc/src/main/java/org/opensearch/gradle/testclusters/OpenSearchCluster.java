@@ -269,8 +269,8 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
     }
 
     @Override
-    public void setSecurityProtocol(String protocol) {
-        nodes.all(each -> each.setSecurityProtocol(protocol));
+    public void setSecure(boolean secure) {
+        nodes.all(each -> each.setSecure(secure));
     }
 
     @Override
@@ -562,7 +562,7 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
 
     private void addWaitForClusterHealth() {
         waitConditions.put("cluster health yellow", (node) -> {
-            String resolvedProtocol = determineProtocol(getFirstNode().getHttpProtocol(), getFirstNode().getSecurityProtocol());
+            String resolvedProtocol = determineProtocol(getFirstNode().getHttpProtocol(), getFirstNode().isSecure());
             try {
                 WaitForHttpResource wait;
                 if (resolvedProtocol.equals("http")) {
@@ -626,15 +626,15 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
     /**
      * Determine the protocol to use for the waitForHttpResource call
      * @param httpProtocol The http protocol version to use
-     * @param securityProtocol The security protocol to use
+     * @param isSecure Whether the protocol should be secure
      * @return a string representing the uri protocol
      */
-    private String determineProtocol(String httpProtocol, String securityProtocol) {
+    private String determineProtocol(String httpProtocol, boolean isSecure) {
         switch (httpProtocol) {
             case "http/1.1":
             case "http/2":
             case "http/3":
-                if (securityProtocol.equalsIgnoreCase("TLS") || securityProtocol.equalsIgnoreCase("DTLS")) {
+                if (isSecure) {
                     return "https";
                 } else {
                     return "http";

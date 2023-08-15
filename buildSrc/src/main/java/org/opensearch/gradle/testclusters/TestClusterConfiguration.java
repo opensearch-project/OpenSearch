@@ -110,7 +110,7 @@ public interface TestClusterConfiguration {
 
     void setHttpProtocol(String protocol);
 
-    void setSecurityProtocol(String protocol);
+    void setSecure(boolean secure);
 
     void freeze();
 
