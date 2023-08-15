@@ -39,7 +39,7 @@ public class SegmentReplicationPendingCheckpoints {
     public void addNewReceivedCheckpoint(ShardId shardId, ReplicationCheckpoint checkpoint) {
         checkpointsTracker.putIfAbsent(shardId, new ArrayList<>());
         checkpointsTracker.computeIfPresent(shardId, (k, v) -> {
-            v.add(new Tuple<>(checkpoint, System.currentTimeMillis()));
+            v.add(new Tuple<>(checkpoint, System.nanoTime()));
             return v;
         });
     }
@@ -70,7 +70,7 @@ public class SegmentReplicationPendingCheckpoints {
      * @return List of stale shards.
      */
     public List<ShardId> getStaleShardsToFail() {
-        long currentTime = System.currentTimeMillis();
+        long currentTime = System.nanoTime();
         return checkpointsTracker.entrySet()
             .stream()
             .map(
@@ -79,7 +79,7 @@ public class SegmentReplicationPendingCheckpoints {
                     e.getValue().stream().min(Comparator.comparingLong(Tuple::v2)).map(t -> t.v2()).orElse(currentTime)
                 )
             )
-            .filter(t -> currentTime - t.v2() > maxAllowedReplicationTime.millis())
+            .filter(t -> currentTime - t.v2() > maxAllowedReplicationTime.nanos())
             .map(t -> t.v1())
             .sorted(Comparator.comparing(ShardId::getIndexName))
             .collect(Collectors.toList());
