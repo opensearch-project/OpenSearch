@@ -50,6 +50,7 @@ import org.opensearch.watcher.ResourceWatcherService;
 
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLContext;
+
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;

@@ -32,29 +32,27 @@
 
 package org.opensearch.index.reindex;
 
-import java.util.Optional;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.index.reindex.spi.RemoteReindexExtension;
-import org.opensearch.plugins.ExtensiblePlugin;
-import org.opensearch.plugins.ExtensiblePlugin.ExtensionLoader;
-import org.opensearch.watcher.ResourceWatcherService;
 import org.opensearch.action.ActionRequest;
-import org.opensearch.core.action.ActionResponse;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
+import org.opensearch.core.action.ActionResponse;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
+import org.opensearch.index.reindex.spi.RemoteReindexExtension;
 import org.opensearch.plugins.ActionPlugin;
+import org.opensearch.plugins.ExtensiblePlugin;
+import org.opensearch.plugins.ExtensiblePlugin.ExtensionLoader;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.rest.RestController;
@@ -69,6 +67,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.function.Supplier;
 
 import static java.util.Collections.singletonList;

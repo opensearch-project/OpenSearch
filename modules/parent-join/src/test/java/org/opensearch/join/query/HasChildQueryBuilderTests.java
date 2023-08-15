@@ -33,6 +33,7 @@
 package org.opensearch.join.query;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
