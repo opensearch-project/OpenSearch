@@ -95,21 +95,12 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
      * Returns true if GET request should be routed to primary shards, else false.
      */
     protected boolean isPrimaryBasedRouting(ClusterState state, InternalRequest request) {
-        try {
-            if (state.getMetadata()
-                .index(request.concreteIndex())
-                .getSettings()
-                .get(IndexMetadata.SETTING_REPLICATION_TYPE)
-                .equals(ReplicationType.SEGMENT.toString())
-                && request.request().realtime()
-                && request.request().routing() == null
-                && request.request().preference() == null) {
-                return true;
-            }
-        } catch (NullPointerException e) {
-            return false;
-        }
-        return false;
+        IndexMetadata indexMetadata = state.getMetadata().index(request.concreteIndex());
+        return indexMetadata != null
+            && indexMetadata.getSettings().get(IndexMetadata.SETTING_REPLICATION_TYPE).equals(ReplicationType.SEGMENT.toString())
+            && request.request().realtime()
+            && request.request().routing() == null
+            && request.request().preference() == null;
     }
 
     @Override

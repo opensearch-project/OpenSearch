@@ -82,22 +82,12 @@ public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequ
      * Returns true if MultiGet request should be routed to primary shards, else false.
      */
     boolean isPrimaryBasedRouting(MultiGetRequest request, MultiGetRequest.Item item) {
-        try {
-            if (request.preference == null
-                && item.routing() == null
-                && request.realtime
-                && clusterService.state()
-                    .getMetadata()
-                    .index(item.index())
-                    .getSettings()
-                    .get(IndexMetadata.SETTING_REPLICATION_TYPE)
-                    .equals(ReplicationType.SEGMENT.toString())) {
-                return true;
-            }
-        } catch (NullPointerException e) {
-            return false;
-        }
-        return false;
+        IndexMetadata indexMetadata = clusterService.state().getMetadata().index(item.index());
+        return indexMetadata != null
+            && indexMetadata.getSettings().get(IndexMetadata.SETTING_REPLICATION_TYPE).equals(ReplicationType.SEGMENT.toString())
+            && request.preference == null
+            && item.routing() == null
+            && request.realtime;
     }
 
     @Override
