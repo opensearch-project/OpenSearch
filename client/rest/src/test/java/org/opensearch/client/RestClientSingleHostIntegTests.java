@@ -54,10 +54,10 @@ import org.apache.hc.core5.http.io.entity.StringEntity;
 import org.apache.hc.core5.http.message.BasicHeader;
 import org.apache.hc.core5.http.nio.AsyncResponseConsumer;
 import org.apache.hc.core5.net.URIBuilder;
-import org.junit.After;
-import org.junit.Before;
 import org.opensearch.client.http.HttpUriRequestProducer;
 import org.opensearch.client.nio.HeapBufferedAsyncResponseConsumer;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.io.InputStreamReader;
