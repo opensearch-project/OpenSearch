@@ -57,6 +57,7 @@ import org.opensearch.cluster.routing.ShardIterator;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.inject.Inject;
+import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.unit.TimeValue;
@@ -110,6 +111,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
@@ -149,6 +151,14 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     public static final String SEARCH_REQUEST_STATS_ENABLED_KEY = "search.request_stats_enabled";
     public static final Setting<Boolean> SEARCH_REQUEST_STATS_ENABLED = Setting.boolSetting(
         SEARCH_REQUEST_STATS_ENABLED_KEY,
+        false,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
+    public static final String SEARCH_PHASE_TOOK_ENABLED_KEY = "search.phase_took_enabled";
+    public static final Setting<Boolean> SEARCH_PHASE_TOOK_ENABLED = Setting.boolSetting(
+        SEARCH_PHASE_TOOK_ENABLED_KEY,
         false,
         Property.Dynamic,
         Property.NodeScope
@@ -261,11 +271,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
      *
      * @opensearch.internal
      */
-    static final class SearchTimeProvider {
+    static final class SearchTimeProvider implements SearchRequestOperationsListener {
 
         private final long absoluteStartMillis;
         private final long relativeStartNanos;
         private final LongSupplier relativeCurrentNanosProvider;
+        private boolean phaseTookEnabled = false;
 
         /**
          * Instantiates a new search time provider. The absolute start time is the real clock time
@@ -291,6 +302,118 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         long buildTookInMillis() {
             return TimeUnit.NANOSECONDS.toMillis(relativeCurrentNanosProvider.getAsLong() - relativeStartNanos);
         }
+
+        public void setPhaseTookEnabled(boolean phaseTookEnabled) {
+            this.phaseTookEnabled = phaseTookEnabled;
+        }
+
+        public boolean isPhaseTookEnabled() {
+            return phaseTookEnabled;
+        }
+
+        SearchResponse.PhaseTook getPhaseTook() {
+            if (phaseTookEnabled) {
+                return new SearchResponse.PhaseTook(
+                    totalStats.dfsPreQueryTotal.count(),
+                    totalStats.canMatchTotal.count(),
+                    totalStats.queryTotal.count(),
+                    totalStats.fetchTotal.count(),
+                    totalStats.expandSearchTotal.count()
+                );
+            } else {
+                return SearchResponse.PhaseTook.NULL;
+            }
+        }
+
+        public SearchTimeProvider.RequestStatsHolder totalStats = new RequestStatsHolder();
+
+        public static final class RequestStatsHolder {
+            public CounterMetric dfsPreQueryTotal = new CounterMetric();
+            public CounterMetric canMatchTotal = new CounterMetric();
+            public CounterMetric queryTotal = new CounterMetric();
+            public CounterMetric fetchTotal = new CounterMetric();
+            public CounterMetric expandSearchTotal = new CounterMetric();
+        }
+
+        // call these to populate return values
+        public long getDFSPreQueryTotal() {
+            return totalStats.dfsPreQueryTotal.count();
+        }
+
+        public long getCanMatchTotal() {
+            return totalStats.canMatchTotal.count();
+        }
+
+        public long getQueryTotal() {
+            return totalStats.queryTotal.count();
+        }
+
+        public long getFetchTotal() {
+            return totalStats.fetchTotal.count();
+        }
+
+        public long getExpandSearchTotal() {
+            return totalStats.expandSearchTotal.count();
+        }
+
+        private void computeStats(Consumer<SearchTimeProvider.RequestStatsHolder> consumer) {
+            consumer.accept(totalStats);
+        }
+
+        @Override
+        public void onDFSPreQueryPhaseStart(SearchPhaseContext context) {}
+
+        @Override
+        public void onDFSPreQueryPhaseEnd(SearchPhaseContext context, long tookTime) {
+            computeStats(statsHolder -> { totalStats.dfsPreQueryTotal.inc(tookTime); });
+        }
+
+        @Override
+        public void onDFSPreQueryPhaseFailure(SearchPhaseContext context) {}
+
+        @Override
+        public void onCanMatchPhaseStart(SearchPhaseContext context) {}
+
+        @Override
+        public void onCanMatchPhaseEnd(SearchPhaseContext context, long tookTime) {
+            computeStats(statsHolder -> { totalStats.canMatchTotal.inc(tookTime); });
+        }
+
+        @Override
+        public void onCanMatchPhaseFailure(SearchPhaseContext context) {}
+
+        @Override
+        public void onQueryPhaseStart(SearchPhaseContext context) {}
+
+        @Override
+        public void onQueryPhaseEnd(SearchPhaseContext context, long tookTime) {
+            computeStats(statsHolder -> { totalStats.queryTotal.inc(tookTime); });
+        }
+
+        @Override
+        public void onQueryPhaseFailure(SearchPhaseContext context) {}
+
+        @Override
+        public void onFetchPhaseStart(SearchPhaseContext context) {}
+
+        @Override
+        public void onFetchPhaseEnd(SearchPhaseContext context, long tookTime) {
+            computeStats(statsHolder -> { totalStats.fetchTotal.inc(tookTime); });
+        }
+
+        @Override
+        public void onFetchPhaseFailure(SearchPhaseContext context) {}
+
+        @Override
+        public void onExpandSearchPhaseStart(SearchPhaseContext context) {}
+
+        @Override
+        public void onExpandSearchPhaseEnd(SearchPhaseContext context, long tookTime) {
+            computeStats(statsHolder -> { totalStats.expandSearchTotal.inc(tookTime); });
+        }
+
+        @Override
+        public void onExpandSearchPhaseFailure(SearchPhaseContext context) {}
     }
 
     @Override
@@ -357,6 +480,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 ThreadPool threadPool,
                 SearchResponse.Clusters clusters
             ) {
+                if (searchRequest.isPhaseTookQueryParamEnabled() == SearchRequest.ParamValue.TRUE
+                    || (searchRequest.isPhaseTookQueryParamEnabled() == SearchRequest.ParamValue.UNSET
+                        && clusterService.getClusterSettings().get(TransportSearchAction.SEARCH_PHASE_TOOK_ENABLED))) {
+                    timeProvider.setPhaseTookEnabled(true);
+                }
+
                 return new AbstractSearchAsyncAction<SearchPhaseResult>(
                     actionName,
                     logger,
@@ -419,6 +548,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             relativeStartNanos,
             System::nanoTime
         );
+        if (originalSearchRequest.isPhaseTookQueryParamEnabled() == SearchRequest.ParamValue.TRUE
+            || (originalSearchRequest.isPhaseTookQueryParamEnabled() == SearchRequest.ParamValue.UNSET
+                && clusterService.getClusterSettings().get(TransportSearchAction.SEARCH_PHASE_TOOK_ENABLED))) {
+            timeProvider.setPhaseTookEnabled(true);
+        }
         PipelinedRequest searchRequest;
         ActionListener<SearchResponse> listener;
         try {
@@ -622,6 +756,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                             searchResponse.getSuccessfulShards(),
                             searchResponse.getSkippedShards(),
                             timeProvider.buildTookInMillis(),
+                            timeProvider.getPhaseTook(),
                             searchResponse.getShardFailures(),
                             new SearchResponse.Clusters(1, 1, 0),
                             searchResponse.pointInTimeId()

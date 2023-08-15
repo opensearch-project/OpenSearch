@@ -94,6 +94,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
     private final ShardSearchFailure[] shardFailures;
     private final Clusters clusters;
     private final long tookInMillis;
+    private final PhaseTook phaseTook;
 
     public SearchResponse(StreamInput in) throws IOException {
         super(in);
@@ -112,6 +113,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         clusters = new Clusters(in);
         scrollId = in.readOptionalString();
         tookInMillis = in.readVLong();
+        phaseTook = new PhaseTook(in);
         skippedShards = in.readVInt();
         pointInTimeId = in.readOptionalString();
     }
@@ -126,7 +128,18 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         ShardSearchFailure[] shardFailures,
         Clusters clusters
     ) {
-        this(internalResponse, scrollId, totalShards, successfulShards, skippedShards, tookInMillis, shardFailures, clusters, null);
+        this(
+            internalResponse,
+            scrollId,
+            totalShards,
+            successfulShards,
+            skippedShards,
+            tookInMillis,
+            SearchResponse.PhaseTook.NULL,
+            shardFailures,
+            clusters,
+            null
+        );
     }
 
     public SearchResponse(
@@ -136,6 +149,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         int successfulShards,
         int skippedShards,
         long tookInMillis,
+        PhaseTook phaseTook,
         ShardSearchFailure[] shardFailures,
         Clusters clusters,
         String pointInTimeId
@@ -148,6 +162,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         this.successfulShards = successfulShards;
         this.skippedShards = skippedShards;
         this.tookInMillis = tookInMillis;
+        this.phaseTook = phaseTook;
         this.shardFailures = shardFailures;
         assert skippedShards <= totalShards : "skipped: " + skippedShards + " total: " + totalShards;
         assert scrollId == null || pointInTimeId == null : "SearchResponse can't have both scrollId ["
@@ -208,6 +223,13 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
      */
     public TimeValue getTook() {
         return new TimeValue(tookInMillis);
+    }
+
+    /**
+     * How long the request took in each search phase.
+     */
+    public PhaseTook getPhaseTook() {
+        return phaseTook;
     }
 
     /**
@@ -298,6 +320,9 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
             builder.field(POINT_IN_TIME_ID.getPreferredName(), pointInTimeId);
         }
         builder.field(TOOK.getPreferredName(), tookInMillis);
+        if (phaseTook.equals(PhaseTook.NULL) == false) {
+            phaseTook.toXContent(builder, params);
+        }
         builder.field(TIMED_OUT.getPreferredName(), isTimedOut());
         if (isTerminatedEarly() != null) {
             builder.field(TERMINATED_EARLY.getPreferredName(), isTerminatedEarly());
@@ -337,6 +362,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         Boolean terminatedEarly = null;
         int numReducePhases = 1;
         long tookInMillis = -1;
+        PhaseTook phaseTook = PhaseTook.NULL;
         int successfulShards = -1;
         int totalShards = -1;
         int skippedShards = 0; // 0 for BWC
@@ -401,6 +427,35 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
                             parser.skipChildren();
                         }
                     }
+                } else if (PhaseTook.PHASE_TOOK.match(currentFieldName, parser.getDeprecationHandler())) {
+                    long dfsPreQueryTotal = -1;
+                    long canMatchTotal = -1;
+                    long queryTotal = -1;
+                    long fetchTotal = -1;
+                    long expandSearchTotal = -1;
+
+                    while ((token = parser.nextToken()) != Token.END_OBJECT) {
+                        if (token == Token.FIELD_NAME) {
+                            currentFieldName = parser.currentName();
+                        } else if (token.isValue()) {
+                            if (PhaseTook.DFS_PREQUERY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                                dfsPreQueryTotal = parser.longValue(); // we don't need it but need to consume it
+                            } else if (PhaseTook.CAN_MATCH_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                                canMatchTotal = parser.longValue();
+                            } else if (PhaseTook.QUERY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                                queryTotal = parser.longValue();
+                            } else if (PhaseTook.FETCH_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                                fetchTotal = parser.longValue();
+                            } else if (PhaseTook.EXPAND_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                                expandSearchTotal = parser.longValue();
+                            } else {
+                                parser.skipChildren();
+                            }
+                        } else {
+                            parser.skipChildren();
+                        }
+                    }
+                    phaseTook = new PhaseTook(dfsPreQueryTotal, canMatchTotal, queryTotal, fetchTotal, expandSearchTotal);
                 } else if (Clusters._CLUSTERS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     int successful = -1;
                     int total = -1;
@@ -472,6 +527,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
             successfulShards,
             skippedShards,
             tookInMillis,
+            phaseTook,
             failures.toArray(ShardSearchFailure.EMPTY_ARRAY),
             clusters,
             searchContextId
@@ -491,6 +547,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         clusters.writeTo(out);
         out.writeOptionalString(scrollId);
         out.writeVLong(tookInMillis);
+        phaseTook.writeTo(out);
         out.writeVInt(skippedShards);
         out.writeOptionalString(pointInTimeId);
     }
@@ -604,6 +661,118 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         }
     }
 
+    /**
+     * Holds info about the clusters that the search was executed on: how many in total, how many of them were successful
+     * and how many of them were skipped.
+     *
+     * @opensearch.internal
+     */
+    public static class PhaseTook implements ToXContentFragment, Writeable {
+        public static final PhaseTook NULL = new PhaseTook(-1, -1, -1, -1, -1);
+
+        static final ParseField PHASE_TOOK = new ParseField("phase_took");
+        static final ParseField DFS_PREQUERY_FIELD = new ParseField("dfs_prequery");
+        static final ParseField CAN_MATCH_FIELD = new ParseField("can_match");
+        static final ParseField QUERY_FIELD = new ParseField("query");
+        static final ParseField FETCH_FIELD = new ParseField("fetch");
+        static final ParseField EXPAND_FIELD = new ParseField("expand_search");
+
+        private final long dfsPreQueryTotal;
+        private final long canMatchTotal;
+        private final long queryTotal;
+        private final long fetchTotal;
+        private final long expandSearchTotal;
+
+        public PhaseTook(long dfsPreQueryTotal, long canMatchTotal, long queryTotal, long fetchTotal, long expandSearchTotal) {
+            this.dfsPreQueryTotal = dfsPreQueryTotal;
+            this.canMatchTotal = canMatchTotal;
+            this.queryTotal = queryTotal;
+            this.fetchTotal = fetchTotal;
+            this.expandSearchTotal = expandSearchTotal;
+        }
+
+        private PhaseTook(StreamInput in) throws IOException {
+            this(in.readLong(), in.readLong(), in.readLong(), in.readLong(), in.readLong());
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeLong(dfsPreQueryTotal);
+            out.writeLong(canMatchTotal);
+            out.writeLong(queryTotal);
+            out.writeLong(fetchTotal);
+            out.writeLong(expandSearchTotal);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject(PHASE_TOOK.getPreferredName());
+            builder.field(DFS_PREQUERY_FIELD.getPreferredName(), dfsPreQueryTotal);
+            builder.field(CAN_MATCH_FIELD.getPreferredName(), canMatchTotal);
+            builder.field(QUERY_FIELD.getPreferredName(), queryTotal);
+            builder.field(FETCH_FIELD.getPreferredName(), fetchTotal);
+            builder.field(EXPAND_FIELD.getPreferredName(), expandSearchTotal);
+            builder.endObject();
+            return builder;
+        }
+
+        /**
+         * Returns time spent in DFS Prequery phase during the execution of the search request
+         */
+        public long getDfsPreQueryTotal() {
+            return dfsPreQueryTotal;
+        }
+
+        /**
+         * Returns time spent in canMatch phase during the execution of the search request
+         */
+        public long getCanMatchTotal() {
+            return canMatchTotal;
+        }
+
+        /**
+         * Returns time spent in query phase during the execution of the search request
+         */
+        public long getQueryTotal() {
+            return queryTotal;
+        }
+
+        /**
+         * Returns time spent in fetch phase during the execution of the search request
+         */
+        public long getFetchTotal() {
+            return fetchTotal;
+        }
+
+        /**
+         * Returns time spent in expand phase during the execution of the search request
+         */
+        public long getExpandSearchTotal() {
+            return expandSearchTotal;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            PhaseTook phaseTook = (PhaseTook) o;
+            return dfsPreQueryTotal == phaseTook.dfsPreQueryTotal
+                && queryTotal == phaseTook.queryTotal
+                && canMatchTotal == phaseTook.canMatchTotal
+                && fetchTotal == phaseTook.fetchTotal
+                && expandSearchTotal == phaseTook.expandSearchTotal;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(dfsPreQueryTotal, queryTotal, canMatchTotal, fetchTotal, expandSearchTotal);
+        }
+    }
+
     static SearchResponse empty(Supplier<Long> tookInMillisSupplier, Clusters clusters) {
         SearchHits searchHits = new SearchHits(new SearchHit[0], new TotalHits(0L, TotalHits.Relation.EQUAL_TO), Float.NaN);
         InternalSearchResponse internalSearchResponse = new InternalSearchResponse(
@@ -622,6 +791,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
             0,
             0,
             tookInMillisSupplier.get(),
+            PhaseTook.NULL,
             ShardSearchFailure.EMPTY_ARRAY,
             clusters,
             null

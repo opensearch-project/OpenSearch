@@ -117,6 +117,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
 
     private String pipeline;
 
+    private Boolean phaseTookQueryParamEnabled = null;
+
     public SearchRequest() {
         this.localClusterAlias = null;
         this.absoluteStartMillis = DEFAULT_ABSOLUTE_START_MILLIS;
@@ -209,6 +211,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         this.absoluteStartMillis = absoluteStartMillis;
         this.finalReduce = finalReduce;
         this.cancelAfterTimeInterval = searchRequest.cancelAfterTimeInterval;
+        this.phaseTookQueryParamEnabled = searchRequest.phaseTookQueryParamEnabled;
     }
 
     /**
@@ -253,6 +256,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         if (in.getVersion().onOrAfter(Version.V_2_7_0)) {
             pipeline = in.readOptionalString();
         }
+        phaseTookQueryParamEnabled = in.readOptionalBoolean();
     }
 
     @Override
@@ -284,6 +288,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         if (out.getVersion().onOrAfter(Version.V_2_7_0)) {
             out.writeOptionalString(pipeline);
         }
+        out.writeOptionalBoolean(phaseTookQueryParamEnabled);
     }
 
     @Override
@@ -615,6 +620,33 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         this.preFilterShardSize = preFilterShardSize;
     }
 
+    enum ParamValue {
+        TRUE,
+        FALSE,
+        UNSET
+    }
+
+    /**
+     * Returns value of user-provided phase_took query parameter for this search request.
+     * Defaults to <code>false</code>.
+     */
+    public ParamValue isPhaseTookQueryParamEnabled() {
+        if (phaseTookQueryParamEnabled == null) {
+            return ParamValue.UNSET;
+        } else if (phaseTookQueryParamEnabled == true) {
+            return ParamValue.TRUE;
+        } else {
+            return ParamValue.FALSE;
+        }
+    }
+
+    /**
+     * Sets value of phase_took query param if provided by user. Defaults to <code>null</code>.
+     */
+    public void setPhaseTookQueryParamEnabled(boolean phaseTookQueryParamEnabled) {
+        this.phaseTookQueryParamEnabled = phaseTookQueryParamEnabled;
+    }
+
     /**
      * Returns a threshold that enforces a pre-filter roundtrip to pre-filter search shards based on query rewriting if the number of shards
      * the search request expands to exceeds the threshold, or <code>null</code> if the threshold is unspecified.
@@ -719,7 +751,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             && absoluteStartMillis == that.absoluteStartMillis
             && ccsMinimizeRoundtrips == that.ccsMinimizeRoundtrips
             && Objects.equals(cancelAfterTimeInterval, that.cancelAfterTimeInterval)
-            && Objects.equals(pipeline, that.pipeline);
+            && Objects.equals(pipeline, that.pipeline)
+            && Objects.equals(phaseTookQueryParamEnabled, that.phaseTookQueryParamEnabled);
     }
 
     @Override
@@ -740,7 +773,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             localClusterAlias,
             absoluteStartMillis,
             ccsMinimizeRoundtrips,
-            cancelAfterTimeInterval
+            cancelAfterTimeInterval,
+            phaseTookQueryParamEnabled
         );
     }
 
@@ -783,6 +817,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             + cancelAfterTimeInterval
             + ", pipeline="
             + pipeline
+            + ", phaseTookQueryParamEnabled="
+            + phaseTookQueryParamEnabled
             + "}";
     }
 }

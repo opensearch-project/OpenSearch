@@ -215,6 +215,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                     0,
                     0,
                     buildTookInMillis(),
+                    timeProvider.getPhaseTook(),
                     ShardSearchFailure.EMPTY_ARRAY,
                     clusters,
                     null
@@ -662,6 +663,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             successfulOps.get(),
             skippedOps.get(),
             buildTookInMillis(),
+            timeProvider.getPhaseTook(),
             failures,
             clusters,
             searchContextId

@@ -299,6 +299,7 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
                     successfulOps.get(),
                     0,
                     buildTookInMillis(),
+                    SearchResponse.PhaseTook.NULL,
                     buildShardFailures(),
                     SearchResponse.Clusters.EMPTY,
                     null
