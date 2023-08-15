@@ -160,7 +160,6 @@ public class OpenSearchNode implements TestClusterConfiguration {
     private final Path httpPortsFile;
     private final Path tmpDir;
 
-    private String httpProtocol = "http";
     private boolean secure = false;
     private int currentDistro = 0;
     private TestDistribution testDistribution;
@@ -218,11 +217,6 @@ public class OpenSearchNode implements TestClusterConfiguration {
     @Optional
     public String getName() {
         return nameCustomization.apply(name);
-    }
-
-    @Internal
-    public String getHttpProtocol() {
-        return httpProtocol;
     }
 
     @Internal
@@ -466,11 +460,6 @@ public class OpenSearchNode implements TestClusterConfiguration {
     }
 
     @Override
-    public void setHttpProtocol(String protocol) {
-        this.httpProtocol = protocol;
-    }
-
-    @Override
     public void setSecure(boolean secure) {
         this.secure = secure;
     }
@@ -494,13 +483,8 @@ public class OpenSearchNode implements TestClusterConfiguration {
     @Override
     public synchronized void start() {
         LOGGER.info("Starting `{}`", this);
-        if (System.getProperty("tests.opensearch.http.protocol") != null) {
-            httpProtocol = System.getProperty("tests.opensearch.http.protocol");
-            LOGGER.info("Overwriting HTTP protocol to: " + httpProtocol);
-        }
-        if (System.getProperty("tests.opensearch.security.protocol") != null) {
-            secure = Boolean.getBoolean(System.getProperty("tests.opensearch.security.protocol"));
-            LOGGER.info("Security being configured to secure=" + secure);
+        if (System.getProperty("tests.opensearch.secure").equalsIgnoreCase("true")) {
+            secure = Boolean.getBoolean(System.getProperty("tests.opensearch.secure"));
         }
         if (System.getProperty("tests.opensearch.username") != null) {
             this.credentials.get(0).put("username", System.getProperty("tests.opensearch.username"));

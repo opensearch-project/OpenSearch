@@ -264,11 +264,6 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
     }
 
     @Override
-    public void setHttpProtocol(String httpProtocol) {
-        nodes.all(each -> each.setHttpProtocol(httpProtocol));
-    }
-
-    @Override
     public void setSecure(boolean secure) {
         nodes.all(each -> each.setSecure(secure));
     }
@@ -562,11 +557,10 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
 
     private void addWaitForClusterHealth() {
         waitConditions.put("cluster health yellow", (node) -> {
-            String resolvedProtocol = determineProtocol(getFirstNode().getHttpProtocol(), getFirstNode().isSecure());
             try {
                 WaitForHttpResource wait;
-                if (resolvedProtocol.equals("http")) {
-                    wait = new WaitForHttpResource(resolvedProtocol, getFirstNode().getHttpSocketURI(), nodes.size());
+                if (!getFirstNode().isSecure()) {
+                    wait = new WaitForHttpResource("http", getFirstNode().getHttpSocketURI(), nodes.size());
                     List<Map<String, String>> credentials = getFirstNode().getCredentials();
                     if (getFirstNode().getCredentials().isEmpty() == false) {
                         wait.setUsername(credentials.get(0).get("useradd"));
@@ -574,7 +568,7 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
                     }
                 } else {
                     wait = new WaitForHttpResource(
-                        resolvedProtocol,
+                        "https",
                         getFirstNode().getHttpSocketURI(),
                         getFirstNode().getCredentials().get(0).get("username"),
                         getFirstNode().getCredentials().get(0).get("password"),
@@ -621,26 +615,5 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
     @Override
     public String toString() {
         return "cluster{" + path + ":" + clusterName + "}";
-    }
-
-    /**
-     * Determine the protocol to use for the waitForHttpResource
-     * @param httpProtocol The http protocol version to use
-     * @param isSecure Whether the protocol should be secure
-     * @return a string representing the uri protocol
-     */
-    private String determineProtocol(String httpProtocol, boolean isSecure) {
-        switch (httpProtocol) {
-            case "http/1.1":
-            case "http/2":
-            case "http/3":
-                if (isSecure) {
-                    return "https";
-                } else {
-                    return "http";
-                }
-            default:
-                return "http";
-        }
     }
 }
