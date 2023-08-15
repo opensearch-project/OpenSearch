@@ -55,6 +55,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Removed blocking wait in TransportGetSnapshotsAction which was exhausting generic threadpool ([#8377](https://github.com/opensearch-project/OpenSearch/pull/8377))
 - [Remote Store] Add Segment download stats to remotestore stats API ([#8718](https://github.com/opensearch-project/OpenSearch/pull/8718))
 - [Remote Store] Add remote segment transfer stats on NodesStats API ([#9168](https://github.com/opensearch-project/OpenSearch/pull/9168))
+- Return 409 Conflict HTTP status instead of 503 on failure to concurrently execute snapshots ([#8986](https://github.com/opensearch-project/OpenSearch/pull/5855))
 
 ### Deprecated
 
@@ -119,6 +120,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `com.google.code.gson:gson` from 2.9.0 to 2.10.1 ([#9230](https://github.com/opensearch-project/OpenSearch/pull/9230))
 - Bump `lycheeverse/lychee-action` from 1.2.0 to 1.8.0 ([#9228](https://github.com/opensearch-project/OpenSearch/pull/9228))
 - Bump `snakeyaml` from 2.0 to 2.1 ([#9269](https://github.com/opensearch-project/OpenSearch/pull/9269))
+- Bump `aws-actions/configure-aws-credentials` from 1 to 2 ([#9302](https://github.com/opensearch-project/OpenSearch/pull/9302))
 
 ### Changed
 - Perform aggregation postCollection in ContextIndexSearcher after searching leaves ([#8303](https://github.com/opensearch-project/OpenSearch/pull/8303))
