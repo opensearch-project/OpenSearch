@@ -32,7 +32,7 @@
 
 package org.opensearch.action.admin.indices.refresh;
 
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.replication.BasicReplicationRequest;
 import org.opensearch.action.support.replication.ReplicationResponse;

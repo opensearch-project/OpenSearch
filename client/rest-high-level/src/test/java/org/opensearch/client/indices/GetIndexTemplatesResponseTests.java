@@ -34,18 +34,18 @@ package org.opensearch.client.indices;
 
 import org.opensearch.cluster.metadata.AliasMetadata;
 import org.opensearch.cluster.metadata.MappingMetadata;
-import org.opensearch.core.common.bytes.BytesArray;
-import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -164,7 +164,7 @@ public class GetIndexTemplatesResponseTests extends OpenSearchTestCase {
     private static void assertEqualInstances(GetIndexTemplatesResponse expectedInstance, GetIndexTemplatesResponse newInstance) {
         assertEquals(expectedInstance, newInstance);
         // Check there's no doc types at the root of the mapping
-        Map<String, Object> expectedMap = XContentHelper.convertToMap(new BytesArray(mappingString), true, XContentType.JSON).v2();
+        Map<String, Object> expectedMap = XContentHelper.convertToMap(new BytesArray(mappingString), true, MediaTypeRegistry.JSON).v2();
         for (IndexTemplateMetadata template : newInstance.getIndexTemplates()) {
             MappingMetadata mappingMD = template.mappings();
             if (mappingMD != null) {
@@ -194,7 +194,7 @@ public class GetIndexTemplatesResponseTests extends OpenSearchTestCase {
                 templateBuilder.version(between(0, 100));
             }
             if (randomBoolean()) {
-                Map<String, Object> map = XContentHelper.convertToMap(new BytesArray(mappingString), true, XContentType.JSON).v2();
+                Map<String, Object> map = XContentHelper.convertToMap(new BytesArray(mappingString), true, MediaTypeRegistry.JSON).v2();
                 MappingMetadata mapping = new MappingMetadata(MapperService.SINGLE_MAPPING_NAME, map);
                 templateBuilder.mapping(mapping);
             }

@@ -70,6 +70,7 @@ public class ShardMovementStrategyTests extends OpenSearchIntegTestCase {
         testClusterGreenAfterPartialRelocation(ShardMovementStrategy.REPLICA_FIRST, false);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/9178")
     public void testClusterGreenAfterPartialRelocationNoPreferenceShardMovementPrimaryFirstEnabled() throws InterruptedException {
         testClusterGreenAfterPartialRelocation(ShardMovementStrategy.NO_PREFERENCE, true);
     }

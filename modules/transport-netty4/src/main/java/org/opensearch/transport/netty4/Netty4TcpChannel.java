@@ -32,18 +32,19 @@
 
 package org.opensearch.transport.netty4;
 
-import io.netty.channel.Channel;
-import io.netty.channel.ChannelFuture;
-import io.netty.channel.ChannelPromise;
 import org.opensearch.ExceptionsHelper;
-import org.opensearch.action.ActionListener;
 import org.opensearch.common.Nullable;
-import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.concurrent.CompletableContext;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.transport.TcpChannel;
 import org.opensearch.transport.TransportException;
 
 import java.net.InetSocketAddress;
+
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelPromise;
 
 public class Netty4TcpChannel implements TcpChannel {
 

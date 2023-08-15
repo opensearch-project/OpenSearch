@@ -32,7 +32,7 @@
 
 package org.opensearch.action.main;
 
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;

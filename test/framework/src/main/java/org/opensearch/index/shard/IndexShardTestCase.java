@@ -37,11 +37,8 @@ import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
-import org.junit.Assert;
-import org.mockito.Mockito;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.support.PlainActionFuture;
@@ -73,13 +70,16 @@ import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.io.IOUtils;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.indices.breaker.CircuitBreakerService;
+import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.env.TestEnvironment;
@@ -116,7 +116,6 @@ import org.opensearch.index.translog.RemoteBlobStoreInternalTranslogFactory;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogFactory;
 import org.opensearch.indices.IndicesService;
-import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.opensearch.indices.recovery.AsyncRecoveryTarget;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
@@ -156,6 +155,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
+import org.junit.Assert;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -177,6 +177,10 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import org.mockito.Mockito;
+
+import static org.opensearch.cluster.routing.TestShardRouting.newShardRouting;
+import static org.opensearch.test.ClusterServiceUtils.createClusterService;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -185,8 +189,6 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
-import static org.opensearch.cluster.routing.TestShardRouting.newShardRouting;
-import static org.opensearch.test.ClusterServiceUtils.createClusterService;
 
 /**
  * A base class for unit tests that need to create and shutdown {@link IndexShard} instances easily,
@@ -792,12 +794,18 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         return new FsBlobContainer(fsBlobStore, blobPath, f);
     }
 
+    protected IndexShard reinitShard(IndexShard current, IndexingOperationListener... listeners) throws IOException {
+        return reinitShard(current, (Path) null, listeners);
+    }
+
     /**
      * Takes an existing shard, closes it and starts a new initialing shard at the same location
      *
+     * @param current The current shard to reinit
+     * @param remotePath Remote path to recover from if remote storage is used
      * @param listeners new listerns to use for the newly created shard
      */
-    protected IndexShard reinitShard(IndexShard current, IndexingOperationListener... listeners) throws IOException {
+    protected IndexShard reinitShard(IndexShard current, Path remotePath, IndexingOperationListener... listeners) throws IOException {
         final ShardRouting shardRouting = current.routingEntry();
         return reinitShard(
             current,
@@ -805,6 +813,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 shardRouting,
                 shardRouting.primary() ? RecoverySource.ExistingStoreRecoverySource.INSTANCE : RecoverySource.PeerRecoverySource.INSTANCE
             ),
+            remotePath,
             listeners
         );
     }
@@ -816,13 +825,18 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
      * @param listeners new listerns to use for the newly created shard
      */
     protected IndexShard reinitShard(IndexShard current, ShardRouting routing, IndexingOperationListener... listeners) throws IOException {
+        return reinitShard(current, routing, null, listeners);
+    }
+
+    protected IndexShard reinitShard(IndexShard current, ShardRouting routing, Path remotePath, IndexingOperationListener... listeners)
+        throws IOException {
         return reinitShard(
             current,
             routing,
             current.indexSettings.getIndexMetadata(),
             current.engineFactory,
             current.engineConfigFactory,
-            null,
+            remotePath,
             listeners
         );
     }
@@ -1231,12 +1245,12 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
     }
 
     protected Engine.IndexResult indexDoc(IndexShard shard, String type, String id, String source) throws IOException {
-        return indexDoc(shard, id, source, XContentType.JSON, null);
+        return indexDoc(shard, id, source, MediaTypeRegistry.JSON, null);
     }
 
-    protected Engine.IndexResult indexDoc(IndexShard shard, String id, String source, XContentType xContentType, String routing)
+    protected Engine.IndexResult indexDoc(IndexShard shard, String id, String source, MediaType mediaType, String routing)
         throws IOException {
-        SourceToParse sourceToParse = new SourceToParse(shard.shardId().getIndexName(), id, new BytesArray(source), xContentType, routing);
+        SourceToParse sourceToParse = new SourceToParse(shard.shardId().getIndexName(), id, new BytesArray(source), mediaType, routing);
         Engine.IndexResult result;
         if (shard.routingEntry().primary()) {
             result = shard.applyIndexOperationOnPrimary(

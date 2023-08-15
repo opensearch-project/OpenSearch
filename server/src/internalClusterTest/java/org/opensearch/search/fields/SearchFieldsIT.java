@@ -43,9 +43,9 @@ import org.opensearch.common.document.DocumentField;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.time.DateUtils;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.index.fielddata.ScriptDocValues;
 import org.opensearch.index.mapper.MapperService;
@@ -221,7 +221,7 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
             .endObject()
             .toString();
 
-        client().admin().indices().preparePutMapping().setSource(mapping, XContentType.JSON).get();
+        client().admin().indices().preparePutMapping().setSource(mapping, MediaTypeRegistry.JSON).get();
 
         client().prepareIndex("test")
             .setId("1")
@@ -315,7 +315,7 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
             .endObject()
             .toString();
 
-        client().admin().indices().preparePutMapping().setSource(mapping, XContentType.JSON).get();
+        client().admin().indices().preparePutMapping().setSource(mapping, MediaTypeRegistry.JSON).get();
 
         client().prepareIndex("test")
             .setId("1")
@@ -416,7 +416,7 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
             .endObject()
             .toString();
 
-        client().admin().indices().preparePutMapping().setSource(mapping, XContentType.JSON).get();
+        client().admin().indices().preparePutMapping().setSource(mapping, MediaTypeRegistry.JSON).get();
 
         client().prepareIndex("test")
             .setId("1")
@@ -517,7 +517,7 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
             .endObject()
             .toString();
 
-        client().admin().indices().preparePutMapping().setSource(mapping, XContentType.JSON).get();
+        client().admin().indices().preparePutMapping().setSource(mapping, MediaTypeRegistry.JSON).get();
         String date = "2019-01-31T10:00:00.123456789Z";
         indexRandom(
             true,
@@ -753,7 +753,7 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
             .endObject()
             .toString();
 
-        client().admin().indices().preparePutMapping().setSource(mapping, XContentType.JSON).get();
+        client().admin().indices().preparePutMapping().setSource(mapping, MediaTypeRegistry.JSON).get();
 
         ZonedDateTime date = ZonedDateTime.of(2012, 3, 22, 0, 0, 0, 0, ZoneOffset.UTC);
         client().prepareIndex("test")
@@ -911,7 +911,7 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
                 .endObject()
         );
 
-        client().prepareIndex("my-index").setId("1").setRefreshPolicy(IMMEDIATE).setSource(source, XContentType.JSON).get();
+        client().prepareIndex("my-index").setId("1").setRefreshPolicy(IMMEDIATE).setSource(source, MediaTypeRegistry.JSON).get();
 
         String field = "field1.field2.field3.field4";
 
@@ -991,7 +991,7 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
             .endObject()
             .toString();
 
-        client().admin().indices().preparePutMapping().setSource(mapping, XContentType.JSON).get();
+        client().admin().indices().preparePutMapping().setSource(mapping, MediaTypeRegistry.JSON).get();
 
         ZonedDateTime date = ZonedDateTime.of(2012, 3, 22, 0, 0, 0, 0, ZoneOffset.UTC);
         client().prepareIndex("test")

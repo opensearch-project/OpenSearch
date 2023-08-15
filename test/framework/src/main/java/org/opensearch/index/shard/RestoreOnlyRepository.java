@@ -33,7 +33,6 @@ package org.opensearch.index.shard;
 
 import org.apache.lucene.index.IndexCommit;
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -41,6 +40,7 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus;

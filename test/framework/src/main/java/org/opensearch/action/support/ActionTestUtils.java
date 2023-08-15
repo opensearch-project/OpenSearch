@@ -32,10 +32,10 @@
 
 package org.opensearch.action.support;
 
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRequest;
-import org.opensearch.action.ActionResponse;
 import org.opensearch.common.CheckedConsumer;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.action.ActionResponse;
 import org.opensearch.tasks.Task;
 
 import static org.opensearch.action.support.PlainActionFuture.newFuture;

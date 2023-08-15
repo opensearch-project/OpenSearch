@@ -43,14 +43,14 @@ import org.apache.hc.core5.http.message.StatusLine;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.Build;
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.main.MainRequest;
 import org.opensearch.action.main.MainResponse;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.common.SuppressForbidden;
-import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.core.xcontent.XContentHelper;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
@@ -174,7 +174,7 @@ public class CustomRestHighLevelClientTests extends OpenSearchTestCase {
         when(mockResponse.getStatusLine()).thenReturn(new StatusLine(protocol, 200, "OK"));
 
         MainResponse response = new MainResponse(httpHeader.getValue(), Version.CURRENT, ClusterName.DEFAULT, "_na", Build.CURRENT);
-        BytesRef bytesRef = XContentHelper.toXContent(response, XContentType.JSON, false).toBytesRef();
+        BytesRef bytesRef = XContentHelper.toXContent(response, MediaTypeRegistry.JSON, false).toBytesRef();
         when(mockResponse.getEntity()).thenReturn(new ByteArrayEntity(bytesRef.bytes, ContentType.APPLICATION_JSON));
 
         RequestLine requestLine = new RequestLine(HttpGet.METHOD_NAME, ENDPOINT, protocol);

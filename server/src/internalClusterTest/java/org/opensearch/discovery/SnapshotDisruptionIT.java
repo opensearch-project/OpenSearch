@@ -33,7 +33,7 @@
 package org.opensearch.discovery;
 
 import org.opensearch.ExceptionsHelper;
-import org.opensearch.action.ActionFuture;
+import org.opensearch.common.action.ActionFuture;
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.opensearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.opensearch.action.index.IndexRequestBuilder;

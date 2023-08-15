@@ -33,7 +33,7 @@
 package org.opensearch.cluster.coordination;
 
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.opensearch.cluster.node.DiscoveryNode;

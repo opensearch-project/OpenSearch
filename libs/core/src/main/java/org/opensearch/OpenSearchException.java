@@ -34,20 +34,20 @@ package org.opensearch;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.collect.Tuple;
+import org.opensearch.core.ParseField;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.core.ParseField;
-import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.logging.LoggerMessageFormat;
+import org.opensearch.core.index.Index;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParseException;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.core.index.Index;
-import org.opensearch.core.index.shard.ShardId;
-import org.opensearch.core.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -61,11 +61,10 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 import static java.util.Collections.emptyMap;
+import static java.util.Collections.singletonMap;
 import static org.opensearch.OpenSearchException.OpenSearchExceptionHandleRegistry.registerExceptionHandle;
 import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.opensearch.core.xcontent.XContentParserUtils.ensureFieldName;
-
-import static java.util.Collections.singletonMap;
 
 /**
  * A core library base class for all opensearch exceptions.
@@ -147,6 +146,14 @@ public class OpenSearchException extends RuntimeException implements Writeable, 
                 org.opensearch.core.common.breaker.CircuitBreakingException.class,
                 org.opensearch.core.common.breaker.CircuitBreakingException::new,
                 133,
+                UNKNOWN_VERSION_ADDED
+            )
+        );
+        registerExceptionHandle(
+            new OpenSearchExceptionHandle(
+                org.opensearch.core.tasks.TaskCancelledException.class,
+                org.opensearch.core.tasks.TaskCancelledException::new,
+                146,
                 UNKNOWN_VERSION_ADDED
             )
         );

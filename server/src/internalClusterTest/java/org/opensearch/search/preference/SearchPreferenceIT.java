@@ -42,8 +42,8 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.OperationRouting;
 import org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.node.Node;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -136,7 +136,7 @@ public class SearchPreferenceIT extends OpenSearchIntegTestCase {
     }
 
     public void testSimplePreference() {
-        client().admin().indices().prepareCreate("test").setSettings("{\"number_of_replicas\": 1}", XContentType.JSON).get();
+        client().admin().indices().prepareCreate("test").setSettings("{\"number_of_replicas\": 1}", MediaTypeRegistry.JSON).get();
         ensureGreen();
 
         client().prepareIndex("test").setSource("field1", "value1").get();

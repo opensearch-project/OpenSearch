@@ -37,7 +37,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.core.Assertions;
 import org.opensearch.OpenSearchException;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.UnavailableShardsException;
 import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.action.support.RetryableAction;

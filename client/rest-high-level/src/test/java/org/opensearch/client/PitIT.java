@@ -10,9 +10,7 @@ package org.opensearch.client;
 
 import org.apache.hc.client5.http.classic.methods.HttpPost;
 import org.apache.hc.client5.http.classic.methods.HttpPut;
-import org.junit.Before;
 import org.opensearch.OpenSearchStatusException;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.search.CreatePitRequest;
 import org.opensearch.action.search.CreatePitResponse;
 import org.opensearch.action.search.DeletePitInfo;
@@ -20,6 +18,8 @@ import org.opensearch.action.search.DeletePitRequest;
 import org.opensearch.action.search.DeletePitResponse;
 import org.opensearch.action.search.GetAllPitNodesResponse;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.action.ActionListener;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;

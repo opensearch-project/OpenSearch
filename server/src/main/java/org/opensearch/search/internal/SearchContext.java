@@ -35,6 +35,7 @@ import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.ArrayUtil;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.action.search.SearchType;
 import org.opensearch.common.Nullable;
@@ -57,6 +58,8 @@ import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.BucketCollectorProcessor;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.SearchContextAggregations;
+import org.opensearch.search.aggregations.bucket.LocalBucketCountThresholds;
+import org.opensearch.search.aggregations.bucket.terms.TermsAggregator;
 import org.opensearch.search.collapse.CollapseContext;
 import org.opensearch.search.dfs.DfsSearchResult;
 import org.opensearch.search.fetch.FetchPhase;
@@ -398,6 +401,17 @@ public abstract class SearchContext implements Releasable {
      */
     public boolean isConcurrentSegmentSearchEnabled() {
         return false;
+    }
+
+    /**
+     * Returns local bucket count thresholds based on concurrent segment search status
+     */
+    public LocalBucketCountThresholds asLocalBucketCountThresholds(TermsAggregator.BucketCountThresholds bucketCountThresholds) {
+        if (isConcurrentSegmentSearchEnabled()) {
+            return new LocalBucketCountThresholds(0, ArrayUtil.MAX_ARRAY_LENGTH - 1);
+        } else {
+            return new LocalBucketCountThresholds(bucketCountThresholds.getShardMinDocCount(), bucketCountThresholds.getShardSize());
+        }
     }
 
     /**

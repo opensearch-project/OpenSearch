@@ -105,7 +105,7 @@ import org.opensearch.search.internal.ContextIndexSearcher;
 import org.opensearch.search.internal.ScrollContext;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.sort.SortAndFormats;
-import org.opensearch.tasks.TaskCancelledException;
+import org.opensearch.core.tasks.TaskCancelledException;
 import org.opensearch.test.TestSearchContext;
 import org.opensearch.threadpool.ThreadPool;
 

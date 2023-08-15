@@ -32,13 +32,13 @@
 package org.opensearch.plugin.noop.action.search;
 
 import org.apache.lucene.search.TotalHits;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.ShardSearchFailure;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.common.inject.Inject;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;

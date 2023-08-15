@@ -35,15 +35,15 @@ package org.opensearch.search;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchType;
 import org.opensearch.action.support.IndicesOptions;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.text.Text;
-import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.xcontent.DeprecationHandler;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
@@ -353,7 +353,7 @@ public class RandomSearchRequestGenerator {
                 }
                 jsonBuilder.endArray();
                 jsonBuilder.endObject();
-                XContentParser parser = XContentType.JSON.xContent()
+                XContentParser parser = MediaTypeRegistry.JSON.xContent()
                     .createParser(
                         NamedXContentRegistry.EMPTY,
                         DeprecationHandler.THROW_UNSUPPORTED_OPERATION,

@@ -45,7 +45,6 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.ConstructingObjectParser;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
@@ -429,7 +428,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
                 return this;
             }
             try {
-                XContentBuilder builder = MediaTypeRegistry.contentBuilder(XContentType.JSON);
+                XContentBuilder builder = MediaTypeRegistry.JSON.contentBuilder();
                 builder.map(filter);
                 this.filter = builder.toString();
                 return this;
@@ -533,7 +532,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             }
             if (false == Strings.isEmpty(filter)) {
                 try (InputStream stream = new BytesArray(filter).streamInput()) {
-                    builder.rawField(FILTER.getPreferredName(), stream, XContentType.JSON);
+                    builder.rawField(FILTER.getPreferredName(), stream, MediaTypeRegistry.JSON);
                 }
             }
             if (false == Strings.isEmpty(routing)) {

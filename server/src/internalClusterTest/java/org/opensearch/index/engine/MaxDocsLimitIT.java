@@ -36,7 +36,7 @@ import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.query.MatchAllQueryBuilder;
 import org.opensearch.index.translog.Translog;
@@ -204,7 +204,7 @@ public class MaxDocsLimitIT extends OpenSearchIntegTestCase {
                 phaser.arriveAndAwaitAdvance();
                 while (completedRequests.incrementAndGet() <= numRequests) {
                     try {
-                        final IndexResponse resp = client().prepareIndex("test").setSource("{}", XContentType.JSON).get();
+                        final IndexResponse resp = client().prepareIndex("test").setSource("{}", MediaTypeRegistry.JSON).get();
                         numSuccess.incrementAndGet();
                         assertThat(resp.status(), equalTo(RestStatus.CREATED));
                     } catch (IllegalArgumentException e) {

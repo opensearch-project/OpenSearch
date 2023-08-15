@@ -26,7 +26,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.Version;
 import org.opensearch.ExceptionsHelper;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.blobstore.VerifyingMultiStreamBlobContainer;
 import org.opensearch.common.blobstore.exception.CorruptFileException;
@@ -197,10 +197,10 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
 
         if (metadataFiles.isEmpty() == false) {
             String latestMetadataFile = metadataFiles.get(0);
-            logger.info("Reading latest Metadata file {}", latestMetadataFile);
+            logger.trace("Reading latest Metadata file {}", latestMetadataFile);
             remoteSegmentMetadata = readMetadataFile(latestMetadataFile);
         } else {
-            logger.info("No metadata file found, this can happen for new index with no data uploaded to remote segment store");
+            logger.trace("No metadata file found, this can happen for new index with no data uploaded to remote segment store");
         }
 
         return remoteSegmentMetadata;
@@ -786,7 +786,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
             Integer.MAX_VALUE
         );
         if (sortedMetadataFileList.size() <= lastNMetadataFilesToKeep) {
-            logger.info(
+            logger.trace(
                 "Number of commits in remote segment store={}, lastNMetadataFilesToKeep={}",
                 sortedMetadataFileList.size(),
                 lastNMetadataFilesToKeep
@@ -849,7 +849,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
                 }
             });
             if (deletionSuccessful.get()) {
-                logger.info("Deleting stale metadata file {} from remote segment store", metadataFile);
+                logger.trace("Deleting stale metadata file {} from remote segment store", metadataFile);
                 remoteMetadataDirectory.deleteFile(metadataFile);
             }
         }

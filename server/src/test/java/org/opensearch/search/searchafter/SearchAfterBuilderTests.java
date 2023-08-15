@@ -214,7 +214,7 @@ public class SearchAfterBuilderTests extends OpenSearchTestCase {
         for (XContentType type : XContentType.values()) {
             // BIG_DECIMAL
             // ignore json and yaml, they parse floating point numbers as floats/doubles
-            if (type == XContentType.JSON || type == XContentType.YAML) {
+            if (type == MediaTypeRegistry.JSON || type == XContentType.YAML) {
                 continue;
             }
             XContentBuilder xContent = MediaTypeRegistry.contentBuilder(type);

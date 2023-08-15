@@ -34,7 +34,6 @@ package org.opensearch.index.replication;
 
 import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.DocWriteRequest;
 import org.opensearch.action.DocWriteResponse;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
@@ -74,14 +73,16 @@ import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.common.collect.Iterators;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.index.Index;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.DocIdSeqNoAndSource;
 import org.opensearch.index.engine.EngineConfigFactory;
@@ -96,7 +97,6 @@ import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
 import org.opensearch.index.shard.PrimaryReplicaSyncer;
-import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.recovery.RecoveryState;
@@ -290,7 +290,7 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
         public int indexDocs(final int numOfDoc) throws Exception {
             for (int doc = 0; doc < numOfDoc; doc++) {
                 final IndexRequest indexRequest = new IndexRequest(index.getName()).id(Integer.toString(docId.incrementAndGet()))
-                    .source("{}", XContentType.JSON);
+                    .source("{}", MediaTypeRegistry.JSON);
                 final BulkItemResponse response = index(indexRequest);
                 if (response.isFailed()) {
                     throw response.getFailure().getCause();
@@ -303,7 +303,7 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
 
         public int appendDocs(final int numOfDoc) throws Exception {
             for (int doc = 0; doc < numOfDoc; doc++) {
-                final IndexRequest indexRequest = new IndexRequest(index.getName()).source("{}", XContentType.JSON);
+                final IndexRequest indexRequest = new IndexRequest(index.getName()).source("{}", MediaTypeRegistry.JSON);
                 final BulkItemResponse response = index(indexRequest);
                 if (response.isFailed()) {
                     throw response.getFailure().getCause();
@@ -622,8 +622,8 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
             return primary;
         }
 
-        public synchronized void reinitPrimaryShard() throws IOException {
-            primary = reinitShard(primary);
+        public synchronized void reinitPrimaryShard(Path remotePath) throws IOException {
+            primary = reinitShard(primary, remotePath);
             computeReplicationTargets();
         }
 

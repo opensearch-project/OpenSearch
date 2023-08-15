@@ -56,12 +56,11 @@ import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.ThreadInterruptedException;
-import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.cluster.metadata.DataStream;
 import org.opensearch.core.Assertions;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.admin.indices.forcemerge.ForceMergeRequest;
@@ -146,6 +145,7 @@ import org.opensearch.index.merge.MergeStats;
 import org.opensearch.index.recovery.RecoveryStats;
 import org.opensearch.index.refresh.RefreshStats;
 import org.opensearch.index.remote.RemoteRefreshSegmentPressureService;
+import org.opensearch.index.remote.RemoteSegmentStats;
 import org.opensearch.index.search.stats.SearchStats;
 import org.opensearch.index.search.stats.ShardSearchStats;
 import org.opensearch.index.seqno.ReplicationTracker;
@@ -333,6 +333,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final Store remoteStore;
     private final BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier;
     private final boolean isTimeSeriesIndex;
+
     private final RemoteRefreshSegmentPressureService remoteRefreshSegmentPressureService;
 
     private final List<ReferenceManager.RefreshListener> internalRefreshListener = new ArrayList<>();
@@ -543,6 +544,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public QueryCachingPolicy getQueryCachingPolicy() {
         return cachingPolicy;
+    }
+
+    /** Only used for testing **/
+    protected RemoteRefreshSegmentPressureService getRemoteRefreshSegmentPressureService() {
+        return remoteRefreshSegmentPressureService;
     }
 
     @Override
@@ -1378,6 +1384,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public SegmentsStats segmentStats(boolean includeSegmentFileSizes, boolean includeUnloadedSegments) {
         SegmentsStats segmentsStats = getEngine().segmentsStats(includeSegmentFileSizes, includeUnloadedSegments);
         segmentsStats.addBitsetMemoryInBytes(shardBitsetFilterCache.getMemorySizeInBytes());
+        // Populate remote_store stats only if the index is remote store backed
+        if (indexSettings.isRemoteStoreEnabled()) {
+            segmentsStats.addRemoteSegmentStats(
+                new RemoteSegmentStats(remoteRefreshSegmentPressureService.getRemoteRefreshSegmentTracker(shardId).stats())
+            );
+        }
         return segmentsStats;
     }
 
@@ -1629,20 +1641,20 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public boolean isSegmentReplicationAllowed() {
         if (indexSettings.isSegRepEnabled() == false) {
-            logger.warn("Attempting to perform segment replication when it is not enabled on the index");
+            logger.trace("Attempting to perform segment replication when it is not enabled on the index");
             return false;
         }
         if (getReplicationTracker().isPrimaryMode()) {
-            logger.warn("Shard is in primary mode and cannot perform segment replication as a replica.");
+            logger.trace("Shard is in primary mode and cannot perform segment replication as a replica.");
             return false;
         }
         if (this.routingEntry().primary()) {
-            logger.warn("Shard routing is marked primary thus cannot perform segment replication as replica");
+            logger.trace("Shard routing is marked primary thus cannot perform segment replication as replica");
             return false;
         }
         if (state().equals(IndexShardState.STARTED) == false
             && (state() == IndexShardState.POST_RECOVERY && shardRouting.state() == ShardRoutingState.INITIALIZING) == false) {
-            logger.warn(
+            logger.trace(
                 () -> new ParameterizedMessage(
                     "Shard is not started or recovering {} {} and cannot perform segment replication as a replica",
                     state(),
@@ -1652,7 +1664,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             return false;
         }
         if (getReplicationEngine().isEmpty()) {
-            logger.warn(
+            logger.trace(
                 () -> new ParameterizedMessage(
                     "Shard does not have the correct engine type to perform segment replication {}.",
                     getEngine().getClass()
@@ -4657,7 +4669,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         RemoteSegmentMetadata remoteSegmentMetadata = remoteDirectory.init();
 
         Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> uploadedSegments = remoteDirectory
-            .getSegmentsUploadedToRemoteStore();
+            .getSegmentsUploadedToRemoteStore()
+            .entrySet()
+            .stream()
+            // if this is a refresh level sync, ignore any segments_n uploaded to the store, we will commit the received infos bytes
+            // locally.
+            .filter(entry -> refreshLevelSegmentSync && entry.getKey().startsWith(IndexFileNames.SEGMENTS) == false)
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
         store.incRef();
         remoteStore.incRef();
         try {
@@ -4678,19 +4696,21 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             copySegmentFiles(storeDirectory, remoteDirectory, null, uploadedSegments, overrideLocal);
 
             if (refreshLevelSegmentSync && remoteSegmentMetadata != null) {
-                try (
-                    ChecksumIndexInput indexInput = new BufferedChecksumIndexInput(
-                        new ByteArrayIndexInput("Snapshot of SegmentInfos", remoteSegmentMetadata.getSegmentInfosBytes())
-                    );
-                ) {
-                    SegmentInfos infosSnapshot = SegmentInfos.readCommit(
-                        store.directory(),
-                        indexInput,
-                        remoteSegmentMetadata.getGeneration()
-                    );
-                    long processedLocalCheckpoint = Long.parseLong(infosSnapshot.getUserData().get(LOCAL_CHECKPOINT_KEY));
-                    store.commitSegmentInfos(infosSnapshot, processedLocalCheckpoint, processedLocalCheckpoint);
+                final SegmentInfos infosSnapshot = store.buildSegmentInfos(
+                    remoteSegmentMetadata.getSegmentInfosBytes(),
+                    remoteSegmentMetadata.getGeneration()
+                );
+                long processedLocalCheckpoint = Long.parseLong(infosSnapshot.getUserData().get(LOCAL_CHECKPOINT_KEY));
+                // delete any other commits, we want to start the engine only from a new commit made with the downloaded infos bytes.
+                // Extra segments will be wiped on engine open.
+                for (String file : List.of(store.directory().listAll())) {
+                    if (file.startsWith(IndexFileNames.SEGMENTS)) {
+                        store.deleteQuiet(file);
+                    }
                 }
+                assert Arrays.stream(store.directory().listAll()).filter(f -> f.startsWith(IndexFileNames.SEGMENTS)).findAny().isEmpty()
+                    : "There should not be any segments file in the dir";
+                store.commitSegmentInfos(infosSnapshot, processedLocalCheckpoint, processedLocalCheckpoint);
             }
         } catch (IOException e) {
             throw new IndexShardRecoveryException(shardId, "Exception while copying segment files from remote segment store", e);
@@ -4795,8 +4815,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 }
             }
         } finally {
-            logger.info("Downloaded segments here: {}", downloadedSegments);
-            logger.info("Skipped download for segments here: {}", skippedSegments);
+            logger.trace("Downloaded segments here: {}", downloadedSegments);
+            logger.trace("Skipped download for segments here: {}", skippedSegments);
         }
         return segmentNFile;
     }

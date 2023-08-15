@@ -21,9 +21,9 @@ import org.opensearch.common.logging.MockAppender;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.tasks.ResourceStats;
-import org.opensearch.tasks.ResourceStatsType;
-import org.opensearch.tasks.ResourceUsageMetric;
+import org.opensearch.core.tasks.resourcetracker.ResourceStats;
+import org.opensearch.core.tasks.resourcetracker.ResourceStatsType;
+import org.opensearch.core.tasks.resourcetracker.ResourceUsageMetric;
 import org.opensearch.tasks.Task;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 

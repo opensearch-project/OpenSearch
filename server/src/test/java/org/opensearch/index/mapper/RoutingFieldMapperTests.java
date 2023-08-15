@@ -35,7 +35,7 @@ package org.opensearch.index.mapper;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
 import static org.hamcrest.Matchers.containsString;
@@ -54,7 +54,7 @@ public class RoutingFieldMapperTests extends OpenSearchSingleNodeTestCase {
                 "test",
                 "1",
                 BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", "value").endObject()),
-                XContentType.JSON,
+                MediaTypeRegistry.JSON,
                 "routing_value"
             )
         );
@@ -75,7 +75,7 @@ public class RoutingFieldMapperTests extends OpenSearchSingleNodeTestCase {
                     "test",
                     "1",
                     BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("_routing", "foo").endObject()),
-                    XContentType.JSON
+                    MediaTypeRegistry.JSON
                 )
             );
             fail("Expected failure to parse metadata field");

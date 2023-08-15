@@ -147,7 +147,7 @@ public class RolloverRequestTests extends OpenSearchTestCase {
         String mapping = createIndexRequest.mappings();
         assertNotNull(mapping);
 
-        Map<String, Object> parsedMapping = XContentHelper.convertToMap(new BytesArray(mapping), false, XContentType.JSON).v2();
+        Map<String, Object> parsedMapping = XContentHelper.convertToMap(new BytesArray(mapping), false, MediaTypeRegistry.JSON).v2();
 
         @SuppressWarnings("unchecked")
         Map<String, Object> properties = (Map<String, Object>) parsedMapping.get(MapperService.SINGLE_MAPPING_NAME);

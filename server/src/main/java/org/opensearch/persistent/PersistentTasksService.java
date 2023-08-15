@@ -34,7 +34,7 @@ package org.opensearch.persistent;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionType;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
@@ -47,7 +47,7 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.node.NodeClosedException;
 import org.opensearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
-import org.opensearch.tasks.TaskId;
+import org.opensearch.core.tasks.TaskId;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.function.Predicate;

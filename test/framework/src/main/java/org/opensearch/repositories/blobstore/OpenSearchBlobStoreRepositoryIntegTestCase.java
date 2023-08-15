@@ -46,11 +46,11 @@ import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
-import org.opensearch.core.common.bytes.BytesArray;
-import org.opensearch.common.compress.CompressorType;
 import org.opensearch.common.io.Streams;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.compress.CompressorRegistry;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
@@ -97,7 +97,7 @@ public abstract class OpenSearchBlobStoreRepositoryIntegTestCase extends OpenSea
         final Settings.Builder builder = Settings.builder();
         builder.put("compress", compress);
         if (compress) {
-            builder.put("compression_type", randomFrom(CompressorType.values()));
+            builder.put("compression_type", randomFrom(CompressorRegistry.registeredCompressors().keySet()));
         }
         return builder.build();
     }

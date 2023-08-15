@@ -32,11 +32,12 @@
 
 package org.opensearch.http.netty4;
 
+import org.opensearch.ExceptionsHelper;
+import org.opensearch.http.HttpPipelinedRequest;
+
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
-import org.opensearch.ExceptionsHelper;
-import org.opensearch.http.HttpPipelinedRequest;
 
 @ChannelHandler.Sharable
 class Netty4HttpRequestHandler extends SimpleChannelInboundHandler<HttpPipelinedRequest> {

@@ -9,7 +9,7 @@
 package org.opensearch.action.admin.cluster.decommission.awareness.get;
 
 import org.opensearch.OpenSearchParseException;
-import org.opensearch.action.ActionResponse;
+import org.opensearch.core.action.ActionResponse;
 import org.opensearch.cluster.decommission.DecommissionStatus;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;

@@ -42,12 +42,12 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.common.text.Text;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.core.xcontent.XContentParserUtils;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.rest.action.search.RestSearchAction;
 import org.opensearch.search.aggregations.Aggregation;
 import org.opensearch.search.suggest.Suggest.Suggestion.Entry;
@@ -740,6 +740,6 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
 
     @Override
     public String toString() {
-        return Strings.toString(XContentType.JSON, this, true, true);
+        return Strings.toString(MediaTypeRegistry.JSON, this, true, true);
     }
 }

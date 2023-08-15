@@ -46,7 +46,6 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.ParsingException;
 import org.opensearch.core.common.Strings;
@@ -72,6 +71,7 @@ import org.opensearch.search.SearchContextMissingException;
 import org.opensearch.search.SearchParseException;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.internal.ShardSearchContextId;
+import org.opensearch.snapshots.ConcurrentSnapshotExecutionException;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.RemoteTransportException;
 
@@ -120,6 +120,9 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
 
         exception = new RemoteTransportException("test", new IllegalStateException("foobar"));
         assertThat(exception.status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
+
+        exception = new ConcurrentSnapshotExecutionException("testRepo", "testSnap", "test");
+        assertSame(exception.status(), RestStatus.CONFLICT);
     }
 
     public void testGuessRootCause() {
@@ -978,7 +981,7 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
      * be rendered like the REST API does when the "error_trace" parameter is set to true.
      */
     private static void assertToXContentAsJson(ToXContent e, String expectedJson) throws IOException {
-        BytesReference actual = XContentHelper.toXContent(e, XContentType.JSON, randomBoolean());
+        BytesReference actual = org.opensearch.core.xcontent.XContentHelper.toXContent(e, MediaTypeRegistry.JSON, randomBoolean());
         assertToXContentEquivalent(new BytesArray(expectedJson), actual, MediaTypeRegistry.JSON);
     }
 

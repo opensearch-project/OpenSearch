@@ -41,6 +41,7 @@ import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.text.Text;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -66,7 +67,7 @@ import java.util.List;
 
 import static java.util.Collections.emptyList;
 import static org.opensearch.common.xcontent.XContentHelper.stripWhitespace;
-import static org.opensearch.common.xcontent.XContentHelper.toXContent;
+import static org.opensearch.core.xcontent.XContentHelper.toXContent;
 import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.opensearch.core.xcontent.XContentParserUtils.ensureFieldName;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertToXContentEquivalent;
@@ -162,7 +163,7 @@ public class SuggestTests extends OpenSearchTestCase {
         PhraseSuggestion suggestion = new PhraseSuggestion("suggestionName", 5);
         suggestion.addTerm(entry);
         Suggest suggest = new Suggest(Collections.singletonList(suggestion));
-        BytesReference xContent = toXContent(suggest, XContentType.JSON, randomBoolean());
+        BytesReference xContent = toXContent(suggest, MediaTypeRegistry.JSON, randomBoolean());
         assertEquals(
             stripWhitespace(
                 "{"

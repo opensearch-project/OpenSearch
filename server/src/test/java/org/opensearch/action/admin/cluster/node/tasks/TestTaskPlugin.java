@@ -32,10 +32,10 @@
 
 package org.opensearch.action.admin.cluster.node.tasks;
 
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestBuilder;
-import org.opensearch.action.ActionResponse;
+import org.opensearch.core.action.ActionResponse;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.ActionType;
@@ -65,7 +65,7 @@ import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.NetworkPlugin;
 import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.Task;
-import org.opensearch.tasks.TaskId;
+import org.opensearch.core.tasks.TaskId;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportException;

@@ -33,6 +33,7 @@
 package org.opensearch.search.aggregations;
 
 import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -40,7 +41,6 @@ import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.opensearch.test.AbstractBuilderTestCase;
 
@@ -138,8 +138,8 @@ public abstract class BaseAggregationTestCase<AB extends AbstractAggregationBuil
      */
     public void testToString() throws IOException {
         AB testAgg = createTestAggregatorBuilder();
-        String toString = randomBoolean() ? Strings.toString(XContentType.JSON, testAgg) : testAgg.toString();
-        XContentParser parser = createParser(XContentType.JSON.xContent(), toString);
+        String toString = randomBoolean() ? Strings.toString(MediaTypeRegistry.JSON, testAgg) : testAgg.toString();
+        XContentParser parser = createParser(MediaTypeRegistry.JSON.xContent(), toString);
         AggregationBuilder newAgg = parse(parser);
         assertNotSame(newAgg, testAgg);
         assertEquals(testAgg, newAgg);

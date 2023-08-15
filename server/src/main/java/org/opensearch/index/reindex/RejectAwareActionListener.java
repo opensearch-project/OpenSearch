@@ -32,7 +32,7 @@
 
 package org.opensearch.index.reindex;
 
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.common.CheckedConsumer;
 
 import java.util.function.Consumer;

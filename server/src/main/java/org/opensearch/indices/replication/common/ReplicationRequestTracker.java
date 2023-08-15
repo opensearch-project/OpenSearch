@@ -32,7 +32,7 @@
 
 package org.opensearch.indices.replication.common;
 
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.concurrent.ListenableFuture;

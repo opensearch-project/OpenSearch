@@ -60,8 +60,8 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Numbers;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.BigArrays;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.document.SortedUnsignedLongDocValuesRangeQuery;
@@ -798,7 +798,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
 
         public void write(XContentBuilder b) throws IOException {
             if (value instanceof BigInteger) {
-                b.rawField("field", new ByteArrayInputStream(value.toString().getBytes("UTF-8")), XContentType.JSON);
+                b.rawField("field", new ByteArrayInputStream(value.toString().getBytes("UTF-8")), MediaTypeRegistry.JSON);
             } else {
                 b.field("field", value);
             }

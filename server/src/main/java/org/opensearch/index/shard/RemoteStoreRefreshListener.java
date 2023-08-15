@@ -17,7 +17,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.action.bulk.BackoffPolicy;
 import org.opensearch.action.support.GroupedActionListener;
@@ -189,7 +189,7 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
 
     private boolean syncSegments() {
         if (indexShard.getReplicationTracker().isPrimaryMode() == false || indexShard.state() == IndexShardState.CLOSED) {
-            logger.info(
+            logger.trace(
                 "Skipped syncing segments with primaryMode={} indexShardState={}",
                 indexShard.getReplicationTracker().isPrimaryMode(),
                 indexShard.state()

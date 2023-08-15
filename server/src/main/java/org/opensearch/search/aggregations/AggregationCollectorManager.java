@@ -26,7 +26,7 @@ import java.util.List;
  * aggregation operators
  */
 class AggregationCollectorManager implements CollectorManager<Collector, ReduceableSearchResult> {
-    private final SearchContext context;
+    protected final SearchContext context;
     private final CheckedFunction<SearchContext, List<Aggregator>, IOException> aggProvider;
     private final String collectorReason;
 
@@ -63,18 +63,11 @@ class AggregationCollectorManager implements CollectorManager<Collector, Reducea
         }
 
         final InternalAggregations internalAggregations = InternalAggregations.from(internals);
-        // Reduce the aggregations across slices before sending to the coordinator. We will perform shard level reduce iff multiple slices
-        // were created to execute this request and it used concurrent segment search path
-        // TODO: Add the check for flag that the request was executed using concurrent search
-        if (collectors.size() > 1) {
-            // using reduce is fine here instead of topLevelReduce as pipeline aggregation is evaluated on the coordinator after all
-            // documents are collected across shards for an aggregation
-            return new AggregationReduceableSearchResult(
-                InternalAggregations.reduce(Collections.singletonList(internalAggregations), context.partialOnShard())
-            );
-        } else {
-            return new AggregationReduceableSearchResult(internalAggregations);
-        }
+        return buildAggregationResult(internalAggregations);
+    }
+
+    protected AggregationReduceableSearchResult buildAggregationResult(InternalAggregations internalAggregations) {
+        return new AggregationReduceableSearchResult(internalAggregations);
     }
 
     static Collector createCollector(SearchContext context, List<Aggregator> collectors, String reason) throws IOException {

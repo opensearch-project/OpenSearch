@@ -48,6 +48,7 @@ import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentType;
@@ -288,7 +289,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 sendContentTypeErrorMessage(request.getAllHeaderValues("Content-Type"), channel);
                 return;
             }
-            if (handler.supportsContentStream() && mediaType != XContentType.JSON && mediaType != XContentType.SMILE) {
+            if (handler.supportsContentStream() && mediaType != MediaTypeRegistry.JSON && mediaType != XContentType.SMILE) {
                 channel.sendResponse(
                     BytesRestResponse.createSimpleErrorResponse(
                         channel,

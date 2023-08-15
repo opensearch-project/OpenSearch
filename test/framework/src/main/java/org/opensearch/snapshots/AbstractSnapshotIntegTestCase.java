@@ -32,7 +32,6 @@
 package org.opensearch.snapshots;
 
 import org.opensearch.Version;
-import org.opensearch.action.ActionFuture;
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.action.index.IndexRequestBuilder;
@@ -49,20 +48,21 @@ import org.opensearch.cluster.metadata.RepositoriesMetadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.core.common.Strings;
 import org.opensearch.common.UUIDs;
+import org.opensearch.common.action.ActionFuture;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
-import org.opensearch.common.compress.CompressorType;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.core.compress.CompressorRegistry;
 import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.store.RemoteBufferedOutputDirectory;
 import org.opensearch.indices.replication.common.ReplicationType;
@@ -417,7 +417,7 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
         final boolean compress = randomBoolean();
         settings.put("location", randomRepoPath()).put("compress", compress);
         if (compress) {
-            settings.put("compression_type", randomFrom(CompressorType.values()));
+            settings.put("compression_type", randomFrom(CompressorRegistry.registeredCompressors().keySet()));
         }
         if (rarely()) {
             settings.put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES);
