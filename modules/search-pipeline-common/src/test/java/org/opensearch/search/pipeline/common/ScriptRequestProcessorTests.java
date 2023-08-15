@@ -8,26 +8,26 @@
 
 package org.opensearch.search.pipeline.common;
 
-import org.junit.Before;
 import org.opensearch.action.search.SearchRequest;
-import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.script.MockScriptEngine;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptModule;
 import org.opensearch.script.ScriptService;
-import org.opensearch.script.SearchScript;
 import org.opensearch.script.ScriptType;
+import org.opensearch.script.SearchScript;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.pipeline.common.helpers.SearchRequestMap;
 import org.opensearch.test.OpenSearchTestCase;
+import org.junit.Before;
 
 import java.util.Collections;
-import java.util.Map;
 import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.core.Is.is;
-import java.util.concurrent.TimeUnit;
 
 public class ScriptRequestProcessorTests extends OpenSearchTestCase {
 

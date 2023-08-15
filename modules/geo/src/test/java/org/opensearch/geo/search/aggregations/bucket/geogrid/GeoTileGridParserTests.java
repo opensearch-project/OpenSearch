@@ -32,9 +32,9 @@
 package org.opensearch.geo.search.aggregations.bucket.geogrid;
 
 import org.opensearch.ExceptionsHelper;
+import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.xcontent.XContentParseException;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.geo.GeometryTestUtils;
 import org.opensearch.geometry.Rectangle;
 import org.opensearch.search.aggregations.bucket.GeoTileUtils;

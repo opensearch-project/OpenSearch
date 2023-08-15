@@ -41,11 +41,11 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.List;
 
+import static org.opensearch.search.aggregations.AggregationBuilders.geoCentroid;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.opensearch.search.aggregations.AggregationBuilders.geoCentroid;
-import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResponse;
 
 @OpenSearchIntegTestCase.SuiteScopeTestCase
 public class GeoCentroidITTestCase extends AbstractGeoAggregatorModulePluginTestCase {
