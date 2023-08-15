@@ -31,12 +31,6 @@
 
 package org.opensearch.index.mapper;
 
-import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
-import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
-import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures;
-import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertOrderedSearchHits;
-
 import com.ibm.icu.text.Collator;
 import com.ibm.icu.text.RuleBasedCollator;
 import com.ibm.icu.util.ULocale;
@@ -55,6 +49,12 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.Collection;
 import java.util.Collections;
+
+import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertOrderedSearchHits;
 
 public class ICUCollationKeywordFieldMapperIT extends OpenSearchIntegTestCase {
 

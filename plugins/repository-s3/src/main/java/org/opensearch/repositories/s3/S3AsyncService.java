@@ -8,17 +8,6 @@
 
 package org.opensearch.repositories.s3;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.opensearch.cluster.metadata.RepositoryMetadata;
-import org.opensearch.common.Nullable;
-import org.opensearch.common.SuppressForbidden;
-import org.opensearch.common.collect.MapBuilder;
-import org.opensearch.common.settings.Settings;
-import org.opensearch.core.common.Strings;
-import org.opensearch.repositories.s3.S3ClientSettings.IrsaCredentials;
-import org.opensearch.repositories.s3.async.AsyncExecutorContainer;
-import org.opensearch.repositories.s3.async.AsyncTransferEventLoopGroup;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.ContainerCredentialsProvider;
@@ -44,6 +33,18 @@ import software.amazon.awssdk.services.sts.StsClientBuilder;
 import software.amazon.awssdk.services.sts.auth.StsAssumeRoleCredentialsProvider;
 import software.amazon.awssdk.services.sts.auth.StsWebIdentityTokenFileCredentialsProvider;
 import software.amazon.awssdk.services.sts.model.AssumeRoleRequest;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.opensearch.cluster.metadata.RepositoryMetadata;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.SuppressForbidden;
+import org.opensearch.common.collect.MapBuilder;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.Strings;
+import org.opensearch.repositories.s3.S3ClientSettings.IrsaCredentials;
+import org.opensearch.repositories.s3.async.AsyncExecutorContainer;
+import org.opensearch.repositories.s3.async.AsyncTransferEventLoopGroup;
 
 import java.io.Closeable;
 import java.io.IOException;
