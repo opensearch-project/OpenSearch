@@ -40,6 +40,7 @@ import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
@@ -48,6 +49,7 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentHelper;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.rest.action.search.RestSearchAction;
+import org.opensearch.search.SearchExtBuilder;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
 import org.opensearch.search.SearchHitsTests;
@@ -264,6 +266,7 @@ public class SearchResponseTests extends OpenSearchTestCase {
                 ShardSearchFailure.EMPTY_ARRAY,
                 SearchResponse.Clusters.EMPTY
             );
+            response.addSearchExtBuilder(new DummySearchExtBuilder());
             StringBuilder expectedString = new StringBuilder();
             expectedString.append("{");
             {
@@ -280,11 +283,17 @@ public class SearchResponseTests extends OpenSearchTestCase {
                 {
                     expectedString.append("{\"total\":{\"value\":100,\"relation\":\"eq\"},");
                     expectedString.append("\"max_score\":1.5,");
-                    expectedString.append("\"hits\":[{\"_id\":\"id1\",\"_score\":2.0}]}");
+                    expectedString.append("\"hits\":[{\"_id\":\"id1\",\"_score\":2.0}]},");
+                }
+                expectedString.append("\"ext\":");
+                {
+                    expectedString.append("{\"dummy\":\"foo\"}");
                 }
             }
             expectedString.append("}");
             assertEquals(expectedString.toString(), Strings.toString(MediaTypeRegistry.JSON, response));
+            List<SearchExtBuilder> searchExtBuilders = response.getSearchExtBuilders();
+            assertEquals(1, searchExtBuilders.size());
         }
         {
             SearchResponse response = new SearchResponse(
@@ -367,5 +376,33 @@ public class SearchResponseTests extends OpenSearchTestCase {
         XContentBuilder builder = XContentBuilder.builder(MediaTypeRegistry.JSON.xContent());
         deserialized.getClusters().toXContent(builder, ToXContent.EMPTY_PARAMS);
         assertEquals(0, builder.toString().length());
+    }
+
+    static class DummySearchExtBuilder extends SearchExtBuilder {
+
+        @Override
+        public String getWriteableName() {
+            return "DummySearchExtBuilder";
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString("foo");
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return builder.field("dummy", "foo");
+        }
+
+        @Override
+        public int hashCode() {
+            return 0;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            return false;
+        }
     }
 }
