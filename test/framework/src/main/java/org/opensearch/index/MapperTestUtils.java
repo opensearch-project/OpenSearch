@@ -52,10 +52,10 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Collections;
 
-import static org.apache.lucene.tests.util.LuceneTestCase.expectThrows;
 import static org.opensearch.test.OpenSearchTestCase.createTestAnalysis;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
+import static org.apache.lucene.tests.util.LuceneTestCase.expectThrows;
 
 public class MapperTestUtils {
 
