@@ -32,13 +32,14 @@
 
 package org.opensearch.http.nio;
 
-import io.netty.buffer.ByteBuf;
 import org.opensearch.nio.Page;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
+
+import io.netty.buffer.ByteBuf;
 
 public class PagedByteBufTests extends OpenSearchTestCase {
 
