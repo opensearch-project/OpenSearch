@@ -127,6 +127,7 @@ public class RemoteStoreForceMergeIT extends RemoteStoreBaseIntegTestCase {
     // Following integ tests use randomBoolean to control the number of integ tests. If we use the separate
     // values for each of the flags, number of integ tests become 16 in comparison to current 2.
     // We have run all the 16 tests on local and they run fine.
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/9294")
     public void testRestoreForceMergeSingleIteration() throws IOException {
         boolean invokeFLush = randomBoolean();
         boolean flushAfterMerge = randomBoolean();
