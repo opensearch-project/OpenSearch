@@ -35,6 +35,7 @@ package org.opensearch.client;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
+
 import org.apache.http.HttpHost;
 import org.junit.AfterClass;
 import org.junit.Before;
