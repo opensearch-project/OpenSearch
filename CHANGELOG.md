@@ -71,6 +71,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Add attributes to startSpan methods ([#9199](https://github.com/opensearch-project/OpenSearch/pull/9199))
 - [Refactor] Task foundation classes to core library - pt 1 ([#9082](https://github.com/opensearch-project/OpenSearch/pull/9082))
 - Add support for wrapping CollectorManager with profiling during concurrent execution ([#9129](https://github.com/opensearch-project/OpenSearch/pull/9129))
+- Add base class for parameterizing the search based tests #9083 ([#9083](https://github.com/opensearch-project/OpenSearch/pull/9083))
 
 ### Deprecated
 

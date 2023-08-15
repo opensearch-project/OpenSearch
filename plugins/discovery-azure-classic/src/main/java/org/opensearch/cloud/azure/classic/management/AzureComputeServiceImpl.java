@@ -32,12 +32,6 @@
 
 package org.opensearch.cloud.azure.classic.management;
 
-import java.io.IOException;
-import java.security.AccessController;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
-import java.util.ServiceLoader;
-
 import com.microsoft.windowsazure.Configuration;
 import com.microsoft.windowsazure.core.Builder;
 import com.microsoft.windowsazure.core.DefaultBuilder;
@@ -55,6 +49,12 @@ import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.Strings;
+
+import java.io.IOException;
+import java.security.AccessController;
+import java.security.PrivilegedActionException;
+import java.security.PrivilegedExceptionAction;
+import java.util.ServiceLoader;
 
 public class AzureComputeServiceImpl extends AbstractLifecycleComponent implements AzureComputeService {
     private static final Logger logger = LogManager.getLogger(AzureComputeServiceImpl.class);

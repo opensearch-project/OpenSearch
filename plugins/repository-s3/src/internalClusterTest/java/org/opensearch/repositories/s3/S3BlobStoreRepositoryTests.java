@@ -34,7 +34,9 @@ package org.opensearch.repositories.s3;
 import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
-import fixture.s3.S3HttpHandler;
+
+import software.amazon.awssdk.core.internal.http.pipeline.stages.ApplyTransactionIdStage;
+
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
@@ -58,13 +60,12 @@ import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.RepositoryData;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.repositories.blobstore.OpenSearchMockAPIBasedRepositoryIntegTestCase;
+import org.opensearch.repositories.s3.utils.AwsRequestSigner;
 import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.snapshots.SnapshotsService;
-import org.opensearch.repositories.s3.utils.AwsRequestSigner;
 import org.opensearch.snapshots.mockstore.BlobStoreWrapper;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.threadpool.ThreadPool;
-import software.amazon.awssdk.core.internal.http.pipeline.stages.ApplyTransactionIdStage;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -74,6 +75,8 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+
+import fixture.s3.S3HttpHandler;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;

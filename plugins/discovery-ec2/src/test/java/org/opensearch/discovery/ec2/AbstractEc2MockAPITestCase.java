@@ -31,9 +31,11 @@
 
 package org.opensearch.discovery.ec2;
 
+import com.sun.net.httpserver.HttpServer;
+
 import software.amazon.awssdk.services.ec2.model.Instance;
 import software.amazon.awssdk.services.ec2.model.Tag;
-import com.sun.net.httpserver.HttpServer;
+
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.network.InetAddresses;
 import org.opensearch.common.network.NetworkService;
