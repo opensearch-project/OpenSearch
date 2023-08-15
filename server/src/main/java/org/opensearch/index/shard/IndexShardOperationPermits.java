@@ -34,7 +34,7 @@ package org.opensearch.index.shard;
 
 import org.opensearch.core.Assertions;
 import org.opensearch.ExceptionsHelper;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.support.ContextPreservingActionListener;
 import org.opensearch.common.CheckedRunnable;

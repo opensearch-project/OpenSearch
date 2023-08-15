@@ -33,7 +33,7 @@
 package org.opensearch.action.support.replication;
 
 import org.opensearch.ExceptionsHelper;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.core.action.support.DefaultShardOperationFailedException;
 import org.opensearch.action.support.HandledTransportAction;

@@ -42,7 +42,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskAwareRequest;
-import org.opensearch.tasks.TaskId;
+import org.opensearch.core.tasks.TaskId;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.MockTransport;
 import org.opensearch.threadpool.ThreadPool;

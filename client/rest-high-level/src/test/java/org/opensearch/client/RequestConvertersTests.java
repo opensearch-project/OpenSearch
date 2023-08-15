@@ -118,7 +118,7 @@ import org.opensearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.opensearch.search.rescore.QueryRescorerBuilder;
 import org.opensearch.search.suggest.SuggestBuilder;
 import org.opensearch.search.suggest.completion.CompletionSuggestionBuilder;
-import org.opensearch.tasks.TaskId;
+import org.opensearch.core.tasks.TaskId;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.RandomObjects;
 import org.hamcrest.Matchers;

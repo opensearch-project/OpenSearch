@@ -38,7 +38,7 @@ import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.TopDocs;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.search.DeletePitInfo;

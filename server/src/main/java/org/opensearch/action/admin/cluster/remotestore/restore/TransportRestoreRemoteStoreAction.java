@@ -8,7 +8,7 @@
 
 package org.opensearch.action.admin.cluster.remotestore.restore;
 
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.admin.cluster.snapshots.restore.RestoreClusterStateListener;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;

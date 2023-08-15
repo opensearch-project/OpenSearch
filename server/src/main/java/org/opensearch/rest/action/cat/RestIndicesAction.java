@@ -33,8 +33,8 @@
 package org.opensearch.rest.action.cat;
 
 import org.opensearch.OpenSearchParseException;
-import org.opensearch.action.ActionListener;
-import org.opensearch.action.ActionResponse;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.action.ActionResponse;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.cluster.state.ClusterStateRequest;

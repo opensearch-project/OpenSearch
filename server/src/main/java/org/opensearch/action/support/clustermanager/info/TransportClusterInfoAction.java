@@ -31,8 +31,8 @@
 
 package org.opensearch.action.support.clustermanager.info;
 
-import org.opensearch.action.ActionListener;
-import org.opensearch.action.ActionResponse;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.action.ActionResponse;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeReadAction;
 import org.opensearch.cluster.ClusterState;

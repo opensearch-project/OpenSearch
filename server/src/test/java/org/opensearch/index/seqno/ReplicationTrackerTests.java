@@ -33,7 +33,7 @@
 package org.opensearch.index.seqno;
 
 import org.apache.lucene.codecs.Codec;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.support.replication.ReplicationResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.AllocationId;

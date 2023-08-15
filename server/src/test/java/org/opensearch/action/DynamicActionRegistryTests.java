@@ -12,6 +12,8 @@ import org.opensearch.action.ActionModule.DynamicActionRegistry;
 import org.opensearch.action.main.MainAction;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.TransportAction;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.extensions.action.ExtensionAction;

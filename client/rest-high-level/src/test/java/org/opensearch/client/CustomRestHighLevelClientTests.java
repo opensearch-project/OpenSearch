@@ -44,7 +44,7 @@ import org.apache.http.nio.entity.NByteArrayEntity;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.Build;
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.main.MainRequest;
 import org.opensearch.action.main.MainResponse;
 import org.opensearch.action.support.PlainActionFuture;

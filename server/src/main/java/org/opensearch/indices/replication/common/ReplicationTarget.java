@@ -12,7 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.RateLimiter;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.support.ChannelActionListener;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.Nullable;

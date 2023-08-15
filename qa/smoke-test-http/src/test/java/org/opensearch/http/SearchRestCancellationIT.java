@@ -60,7 +60,7 @@ import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.lookup.LeafFieldsLookup;
 import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.Task;
-import org.opensearch.tasks.TaskId;
+import org.opensearch.core.tasks.TaskId;
 import org.opensearch.tasks.TaskInfo;
 import org.opensearch.tasks.TaskManager;
 import org.opensearch.transport.TransportService;
