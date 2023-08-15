@@ -624,7 +624,7 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
     }
 
     /**
-     * Determine the protocol to use for the waitForHttpResource call
+     * Determine the protocol to use for the waitForHttpResource
      * @param httpProtocol The http protocol version to use
      * @param isSecure Whether the protocol should be secure
      * @return a string representing the uri protocol
