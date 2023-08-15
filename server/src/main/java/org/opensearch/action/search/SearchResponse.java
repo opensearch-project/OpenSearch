@@ -50,6 +50,7 @@ import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.core.xcontent.XContentParser.Token;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.rest.action.RestActions;
+import org.opensearch.search.SearchExtBuilder;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
 import org.opensearch.search.aggregations.Aggregations;
@@ -81,6 +82,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
     private static final ParseField TIMED_OUT = new ParseField("timed_out");
     private static final ParseField TERMINATED_EARLY = new ParseField("terminated_early");
     private static final ParseField NUM_REDUCE_PHASES = new ParseField("num_reduce_phases");
+    private static final ParseField EXT = new ParseField("ext");
 
     private final SearchResponseSections internalResponse;
     private final String scrollId;
@@ -91,6 +93,8 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
     private final ShardSearchFailure[] shardFailures;
     private final Clusters clusters;
     private final long tookInMillis;
+
+    private List<SearchExtBuilder> searchExtBuilders = new ArrayList<>();
 
     public SearchResponse(StreamInput in) throws IOException {
         super(in);
@@ -317,6 +321,15 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         );
         clusters.toXContent(builder, params);
         internalResponse.toXContent(builder, params);
+
+        if (!searchExtBuilders.isEmpty()) {
+            builder.startObject(EXT.getPreferredName());
+            for (SearchExtBuilder searchExtBuilder : searchExtBuilders) {
+                searchExtBuilder.toXContent(builder, params);
+            }
+            builder.endObject();
+        }
+
         return builder;
     }
 
@@ -471,6 +484,10 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
     @Override
     public String toString() {
         return Strings.toString(MediaTypeRegistry.JSON, this);
+    }
+
+    public void addSearchExtBuilder(SearchExtBuilder searchExtBuilder) {
+        this.searchExtBuilders.add(searchExtBuilder);
     }
 
     /**
