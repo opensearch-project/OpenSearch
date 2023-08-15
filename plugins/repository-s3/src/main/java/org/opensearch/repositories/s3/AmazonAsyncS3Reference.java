@@ -8,10 +8,11 @@
 
 package org.opensearch.repositories.s3;
 
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.common.concurrent.RefCountedReleasable;
-import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 
 import java.io.Closeable;
 import java.io.IOException;

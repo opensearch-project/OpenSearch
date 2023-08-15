@@ -32,16 +32,6 @@
 
 package org.opensearch.repositories.s3;
 
-import org.mockito.ArgumentCaptor;
-import org.opensearch.core.action.ActionListener;
-import org.opensearch.common.blobstore.BlobContainer;
-import org.opensearch.common.blobstore.BlobMetadata;
-import org.opensearch.common.blobstore.BlobPath;
-import org.opensearch.common.blobstore.BlobStoreException;
-import org.opensearch.common.blobstore.DeleteResult;
-import org.opensearch.common.collect.Tuple;
-import org.opensearch.core.common.unit.ByteSizeUnit;
-import org.opensearch.test.OpenSearchTestCase;
 import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -71,6 +61,16 @@ import software.amazon.awssdk.services.s3.model.UploadPartRequest;
 import software.amazon.awssdk.services.s3.model.UploadPartResponse;
 import software.amazon.awssdk.services.s3.paginators.ListObjectsV2Iterable;
 
+import org.opensearch.common.blobstore.BlobContainer;
+import org.opensearch.common.blobstore.BlobMetadata;
+import org.opensearch.common.blobstore.BlobPath;
+import org.opensearch.common.blobstore.BlobStoreException;
+import org.opensearch.common.blobstore.DeleteResult;
+import org.opensearch.common.collect.Tuple;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.test.OpenSearchTestCase;
+
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -89,14 +89,16 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import org.mockito.ArgumentCaptor;
+
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.mockito.Mockito.when;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class S3BlobStoreContainerTests extends OpenSearchTestCase {
 

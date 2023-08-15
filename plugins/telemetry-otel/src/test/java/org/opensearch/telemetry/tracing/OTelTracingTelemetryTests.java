@@ -8,14 +8,16 @@
 
 package org.opensearch.telemetry.tracing;
 
+import org.opensearch.telemetry.tracing.attributes.Attributes;
+import org.opensearch.test.OpenSearchTestCase;
+
+import java.util.Collections;
+import java.util.Map;
+
 import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.common.AttributesBuilder;
 import io.opentelemetry.api.trace.SpanBuilder;
 import io.opentelemetry.api.trace.Tracer;
-import java.util.Collections;
-import java.util.Map;
-import org.opensearch.telemetry.tracing.attributes.Attributes;
-import org.opensearch.test.OpenSearchTestCase;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;

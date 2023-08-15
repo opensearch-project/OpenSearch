@@ -41,8 +41,8 @@ import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.env.Environment;
 import org.opensearch.core.index.Index;
+import org.opensearch.env.Environment;
 import org.opensearch.plugin.analysis.kuromoji.AnalysisKuromojiPlugin;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -53,12 +53,12 @@ import java.io.StringReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
 
 public class KuromojiAnalysisTests extends OpenSearchTestCase {
     public void testDefaultsKuromojiAnalysis() throws IOException {

@@ -8,13 +8,14 @@
 
 package org.opensearch.telemetry.tracing;
 
-import io.opentelemetry.api.GlobalOpenTelemetry;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.telemetry.OTelTelemetryPlugin;
 import org.opensearch.telemetry.Telemetry;
 import org.opensearch.telemetry.TelemetrySettings;
 
 import java.util.Optional;
+
+import io.opentelemetry.api.GlobalOpenTelemetry;
 
 /**
  * Telemetry plugin used for Integration tests.
