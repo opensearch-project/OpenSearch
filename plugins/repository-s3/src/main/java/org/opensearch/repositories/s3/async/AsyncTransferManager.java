@@ -8,19 +8,6 @@
 
 package org.opensearch.repositories.s3.async;
 
-import com.jcraft.jzlib.JZlib;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.opensearch.ExceptionsHelper;
-import org.opensearch.common.StreamContext;
-import org.opensearch.common.blobstore.exception.CorruptFileException;
-import org.opensearch.common.blobstore.stream.write.WritePriority;
-import org.opensearch.common.io.InputStreamContainer;
-import org.opensearch.core.common.unit.ByteSizeUnit;
-import org.opensearch.common.util.ByteUtils;
-import org.opensearch.repositories.s3.io.CheckedContainer;
-import org.opensearch.repositories.s3.SocketAccess;
 import software.amazon.awssdk.core.async.AsyncRequestBody;
 import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.http.HttpStatusCode;
@@ -37,6 +24,19 @@ import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.utils.CompletableFutureUtils;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.ExceptionsHelper;
+import org.opensearch.common.StreamContext;
+import org.opensearch.common.blobstore.exception.CorruptFileException;
+import org.opensearch.common.blobstore.stream.write.WritePriority;
+import org.opensearch.common.io.InputStreamContainer;
+import org.opensearch.common.util.ByteUtils;
+import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.repositories.s3.SocketAccess;
+import org.opensearch.repositories.s3.io.CheckedContainer;
+
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Base64;
@@ -48,6 +48,8 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
+
+import com.jcraft.jzlib.JZlib;
 
 /**
  * A helper class that automatically uses multipart upload based on the size of the source object
