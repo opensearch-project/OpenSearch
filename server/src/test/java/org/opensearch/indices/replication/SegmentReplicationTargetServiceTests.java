@@ -21,7 +21,6 @@ import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
@@ -621,75 +620,5 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
         );
         target.cancel("test");
         sut.startReplication(target);
-    }
-
-    public void testAddNewPendingCheckpoints() throws InterruptedException {
-        TimeValue maxLimit = TimeValue.timeValueMillis(100);
-        SegmentReplicationTargetService.PendingCheckpoints pendingCheckpoints = sut.pendingCheckpoints;
-        pendingCheckpoints.setMaxAllowedReplicationTime(maxLimit);
-
-        assertNull(pendingCheckpoints.getLatestReplicationCheckpoint(replicaId));
-
-        pendingCheckpoints.addNewReceivedCheckpoint(replicaId, initialCheckpoint);
-        assertEquals(initialCheckpoint, pendingCheckpoints.getLatestReplicationCheckpoint(replicaId));
-
-        pendingCheckpoints.addNewReceivedCheckpoint(replicaId, aheadCheckpoint);
-        assertEquals(aheadCheckpoint, pendingCheckpoints.getLatestReplicationCheckpoint(replicaId));
-
-        pendingCheckpoints.addNewReceivedCheckpoint(replicaId, newPrimaryCheckpoint);
-        assertEquals(newPrimaryCheckpoint, pendingCheckpoints.getLatestReplicationCheckpoint(replicaId));
-        assertEquals(3, pendingCheckpoints.checkpointsTracker.get(replicaId).size());
-
-        Thread.sleep(maxLimit.millis());
-
-        List<ShardId> shardsToFail = pendingCheckpoints.getStaleShardsToFail();
-        assertEquals(1, shardsToFail.size());
-        assertEquals(replicaId, shardsToFail.get(0));
-    }
-
-    public void testUpdatePendingCheckpoints() {
-        SegmentReplicationTargetService.PendingCheckpoints pendingCheckpoints = sut.pendingCheckpoints;
-
-        pendingCheckpoints.addNewReceivedCheckpoint(replicaId, initialCheckpoint);
-        pendingCheckpoints.addNewReceivedCheckpoint(replicaId, aheadCheckpoint);
-        pendingCheckpoints.addNewReceivedCheckpoint(replicaId, newPrimaryCheckpoint);
-        pendingCheckpoints.updateCheckpointProcessed(replicaId, initialCheckpoint);
-        pendingCheckpoints.updateCheckpointProcessed(replicaId, aheadCheckpoint);
-        sut.asyncFailStaleReplicaTask.runInternal();
-
-        assertEquals(newPrimaryCheckpoint, pendingCheckpoints.checkpointsTracker.get(replicaId).get(0).v1());
-    }
-
-    public void testUpdateLatestPendingCheckpoints() {
-        SegmentReplicationTargetService.PendingCheckpoints pendingCheckpoints = sut.pendingCheckpoints;
-
-        pendingCheckpoints.addNewReceivedCheckpoint(replicaId, initialCheckpoint);
-        pendingCheckpoints.addNewReceivedCheckpoint(replicaId, aheadCheckpoint);
-        pendingCheckpoints.addNewReceivedCheckpoint(replicaId, newPrimaryCheckpoint);
-        pendingCheckpoints.updateCheckpointProcessed(replicaId, newPrimaryCheckpoint);
-
-        assertEquals(0, pendingCheckpoints.checkpointsTracker.get(replicaId).size());
-    }
-
-    public void testAddNewPendingCheckpointsOutOfOrder() {
-        SegmentReplicationTargetService.PendingCheckpoints pendingCheckpoints = sut.pendingCheckpoints;
-
-        pendingCheckpoints.addNewReceivedCheckpoint(replicaId, initialCheckpoint);
-        assertEquals(initialCheckpoint, pendingCheckpoints.getLatestReplicationCheckpoint(replicaId));
-
-        pendingCheckpoints.addNewReceivedCheckpoint(replicaId, newPrimaryCheckpoint);
-        assertEquals(newPrimaryCheckpoint, pendingCheckpoints.getLatestReplicationCheckpoint(replicaId));
-
-        expectThrows(AssertionError.class, () -> pendingCheckpoints.addNewReceivedCheckpoint(replicaId, aheadCheckpoint));
-    }
-
-    public void testPendingCheckpointsShardRemoved() {
-        SegmentReplicationTargetService.PendingCheckpoints pendingCheckpoints = sut.pendingCheckpoints;
-
-        pendingCheckpoints.addNewReceivedCheckpoint(replicaId, initialCheckpoint);
-        assertEquals(initialCheckpoint, pendingCheckpoints.getLatestReplicationCheckpoint(replicaId));
-
-        pendingCheckpoints.remove(replicaId);
-        assertNull(pendingCheckpoints.getLatestReplicationCheckpoint(replicaId));
     }
 }
