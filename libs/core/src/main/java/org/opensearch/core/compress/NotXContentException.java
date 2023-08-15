@@ -30,7 +30,7 @@
  * GitHub history for details.
  */
 
-package org.opensearch.core.common.compress;
+package org.opensearch.core.compress;
 
 import org.opensearch.core.xcontent.XContent;
 

@@ -30,8 +30,10 @@
  * GitHub history for details.
  */
 
-package org.opensearch.core.common.compress;
+package org.opensearch.core.compress;
 
+import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.bytes.BytesReference;
 
 import java.io.IOException;
@@ -39,10 +41,18 @@ import java.io.InputStream;
 import java.io.OutputStream;
 
 /**
- * Compressor interface
+ * Compressor interface used for compressing {@link org.opensearch.core.xcontent.MediaType} and
+ * {@code org.opensearch.repositories.blobstore.BlobStoreRepository} implementations.
  *
- * @opensearch.internal
+ * This is not to be confused with {@link org.apache.lucene.codecs.compressing.Compressor} which is used
+ * for codec implementations such as {@code org.opensearch.index.codec.customcodecs.Lucene95CustomCodec}
+ * for compressing {@link org.apache.lucene.document.StoredField}s
+ *
+ * @opensearch.api - intended to be extended
+ * @opensearch.experimental - however, bwc is not guaranteed at this time
  */
+@ExperimentalApi
+@PublicApi(since = "2.10.0")
 public interface Compressor {
 
     boolean isCompressed(BytesReference bytes);
