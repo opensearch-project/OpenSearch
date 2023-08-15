@@ -139,6 +139,7 @@ public class SegmentReplicationPressureIT extends SegmentReplicationBaseIT {
      * This test ensures that a replica can be added while the index is under write block.
      * Ensuring that only write requests are blocked.
      */
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/8887")
     public void testAddReplicaWhileWritesBlocked() throws Exception {
         final String primaryNode = internalCluster().startNode();
         createIndex(INDEX_NAME);
