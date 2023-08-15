@@ -156,6 +156,12 @@ dependencies {
   }
 }
 
+configurations.all {
+  resolutionStrategy {
+    force "com.google.guava:guava:${props.getProperty('guava')}"
+  }
+}
+
 /*****************************************************************************
  *                         Bootstrap repositories                            *
  *****************************************************************************/
