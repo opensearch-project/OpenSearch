@@ -32,13 +32,14 @@
 
 package org.opensearch.repositories.s3;
 
-import org.opensearch.common.io.Streams;
-import org.opensearch.repositories.s3.utils.HttpRangeUtils;
-import org.opensearch.test.OpenSearchTestCase;
 import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
+
+import org.opensearch.common.io.Streams;
+import org.opensearch.repositories.s3.utils.HttpRangeUtils;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
