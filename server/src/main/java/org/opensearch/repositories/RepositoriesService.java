@@ -168,12 +168,11 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             request.name(),
             request.type(),
             request.settings(),
-            request.encrypted(),
             CryptoMetadata.fromRequest(request.cryptoSettings())
         );
         validate(request.name());
         validateRepositoryMetadataSettings(clusterService, request.name(), request.settings());
-        if (Boolean.TRUE.equals(newRepositoryMetadata.encrypted())) {
+        if (newRepositoryMetadata.cryptoMetadata() != null) {
             validate(newRepositoryMetadata.cryptoMetadata().keyProviderName());
         }
 
@@ -227,7 +226,6 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                                     request.name(),
                                     request.type(),
                                     request.settings(),
-                                    request.encrypted(),
                                     CryptoMetadata.fromRequest(request.cryptoSettings())
                                 )
                             )
@@ -256,7 +254,6 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                                     request.name(),
                                     request.type(),
                                     request.settings(),
-                                    request.encrypted(),
                                     CryptoMetadata.fromRequest(request.cryptoSettings())
                                 )
                             );
@@ -671,22 +668,16 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     }
 
     private static void ensureCryptoSettingsAreSame(RepositoryMetadata repositoryMetadata, PutRepositoryRequest request) {
-        if (repositoryMetadata.encrypted() == null && request.encrypted() == null) {
+        if (repositoryMetadata.cryptoMetadata() == null && request.cryptoSettings() == null) {
             return;
         }
-        if (repositoryMetadata.encrypted() == null || request.encrypted() == null) {
+        if (repositoryMetadata.cryptoMetadata() == null || request.cryptoSettings() == null) {
             throw new IllegalArgumentException("Crypto settings changes found in the repository update request. This is not allowed");
-        }
-        boolean existingEncrypted = Boolean.TRUE.equals(repositoryMetadata.encrypted());
-        boolean changeEncrypted = Boolean.TRUE.equals(request.encrypted());
-        if (existingEncrypted == false && changeEncrypted == false) {
-            return;
         }
 
         CryptoMetadata cryptoMetadata = repositoryMetadata.cryptoMetadata();
         CryptoSettings cryptoSettings = request.cryptoSettings();
-        if (existingEncrypted != changeEncrypted
-            || !cryptoMetadata.keyProviderName().equals(cryptoSettings.getKeyProviderName())
+        if (!cryptoMetadata.keyProviderName().equals(cryptoSettings.getKeyProviderName())
             || !cryptoMetadata.keyProviderType().equals(cryptoSettings.getKeyProviderType())
             || !cryptoMetadata.settings().toString().equals(cryptoSettings.getSettings().toString())) {
             throw new IllegalArgumentException("Changes in crypto settings found in the repository update request. This is not allowed");

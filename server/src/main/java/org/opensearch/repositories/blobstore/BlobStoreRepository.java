@@ -743,7 +743,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     }
                     try {
                         store = createBlobStore();
-                        if (Boolean.TRUE.equals(metadata.encrypted())) {
+                        if (metadata.cryptoMetadata() != null) {
                             store = new EncryptedBlobStore(store, metadata.cryptoMetadata());
                         }
                     } catch (RepositoryException e) {

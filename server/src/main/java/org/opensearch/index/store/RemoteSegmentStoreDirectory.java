@@ -459,8 +459,8 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         }
         boolean remoteIntegrityEnabled = false;
         if (remoteDataDirectory.getBlobContainer() instanceof AsyncMultiStreamBlobContainer) {
-            remoteIntegrityEnabled = ((AsyncMultiStreamBlobContainer)
-                remoteDataDirectory.getBlobContainer()).remoteIntegrityCheckSupported();
+            remoteIntegrityEnabled = ((AsyncMultiStreamBlobContainer) remoteDataDirectory.getBlobContainer())
+                .remoteIntegrityCheckSupported();
         }
         RemoteTransferContainer remoteTransferContainer = new RemoteTransferContainer(
             src,

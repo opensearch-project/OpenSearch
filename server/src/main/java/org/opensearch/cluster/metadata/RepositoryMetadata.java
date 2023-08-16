@@ -51,7 +51,6 @@ public class RepositoryMetadata implements Writeable {
     private final String name;
     private final String type;
     private final Settings settings;
-    private final Boolean encrypted;
     private final CryptoMetadata cryptoMetadata;
 
     /**
@@ -72,19 +71,19 @@ public class RepositoryMetadata implements Writeable {
      * @param settings repository settings
      */
     public RepositoryMetadata(String name, String type, Settings settings) {
-        this(name, type, settings, RepositoryData.UNKNOWN_REPO_GEN, RepositoryData.EMPTY_REPO_GEN, false, null);
+        this(name, type, settings, RepositoryData.UNKNOWN_REPO_GEN, RepositoryData.EMPTY_REPO_GEN, null);
     }
 
-    public RepositoryMetadata(String name, String type, Settings settings, Boolean encrypted, CryptoMetadata cryptoMetadata) {
-        this(name, type, settings, RepositoryData.UNKNOWN_REPO_GEN, RepositoryData.EMPTY_REPO_GEN, encrypted, cryptoMetadata);
+    public RepositoryMetadata(String name, String type, Settings settings, CryptoMetadata cryptoMetadata) {
+        this(name, type, settings, RepositoryData.UNKNOWN_REPO_GEN, RepositoryData.EMPTY_REPO_GEN, cryptoMetadata);
     }
 
     public RepositoryMetadata(RepositoryMetadata metadata, long generation, long pendingGeneration) {
-        this(metadata.name, metadata.type, metadata.settings, generation, pendingGeneration, metadata.encrypted, metadata.cryptoMetadata);
+        this(metadata.name, metadata.type, metadata.settings, generation, pendingGeneration, metadata.cryptoMetadata);
     }
 
     public RepositoryMetadata(String name, String type, Settings settings, long generation, long pendingGeneration) {
-        this(name, type, settings, generation, pendingGeneration, null, null);
+        this(name, type, settings, generation, pendingGeneration, null);
     }
 
     public RepositoryMetadata(
@@ -93,7 +92,6 @@ public class RepositoryMetadata implements Writeable {
         Settings settings,
         long generation,
         long pendingGeneration,
-        Boolean encrypted,
         CryptoMetadata cryptoMetadata
     ) {
         this.name = name;
@@ -106,7 +104,6 @@ public class RepositoryMetadata implements Writeable {
             + "] must be greater or equal to generation ["
             + generation
             + "]";
-        this.encrypted = encrypted;
         this.cryptoMetadata = cryptoMetadata;
     }
 
@@ -135,15 +132,6 @@ public class RepositoryMetadata implements Writeable {
      */
     public Settings settings() {
         return this.settings;
-    }
-
-    /**
-     * Returns whether repository is encrypted
-     *
-     * @return whether repository is encrypted
-     */
-    public Boolean encrypted() {
-        return encrypted;
     }
 
     /**
@@ -186,14 +174,8 @@ public class RepositoryMetadata implements Writeable {
         generation = in.readLong();
         pendingGeneration = in.readLong();
         if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
-            encrypted = in.readOptionalBoolean();
-            if (Boolean.TRUE.equals(encrypted)) {
-                cryptoMetadata = new CryptoMetadata(in);
-            } else {
-                cryptoMetadata = null;
-            }
+            cryptoMetadata = in.readOptionalWriteable(CryptoMetadata::new);
         } else {
-            encrypted = null;
             cryptoMetadata = null;
         }
     }
@@ -211,10 +193,7 @@ public class RepositoryMetadata implements Writeable {
         out.writeLong(generation);
         out.writeLong(pendingGeneration);
         if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
-            out.writeOptionalBoolean(encrypted);
-            if (Boolean.TRUE.equals(encrypted)) {
-                cryptoMetadata.writeTo(out);
-            }
+            out.writeOptionalWriteable(cryptoMetadata);
         }
     }
 
@@ -228,7 +207,6 @@ public class RepositoryMetadata implements Writeable {
         return name.equals(other.name)
             && type.equals(other.type())
             && settings.equals(other.settings())
-            && encrypted == other.encrypted()
             && Objects.equals(cryptoMetadata, other.cryptoMetadata());
     }
 
@@ -244,31 +222,18 @@ public class RepositoryMetadata implements Writeable {
         if (generation != that.generation) return false;
         if (pendingGeneration != that.pendingGeneration) return false;
         if (!settings.equals(that.settings)) return false;
-        if (encrypted != that.encrypted) return false;
         return Objects.equals(cryptoMetadata, that.cryptoMetadata);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, type, settings, generation, pendingGeneration, encrypted, cryptoMetadata);
+        return Objects.hash(name, type, settings, generation, pendingGeneration, cryptoMetadata);
     }
 
     @Override
     public String toString() {
-        String toStr = "RepositoryMetadata{"
-            + name
-            + "}{"
-            + type
-            + "}{"
-            + settings
-            + "}{"
-            + generation
-            + "}{"
-            + pendingGeneration
-            + "}{"
-            + encrypted
-            + "}";
-        if (Boolean.TRUE.equals(encrypted)) {
+        String toStr = "RepositoryMetadata{" + name + "}{" + type + "}{" + settings + "}{" + generation + "}{" + pendingGeneration + "}";
+        if (cryptoMetadata != null) {
             return toStr + "{" + cryptoMetadata + "}";
         }
         return toStr;

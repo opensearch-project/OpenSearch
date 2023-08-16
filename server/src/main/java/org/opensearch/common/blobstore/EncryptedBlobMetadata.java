@@ -8,8 +8,8 @@
 
 package org.opensearch.common.blobstore;
 
+import org.opensearch.common.crypto.CryptoProvider;
 import org.opensearch.common.crypto.EncryptedHeaderContentSupplier;
-import org.opensearch.crypto.CryptoManager;
 
 import java.io.IOException;
 
@@ -19,13 +19,16 @@ import java.io.IOException;
 public class EncryptedBlobMetadata implements BlobMetadata {
     private final EncryptedHeaderContentSupplier encryptedHeaderContentSupplier;
     private final BlobMetadata delegate;
-    private final CryptoManager cryptoManager;
+    private final CryptoProvider cryptoProvider;
 
-    public EncryptedBlobMetadata(BlobMetadata delegate, CryptoManager cryptoManager,
-                                 EncryptedHeaderContentSupplier encryptedHeaderContentSupplier) {
+    public EncryptedBlobMetadata(
+        BlobMetadata delegate,
+        CryptoProvider cryptoProvider,
+        EncryptedHeaderContentSupplier encryptedHeaderContentSupplier
+    ) {
         this.encryptedHeaderContentSupplier = encryptedHeaderContentSupplier;
         this.delegate = delegate;
-        this.cryptoManager = cryptoManager;
+        this.cryptoProvider = cryptoProvider;
     }
 
     @Override
@@ -37,10 +40,10 @@ public class EncryptedBlobMetadata implements BlobMetadata {
     public long length() {
         Object cryptoContext;
         try {
-            cryptoContext = cryptoManager.loadEncryptionMetadata(encryptedHeaderContentSupplier);
+            cryptoContext = cryptoProvider.loadEncryptionMetadata(encryptedHeaderContentSupplier);
         } catch (IOException ex) {
             throw new RuntimeException(ex);
         }
-        return cryptoManager.estimateDecryptedLength(cryptoContext, delegate.length());
+        return cryptoProvider.estimateDecryptedLength(cryptoContext, delegate.length());
     }
 }

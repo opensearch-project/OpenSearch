@@ -119,15 +119,20 @@ public class CryptoManagerRegistryTests extends OpenSearchTestCase {
         assertEquals(cryptoManager, createdCryptoManager1);
         Mockito.when(factory1.create(Mockito.any(), Mockito.anyString())).thenReturn(Mockito.mock(CryptoManager.class));
         String pluginName2 = UUID.randomUUID().toString();
-        CryptoManager createdCryptoManager2 = CryptoManagerRegistry.fetchCryptoManager(new CryptoMetadata(pluginName2, pluginType, Settings.EMPTY));
+        CryptoManager createdCryptoManager2 = CryptoManagerRegistry.fetchCryptoManager(
+            new CryptoMetadata(pluginName2, pluginType, Settings.EMPTY)
+        );
         assertNotNull(createdCryptoManager2);
         assertNotEquals(createdCryptoManager1, createdCryptoManager2);
-        CryptoManager createdCryptoManager3 = CryptoManagerRegistry.fetchCryptoManager(new CryptoMetadata(pluginName2, pluginType, Settings.EMPTY));
+        CryptoManager createdCryptoManager3 = CryptoManagerRegistry.fetchCryptoManager(
+            new CryptoMetadata(pluginName2, pluginType, Settings.EMPTY)
+        );
         assertNotNull(createdCryptoManager3);
         assertEquals(createdCryptoManager2, createdCryptoManager3);
 
-
-        CryptoManager createdCryptoMgrNewType = CryptoManagerRegistry.fetchCryptoManager(new CryptoMetadata(pluginName1, pluginTypeB, Settings.EMPTY));
+        CryptoManager createdCryptoMgrNewType = CryptoManagerRegistry.fetchCryptoManager(
+            new CryptoMetadata(pluginName1, pluginTypeB, Settings.EMPTY)
+        );
         assertNotNull(createdCryptoMgrNewType);
         assertNotEquals(createdCryptoManager1, createdCryptoMgrNewType);
         assertNotEquals(createdCryptoManager2, createdCryptoMgrNewType);

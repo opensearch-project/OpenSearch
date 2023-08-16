@@ -50,7 +50,6 @@ import static org.opensearch.action.ValidateActions.addValidationError;
 import static org.opensearch.common.settings.Settings.readSettingsFromStream;
 import static org.opensearch.common.settings.Settings.writeSettingsToStream;
 import static org.opensearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
-import static org.opensearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 
 /**
  * Register repository request.
@@ -70,7 +69,6 @@ public class PutRepositoryRequest extends AcknowledgedRequest<PutRepositoryReque
 
     private Settings settings = EMPTY_SETTINGS;
 
-    private Boolean encrypted;
     private CryptoSettings cryptoSettings;
 
     public PutRepositoryRequest(StreamInput in) throws IOException {
@@ -81,10 +79,7 @@ public class PutRepositoryRequest extends AcknowledgedRequest<PutRepositoryReque
         verify = in.readBoolean();
 
         if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
-            encrypted = in.readOptionalBoolean();
-            if (Boolean.TRUE.equals(encrypted)) {
-                cryptoSettings = new CryptoSettings(in);
-            }
+            cryptoSettings = in.readOptionalWriteable(CryptoSettings::new);
         }
     }
 
@@ -106,12 +101,8 @@ public class PutRepositoryRequest extends AcknowledgedRequest<PutRepositoryReque
         if (type == null) {
             validationException = addValidationError("type is missing", validationException);
         }
-        if (Boolean.TRUE.equals(encrypted)) {
-            if (cryptoSettings == null) {
-                validationException = addValidationError("crypto_settings is missing", validationException);
-            } else {
-                validationException = cryptoSettings.validate();
-            }
+        if (cryptoSettings != null) {
+            validationException = cryptoSettings.validate();
         }
         return validationException;
     }
@@ -228,21 +219,6 @@ public class PutRepositoryRequest extends AcknowledgedRequest<PutRepositoryReque
     }
 
     /**
-     * Sets whether repository data should be encrypted and stored.
-     */
-    public PutRepositoryRequest encrypted(Boolean encrypted) {
-        this.encrypted = encrypted;
-        return this;
-    }
-
-    /**
-     * Returns true if repository should be encrypted
-     */
-    public Boolean encrypted() {
-        return encrypted;
-    }
-
-    /**
      * Sets the repository crypto settings
      *
      * @param cryptoSettings repository crypto settings
@@ -279,8 +255,6 @@ public class PutRepositoryRequest extends AcknowledgedRequest<PutRepositoryReque
                 @SuppressWarnings("unchecked")
                 Map<String, Object> sub = (Map<String, Object>) entry.getValue();
                 settings(sub);
-            } else if (name.equals("encrypted")) {
-                encrypted(nodeBooleanValue(entry.getValue(), "encrypted"));
             } else if (name.equals("crypto_settings")) {
                 if (!(entry.getValue() instanceof Map)) {
                     throw new IllegalArgumentException("Malformed encryption_settings section, should include an inner object");
@@ -302,10 +276,7 @@ public class PutRepositoryRequest extends AcknowledgedRequest<PutRepositoryReque
         writeSettingsToStream(settings, out);
         out.writeBoolean(verify);
         if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
-            out.writeOptionalBoolean(encrypted);
-            if (Boolean.TRUE.equals(encrypted)) {
-                cryptoSettings.writeTo(out);
-            }
+            out.writeOptionalWriteable(cryptoSettings);
         }
     }
 
@@ -321,13 +292,10 @@ public class PutRepositoryRequest extends AcknowledgedRequest<PutRepositoryReque
 
         builder.field("verify", verify);
 
-        if (null != encrypted) {
-            builder.field("encrypted", encrypted);
-            if (encrypted == true) {
-                builder.startObject("crypto_settings");
-                cryptoSettings.toXContent(builder, params);
-                builder.endObject();
-            }
+        if (cryptoSettings != null) {
+            builder.startObject("crypto_settings");
+            cryptoSettings.toXContent(builder, params);
+            builder.endObject();
         }
 
         builder.endObject();

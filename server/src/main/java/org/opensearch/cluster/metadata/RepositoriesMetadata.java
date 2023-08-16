@@ -208,7 +208,6 @@ public class RepositoriesMetadata extends AbstractNamedDiffable<Custom> implemen
                 Settings settings = Settings.EMPTY;
                 long generation = RepositoryData.UNKNOWN_REPO_GEN;
                 long pendingGeneration = RepositoryData.EMPTY_REPO_GEN;
-                Boolean encrypted = null;
                 CryptoMetadata cryptoMetadata = null;
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     if (token == XContentParser.Token.FIELD_NAME) {
@@ -233,11 +232,6 @@ public class RepositoriesMetadata extends AbstractNamedDiffable<Custom> implemen
                                 throw new OpenSearchParseException("failed to parse repository [{}], unknown type", name);
                             }
                             pendingGeneration = parser.longValue();
-                        } else if ("encrypted".equals(currentFieldName)) {
-                            if (parser.nextToken() != XContentParser.Token.VALUE_BOOLEAN) {
-                                throw new OpenSearchParseException("failed to parse repository [{}], unknown type", name);
-                            }
-                            encrypted = parser.booleanValue();
                         } else if ("crypto_metadata".equals(currentFieldName)) {
                             if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
                                 throw new OpenSearchParseException("failed to parse repository [{}], unknown type", name);
@@ -257,7 +251,7 @@ public class RepositoriesMetadata extends AbstractNamedDiffable<Custom> implemen
                 if (type == null) {
                     throw new OpenSearchParseException("failed to parse repository [{}], missing repository type", name);
                 }
-                repository.add(new RepositoryMetadata(name, type, settings, generation, pendingGeneration, encrypted, cryptoMetadata));
+                repository.add(new RepositoryMetadata(name, type, settings, generation, pendingGeneration, cryptoMetadata));
             } else {
                 throw new OpenSearchParseException("failed to parse repositories");
             }
@@ -291,8 +285,7 @@ public class RepositoriesMetadata extends AbstractNamedDiffable<Custom> implemen
     public static void toXContent(RepositoryMetadata repository, XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject(repository.name());
         builder.field("type", repository.type());
-        if (Boolean.TRUE.equals(repository.encrypted())) {
-            builder.field("encrypted", true);
+        if (repository.cryptoMetadata() != null) {
             repository.cryptoMetadata().toXContent(repository.cryptoMetadata(), builder, params);
         }
         builder.startObject("settings");

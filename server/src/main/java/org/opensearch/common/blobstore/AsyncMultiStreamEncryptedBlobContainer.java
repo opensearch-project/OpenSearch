@@ -10,9 +10,9 @@ package org.opensearch.common.blobstore;
 
 import org.opensearch.common.StreamContext;
 import org.opensearch.common.blobstore.stream.write.WriteContext;
+import org.opensearch.common.crypto.CryptoProvider;
 import org.opensearch.common.io.InputStreamContainer;
 import org.opensearch.core.action.ActionListener;
-import org.opensearch.crypto.CryptoManager;
 
 import java.io.IOException;
 
@@ -25,17 +25,17 @@ import java.io.IOException;
 public class AsyncMultiStreamEncryptedBlobContainer extends EncryptedBlobContainer implements AsyncMultiStreamBlobContainer {
 
     private final AsyncMultiStreamBlobContainer blobContainer;
-    private final CryptoManager cryptoManager;
+    private final CryptoProvider cryptoProvider;
 
-    public AsyncMultiStreamEncryptedBlobContainer(AsyncMultiStreamBlobContainer blobContainer, CryptoManager cryptoManager) {
-        super(blobContainer, cryptoManager);
+    public AsyncMultiStreamEncryptedBlobContainer(AsyncMultiStreamBlobContainer blobContainer, CryptoProvider cryptoProvider) {
+        super(blobContainer, cryptoProvider);
         this.blobContainer = blobContainer;
-        this.cryptoManager = cryptoManager;
+        this.cryptoProvider = cryptoProvider;
     }
 
     @Override
     public void asyncBlobUpload(WriteContext writeContext, ActionListener<Void> completionListener) throws IOException {
-        EncryptedWriteContext encryptedWriteContext = new EncryptedWriteContext(writeContext, cryptoManager);
+        EncryptedWriteContext encryptedWriteContext = new EncryptedWriteContext(writeContext, cryptoProvider);
         blobContainer.asyncBlobUpload(encryptedWriteContext, completionListener);
     }
 
@@ -47,23 +47,23 @@ public class AsyncMultiStreamEncryptedBlobContainer extends EncryptedBlobContain
     static class EncryptedWriteContext extends WriteContext {
 
         private final Object encryptionMetadata;
-        private final CryptoManager cryptoManager;
+        private final CryptoProvider cryptoProvider;
         private final long fileSize;
 
         /**
          * Construct a new encrypted WriteContext object
          */
-        public EncryptedWriteContext(WriteContext writeContext, CryptoManager cryptoManager) {
+        public EncryptedWriteContext(WriteContext writeContext, CryptoProvider cryptoProvider) {
             super(writeContext);
-            this.cryptoManager = cryptoManager;
-            this.encryptionMetadata = cryptoManager.initEncryptionMetadata();
-            this.fileSize = cryptoManager.estimateEncryptedLengthOfEntireContent(encryptionMetadata, writeContext.getFileSize());
+            this.cryptoProvider = cryptoProvider;
+            this.encryptionMetadata = this.cryptoProvider.initEncryptionMetadata();
+            this.fileSize = this.cryptoProvider.estimateEncryptedLengthOfEntireContent(encryptionMetadata, writeContext.getFileSize());
         }
 
         public StreamContext getStreamProvider(long partSize) {
-            long adjustedPartSize = cryptoManager.adjustContentSizeForPartialEncryption(encryptionMetadata, partSize);
+            long adjustedPartSize = cryptoProvider.adjustContentSizeForPartialEncryption(encryptionMetadata, partSize);
             StreamContext streamContext = super.getStreamProvider(adjustedPartSize);
-            return new EncryptedStreamContext(streamContext, cryptoManager, encryptionMetadata);
+            return new EncryptedStreamContext(streamContext, cryptoProvider, encryptionMetadata);
         }
 
         /**
@@ -76,26 +76,22 @@ public class AsyncMultiStreamEncryptedBlobContainer extends EncryptedBlobContain
 
     static class EncryptedStreamContext extends StreamContext {
 
-        private final CryptoManager cryptoManager;
+        private final CryptoProvider cryptoProvider;
         private final Object encryptionMetadata;
+
         /**
          * Construct a new encrypted StreamContext object
          */
-        public EncryptedStreamContext(StreamContext streamContext, CryptoManager cryptoManager, Object encryptionMetadata) {
+        public EncryptedStreamContext(StreamContext streamContext, CryptoProvider cryptoProvider, Object encryptionMetadata) {
             super(streamContext);
-            this.cryptoManager = cryptoManager;
+            this.cryptoProvider = cryptoProvider;
             this.encryptionMetadata = encryptionMetadata;
         }
 
         @Override
-        public InputStreamContainer provideStream(int partNumber) throws IOException{
+        public InputStreamContainer provideStream(int partNumber) throws IOException {
             InputStreamContainer inputStreamContainer = super.provideStream(partNumber);
-            return cryptoManager.createEncryptingStreamOfPart(
-                    encryptionMetadata,
-                    inputStreamContainer,
-                    getNumberOfParts(),
-                    partNumber
-            );
+            return cryptoProvider.createEncryptingStreamOfPart(encryptionMetadata, inputStreamContainer, getNumberOfParts(), partNumber);
         }
 
     }

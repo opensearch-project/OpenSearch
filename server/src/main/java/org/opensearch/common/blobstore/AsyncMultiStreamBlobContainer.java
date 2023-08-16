@@ -32,7 +32,6 @@ public interface AsyncMultiStreamBlobContainer extends BlobContainer {
      */
     void asyncBlobUpload(WriteContext writeContext, ActionListener<Void> completionListener) throws IOException;
 
-
     /**
      * @return whether underlying blobContainer can verify integrity of data after transfer. If true and if expected
      * checksum is provided in WriteContext, then the checksum of transferred data is compared with expected checksum

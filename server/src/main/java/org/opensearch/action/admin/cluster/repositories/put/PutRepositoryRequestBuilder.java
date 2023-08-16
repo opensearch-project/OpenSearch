@@ -144,17 +144,6 @@ public class PutRepositoryRequestBuilder extends AcknowledgedRequestBuilder<
     }
 
     /**
-     * Sets whether repository data should be encrypted and stored.
-     *
-     * @param encrypted true if repository data should be encrypted and stored, false otherwise
-     * @return this builder
-     */
-    public PutRepositoryRequestBuilder setEncrypted(Boolean encrypted) {
-        request.encrypted(encrypted);
-        return this;
-    }
-
-    /**
      * Sets the repository encryption settings
      *
      * @param cryptoSettings repository crypto settings builder

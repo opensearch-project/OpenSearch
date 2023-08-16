@@ -34,8 +34,8 @@ package org.opensearch.repositories;
 
 import org.apache.lucene.index.IndexCommit;
 import org.opensearch.Version;
+import org.opensearch.common.crypto.CryptoProvider;
 import org.opensearch.core.action.ActionListener;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.cluster.crypto.CryptoSettings;
 import org.opensearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.opensearch.cluster.AckedClusterStateUpdateTask;
@@ -255,9 +255,6 @@ public class RepositoriesServiceTests extends OpenSearchTestCase {
     }
 
     public void testWithSameKeyProviderNames() {
-        CryptoMetadata cryptoMetadata = new CryptoMetadata("kp-name", "kp-type", Settings.EMPTY);
-        RepositoryMetadata repositoryMetadata = new RepositoryMetadata("repoName", "repoType", Settings.EMPTY, true, cryptoMetadata);
-
         String keyProviderName = "kp-name";
         ClusterState clusterStateWithRepoTypeA = createClusterStateWithKeyProvider(
             "repoName",
@@ -342,7 +339,6 @@ public class RepositoriesServiceTests extends OpenSearchTestCase {
 
         expectThrows(IllegalArgumentException.class, () -> repositoriesService.registerRepository(request, null));
 
-        request.encrypted(true);
         CryptoSettings cryptoSettings = new CryptoSettings(keyProviderName);
         cryptoSettings.keyProviderType(TestCryptoManagerTypeA.TYPE);
         cryptoSettings.settings(Settings.builder().put("key-1", "val-1"));
@@ -354,20 +350,6 @@ public class RepositoriesServiceTests extends OpenSearchTestCase {
         expectThrows(IllegalArgumentException.class, () -> repositoriesService.registerRepository(request, null));
 
         cryptoSettings.keyProviderName(keyProviderName);
-//        cryptoSettings.keyProviderType("random");
-//        AtomicBoolean expectedExceptionFound = new AtomicBoolean();
-//        repositoriesService.registerRepository(request, new ActionListener<>() {
-//            @Override
-//            public void onResponse(ClusterStateUpdateResponse clusterStateUpdateResponse) {}
-//
-//            @Override
-//            public void onFailure(Exception e) {
-//                if (e instanceof CryptoManagerMissingException) {
-//                    expectedExceptionFound.set(true);
-//                }
-//            }
-//        });
-//        assertTrue(expectedExceptionFound.get());
 
         cryptoSettings.keyProviderType(TestCryptoManagerTypeA.TYPE);
         repositoriesService.registerRepository(request, null);
@@ -404,8 +386,6 @@ public class RepositoriesServiceTests extends OpenSearchTestCase {
         MeteredRepositoryTypeA repository = (MeteredRepositoryTypeA) repositoriesService.repository(repoName);
         assertNotNull(repository.cryptoManager);
         assertTrue(repository.cryptoManager instanceof TestCryptoManagerTypeA);
-        TestCryptoManagerTypeA cryptoManagerTypeA = (TestCryptoManagerTypeA) repository.cryptoManager;
-//        assertEquals(1, cryptoManagerTypeA.getReferenceCount());
         assertTrue(verified.get());
 
         // No change
@@ -427,8 +407,6 @@ public class RepositoriesServiceTests extends OpenSearchTestCase {
         repository = (MeteredRepositoryTypeA) repositoriesService.repository(repoName);
         assertNotNull(repository.cryptoManager);
         assertTrue(repository.cryptoManager instanceof TestCryptoManagerTypeA);
-        cryptoManagerTypeA = (TestCryptoManagerTypeA) repository.cryptoManager;
-//        assertEquals(1, cryptoManagerTypeA.getReferenceCount());
         assertTrue(verified.get());
 
         // Same crypto client in new repo
@@ -450,8 +428,6 @@ public class RepositoriesServiceTests extends OpenSearchTestCase {
         repository = (MeteredRepositoryTypeA) repositoriesService.repository(repoName);
         assertNotNull(repository.cryptoManager);
         assertTrue(repository.cryptoManager instanceof TestCryptoManagerTypeA);
-        cryptoManagerTypeA = (TestCryptoManagerTypeA) repository.cryptoManager;
-//        assertEquals(2, cryptoManagerTypeA.getReferenceCount());
         assertTrue(verified.get());
 
         // Different crypto client in new repo
@@ -473,9 +449,6 @@ public class RepositoriesServiceTests extends OpenSearchTestCase {
         repository = (MeteredRepositoryTypeA) repositoriesService.repository(repoName);
         assertNotNull(repository.cryptoManager);
         assertTrue(repository.cryptoManager instanceof TestCryptoManagerTypeB);
-//        TestCryptoManagerTypeB cryptoManagerTypeB = (TestCryptoManagerTypeB) repository.cryptoManager;
-//        assertEquals(1, cryptoManagerTypeB.getReferenceCount());
-//        assertEquals(2, cryptoManagerTypeA.getReferenceCount());
         assertTrue(verified.get());
 
     }
@@ -498,7 +471,6 @@ public class RepositoriesServiceTests extends OpenSearchTestCase {
             repoName,
             MeteredRepositoryTypeA.TYPE,
             Settings.EMPTY,
-            true,
             newCryptoMetadata
         );
         if (!repositoryMetadataList.contains(newRepositoryMetadata)) {
@@ -517,7 +489,6 @@ public class RepositoriesServiceTests extends OpenSearchTestCase {
             ClusterState clusterState = task.execute(clusterStateWithRepoTypeA);
             RepositoriesMetadata repositories = clusterState.metadata().custom(RepositoriesMetadata.TYPE);
             RepositoryMetadata repositoryMetadata = repositories.repositories().get(repositoryMetadataList.size() - 1);
-            assertTrue(repositoryMetadata.encrypted());
             CryptoMetadata cryptoMetadata = repositoryMetadata.cryptoMetadata();
             assertNotNull(cryptoMetadata);
             assertEquals(keyProviderName, cryptoMetadata.keyProviderName());
@@ -554,9 +525,7 @@ public class RepositoriesServiceTests extends OpenSearchTestCase {
         CryptoMetadata cryptoMetadata = new CryptoMetadata(keyProviderName, keyProviderType, Settings.EMPTY);
         mdBuilder.putCustom(
             RepositoriesMetadata.TYPE,
-            new RepositoriesMetadata(
-                Collections.singletonList(new RepositoryMetadata(repoName, repoType, Settings.EMPTY, true, cryptoMetadata))
-            )
+            new RepositoriesMetadata(Collections.singletonList(new RepositoryMetadata(repoName, repoType, Settings.EMPTY, cryptoMetadata)))
         );
         state.metadata(mdBuilder);
 
@@ -573,7 +542,6 @@ public class RepositoriesServiceTests extends OpenSearchTestCase {
         PutRepositoryRequest repositoryRequest = new PutRepositoryRequest(repoName);
         repositoryRequest.type(repoType);
         repositoryRequest.settings(Settings.EMPTY);
-        repositoryRequest.encrypted(true);
         CryptoSettings cryptoSettings = new CryptoSettings(keyProviderName);
         cryptoSettings.keyProviderName(keyProviderName);
         cryptoSettings.keyProviderType(keyProviderType);
@@ -592,40 +560,7 @@ public class RepositoriesServiceTests extends OpenSearchTestCase {
         expectThrows(RepositoryException.class, () -> repositoriesService.registerRepository(request, null));
     }
 
-    private static abstract class TestCryptoManager implements CryptoManager {
-        private final String name;
-        private final AtomicInteger ref;
-
-        public TestCryptoManager(Settings settings, String keyProviderName) {
-            this.name = keyProviderName;
-            this.ref = new AtomicInteger(1);
-        }
-
-        @Override
-        public void incRef() {
-            ref.incrementAndGet();
-        }
-
-        @Override
-        public boolean tryIncRef() {
-            ref.incrementAndGet();
-            return true;
-        }
-
-        @Override
-        public boolean decRef() {
-            ref.decrementAndGet();
-            return true;
-        }
-
-        public int getReferenceCount() {
-            return ref.get();
-        }
-
-        @Override
-        public String name() {
-            return name;
-        }
+    private static class TestCryptoProvider implements CryptoProvider {
 
         @Override
         public Object initEncryptionMetadata() {
@@ -668,13 +603,60 @@ public class RepositoriesServiceTests extends OpenSearchTestCase {
         }
 
         @Override
-        public DecryptedRangedStreamProvider createDecryptingStreamOfRange(Object cryptoContext, long startPosOfRawContent, long endPosOfRawContent) {
+        public DecryptedRangedStreamProvider createDecryptingStreamOfRange(
+            Object cryptoContext,
+            long startPosOfRawContent,
+            long endPosOfRawContent
+        ) {
             return null;
         }
 
         @Override
         public long estimateDecryptedLength(Object cryptoContext, long contentLength) {
             return 0;
+        }
+    }
+
+    private static abstract class TestCryptoManager implements CryptoManager {
+        private final String name;
+        private final AtomicInteger ref;
+
+        private final CryptoProvider cryptoProvider;
+
+        public TestCryptoManager(Settings settings, String keyProviderName) {
+            this.name = keyProviderName;
+            this.ref = new AtomicInteger(1);
+            this.cryptoProvider = new TestCryptoProvider();
+        }
+
+        @Override
+        public void incRef() {
+            ref.incrementAndGet();
+        }
+
+        @Override
+        public boolean tryIncRef() {
+            ref.incrementAndGet();
+            return true;
+        }
+
+        @Override
+        public boolean decRef() {
+            ref.decrementAndGet();
+            return true;
+        }
+
+        public int getReferenceCount() {
+            return ref.get();
+        }
+
+        @Override
+        public String name() {
+            return name;
+        }
+
+        public CryptoProvider getCryptoProvider() {
+            return cryptoProvider;
         }
     }
 
@@ -931,7 +913,7 @@ public class RepositoriesServiceTests extends OpenSearchTestCase {
                 Map.of("bucket", "bucket-a")
             );
 
-            if (Boolean.TRUE.equals(metadata.encrypted())) {
+            if (metadata.cryptoMetadata() != null) {
                 switch (metadata.cryptoMetadata().keyProviderType()) {
                     case TestCryptoManagerTypeA.TYPE:
                         cryptoManager = new TestCryptoManagerTypeA(null, metadata.cryptoMetadata().keyProviderName());
@@ -978,7 +960,7 @@ public class RepositoriesServiceTests extends OpenSearchTestCase {
                 Map.of("bucket", "bucket-b")
             );
 
-            if (Boolean.TRUE.equals(metadata.encrypted())) {
+            if (metadata.cryptoMetadata() != null) {
                 switch (metadata.cryptoMetadata().keyProviderType()) {
                     case TestCryptoManagerTypeA.TYPE:
                         cryptoManager = new TestCryptoManagerTypeA(null, metadata.cryptoMetadata().keyProviderName());

@@ -8,11 +8,11 @@
 
 package org.opensearch.common.blobstore;
 
+import org.opensearch.common.crypto.CryptoProvider;
 import org.opensearch.common.crypto.DecryptedRangedStreamProvider;
 import org.opensearch.common.crypto.EncryptedHeaderContentSupplier;
 import org.opensearch.common.io.InputStreamContainer;
 import org.opensearch.core.action.ActionListener;
-import org.opensearch.crypto.CryptoManager;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -27,11 +27,11 @@ import java.util.stream.Collectors;
 public class EncryptedBlobContainer implements BlobContainer {
 
     private final BlobContainer blobContainer;
-    private final CryptoManager cryptoManager;
+    private final CryptoProvider cryptoProvider;
 
-    public EncryptedBlobContainer(BlobContainer blobContainer, CryptoManager cryptoManager) {
+    public EncryptedBlobContainer(BlobContainer blobContainer, CryptoProvider cryptoProvider) {
         this.blobContainer = blobContainer;
-        this.cryptoManager = cryptoManager;
+        this.cryptoProvider = cryptoProvider;
     }
 
     @Override
@@ -47,10 +47,10 @@ public class EncryptedBlobContainer implements BlobContainer {
     @Override
     public InputStream readBlob(String blobName) throws IOException {
         InputStream inputStream = blobContainer.readBlob(blobName);
-        return cryptoManager.createDecryptingStream(inputStream);
+        return cryptoProvider.createDecryptingStream(inputStream);
     }
 
-    private EncryptedHeaderContentSupplier  getEncryptedHeaderContentSupplier(String blobName) {
+    private EncryptedHeaderContentSupplier getEncryptedHeaderContentSupplier(String blobName) {
         return (start, end) -> {
             byte[] buffer;
             int length = (int) (end - start + 1);
@@ -64,11 +64,11 @@ public class EncryptedBlobContainer implements BlobContainer {
 
     @Override
     public InputStream readBlob(String blobName, long position, long length) throws IOException {
-        Object encryptionMetadata = cryptoManager.loadEncryptionMetadata(getEncryptedHeaderContentSupplier(blobName));
-        DecryptedRangedStreamProvider decryptedStreamProvider = cryptoManager.createDecryptingStreamOfRange(
-                encryptionMetadata,
-                position,
-                position + length - 1
+        Object encryptionMetadata = cryptoProvider.loadEncryptionMetadata(getEncryptedHeaderContentSupplier(blobName));
+        DecryptedRangedStreamProvider decryptedStreamProvider = cryptoProvider.createDecryptingStreamOfRange(
+            encryptionMetadata,
+            position,
+            position + length - 1
         );
         long adjustedPos = decryptedStreamProvider.getAdjustedRange()[0];
         long adjustedLength = decryptedStreamProvider.getAdjustedRange()[1] - adjustedPos + 1;
@@ -81,12 +81,11 @@ public class EncryptedBlobContainer implements BlobContainer {
         return blobContainer.readBlobPreferredLength();
     }
 
-    private void executeWrite(InputStream inputStream, long blobSize,
-                              BiConsumer<InputStream, Long> writeConsumer) {
-        Object cryptoContext = cryptoManager.initEncryptionMetadata();
+    private void executeWrite(InputStream inputStream, long blobSize, BiConsumer<InputStream, Long> writeConsumer) {
+        Object cryptoContext = cryptoProvider.initEncryptionMetadata();
         InputStreamContainer streamContainer = new InputStreamContainer(inputStream, blobSize, 0);
-        InputStreamContainer encryptedStream = cryptoManager.createEncryptingStream(cryptoContext, streamContainer);
-        long cryptoLength = cryptoManager.estimateEncryptedLengthOfEntireContent(cryptoContext, blobSize);
+        InputStreamContainer encryptedStream = cryptoProvider.createEncryptingStream(cryptoContext, streamContainer);
+        long cryptoLength = cryptoProvider.estimateEncryptedLengthOfEntireContent(cryptoContext, blobSize);
         writeConsumer.accept(encryptedStream.getInputStream(), cryptoLength);
     }
 
@@ -141,13 +140,8 @@ public class EncryptedBlobContainer implements BlobContainer {
         Map<String, BlobContainer> children = blobContainer.children();
         if (children != null) {
             return children.entrySet()
-                    .stream()
-                    .collect(
-                            Collectors.toMap(
-                                    Map.Entry::getKey,
-                                    entry -> new EncryptedBlobContainer(entry.getValue(), cryptoManager)
-                            )
-                    );
+                .stream()
+                .collect(Collectors.toMap(Map.Entry::getKey, entry -> new EncryptedBlobContainer(entry.getValue(), cryptoProvider)));
         } else {
             return null;
         }
@@ -165,36 +159,42 @@ public class EncryptedBlobContainer implements BlobContainer {
         }
 
         return blobMetadataMap.entrySet()
-                .stream()
-                .collect(
-                        Collectors.toMap(
-                                Map.Entry::getKey,
-                                entry -> new EncryptedBlobMetadata(
-                                        entry.getValue(),
-                                        cryptoManager,
-                                        getEncryptedHeaderContentSupplier(entry.getKey())
-                                ))
-                );
+            .stream()
+            .collect(
+                Collectors.toMap(
+                    Map.Entry::getKey,
+                    entry -> new EncryptedBlobMetadata(entry.getValue(), cryptoProvider, getEncryptedHeaderContentSupplier(entry.getKey()))
+                )
+            );
 
     }
 
     @Override
-    public void listBlobsByPrefixInSortedOrder(String blobNamePrefix, int limit, BlobNameSortOrder blobNameSortOrder, ActionListener<List<BlobMetadata>> listener) {
-        ActionListener<List<BlobMetadata>> encryptedMetadataListener = ActionListener.delegateFailure(listener,
-                (delegatedListener, metadataList) -> {
-                    if (metadataList != null) {
-                        List<BlobMetadata> encryptedMetadata = metadataList
-                                .stream()
-                                .map(blobMetadata -> new EncryptedBlobMetadata(
-                                        blobMetadata,
-                                        cryptoManager,
-                                        getEncryptedHeaderContentSupplier(blobMetadata.name()))
-                                ).collect(Collectors.toList());
-                        delegatedListener.onResponse(encryptedMetadata);
-                    } else {
-                        delegatedListener.onResponse(null);
-                    }
-                });
+    public void listBlobsByPrefixInSortedOrder(
+        String blobNamePrefix,
+        int limit,
+        BlobNameSortOrder blobNameSortOrder,
+        ActionListener<List<BlobMetadata>> listener
+    ) {
+        ActionListener<List<BlobMetadata>> encryptedMetadataListener = ActionListener.delegateFailure(
+            listener,
+            (delegatedListener, metadataList) -> {
+                if (metadataList != null) {
+                    List<BlobMetadata> encryptedMetadata = metadataList.stream()
+                        .map(
+                            blobMetadata -> new EncryptedBlobMetadata(
+                                blobMetadata,
+                                cryptoProvider,
+                                getEncryptedHeaderContentSupplier(blobMetadata.name())
+                            )
+                        )
+                        .collect(Collectors.toList());
+                    delegatedListener.onResponse(encryptedMetadata);
+                } else {
+                    delegatedListener.onResponse(null);
+                }
+            }
+        );
         blobContainer.listBlobsByPrefixInSortedOrder(blobNamePrefix, limit, blobNameSortOrder, encryptedMetadataListener);
     }
 }
