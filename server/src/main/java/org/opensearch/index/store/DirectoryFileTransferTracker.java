@@ -14,6 +14,7 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * Tracks the amount of bytes transferred between two {@link org.apache.lucene.store.Directory} instances
@@ -190,6 +191,34 @@ public class DirectoryFileTransferTracker {
             out.writeDouble(transferredBytesMovingAverage);
             out.writeLong(lastSuccessfulTransferInBytes);
             out.writeDouble(transferredBytesPerSecMovingAverage);
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) return true;
+            if (obj == null || getClass() != obj.getClass()) return false;
+            Stats stats = (Stats) obj;
+
+            return transferredBytesStarted == stats.transferredBytesStarted
+                && transferredBytesFailed == stats.transferredBytesFailed
+                && transferredBytesSucceeded == stats.transferredBytesSucceeded
+                && lastTransferTimestampMs == stats.lastTransferTimestampMs
+                && Double.compare(stats.transferredBytesMovingAverage, transferredBytesMovingAverage) == 0
+                && lastSuccessfulTransferInBytes == stats.lastSuccessfulTransferInBytes
+                && Double.compare(stats.transferredBytesPerSecMovingAverage, transferredBytesPerSecMovingAverage) == 0;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(
+                transferredBytesStarted,
+                transferredBytesFailed,
+                transferredBytesSucceeded,
+                lastTransferTimestampMs,
+                transferredBytesMovingAverage,
+                lastSuccessfulTransferInBytes,
+                transferredBytesPerSecMovingAverage
+            );
         }
     }
 }

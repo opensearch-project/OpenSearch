@@ -1760,7 +1760,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
                 .build()
         );
-        RemoteSegmentTransferTracker remoteRefreshSegmentTracker = shard.getRemoteRefreshSegmentPressureService()
+        RemoteSegmentTransferTracker remoteRefreshSegmentTracker = shard.getRemoteStorePressureService()
             .getRemoteRefreshSegmentTracker(shard.shardId);
         populateSampleRemoteStoreStats(remoteRefreshSegmentTracker);
         ShardStats shardStats = new ShardStats(
