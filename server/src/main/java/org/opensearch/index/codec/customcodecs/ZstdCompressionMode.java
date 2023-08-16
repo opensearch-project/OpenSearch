@@ -103,11 +103,13 @@ public class ZstdCompressionMode extends CompressionMode {
 
                 // dictionary compression first
                 doCompress(bytes, offset, dictLength, cctx, out);
-                cctx.loadDict(new ZstdDictCompress(bytes, offset, dictLength, compressionLevel));
+                try (ZstdDictCompress dictCompress = new ZstdDictCompress(bytes, offset, dictLength, compressionLevel)) {
+                    cctx.loadDict(dictCompress);
 
-                for (int start = offset + dictLength; start < end; start += blockLength) {
-                    int l = Math.min(blockLength, end - start);
-                    doCompress(bytes, start, l, cctx, out);
+                    for (int start = offset + dictLength; start < end; start += blockLength) {
+                        int l = Math.min(blockLength, end - start);
+                        doCompress(bytes, start, l, cctx, out);
+                    }
                 }
             }
         }
