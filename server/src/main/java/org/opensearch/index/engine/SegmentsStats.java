@@ -113,8 +113,7 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
         bitsetMemoryInBytes = in.readLong();
         maxUnsafeAutoIdTimestamp = in.readLong();
         fileSizes = in.readMap(StreamInput::readString, StreamInput::readLong);
-        // TODO Update to 2_10_0 when we backport to 2.x
-        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_2_10_0)) {
             remoteSegmentStats = in.readOptionalWriteable(RemoteSegmentStats::new);
         } else {
             remoteSegmentStats = new RemoteSegmentStats();
@@ -306,8 +305,7 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
         out.writeLong(bitsetMemoryInBytes);
         out.writeLong(maxUnsafeAutoIdTimestamp);
         out.writeMap(this.fileSizes, StreamOutput::writeString, StreamOutput::writeLong);
-        // TODO Update to 2_10_0 when we backport to 2.x
-        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_2_10_0)) {
             out.writeOptionalWriteable(remoteSegmentStats);
         }
     }
