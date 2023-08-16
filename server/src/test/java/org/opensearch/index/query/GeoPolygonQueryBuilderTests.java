@@ -37,20 +37,21 @@ import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.opensearch.core.common.ParsingException;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.geo.builders.ShapeBuilder;
+import org.opensearch.core.common.ParsingException;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.test.AbstractQueryTestCase;
 import org.opensearch.test.geo.RandomShapeGenerator;
 import org.opensearch.test.geo.RandomShapeGenerator.ShapeType;
-import org.locationtech.jts.geom.Coordinate;
-import org.locationtech.spatial4j.shape.jts.JtsGeometry;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+
+import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.spatial4j.shape.jts.JtsGeometry;
 
 import static org.opensearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.hamcrest.CoreMatchers.containsString;

@@ -32,9 +32,9 @@
 
 package org.opensearch.search.aggregations.metrics;
 
+import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.xcontent.XContentParseException;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.search.aggregations.BaseAggregationTestCase;
 
 import java.io.IOException;

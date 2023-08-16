@@ -11,15 +11,15 @@ package org.opensearch.action.admin.cluster.remotestore.stats;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.TestShardRouting;
-import org.opensearch.index.remote.RemoteSegmentTransferTracker;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.remote.RemoteSegmentTransferTracker;
 import org.opensearch.index.store.DirectoryFileTransferTracker;
 
 import java.util.Map;
 
-import static org.junit.Assert.assertTrue;
 import static org.opensearch.test.OpenSearchTestCase.assertEquals;
 import static org.opensearch.test.OpenSearchTestCase.randomAlphaOfLength;
+import static org.junit.Assert.assertTrue;
 
 /**
  * Helper utilities for Remote Store stats tests
