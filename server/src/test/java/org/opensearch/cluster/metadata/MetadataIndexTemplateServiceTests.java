@@ -33,7 +33,6 @@
 package org.opensearch.cluster.metadata;
 
 import org.opensearch.Version;
-import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.cluster.ClusterState;
@@ -47,12 +46,13 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.index.Index;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.env.Environment;
-import org.opensearch.core.index.Index;
 import org.opensearch.index.mapper.MapperParsingException;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.indices.IndexTemplateMissingException;
@@ -76,6 +76,10 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonList;
+import static org.opensearch.common.settings.Settings.builder;
+import static org.opensearch.env.Environment.PATH_HOME_SETTING;
+import static org.opensearch.index.mapper.DataStreamFieldMapper.Defaults.TIMESTAMP_FIELD;
+import static org.opensearch.indices.ShardLimitValidatorTests.createTestShardLimitService;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.containsStringIgnoringCase;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -88,10 +92,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.matchesRegex;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
-import static org.opensearch.common.settings.Settings.builder;
-import static org.opensearch.env.Environment.PATH_HOME_SETTING;
-import static org.opensearch.index.mapper.DataStreamFieldMapper.Defaults.TIMESTAMP_FIELD;
-import static org.opensearch.indices.ShardLimitValidatorTests.createTestShardLimitService;
 
 public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestCase {
 

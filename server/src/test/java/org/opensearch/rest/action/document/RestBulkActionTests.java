@@ -33,12 +33,12 @@
 package org.opensearch.rest.action.document;
 
 import org.opensearch.Version;
-import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.bulk.BulkRequest;
 import org.opensearch.action.bulk.BulkResponse;
 import org.opensearch.action.update.UpdateRequest;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.SetOnce;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.rest.RestChannel;

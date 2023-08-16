@@ -8,6 +8,22 @@
 
 package org.opensearch.index.store.remote.utils;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
+import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.MMapDirectory;
+import org.apache.lucene.store.SimpleFSLockFactory;
+import org.opensearch.common.blobstore.BlobContainer;
+import org.opensearch.core.common.breaker.CircuitBreaker;
+import org.opensearch.core.common.breaker.NoopCircuitBreaker;
+import org.opensearch.index.store.remote.file.CleanerDaemonThreadLeakFilter;
+import org.opensearch.index.store.remote.filecache.FileCache;
+import org.opensearch.index.store.remote.filecache.FileCacheFactory;
+import org.opensearch.test.OpenSearchTestCase;
+import org.hamcrest.MatcherAssert;
+import org.junit.After;
+import org.junit.Before;
+
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -17,22 +33,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-
-import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.store.MMapDirectory;
-import org.apache.lucene.store.SimpleFSLockFactory;
-import org.hamcrest.MatcherAssert;
-import org.junit.After;
-import org.junit.Before;
-import org.opensearch.common.blobstore.BlobContainer;
-import org.opensearch.core.common.breaker.CircuitBreaker;
-import org.opensearch.core.common.breaker.NoopCircuitBreaker;
-import org.opensearch.index.store.remote.file.CleanerDaemonThreadLeakFilter;
-import org.opensearch.index.store.remote.filecache.FileCache;
-import org.opensearch.index.store.remote.filecache.FileCacheFactory;
-import org.opensearch.test.OpenSearchTestCase;
-
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;

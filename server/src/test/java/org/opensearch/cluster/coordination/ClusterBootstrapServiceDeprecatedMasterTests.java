@@ -31,7 +31,6 @@
 
 package org.opensearch.cluster.coordination;
 
-import org.junit.Before;
 import org.opensearch.Version;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
@@ -41,6 +40,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.MockTransport;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportService;
+import org.junit.Before;
 
 import java.util.Collections;
 import java.util.concurrent.atomic.AtomicBoolean;
