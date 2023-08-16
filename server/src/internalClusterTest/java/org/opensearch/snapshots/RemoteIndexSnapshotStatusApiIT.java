@@ -32,22 +32,22 @@
 
 package org.opensearch.snapshots;
 
-import org.opensearch.common.action.ActionFuture;
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.opensearch.action.admin.cluster.snapshots.status.SnapshotIndexShardStage;
 import org.opensearch.action.admin.cluster.snapshots.status.SnapshotIndexShardStatus;
 import org.opensearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.opensearch.cluster.SnapshotsInProgress;
+import org.opensearch.common.action.ActionFuture;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.nio.file.Path;
 
+import static org.opensearch.remotestore.RemoteStoreBaseIntegTestCase.remoteStoreClusterSettings;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
-import static org.opensearch.remotestore.RemoteStoreBaseIntegTestCase.remoteStoreClusterSettings;
 
 public class RemoteIndexSnapshotStatusApiIT extends AbstractSnapshotIntegTestCase {
 

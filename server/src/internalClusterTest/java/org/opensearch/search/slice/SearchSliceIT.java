@@ -32,9 +32,7 @@
 
 package org.opensearch.search.slice;
 
-import org.opensearch.common.action.ActionFuture;
 import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest;
-
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.CreatePitAction;
 import org.opensearch.action.search.CreatePitRequest;
@@ -42,10 +40,11 @@ import org.opensearch.action.search.CreatePitResponse;
 import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.SearchRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
+import org.opensearch.common.action.ActionFuture;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.search.Scroll;
 import org.opensearch.search.SearchException;
 import org.opensearch.search.SearchHit;
@@ -54,9 +53,9 @@ import org.opensearch.search.sort.SortBuilders;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.concurrent.ExecutionException;
 
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;

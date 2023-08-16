@@ -18,11 +18,11 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.Locale;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_ENABLED;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
 import static org.opensearch.indices.IndicesService.CLUSTER_REPLICATION_TYPE_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.containsString;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST)
 public class CreateRemoteIndexClusterDefaultDocRepIT extends CreateRemoteIndexIT {

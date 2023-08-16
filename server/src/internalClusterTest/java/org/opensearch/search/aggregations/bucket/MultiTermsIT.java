@@ -21,11 +21,11 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 import java.util.Collections;
 
 import static java.util.Arrays.asList;
+import static org.opensearch.search.aggregations.AggregationBuilders.multiTerms;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.IsNull.notNullValue;
-import static org.opensearch.search.aggregations.AggregationBuilders.multiTerms;
-import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResponse;
 
 /**
  * Extend {@link BaseStringTermsTestCase}.

@@ -33,8 +33,8 @@ package org.opensearch.search.aggregations.bucket;
 
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.search.aggregations.Aggregator.SubAggCollectionMode;
-import org.opensearch.search.aggregations.bucket.terms.Terms;
 import org.opensearch.search.aggregations.BucketOrder;
+import org.opensearch.search.aggregations.bucket.terms.Terms;
 
 import java.util.HashMap;
 import java.util.List;
