@@ -485,7 +485,7 @@ public class OpenSearchNode implements TestClusterConfiguration {
         LOGGER.info("Starting `{}`", this);
         if (System.getProperty("tests.opensearch.secure") != null
             && System.getProperty("tests.opensearch.secure").equalsIgnoreCase("true")) {
-            secure = Boolean.getBoolean(System.getProperty("tests.opensearch.secure"));
+            secure = true;
         }
         if (System.getProperty("tests.opensearch.username") != null) {
             this.credentials.get(0).put("username", System.getProperty("tests.opensearch.username"));
