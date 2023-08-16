@@ -57,10 +57,10 @@ public class RemoteSegmentStats implements Writeable, ToXContentFragment {
      */
     private long maxRefreshTimeLag;
     /**
-     * Maximum refresh lag (in bytes) between local and the remote store
+     * Total refresh lag (in bytes) between local and the remote store
      * Used to check for data freshness in the remote store
      */
-    private long maxRefreshBytesLag;
+    private long totalRefreshBytesLag;
 
     public RemoteSegmentStats() {}
 
@@ -72,7 +72,7 @@ public class RemoteSegmentStats implements Writeable, ToXContentFragment {
         downloadBytesFailed = in.readLong();
         downloadBytesSucceeded = in.readLong();
         maxRefreshTimeLag = in.readLong();
-        maxRefreshBytesLag = in.readLong();
+        totalRefreshBytesLag = in.readLong();
     }
 
     /**
@@ -91,7 +91,7 @@ public class RemoteSegmentStats implements Writeable, ToXContentFragment {
         this.downloadBytesStarted = trackerStats.directoryFileTransferTrackerStats.transferredBytesStarted;
         this.downloadBytesFailed = trackerStats.directoryFileTransferTrackerStats.transferredBytesFailed;
         this.maxRefreshTimeLag = trackerStats.refreshTimeLagMs;
-        this.maxRefreshBytesLag = trackerStats.bytesLag;
+        this.totalRefreshBytesLag = trackerStats.bytesLag;
     }
 
     // Getter and setters. All are visible for testing
@@ -151,12 +151,12 @@ public class RemoteSegmentStats implements Writeable, ToXContentFragment {
         this.maxRefreshTimeLag = Math.max(this.maxRefreshTimeLag, maxRefreshTimeLag);
     }
 
-    public long getMaxRefreshBytesLag() {
-        return maxRefreshBytesLag;
+    public long getTotalRefreshBytesLag() {
+        return totalRefreshBytesLag;
     }
 
-    public void setMaxRefreshBytesLag(long maxRefreshBytesLag) {
-        this.maxRefreshBytesLag = maxRefreshBytesLag;
+    public void setTotalRefreshBytesLag(long totalRefreshBytesLag) {
+        this.totalRefreshBytesLag = totalRefreshBytesLag;
     }
 
     /**
@@ -173,7 +173,7 @@ public class RemoteSegmentStats implements Writeable, ToXContentFragment {
             this.downloadBytesFailed += existingStats.getDownloadBytesFailed();
             this.downloadBytesSucceeded += existingStats.getDownloadBytesSucceeded();
             this.maxRefreshTimeLag = Math.max(this.maxRefreshTimeLag, existingStats.getMaxRefreshTimeLag());
-            this.maxRefreshBytesLag = Math.max(this.maxRefreshBytesLag, existingStats.getMaxRefreshBytesLag());
+            this.totalRefreshBytesLag += existingStats.getTotalRefreshBytesLag();
         }
     }
 
@@ -186,7 +186,7 @@ public class RemoteSegmentStats implements Writeable, ToXContentFragment {
         out.writeLong(downloadBytesFailed);
         out.writeLong(downloadBytesSucceeded);
         out.writeLong(maxRefreshTimeLag);
-        out.writeLong(maxRefreshBytesLag);
+        out.writeLong(totalRefreshBytesLag);
     }
 
     @Override
@@ -200,9 +200,9 @@ public class RemoteSegmentStats implements Writeable, ToXContentFragment {
         builder.endObject();
         builder.humanReadableField(Fields.MAX_REFRESH_TIME_LAG_IN_MILLIS, Fields.MAX_REFRESH_TIME_LAG, new TimeValue(maxRefreshTimeLag));
         builder.humanReadableField(
-            Fields.MAX_REFRESH_SIZE_LAG_IN_MILLIS,
-            Fields.MAX_REFRESH_SIZE_LAG,
-            new ByteSizeValue(maxRefreshBytesLag)
+            Fields.TOTAL_REFRESH_SIZE_LAG_IN_MILLIS,
+            Fields.TOTAL_REFRESH_SIZE_LAG,
+            new ByteSizeValue(totalRefreshBytesLag)
         );
         builder.endObject();
         builder.startObject(Fields.DOWNLOAD);
@@ -230,7 +230,7 @@ public class RemoteSegmentStats implements Writeable, ToXContentFragment {
         static final String SUCCEEDED_BYTES = "succeeded_bytes";
         static final String MAX_REFRESH_TIME_LAG = "max_refresh_time_lag";
         static final String MAX_REFRESH_TIME_LAG_IN_MILLIS = "max_refresh_time_lag_in_millis";
-        static final String MAX_REFRESH_SIZE_LAG = "max_refresh_size_lag";
-        static final String MAX_REFRESH_SIZE_LAG_IN_MILLIS = "max_refresh_size_lag_in_bytes";
+        static final String TOTAL_REFRESH_SIZE_LAG = "total_refresh_size_lag";
+        static final String TOTAL_REFRESH_SIZE_LAG_IN_MILLIS = "total_refresh_size_lag_in_bytes";
     }
 }
