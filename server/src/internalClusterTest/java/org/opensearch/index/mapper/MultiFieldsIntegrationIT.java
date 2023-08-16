@@ -37,9 +37,9 @@ import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.metadata.MappingMetadata;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.unit.DistanceUnit;
-import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.support.XContentMapValues;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.io.IOException;

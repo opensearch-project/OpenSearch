@@ -8,8 +8,9 @@
 
 package org.opensearch.telemetry.tracing;
 
-import java.io.Closeable;
 import org.opensearch.telemetry.tracing.attributes.Attributes;
+
+import java.io.Closeable;
 
 /**
  * Tracer is the interface used to create a {@link Span}

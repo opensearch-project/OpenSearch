@@ -8,9 +8,9 @@
 
 package org.opensearch.telemetry.tracing.noop;
 
+import org.opensearch.telemetry.tracing.SpanContext;
 import org.opensearch.telemetry.tracing.SpanScope;
 import org.opensearch.telemetry.tracing.Tracer;
-import org.opensearch.telemetry.tracing.SpanContext;
 import org.opensearch.telemetry.tracing.attributes.Attributes;
 
 /**

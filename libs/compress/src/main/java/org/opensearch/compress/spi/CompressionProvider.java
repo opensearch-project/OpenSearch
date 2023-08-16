@@ -13,8 +13,8 @@ import org.opensearch.core.compress.Compressor;
 import org.opensearch.core.compress.spi.CompressorProvider;
 
 import java.util.AbstractMap.SimpleEntry;
-import java.util.Map.Entry;
 import java.util.List;
+import java.util.Map.Entry;
 
 /**
  * Additional "optional" compressor implementations provided by the opensearch compress library

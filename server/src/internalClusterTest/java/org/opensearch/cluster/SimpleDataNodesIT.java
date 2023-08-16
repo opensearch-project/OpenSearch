@@ -50,7 +50,6 @@ import static org.opensearch.client.Requests.createIndexRequest;
 import static org.opensearch.common.unit.TimeValue.timeValueSeconds;
 import static org.opensearch.test.NodeRoles.dataNode;
 import static org.opensearch.test.NodeRoles.nonDataNode;
-
 import static org.hamcrest.Matchers.equalTo;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
