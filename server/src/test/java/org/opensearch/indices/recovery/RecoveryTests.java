@@ -33,6 +33,7 @@
 package org.opensearch.indices.recovery;
 
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
+
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexWriter;
@@ -41,16 +42,16 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.ExceptionsHelper;
-import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.bulk.BulkShardRequest;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.UUIDs;
-import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.MergePolicyConfig;

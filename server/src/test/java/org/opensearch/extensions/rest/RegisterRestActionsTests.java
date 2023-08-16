@@ -8,12 +8,12 @@
 
 package org.opensearch.extensions.rest;
 
-import java.util.List;
-
+import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.BytesStreamInput;
-import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.test.OpenSearchTestCase;
+
+import java.util.List;
 
 public class RegisterRestActionsTests extends OpenSearchTestCase {
 

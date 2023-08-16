@@ -10,19 +10,19 @@ package org.opensearch.indices.replication;
 
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFileNames;
-import org.junit.Assert;
 import org.opensearch.Version;
-import org.opensearch.core.action.ActionListener;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.recovery.FileChunkWriter;
 import org.opensearch.indices.recovery.MultiChunkTransfer;
+import org.junit.Assert;
 
 import java.io.IOException;
 import java.util.concurrent.CountDownLatch;
@@ -32,15 +32,15 @@ import java.util.function.IntSupplier;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.mock;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 public class SegmentFileTransferHandlerTests extends IndexShardTestCase {

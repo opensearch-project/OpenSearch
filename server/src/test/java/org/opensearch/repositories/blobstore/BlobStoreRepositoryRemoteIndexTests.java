@@ -54,11 +54,11 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.opensearch.indices.IndicesService.CLUSTER_REPLICATION_TYPE_SETTING;
-import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_STORE_ENABLED_SETTING;
 import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING;
+import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_STORE_ENABLED_SETTING;
 import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING;
+import static org.opensearch.indices.IndicesService.CLUSTER_REPLICATION_TYPE_SETTING;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Tests for the {@link BlobStoreRepository} and its subclasses.

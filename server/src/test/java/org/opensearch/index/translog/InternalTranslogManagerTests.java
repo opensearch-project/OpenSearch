@@ -23,9 +23,9 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
-import static org.hamcrest.Matchers.equalTo;
 import static org.opensearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
 import static org.opensearch.index.translog.TranslogDeletionPolicies.createTranslogDeletionPolicy;
+import static org.hamcrest.Matchers.equalTo;
 
 public class InternalTranslogManagerTests extends TranslogManagerTestCase {
 

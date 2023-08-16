@@ -33,10 +33,10 @@
 package org.opensearch.index.mapper;
 
 import org.apache.lucene.util.BytesRef;
-import org.opensearch.core.common.bytes.BytesArray;
-import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressorFactory;
 import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
