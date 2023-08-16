@@ -29,7 +29,6 @@ public class DecryptedRangedStreamProvider {
         this.decryptedStreamProvider = decryptedStreamProvider;
     }
 
-
     /**
      * Adjusted range of partial encrypted content which needs to be used for decryption.
      * @return adjusted range
@@ -37,7 +36,6 @@ public class DecryptedRangedStreamProvider {
     public long[] getAdjustedRange() {
         return adjustedRange;
     }
-
 
     /**
      * A utility stream provider which supplies the stream responsible for decrypting the content and reading the
@@ -47,6 +45,5 @@ public class DecryptedRangedStreamProvider {
     public Function<InputStream, InputStream> getDecryptedStreamProvider() {
         return decryptedStreamProvider;
     }
-
 
 }

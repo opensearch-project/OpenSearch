@@ -125,7 +125,7 @@ public class CryptoTests extends OpenSearchTestCase {
             }
         }
 
-        long calculatedEncryptedLength = frameCryptoProvider.estimateEncryptedLength(cryptoContext, length);
+        long calculatedEncryptedLength = frameCryptoProvider.estimateEncryptedLengthOfEntireContent(cryptoContext, length);
         assertEquals(encLength, calculatedEncryptedLength);
 
         EncryptedStore encryptedStore = new EncryptedStore();
@@ -147,7 +147,7 @@ public class CryptoTests extends OpenSearchTestCase {
                 randomIntBetween(10, 10240)
             );
             EncryptionMetadata cryptoContext = (EncryptionMetadata) frameCryptoProvider.initEncryptionMetadata();
-            long encryptedLength = frameCryptoProvider.estimateEncryptedLength(cryptoContext, n);
+            long encryptedLength = frameCryptoProvider.estimateEncryptedLengthOfEntireContent(cryptoContext, n);
             ParsedCiphertext parsedCiphertext = new ParsedCiphertext(cryptoContext.getCiphertextHeaderBytes());
             long decryptedLength = frameCryptoProvider.estimateDecryptedLength(parsedCiphertext, encryptedLength);
             assertEquals(n, decryptedLength);

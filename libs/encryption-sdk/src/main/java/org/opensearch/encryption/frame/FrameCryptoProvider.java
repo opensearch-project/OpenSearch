@@ -9,6 +9,7 @@
 package org.opensearch.encryption.frame;
 
 import com.amazonaws.encryptionsdk.ParsedCiphertext;
+import org.opensearch.common.crypto.CryptoProvider;
 import org.opensearch.common.crypto.DecryptedRangedStreamProvider;
 import org.opensearch.common.crypto.EncryptedHeaderContentSupplier;
 import org.opensearch.encryption.frame.core.AwsCrypto;
@@ -19,7 +20,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.Map;
 
-public class FrameCryptoProvider {
+public class FrameCryptoProvider implements CryptoProvider {
     private final AwsCrypto awsCrypto;
     private final Map<String, String> encryptionContext;
 
@@ -56,7 +57,7 @@ public class FrameCryptoProvider {
      * @param streamSize Size of the stream to be adjusted.
      * @return Adjusted size of the stream.
      */
-    public long adjustEncryptedStreamSize(Object cryptoContextObj, long streamSize) {
+    public long adjustContentSizeForPartialEncryption(Object cryptoContextObj, long streamSize) {
         EncryptionMetadata encryptionMetadata = validateEncryptionMetadata(cryptoContextObj);
         return (streamSize - (streamSize % encryptionMetadata.getFrameSize())) + encryptionMetadata.getFrameSize();
     }
@@ -68,7 +69,7 @@ public class FrameCryptoProvider {
      * @param contentLength Size of the raw content
      * @return Calculated size of the encrypted stream for the provided raw stream.
      */
-    public long estimateEncryptedLength(Object cryptoMetadataObj, long contentLength) {
+    public long estimateEncryptedLengthOfEntireContent(Object cryptoMetadataObj, long contentLength) {
         EncryptionMetadata encryptionMetadata = validateEncryptionMetadata(cryptoMetadataObj);
         return encryptionMetadata.getCiphertextHeaderBytes().length + awsCrypto.estimateOutputSizeWithFooter(
             encryptionMetadata.getFrameSize(),
