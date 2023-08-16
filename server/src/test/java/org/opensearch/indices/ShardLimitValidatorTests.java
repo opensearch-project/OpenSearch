@@ -54,17 +54,17 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 import static org.opensearch.cluster.metadata.MetadataIndexStateServiceTests.addClosedIndex;
 import static org.opensearch.cluster.metadata.MetadataIndexStateServiceTests.addOpenedIndex;
 import static org.opensearch.cluster.shards.ShardCounts.forDataNodeCount;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 import static org.opensearch.indices.ShardLimitValidator.SETTING_CLUSTER_IGNORE_DOT_INDEXES;
 import static org.opensearch.indices.ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE;
 import static org.opensearch.indices.ShardLimitValidator.SETTING_MAX_SHARDS_PER_CLUSTER_KEY;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class ShardLimitValidatorTests extends OpenSearchTestCase {
 

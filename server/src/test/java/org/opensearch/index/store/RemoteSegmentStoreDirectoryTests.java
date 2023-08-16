@@ -20,10 +20,6 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.OutputStreamIndexOutput;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.Version;
-import org.junit.After;
-import org.junit.Before;
-import org.mockito.Mockito;
-import org.opensearch.core.action.ActionListener;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.blobstore.VerifyingMultiStreamBlobContainer;
@@ -33,6 +29,7 @@ import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.remote.RemoteStoreUtils;
@@ -43,6 +40,8 @@ import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadataHandler;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.threadpool.ThreadPool;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.file.NoSuchFileException;
@@ -56,6 +55,10 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 
+import org.mockito.Mockito;
+
+import static org.opensearch.test.RemoteStoreTestUtils.createMetadataFileBytes;
+import static org.opensearch.test.RemoteStoreTestUtils.getDummyMetadata;
 import static org.hamcrest.CoreMatchers.is;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doReturn;
@@ -67,8 +70,6 @@ import static org.mockito.Mockito.startsWith;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-import static org.opensearch.test.RemoteStoreTestUtils.createMetadataFileBytes;
-import static org.opensearch.test.RemoteStoreTestUtils.getDummyMetadata;
 
 public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
     private RemoteDirectory remoteDataDirectory;

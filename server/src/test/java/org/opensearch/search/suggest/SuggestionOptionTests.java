@@ -32,12 +32,12 @@
 
 package org.opensearch.search.suggest;
 
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.text.Text;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.search.suggest.Suggest.Suggestion.Entry.Option;
 import org.opensearch.search.suggest.phrase.PhraseSuggestion;
 import org.opensearch.test.OpenSearchTestCase;

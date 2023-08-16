@@ -49,9 +49,9 @@ import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.index.Index;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.core.index.Index;
 import org.opensearch.plugins.MapperPlugin;
 import org.opensearch.test.OpenSearchTestCase;
 

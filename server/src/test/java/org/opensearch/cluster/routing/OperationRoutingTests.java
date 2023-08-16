@@ -46,8 +46,8 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.index.Index;
-import org.opensearch.index.IndexModule;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.IndexModule;
 import org.opensearch.node.ResponseCollectorService;
 import org.opensearch.test.ClusterServiceUtils;
 import org.opensearch.test.OpenSearchTestCase;
@@ -66,15 +66,15 @@ import java.util.Set;
 import java.util.TreeMap;
 
 import static java.util.Collections.singletonMap;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DATE;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.object.HasToString.hasToString;
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DATE;
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 
 public class OperationRoutingTests extends OpenSearchTestCase {
     public void testGenerateShardId() {

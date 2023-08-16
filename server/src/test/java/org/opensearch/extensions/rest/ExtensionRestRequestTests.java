@@ -8,26 +8,26 @@
 
 package org.opensearch.extensions.rest;
 
-import org.opensearch.common.settings.Settings;
-import org.opensearch.core.rest.RestStatus;
 import org.opensearch.OpenSearchParseException;
+import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.BytesStreamInput;
-import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
+import org.opensearch.http.HttpRequest;
 import org.opensearch.identity.IdentityService;
 import org.opensearch.identity.Subject;
 import org.opensearch.identity.tokens.OnBehalfOfClaims;
 import org.opensearch.identity.tokens.TokenManager;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestRequest.Method;
-import org.opensearch.http.HttpRequest;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.nio.charset.StandardCharsets;
@@ -36,6 +36,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+
 import static java.util.Map.entry;
 
 public class ExtensionRestRequestTests extends OpenSearchTestCase {

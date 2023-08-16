@@ -32,10 +32,10 @@
 
 package org.opensearch.action.bulk;
 
-import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.DocWriteRequest;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.index.IndexResponse;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.test.OpenSearchTestCase;
