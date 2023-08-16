@@ -36,7 +36,7 @@ public class HashFunctionBenchmark {
 
     @State(Scope.Benchmark)
     public static class Options {
-        @Param({ "MURMUR3", "T1HA" })
+        @Param({ "MURMUR3", "T1HA1" })
         public Type type;
 
         @Param({
@@ -152,7 +152,7 @@ public class HashFunctionBenchmark {
 
     public enum Type {
         MURMUR3((data, offset, length) -> StringHelper.murmurhash3_x86_32(data, offset, length, 0)),
-        T1HA((data, offset, length) -> T1ha.hash(data, offset, length, 0));
+        T1HA1((data, offset, length) -> T1ha1.hash(data, offset, length, 0));
 
         private final Hasher hasher;
 

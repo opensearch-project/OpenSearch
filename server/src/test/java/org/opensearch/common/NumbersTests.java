@@ -225,7 +225,7 @@ public class NumbersTests extends OpenSearchTestCase {
     public void testNextPowerOfTwo() {
         // Negative values:
         for (int i = 0; i < 1000; i++) {
-            long value = randomLongBetween(-500, -1);
+            long value = randomLongBetween(-500000, -1);
             assertEquals(1, Numbers.nextPowerOfTwo(value));
         }
 
@@ -234,7 +234,7 @@ public class NumbersTests extends OpenSearchTestCase {
 
         // Positive values:
         for (int i = 0; i < 1000; i++) {
-            long value = randomLongBetween(1, 500);
+            long value = randomLongBetween(1, 500000);
             long nextPowerOfTwo = Numbers.nextPowerOfTwo(value);
 
             assertTrue(nextPowerOfTwo > value); // must be strictly greater

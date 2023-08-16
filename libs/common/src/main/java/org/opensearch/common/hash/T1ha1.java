@@ -8,7 +8,9 @@
 
 package org.opensearch.common.hash;
 
+import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
 import java.lang.invoke.VarHandle;
 import java.nio.ByteOrder;
 
@@ -23,13 +25,14 @@ import static java.lang.Long.rotateRight;
  *
  * <p>
  * To overcome language and performance limitations, this implementation differs slightly from the reference
- * implementation in C++, so the returned values will vary.
+ * implementation in C++, so the returned values may vary before JDK 18.
  *
  * <p>
  * Intended for little-endian systems but returns the same result on big-endian, albeit marginally slower.
  */
-public class T1ha {
+public class T1ha1 {
     private static final long SEED = System.nanoTime();
+    private static final Mux64 MUX_64_IMPL = fastestMux64Impl();
 
     private static final VarHandle LONG_HANDLE = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.LITTLE_ENDIAN);
     private static final VarHandle INT_HANDLE = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.LITTLE_ENDIAN);
@@ -153,11 +156,7 @@ public class T1ha {
      * XOR the high and low parts of the full 128-bit product.
      */
     private static long mux64(long a, long b) {
-        // Ideally, the following should be used to match the reference implementation:
-        // return Math.unsignedMultiplyHigh(a, b) ^ (a * b);
-        // Since unsignedMultiplyHigh isn't available before JDK 18, and calculating it without intrinsics is quite slow,
-        // the multiplyHigh method is used instead. Slight loss in quality is imperceptible for our use-case: a hash table.
-        return Math.multiplyHigh(a, b) ^ (a * b);
+        return MUX_64_IMPL.mux64(a, b);
     }
 
     /**
@@ -222,5 +221,46 @@ public class T1ha {
      */
     private static long fetch8(byte[] input, int offset) {
         return input[offset] & 0xFFL;
+    }
+
+    /**
+     * The implementation of mux64.
+     */
+    @FunctionalInterface
+    private interface Mux64 {
+        long mux64(long a, long b);
+    }
+
+    /**
+     * Provides the fastest available implementation of mux64 on this platform.
+     *
+     * <p>
+     * Ideally, the following should be returned to match the reference implementation:
+     * {@code Math.unsignedMultiplyHigh(a, b) ^ (a * b)}
+     *
+     * <p>
+     * Since unsignedMultiplyHigh isn't available before JDK 18, and calculating it without intrinsics is quite slow,
+     * the multiplyHigh method is used instead. Slight loss in quality is imperceptible for our use-case: a hash table.
+     * {@code Math.multiplyHigh(a, b) ^ (a * b)}
+     *
+     * <p>
+     * This indirection can be removed once we stop supporting older JDKs.
+     */
+    private static Mux64 fastestMux64Impl() {
+        try {
+            final MethodHandle unsignedMultiplyHigh = MethodHandles.publicLookup()
+                .findStatic(Math.class, "unsignedMultiplyHigh", MethodType.methodType(long.class, long.class, long.class));
+            return (a, b) -> {
+                try {
+                    return (long) unsignedMultiplyHigh.invokeExact(a, b) ^ (a * b);
+                } catch (Throwable e) {
+                    throw new RuntimeException(e);
+                }
+            };
+        } catch (NoSuchMethodException e) {
+            return (a, b) -> Math.multiplyHigh(a, b) ^ (a * b);
+        } catch (IllegalAccessException e) {
+            throw new RuntimeException(e);
+        }
     }
 }

@@ -22,7 +22,7 @@ import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
-import org.opensearch.common.hash.T1ha;
+import org.opensearch.common.hash.T1ha1;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 
@@ -58,7 +58,7 @@ public class BytesRefHashBenchmark {
 
     @State(Scope.Benchmark)
     public static class Options {
-        @Param({ "MURMUR3", "T1HA" })
+        @Param({ "MURMUR3", "T1HA1" })
         public Type type;
 
         @Param({
@@ -213,11 +213,11 @@ public class BytesRefHashBenchmark {
             }
         }),
 
-        T1HA(() -> new HashTable() {
+        T1HA1(() -> new HashTable() {
             private final BytesRefHash table = new BytesRefHash(
                 1,
                 0.6f,
-                key -> T1ha.hash(key.bytes, key.offset, key.length, 0),
+                key -> T1ha1.hash(key.bytes, key.offset, key.length, 0),
                 BigArrays.NON_RECYCLING_INSTANCE
             );
 

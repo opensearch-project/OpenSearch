@@ -35,7 +35,7 @@ package org.opensearch.common.util;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
-import org.opensearch.common.hash.T1ha;
+import org.opensearch.common.hash.T1ha1;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.test.OpenSearchTestCase;
@@ -63,7 +63,7 @@ public class BytesRefHashTests extends OpenSearchTestCase {
         hash = new BytesRefHash(
             randomIntBetween(1, 100),      // random capacity
             0.6f + randomFloat() * 0.39f,  // random load factor to verify collision resolution
-            key -> T1ha.hash(key.bytes, key.offset, key.length, seed),
+            key -> T1ha1.hash(key.bytes, key.offset, key.length, seed),
             randomBigArrays()
         );
     }

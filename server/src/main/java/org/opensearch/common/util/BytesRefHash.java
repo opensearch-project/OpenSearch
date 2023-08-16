@@ -34,7 +34,7 @@ package org.opensearch.common.util;
 
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.Numbers;
-import org.opensearch.common.hash.T1ha;
+import org.opensearch.common.hash.T1ha1;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.core.common.util.ByteArray;
@@ -56,7 +56,7 @@ public final class BytesRefHash implements Releasable {
     private static final long MAX_CAPACITY = 1L << 32;
     private static final long DEFAULT_INITIAL_CAPACITY = 32;
     private static final float DEFAULT_LOAD_FACTOR = 0.6f;
-    private static final Hasher DEFAULT_HASHER = key -> T1ha.hash(key.bytes, key.offset, key.length);
+    private static final Hasher DEFAULT_HASHER = key -> T1ha1.hash(key.bytes, key.offset, key.length);
 
     private static final long MASK_ORDINAL = 0x00000000FFFFFFFFL;  // extract ordinal
     private static final long MASK_FINGERPRINT = 0xFFFFFFFF00000000L;  // extract fingerprint
