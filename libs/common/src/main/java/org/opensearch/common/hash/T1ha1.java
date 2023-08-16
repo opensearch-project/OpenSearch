@@ -24,8 +24,9 @@ import static java.lang.Long.rotateRight;
  * a fast portable hash function with reasonable quality for checksums, hash tables, and thin fingerprinting.
  *
  * <p>
- * To overcome language and performance limitations, this implementation differs slightly from the reference
- * implementation in C++, so the returned values may vary before JDK 18.
+ * To overcome language and performance limitations, this implementation differs slightly from the
+ * <a href="https://github.com/erthink/t1ha/blob/master/src/t1ha1.c">reference implementation</a> in C++,
+ * so the returned values may vary before JDK 18.
  *
  * <p>
  * Intended for little-endian systems but returns the same result on big-endian, albeit marginally slower.
