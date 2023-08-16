@@ -33,6 +33,7 @@
 package org.opensearch.indices.memory.breaker;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.admin.cluster.node.stats.NodeStats;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -47,25 +48,24 @@ import org.opensearch.client.Client;
 import org.opensearch.client.Requests;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider;
-import org.opensearch.common.util.FeatureFlags;
-import org.opensearch.core.common.breaker.NoopCircuitBreaker;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.breaker.CircuitBreakingException;
+import org.opensearch.core.common.breaker.NoopCircuitBreaker;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.indices.breaker.CircuitBreakerStats;
-import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.rest.RestStatus;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.opensearch.search.SearchService;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
-
+import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
 import org.junit.After;
 import org.junit.Before;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -84,7 +84,6 @@ import static org.opensearch.search.aggregations.AggregationBuilders.terms;
 import static org.opensearch.test.OpenSearchIntegTestCase.Scope.TEST;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertFailures;
-
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.equalTo;

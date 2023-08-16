@@ -34,9 +34,7 @@ package org.opensearch.discovery;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.CorruptIndexException;
-
 import org.opensearch.OpenSearchException;
-import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.NoShardAvailableActionException;
 import org.opensearch.action.get.GetResponse;
 import org.opensearch.action.index.IndexRequestBuilder;
@@ -53,13 +51,14 @@ import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
 import org.opensearch.indices.IndicesService;
-import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.InternalTestCluster;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.disruption.NetworkDisruption;
 import org.opensearch.test.disruption.NetworkDisruption.Bridge;
 import org.opensearch.test.disruption.NetworkDisruption.TwoPartitions;
