@@ -63,4 +63,9 @@ public class RemoteIndexPrimaryRelocationIT extends IndexPrimaryRelocationIT {
             .put(FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL, "true")
             .build();
     }
+
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/9191")
+    public void testPrimaryRelocationWhileIndexing() throws Exception {
+        super.testPrimaryRelocationWhileIndexing();
+    }
 }

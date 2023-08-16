@@ -32,16 +32,17 @@
 
 package org.opensearch.http.nio;
 
-import io.netty.buffer.ByteBuf;
-import io.netty.buffer.CompositeByteBuf;
-import io.netty.buffer.Unpooled;
-import io.netty.buffer.UnpooledByteBufAllocator;
-import io.netty.buffer.UnpooledHeapByteBuf;
 import org.opensearch.nio.Page;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
+
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.CompositeByteBuf;
+import io.netty.buffer.Unpooled;
+import io.netty.buffer.UnpooledByteBufAllocator;
+import io.netty.buffer.UnpooledHeapByteBuf;
 
 public class PagedByteBuf extends UnpooledHeapByteBuf {
 

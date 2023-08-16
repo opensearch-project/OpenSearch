@@ -257,6 +257,7 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertDocsPresentInIndex(client, restoredIndexName1Doc, numDocsInIndex1 + 2);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/9326")
     public void testRestoreInSameRemoteStoreEnabledIndex() throws IOException {
         String clusterManagerNode = internalCluster().startClusterManagerOnlyNode();
         String primary = internalCluster().startDataOnlyNode();

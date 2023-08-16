@@ -30,14 +30,14 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
 
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-import static org.mockito.Mockito.spy;
 import static org.opensearch.plugin.correlation.core.index.codec.BasePerFieldCorrelationVectorsFormat.METHOD_PARAMETER_EF_CONSTRUCTION;
 import static org.opensearch.plugin.correlation.core.index.codec.BasePerFieldCorrelationVectorsFormat.METHOD_PARAMETER_M;
 import static org.opensearch.plugin.correlation.core.index.codec.CorrelationCodecVersion.V_9_5_0;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 /**
  * Unit tests for custom correlation codec
