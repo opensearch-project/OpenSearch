@@ -8,13 +8,13 @@
 
 package org.opensearch.remotestore;
 
-import org.junit.Before;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStatsResponse;
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.remote.RemoteSegmentStats;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.junit.Before;
 
 import java.util.concurrent.TimeUnit;
 

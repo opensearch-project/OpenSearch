@@ -33,8 +33,8 @@
 package org.opensearch.index.mapper;
 
 import org.opensearch.action.search.SearchResponse;
-import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.search.aggregations.AggregationBuilders;
 import org.opensearch.search.aggregations.Aggregator.SubAggCollectionMode;

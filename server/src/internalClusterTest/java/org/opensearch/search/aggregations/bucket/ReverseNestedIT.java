@@ -36,13 +36,13 @@ import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.search.aggregations.Aggregator.SubAggCollectionMode;
+import org.opensearch.search.aggregations.BucketOrder;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.bucket.filter.Filter;
 import org.opensearch.search.aggregations.bucket.nested.Nested;
 import org.opensearch.search.aggregations.bucket.nested.ReverseNested;
 import org.opensearch.search.aggregations.bucket.terms.Terms;
 import org.opensearch.search.aggregations.metrics.ValueCount;
-import org.opensearch.search.aggregations.BucketOrder;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.ArrayList;
