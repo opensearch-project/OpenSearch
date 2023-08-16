@@ -15,9 +15,9 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.index.shard.IndexShard;
-import org.opensearch.core.index.shard.ShardId;
 
 import java.util.Arrays;
 import java.util.List;

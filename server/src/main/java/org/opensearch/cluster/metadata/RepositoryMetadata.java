@@ -31,10 +31,10 @@
 
 package org.opensearch.cluster.metadata;
 
+import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.common.settings.Settings;
 import org.opensearch.repositories.RepositoryData;
 
 import java.io.IOException;

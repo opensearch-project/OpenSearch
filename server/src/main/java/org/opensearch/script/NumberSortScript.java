@@ -31,10 +31,11 @@
 
 package org.opensearch.script;
 
-import java.io.IOException;
-import java.util.Map;
 import org.apache.lucene.index.LeafReaderContext;
 import org.opensearch.search.lookup.SearchLookup;
+
+import java.io.IOException;
+import java.util.Map;
 
 /**
  * Script for number sorts

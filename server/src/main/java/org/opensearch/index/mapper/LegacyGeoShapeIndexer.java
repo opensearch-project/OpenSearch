@@ -35,13 +35,14 @@ package org.opensearch.index.mapper;
 import org.apache.lucene.index.IndexableField;
 import org.opensearch.common.geo.XShapeCollection;
 import org.opensearch.common.geo.builders.ShapeBuilder;
-import org.locationtech.spatial4j.shape.Point;
-import org.locationtech.spatial4j.shape.Shape;
-import org.locationtech.spatial4j.shape.jts.JtsGeometry;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+
+import org.locationtech.spatial4j.shape.Point;
+import org.locationtech.spatial4j.shape.Shape;
+import org.locationtech.spatial4j.shape.jts.JtsGeometry;
 
 /**
  * Indexer for legacy prefix trees

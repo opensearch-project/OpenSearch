@@ -32,7 +32,6 @@
 
 package org.opensearch.action.get;
 
-import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.RoutingMissingException;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.single.shard.TransportSingleShardAction;
@@ -41,11 +40,12 @@ import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.routing.ShardIterator;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.get.GetResult;
 import org.opensearch.index.shard.IndexShard;
-import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
