@@ -16,8 +16,6 @@ import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.junit.Before;
 
-import java.util.Random;
-
 import static org.opensearch.remotestore.RemoteStoreBaseIntegTestCase.remoteStoreClusterSettings;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
@@ -25,7 +23,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 public class SegmentReplicationSuiteIT extends SegmentReplicationBaseIT {
 
     private static final String REPOSITORY_NAME = "test-remote-store-repo";
-    private static final boolean remoteStoreEnabled = new Random().nextBoolean();
+    private final boolean remoteStoreEnabled = randomBoolean();
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
