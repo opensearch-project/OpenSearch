@@ -35,9 +35,9 @@ package org.opensearch.discovery;
 import org.opensearch.Version;
 import org.opensearch.cluster.coordination.PeersResponse;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.EqualsHashCodeTestUtils;
 import org.opensearch.test.EqualsHashCodeTestUtils.CopyFunction;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;

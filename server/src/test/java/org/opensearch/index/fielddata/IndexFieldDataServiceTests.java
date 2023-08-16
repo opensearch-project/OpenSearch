@@ -46,6 +46,7 @@ import org.apache.lucene.util.Accountable;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.opensearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
@@ -56,23 +57,23 @@ import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.Mapper.BuilderContext;
 import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.index.mapper.TextFieldMapper;
-import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.search.lookup.SearchLookup;
-import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.InternalSettingsPlugin;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
-import org.mockito.Mockito;
 
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
+
+import org.mockito.Mockito;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Mockito.mock;

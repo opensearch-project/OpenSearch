@@ -32,9 +32,9 @@
 
 package org.opensearch.action.admin.indices.rollover;
 
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.common.unit.ByteSizeValue;
-import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.test.AbstractSerializingTestCase;
 

@@ -10,25 +10,25 @@ package org.opensearch.index.store;
 
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.OutputStreamIndexOutput;
+import org.opensearch.common.blobstore.BlobContainer;
+import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.lucene.store.ByteArrayIndexInput;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.After;
 import org.junit.Before;
-import org.opensearch.common.blobstore.BlobContainer;
-import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.common.lucene.store.ByteArrayIndexInput;
-import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyLong;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class RemoteBufferedIndexOutputTests extends OpenSearchTestCase {
 
