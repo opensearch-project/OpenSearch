@@ -19,15 +19,15 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
+import static org.opensearch.LegacyESVersion.V_7_0_0;
+import static org.opensearch.VersionTests.isCompatible;
+import static org.opensearch.test.VersionUtils.randomLegacyVersion;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.sameInstance;
-import static org.opensearch.LegacyESVersion.V_7_0_0;
-import static org.opensearch.test.VersionUtils.randomLegacyVersion;
-import static org.opensearch.VersionTests.isCompatible;
 
 /**
  * tests LegacyESVersion utilities.

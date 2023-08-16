@@ -34,8 +34,8 @@ package org.opensearch.threadpool;
 
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.concurrent.FutureUtils;
+import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.concurrent.CountDownLatch;

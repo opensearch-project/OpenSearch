@@ -36,9 +36,10 @@ import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.script.AggregationScript;
 import org.opensearch.search.aggregations.bucket.histogram.HistogramAggregatorSupplier;
 import org.opensearch.test.OpenSearchTestCase;
-import org.mockito.Mockito;
 
 import java.util.Collections;
+
+import org.mockito.Mockito;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;

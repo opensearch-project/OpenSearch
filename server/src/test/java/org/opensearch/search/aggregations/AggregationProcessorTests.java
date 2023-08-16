@@ -12,7 +12,6 @@ import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
-import org.mockito.ArgumentMatchers;
 import org.opensearch.search.aggregations.bucket.global.GlobalAggregator;
 import org.opensearch.search.internal.ContextIndexSearcher;
 import org.opensearch.search.profile.query.CollectorResult;
@@ -21,6 +20,8 @@ import org.opensearch.test.TestSearchContext;
 
 import java.util.ArrayList;
 import java.util.Collection;
+
+import org.mockito.ArgumentMatchers;
 
 import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.mock;

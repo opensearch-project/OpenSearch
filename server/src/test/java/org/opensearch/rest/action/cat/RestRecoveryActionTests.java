@@ -33,7 +33,6 @@
 package org.opensearch.rest.action.cat;
 
 import org.opensearch.action.admin.indices.recovery.RecoveryResponse;
-import org.opensearch.core.action.support.DefaultShardOperationFailedException;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
@@ -42,6 +41,7 @@ import org.opensearch.common.Randomness;
 import org.opensearch.common.Table;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentOpenSearchExtension;
+import org.opensearch.core.action.support.DefaultShardOperationFailedException;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.indices.recovery.RecoveryState;

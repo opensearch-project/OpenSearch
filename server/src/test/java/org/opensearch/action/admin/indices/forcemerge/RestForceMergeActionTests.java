@@ -33,10 +33,10 @@
 package org.opensearch.action.admin.indices.forcemerge;
 
 import org.opensearch.client.node.NodeClient;
+import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
-import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.admin.indices.RestForceMergeAction;
 import org.opensearch.test.rest.FakeRestChannel;

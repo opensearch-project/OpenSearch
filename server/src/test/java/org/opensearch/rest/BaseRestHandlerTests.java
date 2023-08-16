@@ -34,26 +34,26 @@ package org.opensearch.rest;
 
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.Table;
-import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.rest.RestHandler.ReplacedRoute;
+import org.opensearch.rest.RestHandler.Route;
+import org.opensearch.rest.RestRequest.Method;
 import org.opensearch.rest.action.cat.AbstractCatAction;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.rest.FakeRestChannel;
 import org.opensearch.test.rest.FakeRestRequest;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.rest.RestRequest.Method;
-import org.opensearch.rest.RestHandler.Route;
-import org.opensearch.rest.RestHandler.ReplacedRoute;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Arrays;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
