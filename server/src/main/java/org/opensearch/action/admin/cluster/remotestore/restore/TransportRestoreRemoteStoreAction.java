@@ -8,7 +8,6 @@
 
 package org.opensearch.action.admin.cluster.remotestore.restore;
 
-import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.admin.cluster.snapshots.restore.RestoreClusterStateListener;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
@@ -18,6 +17,7 @@ import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.index.recovery.RemoteStoreRestoreService;
 import org.opensearch.threadpool.ThreadPool;

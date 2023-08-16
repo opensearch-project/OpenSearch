@@ -32,8 +32,8 @@
 package org.opensearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.util.PriorityQueue;
-import org.opensearch.core.ParseField;
 import org.opensearch.LegacyESVersion;
+import org.opensearch.core.ParseField;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.XContentBuilder;

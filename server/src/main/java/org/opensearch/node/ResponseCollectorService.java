@@ -37,10 +37,10 @@ import org.opensearch.cluster.ClusterStateListener;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.ExponentiallyWeightedMovingAverage;
+import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.common.util.concurrent.ConcurrentCollections;
 
 import java.io.IOException;
 import java.util.HashMap;
