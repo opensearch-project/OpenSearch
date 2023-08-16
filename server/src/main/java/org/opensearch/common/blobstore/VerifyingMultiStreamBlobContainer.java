@@ -8,8 +8,8 @@
 
 package org.opensearch.common.blobstore;
 
-import org.opensearch.core.action.ActionListener;
 import org.opensearch.common.blobstore.stream.write.WriteContext;
+import org.opensearch.core.action.ActionListener;
 
 import java.io.IOException;
 
