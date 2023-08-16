@@ -14,6 +14,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.junit.After;
 import org.junit.Before;
 
 import static org.opensearch.remotestore.RemoteStoreBaseIntegTestCase.remoteStoreClusterSettings;
