@@ -32,8 +32,8 @@
 
 package org.opensearch.index.reindex;
 
-import org.opensearch.action.ActionType;
 import org.opensearch.action.ActionRequestBuilder;
+import org.opensearch.action.ActionType;
 import org.opensearch.action.search.SearchRequestBuilder;
 import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.action.support.replication.ReplicationRequest;

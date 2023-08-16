@@ -32,10 +32,10 @@
 
 package org.opensearch.client;
 
+import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionType;
 import org.opensearch.common.action.ActionFuture;
 import org.opensearch.core.action.ActionListener;
-import org.opensearch.action.ActionRequest;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.threadpool.ThreadPool;
 

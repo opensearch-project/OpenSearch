@@ -16,9 +16,6 @@
  */
 package org.apache.lucene.util.packed;
 
-import java.io.EOFException;
-import java.io.IOException;
-import java.util.Arrays;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
@@ -31,6 +28,10 @@ import org.apache.lucene.util.packed.PackedInts.FormatAndBits;
 import org.apache.lucene.util.packed.PackedInts.Reader;
 import org.apache.lucene.util.packed.PackedInts.ReaderIterator;
 import org.apache.lucene.util.packed.PackedInts.Writer;
+
+import java.io.EOFException;
+import java.io.IOException;
+import java.util.Arrays;
 
 /**
  * Forked from Lucene 8.x; removed in Lucene 8.9

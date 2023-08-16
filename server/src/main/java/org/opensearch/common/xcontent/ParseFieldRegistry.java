@@ -32,9 +32,9 @@
 
 package org.opensearch.common.xcontent;
 
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.ParsingException;
-import org.opensearch.common.collect.Tuple;
 import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.XContentLocation;
 

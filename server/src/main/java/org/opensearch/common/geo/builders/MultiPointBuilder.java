@@ -38,13 +38,14 @@ import org.opensearch.common.geo.parsers.ShapeParser;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.geometry.MultiPoint;
-import org.locationtech.jts.geom.Coordinate;
-import org.locationtech.spatial4j.shape.Point;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
+
+import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.spatial4j.shape.Point;
 
 /**
  * Builds a multi point geometry
