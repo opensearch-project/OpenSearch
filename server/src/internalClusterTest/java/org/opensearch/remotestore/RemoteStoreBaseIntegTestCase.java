@@ -13,7 +13,9 @@ import org.opensearch.action.bulk.BulkItemResponse;
 import org.opensearch.action.bulk.BulkRequest;
 import org.opensearch.action.bulk.BulkResponse;
 import org.opensearch.action.index.IndexRequest;
+import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.index.IndexResponse;
+import org.opensearch.action.support.WriteRequest;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.Settings;
@@ -126,10 +128,17 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
     }
 
     protected IndexResponse indexSingleDoc(String indexName) {
-        return client().prepareIndex(indexName)
+        return indexSingleDoc(indexName, false);
+    }
+
+    protected IndexResponse indexSingleDoc(String indexName, boolean forceRefresh) {
+        IndexRequestBuilder indexRequestBuilder = client().prepareIndex(indexName)
             .setId(UUIDs.randomBase64UUID())
-            .setSource(documentKeys.get(randomIntBetween(0, documentKeys.size() - 1)), randomAlphaOfLength(5))
-            .get();
+            .setSource(documentKeys.get(randomIntBetween(0, documentKeys.size() - 1)), randomAlphaOfLength(5));
+        if (forceRefresh) {
+            indexRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        }
+        return indexRequestBuilder.get();
     }
 
     protected BulkResponse indexBulk(String indexName, int numDocs) {
@@ -208,7 +217,13 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
     }
 
     protected void setupRepo() {
-        internalCluster().startClusterManagerOnlyNode();
+        setupRepo(true);
+    }
+
+    protected void setupRepo(boolean startDedicatedClusterManager) {
+        if (startDedicatedClusterManager) {
+            internalCluster().startClusterManagerOnlyNode();
+        }
         absolutePath = randomRepoPath().toAbsolutePath();
         putRepository(absolutePath);
         absolutePath2 = randomRepoPath().toAbsolutePath();

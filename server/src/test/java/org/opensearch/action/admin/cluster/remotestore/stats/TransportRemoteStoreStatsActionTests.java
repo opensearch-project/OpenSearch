@@ -28,7 +28,7 @@ import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.index.remote.RemoteRefreshSegmentPressureService;
+import org.opensearch.index.remote.RemoteStorePressureService;
 import org.opensearch.index.remote.RemoteSegmentTransferTracker;
 import org.opensearch.index.shard.IndexShardTestCase;
 import org.opensearch.indices.IndicesService;
@@ -52,7 +52,7 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_SEGME
 
 public class TransportRemoteStoreStatsActionTests extends IndexShardTestCase {
     private IndicesService indicesService;
-    private RemoteRefreshSegmentPressureService pressureService;
+    private RemoteStorePressureService pressureService;
     private IndexMetadata remoteStoreIndexMetadata;
     private TransportService transportService;
     private ClusterService clusterService;
@@ -66,7 +66,7 @@ public class TransportRemoteStoreStatsActionTests extends IndexShardTestCase {
         indicesService = mock(IndicesService.class);
         IndexService indexService = mock(IndexService.class);
         clusterService = mock(ClusterService.class);
-        pressureService = mock(RemoteRefreshSegmentPressureService.class);
+        pressureService = mock(RemoteStorePressureService.class);
         MockTransport mockTransport = new MockTransport();
         localNode = new DiscoveryNode("node0", buildNewFakeTransportAddress(), Version.CURRENT);
         remoteStoreIndexMetadata = IndexMetadata.builder(INDEX.getName())

@@ -31,11 +31,11 @@
 
 package org.opensearch.repositories.s3;
 
+import software.amazon.awssdk.core.exception.SdkClientException;
+import software.amazon.awssdk.core.io.SdkDigestInputStream;
+import software.amazon.awssdk.utils.internal.Base16;
+
 import org.apache.http.HttpStatus;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Before;
-import org.opensearch.core.action.ActionListener;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.common.CheckedTriFunction;
 import org.opensearch.common.Nullable;
@@ -56,20 +56,21 @@ import org.opensearch.common.lucene.store.InputStreamIndexInput;
 import org.opensearch.common.network.InetAddresses;
 import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.common.unit.ByteSizeUnit;
-import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.CountDown;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.repositories.blobstore.AbstractBlobContainerRetriesTestCase;
 import org.opensearch.repositories.blobstore.ZeroInputStream;
 import org.opensearch.repositories.s3.async.AsyncExecutorContainer;
-import org.opensearch.repositories.s3.async.AsyncTransferManager;
 import org.opensearch.repositories.s3.async.AsyncTransferEventLoopGroup;
-import software.amazon.awssdk.core.exception.SdkClientException;
-import software.amazon.awssdk.core.io.SdkDigestInputStream;
-import software.amazon.awssdk.utils.internal.Base16;
+import org.opensearch.repositories.s3.async.AsyncTransferManager;
+import org.junit.After;
+import org.junit.Assert;
+import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
 import java.io.FilterInputStream;
@@ -89,16 +90,16 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.opensearch.repositories.s3.S3ClientSettings.DISABLE_CHUNKED_ENCODING;
+import static org.opensearch.repositories.s3.S3ClientSettings.ENDPOINT_SETTING;
+import static org.opensearch.repositories.s3.S3ClientSettings.MAX_RETRIES_SETTING;
+import static org.opensearch.repositories.s3.S3ClientSettings.READ_TIMEOUT_SETTING;
+import static org.opensearch.repositories.s3.S3ClientSettings.REGION;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.opensearch.repositories.s3.S3ClientSettings.DISABLE_CHUNKED_ENCODING;
-import static org.opensearch.repositories.s3.S3ClientSettings.ENDPOINT_SETTING;
-import static org.opensearch.repositories.s3.S3ClientSettings.REGION;
-import static org.opensearch.repositories.s3.S3ClientSettings.MAX_RETRIES_SETTING;
-import static org.opensearch.repositories.s3.S3ClientSettings.READ_TIMEOUT_SETTING;
 
 /**
  * This class tests how a {@link S3BlobContainer} and its underlying AWS S3 client are retrying requests when reading or writing blobs.

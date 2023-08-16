@@ -32,8 +32,6 @@
 
 package org.opensearch.http.netty4;
 
-import io.netty.handler.codec.http.FullHttpResponse;
-import io.netty.util.ReferenceCounted;
 import org.opensearch.OpenSearchNetty4IntegTestCase;
 import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.http.HttpServerTransport;
@@ -42,6 +40,9 @@ import org.opensearch.test.OpenSearchIntegTestCase.Scope;
 
 import java.util.Collection;
 import java.util.Locale;
+
+import io.netty.handler.codec.http.FullHttpResponse;
+import io.netty.util.ReferenceCounted;
 
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;

@@ -8,9 +8,10 @@
 
 package org.opensearch.telemetry.tracing;
 
+import java.util.Locale;
+
 import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.common.AttributesBuilder;
-import java.util.Locale;
 
 /**
  * Converts {@link org.opensearch.telemetry.tracing.attributes.Attributes} to OTel {@link Attributes}

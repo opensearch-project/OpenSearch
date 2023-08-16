@@ -8,9 +8,10 @@
 
 package org.opensearch.repositories.s3;
 
-import org.opensearch.common.Nullable;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
+
+import org.opensearch.common.Nullable;
 
 /**
  * The holder of the AmazonS3 and AWSCredentialsProvider
