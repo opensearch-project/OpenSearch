@@ -14,13 +14,13 @@ import org.opensearch.Version;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.core.compress.Compressor;
 import org.opensearch.core.common.io.stream.InputStreamStreamInput;
 import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.io.stream.OutputStreamStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.compress.Compressor;
 import org.opensearch.core.compress.CompressorRegistry;
 import org.opensearch.transport.BytesTransportRequest;
 

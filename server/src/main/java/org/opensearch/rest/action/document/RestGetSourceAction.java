@@ -54,9 +54,9 @@ import java.util.List;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
+import static org.opensearch.core.rest.RestStatus.OK;
 import static org.opensearch.rest.RestRequest.Method.GET;
 import static org.opensearch.rest.RestRequest.Method.HEAD;
-import static org.opensearch.core.rest.RestStatus.OK;
 
 /**
  * The REST handler for get source and head source APIs.

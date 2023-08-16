@@ -31,14 +31,14 @@
 
 package org.opensearch.plugins;
 
+import org.opensearch.common.settings.Settings;
+import org.opensearch.script.ScriptContext;
+import org.opensearch.script.ScriptEngine;
+
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-
-import org.opensearch.common.settings.Settings;
-import org.opensearch.script.ScriptContext;
-import org.opensearch.script.ScriptEngine;
 
 /**
  * An additional extension point for {@link Plugin}s that extends OpenSearch's scripting functionality.

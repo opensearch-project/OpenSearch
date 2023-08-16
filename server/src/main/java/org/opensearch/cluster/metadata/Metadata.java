@@ -32,8 +32,8 @@
 
 package org.opensearch.cluster.metadata;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
 import org.opensearch.action.AliasesRequest;
 import org.opensearch.cluster.ClusterState;
@@ -49,24 +49,24 @@ import org.opensearch.cluster.coordination.CoordinationMetadata;
 import org.opensearch.cluster.decommission.DecommissionAttributeMetadata;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.UUIDs;
-import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.index.Index;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.NamedObjectNotFoundException;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.gateway.MetadataStateFormat;
-import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.plugins.MapperPlugin;
-import org.opensearch.core.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.ArrayList;

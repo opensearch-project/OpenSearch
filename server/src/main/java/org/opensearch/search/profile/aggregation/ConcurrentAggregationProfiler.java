@@ -13,8 +13,8 @@
 
 package org.opensearch.search.profile.aggregation;
 
-import org.opensearch.search.profile.ProfileResult;
 import org.opensearch.search.profile.AbstractProfileBreakdown;
+import org.opensearch.search.profile.ProfileResult;
 
 import java.util.HashMap;
 import java.util.LinkedList;
