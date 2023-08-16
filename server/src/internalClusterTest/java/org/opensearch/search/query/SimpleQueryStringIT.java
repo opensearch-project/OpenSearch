@@ -35,16 +35,15 @@ package org.opensearch.search.query;
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
-
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.index.analysis.PreConfiguredTokenFilter;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.query.BoolQueryBuilder;
@@ -59,7 +58,6 @@ import org.opensearch.search.SearchHits;
 import org.opensearch.search.SearchModule;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.test.OpenSearchIntegTestCase;
-
 import org.junit.BeforeClass;
 
 import java.io.IOException;
