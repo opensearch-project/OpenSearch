@@ -34,9 +34,9 @@ package org.opensearch.action.delete;
 
 import org.opensearch.action.DocWriteResponse;
 import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.rest.RestStatus;
+import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
 

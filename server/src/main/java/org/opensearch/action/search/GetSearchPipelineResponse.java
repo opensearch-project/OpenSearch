@@ -8,16 +8,16 @@
 
 package org.opensearch.action.search;
 
+import org.opensearch.common.xcontent.StatusToXContentObject;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.StatusToXContentObject;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.core.rest.RestStatus;
 import org.opensearch.search.pipeline.PipelineConfiguration;
 
 import java.io.IOException;

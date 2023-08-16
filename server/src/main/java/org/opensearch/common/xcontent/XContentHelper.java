@@ -33,10 +33,10 @@
 package org.opensearch.common.xcontent;
 
 import org.opensearch.OpenSearchParseException;
-import org.opensearch.core.common.bytes.BytesArray;
-import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.compress.CompressorFactory;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.compress.Compressor;
 import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.MediaType;

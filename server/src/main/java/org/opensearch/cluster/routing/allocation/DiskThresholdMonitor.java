@@ -35,7 +35,6 @@ package org.opensearch.cluster.routing.allocation;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.opensearch.core.action.ActionListener;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.action.support.GroupedActionListener;
 import org.opensearch.client.Client;
@@ -55,6 +54,7 @@ import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.set.Sets;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.Strings;
 
 import java.util.ArrayList;

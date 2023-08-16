@@ -8,12 +8,13 @@
 
 package org.opensearch.common.settings;
 
+import org.opensearch.common.settings.Setting.Property;
+import org.opensearch.common.util.FeatureFlags;
+
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
-import org.opensearch.common.settings.Setting.Property;
-import org.opensearch.common.util.FeatureFlags;
 
 /**
  * Encapsulates all valid feature flag level settings.
