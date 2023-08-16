@@ -70,7 +70,7 @@ import org.opensearch.index.mapper.SeqNoFieldMapper;
 import org.opensearch.index.mapper.SourceFieldMapper;
 import org.opensearch.index.mapper.TextFieldMapper;
 import org.opensearch.index.mapper.VersionFieldMapper;
-import org.opensearch.index.remote.RemoteRefreshSegmentPressureService;
+import org.opensearch.index.remote.RemoteStorePressureService;
 import org.opensearch.index.seqno.RetentionLeaseBackgroundSyncAction;
 import org.opensearch.index.seqno.RetentionLeaseSyncAction;
 import org.opensearch.index.seqno.RetentionLeaseSyncer;
@@ -289,7 +289,7 @@ public class IndicesModule extends AbstractModule {
         bind(SegmentReplicationCheckpointPublisher.class).asEagerSingleton();
         bind(SegmentReplicationPressureService.class).asEagerSingleton();
         if (FeatureFlags.isEnabled(FeatureFlags.REMOTE_STORE)) {
-            bind(RemoteRefreshSegmentPressureService.class).asEagerSingleton();
+            bind(RemoteStorePressureService.class).asEagerSingleton();
         }
     }
 
