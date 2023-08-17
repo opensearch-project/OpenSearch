@@ -30,8 +30,10 @@ import static java.lang.Long.rotateRight;
  *
  * <p>
  * Intended for little-endian systems but returns the same result on big-endian, albeit marginally slower.
+ *
+ * @opensearch.internal
  */
-public class T1ha1 {
+public final class T1ha1 {
     private static final long SEED = System.nanoTime();
     private static final Mux64 MUX_64_IMPL = fastestMux64Impl();
 
@@ -52,6 +54,11 @@ public class T1ha1 {
     private static final int s0 = 41;
     private static final int s1 = 17;
     private static final int s2 = 31;
+
+    /**
+     * No public constructor.
+     */
+    private T1ha1() {}
 
     /**
      * Returns the hash code for the specified range of the given {@code byte} array.
