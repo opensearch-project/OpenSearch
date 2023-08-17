@@ -292,16 +292,14 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                             public void onResponse(String newGeneration) {
                                 assert newGeneration != null;
                                 assert newGeneration.equals(snapshotStatus.generation());
-                                if (logger.isDebugEnabled()) {
-                                    final IndexShardSnapshotStatus.Copy lastSnapshotStatus = snapshotStatus.asCopy();
-                                    logger.debug(
-                                        "snapshot [{}] completed to [{}] with [{}] at generation [{}]",
-                                        snapshot,
-                                        snapshot.getRepository(),
-                                        lastSnapshotStatus,
-                                        snapshotStatus.generation()
+                                final IndexShardSnapshotStatus.Copy lastSnapshotStatus = snapshotStatus.asCopy();
+                                logger.debug(
+                                    "snapshot [{}] completed to [{}] with [{}] at generation [{}]",
+                                     () -> snapshot,
+                                     () -> snapshot.getRepository(),
+                                     () -> lastSnapshotStatus,
+                                     () -> snapshotStatus.generation()
                                     );
-                                }
                                 notifySuccessfulSnapshotShard(snapshot, shardId, newGeneration);
                             }
 
