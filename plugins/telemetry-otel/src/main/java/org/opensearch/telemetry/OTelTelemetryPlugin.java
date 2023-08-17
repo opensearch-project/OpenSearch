@@ -8,8 +8,6 @@
 
 package org.opensearch.telemetry;
 
-import org.opensearch.common.settings.Setting;
-import org.opensearch.common.settings.Settings;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.TelemetryPlugin;
 import org.opensearch.telemetry.metrics.MetricsTelemetry;
@@ -17,8 +15,6 @@ import org.opensearch.telemetry.tracing.OTelResourceProvider;
 import org.opensearch.telemetry.tracing.OTelTelemetry;
 import org.opensearch.telemetry.tracing.OTelTracingTelemetry;
 
-import java.util.Arrays;
-import java.util.List;
 import java.util.Optional;
 
 /**
@@ -28,28 +24,13 @@ public class OTelTelemetryPlugin extends Plugin implements TelemetryPlugin {
 
     static final String OTEL_TRACER_NAME = "otel";
 
-    private final Settings settings;
-
     /**
      * Creates Otel plugin
-     * @param settings cluster settings
      */
-    public OTelTelemetryPlugin(Settings settings) {
-        this.settings = settings;
-    }
+    public OTelTelemetryPlugin() {}
 
     @Override
-    public List<Setting<?>> getSettings() {
-        return Arrays.asList(
-            OTelTelemetrySettings.TRACER_EXPORTER_BATCH_SIZE_SETTING,
-            OTelTelemetrySettings.TRACER_EXPORTER_DELAY_SETTING,
-            OTelTelemetrySettings.TRACER_EXPORTER_MAX_QUEUE_SIZE_SETTING,
-            OTelTelemetrySettings.OTEL_TRACER_SPAN_EXPORTER_CLASS_SETTING
-        );
-    }
-
-    @Override
-    public Optional<Telemetry> getTelemetry(TelemetrySettings settings) {
+    public Optional<Telemetry> getTelemetry() {
         return Optional.of(telemetry());
     }
 
@@ -59,7 +40,7 @@ public class OTelTelemetryPlugin extends Plugin implements TelemetryPlugin {
     }
 
     private Telemetry telemetry() {
-        return new OTelTelemetry(new OTelTracingTelemetry(OTelResourceProvider.get(settings)), new MetricsTelemetry() {
+        return new OTelTelemetry(new OTelTracingTelemetry(OTelResourceProvider.get()), new MetricsTelemetry() {
         });
     }
 

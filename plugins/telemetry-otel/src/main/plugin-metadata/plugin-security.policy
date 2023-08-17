@@ -9,6 +9,10 @@
 grant {
     permission java.lang.RuntimePermission "getClassLoader";
     permission java.lang.RuntimePermission "accessDeclaredMembers";
+    permission java.util.PropertyPermission "*", "read,write";
+    permission java.net.SocketPermission "*", "connect,resolve";
+    permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
+    permission java.net.NetPermission "getProxySelector";
+    permission java.lang.RuntimePermission "shutdownHooks";
+    permission java.lang.RuntimePermission "accessClassInPackage.sun.misc";
 };
-
-

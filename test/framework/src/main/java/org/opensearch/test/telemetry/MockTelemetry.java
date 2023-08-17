@@ -9,7 +9,6 @@
 package org.opensearch.test.telemetry;
 
 import org.opensearch.telemetry.Telemetry;
-import org.opensearch.telemetry.TelemetrySettings;
 import org.opensearch.telemetry.metrics.MetricsTelemetry;
 import org.opensearch.telemetry.tracing.TracingTelemetry;
 import org.opensearch.test.telemetry.tracing.MockTracingTelemetry;
@@ -19,15 +18,10 @@ import org.opensearch.test.telemetry.tracing.MockTracingTelemetry;
  */
 public class MockTelemetry implements Telemetry {
 
-    private final TelemetrySettings settings;
-
     /**
-     * Constructor with settings.
-     * @param settings telemetry settings.
+     * Base Constructor
      */
-    public MockTelemetry(TelemetrySettings settings) {
-        this.settings = settings;
-    }
+    public MockTelemetry() {}
 
     @Override
     public TracingTelemetry getTracingTelemetry() {

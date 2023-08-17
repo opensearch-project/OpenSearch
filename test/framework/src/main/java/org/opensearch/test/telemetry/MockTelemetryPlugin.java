@@ -11,7 +11,6 @@ package org.opensearch.test.telemetry;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.TelemetryPlugin;
 import org.opensearch.telemetry.Telemetry;
-import org.opensearch.telemetry.TelemetrySettings;
 
 import java.util.Optional;
 
@@ -29,8 +28,8 @@ public class MockTelemetryPlugin extends Plugin implements TelemetryPlugin {
     }
 
     @Override
-    public Optional<Telemetry> getTelemetry(TelemetrySettings settings) {
-        return Optional.of(new MockTelemetry(settings));
+    public Optional<Telemetry> getTelemetry() {
+        return Optional.of(new MockTelemetry());
     }
 
     @Override

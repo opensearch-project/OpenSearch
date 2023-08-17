@@ -22,10 +22,10 @@ public class TelemetryModule {
 
     private Telemetry telemetry;
 
-    public TelemetryModule(List<TelemetryPlugin> telemetryPlugins, TelemetrySettings telemetrySettings) {
+    public TelemetryModule(List<TelemetryPlugin> telemetryPlugins) {
 
         for (TelemetryPlugin telemetryPlugin : telemetryPlugins) {
-            Optional<Telemetry> telemetry = telemetryPlugin.getTelemetry(telemetrySettings);
+            Optional<Telemetry> telemetry = telemetryPlugin.getTelemetry();
             if (telemetry.isPresent()) {
                 registerTelemetry(telemetry.get());
             }

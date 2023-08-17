@@ -10,9 +10,7 @@ package org.opensearch.telemetry.tracing;
 
 import org.opensearch.client.Client;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.unit.TimeValue;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.telemetry.OTelTelemetrySettings;
 import org.opensearch.telemetry.TelemetrySettings;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.telemetry.tracing.TelemetryValidators;
@@ -31,14 +29,7 @@ public class TelemetryTracerEnabledSanityIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal))
-            .put(
-                OTelTelemetrySettings.OTEL_TRACER_SPAN_EXPORTER_CLASS_SETTING.getKey(),
-                "org.opensearch.telemetry.tracing.InMemorySingletonSpanExporter"
-            )
-            .put(OTelTelemetrySettings.TRACER_EXPORTER_DELAY_SETTING.getKey(), TimeValue.timeValueSeconds(1))
-            .build();
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal)).build();
     }
 
     @Override
@@ -52,6 +43,7 @@ public class TelemetryTracerEnabledSanityIT extends OpenSearchIntegTestCase {
     }
 
     public void testSanityChecksWhenTracingEnabled() throws Exception {
+
         Client client = client();
         // ENABLE TRACING
         client.admin()

@@ -14,7 +14,6 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.util.List;
 import java.util.Optional;
 
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -24,10 +23,10 @@ public class TelemetryModuleTests extends OpenSearchTestCase {
         TelemetryPlugin telemetryPlugin = mock(TelemetryPlugin.class);
         when(telemetryPlugin.getName()).thenReturn("otel");
         Telemetry mockTelemetry = mock(Telemetry.class);
-        when(telemetryPlugin.getTelemetry(any())).thenReturn(Optional.of(mockTelemetry));
+        when(telemetryPlugin.getTelemetry()).thenReturn(Optional.of(mockTelemetry));
         List<TelemetryPlugin> telemetryPlugins = List.of(telemetryPlugin);
 
-        TelemetryModule telemetryModule = new TelemetryModule(telemetryPlugins, any());
+        TelemetryModule telemetryModule = new TelemetryModule(telemetryPlugins);
 
         assertTrue(telemetryModule.getTelemetry().isPresent());
         assertEquals(mockTelemetry, telemetryModule.getTelemetry().get());
@@ -40,13 +39,13 @@ public class TelemetryModuleTests extends OpenSearchTestCase {
         Telemetry mockTelemetry1 = mock(Telemetry.class);
         Telemetry mockTelemetry2 = mock(Telemetry.class);
 
-        when(telemetryPlugin1.getTelemetry(any())).thenReturn(Optional.of(mockTelemetry1));
-        when(telemetryPlugin2.getTelemetry(any())).thenReturn(Optional.of(mockTelemetry2));
+        when(telemetryPlugin1.getTelemetry()).thenReturn(Optional.of(mockTelemetry1));
+        when(telemetryPlugin2.getTelemetry()).thenReturn(Optional.of(mockTelemetry2));
 
         List<TelemetryPlugin> telemetryPlugins = List.of(telemetryPlugin1, telemetryPlugin2);
 
         try {
-            TelemetryModule telemetryModule = new TelemetryModule(telemetryPlugins, any());
+            TelemetryModule telemetryModule = new TelemetryModule(telemetryPlugins);
         } catch (Exception e) {
             assertEquals("Cannot register more than one telemetry", e.getMessage());
         }
@@ -56,7 +55,7 @@ public class TelemetryModuleTests extends OpenSearchTestCase {
     public void testGetTelemetryWithNoPlugins() {
         TelemetryPlugin telemetryPlugin = mock(TelemetryPlugin.class);
         when(telemetryPlugin.getName()).thenReturn("otel");
-        TelemetryModule telemetryModule = new TelemetryModule(List.of(telemetryPlugin), any());
+        TelemetryModule telemetryModule = new TelemetryModule(List.of(telemetryPlugin));
 
         assertFalse(telemetryModule.getTelemetry().isPresent());
 

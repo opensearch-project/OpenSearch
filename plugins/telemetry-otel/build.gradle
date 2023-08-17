@@ -31,6 +31,9 @@ dependencies {
   api "io.opentelemetry:opentelemetry-semconv:${versions.opentelemetry}-alpha"
   api "io.opentelemetry:opentelemetry-sdk-logs:${versions.opentelemetry}-alpha"
   api "io.opentelemetry:opentelemetry-api-logs:${versions.opentelemetry}-alpha"
+  api "io.opentelemetry:opentelemetry-api-events:${versions.opentelemetry}-alpha"
+  api "io.opentelemetry:opentelemetry-sdk-extension-autoconfigure:${versions.opentelemetry}-alpha"
+  api "io.opentelemetry:opentelemetry-sdk-extension-autoconfigure-spi:${versions.opentelemetry}"
   testImplementation "io.opentelemetry:opentelemetry-sdk-testing:${versions.opentelemetry}"
 }
 
@@ -45,16 +48,9 @@ thirdPartyAudit {
   )
 
   ignoreMissingClasses(
-    'io.opentelemetry.api.events.EventEmitter',
-    'io.opentelemetry.api.events.EventEmitterBuilder',
-    'io.opentelemetry.api.events.EventEmitterProvider',
     'io.opentelemetry.extension.incubator.metrics.ExtendedDoubleHistogramBuilder',
     'io.opentelemetry.extension.incubator.metrics.ExtendedLongHistogramBuilder',
     'io.opentelemetry.extension.incubator.metrics.HistogramAdviceConfigurer',
-    'io.opentelemetry.sdk.autoconfigure.spi.ConfigProperties',
-    'io.opentelemetry.sdk.autoconfigure.spi.logs.ConfigurableLogRecordExporterProvider',
-    'io.opentelemetry.sdk.autoconfigure.spi.metrics.ConfigurableMetricExporterProvider',
-    'io.opentelemetry.sdk.autoconfigure.spi.traces.ConfigurableSpanExporterProvider'
   )
 }
 
@@ -78,4 +74,21 @@ tasks.register("writeTestJavaPolicy") {
         "};"
       ].join("\n"))
   }
+}
+
+tasks.named("internalClusterTest").configure {
+  systemProperty 'otel.traces.exporter', 'InMemorySpanExporter'
+  final File tmp = file("${buildDir}/tmp")
+  if (tmp.exists() == false && tmp.mkdirs() == false) {
+    throw new GradleException("failed to create temporary directory [${tmp}]")
+  }
+  final File javaPolicy = file("${tmp}/java.policy")
+  javaPolicy.write(
+    [
+      "grant {",
+      "  permission java.util.PropertyPermission \"*\", \"read,write\";",
+      "  permission java.lang.RuntimePermission \"shutdownHooks\";",
+      "};"
+    ].join("\n"))
+  systemProperty 'java.security.policy', javaPolicy
 }
