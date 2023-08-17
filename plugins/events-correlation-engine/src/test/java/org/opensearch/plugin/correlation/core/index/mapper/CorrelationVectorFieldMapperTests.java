@@ -12,8 +12,6 @@ import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.FieldExistsQuery;
-import org.junit.Assert;
-import org.mockito.Mockito;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Explicit;
@@ -35,6 +33,7 @@ import org.opensearch.index.query.QueryShardException;
 import org.opensearch.plugin.correlation.core.index.CorrelationParamsContext;
 import org.opensearch.search.lookup.SearchLookup;
 import org.opensearch.test.OpenSearchTestCase;
+import org.junit.Assert;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -42,6 +41,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+
+import org.mockito.Mockito;
 
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;

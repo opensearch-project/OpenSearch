@@ -37,8 +37,8 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.index.MergePolicyConfig;
 import org.opensearch.indices.IndexClosedException;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.test.InternalSettingsPlugin;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.junit.Before;
 
 import java.util.Collection;

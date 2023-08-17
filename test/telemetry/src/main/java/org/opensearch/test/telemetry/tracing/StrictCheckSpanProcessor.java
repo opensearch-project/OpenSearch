@@ -8,12 +8,12 @@
 
 package org.opensearch.test.telemetry.tracing;
 
+import org.opensearch.telemetry.tracing.Span;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-
-import org.opensearch.telemetry.tracing.Span;
 
 /**
  * Strict check span processor to validate the spans.

@@ -40,8 +40,8 @@ import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.action.update.UpdateResponse;
 import org.opensearch.client.Requests;
 import org.opensearch.client.node.NodeClient;
-import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestChannel;
@@ -54,9 +54,9 @@ import java.util.List;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
+import static org.opensearch.core.rest.RestStatus.OK;
 import static org.opensearch.rest.RestRequest.Method.POST;
 import static org.opensearch.rest.RestRequest.Method.PUT;
-import static org.opensearch.core.rest.RestStatus.OK;
 
 public class RestNoopBulkAction extends BaseRestHandler {
 

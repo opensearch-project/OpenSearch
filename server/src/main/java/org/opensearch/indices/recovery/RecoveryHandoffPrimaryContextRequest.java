@@ -34,8 +34,8 @@ package org.opensearch.indices.recovery;
 
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.index.seqno.ReplicationTracker;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.seqno.ReplicationTracker;
 import org.opensearch.transport.TransportRequest;
 
 import java.io.IOException;

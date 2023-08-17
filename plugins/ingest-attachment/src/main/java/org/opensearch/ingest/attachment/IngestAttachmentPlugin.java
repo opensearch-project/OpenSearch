@@ -32,12 +32,12 @@
 
 package org.opensearch.ingest.attachment;
 
-import java.util.Collections;
-import java.util.Map;
-
 import org.opensearch.ingest.Processor;
 import org.opensearch.plugins.IngestPlugin;
 import org.opensearch.plugins.Plugin;
+
+import java.util.Collections;
+import java.util.Map;
 
 public class IngestAttachmentPlugin extends Plugin implements IngestPlugin {
 

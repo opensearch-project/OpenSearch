@@ -32,11 +32,11 @@
 
 package org.opensearch.search.aggregations;
 
-import java.util.List;
-
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.SearchPlugin;
 import org.opensearch.search.aggregations.bucket.filter.InternalFilter;
+
+import java.util.List;
 
 import static java.util.Collections.singletonList;
 

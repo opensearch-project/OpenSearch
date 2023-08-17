@@ -49,13 +49,16 @@ import org.opensearch.action.get.GetResponse;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.search.SearchType;
-import org.opensearch.core.action.support.DefaultShardOperationFailedException;
+import org.opensearch.action.support.WriteRequest;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.common.UUIDs;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.action.support.DefaultShardOperationFailedException;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexService;
@@ -66,6 +69,7 @@ import org.opensearch.index.VersionType;
 import org.opensearch.index.cache.query.QueryCacheStats;
 import org.opensearch.index.engine.VersionConflictEngineException;
 import org.opensearch.index.query.QueryBuilders;
+import org.opensearch.index.remote.RemoteSegmentStats;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.IndicesQueryCache;
@@ -73,10 +77,10 @@ import org.opensearch.indices.IndicesRequestCache;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.search.sort.SortOrder;
+import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.OpenSearchIntegTestCase.Scope;
-import org.opensearch.test.InternalSettingsPlugin;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -1416,6 +1420,42 @@ public class IndexStatsIT extends OpenSearchIntegTestCase {
 
         assertThat(shardFailures.get(), emptyCollectionOf(DefaultShardOperationFailedException.class));
         assertThat(executionFailures.get(), emptyCollectionOf(Exception.class));
+    }
+
+    public void testZeroRemoteStoreStatsOnNonRemoteStoreIndex() {
+        String indexName = "test-index";
+        createIndex(indexName, Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).build());
+        ensureGreen(indexName);
+        assertEquals(
+            RestStatus.CREATED,
+            client().prepareIndex(indexName)
+                .setId(UUIDs.randomBase64UUID())
+                .setSource("field", "value1", "field2", "value1")
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .get()
+                .status()
+        );
+        ShardStats shard = client().admin().indices().prepareStats(indexName).setSegments(true).get().getShards()[0];
+        RemoteSegmentStats remoteSegmentStatsFromIndexStats = shard.getStats().getSegments().getRemoteSegmentStats();
+        assertZeroRemoteSegmentStats(remoteSegmentStatsFromIndexStats);
+        NodesStatsResponse nodesStatsResponse = client().admin().cluster().prepareNodesStats(primaryNodeName(indexName)).get();
+        RemoteSegmentStats remoteSegmentStatsFromNodesStats = nodesStatsResponse.getNodes()
+            .get(0)
+            .getIndices()
+            .getSegments()
+            .getRemoteSegmentStats();
+        assertZeroRemoteSegmentStats(remoteSegmentStatsFromNodesStats);
+    }
+
+    private void assertZeroRemoteSegmentStats(RemoteSegmentStats remoteSegmentStats) {
+        assertEquals(0, remoteSegmentStats.getUploadBytesStarted());
+        assertEquals(0, remoteSegmentStats.getUploadBytesSucceeded());
+        assertEquals(0, remoteSegmentStats.getUploadBytesFailed());
+        assertEquals(0, remoteSegmentStats.getDownloadBytesStarted());
+        assertEquals(0, remoteSegmentStats.getDownloadBytesSucceeded());
+        assertEquals(0, remoteSegmentStats.getDownloadBytesFailed());
+        assertEquals(0, remoteSegmentStats.getMaxRefreshBytesLag());
+        assertEquals(0, remoteSegmentStats.getMaxRefreshTimeLag());
     }
 
     /**

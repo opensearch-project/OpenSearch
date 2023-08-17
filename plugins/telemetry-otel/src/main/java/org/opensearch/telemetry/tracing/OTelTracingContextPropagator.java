@@ -8,13 +8,13 @@
 
 package org.opensearch.telemetry.tracing;
 
+import java.util.Map;
+import java.util.function.BiConsumer;
+
 import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.context.Context;
 import io.opentelemetry.context.propagation.TextMapGetter;
 import io.opentelemetry.context.propagation.TextMapSetter;
-
-import java.util.Map;
-import java.util.function.BiConsumer;
 
 /**
  * Otel implementation of TracingContextPropagator

@@ -36,12 +36,12 @@ import org.apache.logging.log4j.LogManager;
 import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.stats.ClusterStatsAction;
 import org.opensearch.action.admin.cluster.stats.ClusterStatsRequest;
-import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.test.MockLogAppender;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.junit.annotations.TestLogging;
 
 import java.io.IOException;
