@@ -421,7 +421,7 @@ You may want to run BWC tests for a secure OpenSearch cluster. In order to do th
   -Dtests.opensearch.http.protocol=https \
   -Dtests.opensearch.username=admin \
   -Dtests.opensearch.password=admin \
-  -PcustomDistributionUrl="/OpenSearch/distribution/archives/linux-tar/build/distributions/opensearch-min-3.0.0-SNAPSHOT-linux-x64.tar.gz" \
+  -PcustomDistributionUrl="/OpenSearch/distribution/archives/linux-tar/build/distributions/opensearch-min-<TARGET_VERSION>-SNAPSHOT-linux-x64.tar.gz" \
   -i
 ```
 
