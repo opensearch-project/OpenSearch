@@ -173,6 +173,10 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
                 indexShard.getReplicationTracker().isPrimaryMode(),
                 indexShard.state()
             );
+            if (indexShard.state() == IndexShardState.STARTED && indexShard.getEngine() instanceof InternalEngine) {
+                // Retrying to make sure that we do not lose this refresh event
+                return false;
+            }
             return true;
         }
         ReplicationCheckpoint checkpoint = indexShard.getLatestReplicationCheckpoint();

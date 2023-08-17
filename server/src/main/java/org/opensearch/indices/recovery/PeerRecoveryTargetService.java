@@ -245,7 +245,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                     indexShard.prepareForIndexRecovery();
                     final boolean hasRemoteSegmentStore = indexShard.indexSettings().isRemoteStoreEnabled();
                     if (hasRemoteSegmentStore) {
-                        indexShard.syncSegmentsFromRemoteSegmentStore(false, true);
+                        indexShard.syncSegmentsFromRemoteSegmentStore(false);
                     }
                     final boolean hasRemoteTranslog = recoveryTarget.state().getPrimary() == false && indexShard.isRemoteTranslogEnabled();
                     final boolean hasNoTranslog = indexShard.indexSettings().isRemoteSnapshot();

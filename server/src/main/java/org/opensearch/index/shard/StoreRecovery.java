@@ -535,7 +535,7 @@ final class StoreRecovery {
         remoteStore.incRef();
         try {
             // Download segments from remote segment store
-            indexShard.syncSegmentsFromRemoteSegmentStore(true, true);
+            indexShard.syncSegmentsFromRemoteSegmentStore(true);
 
             indexShard.syncTranslogFilesFromRemoteTranslog();
 

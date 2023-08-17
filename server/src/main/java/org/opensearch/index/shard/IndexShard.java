@@ -2335,7 +2335,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             assert currentEngineReference.get() == null : "engine is running";
             verifyNotClosed();
             if (indexSettings.isRemoteStoreEnabled() && syncFromRemote) {
-                syncSegmentsFromRemoteSegmentStore(false, true);
+                syncSegmentsFromRemoteSegmentStore(false);
             }
             if (indexSettings.isRemoteTranslogStoreEnabled() && shardRouting.primary()) {
                 if (syncFromRemote) {
@@ -4596,7 +4596,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             };
             IOUtils.close(currentEngineReference.getAndSet(readOnlyEngine));
             if (indexSettings.isRemoteStoreEnabled()) {
-                syncSegmentsFromRemoteSegmentStore(false, true);
+                syncSegmentsFromRemoteSegmentStore(false);
             }
             if (indexSettings.isRemoteTranslogStoreEnabled() && shardRouting.primary()) {
                 syncRemoteTranslogAndUpdateGlobalCheckpoint();
@@ -4656,10 +4656,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     /**
      * Downloads segments from remote segment store.
      * @param overrideLocal flag to override local segment files with those in remote store
-     * @param refreshLevelSegmentSync last refresh checkpoint is used if true, commit checkpoint otherwise
      * @throws IOException if exception occurs while reading segments from remote store
      */
-    public void syncSegmentsFromRemoteSegmentStore(boolean overrideLocal, boolean refreshLevelSegmentSync) throws IOException {
+    public void syncSegmentsFromRemoteSegmentStore(boolean overrideLocal) throws IOException {
         assert indexSettings.isRemoteStoreEnabled();
         logger.trace("Downloading segments from remote segment store");
         RemoteSegmentStoreDirectory remoteDirectory = getRemoteDirectory();
@@ -4671,9 +4670,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             .getSegmentsUploadedToRemoteStore()
             .entrySet()
             .stream()
-            // if this is a refresh level sync, ignore any segments_n uploaded to the store, we will commit the received infos bytes
-            // locally.
-            .filter(entry -> refreshLevelSegmentSync && entry.getKey().startsWith(IndexFileNames.SEGMENTS) == false)
+            .filter(entry -> entry.getKey().startsWith(IndexFileNames.SEGMENTS) == false)
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
         store.incRef();
         remoteStore.incRef();
@@ -4694,7 +4691,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             }
             copySegmentFiles(storeDirectory, remoteDirectory, null, uploadedSegments, overrideLocal);
 
-            if (refreshLevelSegmentSync && remoteSegmentMetadata != null) {
+            if (remoteSegmentMetadata != null) {
                 final SegmentInfos infosSnapshot = store.buildSegmentInfos(
                     remoteSegmentMetadata.getSegmentInfosBytes(),
                     remoteSegmentMetadata.getGeneration()
