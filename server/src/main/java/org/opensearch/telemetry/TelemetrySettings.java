@@ -22,7 +22,7 @@ import org.opensearch.common.settings.Settings;
 public class TelemetrySettings {
     public static final Setting<Boolean> TRACER_ENABLED_SETTING = Setting.boolSetting(
         "telemetry.tracer.enabled",
-        false,
+        true,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );

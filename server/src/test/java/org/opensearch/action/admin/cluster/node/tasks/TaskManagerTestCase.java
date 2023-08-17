@@ -60,6 +60,7 @@ import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.tasks.TaskCancellationService;
 import org.opensearch.tasks.TaskManager;
 import org.opensearch.tasks.TaskResourceTrackingService;
+import org.opensearch.telemetry.tracing.NoopTracerFactory;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.tasks.MockTaskManager;
 import org.opensearch.threadpool.RunnableTaskExecutionListener;
@@ -216,7 +217,8 @@ public abstract class TaskManagerTestCase extends OpenSearchTestCase {
                 TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                 boundTransportAddressDiscoveryNodeFunction,
                 null,
-                Collections.emptySet()
+                Collections.emptySet(),
+                new NoopTracerFactory().getTracer()
             ) {
                 @Override
                 protected TaskManager createTaskManager(

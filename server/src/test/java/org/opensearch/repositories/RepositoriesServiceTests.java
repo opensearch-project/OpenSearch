@@ -76,6 +76,7 @@ import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.repositories.blobstore.MeteredBlobStoreRepository;
 import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.snapshots.SnapshotInfo;
+import org.opensearch.telemetry.tracing.NoopTracerFactory;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.Transport;
@@ -122,7 +123,8 @@ public class RepositoriesServiceTests extends OpenSearchTestCase {
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             boundAddress -> DiscoveryNode.createLocal(Settings.EMPTY, boundAddress.publishAddress(), UUIDs.randomBase64UUID()),
             null,
-            Collections.emptySet()
+            Collections.emptySet(),
+            new NoopTracerFactory().getTracer()
         );
         final ClusterApplierService clusterApplierService = mock(ClusterApplierService.class);
         when(clusterApplierService.threadPool()).thenReturn(threadPool);

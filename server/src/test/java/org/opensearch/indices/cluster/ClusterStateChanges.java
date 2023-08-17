@@ -108,6 +108,7 @@ import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.ShardLimitValidator;
 import org.opensearch.indices.SystemIndices;
 import org.opensearch.snapshots.EmptySnapshotsInfoService;
+import org.opensearch.telemetry.tracing.NoopTracerFactory;
 import org.opensearch.test.gateway.TestGatewayAllocator;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.Transport;
@@ -232,7 +233,8 @@ public class ClusterStateChanges {
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             boundAddress -> DiscoveryNode.createLocal(SETTINGS, boundAddress.publishAddress(), UUIDs.randomBase64UUID()),
             clusterSettings,
-            Collections.emptySet()
+            Collections.emptySet(),
+            new NoopTracerFactory().getTracer()
         );
         MetadataIndexUpgradeService metadataIndexUpgradeService = new MetadataIndexUpgradeService(
             SETTINGS,

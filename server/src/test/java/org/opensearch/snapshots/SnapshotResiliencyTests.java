@@ -220,6 +220,7 @@ import org.opensearch.search.pipeline.SearchPipelineService;
 import org.opensearch.search.query.QueryPhase;
 import org.opensearch.snapshots.mockstore.MockEventuallyConsistentRepository;
 import org.opensearch.tasks.TaskResourceTrackingService;
+import org.opensearch.telemetry.tracing.NoopTracerFactory;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.disruption.DisruptableMockTransport;
 import org.opensearch.threadpool.ThreadPool;
@@ -1983,7 +1984,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                             return actualHandler;
                         }
                     }
-                }, a -> node, null, emptySet());
+                }, a -> node, null, emptySet(), new NoopTracerFactory().getTracer());
                 final IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(
                     new ThreadContext(Settings.EMPTY)
                 );
@@ -2422,7 +2423,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     dynamicActionRegistry,
                     () -> clusterService.localNode().getId(),
                     transportService.getRemoteClusterService(),
-                    new NamedWriteableRegistry(Collections.emptyList())
+                    new NamedWriteableRegistry(Collections.emptyList()),
+                    new NoopTracerFactory().getTracer()
                 );
             }
 

@@ -49,6 +49,7 @@ import org.opensearch.common.util.concurrent.CountDown;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.Strings;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
@@ -149,11 +150,13 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
 
     private final TransportService transportService;
     private final Map<String, RemoteClusterConnection> remoteClusters = ConcurrentCollections.newConcurrentMap();
+    private final Tracer tracer;
 
-    RemoteClusterService(Settings settings, TransportService transportService) {
+    RemoteClusterService(Settings settings, TransportService transportService, Tracer tracer) {
         super(settings);
         this.enabled = DiscoveryNode.isRemoteClusterClient(settings);
         this.transportService = transportService;
+        this.tracer = tracer;
     }
 
     /**
@@ -415,7 +418,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         if (transportService.getRemoteClusterService().getRemoteClusterNames().contains(clusterAlias) == false) {
             throw new NoSuchRemoteClusterException(clusterAlias);
         }
-        return new RemoteClusterAwareClient(settings, threadPool, transportService, clusterAlias);
+        return new RemoteClusterAwareClient(settings, threadPool, transportService, clusterAlias, tracer);
     }
 
     Collection<RemoteClusterConnection> getConnections() {

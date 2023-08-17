@@ -54,6 +54,11 @@ import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.rest.RestChannel;
 import org.opensearch.rest.RestRequest;
+import org.opensearch.telemetry.tracing.SpanScope;
+import org.opensearch.telemetry.tracing.Tracer;
+import org.opensearch.telemetry.tracing.attributes.Attributes;
+import org.opensearch.telemetry.tracing.channels.TraceableHttpChannel;
+import org.opensearch.telemetry.tracing.channels.TraceableRestChannel;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.BindTransportException;
 
@@ -66,6 +71,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
@@ -83,8 +89,17 @@ import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_PUBLISH_POR
  * @opensearch.internal
  */
 public abstract class AbstractHttpServerTransport extends AbstractLifecycleComponent implements HttpServerTransport {
+    private static final String SPAN_ATTR_KEY_VERSION = "version";
+    private static final String SPAN_ATTR_KEY_METHOD = "method";
+    private static final String SPAN_ATTR_KEY_URI = "uri";
+    private static final String SPAN_NAME_INCOMING_HTTP_SERVER_REQUEST = "incoming_http_server_request";
+    private static final String SPAN_ATTR_KEY_REQ_INBOUND_EX = "req_inbound_ex";
+    private static final String SPAN_NAME_REST_REQUEST = "rest_request";
+    private static final String SPAN_ATTR_KEY_BAD_REQ_PARAM = "bad_req_param";
+    private static final String SPAN_ATTR_KEY_REQUEST_ID = "request_id";
     private static final Logger logger = LogManager.getLogger(AbstractHttpServerTransport.class);
     private static final ActionListener<Void> NO_OP = ActionListener.wrap(() -> {});
+    private static final List<String> HEADERS_TO_BE_POPULATED = Arrays.asList("trace");
 
     protected final Settings settings;
     public final HttpHandlingSettings handlingSettings;
@@ -106,6 +121,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     private final Set<HttpServerChannel> httpServerChannels = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
     private final HttpTracer tracer;
+    private final Tracer telemetryTracer;
 
     protected AbstractHttpServerTransport(
         Settings settings,
@@ -114,7 +130,8 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         ThreadPool threadPool,
         NamedXContentRegistry xContentRegistry,
         Dispatcher dispatcher,
-        ClusterSettings clusterSettings
+        ClusterSettings clusterSettings,
+        Tracer telemetryTracer
     ) {
         this.settings = settings;
         this.networkService = networkService;
@@ -139,6 +156,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
 
         this.maxContentLength = SETTING_HTTP_MAX_CONTENT_LENGTH.get(settings);
         this.tracer = new HttpTracer(settings, clusterSettings);
+        this.telemetryTracer = telemetryTracer;
     }
 
     @Override
@@ -352,17 +370,53 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
      * @param httpChannel that received the http request
      */
     public void incomingRequest(final HttpRequest httpRequest, final HttpChannel httpChannel) {
-        handleIncomingRequest(httpRequest, httpChannel, httpRequest.getInboundException());
+        // TODO: Add support for parsing the otel incoming tracer.
+        final SpanScope httpRequestSpanScope = telemetryTracer.startSpan(
+            SPAN_NAME_INCOMING_HTTP_SERVER_REQUEST,
+            buildSpanAttributes(httpRequest)
+        );
+        httpRequestSpanScope.addSpanAttribute(SPAN_ATTR_KEY_REQ_INBOUND_EX, httpRequest.getInboundException() != null);
+        HttpChannel traceableHttpChannel = new TraceableHttpChannel(httpChannel, httpRequestSpanScope);
+        handleIncomingRequest(httpRequest, traceableHttpChannel, httpRequest.getInboundException());
+    }
+
+    private Attributes buildSpanAttributes(HttpRequest httpRequest) {
+        Attributes attributes = Attributes.create()
+            .addAttribute(SPAN_ATTR_KEY_URI, httpRequest.uri())
+            .addAttribute(SPAN_ATTR_KEY_METHOD, httpRequest.method().name())
+            .addAttribute(SPAN_ATTR_KEY_VERSION, httpRequest.protocolVersion().name());
+        populateHeader(httpRequest, attributes);
+        return attributes;
+    }
+
+    private void populateHeader(HttpRequest httpRequest, Attributes attributes) {
+        HEADERS_TO_BE_POPULATED.forEach(x -> {
+            if (httpRequest.getHeaders() != null && httpRequest.getHeaders().get(x) != null) {
+                attributes.addAttribute(x, Strings.collectionToCommaDelimitedString(httpRequest.getHeaders().get(x)));
+            }
+        });
     }
 
     // Visible for testing
     void dispatchRequest(final RestRequest restRequest, final RestChannel channel, final Throwable badRequestCause) {
+        final SpanScope spanScope = telemetryTracer.startSpan(SPAN_NAME_REST_REQUEST);
+        spanScope.addSpanAttribute(SPAN_ATTR_KEY_BAD_REQ_PARAM, badRequestCause != null);
+        if (restRequest != null) {
+            spanScope.addSpanAttribute(SPAN_ATTR_KEY_REQUEST_ID, restRequest.getRequestId());
+        }
+
+        RestChannel traceableRestChannel = channel;
+        if (channel != null) {
+            traceableRestChannel = new TraceableRestChannel(channel, spanScope);
+        }
+
         final ThreadContext threadContext = threadPool.getThreadContext();
+        Map<String, String> header = threadContext.getHeaders();
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             if (badRequestCause != null) {
-                dispatcher.dispatchBadRequest(channel, threadContext, badRequestCause);
+                dispatcher.dispatchBadRequest(traceableRestChannel, threadContext, badRequestCause);
             } else {
-                dispatcher.dispatchRequest(restRequest, channel, threadContext);
+                dispatcher.dispatchRequest(restRequest, traceableRestChannel, threadContext);
             }
         }
     }
