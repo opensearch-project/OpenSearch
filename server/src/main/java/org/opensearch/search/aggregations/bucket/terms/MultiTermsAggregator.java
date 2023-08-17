@@ -237,15 +237,6 @@ public class MultiTermsAggregator extends DeferableBucketAggregator {
         Releasables.close(bucketOrds, multiTermsValue);
     }
 
-    private static BytesRef encode(List<Object> values) {
-        try (BytesStreamOutput output = new BytesStreamOutput()) {
-            output.writeCollection(values, StreamOutput::writeGenericValue);
-            return output.bytes().toBytesRef();
-        } catch (IOException e) {
-            throw ExceptionsHelper.convertToRuntime(e);
-        }
-    }
-
     private static List<Object> decode(BytesRef bytesRef) {
         try (StreamInput input = new BytesArray(bytesRef).streamInput()) {
             return input.readList(StreamInput::readGenericValue);
@@ -322,10 +313,10 @@ public class MultiTermsAggregator extends DeferableBucketAggregator {
      * Represents an individual term value.
      */
     static class TermValue<T> implements Writeable {
-        private static final Writer<BytesRef> BYTES_REF_WRITER = StreamOutput.getGenericValueWriterByClass(BytesRef.class);
-        private static final Writer<Long> LONG_WRITER = StreamOutput.getGenericValueWriterByClass(Long.class);
-        private static final Writer<BigInteger> BIG_INTEGER_WRITER = StreamOutput.getGenericValueWriterByClass(BigInteger.class);
-        private static final Writer<Double> DOUBLE_WRITER = StreamOutput.getGenericValueWriterByClass(Double.class);
+        private static final Writer<BytesRef> BYTES_REF_WRITER = StreamOutput.getWriter(BytesRef.class);
+        private static final Writer<Long> LONG_WRITER = StreamOutput.getWriter(Long.class);
+        private static final Writer<BigInteger> BIG_INTEGER_WRITER = StreamOutput.getWriter(BigInteger.class);
+        private static final Writer<Double> DOUBLE_WRITER = StreamOutput.getWriter(Double.class);
 
         private final T value;
         private final Writer<T> writer;

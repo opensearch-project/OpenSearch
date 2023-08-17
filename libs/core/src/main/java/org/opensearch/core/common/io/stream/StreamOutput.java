@@ -808,7 +808,7 @@ public abstract class StreamOutput extends OutputStream {
      * Returns the registered writer for the given class type.
      */
     @SuppressWarnings("unchecked")
-    public static <W extends Writer<?>> W getGenericValueWriterByClass(Class<?> type) {
+    public static <W extends Writer<?>> W getWriter(Class<?> type) {
         Writer<Object> writer = WriteableRegistry.getWriter(type);
         if (writer == null) {
             // fallback to this local hashmap
@@ -833,7 +833,7 @@ public abstract class StreamOutput extends OutputStream {
             return;
         }
         final Class<?> type = getGenericType(value);
-        final Writer<Object> writer = getGenericValueWriterByClass(type);
+        final Writer<Object> writer = getWriter(type);
         writer.write(this, value);
     }
 
