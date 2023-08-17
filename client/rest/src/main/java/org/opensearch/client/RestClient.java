@@ -571,8 +571,8 @@ public class RestClient implements Closeable {
      */
     private void onResponse(Node node) {
         DeadHostState removedHost = this.denylist.remove(node.getHost());
-        if (logger.isDebugEnabled() && removedHost != null) {
-            logger.debug("removed [" + node + "] from denylist");
+        if (removedHost != null) {
+            logger.debug("removed [{}] from denylist",() -> node);
         }
     }
 
@@ -587,15 +587,11 @@ public class RestClient implements Closeable {
                 new DeadHostState(DeadHostState.DEFAULT_TIME_SUPPLIER)
             );
             if (previousDeadHostState == null) {
-                if (logger.isDebugEnabled()) {
-                    logger.debug("added [" + node + "] to denylist");
-                }
+                logger.debug("added [{}] to denylist",() -> node);
                 break;
             }
             if (denylist.replace(node.getHost(), previousDeadHostState, new DeadHostState(previousDeadHostState))) {
-                if (logger.isDebugEnabled()) {
-                    logger.debug("updated [" + node + "] already in denylist");
-                }
+                logger.debug("updated [{}] already in denylist",() -> node);
                 break;
             }
         }
