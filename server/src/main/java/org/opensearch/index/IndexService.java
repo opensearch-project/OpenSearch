@@ -176,6 +176,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final Supplier<Sort> indexSortSupplier;
     private final ValuesSourceRegistry valuesSourceRegistry;
     private final BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier;
+    private final Supplier<TimeValue> clusterDefaultRefreshIntervalSupplier;
 
     public IndexService(
         IndexSettings indexSettings,
@@ -208,7 +209,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         IndexNameExpressionResolver expressionResolver,
         ValuesSourceRegistry valuesSourceRegistry,
         IndexStorePlugin.RecoveryStateFactory recoveryStateFactory,
-        BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier
+        BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier,
+        Supplier<TimeValue> clusterDefaultRefreshIntervalSupplier
     ) {
         super(indexSettings);
         this.allowExpensiveQueries = allowExpensiveQueries;
@@ -275,6 +277,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.readerWrapper = wrapperFactory.apply(this);
         this.searchOperationListeners = Collections.unmodifiableList(searchOperationListeners);
         this.indexingOperationListeners = Collections.unmodifiableList(indexingOperationListeners);
+        this.clusterDefaultRefreshIntervalSupplier = clusterDefaultRefreshIntervalSupplier;
         // kick off async ops for the first shard in this index
         this.refreshTask = new AsyncRefreshTask(this);
         this.trimTranslogTask = new AsyncTrimTranslogTask(this);
@@ -895,34 +898,45 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     );
                 }
             }
-            if (refreshTask.getInterval().equals(indexSettings.getRefreshInterval()) == false) {
-                // once we change the refresh interval we schedule yet another refresh
-                // to ensure we are in a clean and predictable state.
-                // it doesn't matter if we move from or to <code>-1</code> in both cases we want
-                // docs to become visible immediately. This also flushes all pending indexing / search requests
-                // that are waiting for a refresh.
-                threadPool.executor(ThreadPool.Names.REFRESH).execute(new AbstractRunnable() {
-                    @Override
-                    public void onFailure(Exception e) {
-                        logger.warn("forced refresh failed after interval change", e);
-                    }
-
-                    @Override
-                    protected void doRun() throws Exception {
-                        maybeRefreshEngine(true);
-                    }
-
-                    @Override
-                    public boolean isForceExecution() {
-                        return true;
-                    }
-                });
-                rescheduleRefreshTasks();
-            }
+            onRefreshIntervalChange();
             updateFsyncTaskIfNecessary();
         }
 
         metadataListeners.forEach(c -> c.accept(newIndexMetadata));
+    }
+
+    /**
+     * Called whenever the refresh interval changes. This can happen in 2 cases -
+     * 1. {@code cluster.default.index.refresh_interval} cluster setting changes. The change would only happen for
+     * indexes relying on cluster default.
+     * 2. {@code index.refresh_interval} index setting changes.
+     */
+    public void onRefreshIntervalChange() {
+        if (refreshTask.getInterval().equals(getRefreshInterval())) {
+            return;
+        }
+        // once we change the refresh interval we schedule yet another refresh
+        // to ensure we are in a clean and predictable state.
+        // it doesn't matter if we move from or to <code>-1</code> in both cases we want
+        // docs to become visible immediately. This also flushes all pending indexing / search requests
+        // that are waiting for a refresh.
+        threadPool.executor(ThreadPool.Names.REFRESH).execute(new AbstractRunnable() {
+            @Override
+            public void onFailure(Exception e) {
+                logger.warn("forced refresh failed after interval change", e);
+            }
+
+            @Override
+            protected void doRun() throws Exception {
+                maybeRefreshEngine(true);
+            }
+
+            @Override
+            public boolean isForceExecution() {
+                return true;
+            }
+        });
+        rescheduleRefreshTasks();
     }
 
     private void updateFsyncTaskIfNecessary() {
@@ -989,7 +1003,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     }
 
     private void maybeRefreshEngine(boolean force) {
-        if (indexSettings.getRefreshInterval().millis() > 0 || force) {
+        if (getRefreshInterval().millis() > 0 || force) {
             for (IndexShard shard : this.shards.values()) {
                 try {
                     shard.scheduledRefresh();
@@ -1061,6 +1075,17 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     }
 
     /**
+     * Gets the refresh interval seen by the index service. Index setting overrides takes the highest precedence.
+     * @return the refresh interval.
+     */
+    private TimeValue getRefreshInterval() {
+        if (getIndexSettings().isExplicitRefresh()) {
+            return getIndexSettings().getRefreshInterval();
+        }
+        return clusterDefaultRefreshIntervalSupplier.get();
+    }
+
+    /**
      * Base asynchronous task
      *
      * @opensearch.internal
@@ -1120,7 +1145,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     final class AsyncRefreshTask extends BaseAsyncTask {
 
         AsyncRefreshTask(IndexService indexService) {
-            super(indexService, indexService.getIndexSettings().getRefreshInterval());
+            super(indexService, indexService.getRefreshInterval());
         }
 
         @Override
@@ -1240,6 +1265,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
     AsyncRefreshTask getRefreshTask() { // for tests
         return refreshTask;
+    }
+
+    // Visible for test
+    public TimeValue getRefreshTaskInterval() {
+        return refreshTask.getInterval();
     }
 
     AsyncTranslogFSync getFsyncTask() { // for tests
