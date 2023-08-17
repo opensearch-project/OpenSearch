@@ -322,10 +322,10 @@ public class MultiTermsAggregator extends DeferableBucketAggregator {
      * Represents an individual term value.
      */
     static class TermValue<T> implements Writeable {
-        private static final Writer<BytesRef> BYTES_REF_WRITER = StreamOutput.getGenericValueWriter(BytesRef.class);
-        private static final Writer<Long> LONG_WRITER = StreamOutput.getGenericValueWriter(Long.class);
-        private static final Writer<BigInteger> BIG_INTEGER_WRITER = StreamOutput.getGenericValueWriter(BigInteger.class);
-        private static final Writer<Double> DOUBLE_WRITER = StreamOutput.getGenericValueWriter(Double.class);
+        private static final Writer<BytesRef> BYTES_REF_WRITER = StreamOutput.getGenericValueWriterByClass(BytesRef.class);
+        private static final Writer<Long> LONG_WRITER = StreamOutput.getGenericValueWriterByClass(Long.class);
+        private static final Writer<BigInteger> BIG_INTEGER_WRITER = StreamOutput.getGenericValueWriterByClass(BigInteger.class);
+        private static final Writer<Double> DOUBLE_WRITER = StreamOutput.getGenericValueWriterByClass(Double.class);
 
         private final T value;
         private final Writer<T> writer;
