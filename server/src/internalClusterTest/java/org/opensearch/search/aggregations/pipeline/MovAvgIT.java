@@ -46,7 +46,6 @@ import org.opensearch.search.aggregations.bucket.histogram.Histogram.Bucket;
 import org.opensearch.search.aggregations.metrics.Avg;
 import org.opensearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.opensearch.test.OpenSearchIntegTestCase;
-
 import org.hamcrest.Matchers;
 
 import java.util.ArrayList;

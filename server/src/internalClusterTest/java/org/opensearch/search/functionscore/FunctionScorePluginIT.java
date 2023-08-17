@@ -33,10 +33,10 @@
 package org.opensearch.search.functionscore;
 
 import org.apache.lucene.search.Explanation;
-import org.opensearch.common.action.ActionFuture;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.SearchType;
 import org.opensearch.common.Priority;
+import org.opensearch.common.action.ActionFuture;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.index.query.functionscore.DecayFunction;

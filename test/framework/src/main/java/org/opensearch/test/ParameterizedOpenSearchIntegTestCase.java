@@ -8,10 +8,10 @@
 
 package org.opensearch.test;
 
-import org.junit.After;
-import org.junit.Before;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsModule;
+import org.junit.After;
+import org.junit.Before;
 
 /**
  * Base class for running the tests with parameterization of the dynamic settings

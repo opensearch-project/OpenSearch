@@ -33,7 +33,6 @@
 package org.opensearch.search;
 
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
-
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.SearchType;
 import org.opensearch.common.settings.Settings;

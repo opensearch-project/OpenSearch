@@ -8,7 +8,6 @@
 
 package org.opensearch.remotestore;
 
-import org.junit.After;
 import org.opensearch.action.bulk.BulkItemResponse;
 import org.opensearch.action.bulk.BulkRequest;
 import org.opensearch.action.bulk.BulkResponse;
@@ -25,6 +24,7 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.junit.After;
 
 import java.io.IOException;
 import java.nio.file.FileVisitResult;

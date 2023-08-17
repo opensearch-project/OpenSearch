@@ -8,7 +8,6 @@
 
 package org.opensearch.remotestore.multipart;
 
-import org.junit.Before;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
@@ -17,6 +16,7 @@ import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.remotestore.RemoteStoreBaseIntegTestCase;
 import org.opensearch.remotestore.multipart.mocks.MockFsRepositoryPlugin;
+import org.junit.Before;
 
 import java.util.Collection;
 import java.util.stream.Collectors;

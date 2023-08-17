@@ -32,7 +32,6 @@
 
 package org.opensearch.wildfly.transport;
 
-import jakarta.enterprise.inject.Produces;
 import org.apache.http.HttpHost;
 import org.opensearch.client.RestClient;
 import org.opensearch.client.RestHighLevelClient;
@@ -40,6 +39,8 @@ import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.io.PathUtils;
 
 import java.nio.file.Path;
+
+import jakarta.enterprise.inject.Produces;
 
 @SuppressWarnings("unused")
 public final class RestHighLevelClientProducer {

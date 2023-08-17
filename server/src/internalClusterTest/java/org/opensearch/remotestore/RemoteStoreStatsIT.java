@@ -8,7 +8,6 @@
 
 package org.opensearch.remotestore;
 
-import org.junit.Before;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStoreRequest;
 import org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStats;
@@ -25,6 +24,7 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.remote.RemoteSegmentTransferTracker;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -33,8 +33,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
