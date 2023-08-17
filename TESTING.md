@@ -406,6 +406,27 @@ Example:
 
 Say you need to make a change to `main` and have a BWC layer in `5.x`. You will need to: . Create a branch called `index_req_change` off your remote `${remote}`. This will contain your change. . Create a branch called `index_req_bwc_5.x` off `5.x`. This will contain your bwc layer. . Push both branches to your remote repository. . Run the tests with `./gradlew check -Dbwc.remote=${remote} -Dbwc.refspec.5.x=index_req_bwc_5.x`.
 
+## BWC Testing with security
+
+You may want to run BWC tests for a secure OpenSearch cluster. In order to do this, you will need to follow a few additional steps:
+
+1. Clone the OpenSearch Security repository from https://github.com/opensearch-project/security
+2. Get both the old version of the Security plugin (the version you wish to come from) and the new version of the Security plugin (the version you wish to go to). This can be done either by fetching the maven artifact with a command like `wget https://repo1.maven.org/maven2/org/opensearch/plugin/opensearch-security/<TARGET_VERSION>.0/opensearch-security-<TARGET_VERSION>.0.zip` or by running `./gradlew assemble` from the base of the Security repository. 
+3. Move both of the Security artifacts into new directories at the path `/security/bwc-test/src/test/resources/<TARGET_VERSION>.0`. You should end up with two different directories in `/security/bwc-test/src/test/resources/`, one named the old version and one the new version. 
+4. Run the following command from the base of the Security repository
+
+     ./gradlew -p bwc-test clean bwcTestSuite \
+     -Dtests.security.manager=false \
+     -Dtests.opensearch.http.protocol=https \
+     -Dtests.opensearch.username=admin \
+     -Dtests.opensearch.password=admin \
+     -PcustomDistributionUrl="/OpenSearch/distribution/archives/linux-tar/build/distributions/opensearch-min-3.0.0-SNAPSHOT-linux-x64.tar.gz" \
+     -i
+
+`-Dtests.security.manager=false` Handles access issues attempting to read the certificates from the file system
+`-Dtests.opensearch.http.protocol=https` Tells the wait for cluster startup task to do the right thing
+`-PcustomDistributionUrl=...` Uses a custom build of the distribution of OpenSearch. This is unnecessary when running against standard/unmodified OpenSearch core distributions. 
+
 ### Skip fetching latest
 
 For some BWC testing scenarios, you want to use the local clone of the repository without fetching latest. For these use cases, you can set the system property `tests.bwc.git_fetch_latest` to `false` and the BWC builds will skip fetching the latest from the remote.
