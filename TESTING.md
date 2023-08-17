@@ -415,15 +415,15 @@ You may want to run BWC tests for a secure OpenSearch cluster. In order to do th
 3. Move both of the Security artifacts into new directories at the path `/security/bwc-test/src/test/resources/<TARGET_VERSION>.0`. You should end up with two different directories in `/security/bwc-test/src/test/resources/`, one named the old version and one the new version. 
 4. Run the following command from the base of the Security repository
 
-
-    ./gradlew -p bwc-test clean bwcTestSuite \
-    -Dtests.security.manager=false \
-    -Dtests.opensearch.http.protocol=https \
-    -Dtests.opensearch.username=admin \
-    -Dtests.opensearch.password=admin \
-    -PcustomDistributionUrl="/OpenSearch/distribution/archives/linux-tar/build/distributions/opensearch-min-3.0.0-SNAPSHOT-linux-x64.tar.gz" \
-    -i
-
+```
+  ./gradlew -p bwc-test clean bwcTestSuite \
+  -Dtests.security.manager=false \
+  -Dtests.opensearch.http.protocol=https \
+  -Dtests.opensearch.username=admin \
+  -Dtests.opensearch.password=admin \
+  -PcustomDistributionUrl="/OpenSearch/distribution/archives/linux-tar/build/distributions/opensearch-min-3.0.0-SNAPSHOT-linux-x64.tar.gz" \
+  -i
+```
 
 `-Dtests.security.manager=false` Handles access issues attempting to read the certificates from the file system
 `-Dtests.opensearch.http.protocol=https` Tells the wait for cluster startup task to do the right thing
