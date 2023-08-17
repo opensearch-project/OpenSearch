@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.remotestore;
+package org.opensearch.remotestore.lockmanager;
 
 import org.junit.Before;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -16,6 +16,7 @@ import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.index.store.lockmanager.FileLockInfo;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManagerFactory;
 import org.opensearch.index.store.lockmanager.RemoteStoreMetadataLockManager;
+import org.opensearch.remotestore.RemoteStoreBaseIntegTestCase;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.threadpool.ThreadPool;
 

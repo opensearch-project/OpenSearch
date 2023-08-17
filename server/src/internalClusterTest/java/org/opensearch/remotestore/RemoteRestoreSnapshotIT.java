@@ -103,7 +103,7 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         String primary = internalCluster().startDataOnlyNode();
         String indexName1 = "testindex1";
         String indexName2 = "testindex2";
-        String snapshotRepoName = "test-restore-snapshot-repo";
+        String snapshotRepoName = "test-shallow-snapshot-repo";
         String snapshotName1 = "test-restore-snapshot1";
         String snapshotName2 = "test-restore-snapshot2";
         Path absolutePath1 = randomRepoPath().toAbsolutePath();
@@ -142,6 +142,7 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
             equalTo(createSnapshotResponse.getSnapshotInfo().totalShards())
         );
         assertThat(createSnapshotResponse.getSnapshotInfo().state(), equalTo(SnapshotState.SUCCESS));
+        assertTrue(createSnapshotResponse.getSnapshotInfo().isRemoteStoreIndexShallowCopyEnabled());
 
         updateRepository(snapshotRepoName, "fs", getRepositorySettings(absolutePath1, false));
         CreateSnapshotResponse createSnapshotResponse2 = client.admin()
@@ -265,7 +266,7 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         String primary = internalCluster().startDataOnlyNode();
         String indexName1 = "testindex1";
         String indexName2 = "testindex2";
-        String snapshotRepoName = "test-restore-snapshot-repo";
+        String snapshotRepoName = "test-shallow-snapshot-repo";
         String snapshotName1 = "test-restore-snapshot1";
         String snapshotName2 = "test-restore-snapshot2";
         Path absolutePath1 = randomRepoPath().toAbsolutePath();
@@ -302,6 +303,9 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
             equalTo(createSnapshotResponse.getSnapshotInfo().totalShards())
         );
         assertThat(createSnapshotResponse.getSnapshotInfo().state(), equalTo(SnapshotState.SUCCESS));
+        if (enableShallowCopy) {
+            assertTrue(createSnapshotResponse.getSnapshotInfo().isRemoteStoreIndexShallowCopyEnabled());
+        }
 
         updateRepository(snapshotRepoName, "fs", getRepositorySettings(absolutePath1, false));
         CreateSnapshotResponse createSnapshotResponse2 = client.admin()
@@ -367,14 +371,14 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         String primary = internalCluster().startDataOnlyNode();
         String indexName1 = "testindex1";
         String indexName2 = "testindex2";
-        String snapshotRepoName = "test-restore-snapshot-repo";
+        String snapshotRepoName = "test-shallow-snapshot-repo";
         String remoteStoreRepo2Name = "test-rs-repo-2" + TEST_REMOTE_STORE_REPO_SUFFIX;
         String snapshotName1 = "test-restore-snapshot1";
         Path absolutePath1 = randomRepoPath().toAbsolutePath();
         Path absolutePath3 = randomRepoPath().toAbsolutePath();
         String restoredIndexName1 = indexName1 + "-restored";
 
-        createRepository(snapshotRepoName, "fs", getRepositorySettings(absolutePath1, false));
+        createRepository(snapshotRepoName, "fs", getRepositorySettings(absolutePath1, true));
         createRepository(remoteStoreRepo2Name, "fs", absolutePath3);
 
         Client client = client();
@@ -405,6 +409,7 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
             equalTo(createSnapshotResponse.getSnapshotInfo().totalShards())
         );
         assertThat(createSnapshotResponse.getSnapshotInfo().state(), equalTo(SnapshotState.SUCCESS));
+        assertTrue(createSnapshotResponse.getSnapshotInfo().isRemoteStoreIndexShallowCopyEnabled());
 
         Settings remoteStoreIndexSettings = Settings.builder()
             .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, remoteStoreRepo2Name)
@@ -445,7 +450,7 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
 
     public void testRestoreShallowSnapshotRepositoryOverriden() throws ExecutionException, InterruptedException {
         String indexName1 = "testindex1";
-        String snapshotRepoName = "test-restore-snapshot-repo";
+        String snapshotRepoName = "test-shallow-snapshot-repo";
         String remoteStoreRepoNameUpdated = "test-rs-repo-updated" + TEST_REMOTE_STORE_REPO_SUFFIX;
         String snapshotName1 = "test-restore-snapshot1";
         Path absolutePath1 = randomRepoPath().toAbsolutePath();
@@ -492,6 +497,7 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
             equalTo(createSnapshotResponse.getSnapshotInfo().totalShards())
         );
         assertThat(createSnapshotResponse.getSnapshotInfo().state(), equalTo(SnapshotState.SUCCESS));
+        assertTrue(createSnapshotResponse.getSnapshotInfo().isRemoteStoreIndexShallowCopyEnabled());
 
         createRepository(BASE_REMOTE_REPO, "fs", absolutePath2);
 
@@ -539,11 +545,9 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
     }
 
     private void testShallowCloneRestore(boolean deleteOriginalSnapshot) {
-        internalCluster().startClusterManagerOnlyNode();
-        internalCluster().startDataOnlyNode();
         String indexName1 = "testindex1";
         String indexName2 = "testindex2";
-        String snapshotRepoName = "test-restore-snapshot-repo";
+        String snapshotRepoName = "test-shallow-snapshot-repo";
         String remoteStoreRepoName = "test-rs-repo" + TEST_REMOTE_STORE_REPO_SUFFIX;
         String snapshotName = "test-restore-snapshot";
         String snapshotCloneName = "test-restore-snapshot-clone";
@@ -567,7 +571,6 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         indexDocuments(client, indexName2, numDocsInIndex2);
         ensureGreen(indexName1, indexName2);
 
-        internalCluster().startDataOnlyNode();
         logger.info("--> create shallow copy snapshot");
         CreateSnapshotResponse createSnapshotResponse = client.admin()
             .cluster()
@@ -581,6 +584,7 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
             equalTo(createSnapshotResponse.getSnapshotInfo().totalShards())
         );
         assertThat(createSnapshotResponse.getSnapshotInfo().state(), equalTo(SnapshotState.SUCCESS));
+        assertTrue(createSnapshotResponse.getSnapshotInfo().isRemoteStoreIndexShallowCopyEnabled());
 
         logger.info("--> clone shallow snapshot");
         assertAcked(
@@ -613,11 +617,9 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testRestoreDownloadFromRemoteStore() {
-        internalCluster().startClusterManagerOnlyNode();
-        internalCluster().startDataOnlyNode();
         String indexName1 = "testindex1";
         String indexName2 = "testindex2";
-        String snapshotRepoName = "test-restore-snapshot-repo";
+        String snapshotRepoName = "test-shallow-snapshot-repo";
         String remoteStoreRepoName = "test-rs-repo" + TEST_REMOTE_STORE_REPO_SUFFIX;
         String snapshotName1 = "test-restore-snapshot1";
         Path absolutePath1 = randomRepoPath().toAbsolutePath();
@@ -653,9 +655,8 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
             equalTo(createSnapshotResponse.getSnapshotInfo().totalShards())
         );
         assertThat(createSnapshotResponse.getSnapshotInfo().state(), equalTo(SnapshotState.SUCCESS));
+        assertTrue(createSnapshotResponse.getSnapshotInfo().isRemoteStoreIndexShallowCopyEnabled());
 
-        logger.info("--> blocking all data nodes for repository [{}]", remoteStoreRepoName);
-        blockAllDataNodes(remoteStoreRepoName);
         createRepository(
             remoteStoreRepoName,
             "mock",
@@ -671,9 +672,6 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
             .setRenamePattern(indexName1)
             .setRenameReplacement(restoredIndexName1)
             .get();
-
-        logger.info("--> unblocking repository [{}]", remoteStoreRepoName);
-        unblockAllDataNodes(remoteStoreRepoName);
 
         ensureRed(restoredIndexName1);
         assertEquals(1, restoreSnapshotResponse.getRestoreInfo().failedShards());
@@ -693,11 +691,9 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testRestoreShallowCopyAsSearchable() {
-        internalCluster().startClusterManagerOnlyNode();
-        internalCluster().startDataOnlyNode();
         String indexName1 = "testindex1";
         String indexName2 = "testindex2";
-        String snapshotRepoName = "test-restore-snapshot-repo";
+        String snapshotRepoName = "test-shallow-snapshot-repo";
         String remoteStoreRepoName = "test-rs-repo" + TEST_REMOTE_STORE_REPO_SUFFIX;
         String snapshotName1 = "test-restore-snapshot1";
         Path absolutePath1 = randomRepoPath().toAbsolutePath();
@@ -733,6 +729,8 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
             equalTo(createSnapshotResponse.getSnapshotInfo().totalShards())
         );
         assertThat(createSnapshotResponse.getSnapshotInfo().state(), equalTo(SnapshotState.SUCCESS));
+        assertTrue(createSnapshotResponse.getSnapshotInfo().isRemoteStoreIndexShallowCopyEnabled());
+
         logger.info("--> restore indices as 'remote_snapshot'");
         try {
             client.admin()

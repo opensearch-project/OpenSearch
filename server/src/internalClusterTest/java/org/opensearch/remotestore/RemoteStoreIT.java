@@ -10,9 +10,6 @@ package org.opensearch.remotestore;
 
 import org.hamcrest.MatcherAssert;
 import org.junit.Before;
-import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStoreRequest;
-import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStoreResponse;
-import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.opensearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.opensearch.action.admin.indices.recovery.RecoveryResponse;
 import org.opensearch.action.index.IndexResponse;
@@ -21,13 +18,8 @@ import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.index.shard.RemoteStoreRefreshListener;
-import org.opensearch.index.store.lockmanager.RemoteStoreLockManagerUtils;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.repositories.blobstore.BlobStoreRepository;
-import org.opensearch.snapshots.SnapshotId;
-import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.transport.MockTransportService;
 
@@ -35,11 +27,9 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
-import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
-import static java.lang.Math.max;
 import static org.hamcrest.Matchers.comparesEqualTo;
 import static org.hamcrest.Matchers.oneOf;
 import static org.hamcrest.Matchers.is;
