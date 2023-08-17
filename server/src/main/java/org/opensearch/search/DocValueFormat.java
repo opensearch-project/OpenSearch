@@ -248,7 +248,7 @@ public interface DocValueFormat extends NamedWriteable {
             String zoneId = in.readString();
             this.timeZone = ZoneId.of(zoneId);
             this.resolution = DateFieldMapper.Resolution.ofOrdinal(in.readVInt());
-            if (in.getVersion().before(Version.V_2_10_0)) {
+            if (in.getVersion().before(Version.V_3_0_0)) {
                 in.readBoolean(); // ignore deprecated joda
             }
         }
@@ -263,7 +263,7 @@ public interface DocValueFormat extends NamedWriteable {
             out.writeString(formatter.pattern());
             out.writeString(timeZone.getId());
             out.writeVInt(resolution.ordinal());
-            if (out.getVersion().before(Version.V_2_10_0)) {
+            if (out.getVersion().before(Version.V_3_0_0)) {
                 out.writeBoolean(false); // ignore deprecated joda flag
             }
         }
