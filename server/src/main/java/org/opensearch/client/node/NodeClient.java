@@ -45,6 +45,10 @@ import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskListener;
+import org.opensearch.telemetry.tracing.SpanScope;
+import org.opensearch.telemetry.tracing.Tracer;
+import org.opensearch.telemetry.tracing.listener.TraceableActionListener;
+import org.opensearch.telemetry.tracing.listener.TraceableTaskListener;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.RemoteClusterService;
 
@@ -56,7 +60,9 @@ import java.util.function.Supplier;
  * @opensearch.internal
  */
 public class NodeClient extends AbstractClient {
-
+    private static final String SPAN_NAME_PREFIX_TRANSPORT_ACTION = "transport_action_";
+    private static final String SPAN_ATTR_KEY_TASK_ID = "task_id";
+    private static final String SPAN_ATTR_KEY_ACTION = "action";
     private DynamicActionRegistry actionRegistry;
     /**
      * The id of the local {@link DiscoveryNode}. Useful for generating task ids from tasks returned by
@@ -65,6 +71,7 @@ public class NodeClient extends AbstractClient {
     private Supplier<String> localNodeId;
     private RemoteClusterService remoteClusterService;
     private NamedWriteableRegistry namedWriteableRegistry;
+    private Tracer tracer;
 
     public NodeClient(Settings settings, ThreadPool threadPool) {
         super(settings, threadPool);
@@ -74,12 +81,14 @@ public class NodeClient extends AbstractClient {
         DynamicActionRegistry actionRegistry,
         Supplier<String> localNodeId,
         RemoteClusterService remoteClusterService,
-        NamedWriteableRegistry namedWriteableRegistry
+        NamedWriteableRegistry namedWriteableRegistry,
+        Tracer tracer
     ) {
         this.actionRegistry = actionRegistry;
         this.localNodeId = localNodeId;
         this.remoteClusterService = remoteClusterService;
         this.namedWriteableRegistry = namedWriteableRegistry;
+        this.tracer = tracer;
     }
 
     @Override
@@ -107,6 +116,9 @@ public class NodeClient extends AbstractClient {
         Request request,
         ActionListener<Response> listener
     ) {
+        final SpanScope spanScope = tracer.startSpan(SPAN_NAME_PREFIX_TRANSPORT_ACTION + action.name());
+        spanScope.addSpanAttribute(SPAN_ATTR_KEY_ACTION, action.name());
+        listener = new TraceableActionListener<Response>(listener, spanScope);
         return transportAction(action).execute(request, listener);
     }
 
@@ -119,7 +131,14 @@ public class NodeClient extends AbstractClient {
         Request request,
         TaskListener<Response> listener
     ) {
-        return transportAction(action).execute(request, listener);
+        final SpanScope spanScope = tracer.startSpan(SPAN_NAME_PREFIX_TRANSPORT_ACTION + action.name());
+        spanScope.addSpanAttribute(SPAN_ATTR_KEY_ACTION, action.name());
+        listener = new TraceableTaskListener<Response>(listener, spanScope);
+        Task task = transportAction(action).execute(request, listener);
+        if (task != null) {
+            spanScope.addSpanAttribute(SPAN_ATTR_KEY_TASK_ID, task.getId());
+        }
+        return task;
     }
 
     /**
