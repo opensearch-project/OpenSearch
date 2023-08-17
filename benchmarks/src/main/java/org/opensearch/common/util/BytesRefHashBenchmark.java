@@ -10,6 +10,9 @@ package org.opensearch.common.util;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.StringHelper;
+import org.opensearch.common.hash.T1ha1;
+import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.lease.Releasables;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -22,9 +25,6 @@ import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
-import org.opensearch.common.hash.T1ha1;
-import org.opensearch.common.lease.Releasable;
-import org.opensearch.common.lease.Releasables;
 
 import java.util.HashSet;
 import java.util.Random;
