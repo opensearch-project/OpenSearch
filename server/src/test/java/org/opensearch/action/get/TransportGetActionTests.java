@@ -42,21 +42,14 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.core.index.Index;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.OpenSearchTestCase;
-import org.junit.BeforeClass;
 
 import static org.opensearch.common.UUIDs.randomBase64UUID;
 
 public class TransportGetActionTests extends OpenSearchTestCase {
 
-    private static ClusterState clusterState;
-    private static ClusterState clusterState2;
-
-    @BeforeClass
-    public static void beforeClass() throws Exception {
-
+    private static ClusterState clusterState(ReplicationType replicationType) {
         final Index index1 = new Index("index1", randomBase64UUID());
-        final Index index2 = new Index("index2", randomBase64UUID());
-        clusterState = ClusterState.builder(new ClusterName(TransportGetActionTests.class.getSimpleName()))
+        return ClusterState.builder(new ClusterName(TransportGetActionTests.class.getSimpleName()))
             .metadata(
                 new Metadata.Builder().put(
                     new IndexMetadata.Builder(index1.getName()).settings(
@@ -65,43 +58,33 @@ public class TransportGetActionTests extends OpenSearchTestCase {
                             .put("index.number_of_shards", 1)
                             .put("index.number_of_replicas", 1)
                             .put(IndexMetadata.SETTING_INDEX_UUID, index1.getUUID())
-                            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
-                    )
-                )
-            )
-            .build();
-
-        clusterState2 = ClusterState.builder(new ClusterName(TransportGetActionTests.class.getSimpleName()))
-            .metadata(
-                new Metadata.Builder().put(
-                    new IndexMetadata.Builder(index2.getName()).settings(
-                        Settings.builder()
-                            .put("index.version.created", Version.CURRENT)
-                            .put("index.number_of_shards", 1)
-                            .put("index.number_of_replicas", 1)
-                            .put(IndexMetadata.SETTING_INDEX_UUID, index2.getUUID())
+                            .put(IndexMetadata.SETTING_REPLICATION_TYPE, replicationType)
                     )
                 )
             )
             .build();
     }
 
-    public void testIsPrimaryBasedRouting() {
+    public void testShouldForcePrimaryRouting() {
+
+        ClusterState clusterState = clusterState(ReplicationType.SEGMENT);
 
         // should return false since preference is set for request
-        assertFalse(TransportGetAction.isPrimaryBasedRouting(clusterState, true, Preference.REPLICA.type(), "index1"));
+        assertFalse(TransportGetAction.shouldForcePrimaryRouting(clusterState, true, Preference.REPLICA.type(), "index1"));
 
         // should return false since request is not realtime
-        assertFalse(TransportGetAction.isPrimaryBasedRouting(clusterState, false, null, "index1"));
+        assertFalse(TransportGetAction.shouldForcePrimaryRouting(clusterState, false, null, "index1"));
 
         // should return true since segment replication is enabled
-        assertTrue(TransportGetAction.isPrimaryBasedRouting(clusterState, true, null, "index1"));
+        assertTrue(TransportGetAction.shouldForcePrimaryRouting(clusterState, true, null, "index1"));
 
         // should return false since index doesn't exist
-        assertFalse(TransportGetAction.isPrimaryBasedRouting(clusterState, true, null, "index3"));
+        assertFalse(TransportGetAction.shouldForcePrimaryRouting(clusterState, true, null, "index3"));
+
+        clusterState = clusterState(ReplicationType.DOCUMENT);
 
         // should fail since document replication enabled
-        assertFalse(TransportGetAction.isPrimaryBasedRouting(clusterState2, true, null, "index2"));
+        assertFalse(TransportGetAction.shouldForcePrimaryRouting(clusterState, true, null, "index1"));
 
     }
 

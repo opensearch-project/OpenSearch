@@ -51,7 +51,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.opensearch.action.get.TransportGetAction.isPrimaryBasedRouting;
+import static org.opensearch.action.get.TransportGetAction.shouldForcePrimaryRouting;
 
 /**
  * Perform the multi get action.
@@ -112,7 +112,7 @@ public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequ
 
             MultiGetShardRequest shardRequest = shardRequests.get(shardId);
             if (shardRequest == null) {
-                if (isPrimaryBasedRouting(clusterState, request.realtime, request.preference, concreteSingleIndex)) {
+                if (shouldForcePrimaryRouting(clusterState, request.realtime, request.preference, concreteSingleIndex)) {
                     request.preference(Preference.PRIMARY.type());
                 }
                 shardRequest = new MultiGetShardRequest(request, shardId.getIndexName(), shardId.getId());
