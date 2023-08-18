@@ -262,6 +262,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 IndicesQueryCache.INDICES_CACHE_QUERY_SIZE_SETTING,
                 IndicesQueryCache.INDICES_CACHE_QUERY_COUNT_SETTING,
                 IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING,
+                IndicesService.CLUSTER_DEFAULT_INDEX_REFRESH_INTERVAL_SETTING,
+                IndicesService.CLUSTER_MINIMUM_INDEX_REFRESH_INTERVAL_SETTING,
                 IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING,
                 IndicesService.WRITE_DANGLING_INDICES_INFO_SETTING,
                 IndicesService.CLUSTER_REPLICATION_TYPE_SETTING,
