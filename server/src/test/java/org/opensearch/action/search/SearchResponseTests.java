@@ -48,6 +48,7 @@ import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentHelper;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.plugins.SearchPlugin;
 import org.opensearch.rest.action.search.RestSearchAction;
 import org.opensearch.search.SearchExtBuilder;
 import org.opensearch.search.SearchHit;
@@ -71,7 +72,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonMap;
 import static org.opensearch.test.XContentTestUtils.insertRandomFields;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertToXContentEquivalent;
@@ -86,7 +86,18 @@ public class SearchResponseTests extends OpenSearchTestCase {
     }
 
     private final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(
-        new SearchModule(Settings.EMPTY, emptyList()).getNamedWriteables()
+        new SearchModule(Settings.EMPTY, List.of(new SearchPlugin() {
+            @Override
+            public List<SearchExtSpec<?>> getSearchExts() {
+                return List.of(
+                    new SearchExtSpec<>(
+                        "DummySearchExtBuilder",
+                        input -> new DummySearchExtBuilder("id"),
+                        parser -> DummySearchExtBuilder.parse(parser)
+                    )
+                );
+            }
+        })).getNamedWriteables()
     );
     private AggregationsTests aggregationsTests = new AggregationsTests();
 
@@ -121,6 +132,14 @@ public class SearchResponseTests extends OpenSearchTestCase {
      * if minimal is set, don't include search hits, aggregations, suggest etc... to make test simpler
      */
     private SearchResponse createTestItem(boolean minimal, ShardSearchFailure... shardSearchFailures) {
+        return createTestItem(minimal, Collections.emptyList(), shardSearchFailures);
+    }
+
+    private SearchResponse createTestItem(
+        boolean minimal,
+        List<SearchExtBuilder> searchExtBuilders,
+        ShardSearchFailure... shardSearchFailures
+    ) {
         boolean timedOut = randomBoolean();
         Boolean terminatedEarly = randomBoolean() ? null : randomBoolean();
         int numReducePhases = randomIntBetween(1, 10);
@@ -155,7 +174,9 @@ public class SearchResponseTests extends OpenSearchTestCase {
             skippedShards,
             tookInMillis,
             shardSearchFailures,
-            randomBoolean() ? randomClusters() : SearchResponse.Clusters.EMPTY
+            randomBoolean() ? randomClusters() : SearchResponse.Clusters.EMPTY,
+            null,
+            searchExtBuilders
         );
     }
 
@@ -264,9 +285,10 @@ public class SearchResponseTests extends OpenSearchTestCase {
                 0,
                 0,
                 ShardSearchFailure.EMPTY_ARRAY,
-                SearchResponse.Clusters.EMPTY
+                SearchResponse.Clusters.EMPTY,
+                null,
+                List.of(new DummySearchExtBuilder("id"))
             );
-            response.addSearchExtBuilder(new DummySearchExtBuilder());
             StringBuilder expectedString = new StringBuilder();
             expectedString.append("{");
             {
@@ -361,6 +383,24 @@ public class SearchResponseTests extends OpenSearchTestCase {
         assertEquals(searchResponse.getClusters(), deserialized.getClusters());
     }
 
+    public void testSerializationWithSearchExtBuilders() throws IOException {
+        SearchResponse searchResponse = createTestItem(false, List.of(new DummySearchExtBuilder("id")));
+        SearchResponse deserialized = copyWriteable(searchResponse, namedWriteableRegistry, SearchResponse::new, Version.CURRENT);
+        if (searchResponse.getHits().getTotalHits() == null) {
+            assertNull(deserialized.getHits().getTotalHits());
+        } else {
+            assertEquals(searchResponse.getHits().getTotalHits().value, deserialized.getHits().getTotalHits().value);
+            assertEquals(searchResponse.getHits().getTotalHits().relation, deserialized.getHits().getTotalHits().relation);
+        }
+        assertEquals(searchResponse.getHits().getHits().length, deserialized.getHits().getHits().length);
+        assertEquals(searchResponse.getNumReducePhases(), deserialized.getNumReducePhases());
+        assertEquals(searchResponse.getFailedShards(), deserialized.getFailedShards());
+        assertEquals(searchResponse.getTotalShards(), deserialized.getTotalShards());
+        assertEquals(searchResponse.getSkippedShards(), deserialized.getSkippedShards());
+        assertEquals(searchResponse.getClusters(), deserialized.getClusters());
+        assertEquals(searchResponse.getSearchExtBuilders().get(0), deserialized.getSearchExtBuilders().get(0));
+    }
+
     public void testToXContentEmptyClusters() throws IOException {
         SearchResponse searchResponse = new SearchResponse(
             InternalSearchResponse.empty(),
@@ -379,6 +419,17 @@ public class SearchResponseTests extends OpenSearchTestCase {
     }
 
     static class DummySearchExtBuilder extends SearchExtBuilder {
+
+        private final String id;
+
+        public DummySearchExtBuilder(String id) {
+            assertNotNull(id);
+            this.id = id;
+        }
+
+        public String getId() {
+            return this.id;
+        }
 
         @Override
         public String getWriteableName() {
@@ -402,7 +453,19 @@ public class SearchResponseTests extends OpenSearchTestCase {
 
         @Override
         public boolean equals(Object obj) {
-            return false;
+            if (obj == null) {
+                return false;
+            }
+
+            if (!(obj instanceof DummySearchExtBuilder)) {
+                return false;
+            }
+
+            return this.id.equals(((DummySearchExtBuilder) obj).getId());
+        }
+
+        public static DummySearchExtBuilder parse(XContentParser parser) throws IOException {
+            return new DummySearchExtBuilder("id");
         }
     }
 }

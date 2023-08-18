@@ -60,7 +60,9 @@ import org.opensearch.search.profile.SearchProfileShardResults;
 import org.opensearch.search.suggest.Suggest;
 
 import java.io.IOException;
+
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -114,6 +116,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         tookInMillis = in.readVLong();
         skippedShards = in.readVInt();
         pointInTimeId = in.readOptionalString();
+        searchExtBuilders = in.readNamedWriteableList(SearchExtBuilder.class);
     }
 
     public SearchResponse(
@@ -126,7 +129,18 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         ShardSearchFailure[] shardFailures,
         Clusters clusters
     ) {
-        this(internalResponse, scrollId, totalShards, successfulShards, skippedShards, tookInMillis, shardFailures, clusters, null);
+        this(
+            internalResponse,
+            scrollId,
+            totalShards,
+            successfulShards,
+            skippedShards,
+            tookInMillis,
+            shardFailures,
+            clusters,
+            null,
+            Collections.emptyList()
+        );
     }
 
     public SearchResponse(
@@ -140,6 +154,32 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         Clusters clusters,
         String pointInTimeId
     ) {
+        this(
+            internalResponse,
+            scrollId,
+            totalShards,
+            successfulShards,
+            skippedShards,
+            tookInMillis,
+            shardFailures,
+            clusters,
+            pointInTimeId,
+            Collections.emptyList()
+        );
+    }
+
+    public SearchResponse(
+        SearchResponseSections internalResponse,
+        String scrollId,
+        int totalShards,
+        int successfulShards,
+        int skippedShards,
+        long tookInMillis,
+        ShardSearchFailure[] shardFailures,
+        Clusters clusters,
+        String pointInTimeId,
+        List<SearchExtBuilder> searchExtBuilders
+    ) {
         this.internalResponse = internalResponse;
         this.scrollId = scrollId;
         this.pointInTimeId = pointInTimeId;
@@ -149,6 +189,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         this.skippedShards = skippedShards;
         this.tookInMillis = tookInMillis;
         this.shardFailures = shardFailures;
+        this.searchExtBuilders = searchExtBuilders;
         assert skippedShards <= totalShards : "skipped: " + skippedShards + " total: " + totalShards;
         assert scrollId == null || pointInTimeId == null : "SearchResponse can't have both scrollId ["
             + scrollId
@@ -472,15 +513,12 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         out.writeVLong(tookInMillis);
         out.writeVInt(skippedShards);
         out.writeOptionalString(pointInTimeId);
+        out.writeNamedWriteableList(searchExtBuilders);
     }
 
     @Override
     public String toString() {
         return Strings.toString(MediaTypeRegistry.JSON, this);
-    }
-
-    public void addSearchExtBuilder(SearchExtBuilder searchExtBuilder) {
-        this.searchExtBuilders.add(searchExtBuilder);
     }
 
     public List<SearchExtBuilder> getSearchExtBuilders() {
