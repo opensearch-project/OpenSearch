@@ -9,16 +9,9 @@
 package org.opensearch.common.io.stream;
 
 import org.opensearch.common.geo.GeoPoint;
-import org.opensearch.common.time.DateUtils;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable.WriteableRegistry;
-import org.joda.time.DateTimeZone;
-import org.joda.time.ReadableInstant;
-
-import java.time.Instant;
-import java.time.ZoneId;
-import java.time.ZonedDateTime;
 
 /**
  * This utility class registers generic types for streaming over the wire using
@@ -47,14 +40,6 @@ public final class Streamables {
      * Registers writers by class type
      */
     private static void registerWriters() {
-        /** {@link ReadableInstant} */
-        WriteableRegistry.registerWriter(ReadableInstant.class, (o, v) -> {
-            o.writeByte((byte) 13);
-            final ReadableInstant instant = (ReadableInstant) v;
-            o.writeString(instant.getZone().getID());
-            o.writeLong(instant.getMillis());
-        });
-        WriteableRegistry.registerClassAlias(ReadableInstant.class, ReadableInstant.class);
         /** {@link GeoPoint} */
         WriteableRegistry.registerWriter(GeoPoint.class, (o, v) -> {
             o.writeByte((byte) 22);
@@ -68,12 +53,6 @@ public final class Streamables {
      * NOTE: see {@code StreamOutput#WRITERS} for all registered ordinals
      */
     private static void registerReaders() {
-        /** {@link ZonedDateTime} */
-        WriteableRegistry.registerReader(Byte.valueOf((byte) 13), (i) -> {
-            final ZoneId zoneId = DateUtils.dateTimeZoneToZoneId(DateTimeZone.forID(i.readString()));
-            long millis = i.readLong();
-            return ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), zoneId);
-        });
         /** {@link GeoPoint} */
         WriteableRegistry.registerReader(Byte.valueOf((byte) 22), GeoPoint::new);
     }
