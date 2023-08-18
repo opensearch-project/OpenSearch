@@ -49,8 +49,6 @@ import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.UsageTrackingQueryCachingPolicy;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.apache.lucene.store.BufferedChecksumIndexInput;
-import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
@@ -2335,7 +2333,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             assert currentEngineReference.get() == null : "engine is running";
             verifyNotClosed();
             if (indexSettings.isRemoteStoreEnabled() && syncFromRemote) {
-                syncSegmentsFromRemoteSegmentStore(false, true);
+                syncSegmentsFromRemoteSegmentStore(false);
             }
             if (indexSettings.isRemoteTranslogStoreEnabled() && shardRouting.primary()) {
                 if (syncFromRemote) {
@@ -4596,7 +4594,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             };
             IOUtils.close(currentEngineReference.getAndSet(readOnlyEngine));
             if (indexSettings.isRemoteStoreEnabled()) {
-                syncSegmentsFromRemoteSegmentStore(false, true);
+                syncSegmentsFromRemoteSegmentStore(false);
             }
             if (indexSettings.isRemoteTranslogStoreEnabled() && shardRouting.primary()) {
                 syncRemoteTranslogAndUpdateGlobalCheckpoint();
@@ -4656,10 +4654,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     /**
      * Downloads segments from remote segment store.
      * @param overrideLocal flag to override local segment files with those in remote store
-     * @param refreshLevelSegmentSync last refresh checkpoint is used if true, commit checkpoint otherwise
      * @throws IOException if exception occurs while reading segments from remote store
      */
-    public void syncSegmentsFromRemoteSegmentStore(boolean overrideLocal, boolean refreshLevelSegmentSync) throws IOException {
+    public void syncSegmentsFromRemoteSegmentStore(boolean overrideLocal) throws IOException {
         assert indexSettings.isRemoteStoreEnabled();
         logger.trace("Downloading segments from remote segment store");
         RemoteSegmentStoreDirectory remoteDirectory = getRemoteDirectory();
@@ -4667,13 +4664,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // are uploaded to the remote segment store.
         RemoteSegmentMetadata remoteSegmentMetadata = remoteDirectory.init();
 
+        assert remoteSegmentMetadata != null : "RemoteSegmentMetadata should not be null";
+
         Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> uploadedSegments = remoteDirectory
             .getSegmentsUploadedToRemoteStore()
             .entrySet()
             .stream()
             // if this is a refresh level sync, ignore any segments_n uploaded to the store, we will commit the received infos bytes
             // locally.
-            .filter(entry -> refreshLevelSegmentSync && entry.getKey().startsWith(IndexFileNames.SEGMENTS) == false)
+            .filter(entry -> entry.getKey().startsWith(IndexFileNames.SEGMENTS) == false)
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
         store.incRef();
         remoteStore.incRef();
@@ -4693,24 +4692,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 storeDirectory = store.directory();
             }
             copySegmentFiles(storeDirectory, remoteDirectory, null, uploadedSegments, overrideLocal);
-
-            if (refreshLevelSegmentSync && remoteSegmentMetadata != null) {
-                final SegmentInfos infosSnapshot = store.buildSegmentInfos(
-                    remoteSegmentMetadata.getSegmentInfosBytes(),
-                    remoteSegmentMetadata.getGeneration()
-                );
-                long processedLocalCheckpoint = Long.parseLong(infosSnapshot.getUserData().get(LOCAL_CHECKPOINT_KEY));
-                // delete any other commits, we want to start the engine only from a new commit made with the downloaded infos bytes.
-                // Extra segments will be wiped on engine open.
-                for (String file : List.of(store.directory().listAll())) {
-                    if (file.startsWith(IndexFileNames.SEGMENTS)) {
-                        store.deleteQuiet(file);
-                    }
-                }
-                assert Arrays.stream(store.directory().listAll()).filter(f -> f.startsWith(IndexFileNames.SEGMENTS)).findAny().isEmpty()
-                    : "There should not be any segments file in the dir";
-                store.commitSegmentInfos(infosSnapshot, processedLocalCheckpoint, processedLocalCheckpoint);
-            }
+            commitSegmentInfos(remoteSegmentMetadata);
         } catch (IOException e) {
             throw new IndexShardRecoveryException(shardId, "Exception while copying segment files from remote segment store", e);
         } finally {
@@ -4740,36 +4722,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             remoteDirectory.init();
             remoteStore.incRef();
         }
-        Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> uploadedSegments = sourceRemoteDirectory
-            .initializeToSpecificCommit(primaryTerm, commitGeneration)
-            .getMetadata();
+        RemoteSegmentMetadata remoteSegmentMetadata = sourceRemoteDirectory.initializeToSpecificCommit(primaryTerm, commitGeneration);
+        Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> uploadedSegments = remoteSegmentMetadata.getMetadata();
         final Directory storeDirectory = store.directory();
         store.incRef();
 
         try {
-            String segmentsNFile = copySegmentFiles(
-                storeDirectory,
-                sourceRemoteDirectory,
-                remoteDirectory,
-                uploadedSegments,
-                overrideLocal
-            );
-            if (segmentsNFile != null) {
-                try (
-                    ChecksumIndexInput indexInput = new BufferedChecksumIndexInput(
-                        storeDirectory.openInput(segmentsNFile, IOContext.DEFAULT)
-                    )
-                ) {
-                    SegmentInfos infosSnapshot = SegmentInfos.readCommit(store.directory(), indexInput, commitGeneration);
-                    long processedLocalCheckpoint = Long.parseLong(infosSnapshot.getUserData().get(LOCAL_CHECKPOINT_KEY));
-                    if (remoteStore != null) {
-                        store.commitSegmentInfos(infosSnapshot, processedLocalCheckpoint, processedLocalCheckpoint);
-                    } else {
-                        store.directory().sync(infosSnapshot.files(true));
-                        store.directory().syncMetaData();
-                    }
-                }
-            }
+            copySegmentFiles(storeDirectory, sourceRemoteDirectory, remoteDirectory, uploadedSegments, overrideLocal);
+            commitSegmentInfos(remoteSegmentMetadata);
         } catch (IOException e) {
             throw new IndexShardRecoveryException(shardId, "Exception while copying segment files from remote segment store", e);
         } finally {
@@ -4780,7 +4740,25 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
-    private String copySegmentFiles(
+    private void commitSegmentInfos(RemoteSegmentMetadata remoteSegmentMetadata) throws IOException {
+        final SegmentInfos infosSnapshot = store.buildSegmentInfos(
+            remoteSegmentMetadata.getSegmentInfosBytes(),
+            remoteSegmentMetadata.getGeneration()
+        );
+        long processedLocalCheckpoint = Long.parseLong(infosSnapshot.getUserData().get(LOCAL_CHECKPOINT_KEY));
+        // delete any other commits, we want to start the engine only from a new commit made with the downloaded infos bytes.
+        // Extra segments will be wiped on engine open.
+        for (String file : List.of(store.directory().listAll())) {
+            if (file.startsWith(IndexFileNames.SEGMENTS)) {
+                store.deleteQuiet(file);
+            }
+        }
+        assert Arrays.stream(store.directory().listAll()).filter(f -> f.startsWith(IndexFileNames.SEGMENTS)).findAny().isEmpty()
+            : "There should not be any segments file in the dir";
+        store.commitSegmentInfos(infosSnapshot, processedLocalCheckpoint, processedLocalCheckpoint);
+    }
+
+    private void copySegmentFiles(
         Directory storeDirectory,
         RemoteSegmentStoreDirectory sourceRemoteDirectory,
         RemoteSegmentStoreDirectory targetRemoteDirectory,
@@ -4789,7 +4767,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     ) throws IOException {
         List<String> downloadedSegments = new ArrayList<>();
         List<String> skippedSegments = new ArrayList<>();
-        String segmentNFile = null;
         try {
             Set<String> localSegmentFiles = Sets.newHashSet(storeDirectory.listAll());
             if (overrideLocal) {
@@ -4808,16 +4785,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 if (targetRemoteDirectory != null) {
                     targetRemoteDirectory.copyFrom(storeDirectory, file, file, IOContext.DEFAULT);
                 }
-                if (file.startsWith(IndexFileNames.SEGMENTS)) {
-                    assert segmentNFile == null : "There should be only one SegmentInfosSnapshot file";
-                    segmentNFile = file;
-                }
             }
         } finally {
             logger.trace("Downloaded segments here: {}", downloadedSegments);
             logger.trace("Skipped download for segments here: {}", skippedSegments);
         }
-        return segmentNFile;
     }
 
     private boolean localDirectoryContains(Directory localDirectory, String file, long checksum) {

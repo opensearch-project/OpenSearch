@@ -221,7 +221,7 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
                     // Capture replication checkpoint before uploading the segments as upload can take some time and checkpoint can
                     // move.
                     long lastRefreshedCheckpoint = ((InternalEngine) indexShard.getEngine()).lastRefreshedCheckpoint();
-                    Collection<String> localSegmentsPostRefresh = segmentInfos.files(true);
+                    Collection<String> localSegmentsPostRefresh = segmentInfos.files(false);
 
                     // Create a map of file name to size and update the refresh segment tracker
                     updateLocalSizeMapAndTracker(localSegmentsPostRefresh);

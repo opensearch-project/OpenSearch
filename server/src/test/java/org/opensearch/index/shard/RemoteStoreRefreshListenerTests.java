@@ -423,7 +423,7 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         assertEquals(0, tracker.getTimeMsLag());
         assertEquals(0, tracker.getRejectionCount());
         assertEquals(tracker.getUploadBytesStarted(), tracker.getUploadBytesSucceeded());
-        assertTrue(tracker.getUploadBytesStarted() > 0);
+        assertEquals(0, tracker.getUploadBytesStarted());
         assertEquals(0, tracker.getUploadBytesFailed());
         assertEquals(0, tracker.getInflightUploads());
         assertEquals(tracker.getTotalUploadsStarted(), tracker.getTotalUploadsSucceeded());
@@ -557,15 +557,11 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
     private void verifyUploadedSegments(RemoteSegmentStoreDirectory remoteSegmentStoreDirectory) throws IOException {
         Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> uploadedSegments = remoteSegmentStoreDirectory
             .getSegmentsUploadedToRemoteStore();
-        String segmentsNFilename = null;
         try (GatedCloseable<SegmentInfos> segmentInfosGatedCloseable = indexShard.getSegmentInfosSnapshot()) {
             SegmentInfos segmentInfos = segmentInfosGatedCloseable.get();
             for (String file : segmentInfos.files(true)) {
-                if (!RemoteStoreRefreshListener.EXCLUDE_FILES.contains(file)) {
+                if (RemoteStoreRefreshListener.EXCLUDE_FILES.contains(file) == false && file.startsWith(IndexFileNames.SEGMENTS) == false) {
                     assertTrue(uploadedSegments.containsKey(file));
-                }
-                if (file.startsWith(IndexFileNames.SEGMENTS)) {
-                    segmentsNFilename = file;
                 }
             }
         }
