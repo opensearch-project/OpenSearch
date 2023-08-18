@@ -102,11 +102,13 @@ public class ZstdCompressionMode extends CompressionMode {
 
                 // dictionary compression first
                 doCompress(bytes, offset, dictLength, cctx, out);
-                cctx.loadDict(new ZstdDictCompress(bytes, offset, dictLength, compressionLevel));
+                try (ZstdDictCompress dictCompress = new ZstdDictCompress(bytes, offset, dictLength, compressionLevel)) {
+                    cctx.loadDict(dictCompress);
 
-                for (int start = offset + dictLength; start < end; start += blockLength) {
-                    int l = Math.min(blockLength, end - start);
-                    doCompress(bytes, start, l, cctx, out);
+                    for (int start = offset + dictLength; start < end; start += blockLength) {
+                        int l = Math.min(blockLength, end - start);
+                        doCompress(bytes, start, l, cctx, out);
+                    }
                 }
             }
         }
@@ -169,32 +171,33 @@ public class ZstdCompressionMode extends CompressionMode {
 
                 // decompress dictionary first
                 doDecompress(in, dctx, bytes, dictLength);
+                try (ZstdDictDecompress dictDecompress = new ZstdDictDecompress(bytes.bytes, 0, dictLength)) {
+                    dctx.loadDict(dictDecompress);
 
-                dctx.loadDict(new ZstdDictDecompress(bytes.bytes, 0, dictLength));
+                    int offsetInBlock = dictLength;
+                    int offsetInBytesRef = offset;
 
-                int offsetInBlock = dictLength;
-                int offsetInBytesRef = offset;
+                    // Skip unneeded blocks
+                    while (offsetInBlock + blockLength < offset) {
+                        final int compressedLength = in.readVInt();
+                        in.skipBytes(compressedLength);
+                        offsetInBlock += blockLength;
+                        offsetInBytesRef -= blockLength;
+                    }
 
-                // Skip unneeded blocks
-                while (offsetInBlock + blockLength < offset) {
-                    final int compressedLength = in.readVInt();
-                    in.skipBytes(compressedLength);
-                    offsetInBlock += blockLength;
-                    offsetInBytesRef -= blockLength;
+                    // Read blocks that intersect with the interval we need
+                    while (offsetInBlock < offset + length) {
+                        bytes.bytes = ArrayUtil.grow(bytes.bytes, bytes.length + blockLength);
+                        int l = Math.min(blockLength, originalLength - offsetInBlock);
+                        doDecompress(in, dctx, bytes, l);
+                        offsetInBlock += blockLength;
+                    }
+
+                    bytes.offset = offsetInBytesRef;
+                    bytes.length = length;
+
+                    assert bytes.isValid() : "decompression output is corrupted";
                 }
-
-                // Read blocks that intersect with the interval we need
-                while (offsetInBlock < offset + length) {
-                    bytes.bytes = ArrayUtil.grow(bytes.bytes, bytes.length + blockLength);
-                    int l = Math.min(blockLength, originalLength - offsetInBlock);
-                    doDecompress(in, dctx, bytes, l);
-                    offsetInBlock += blockLength;
-                }
-
-                bytes.offset = offsetInBytesRef;
-                bytes.length = length;
-
-                assert bytes.isValid() : "decompression output is corrupted";
             }
         }
 
