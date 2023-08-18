@@ -67,7 +67,7 @@ public class RemoteSegmentStatsFromNodesStatsIT extends RemoteStoreBaseIntegTest
         indexSingleDoc(secondIndex, true);
 
         long cumulativeUploadsSucceeded = 0, cumulativeUploadsStarted = 0, cumulativeUploadsFailed = 0;
-        long total_bytes_lag = 0, max_time_lag = 0;
+        long total_bytes_lag = 0, max_bytes_lag = 0, max_time_lag = 0;
         // Fetch upload stats
         RemoteStoreStatsResponse remoteStoreStatsFirstIndex = client(randomDataNode).admin()
             .cluster()
@@ -78,6 +78,7 @@ public class RemoteSegmentStatsFromNodesStatsIT extends RemoteStoreBaseIntegTest
         cumulativeUploadsStarted += remoteStoreStatsFirstIndex.getRemoteStoreStats()[0].getSegmentStats().uploadBytesStarted;
         cumulativeUploadsFailed += remoteStoreStatsFirstIndex.getRemoteStoreStats()[0].getSegmentStats().uploadBytesFailed;
         total_bytes_lag += remoteStoreStatsFirstIndex.getRemoteStoreStats()[0].getSegmentStats().bytesLag;
+        max_bytes_lag = Math.max(max_bytes_lag, remoteStoreStatsFirstIndex.getRemoteStoreStats()[0].getSegmentStats().bytesLag);
         max_time_lag = Math.max(max_time_lag, remoteStoreStatsFirstIndex.getRemoteStoreStats()[0].getSegmentStats().refreshTimeLagMs);
 
         RemoteStoreStatsResponse remoteStoreStatsSecondIndex = client(randomDataNode).admin()
@@ -90,6 +91,7 @@ public class RemoteSegmentStatsFromNodesStatsIT extends RemoteStoreBaseIntegTest
         cumulativeUploadsStarted += remoteStoreStatsSecondIndex.getRemoteStoreStats()[0].getSegmentStats().uploadBytesStarted;
         cumulativeUploadsFailed += remoteStoreStatsSecondIndex.getRemoteStoreStats()[0].getSegmentStats().uploadBytesFailed;
         total_bytes_lag += remoteStoreStatsSecondIndex.getRemoteStoreStats()[0].getSegmentStats().bytesLag;
+        max_bytes_lag = Math.max(max_bytes_lag, remoteStoreStatsSecondIndex.getRemoteStoreStats()[0].getSegmentStats().bytesLag);
         max_time_lag = Math.max(max_time_lag, remoteStoreStatsSecondIndex.getRemoteStoreStats()[0].getSegmentStats().refreshTimeLagMs);
 
         // Fetch nodes stats
@@ -103,6 +105,7 @@ public class RemoteSegmentStatsFromNodesStatsIT extends RemoteStoreBaseIntegTest
         assertEquals(cumulativeUploadsStarted, remoteSegmentStats.getUploadBytesStarted());
         assertEquals(cumulativeUploadsFailed, remoteSegmentStats.getUploadBytesFailed());
         assertEquals(total_bytes_lag, remoteSegmentStats.getTotalRefreshBytesLag());
+        assertEquals(max_bytes_lag, remoteSegmentStats.getMaxRefreshBytesLag());
         assertEquals(max_time_lag, remoteSegmentStats.getMaxRefreshTimeLag());
     }
 
@@ -182,7 +185,7 @@ public class RemoteSegmentStatsFromNodesStatsIT extends RemoteStoreBaseIntegTest
         for (String dataNode : internalCluster().getDataNodeNames()) {
             long cumulativeUploadsSucceeded = 0, cumulativeUploadsStarted = 0, cumulativeUploadsFailed = 0;
             long cumulativeDownloadsSucceeded = 0, cumulativeDownloadsStarted = 0, cumulativeDownloadsFailed = 0;
-            long total_bytes_lag = 0, max_time_lag = 0;
+            long total_bytes_lag = 0, max_bytes_lag = 0, max_time_lag = 0;
             // Fetch upload stats
             RemoteStoreStatsResponse remoteStoreStatsFirstIndex = client(dataNode).admin()
                 .cluster()
@@ -199,6 +202,7 @@ public class RemoteSegmentStatsFromNodesStatsIT extends RemoteStoreBaseIntegTest
             cumulativeDownloadsFailed += remoteStoreStatsFirstIndex.getRemoteStoreStats()[0]
                 .getSegmentStats().directoryFileTransferTrackerStats.transferredBytesFailed;
             total_bytes_lag += remoteStoreStatsFirstIndex.getRemoteStoreStats()[0].getSegmentStats().bytesLag;
+            max_bytes_lag = Math.max(max_bytes_lag, remoteStoreStatsFirstIndex.getRemoteStoreStats()[0].getSegmentStats().bytesLag);
             max_time_lag = Math.max(max_time_lag, remoteStoreStatsFirstIndex.getRemoteStoreStats()[0].getSegmentStats().refreshTimeLagMs);
 
             RemoteStoreStatsResponse remoteStoreStatsSecondIndex = client(dataNode).admin()
@@ -216,6 +220,7 @@ public class RemoteSegmentStatsFromNodesStatsIT extends RemoteStoreBaseIntegTest
             cumulativeDownloadsFailed += remoteStoreStatsSecondIndex.getRemoteStoreStats()[0]
                 .getSegmentStats().directoryFileTransferTrackerStats.transferredBytesFailed;
             total_bytes_lag += remoteStoreStatsSecondIndex.getRemoteStoreStats()[0].getSegmentStats().bytesLag;
+            max_bytes_lag = Math.max(max_bytes_lag, remoteStoreStatsSecondIndex.getRemoteStoreStats()[0].getSegmentStats().bytesLag);
             max_time_lag = Math.max(max_time_lag, remoteStoreStatsSecondIndex.getRemoteStoreStats()[0].getSegmentStats().refreshTimeLagMs);
 
             // Fetch nodes stats
@@ -232,6 +237,7 @@ public class RemoteSegmentStatsFromNodesStatsIT extends RemoteStoreBaseIntegTest
             assertEquals(cumulativeDownloadsStarted, remoteSegmentStats.getDownloadBytesStarted());
             assertEquals(cumulativeDownloadsFailed, remoteSegmentStats.getDownloadBytesFailed());
             assertEquals(total_bytes_lag, remoteSegmentStats.getTotalRefreshBytesLag());
+            assertEquals(max_bytes_lag, remoteSegmentStats.getMaxRefreshBytesLag());
             assertEquals(max_time_lag, remoteSegmentStats.getMaxRefreshTimeLag());
         }
     }

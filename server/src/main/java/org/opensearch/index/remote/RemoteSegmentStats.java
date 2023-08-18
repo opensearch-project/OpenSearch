@@ -57,6 +57,11 @@ public class RemoteSegmentStats implements Writeable, ToXContentFragment {
      */
     private long maxRefreshTimeLag;
     /**
+     * Maximum refresh lag (in bytes) between local and the remote store
+     * Used to check for data freshness in the remote store
+     */
+    private long maxRefreshBytesLag;
+    /**
      * Total refresh lag (in bytes) between local and the remote store
      * Used to check for data freshness in the remote store
      */
@@ -72,6 +77,7 @@ public class RemoteSegmentStats implements Writeable, ToXContentFragment {
         downloadBytesFailed = in.readLong();
         downloadBytesSucceeded = in.readLong();
         maxRefreshTimeLag = in.readLong();
+        maxRefreshBytesLag = in.readLong();
         totalRefreshBytesLag = in.readLong();
     }
 
@@ -91,6 +97,10 @@ public class RemoteSegmentStats implements Writeable, ToXContentFragment {
         this.downloadBytesStarted = trackerStats.directoryFileTransferTrackerStats.transferredBytesStarted;
         this.downloadBytesFailed = trackerStats.directoryFileTransferTrackerStats.transferredBytesFailed;
         this.maxRefreshTimeLag = trackerStats.refreshTimeLagMs;
+        // Initializing both total and max bytes lag to the same `bytesLag`
+        // value from the tracker object
+        // Aggregations would be performed on the add method
+        this.maxRefreshBytesLag = trackerStats.bytesLag;
         this.totalRefreshBytesLag = trackerStats.bytesLag;
     }
 
@@ -151,12 +161,20 @@ public class RemoteSegmentStats implements Writeable, ToXContentFragment {
         this.maxRefreshTimeLag = Math.max(this.maxRefreshTimeLag, maxRefreshTimeLag);
     }
 
+    public long getMaxRefreshBytesLag() {
+        return maxRefreshBytesLag;
+    }
+
+    public void addMaxRefreshBytesLag(long maxRefreshBytesLag) {
+        this.maxRefreshBytesLag = Math.max(this.maxRefreshBytesLag, maxRefreshBytesLag);
+    }
+
     public long getTotalRefreshBytesLag() {
         return totalRefreshBytesLag;
     }
 
-    public void setTotalRefreshBytesLag(long totalRefreshBytesLag) {
-        this.totalRefreshBytesLag = totalRefreshBytesLag;
+    public void addTotalRefreshBytesLag(long totalRefreshBytesLag) {
+        this.totalRefreshBytesLag += totalRefreshBytesLag;
     }
 
     /**
@@ -173,6 +191,7 @@ public class RemoteSegmentStats implements Writeable, ToXContentFragment {
             this.downloadBytesFailed += existingStats.getDownloadBytesFailed();
             this.downloadBytesSucceeded += existingStats.getDownloadBytesSucceeded();
             this.maxRefreshTimeLag = Math.max(this.maxRefreshTimeLag, existingStats.getMaxRefreshTimeLag());
+            this.maxRefreshBytesLag = Math.max(this.maxRefreshBytesLag, existingStats.getMaxRefreshBytesLag());
             this.totalRefreshBytesLag += existingStats.getTotalRefreshBytesLag();
         }
     }
@@ -186,6 +205,7 @@ public class RemoteSegmentStats implements Writeable, ToXContentFragment {
         out.writeLong(downloadBytesFailed);
         out.writeLong(downloadBytesSucceeded);
         out.writeLong(maxRefreshTimeLag);
+        out.writeLong(maxRefreshBytesLag);
         out.writeLong(totalRefreshBytesLag);
     }
 
@@ -193,27 +213,34 @@ public class RemoteSegmentStats implements Writeable, ToXContentFragment {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.REMOTE_STORE);
         builder.startObject(Fields.UPLOAD);
+        buildUploadStats(builder);
+        builder.endObject();
+        builder.startObject(Fields.DOWNLOAD);
+        buildDownloadStats(builder);
+        builder.endObject();
+        builder.endObject();
+        return builder;
+    }
+
+    private void buildUploadStats(XContentBuilder builder) throws IOException {
         builder.startObject(Fields.TOTAL_UPLOADS);
         builder.humanReadableField(Fields.STARTED_BYTES, Fields.STARTED, new ByteSizeValue(uploadBytesStarted));
         builder.humanReadableField(Fields.SUCCEEDED_BYTES, Fields.SUCCEEDED, new ByteSizeValue(uploadBytesSucceeded));
         builder.humanReadableField(Fields.FAILED_BYTES, Fields.FAILED, new ByteSizeValue(uploadBytesFailed));
         builder.endObject();
-        builder.humanReadableField(Fields.MAX_REFRESH_TIME_LAG_IN_MILLIS, Fields.MAX_REFRESH_TIME_LAG, new TimeValue(maxRefreshTimeLag));
-        builder.humanReadableField(
-            Fields.TOTAL_REFRESH_SIZE_LAG_IN_MILLIS,
-            Fields.TOTAL_REFRESH_SIZE_LAG,
-            new ByteSizeValue(totalRefreshBytesLag)
-        );
+        builder.startObject(Fields.REFRESH_SIZE_LAG);
+        builder.humanReadableField(Fields.TOTAL_SIZE_IN_BYTES, Fields.TOTAL, new ByteSizeValue(totalRefreshBytesLag));
+        builder.humanReadableField(Fields.MAX_SIZE_IN_BYTES, Fields.MAX, new ByteSizeValue(maxRefreshBytesLag));
         builder.endObject();
-        builder.startObject(Fields.DOWNLOAD);
+        builder.humanReadableField(Fields.MAX_REFRESH_TIME_LAG_IN_MILLIS, Fields.MAX_REFRESH_TIME_LAG, new TimeValue(maxRefreshTimeLag));
+    }
+
+    private void buildDownloadStats(XContentBuilder builder) throws IOException {
         builder.startObject(Fields.TOTAL_DOWNLOADS);
         builder.humanReadableField(Fields.STARTED_BYTES, Fields.STARTED, new ByteSizeValue(downloadBytesStarted));
         builder.humanReadableField(Fields.SUCCEEDED_BYTES, Fields.SUCCEEDED, new ByteSizeValue(downloadBytesSucceeded));
         builder.humanReadableField(Fields.FAILED_BYTES, Fields.FAILED, new ByteSizeValue(downloadBytesFailed));
         builder.endObject();
-        builder.endObject();
-        builder.endObject();
-        return builder;
     }
 
     static final class Fields {
@@ -230,7 +257,10 @@ public class RemoteSegmentStats implements Writeable, ToXContentFragment {
         static final String SUCCEEDED_BYTES = "succeeded_bytes";
         static final String MAX_REFRESH_TIME_LAG = "max_refresh_time_lag";
         static final String MAX_REFRESH_TIME_LAG_IN_MILLIS = "max_refresh_time_lag_in_millis";
-        static final String TOTAL_REFRESH_SIZE_LAG = "total_refresh_size_lag";
-        static final String TOTAL_REFRESH_SIZE_LAG_IN_MILLIS = "total_refresh_size_lag_in_bytes";
+        static final String REFRESH_SIZE_LAG = "refresh_size_lag";
+        static final String TOTAL = "total";
+        static final String TOTAL_SIZE_IN_BYTES = "total_size_in_bytes";
+        static final String MAX = "max";
+        static final String MAX_SIZE_IN_BYTES = "max_size_in_bytes";
     }
 }
