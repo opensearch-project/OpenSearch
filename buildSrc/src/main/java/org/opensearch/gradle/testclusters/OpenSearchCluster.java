@@ -241,6 +241,11 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
     }
 
     @Override
+    public void setSecure(boolean secure) {
+        nodes.all(each -> each.setSecure(secure));
+    }
+
+    @Override
     public void cliSetup(String binTool, CharSequence... args) {
         nodes.all(each -> each.cliSetup(binTool, args));
     }
