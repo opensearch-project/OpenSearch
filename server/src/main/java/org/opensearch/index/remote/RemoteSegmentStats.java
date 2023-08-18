@@ -8,6 +8,7 @@
 
 package org.opensearch.index.remote;
 
+import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStats;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -78,7 +79,19 @@ public class RemoteSegmentStats implements Writeable, ToXContentFragment {
         downloadBytesSucceeded = in.readLong();
         maxRefreshTimeLag = in.readLong();
         maxRefreshBytesLag = in.readLong();
-        totalRefreshBytesLag = in.readLong();
+        /* TODO:
+          Adding version checks here since the base PR of adding remote store stats
+          in SegmentStats has already been merged and backported to 2.x branch.
+
+          Since this is a new field that is being added, we need to have this check in place
+          to ensure BWCs don't break.
+
+          This would have to be removed after the new field addition PRs are also backported to 2.x.
+          If possible we would need to ensure that all field addition PRs are backported at once
+         */
+        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+            totalRefreshBytesLag = in.readLong();
+        }
     }
 
     /**
@@ -206,7 +219,19 @@ public class RemoteSegmentStats implements Writeable, ToXContentFragment {
         out.writeLong(downloadBytesSucceeded);
         out.writeLong(maxRefreshTimeLag);
         out.writeLong(maxRefreshBytesLag);
-        out.writeLong(totalRefreshBytesLag);
+        /* TODO:
+          Adding version checks here since the base PR of adding remote store stats
+          in SegmentStats has already been merged and backported to 2.x branch.
+
+          Since this is a new field that is being added, we need to have this check in place
+          to ensure BWCs don't break.
+
+          This would have to be removed after the new field addition PRs are also backported to 2.x.
+          If possible we would need to ensure that all field addition PRs are backported at once
+         */
+        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+            out.writeLong(totalRefreshBytesLag);
+        }
     }
 
     @Override
@@ -229,8 +254,8 @@ public class RemoteSegmentStats implements Writeable, ToXContentFragment {
         builder.humanReadableField(Fields.FAILED_BYTES, Fields.FAILED, new ByteSizeValue(uploadBytesFailed));
         builder.endObject();
         builder.startObject(Fields.REFRESH_SIZE_LAG);
-        builder.humanReadableField(Fields.TOTAL_SIZE_IN_BYTES, Fields.TOTAL, new ByteSizeValue(totalRefreshBytesLag));
-        builder.humanReadableField(Fields.MAX_SIZE_IN_BYTES, Fields.MAX, new ByteSizeValue(maxRefreshBytesLag));
+        builder.humanReadableField(Fields.TOTAL_BYTES, Fields.TOTAL, new ByteSizeValue(totalRefreshBytesLag));
+        builder.humanReadableField(Fields.MAX_BYTES, Fields.MAX, new ByteSizeValue(maxRefreshBytesLag));
         builder.endObject();
         builder.humanReadableField(Fields.MAX_REFRESH_TIME_LAG_IN_MILLIS, Fields.MAX_REFRESH_TIME_LAG, new TimeValue(maxRefreshTimeLag));
     }
@@ -249,18 +274,18 @@ public class RemoteSegmentStats implements Writeable, ToXContentFragment {
         static final String DOWNLOAD = "download";
         static final String TOTAL_UPLOADS = "total_uploads";
         static final String TOTAL_DOWNLOADS = "total_downloads";
+        static final String MAX_REFRESH_TIME_LAG = "max_refresh_time_lag";
+        static final String MAX_REFRESH_TIME_LAG_IN_MILLIS = "max_refresh_time_lag_in_millis";
+        static final String REFRESH_SIZE_LAG = "refresh_size_lag";
         static final String STARTED = "started";
         static final String STARTED_BYTES = "started_bytes";
         static final String FAILED = "failed";
         static final String FAILED_BYTES = "failed_bytes";
         static final String SUCCEEDED = "succeeded";
         static final String SUCCEEDED_BYTES = "succeeded_bytes";
-        static final String MAX_REFRESH_TIME_LAG = "max_refresh_time_lag";
-        static final String MAX_REFRESH_TIME_LAG_IN_MILLIS = "max_refresh_time_lag_in_millis";
-        static final String REFRESH_SIZE_LAG = "refresh_size_lag";
         static final String TOTAL = "total";
-        static final String TOTAL_SIZE_IN_BYTES = "total_size_in_bytes";
+        static final String TOTAL_BYTES = "total_bytes";
         static final String MAX = "max";
-        static final String MAX_SIZE_IN_BYTES = "max_size_in_bytes";
+        static final String MAX_BYTES = "max_bytes";
     }
 }
