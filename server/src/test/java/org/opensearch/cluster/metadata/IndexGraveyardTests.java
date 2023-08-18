@@ -36,7 +36,6 @@ import org.opensearch.common.UUIDs;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentOpenSearchExtension;
-import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.index.Index;
@@ -47,6 +46,7 @@ import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -80,7 +80,7 @@ public class IndexGraveyardTests extends OpenSearchTestCase {
 
     public void testXContent() throws IOException {
         final IndexGraveyard graveyard = createRandom();
-        final XContentBuilder builder = JsonXContent.contentBuilder();
+        final XContentBuilder builder = MediaTypeRegistry.JSON.contentBuilder();
         builder.startObject();
         graveyard.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
@@ -89,11 +89,13 @@ public class IndexGraveyardTests extends OpenSearchTestCase {
             assertThat(
                 Strings.toString(MediaTypeRegistry.JSON, graveyard, false, true),
                 containsString(
-                    XContentOpenSearchExtension.DEFAULT_DATE_PRINTER.print(graveyard.getTombstones().get(0).getDeleteDateInMillis())
+                    XContentOpenSearchExtension.DEFAULT_FORMATTER.format(
+                        Instant.ofEpochMilli(graveyard.getTombstones().get(0).getDeleteDateInMillis())
+                    )
                 )
             );
         }
-        XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder));
+        XContentParser parser = createParser(MediaTypeRegistry.JSON.xContent(), BytesReference.bytes(builder));
         parser.nextToken(); // the beginning of the parser
         assertThat(IndexGraveyard.fromXContent(parser), equalTo(graveyard));
     }
