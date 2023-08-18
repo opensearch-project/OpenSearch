@@ -544,11 +544,11 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
                     }
                 } else {
                     wait = new WaitForHttpResource(
-                            "https",
-                            getFirstNode().getHttpSocketURI(),
-                            getFirstNode().getCredentials().get(0).get("username"),
-                            getFirstNode().getCredentials().get(0).get("password"),
-                            nodes.size()
+                        "https",
+                        getFirstNode().getHttpSocketURI(),
+                        getFirstNode().getCredentials().get(0).get("username"),
+                        getFirstNode().getCredentials().get(0).get("password"),
+                        nodes.size()
                     );
                     wait.setUsername(getFirstNode().getCredentials().get(0).get("username"));
                     wait.setPassword(getFirstNode().getCredentials().get(0).get("password"));
