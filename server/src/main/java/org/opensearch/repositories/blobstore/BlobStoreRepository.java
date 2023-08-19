@@ -73,9 +73,6 @@ import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.blobstore.DeleteResult;
 import org.opensearch.common.blobstore.fs.FsBlobContainer;
-import org.opensearch.core.common.Strings;
-import org.opensearch.core.common.bytes.BytesArray;
-import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.blobstore.transfer.stream.OffsetRangeInputStream;
 import org.opensearch.common.blobstore.transfer.stream.RateLimitingOffsetRangeInputStream;
 import org.opensearch.common.collect.Tuple;
@@ -94,6 +91,9 @@ import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.compress.Compressor;
@@ -3037,18 +3037,16 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         );
     }
 
-    public OffsetRangeInputStream maybeRateLimitRemoteTransfer(OffsetRangeInputStream offsetRangeInputStream, boolean isUpload) {
-        return isUpload
-            ? maybeRateLimitRemoteTransfers(offsetRangeInputStream, () -> remoteUploadRateLimiter, remoteUploadRateLimitingTimeInNanos)
-            : maybeRateLimitRemoteTransfers(
-                maybeRateLimitRemoteTransfers(
-                    offsetRangeInputStream,
-                    () -> remoteDownloadRateLimiter,
-                    remoteDownloadRateLimitingTimeInNanos
-                ),
-                recoverySettings::rateLimiter,
-                remoteDownloadRateLimitingTimeInNanos
-            );
+    public OffsetRangeInputStream maybeRateLimitRemoteUploadTransfers(OffsetRangeInputStream offsetRangeInputStream) {
+        return maybeRateLimitRemoteTransfers(offsetRangeInputStream, () -> remoteUploadRateLimiter, remoteUploadRateLimitingTimeInNanos);
+    }
+
+    public OffsetRangeInputStream maybeRateLimitRemoteDownloadTransfers(OffsetRangeInputStream offsetRangeInputStream) {
+        return maybeRateLimitRemoteTransfers(
+            maybeRateLimitRemoteTransfers(offsetRangeInputStream, () -> remoteDownloadRateLimiter, remoteDownloadRateLimitingTimeInNanos),
+            recoverySettings::rateLimiter,
+            remoteDownloadRateLimitingTimeInNanos
+        );
     }
 
     public InputStream maybeRateLimitSnapshots(InputStream stream) {

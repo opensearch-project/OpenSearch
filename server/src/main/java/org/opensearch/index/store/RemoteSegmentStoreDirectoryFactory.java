@@ -71,7 +71,7 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Dire
                 metadataDirectory,
                 mdLockManager,
                 threadPool,
-                ((BlobStoreRepository) repository)::maybeRateLimitRemoteTransfer
+                ((BlobStoreRepository) repository)::maybeRateLimitRemoteUploadTransfers
             );
         } catch (RepositoryMissingException e) {
             throw new IllegalArgumentException("Repository should be created before creating index with remote_store enabled setting", e);

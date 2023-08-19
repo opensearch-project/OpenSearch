@@ -14,12 +14,21 @@ import org.opensearch.common.StreamLimiter;
 import java.io.IOException;
 import java.util.function.Supplier;
 
+/**
+ * Rate Limits an {@link OffsetRangeInputStream}
+ */
 public class RateLimitingOffsetRangeInputStream extends OffsetRangeInputStream {
 
-    private StreamLimiter streamLimiter;
+    private final StreamLimiter streamLimiter;
 
-    private OffsetRangeInputStream delegate;
+    private final OffsetRangeInputStream delegate;
 
+    /**
+     * The ctor for RateLimitingOffsetRangeInputStream
+     * @param delegate the underlying {@link OffsetRangeInputStream}
+     * @param rateLimiterSupplier the supplier for {@link RateLimiter}
+     * @param listener the listener to be invoked on rate limits
+     */
     public RateLimitingOffsetRangeInputStream(
         OffsetRangeInputStream delegate,
         Supplier<RateLimiter> rateLimiterSupplier,

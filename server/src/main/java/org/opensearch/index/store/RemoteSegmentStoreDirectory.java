@@ -60,7 +60,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.BiFunction;
+import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.zip.CRC32;
 
@@ -103,7 +103,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
 
     private final ThreadPool threadPool;
 
-    private final BiFunction<OffsetRangeInputStream, Boolean, OffsetRangeInputStream> rateLimitedTransfer;
+    private final UnaryOperator<OffsetRangeInputStream> rateLimitedTransferFilter;
 
     /**
      * Keeps track of local segment filename to uploaded filename along with other attributes like checksum.
@@ -133,14 +133,14 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         RemoteDirectory remoteMetadataDirectory,
         RemoteStoreLockManager mdLockManager,
         ThreadPool threadPool,
-        BiFunction<OffsetRangeInputStream, Boolean, OffsetRangeInputStream> rateLimitedTransfer
+        UnaryOperator<OffsetRangeInputStream> rateLimitedTransferFilter
     ) throws IOException {
         super(remoteDataDirectory);
         this.remoteDataDirectory = remoteDataDirectory;
         this.remoteMetadataDirectory = remoteMetadataDirectory;
         this.mdLockManager = mdLockManager;
         this.threadPool = threadPool;
-        this.rateLimitedTransfer = rateLimitedTransfer;
+        this.rateLimitedTransferFilter = rateLimitedTransferFilter;
         init();
     }
 
@@ -470,9 +470,8 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
             contentLength,
             true,
             WritePriority.NORMAL,
-            (size, position) -> rateLimitedTransfer.apply(
-                new OffsetRangeIndexInputStream(from.openInput(src, ioContext), size, position),
-                true
+            (size, position) -> rateLimitedTransferFilter.apply(
+                new OffsetRangeIndexInputStream(from.openInput(src, ioContext), size, position)
             ),
             expectedChecksum,
             remoteDataDirectory.getBlobContainer() instanceof VerifyingMultiStreamBlobContainer

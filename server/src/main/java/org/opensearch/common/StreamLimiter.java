@@ -13,6 +13,9 @@ import org.apache.lucene.store.RateLimiter;
 import java.io.IOException;
 import java.util.function.Supplier;
 
+/**
+ * The stream limiter that limits the transfer of bytes
+ */
 public class StreamLimiter {
 
     private final Supplier<RateLimiter> rateLimiterSupplier;
