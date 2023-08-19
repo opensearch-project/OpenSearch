@@ -66,7 +66,13 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Dire
                 shardId
             );
 
-            return new RemoteSegmentStoreDirectory(dataDirectory, metadataDirectory, mdLockManager, threadPool);
+            return new RemoteSegmentStoreDirectory(
+                dataDirectory,
+                metadataDirectory,
+                mdLockManager,
+                threadPool,
+                ((BlobStoreRepository) repository)::maybeRateLimitRemoteTransfer
+            );
         } catch (RepositoryMissingException e) {
             throw new IllegalArgumentException("Repository should be created before creating index with remote_store enabled setting", e);
         }

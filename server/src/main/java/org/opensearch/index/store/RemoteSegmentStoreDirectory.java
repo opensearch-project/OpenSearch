@@ -32,6 +32,7 @@ import org.opensearch.common.blobstore.stream.write.WriteContext;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.blobstore.transfer.RemoteTransferContainer;
 import org.opensearch.common.blobstore.transfer.stream.OffsetRangeIndexInputStream;
+import org.opensearch.common.blobstore.transfer.stream.OffsetRangeInputStream;
 import org.opensearch.common.io.VersionedCodecStreamWrapper;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.common.util.ByteUtils;
@@ -59,6 +60,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import java.util.zip.CRC32;
 
@@ -101,6 +103,8 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
 
     private final ThreadPool threadPool;
 
+    private final BiFunction<OffsetRangeInputStream, Boolean, OffsetRangeInputStream> rateLimitedTransfer;
+
     /**
      * Keeps track of local segment filename to uploaded filename along with other attributes like checksum.
      * This map acts as a cache layer for uploaded segment filenames which helps avoid calling listAll() each time.
@@ -128,13 +132,15 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         RemoteDirectory remoteDataDirectory,
         RemoteDirectory remoteMetadataDirectory,
         RemoteStoreLockManager mdLockManager,
-        ThreadPool threadPool
+        ThreadPool threadPool,
+        BiFunction<OffsetRangeInputStream, Boolean, OffsetRangeInputStream> rateLimitedTransfer
     ) throws IOException {
         super(remoteDataDirectory);
         this.remoteDataDirectory = remoteDataDirectory;
         this.remoteMetadataDirectory = remoteMetadataDirectory;
         this.mdLockManager = mdLockManager;
         this.threadPool = threadPool;
+        this.rateLimitedTransfer = rateLimitedTransfer;
         init();
     }
 
@@ -464,7 +470,10 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
             contentLength,
             true,
             WritePriority.NORMAL,
-            (size, position) -> new OffsetRangeIndexInputStream(from.openInput(src, ioContext), size, position),
+            (size, position) -> rateLimitedTransfer.apply(
+                new OffsetRangeIndexInputStream(from.openInput(src, ioContext), size, position),
+                true
+            ),
             expectedChecksum,
             remoteDataDirectory.getBlobContainer() instanceof VerifyingMultiStreamBlobContainer
         );
