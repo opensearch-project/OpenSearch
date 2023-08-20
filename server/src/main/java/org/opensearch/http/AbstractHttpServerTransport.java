@@ -370,14 +370,16 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
      * @param httpChannel that received the http request
      */
     public void incomingRequest(final HttpRequest httpRequest, final HttpChannel httpChannel) {
-        // TODO: Add support for parsing the otel incoming tracer.
-        final SpanScope httpRequestSpanScope = telemetryTracer.startSpan(
-            SPAN_NAME_INCOMING_HTTP_SERVER_REQUEST,
-            buildSpanAttributes(httpRequest)
-        );
-        httpRequestSpanScope.addSpanAttribute(SPAN_ATTR_KEY_REQ_INBOUND_EX, httpRequest.getInboundException() != null);
-        HttpChannel traceableHttpChannel = new TraceableHttpChannel(httpChannel, httpRequestSpanScope);
-        handleIncomingRequest(httpRequest, traceableHttpChannel, httpRequest.getInboundException());
+        try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().stashContext()) {
+            // TODO: Add support for parsing the otel incoming tracer.
+            final SpanScope httpRequestSpanScope = telemetryTracer.startSpan(
+                SPAN_NAME_INCOMING_HTTP_SERVER_REQUEST,
+                buildSpanAttributes(httpRequest)
+            );
+            httpRequestSpanScope.addSpanAttribute(SPAN_ATTR_KEY_REQ_INBOUND_EX, httpRequest.getInboundException() != null);
+            HttpChannel traceableHttpChannel = new TraceableHttpChannel(httpChannel, httpRequestSpanScope);
+            handleIncomingRequest(httpRequest, traceableHttpChannel, httpRequest.getInboundException());
+        }
     }
 
     private Attributes buildSpanAttributes(HttpRequest httpRequest) {
