@@ -8,8 +8,9 @@
 
 package org.opensearch.search.pit;
 
-import org.opensearch.ExceptionsHelper;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;

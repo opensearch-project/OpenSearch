@@ -57,7 +57,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
 
-@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 2, numClientNodes = 0)
 public class SearchScrollWithFailingNodesIT extends ParameterizedOpenSearchIntegTestCase {
     public SearchScrollWithFailingNodesIT(Settings settings) {
         super(settings);
@@ -87,8 +87,6 @@ public class SearchScrollWithFailingNodesIT extends ParameterizedOpenSearchInteg
     }
 
     public void testScanScrollWithShardExceptions() throws Exception {
-        internalCluster().startNode();
-        internalCluster().startNode();
         assertAcked(
             prepareCreate("test")
                 // Enforces that only one shard can only be allocated to a single node

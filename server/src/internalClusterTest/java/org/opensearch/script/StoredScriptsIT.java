@@ -31,14 +31,11 @@
 
 package org.opensearch.script;
 
-import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -46,26 +43,9 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.function.Function;
 
-import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
-public class StoredScriptsIT extends ParameterizedOpenSearchIntegTestCase {
-    public StoredScriptsIT(Settings settings) {
-        super(settings);
-    }
-
-    @ParametersFactory
-    public static Collection<Object[]> parameters() {
-        return Arrays.asList(
-            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
-            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
-        );
-    }
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
-    }
+public class StoredScriptsIT extends OpenSearchIntegTestCase {
 
     private static final int SCRIPT_MAX_SIZE_IN_BYTES = 64;
     private static final String LANG = MockScriptEngine.NAME;
