@@ -47,7 +47,7 @@ public class RemoteDirectoryTests extends OpenSearchTestCase {
     @Before
     public void setup() {
         blobContainer = mock(BlobContainer.class);
-        remoteDirectory = new RemoteDirectory(blobContainer);
+        remoteDirectory = new RemoteDirectory(blobContainer, s -> s);
     }
 
     public void testListAllEmpty() throws IOException {

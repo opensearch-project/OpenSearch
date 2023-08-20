@@ -30,6 +30,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 /**
@@ -45,12 +46,15 @@ public class RemoteDirectory extends Directory {
 
     protected final BlobContainer blobContainer;
 
+    protected final UnaryOperator<InputStream> rateLimitedFilter;
+
     public BlobContainer getBlobContainer() {
         return blobContainer;
     }
 
-    public RemoteDirectory(BlobContainer blobContainer) {
+    public RemoteDirectory(BlobContainer blobContainer, UnaryOperator<InputStream> rateLimitedFilter) {
         this.blobContainer = blobContainer;
+        this.rateLimitedFilter = rateLimitedFilter;
     }
 
     /**
@@ -149,7 +153,7 @@ public class RemoteDirectory extends Directory {
         InputStream inputStream = null;
         try {
             inputStream = blobContainer.readBlob(name);
-            return new RemoteIndexInput(name, inputStream, fileLength(name));
+            return new RemoteIndexInput(name, rateLimitedFilter.apply(inputStream), fileLength(name));
         } catch (Exception e) {
             // Incase the RemoteIndexInput creation fails, close the input stream to avoid file handler leak.
             if (inputStream != null) inputStream.close();

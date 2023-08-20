@@ -781,11 +781,11 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         RemoteStoreLockManager remoteStoreLockManager = new RemoteStoreMetadataLockManager(
             new RemoteBufferedOutputDirectory(getBlobContainer(remoteShardPath.resolveIndex()))
         );
-        return new RemoteSegmentStoreDirectory(dataDirectory, metadataDirectory, remoteStoreLockManager, threadPool);
+        return new RemoteSegmentStoreDirectory(dataDirectory, metadataDirectory, remoteStoreLockManager, threadPool, (s) -> s);
     }
 
     private RemoteDirectory newRemoteDirectory(Path f) throws IOException {
-        return new RemoteDirectory(getBlobContainer(f));
+        return new RemoteDirectory(getBlobContainer(f), s -> s);
     }
 
     protected BlobContainer getBlobContainer(Path f) throws IOException {
@@ -1160,8 +1160,8 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         IndexShardRoutingTable newRoutingTable = initializingReplicaRouting.isRelocationTarget()
             ? new IndexShardRoutingTable.Builder(routingTable).removeShard(primary.routingEntry()).addShard(replica.routingEntry()).build()
             : new IndexShardRoutingTable.Builder(routingTable).removeShard(initializingReplicaRouting)
-                .addShard(replica.routingEntry())
-                .build();
+            .addShard(replica.routingEntry())
+            .build();
         Set<String> inSyncIdsWithReplica = new HashSet<>(inSyncIds);
         inSyncIdsWithReplica.add(replica.routingEntry().allocationId().getId());
         // update both primary and replica shard state

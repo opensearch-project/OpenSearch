@@ -152,7 +152,8 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
             mock(RemoteDirectory.class),
             remoteMetadataDirectory,
             mock(RemoteStoreLockManager.class),
-            mock(ThreadPool.class)
+            mock(ThreadPool.class),
+            (s) -> s
         );
         FilterDirectory remoteStoreFilterDirectory = new RemoteStoreRefreshListenerTests.TestFilterDirectory(
             new RemoteStoreRefreshListenerTests.TestFilterDirectory(remoteSegmentStoreDirectory)

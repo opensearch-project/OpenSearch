@@ -97,7 +97,8 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
             remoteDataDirectory,
             remoteMetadataDirectory,
             mdLockManager,
-            threadPool
+            threadPool,
+            (s) -> s
         );
         testUploadTracker = new TestUploadListener();
 
