@@ -141,10 +141,7 @@ public class MockSpan extends AbstractSpan {
         return spanId;
     }
 
-    /**
-     * Returns whether the span is ended or not.
-     * @return span end status.
-     */
+    @Override
     public boolean hasEnded() {
         synchronized (lock) {
             return hasEnded;

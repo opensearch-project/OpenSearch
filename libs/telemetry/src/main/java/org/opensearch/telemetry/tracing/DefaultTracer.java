@@ -77,7 +77,11 @@ class DefaultTracer implements Tracer {
     private void endSpan(Span span) {
         if (span != null) {
             span.endSpan();
-            setCurrentSpanInContext(span.getParentSpan());
+            if (span.getParentSpan() != null && !span.getParentSpan().hasEnded()) {
+                setCurrentSpanInContext(span.getParentSpan());
+            } else {
+                setCurrentSpanInContext(null);
+            }
         }
     }
 
