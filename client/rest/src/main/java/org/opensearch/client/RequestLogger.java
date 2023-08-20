@@ -68,7 +68,7 @@ final class RequestLogger {
      * Logs a request that yielded a response
      */
     static void logResponse(Log logger, HttpUriRequest request, HttpHost host, ClassicHttpResponse httpResponse) {
-        logger.debug("request [{} {} {}] returned [{}]", () -> request.getMethod(), () -> host,
+        logger.debug("request [{} {}{}] returned [{}]", () -> request.getMethod(), () -> host,
         () -> getUri(request),
         () -> new StatusLine(httpResponse));
 
@@ -101,7 +101,7 @@ final class RequestLogger {
      * Logs a request that failed
      */
     static void logFailedRequest(Log logger, HttpUriRequest request, Node node, Exception e) {
-        logger.debug("request [{} {} {}] failed", () -> request.getMethod(), () -> node.getHost(),
+        logger.debug("request [{} {}{}] failed", () -> request.getMethod(), () -> node.getHost(),
         () -> getUri(request), e);
 
         if (tracer.isTraceEnabled()) {
