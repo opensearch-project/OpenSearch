@@ -133,6 +133,8 @@ public class MetadataUpdateSettingsService {
         indexScopedSettings.validate(
             normalizedSettings.filter(s -> Regex.isSimpleMatchPattern(s) == false), // don't validate wildcards
             false, // don't validate dependencies here we check it below never allow to change the number of shards
+            false,
+            true, // Ignore archived setting.
             true
         ); // validate internal or private index settings
         for (String key : normalizedSettings.keySet()) {

@@ -496,7 +496,7 @@ public abstract class AbstractScopedSettings {
      * @see Setting#getSettingsDependencies(String)
      */
     public final void validate(final Settings settings, final boolean validateDependencies, final boolean validateInternalOrPrivateIndex) {
-        validate(settings, validateDependencies, false, true, validateInternalOrPrivateIndex);
+        validate(settings, validateDependencies, false, false, validateInternalOrPrivateIndex);
     }
 
     /**
