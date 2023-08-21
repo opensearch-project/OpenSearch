@@ -6,10 +6,10 @@
  * compatible open source license.
  */
 
-package org.opensearch.common.compress;
+package org.opensearch.core.compress;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.core.common.compress.Compressor;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -18,9 +18,18 @@ import java.io.OutputStream;
 /**
  * {@link Compressor} no compressor implementation.
  *
- * @opensearch.internal
+ * @opensearch.api - registered name requires BWC support
+ * @opensearch.experimental - class methods might change
  */
 public class NoneCompressor implements Compressor {
+    /**
+     * The name to register the compressor by
+     *
+     * @opensearch.api - requires BWC support
+     */
+    @PublicApi(since = "2.10.0")
+    public static final String NAME = "NONE";
+
     @Override
     public boolean isCompressed(BytesReference bytes) {
         return false;

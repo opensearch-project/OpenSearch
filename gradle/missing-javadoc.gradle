@@ -180,6 +180,7 @@ configure([
 configure([
   project(":libs:opensearch-common"),
   project(":libs:opensearch-core"),
+  project(":libs:opensearch-compress"),
   project(":server")
 ]) {
   project.tasks.withType(MissingJavadocTask) {
