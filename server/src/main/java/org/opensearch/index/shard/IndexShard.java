@@ -4664,7 +4664,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // are uploaded to the remote segment store.
         RemoteSegmentMetadata remoteSegmentMetadata = remoteDirectory.init();
 
-        assert remoteSegmentMetadata != null : "RemoteSegmentMetadata should not be null";
+        if (remoteSegmentMetadata == null) {
+            logger.info("Remote segment metadata is null, this can happen if there is no data in the remote segment store");
+            return;
+        }
 
         Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> uploadedSegments = remoteDirectory
             .getSegmentsUploadedToRemoteStore()
