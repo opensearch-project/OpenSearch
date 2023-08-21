@@ -187,8 +187,4 @@ grant {
   permission java.io.FilePermission "/sys/fs/cgroup/cpuacct/-", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/memory", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/memory/-", "read";
-
-  permission java.net.NetPermission "getProxySelector";
-  permission java.net.SocketPermission "*", "connect,resolve";
-  permission java.lang.management.ManagementPermission "monitor";
 };

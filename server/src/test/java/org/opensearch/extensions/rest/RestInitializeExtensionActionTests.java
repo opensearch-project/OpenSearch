@@ -22,7 +22,7 @@ import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.extensions.ExtensionsSettings;
 import org.opensearch.rest.RestRequest;
-import org.opensearch.telemetry.tracing.NoopTracerFactory;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.rest.FakeRestChannel;
 import org.opensearch.test.rest.FakeRestRequest;
@@ -83,7 +83,7 @@ public class RestInitializeExtensionActionTests extends OpenSearchTestCase {
             ),
             null,
             Collections.emptySet(),
-            new NoopTracerFactory().getTracer()
+            NoopTracer.INSTANCE
         );
 
     }

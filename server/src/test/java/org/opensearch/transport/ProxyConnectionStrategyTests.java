@@ -42,7 +42,7 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.transport.TransportAddress;
-import org.opensearch.telemetry.tracing.NoopTracerFactory;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.threadpool.TestThreadPool;
@@ -83,12 +83,7 @@ public class ProxyConnectionStrategyTests extends OpenSearchTestCase {
             .put("node.name", id)
             .put(settings)
             .build();
-        MockTransportService newService = MockTransportService.createNewService(
-            s,
-            version,
-            threadPool,
-            new NoopTracerFactory().getTracer()
-        );
+        MockTransportService newService = MockTransportService.createNewService(s, version, threadPool, NoopTracer.INSTANCE);
         try {
             newService.start();
             newService.acceptIncomingRequests();
@@ -110,7 +105,7 @@ public class ProxyConnectionStrategyTests extends OpenSearchTestCase {
                     Settings.EMPTY,
                     Version.CURRENT,
                     threadPool,
-                    new NoopTracerFactory().getTracer()
+                    NoopTracer.INSTANCE
                 )
             ) {
                 localService.start();
@@ -156,7 +151,7 @@ public class ProxyConnectionStrategyTests extends OpenSearchTestCase {
                     Settings.EMPTY,
                     Version.CURRENT,
                     threadPool,
-                    new NoopTracerFactory().getTracer()
+                    NoopTracer.INSTANCE
                 )
             ) {
                 localService.start();
@@ -225,7 +220,7 @@ public class ProxyConnectionStrategyTests extends OpenSearchTestCase {
                     Settings.EMPTY,
                     Version.CURRENT,
                     threadPool,
-                    new NoopTracerFactory().getTracer()
+                    NoopTracer.INSTANCE
                 )
             ) {
                 localService.start();
@@ -272,7 +267,7 @@ public class ProxyConnectionStrategyTests extends OpenSearchTestCase {
                     Settings.EMPTY,
                     Version.CURRENT,
                     threadPool,
-                    new NoopTracerFactory().getTracer()
+                    NoopTracer.INSTANCE
                 )
             ) {
                 localService.start();
@@ -342,7 +337,7 @@ public class ProxyConnectionStrategyTests extends OpenSearchTestCase {
                     Settings.EMPTY,
                     Version.CURRENT,
                     threadPool,
-                    new NoopTracerFactory().getTracer()
+                    NoopTracer.INSTANCE
                 )
             ) {
                 localService.start();
@@ -384,7 +379,7 @@ public class ProxyConnectionStrategyTests extends OpenSearchTestCase {
                     Settings.EMPTY,
                     Version.CURRENT,
                     threadPool,
-                    new NoopTracerFactory().getTracer()
+                    NoopTracer.INSTANCE
                 )
             ) {
                 localService.start();
@@ -494,7 +489,7 @@ public class ProxyConnectionStrategyTests extends OpenSearchTestCase {
                     Settings.EMPTY,
                     Version.CURRENT,
                     threadPool,
-                    new NoopTracerFactory().getTracer()
+                    NoopTracer.INSTANCE
                 )
             ) {
                 localService.start();

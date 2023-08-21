@@ -39,7 +39,7 @@ import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.telemetry.tracing.NoopTracerFactory;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.junit.annotations.TestLogging;
 import org.opensearch.test.transport.MockTransportService;
@@ -85,7 +85,7 @@ public class RemoteClusterClientTests extends OpenSearchTestCase {
                     localSettings,
                     Version.CURRENT,
                     threadPool,
-                    new NoopTracerFactory().getTracer()
+                    NoopTracer.INSTANCE
                 )
             ) {
                 service.start();
@@ -131,7 +131,7 @@ public class RemoteClusterClientTests extends OpenSearchTestCase {
                     localSettings,
                     Version.CURRENT,
                     threadPool,
-                    new NoopTracerFactory().getTracer()
+                    NoopTracer.INSTANCE
                 )
             ) {
                 service.start();
@@ -163,12 +163,7 @@ public class RemoteClusterClientTests extends OpenSearchTestCase {
     public void testRemoteClusterServiceNotEnabled() {
         final Settings settings = removeRoles(Collections.singleton(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE));
         try (
-            MockTransportService service = MockTransportService.createNewService(
-                settings,
-                Version.CURRENT,
-                threadPool,
-                new NoopTracerFactory().getTracer()
-            )
+            MockTransportService service = MockTransportService.createNewService(settings, Version.CURRENT, threadPool, NoopTracer.INSTANCE)
         ) {
             service.start();
             service.acceptIncomingRequests();

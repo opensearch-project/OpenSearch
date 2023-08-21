@@ -50,7 +50,7 @@ import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.monitor.StatusInfo;
 import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.repositories.RepositoriesService;
-import org.opensearch.telemetry.tracing.NoopTracerFactory;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.CapturingTransport;
 import org.opensearch.test.transport.CapturingTransport.CapturedRequest;
@@ -98,7 +98,7 @@ public class JoinHelperTests extends OpenSearchTestCase {
             x -> localNode,
             null,
             Collections.emptySet(),
-            new NoopTracerFactory().getTracer()
+            NoopTracer.INSTANCE
         );
         JoinHelper joinHelper = new JoinHelper(
             Settings.EMPTY,
@@ -284,7 +284,7 @@ public class JoinHelperTests extends OpenSearchTestCase {
             x -> localNode,
             null,
             Collections.emptySet(),
-            new NoopTracerFactory().getTracer()
+            NoopTracer.INSTANCE
         );
         AtomicReference<StatusInfo> nodeHealthServiceStatus = new AtomicReference<>(new StatusInfo(UNHEALTHY, "unhealthy-info"));
         JoinHelper joinHelper = new JoinHelper(
@@ -476,7 +476,7 @@ public class JoinHelperTests extends OpenSearchTestCase {
                 x -> localNode,
                 null,
                 Collections.emptySet(),
-                new NoopTracerFactory().getTracer()
+                NoopTracer.INSTANCE
             );
         } else {
             transportService = mockTransport.createTransportService(
@@ -486,7 +486,7 @@ public class JoinHelperTests extends OpenSearchTestCase {
                 x -> localNode,
                 null,
                 Collections.emptySet(),
-                new NoopTracerFactory().getTracer()
+                NoopTracer.INSTANCE
             );
         }
         JoinHelper joinHelper = new JoinHelper(

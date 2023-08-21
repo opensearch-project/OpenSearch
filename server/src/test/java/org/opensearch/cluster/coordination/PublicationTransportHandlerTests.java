@@ -43,7 +43,7 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.node.Node;
-import org.opensearch.telemetry.tracing.NoopTracerFactory;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.CapturingTransport;
 import org.opensearch.transport.TransportService;
@@ -70,7 +70,7 @@ public class PublicationTransportHandlerTests extends OpenSearchTestCase {
             x -> localNode,
             clusterSettings,
             Collections.emptySet(),
-            new NoopTracerFactory().getTracer()
+            NoopTracer.INSTANCE
         );
         final PublicationTransportHandler handler = new PublicationTransportHandler(
             transportService,

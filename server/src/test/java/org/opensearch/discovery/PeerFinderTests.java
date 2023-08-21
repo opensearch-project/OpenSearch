@@ -44,7 +44,7 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.discovery.PeerFinder.TransportAddressConnector;
-import org.opensearch.telemetry.tracing.NoopTracerFactory;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.CapturingTransport;
 import org.opensearch.test.transport.CapturingTransport.CapturedRequest;
@@ -244,7 +244,7 @@ public class PeerFinderTests extends OpenSearchTestCase {
             null,
             emptySet(),
             connectionManager,
-            new NoopTracerFactory().getTracer()
+            NoopTracer.INSTANCE
         );
 
         transportService.start();

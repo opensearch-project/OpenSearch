@@ -24,7 +24,7 @@ import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.extensions.AcknowledgedResponse;
 import org.opensearch.extensions.DiscoveryExtensionNode;
 import org.opensearch.extensions.rest.RestSendToExtensionActionTests;
-import org.opensearch.telemetry.tracing.NoopTracerFactory;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.client.NoOpNodeClient;
 import org.opensearch.test.transport.MockTransportService;
@@ -85,7 +85,7 @@ public class ExtensionTransportActionsHandlerTests extends OpenSearchTestCase {
             ),
             null,
             Collections.emptySet(),
-            new NoopTracerFactory().getTracer()
+            NoopTracer.INSTANCE
         );
         discoveryExtensionNode = new DiscoveryExtensionNode(
             "firstExtension",
