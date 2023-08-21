@@ -141,13 +141,7 @@ public class FrameCryptoProvider implements CryptoProvider {
 
         int frameStartNumber = (int) (stream.getOffset() / getFrameSize()) + 1;
 
-        return awsCrypto.createEncryptingStream(
-            stream,
-            streamIdx,
-            totalStreams,
-            frameStartNumber,
-            encryptionMetadata
-        );
+        return awsCrypto.createEncryptingStream(stream, streamIdx, totalStreams, frameStartNumber, encryptionMetadata);
     }
 
     private EncryptionMetadata parseEncryptionMetadata(Object cryptoContextObj) {

@@ -58,7 +58,7 @@ public class AwsCrypto {
     ) {
 
         boolean isLastStream = streamIdx == totalStreams - 1;
-        boolean firstOperation = streamIdx == 0 ;
+        boolean firstOperation = streamIdx == 0;
         if (stream.getContentLength() % encryptionMetadata.getFrameSize() != 0 && !isLastStream) {
             throw new AwsCryptoException(
                 "Length of each inputStream should be exactly divisible by frame size except "
