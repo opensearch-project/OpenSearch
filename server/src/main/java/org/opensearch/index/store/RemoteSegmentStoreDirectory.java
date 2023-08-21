@@ -12,7 +12,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.codecs.CodecUtil;
-import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.SegmentInfos;
@@ -24,21 +23,11 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.Version;
-import org.opensearch.ExceptionsHelper;
 import org.opensearch.common.UUIDs;
-import org.opensearch.common.blobstore.VerifyingMultiStreamBlobContainer;
-import org.opensearch.common.blobstore.exception.CorruptFileException;
-import org.opensearch.common.blobstore.stream.write.WriteContext;
-import org.opensearch.common.blobstore.stream.write.WritePriority;
-import org.opensearch.common.blobstore.transfer.RemoteTransferContainer;
-import org.opensearch.common.blobstore.transfer.stream.OffsetRangeIndexInputStream;
-import org.opensearch.common.blobstore.transfer.stream.OffsetRangeInputStream;
 import org.opensearch.common.io.VersionedCodecStreamWrapper;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
-import org.opensearch.common.util.ByteUtils;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.index.remote.RemoteStoreUtils;
-import org.opensearch.index.store.exception.ChecksumCombinationException;
 import org.opensearch.index.store.lockmanager.FileLockInfo;
 import org.opensearch.index.store.lockmanager.RemoteStoreCommitLevelLockManager;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManager;
@@ -60,11 +49,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
-import java.util.zip.CRC32;
-
-import com.jcraft.jzlib.JZlib;
 
 /**
  * A RemoteDirectory extension for remote segment store. We need to make sure we don't overwrite a segment file once uploaded.
@@ -86,11 +71,6 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
     public static final String SEGMENT_NAME_UUID_SEPARATOR = "__";
 
     /**
-     * Number of bytes in the segment file to store checksum
-     */
-    private static final int SEGMENT_CHECKSUM_BYTES = 8;
-
-    /**
      * remoteDataDirectory is used to store segment files at path: cluster_UUID/index_UUID/shardId/segments/data
      */
     private final RemoteDirectory remoteDataDirectory;
@@ -102,8 +82,6 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
     private final RemoteStoreLockManager mdLockManager;
 
     private final ThreadPool threadPool;
-
-    private final UnaryOperator<OffsetRangeInputStream> rateLimitedTransferFilter;
 
     /**
      * Keeps track of local segment filename to uploaded filename along with other attributes like checksum.
@@ -132,15 +110,13 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         RemoteDirectory remoteDataDirectory,
         RemoteDirectory remoteMetadataDirectory,
         RemoteStoreLockManager mdLockManager,
-        ThreadPool threadPool,
-        UnaryOperator<OffsetRangeInputStream> rateLimitedTransferFilter
+        ThreadPool threadPool
     ) throws IOException {
         super(remoteDataDirectory);
         this.remoteDataDirectory = remoteDataDirectory;
         this.remoteMetadataDirectory = remoteMetadataDirectory;
         this.mdLockManager = mdLockManager;
         this.threadPool = threadPool;
-        this.rateLimitedTransferFilter = rateLimitedTransferFilter;
         init();
     }
 
@@ -439,77 +415,23 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
      * @param listener Listener to handle upload callback events
      */
     public void copyFrom(Directory from, String src, IOContext context, ActionListener<Void> listener) {
-        if (remoteDataDirectory.getBlobContainer() instanceof VerifyingMultiStreamBlobContainer) {
-            try {
-                String remoteFilename = getNewRemoteSegmentFilename(src);
-                uploadBlob(from, src, remoteFilename, context, listener);
-            } catch (Exception e) {
-                listener.onFailure(e);
-            }
-        } else {
-            try {
+        try {
+            final String remoteFileName = getNewRemoteSegmentFilename(src);
+            boolean uploaded = remoteDataDirectory.copyFrom(from, src, context, () -> {
+                try {
+                    postUpload(from, src, remoteFileName, getChecksumOfLocalFile(from, src));
+                } catch (IOException e) {
+                    throw new RuntimeException("Exception in segment postUpload for file " + src, e);
+                }
+            }, remoteFileName, listener);
+            if (uploaded == false) {
                 copyFrom(from, src, src, context);
                 listener.onResponse(null);
-            } catch (Exception e) {
-                logger.warn(() -> new ParameterizedMessage("Exception while uploading file {} to the remote segment store", src), e);
-                listener.onFailure(e);
             }
+        } catch (Exception e) {
+            logger.warn(() -> new ParameterizedMessage("Exception while uploading file {} to the remote segment store", src), e);
+            listener.onFailure(e);
         }
-    }
-
-    private void uploadBlob(Directory from, String src, String remoteFileName, IOContext ioContext, ActionListener<Void> listener)
-        throws Exception {
-        long expectedChecksum = calculateChecksumOfChecksum(from, src);
-        long contentLength;
-        try (IndexInput indexInput = from.openInput(src, ioContext)) {
-            contentLength = indexInput.length();
-        }
-        RemoteTransferContainer remoteTransferContainer = new RemoteTransferContainer(
-            src,
-            remoteFileName,
-            contentLength,
-            true,
-            WritePriority.NORMAL,
-            (size, position) -> rateLimitedTransferFilter.apply(
-                new OffsetRangeIndexInputStream(from.openInput(src, ioContext), size, position)
-            ),
-            expectedChecksum,
-            remoteDataDirectory.getBlobContainer() instanceof VerifyingMultiStreamBlobContainer
-        );
-        ActionListener<Void> completionListener = ActionListener.wrap(resp -> {
-            try {
-                postUpload(from, src, remoteFileName, getChecksumOfLocalFile(from, src));
-                listener.onResponse(null);
-            } catch (Exception e) {
-                logger.error(() -> new ParameterizedMessage("Exception in segment postUpload for file [{}]", src), e);
-                listener.onFailure(e);
-            }
-        }, ex -> {
-            logger.error(() -> new ParameterizedMessage("Failed to upload blob {}", src), ex);
-            IOException corruptIndexException = ExceptionsHelper.unwrapCorruption(ex);
-            if (corruptIndexException != null) {
-                listener.onFailure(corruptIndexException);
-                return;
-            }
-            Throwable throwable = ExceptionsHelper.unwrap(ex, CorruptFileException.class);
-            if (throwable != null) {
-                CorruptFileException corruptFileException = (CorruptFileException) throwable;
-                listener.onFailure(new CorruptIndexException(corruptFileException.getMessage(), corruptFileException.getFileName()));
-                return;
-            }
-            listener.onFailure(ex);
-        });
-
-        completionListener = ActionListener.runBefore(completionListener, () -> {
-            try {
-                remoteTransferContainer.close();
-            } catch (Exception e) {
-                logger.warn("Error occurred while closing streams", e);
-            }
-        });
-
-        WriteContext writeContext = remoteTransferContainer.createWriteContext();
-        ((VerifyingMultiStreamBlobContainer) remoteDataDirectory.getBlobContainer()).asyncBlobUpload(writeContext, completionListener);
     }
 
     /**
@@ -587,13 +509,6 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         return metadataFiles.get(0);
     }
 
-    public void copyFrom(Directory from, String src, String dest, IOContext context, String checksum) throws IOException {
-        String remoteFilename;
-        remoteFilename = getNewRemoteSegmentFilename(dest);
-        remoteDataDirectory.copyFrom(from, src, remoteFilename, context);
-        postUpload(from, src, remoteFilename, checksum);
-    }
-
     private void postUpload(Directory from, String src, String remoteFilename, String checksum) throws IOException {
         UploadedSegmentMetadata segmentMetadata = new UploadedSegmentMetadata(src, remoteFilename, checksum, from.fileLength(src));
         segmentsUploadedToRemoteStore.put(src, segmentMetadata);
@@ -605,7 +520,9 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
      */
     @Override
     public void copyFrom(Directory from, String src, String dest, IOContext context) throws IOException {
-        copyFrom(from, src, dest, context, getChecksumOfLocalFile(from, src));
+        String remoteFilename = getNewRemoteSegmentFilename(dest);
+        remoteDataDirectory.copyFrom(from, src, remoteFilename, context);
+        postUpload(from, src, remoteFilename, getChecksumOfLocalFile(from, src));
     }
 
     /**
@@ -736,27 +653,6 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
     private String getChecksumOfLocalFile(Directory directory, String file) throws IOException {
         try (IndexInput indexInput = directory.openInput(file, IOContext.DEFAULT)) {
             return Long.toString(CodecUtil.retrieveChecksum(indexInput));
-        }
-    }
-
-    private long calculateChecksumOfChecksum(Directory directory, String file) throws IOException {
-        try (IndexInput indexInput = directory.openInput(file, IOContext.DEFAULT)) {
-            long storedChecksum = CodecUtil.retrieveChecksum(indexInput);
-            CRC32 checksumOfChecksum = new CRC32();
-            checksumOfChecksum.update(ByteUtils.toByteArrayBE(storedChecksum));
-            try {
-                return JZlib.crc32_combine(storedChecksum, checksumOfChecksum.getValue(), SEGMENT_CHECKSUM_BYTES);
-            } catch (Exception e) {
-                throw new ChecksumCombinationException(
-                    "Potentially corrupted file: Checksum combination failed while combining stored checksum "
-                        + "and calculated checksum of stored checksum in segment file: "
-                        + file
-                        + ", directory: "
-                        + directory,
-                    file,
-                    e
-                );
-            }
         }
     }
 

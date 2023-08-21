@@ -22,7 +22,7 @@ import org.opensearch.common.blobstore.BlobContainer;
  */
 public class RemoteBufferedOutputDirectory extends RemoteDirectory {
     public RemoteBufferedOutputDirectory(BlobContainer blobContainer) {
-        super(blobContainer, s -> s);
+        super(blobContainer, s -> s, s -> s);
     }
 
     @Override
