@@ -44,7 +44,6 @@ import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskListener;
-import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.RemoteClusterService;
@@ -89,8 +88,7 @@ public class NoOpNodeClient extends NodeClient {
         DynamicActionRegistry dynamicActionRegistry,
         Supplier<String> localNodeId,
         RemoteClusterService remoteClusterService,
-        NamedWriteableRegistry namedWriteableRegistry,
-        Tracer tracer
+        NamedWriteableRegistry namedWriteableRegistry
     ) {
         throw new UnsupportedOperationException("cannot initialize " + this.getClass().getSimpleName());
     }

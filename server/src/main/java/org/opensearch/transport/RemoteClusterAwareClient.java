@@ -40,9 +40,6 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.ActionResponse;
-import org.opensearch.telemetry.tracing.SpanScope;
-import org.opensearch.telemetry.tracing.Tracer;
-import org.opensearch.telemetry.tracing.listener.TraceableActionListener;
 import org.opensearch.threadpool.ThreadPool;
 
 /**
@@ -56,14 +53,12 @@ final class RemoteClusterAwareClient extends AbstractClient {
     private final TransportService service;
     private final String clusterAlias;
     private final RemoteClusterService remoteClusterService;
-    private final Tracer tracer;
 
-    RemoteClusterAwareClient(Settings settings, ThreadPool threadPool, TransportService service, String clusterAlias, Tracer tracer) {
+    RemoteClusterAwareClient(Settings settings, ThreadPool threadPool, TransportService service, String clusterAlias) {
         super(settings, threadPool);
         this.service = service;
         this.clusterAlias = clusterAlias;
         this.remoteClusterService = service.getRemoteClusterService();
-        this.tracer = tracer;
     }
 
     @Override
@@ -72,9 +67,6 @@ final class RemoteClusterAwareClient extends AbstractClient {
         Request request,
         ActionListener<Response> listener
     ) {
-        final SpanScope spanScope = tracer.startSpan(SPAN_NAME_PREFIX_REMOTE_TRANSPORT_ACTION + action.name());
-        spanScope.addSpanAttribute("action", action.name());
-        final ActionListener<Response> traceableListener = new TraceableActionListener<Response>(listener, spanScope);
         remoteClusterService.ensureConnected(clusterAlias, ActionListener.wrap(v -> {
             Transport.Connection connection;
             if (request instanceof RemoteClusterAwareRequest) {
@@ -88,9 +80,9 @@ final class RemoteClusterAwareClient extends AbstractClient {
                 action.name(),
                 request,
                 TransportRequestOptions.EMPTY,
-                new ActionListenerResponseHandler<>(traceableListener, action.getResponseReader())
+                new ActionListenerResponseHandler<>(listener, action.getResponseReader())
             );
-        }, traceableListener::onFailure));
+        }, listener::onFailure));
     }
 
     @Override

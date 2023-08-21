@@ -49,7 +49,7 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.search.internal.InternalSearchResponse;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskManager;
-import org.opensearch.telemetry.tracing.NoopTracerFactory;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
@@ -155,7 +155,7 @@ public class MultiSearchActionTookTests extends OpenSearchTestCase {
             boundAddress -> DiscoveryNode.createLocal(settings, boundAddress.publishAddress(), UUIDs.randomBase64UUID()),
             null,
             Collections.emptySet(),
-            new NoopTracerFactory().getTracer()
+            NoopTracer.INSTANCE
         ) {
             @Override
             public TaskManager getTaskManager() {

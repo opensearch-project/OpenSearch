@@ -44,7 +44,6 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskManager;
-import org.opensearch.telemetry.tracing.NoopTracerFactory;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.Collections;
@@ -61,13 +60,7 @@ public class NodeClientHeadersTests extends AbstractClientHeadersTestCase {
         NodeClient client = new NodeClient(settings, threadPool);
         DynamicActionRegistry dynamicActionRegistry = new DynamicActionRegistry();
         dynamicActionRegistry.registerUnmodifiableActionMap(actions);
-        client.initialize(
-            dynamicActionRegistry,
-            () -> "test",
-            null,
-            new NamedWriteableRegistry(Collections.emptyList()),
-            new NoopTracerFactory().getTracer()
-        );
+        client.initialize(dynamicActionRegistry, () -> "test", null, new NamedWriteableRegistry(Collections.emptyList()));
         return client;
     }
 

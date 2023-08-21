@@ -87,7 +87,7 @@ import org.opensearch.index.shard.ShardNotInPrimaryModeException;
 import org.opensearch.indices.IndexClosedException;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.cluster.ClusterStateChanges;
-import org.opensearch.telemetry.tracing.NoopTracerFactory;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.CapturingTransport;
 import org.opensearch.test.transport.MockTransportService;
@@ -197,7 +197,7 @@ public class TransportReplicationActionTests extends OpenSearchTestCase {
             x -> clusterService.localNode(),
             null,
             Collections.emptySet(),
-            new NoopTracerFactory().getTracer()
+            NoopTracer.INSTANCE
         );
         transportService.start();
         transportService.acceptIncomingRequests();
@@ -1328,7 +1328,7 @@ public class TransportReplicationActionTests extends OpenSearchTestCase {
             x -> clusterService.localNode(),
             null,
             Collections.emptySet(),
-            new NoopTracerFactory().getTracer()
+            NoopTracer.INSTANCE
         );
         transportService.start();
         transportService.acceptIncomingRequests();

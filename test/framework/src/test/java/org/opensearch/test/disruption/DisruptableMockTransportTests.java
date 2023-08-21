@@ -43,7 +43,7 @@ import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.core.transport.TransportResponse.Empty;
 import org.opensearch.node.Node;
-import org.opensearch.telemetry.tracing.NoopTracerFactory;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.disruption.DisruptableMockTransport.ConnectionStatus;
 import org.opensearch.threadpool.ThreadPool;
@@ -163,7 +163,7 @@ public class DisruptableMockTransportTests extends OpenSearchTestCase {
             a -> node1,
             null,
             Collections.emptySet(),
-            new NoopTracerFactory().getTracer()
+            NoopTracer.INSTANCE
         );
         service2 = transport2.createTransportService(
             Settings.EMPTY,
@@ -172,7 +172,7 @@ public class DisruptableMockTransportTests extends OpenSearchTestCase {
             a -> node2,
             null,
             Collections.emptySet(),
-            new NoopTracerFactory().getTracer()
+            NoopTracer.INSTANCE
         );
 
         service1.start();

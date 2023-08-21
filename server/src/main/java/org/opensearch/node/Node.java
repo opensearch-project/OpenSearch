@@ -1211,8 +1211,7 @@ public class Node implements Closeable {
                 dynamicActionRegistry,
                 () -> clusterService.localNode().getId(),
                 transportService.getRemoteClusterService(),
-                namedWriteableRegistry,
-                tracer
+                namedWriteableRegistry
             );
             this.namedWriteableRegistry = namedWriteableRegistry;
 

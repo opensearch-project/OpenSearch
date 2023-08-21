@@ -45,7 +45,7 @@ import org.opensearch.extensions.settings.RegisterCustomSettingsRequest;
 import org.opensearch.identity.IdentityService;
 import org.opensearch.plugins.ExtensionAwarePlugin;
 import org.opensearch.rest.RestController;
-import org.opensearch.telemetry.tracing.NoopTracerFactory;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.FeatureFlagSetter;
 import org.opensearch.test.MockLogAppender;
 import org.opensearch.test.OpenSearchTestCase;
@@ -132,7 +132,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             ),
             null,
             Collections.emptySet(),
-            new NoopTracerFactory().getTracer()
+            NoopTracer.INSTANCE
         );
         actionModule = mock(ActionModule.class);
         extAwarePlugin = new ExtensionAwarePlugin() {
@@ -764,7 +764,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
                 x -> null,
                 null,
                 Collections.emptySet(),
-                new NoopTracerFactory().getTracer()
+                NoopTracer.INSTANCE
             )
         );
         extensionsManager.initializeServicesAndRestHandler(

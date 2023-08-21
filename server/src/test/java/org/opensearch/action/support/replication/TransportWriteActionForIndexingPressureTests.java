@@ -37,7 +37,7 @@ import org.opensearch.index.stats.IndexingPressurePerShardStats;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.SystemIndices;
-import org.opensearch.telemetry.tracing.NoopTracerFactory;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.CapturingTransport;
 import org.opensearch.threadpool.TestThreadPool;
@@ -104,7 +104,7 @@ public class TransportWriteActionForIndexingPressureTests extends OpenSearchTest
             x -> clusterService.localNode(),
             null,
             Collections.emptySet(),
-            new NoopTracerFactory().getTracer()
+            NoopTracer.INSTANCE
         );
         transportService.start();
         transportService.acceptIncomingRequests();

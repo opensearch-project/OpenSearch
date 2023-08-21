@@ -418,7 +418,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         if (transportService.getRemoteClusterService().getRemoteClusterNames().contains(clusterAlias) == false) {
             throw new NoSuchRemoteClusterException(clusterAlias);
         }
-        return new RemoteClusterAwareClient(settings, threadPool, transportService, clusterAlias, tracer);
+        return new RemoteClusterAwareClient(settings, threadPool, transportService, clusterAlias);
     }
 
     Collection<RemoteClusterConnection> getConnections() {

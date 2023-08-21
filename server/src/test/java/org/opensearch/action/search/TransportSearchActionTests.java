@@ -75,7 +75,7 @@ import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.search.internal.InternalSearchResponse;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.sort.SortBuilders;
-import org.opensearch.telemetry.tracing.NoopTracerFactory;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.threadpool.TestThreadPool;
@@ -453,12 +453,7 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
         TransportSearchAction.SearchTimeProvider timeProvider = new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0);
         Function<Boolean, InternalAggregation.ReduceContext> reduceContext = finalReduce -> null;
         try (
-            MockTransportService service = MockTransportService.createNewService(
-                settings,
-                Version.CURRENT,
-                threadPool,
-                new NoopTracerFactory().getTracer()
-            )
+            MockTransportService service = MockTransportService.createNewService(settings, Version.CURRENT, threadPool, NoopTracer.INSTANCE)
         ) {
             service.start();
             service.acceptIncomingRequests();
@@ -516,12 +511,7 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
         int totalClusters = numClusters + (local ? 1 : 0);
         TransportSearchAction.SearchTimeProvider timeProvider = new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0);
         try (
-            MockTransportService service = MockTransportService.createNewService(
-                settings,
-                Version.CURRENT,
-                threadPool,
-                new NoopTracerFactory().getTracer()
-            )
+            MockTransportService service = MockTransportService.createNewService(settings, Version.CURRENT, threadPool, NoopTracer.INSTANCE)
         ) {
             service.start();
             service.acceptIncomingRequests();
@@ -764,12 +754,7 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
         MockTransportService[] mockTransportServices = startTransport(numClusters, nodes, remoteIndicesByCluster, builder);
         Settings settings = builder.build();
         try (
-            MockTransportService service = MockTransportService.createNewService(
-                settings,
-                Version.CURRENT,
-                threadPool,
-                new NoopTracerFactory().getTracer()
-            )
+            MockTransportService service = MockTransportService.createNewService(settings, Version.CURRENT, threadPool, NoopTracer.INSTANCE)
         ) {
             service.start();
             service.acceptIncomingRequests();

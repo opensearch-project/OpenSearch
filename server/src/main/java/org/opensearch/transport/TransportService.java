@@ -66,7 +66,10 @@ import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.node.NodeClosedException;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskManager;
+import org.opensearch.telemetry.tracing.AttributeNames;
+import org.opensearch.telemetry.tracing.SpanScope;
 import org.opensearch.telemetry.tracing.Tracer;
+import org.opensearch.telemetry.tracing.attributes.Attributes;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -133,7 +136,6 @@ public class TransportService extends AbstractLifecycleComponent
     // tracer log
 
     private final Logger tracerLog;
-
     volatile String[] tracerLogInclude;
     volatile String[] tracerLogExclude;
 
@@ -864,6 +866,7 @@ public class TransportService extends AbstractLifecycleComponent
     ) {
         try {
             logger.debug("Action: " + action);
+            final SpanScope spanScope = tracer.startSpan(action, populateAttributes(action, connection));
             final TransportResponseHandler<T> delegate;
             if (request.getParentTask().isSet()) {
                 // TODO: capture the connection instead so that we can cancel child tasks on the remote connections.
@@ -871,12 +874,15 @@ public class TransportService extends AbstractLifecycleComponent
                 delegate = new TransportResponseHandler<T>() {
                     @Override
                     public void handleResponse(T response) {
+                        spanScope.close();
                         unregisterChildNode.close();
                         handler.handleResponse(response);
                     }
 
                     @Override
                     public void handleException(TransportException exp) {
+                        spanScope.setError(exp);
+                        spanScope.close();
                         unregisterChildNode.close();
                         handler.handleException(exp);
                     }
@@ -910,6 +916,14 @@ public class TransportService extends AbstractLifecycleComponent
             }
             handler.handleException(te);
         }
+    }
+
+    private Attributes populateAttributes(String action, Transport.Connection connection) {
+        Attributes attributes = Attributes.create().addAttribute(AttributeNames.SPAN_ATTR_KEY_ACTION, action);
+        if (connection != null && connection.getNode() != null) {
+            attributes.addAttribute(AttributeNames.SPAN_ATTR_KEY_TARGET_HOST, connection.getNode().getHostAddress());
+        }
+        return attributes;
     }
 
     /**

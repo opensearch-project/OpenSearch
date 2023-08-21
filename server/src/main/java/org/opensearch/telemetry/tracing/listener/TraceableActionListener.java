@@ -36,9 +36,7 @@ public class TraceableActionListener<Response> implements ActionListener<Respons
 
     @Override
     public void onResponse(Response response) {
-        try (spanScope) {
-            // closing the span before
-        }
+        spanScope.close();
         delegate.onResponse(response);
     }
 

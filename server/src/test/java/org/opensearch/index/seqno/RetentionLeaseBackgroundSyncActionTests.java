@@ -49,7 +49,7 @@ import org.opensearch.gateway.WriteStateException;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
-import org.opensearch.telemetry.tracing.NoopTracerFactory;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.CapturingTransport;
 import org.opensearch.threadpool.TestThreadPool;
@@ -87,7 +87,7 @@ public class RetentionLeaseBackgroundSyncActionTests extends OpenSearchTestCase 
             boundAddress -> clusterService.localNode(),
             null,
             Collections.emptySet(),
-            new NoopTracerFactory().getTracer()
+            NoopTracer.INSTANCE
         );
         transportService.start();
         transportService.acceptIncomingRequests();
