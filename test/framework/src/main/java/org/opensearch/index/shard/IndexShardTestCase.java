@@ -1160,8 +1160,8 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         IndexShardRoutingTable newRoutingTable = initializingReplicaRouting.isRelocationTarget()
             ? new IndexShardRoutingTable.Builder(routingTable).removeShard(primary.routingEntry()).addShard(replica.routingEntry()).build()
             : new IndexShardRoutingTable.Builder(routingTable).removeShard(initializingReplicaRouting)
-            .addShard(replica.routingEntry())
-            .build();
+                .addShard(replica.routingEntry())
+                .build();
         Set<String> inSyncIdsWithReplica = new HashSet<>(inSyncIds);
         inSyncIdsWithReplica.add(replica.routingEntry().allocationId().getId());
         // update both primary and replica shard state
