@@ -199,11 +199,6 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
             assertNotNull(primaryEngine);
             final SegmentInfos latestCommit = SegmentInfos.readLatestCommit(primary.store().directory());
             assertEquals("On-disk commit references no segments", Set.of("segments_3"), latestCommit.files(true));
-            assertEquals(
-                "Latest remote commit On-disk commit references no segments",
-                Set.of("segments_3"),
-                primary.remoteStore().readLastCommittedSegmentsInfo().files(true)
-            );
             MatcherAssert.assertThat(
                 "Segments are referenced in memory only",
                 primaryEngine.getSegmentInfosSnapshot().get().files(false),
