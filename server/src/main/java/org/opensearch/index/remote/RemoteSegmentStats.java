@@ -68,7 +68,7 @@ public class RemoteSegmentStats implements Writeable, ToXContentFragment {
      */
     private long totalRefreshBytesLag;
     /**
-     * Total time spent in uploading segments from remote store
+     * Total time spent in uploading segments to remote store
      */
     private long totalUploadTime;
     /**
