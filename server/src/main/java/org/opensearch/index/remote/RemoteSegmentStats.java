@@ -8,6 +8,7 @@
 
 package org.opensearch.index.remote;
 
+import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStats;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -61,6 +62,11 @@ public class RemoteSegmentStats implements Writeable, ToXContentFragment {
      * Used to check for data freshness in the remote store
      */
     private long maxRefreshBytesLag;
+    /**
+     * Total refresh lag (in bytes) between local and the remote store
+     * Used to check for data freshness in the remote store
+     */
+    private long totalRefreshBytesLag;
 
     public RemoteSegmentStats() {}
 
@@ -73,6 +79,19 @@ public class RemoteSegmentStats implements Writeable, ToXContentFragment {
         downloadBytesSucceeded = in.readLong();
         maxRefreshTimeLag = in.readLong();
         maxRefreshBytesLag = in.readLong();
+        /* TODO:
+          Adding version checks here since the base PR of adding remote store stats
+          in SegmentStats has already been merged and backported to 2.x branch.
+
+          Since this is a new field that is being added, we need to have this check in place
+          to ensure BWCs don't break.
+
+          This would have to be removed after the new field addition PRs are also backported to 2.x.
+          If possible we would need to ensure that all field addition PRs are backported at once
+         */
+        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+            totalRefreshBytesLag = in.readLong();
+        }
     }
 
     /**
@@ -91,7 +110,11 @@ public class RemoteSegmentStats implements Writeable, ToXContentFragment {
         this.downloadBytesStarted = trackerStats.directoryFileTransferTrackerStats.transferredBytesStarted;
         this.downloadBytesFailed = trackerStats.directoryFileTransferTrackerStats.transferredBytesFailed;
         this.maxRefreshTimeLag = trackerStats.refreshTimeLagMs;
+        // Initializing both total and max bytes lag to the same `bytesLag`
+        // value from the tracker object
+        // Aggregations would be performed on the add method
         this.maxRefreshBytesLag = trackerStats.bytesLag;
+        this.totalRefreshBytesLag = trackerStats.bytesLag;
     }
 
     // Getter and setters. All are visible for testing
@@ -155,8 +178,16 @@ public class RemoteSegmentStats implements Writeable, ToXContentFragment {
         return maxRefreshBytesLag;
     }
 
-    public void setMaxRefreshBytesLag(long maxRefreshBytesLag) {
-        this.maxRefreshBytesLag = maxRefreshBytesLag;
+    public void addMaxRefreshBytesLag(long maxRefreshBytesLag) {
+        this.maxRefreshBytesLag = Math.max(this.maxRefreshBytesLag, maxRefreshBytesLag);
+    }
+
+    public long getTotalRefreshBytesLag() {
+        return totalRefreshBytesLag;
+    }
+
+    public void addTotalRefreshBytesLag(long totalRefreshBytesLag) {
+        this.totalRefreshBytesLag += totalRefreshBytesLag;
     }
 
     /**
@@ -174,6 +205,7 @@ public class RemoteSegmentStats implements Writeable, ToXContentFragment {
             this.downloadBytesSucceeded += existingStats.getDownloadBytesSucceeded();
             this.maxRefreshTimeLag = Math.max(this.maxRefreshTimeLag, existingStats.getMaxRefreshTimeLag());
             this.maxRefreshBytesLag = Math.max(this.maxRefreshBytesLag, existingStats.getMaxRefreshBytesLag());
+            this.totalRefreshBytesLag += existingStats.getTotalRefreshBytesLag();
         }
     }
 
@@ -187,33 +219,53 @@ public class RemoteSegmentStats implements Writeable, ToXContentFragment {
         out.writeLong(downloadBytesSucceeded);
         out.writeLong(maxRefreshTimeLag);
         out.writeLong(maxRefreshBytesLag);
+        /* TODO:
+          Adding version checks here since the base PR of adding remote store stats
+          in SegmentStats has already been merged and backported to 2.x branch.
+
+          Since this is a new field that is being added, we need to have this check in place
+          to ensure BWCs don't break.
+
+          This would have to be removed after the new field addition PRs are also backported to 2.x.
+          If possible we would need to ensure that all field addition PRs are backported at once
+         */
+        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+            out.writeLong(totalRefreshBytesLag);
+        }
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.REMOTE_STORE);
         builder.startObject(Fields.UPLOAD);
+        buildUploadStats(builder);
+        builder.endObject();
+        builder.startObject(Fields.DOWNLOAD);
+        buildDownloadStats(builder);
+        builder.endObject();
+        builder.endObject();
+        return builder;
+    }
+
+    private void buildUploadStats(XContentBuilder builder) throws IOException {
         builder.startObject(Fields.TOTAL_UPLOADS);
         builder.humanReadableField(Fields.STARTED_BYTES, Fields.STARTED, new ByteSizeValue(uploadBytesStarted));
         builder.humanReadableField(Fields.SUCCEEDED_BYTES, Fields.SUCCEEDED, new ByteSizeValue(uploadBytesSucceeded));
         builder.humanReadableField(Fields.FAILED_BYTES, Fields.FAILED, new ByteSizeValue(uploadBytesFailed));
         builder.endObject();
-        builder.humanReadableField(Fields.MAX_REFRESH_TIME_LAG_IN_MILLIS, Fields.MAX_REFRESH_TIME_LAG, new TimeValue(maxRefreshTimeLag));
-        builder.humanReadableField(
-            Fields.MAX_REFRESH_SIZE_LAG_IN_MILLIS,
-            Fields.MAX_REFRESH_SIZE_LAG,
-            new ByteSizeValue(maxRefreshBytesLag)
-        );
+        builder.startObject(Fields.REFRESH_SIZE_LAG);
+        builder.humanReadableField(Fields.TOTAL_BYTES, Fields.TOTAL, new ByteSizeValue(totalRefreshBytesLag));
+        builder.humanReadableField(Fields.MAX_BYTES, Fields.MAX, new ByteSizeValue(maxRefreshBytesLag));
         builder.endObject();
-        builder.startObject(Fields.DOWNLOAD);
+        builder.humanReadableField(Fields.MAX_REFRESH_TIME_LAG_IN_MILLIS, Fields.MAX_REFRESH_TIME_LAG, new TimeValue(maxRefreshTimeLag));
+    }
+
+    private void buildDownloadStats(XContentBuilder builder) throws IOException {
         builder.startObject(Fields.TOTAL_DOWNLOADS);
         builder.humanReadableField(Fields.STARTED_BYTES, Fields.STARTED, new ByteSizeValue(downloadBytesStarted));
         builder.humanReadableField(Fields.SUCCEEDED_BYTES, Fields.SUCCEEDED, new ByteSizeValue(downloadBytesSucceeded));
         builder.humanReadableField(Fields.FAILED_BYTES, Fields.FAILED, new ByteSizeValue(downloadBytesFailed));
         builder.endObject();
-        builder.endObject();
-        builder.endObject();
-        return builder;
     }
 
     static final class Fields {
@@ -222,15 +274,18 @@ public class RemoteSegmentStats implements Writeable, ToXContentFragment {
         static final String DOWNLOAD = "download";
         static final String TOTAL_UPLOADS = "total_uploads";
         static final String TOTAL_DOWNLOADS = "total_downloads";
+        static final String MAX_REFRESH_TIME_LAG = "max_refresh_time_lag";
+        static final String MAX_REFRESH_TIME_LAG_IN_MILLIS = "max_refresh_time_lag_in_millis";
+        static final String REFRESH_SIZE_LAG = "refresh_size_lag";
         static final String STARTED = "started";
         static final String STARTED_BYTES = "started_bytes";
         static final String FAILED = "failed";
         static final String FAILED_BYTES = "failed_bytes";
         static final String SUCCEEDED = "succeeded";
         static final String SUCCEEDED_BYTES = "succeeded_bytes";
-        static final String MAX_REFRESH_TIME_LAG = "max_refresh_time_lag";
-        static final String MAX_REFRESH_TIME_LAG_IN_MILLIS = "max_refresh_time_lag_in_millis";
-        static final String MAX_REFRESH_SIZE_LAG = "max_refresh_size_lag";
-        static final String MAX_REFRESH_SIZE_LAG_IN_MILLIS = "max_refresh_size_lag_in_bytes";
+        static final String TOTAL = "total";
+        static final String TOTAL_BYTES = "total_bytes";
+        static final String MAX = "max";
+        static final String MAX_BYTES = "max_bytes";
     }
 }
