@@ -58,7 +58,6 @@ public class LocalShardsBalancer extends ShardsBalancer {
     private final Map<String, BalancedShardsAllocator.ModelNode> nodes;
     private final RoutingAllocation allocation;
     private final RoutingNodes routingNodes;
-    private final boolean movePrimaryFirst;
     private final ShardMovementStrategy shardMovementStrategy;
 
     private final boolean preferPrimaryBalance;
@@ -75,7 +74,6 @@ public class LocalShardsBalancer extends ShardsBalancer {
     public LocalShardsBalancer(
         Logger logger,
         RoutingAllocation allocation,
-        boolean movePrimaryFirst,
         ShardMovementStrategy shardMovementStrategy,
         BalancedShardsAllocator.WeightFunction weight,
         float threshold,
@@ -83,7 +81,6 @@ public class LocalShardsBalancer extends ShardsBalancer {
     ) {
         this.logger = logger;
         this.allocation = allocation;
-        this.movePrimaryFirst = movePrimaryFirst;
         this.weight = weight;
         this.threshold = threshold;
         this.routingNodes = allocation.routingNodes();
@@ -532,22 +529,6 @@ public class LocalShardsBalancer extends ShardsBalancer {
     }
 
     /**
-     * Returns the correct Shard movement strategy to use.
-     * If users are still using deprecated setting "move_primary_first", we want behavior to remain unchanged.
-     * In the event of changing ShardMovementStrategy setting from default setting NO_PREFERENCE to either PRIMARY_FIRST or REPLICA_FIRST, we want that
-     * to have priority over values set in move_primary_first setting.
-     */
-    private ShardMovementStrategy getShardMovementStrategy() {
-        if (shardMovementStrategy != ShardMovementStrategy.NO_PREFERENCE) {
-            return shardMovementStrategy;
-        }
-        if (movePrimaryFirst) {
-            return ShardMovementStrategy.PRIMARY_FIRST;
-        }
-        return ShardMovementStrategy.NO_PREFERENCE;
-    }
-
-    /**
      * Move started shards that can not be allocated to a node anymore
      *
      * For each shard to be moved this function executes a move operation
@@ -569,8 +550,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
             checkAndAddInEligibleTargetNode(currentNode.getRoutingNode());
         }
         boolean primariesThrottled = false;
-        for (Iterator<ShardRouting> it = allocation.routingNodes().nodeInterleavedShardIterator(getShardMovementStrategy()); it
-            .hasNext();) {
+        for (Iterator<ShardRouting> it = allocation.routingNodes().nodeInterleavedShardIterator(shardMovementStrategy); it.hasNext();) {
             // Verify if the cluster concurrent recoveries have been reached.
             if (allocation.deciders().canMoveAnyShard(allocation).type() != Decision.Type.YES) {
                 logger.info(
