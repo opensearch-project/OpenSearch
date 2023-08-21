@@ -427,7 +427,7 @@ public class RemoteFsTranslog extends Translog {
         // of older primary term.
         if (olderPrimaryCleaned.trySet(Boolean.TRUE)) {
             if (readers.isEmpty()) {
-                logger.info("Translog reader list is empty, returning from deleteStaleRemotePrimaryTerms");
+                logger.trace("Translog reader list is empty, returning from deleteStaleRemotePrimaryTerms");
                 return;
             }
             // First we delete all stale primary terms folders from remote store
