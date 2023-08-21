@@ -36,9 +36,9 @@ import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.util.concurrent.KeyedLock;
-import org.opensearch.common.lease.Releasable;
 
 import java.io.IOException;
 import java.util.Collection;

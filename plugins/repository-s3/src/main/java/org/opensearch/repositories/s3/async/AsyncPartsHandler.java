@@ -8,14 +8,6 @@
 
 package org.opensearch.repositories.s3.async;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.opensearch.common.StreamContext;
-import org.opensearch.common.blobstore.stream.write.WritePriority;
-import org.opensearch.common.io.InputStreamContainer;
-import org.opensearch.repositories.s3.SocketAccess;
-import org.opensearch.repositories.s3.io.CheckedContainer;
 import software.amazon.awssdk.core.async.AsyncRequestBody;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.model.AbortMultipartUploadRequest;
@@ -24,6 +16,15 @@ import software.amazon.awssdk.services.s3.model.CompletedPart;
 import software.amazon.awssdk.services.s3.model.UploadPartRequest;
 import software.amazon.awssdk.services.s3.model.UploadPartResponse;
 import software.amazon.awssdk.utils.CompletableFutureUtils;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.common.StreamContext;
+import org.opensearch.common.blobstore.stream.write.WritePriority;
+import org.opensearch.common.io.InputStreamContainer;
+import org.opensearch.repositories.s3.SocketAccess;
+import org.opensearch.repositories.s3.io.CheckedContainer;
 
 import java.io.IOException;
 import java.util.ArrayList;

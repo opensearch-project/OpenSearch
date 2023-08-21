@@ -12,12 +12,12 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.logging.Loggers;
-import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.common.util.MovingAverage;
 import org.opensearch.common.util.Streak;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.store.DirectoryFileTransferTracker;
 
@@ -26,6 +26,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -674,6 +675,60 @@ public class RemoteSegmentTransferTracker {
             out.writeDouble(uploadTimeMovingAverage);
             out.writeLong(bytesLag);
             out.writeOptionalWriteable(directoryFileTransferTrackerStats);
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) return true;
+            if (obj == null || getClass() != obj.getClass()) return false;
+            Stats other = (Stats) obj;
+
+            return this.shardId.toString().equals(other.shardId.toString())
+                && this.localRefreshClockTimeMs == other.localRefreshClockTimeMs
+                && this.remoteRefreshClockTimeMs == other.remoteRefreshClockTimeMs
+                && this.refreshTimeLagMs == other.refreshTimeLagMs
+                && this.localRefreshNumber == other.localRefreshNumber
+                && this.remoteRefreshNumber == other.remoteRefreshNumber
+                && this.uploadBytesStarted == other.uploadBytesStarted
+                && this.uploadBytesFailed == other.uploadBytesFailed
+                && this.uploadBytesSucceeded == other.uploadBytesSucceeded
+                && this.totalUploadsStarted == other.totalUploadsStarted
+                && this.totalUploadsFailed == other.totalUploadsFailed
+                && this.totalUploadsSucceeded == other.totalUploadsSucceeded
+                && this.rejectionCount == other.rejectionCount
+                && this.consecutiveFailuresCount == other.consecutiveFailuresCount
+                && this.lastSuccessfulRemoteRefreshBytes == other.lastSuccessfulRemoteRefreshBytes
+                && Double.compare(this.uploadBytesMovingAverage, other.uploadBytesMovingAverage) == 0
+                && Double.compare(this.uploadBytesPerSecMovingAverage, other.uploadBytesPerSecMovingAverage) == 0
+                && Double.compare(this.uploadTimeMovingAverage, other.uploadTimeMovingAverage) == 0
+                && this.bytesLag == other.bytesLag
+                && this.directoryFileTransferTrackerStats.equals(other.directoryFileTransferTrackerStats);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(
+                shardId,
+                localRefreshClockTimeMs,
+                remoteRefreshClockTimeMs,
+                refreshTimeLagMs,
+                localRefreshNumber,
+                remoteRefreshNumber,
+                uploadBytesStarted,
+                uploadBytesFailed,
+                uploadBytesSucceeded,
+                totalUploadsStarted,
+                totalUploadsFailed,
+                totalUploadsSucceeded,
+                rejectionCount,
+                consecutiveFailuresCount,
+                lastSuccessfulRemoteRefreshBytes,
+                uploadBytesMovingAverage,
+                uploadBytesPerSecMovingAverage,
+                uploadTimeMovingAverage,
+                bytesLag,
+                directoryFileTransferTrackerStats
+            );
         }
     }
 }

@@ -9,13 +9,13 @@
 package org.opensearch.plugin.correlation;
 
 import org.apache.lucene.search.join.ScoreMode;
-import org.junit.Assert;
 import org.opensearch.action.admin.cluster.node.info.NodeInfo;
 import org.opensearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.opensearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.opensearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.index.query.NestedQueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.plugin.correlation.rules.action.IndexCorrelationRuleAction;
@@ -26,9 +26,9 @@ import org.opensearch.plugin.correlation.rules.model.CorrelationRule;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.PluginInfo;
 import org.opensearch.rest.RestRequest;
-import org.opensearch.core.rest.RestStatus;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.junit.Assert;
 
 import java.util.Arrays;
 import java.util.Collection;

@@ -38,7 +38,6 @@ import org.opensearch.action.admin.indices.create.CreateIndexResponse;
 import org.opensearch.action.admin.indices.exists.indices.IndicesExistsResponse;
 import org.opensearch.action.admin.indices.readonly.AddIndexBlockRequestBuilder;
 import org.opensearch.action.admin.indices.settings.put.UpdateSettingsRequestBuilder;
-
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.support.ActiveShardCount;

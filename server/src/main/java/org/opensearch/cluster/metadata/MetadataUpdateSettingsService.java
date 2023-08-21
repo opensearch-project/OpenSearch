@@ -36,7 +36,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.Version;
-import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.admin.indices.settings.put.UpdateSettingsClusterStateUpdateRequest;
 import org.opensearch.action.admin.indices.upgrade.post.UpgradeSettingsClusterStateUpdateRequest;
 import org.opensearch.cluster.AckedClusterStateUpdateTask;
@@ -58,6 +57,7 @@ import org.opensearch.common.regex.Regex;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.indices.IndicesService;
@@ -125,6 +125,9 @@ public class MetadataUpdateSettingsService {
             .put(request.settings())
             .normalizePrefix(IndexMetadata.INDEX_SETTING_PREFIX)
             .build();
+
+        MetadataCreateIndexService.validateRefreshIntervalSettings(normalizedSettings, clusterService.getClusterSettings());
+
         Settings.Builder settingsForClosedIndices = Settings.builder();
         Settings.Builder settingsForOpenIndices = Settings.builder();
         final Set<String> skippedSettings = new HashSet<>();

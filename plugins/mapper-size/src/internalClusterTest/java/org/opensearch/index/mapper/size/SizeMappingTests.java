@@ -32,27 +32,26 @@
 
 package org.opensearch.index.mapper.size;
 
-import java.util.Collection;
-
-import org.opensearch.core.common.bytes.BytesReference;
+import org.apache.lucene.index.IndexableField;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.IndexService;
-import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.DocumentMapper;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.ParsedDocument;
 import org.opensearch.index.mapper.SourceToParse;
 import org.opensearch.plugin.mapper.MapperSizePlugin;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.test.InternalSettingsPlugin;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
+
+import java.util.Collection;
 
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
-
-import org.apache.lucene.index.IndexableField;
 
 public class SizeMappingTests extends OpenSearchSingleNodeTestCase {
     @Override

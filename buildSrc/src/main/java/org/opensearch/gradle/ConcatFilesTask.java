@@ -31,6 +31,14 @@
 
 package org.opensearch.gradle;
 
+import org.gradle.api.DefaultTask;
+import org.gradle.api.file.FileTree;
+import org.gradle.api.tasks.Input;
+import org.gradle.api.tasks.InputFiles;
+import org.gradle.api.tasks.Optional;
+import org.gradle.api.tasks.OutputFile;
+import org.gradle.api.tasks.TaskAction;
+
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -39,14 +47,6 @@ import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
-
-import org.gradle.api.DefaultTask;
-import org.gradle.api.file.FileTree;
-import org.gradle.api.tasks.Input;
-import org.gradle.api.tasks.InputFiles;
-import org.gradle.api.tasks.Optional;
-import org.gradle.api.tasks.OutputFile;
-import org.gradle.api.tasks.TaskAction;
 
 /**
  * Concatenates a list of files into one and removes duplicate lines.

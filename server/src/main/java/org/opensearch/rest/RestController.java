@@ -38,27 +38,27 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.OpenSearchException;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.Nullable;
-import org.opensearch.core.common.breaker.CircuitBreaker;
-import org.opensearch.core.common.bytes.BytesArray;
-import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.path.PathTrie;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.common.util.io.Streams;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.breaker.CircuitBreaker;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.util.FeatureFlags;
-import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.common.util.io.Streams;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.identity.IdentityService;
 import org.opensearch.identity.Subject;
 import org.opensearch.identity.tokens.AuthToken;
 import org.opensearch.identity.tokens.RestTokenExtractor;
-import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.usage.UsageService;
 
 import java.io.ByteArrayOutputStream;
@@ -77,12 +77,12 @@ import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 import static org.opensearch.cluster.metadata.IndexNameExpressionResolver.SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY;
-import static org.opensearch.rest.BytesRestResponse.TEXT_CONTENT_TYPE;
 import static org.opensearch.core.rest.RestStatus.BAD_REQUEST;
 import static org.opensearch.core.rest.RestStatus.INTERNAL_SERVER_ERROR;
 import static org.opensearch.core.rest.RestStatus.METHOD_NOT_ALLOWED;
 import static org.opensearch.core.rest.RestStatus.NOT_ACCEPTABLE;
 import static org.opensearch.core.rest.RestStatus.OK;
+import static org.opensearch.rest.BytesRestResponse.TEXT_CONTENT_TYPE;
 
 /**
  * OpenSearch REST controller

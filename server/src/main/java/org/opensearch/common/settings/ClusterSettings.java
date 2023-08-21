@@ -32,31 +32,9 @@
 package org.opensearch.common.settings;
 
 import org.apache.logging.log4j.LogManager;
-import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
-import org.opensearch.action.search.CreatePitController;
-import org.opensearch.cluster.routing.allocation.decider.NodeLoadAwareAllocationDecider;
-import org.opensearch.common.util.FeatureFlags;
-import org.opensearch.index.IndexModule;
-import org.opensearch.index.IndexSettings;
-import org.opensearch.index.IndexingPressure;
-import org.opensearch.index.remote.RemoteRefreshSegmentPressureSettings;
-import org.opensearch.index.SegmentReplicationPressureService;
-import org.opensearch.index.ShardIndexingPressureMemoryManager;
-import org.opensearch.index.ShardIndexingPressureSettings;
-import org.opensearch.index.ShardIndexingPressureStore;
-import org.opensearch.index.store.remote.filecache.FileCache;
-import org.opensearch.search.backpressure.settings.NodeDuressSettings;
-import org.opensearch.search.backpressure.settings.SearchBackpressureSettings;
-import org.opensearch.search.backpressure.settings.SearchShardTaskSettings;
-import org.opensearch.search.backpressure.settings.SearchTaskSettings;
-import org.opensearch.tasks.TaskCancellationMonitoringSettings;
-import org.opensearch.tasks.TaskManager;
-import org.opensearch.tasks.TaskResourceTrackingService;
-import org.opensearch.tasks.consumer.TopNSearchTasksLogger;
-import org.opensearch.telemetry.TelemetrySettings;
-import org.opensearch.watcher.ResourceWatcherService;
 import org.opensearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
 import org.opensearch.action.admin.indices.close.TransportCloseIndexAction;
+import org.opensearch.action.search.CreatePitController;
 import org.opensearch.action.search.TransportSearchAction;
 import org.opensearch.action.support.AutoCreateIndex;
 import org.opensearch.action.support.DestructiveOperations;
@@ -82,6 +60,7 @@ import org.opensearch.cluster.coordination.Reconfigurator;
 import org.opensearch.cluster.metadata.IndexGraveyard;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.routing.OperationRouting;
+import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
 import org.opensearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.opensearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
@@ -91,17 +70,19 @@ import org.opensearch.cluster.routing.allocation.decider.ConcurrentRecoveriesAll
 import org.opensearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.FilterAllocationDecider;
+import org.opensearch.cluster.routing.allocation.decider.NodeLoadAwareAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.opensearch.cluster.service.ClusterApplierService;
-import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterManagerService;
+import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Setting.Property;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.concurrent.ThreadContext;
@@ -116,6 +97,15 @@ import org.opensearch.gateway.DanglingIndicesState;
 import org.opensearch.gateway.GatewayService;
 import org.opensearch.gateway.PersistedClusterStateService;
 import org.opensearch.http.HttpTransportSettings;
+import org.opensearch.index.IndexModule;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.IndexingPressure;
+import org.opensearch.index.SegmentReplicationPressureService;
+import org.opensearch.index.ShardIndexingPressureMemoryManager;
+import org.opensearch.index.ShardIndexingPressureSettings;
+import org.opensearch.index.ShardIndexingPressureStore;
+import org.opensearch.index.remote.RemoteStorePressureSettings;
+import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.indices.IndexingMemoryController;
 import org.opensearch.indices.IndicesQueryCache;
 import org.opensearch.indices.IndicesRequestCache;
@@ -145,15 +135,25 @@ import org.opensearch.script.ScriptService;
 import org.opensearch.search.SearchModule;
 import org.opensearch.search.SearchService;
 import org.opensearch.search.aggregations.MultiBucketConsumerService;
+import org.opensearch.search.backpressure.settings.NodeDuressSettings;
+import org.opensearch.search.backpressure.settings.SearchBackpressureSettings;
+import org.opensearch.search.backpressure.settings.SearchShardTaskSettings;
+import org.opensearch.search.backpressure.settings.SearchTaskSettings;
 import org.opensearch.search.fetch.subphase.highlight.FastVectorHighlighter;
 import org.opensearch.snapshots.InternalSnapshotsInfoService;
 import org.opensearch.snapshots.SnapshotsService;
+import org.opensearch.tasks.TaskCancellationMonitoringSettings;
+import org.opensearch.tasks.TaskManager;
+import org.opensearch.tasks.TaskResourceTrackingService;
+import org.opensearch.tasks.consumer.TopNSearchTasksLogger;
+import org.opensearch.telemetry.TelemetrySettings;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.ProxyConnectionStrategy;
 import org.opensearch.transport.RemoteClusterService;
 import org.opensearch.transport.RemoteConnectionStrategy;
 import org.opensearch.transport.SniffConnectionStrategy;
 import org.opensearch.transport.TransportSettings;
+import org.opensearch.watcher.ResourceWatcherService;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -260,6 +260,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 IndicesQueryCache.INDICES_CACHE_QUERY_SIZE_SETTING,
                 IndicesQueryCache.INDICES_CACHE_QUERY_COUNT_SETTING,
                 IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING,
+                IndicesService.CLUSTER_DEFAULT_INDEX_REFRESH_INTERVAL_SETTING,
+                IndicesService.CLUSTER_MINIMUM_INDEX_REFRESH_INTERVAL_SETTING,
                 IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING,
                 IndicesService.WRITE_DANGLING_INDICES_INFO_SETTING,
                 IndicesService.CLUSTER_REPLICATION_TYPE_SETTING,
@@ -648,13 +650,13 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 FileCache.DATA_TO_FILE_CACHE_SIZE_RATIO_SETTING,
 
                 // Settings related to Remote Refresh Segment Pressure
-                RemoteRefreshSegmentPressureSettings.REMOTE_REFRESH_SEGMENT_PRESSURE_ENABLED,
-                RemoteRefreshSegmentPressureSettings.BYTES_LAG_VARIANCE_FACTOR,
-                RemoteRefreshSegmentPressureSettings.UPLOAD_TIME_LAG_VARIANCE_FACTOR,
-                RemoteRefreshSegmentPressureSettings.MIN_CONSECUTIVE_FAILURES_LIMIT,
-                RemoteRefreshSegmentPressureSettings.UPLOAD_BYTES_MOVING_AVERAGE_WINDOW_SIZE,
-                RemoteRefreshSegmentPressureSettings.UPLOAD_BYTES_PER_SEC_MOVING_AVERAGE_WINDOW_SIZE,
-                RemoteRefreshSegmentPressureSettings.UPLOAD_TIME_MOVING_AVERAGE_WINDOW_SIZE,
+                RemoteStorePressureSettings.REMOTE_REFRESH_SEGMENT_PRESSURE_ENABLED,
+                RemoteStorePressureSettings.BYTES_LAG_VARIANCE_FACTOR,
+                RemoteStorePressureSettings.UPLOAD_TIME_LAG_VARIANCE_FACTOR,
+                RemoteStorePressureSettings.MIN_CONSECUTIVE_FAILURES_LIMIT,
+                RemoteStorePressureSettings.UPLOAD_BYTES_MOVING_AVERAGE_WINDOW_SIZE,
+                RemoteStorePressureSettings.UPLOAD_BYTES_PER_SEC_MOVING_AVERAGE_WINDOW_SIZE,
+                RemoteStorePressureSettings.UPLOAD_TIME_MOVING_AVERAGE_WINDOW_SIZE,
 
                 // Related to monitoring of task cancellation
                 TaskCancellationMonitoringSettings.IS_ENABLED_SETTING,

@@ -8,8 +8,8 @@
 
 package org.opensearch.index.translog.transfer;
 
-import org.junit.After;
 import org.opensearch.test.OpenSearchTestCase;
+import org.junit.After;
 
 import java.io.IOException;
 import java.nio.file.Files;

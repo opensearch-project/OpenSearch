@@ -8,12 +8,12 @@
 
 package org.opensearch.remotestore;
 
-import org.junit.After;
-import org.junit.Before;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.SegmentReplicationPressureIT;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.junit.After;
+import org.junit.Before;
 
 import java.nio.file.Path;
 

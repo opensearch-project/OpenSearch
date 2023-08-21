@@ -36,8 +36,8 @@ import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.test.OpenSearchTestCase;
-
 import org.junit.Before;
+
 import org.mockito.InOrder;
 
 import static org.mockito.Mockito.inOrder;

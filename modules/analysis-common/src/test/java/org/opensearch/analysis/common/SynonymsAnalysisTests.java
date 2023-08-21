@@ -33,10 +33,10 @@
 package org.opensearch.analysis.common;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.tests.analysis.BaseTokenStreamTestCase;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.core.KeywordTokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+import org.apache.lucene.tests.analysis.BaseTokenStreamTestCase;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
@@ -46,8 +46,8 @@ import org.opensearch.index.analysis.IndexAnalyzers;
 import org.opensearch.index.analysis.PreConfiguredTokenFilter;
 import org.opensearch.index.analysis.TokenFilterFactory;
 import org.opensearch.index.analysis.TokenizerFactory;
-import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.IndexSettingsModule;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
 import org.hamcrest.MatcherAssert;
 

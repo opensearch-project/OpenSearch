@@ -32,15 +32,15 @@
 
 package org.opensearch.action.admin.indices.stats;
 
-import org.opensearch.common.action.ActionFuture;
 import org.opensearch.action.index.IndexResponse;
-import org.opensearch.core.action.support.DefaultShardOperationFailedException;
 import org.opensearch.action.support.WriteRequest.RefreshPolicy;
+import org.opensearch.common.action.ActionFuture;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.core.action.support.DefaultShardOperationFailedException;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.engine.CommitStats;
 import org.opensearch.index.engine.SegmentsStats;

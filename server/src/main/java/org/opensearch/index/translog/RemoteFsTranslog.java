@@ -10,13 +10,13 @@ package org.opensearch.index.translog;
 
 import org.apache.logging.log4j.Logger;
 import org.opensearch.common.SetOnce;
+import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.util.concurrent.ReleasableLock;
 import org.opensearch.common.util.io.IOUtils;
-import org.opensearch.core.util.FileSystemUtils;
-import org.opensearch.common.lease.Releasable;
-import org.opensearch.common.lease.Releasables;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.util.FileSystemUtils;
 import org.opensearch.index.translog.transfer.BlobStoreTransferService;
 import org.opensearch.index.translog.transfer.FileTransferTracker;
 import org.opensearch.index.translog.transfer.TransferSnapshot;

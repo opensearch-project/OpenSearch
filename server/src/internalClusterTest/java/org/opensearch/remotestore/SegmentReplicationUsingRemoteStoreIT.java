@@ -8,12 +8,12 @@
 
 package org.opensearch.remotestore;
 
-import org.junit.After;
-import org.junit.Before;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.indices.replication.SegmentReplicationIT;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.junit.After;
+import org.junit.Before;
 
 import java.nio.file.Path;
 
@@ -66,5 +66,11 @@ public class SegmentReplicationUsingRemoteStoreIT extends SegmentReplicationIT {
     @Override
     public void testPressureServiceStats() throws Exception {
         super.testPressureServiceStats();
+    }
+
+    @Override
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/8059")
+    public void testDropPrimaryDuringReplication() throws Exception {
+        super.testDropPrimaryDuringReplication();
     }
 }

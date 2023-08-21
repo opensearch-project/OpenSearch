@@ -37,6 +37,7 @@ import org.opensearch.plugins.Plugin;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
 import org.opensearch.search.aggregations.AggregationTestScriptsPlugin;
+import org.opensearch.search.aggregations.BucketOrder;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.bucket.filter.Filter;
 import org.opensearch.search.aggregations.bucket.global.Global;
@@ -44,7 +45,6 @@ import org.opensearch.search.aggregations.bucket.histogram.Histogram;
 import org.opensearch.search.aggregations.bucket.missing.Missing;
 import org.opensearch.search.aggregations.bucket.terms.Terms;
 import org.opensearch.search.aggregations.metrics.ExtendedStats.Bounds;
-import org.opensearch.search.aggregations.BucketOrder;
 
 import java.util.Collection;
 import java.util.Collections;

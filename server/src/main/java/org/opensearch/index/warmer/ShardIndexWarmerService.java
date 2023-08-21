@@ -35,9 +35,9 @@ package org.opensearch.index.warmer;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.common.metrics.MeanMetric;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.AbstractIndexShardComponent;
-import org.opensearch.core.index.shard.ShardId;
 
 import java.util.concurrent.TimeUnit;
 

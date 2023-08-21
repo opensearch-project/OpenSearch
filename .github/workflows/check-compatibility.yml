@@ -6,18 +6,21 @@ on:
 
 jobs:
   build:
+    if: github.repository == 'opensearch-project/OpenSearch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
 
       - name: Run compatibility task
-        run: ./gradlew checkCompatibility | tee $HOME/gradlew-check.out
+        run: ./gradlew checkCompatibility -i | tee $HOME/gradlew-check.out
 
       - name: Get results
         run: |
-          echo 'Compatibility status:' > ${{ github.workspace }}/results.txt && echo '```' >> ${{ github.workspace }}/results.txt
-          grep -e 'Compatible components' -e 'Incompatible components' -e 'Components skipped' -A 2 -B 3 $HOME/gradlew-check.out >> "${{ github.workspace }}/results.txt"
-          echo '```' >> ${{ github.workspace }}/results.txt
+          echo '## Compatibility status:' > "${{ github.workspace }}/results.txt"
+          echo "Checks if related components are compatible with change $(git rev-parse --short HEAD)" >> "${{ github.workspace }}/results.txt"
+          echo "### Incompatible components" >> "${{ github.workspace }}/results.txt" && grep -e 'Incompatible component' $HOME/gradlew-check.out | sed -e 's/Incompatible component: \[\(.*\)\]/- \1/' >> "${{ github.workspace }}/results.txt"
+          echo "### Skipped components"      >> "${{ github.workspace }}/results.txt" && grep -e 'Skipped component'      $HOME/gradlew-check.out | sed -e 's/Skipped component: \[\(.*\)\]/- \1/'      >> "${{ github.workspace }}/results.txt"
+          echo "### Compatible components"   >> "${{ github.workspace }}/results.txt" && grep -e 'Compatible component'   $HOME/gradlew-check.out | sed -e 's/Compatible component: \[\(.*\)\]/- \1/'   >> "${{ github.workspace }}/results.txt"
 
       - name: GitHub App token
         id: github_app_token

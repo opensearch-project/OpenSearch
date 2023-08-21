@@ -33,6 +33,7 @@
 package org.opensearch.common.ssl;
 
 import javax.net.ssl.X509ExtendedTrustManager;
+
 import java.nio.file.Path;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;

@@ -33,18 +33,18 @@ package org.opensearch.index.shard;
 
 import org.opensearch.cluster.routing.AllocationId;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.gateway.WriteStateException;
-import org.opensearch.core.index.Index;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.nio.file.Path;
 
+import static org.opensearch.env.Environment.PATH_SHARED_DATA_SETTING;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
-import static org.opensearch.env.Environment.PATH_SHARED_DATA_SETTING;
 
 public class ShardPathTests extends OpenSearchTestCase {
     public void testLoadShardPath() throws IOException {

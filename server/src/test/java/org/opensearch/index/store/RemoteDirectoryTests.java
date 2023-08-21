@@ -11,13 +11,13 @@ package org.opensearch.index.store;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
-import org.junit.Before;
-import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.support.PlainBlobMetadata;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.test.OpenSearchTestCase;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -33,11 +33,11 @@ import java.util.stream.Stream;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.when;
 
 public class RemoteDirectoryTests extends OpenSearchTestCase {
     private BlobContainer blobContainer;

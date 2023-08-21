@@ -38,7 +38,6 @@ import org.apache.lucene.search.SortedSetSelector;
 import org.apache.lucene.search.SortedSetSortField;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.util.Constants;
-
 import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.state.ClusterStateRequest;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;

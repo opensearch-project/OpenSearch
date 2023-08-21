@@ -42,6 +42,7 @@ import org.opensearch.script.MockScriptPlugin;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
 import org.opensearch.search.aggregations.AggregationExecutionException;
+import org.opensearch.search.aggregations.BucketOrder;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.bucket.filter.Filter;
 import org.opensearch.search.aggregations.bucket.histogram.DoubleBounds;
@@ -51,7 +52,6 @@ import org.opensearch.search.aggregations.metrics.Avg;
 import org.opensearch.search.aggregations.metrics.Max;
 import org.opensearch.search.aggregations.metrics.Stats;
 import org.opensearch.search.aggregations.metrics.Sum;
-import org.opensearch.search.aggregations.BucketOrder;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.hamcrest.Matchers;
 
