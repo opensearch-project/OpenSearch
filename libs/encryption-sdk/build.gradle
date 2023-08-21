@@ -16,14 +16,21 @@ forbiddenApisTest.ignoreFailures = true
 testingConventions.enabled = false
 
 dependencies {
+  // Common crypto classes
   api project(':libs:opensearch-common')
+
+  // Logger
+  implementation "org.slf4j:slf4j-api:${versions.slf4j}"
+  implementation 'commons-logging:commons-logging:1.2'
+
+  // Encryption
   implementation "com.amazonaws:aws-encryption-sdk-java:2.4.0"
   implementation "org.bouncycastle:bcprov-jdk15to18:${versions.bouncycastle}"
-  implementation 'org.apache.commons:commons-lang3:3.12.0'
+  implementation 'org.apache.commons:commons-lang3:3.13.0'
 
+  //Tests
   testImplementation "junit:junit:${versions.junit}"
   testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
-
   testImplementation(project(":test:framework")) {
     exclude group: 'org.opensearch', module: 'opensearch-encryption-sdk'
   }
