@@ -299,7 +299,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                                      () -> { 
                                              final IndexShardSnapshotStatus.Copy lastSnapshotStatus = snapshotStatus.asCopy();
                                              return lastSnapshotStatus;
-                                           }       
+                                           },      
                                      () -> snapshotStatus.generation()
                                     );
                                 notifySuccessfulSnapshotShard(snapshot, shardId, newGeneration);
