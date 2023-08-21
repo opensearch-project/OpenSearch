@@ -8,12 +8,6 @@
 
 package org.opensearch.action.search;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
 import org.opensearch.Version;
 import org.opensearch.action.FailedNodeException;
 import org.opensearch.cluster.ClusterName;
@@ -21,6 +15,13 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.TransportException;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -73,8 +74,13 @@ public class GetAllPitNodesResponseTests extends OpenSearchTestCase {
         List<GetAllPitNodeResponse> responses = new ArrayList<>();
         List<FailedNodeException> failures = new ArrayList<>();
         for (int i = 0; i < numNodes; i++) {
-            DiscoveryNode node =
-                new DiscoveryNode(randomAlphaOfLength(10), buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+            DiscoveryNode node = new DiscoveryNode(
+                randomAlphaOfLength(10),
+                buildNewFakeTransportAddress(),
+                emptyMap(),
+                emptySet(),
+                Version.CURRENT
+            );
             if (randomBoolean()) {
                 List<ListPitInfo> nodePitInfos = new ArrayList<>();
                 for (int j = 0; j < randomInt(numPits); j++) {
@@ -82,10 +88,9 @@ public class GetAllPitNodesResponseTests extends OpenSearchTestCase {
                 }
                 responses.add(new GetAllPitNodeResponse(node, nodePitInfos));
             } else {
-                failures.add(new FailedNodeException(node.getId(),
-                    randomAlphaOfLength(10),
-                    new TransportException(randomAlphaOfLength(10))
-                ));
+                failures.add(
+                    new FailedNodeException(node.getId(), randomAlphaOfLength(10), new TransportException(randomAlphaOfLength(10)))
+                );
             }
         }
         return new GetAllPitNodesResponse(new ClusterName("test"), responses, failures);
