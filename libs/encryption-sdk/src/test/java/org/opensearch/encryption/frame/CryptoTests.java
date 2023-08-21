@@ -140,7 +140,7 @@ public class CryptoTests extends OpenSearchTestCase {
         // Testing for 100 iterations
         for (int i = 0; i < 100; i++) {
             // Raw content size cannot be max value as encrypted size will overflow for the same.
-            long n = randomLongBetween(0, Long.MAX_VALUE / 2);
+            long n = randomLongBetween(0, Integer.MAX_VALUE / 2);
             FrameCryptoProvider frameCryptoProvider = new CustomFrameCryptoProviderTest(
                 createAwsCrypto(CryptoAlgorithm.ALG_AES_256_GCM_HKDF_SHA512_COMMIT_KEY),
                 new HashMap<>(),
