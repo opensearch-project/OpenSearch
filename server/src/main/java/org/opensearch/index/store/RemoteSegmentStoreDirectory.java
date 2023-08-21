@@ -28,7 +28,7 @@ import org.apache.lucene.util.Version;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.common.UUIDs;
-import org.opensearch.common.blobstore.VerifyingMultiStreamBlobContainer;
+import org.opensearch.common.blobstore.AsyncMultiStreamBlobContainer;
 import org.opensearch.common.blobstore.exception.CorruptFileException;
 import org.opensearch.common.blobstore.stream.write.WriteContext;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
@@ -432,7 +432,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
      * @param listener Listener to handle upload callback events
      */
     public void copyFrom(Directory from, String src, IOContext context, ActionListener<Void> listener) {
-        if (remoteDataDirectory.getBlobContainer() instanceof VerifyingMultiStreamBlobContainer) {
+        if (remoteDataDirectory.getBlobContainer() instanceof AsyncMultiStreamBlobContainer) {
             try {
                 String remoteFilename = getNewRemoteSegmentFilename(src);
                 uploadBlob(from, src, remoteFilename, context, listener);
@@ -457,6 +457,11 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         try (IndexInput indexInput = from.openInput(src, ioContext)) {
             contentLength = indexInput.length();
         }
+        boolean remoteIntegrityEnabled = false;
+        if (remoteDataDirectory.getBlobContainer() instanceof AsyncMultiStreamBlobContainer) {
+            remoteIntegrityEnabled = ((AsyncMultiStreamBlobContainer) remoteDataDirectory.getBlobContainer())
+                .remoteIntegrityCheckSupported();
+        }
         RemoteTransferContainer remoteTransferContainer = new RemoteTransferContainer(
             src,
             remoteFileName,
@@ -465,7 +470,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
             WritePriority.NORMAL,
             (size, position) -> new OffsetRangeIndexInputStream(from.openInput(src, ioContext), size, position),
             expectedChecksum,
-            remoteDataDirectory.getBlobContainer() instanceof VerifyingMultiStreamBlobContainer
+            remoteIntegrityEnabled
         );
         ActionListener<Void> completionListener = ActionListener.wrap(resp -> {
             try {
@@ -500,7 +505,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         });
 
         WriteContext writeContext = remoteTransferContainer.createWriteContext();
-        ((VerifyingMultiStreamBlobContainer) remoteDataDirectory.getBlobContainer()).asyncBlobUpload(writeContext, completionListener);
+        ((AsyncMultiStreamBlobContainer) remoteDataDirectory.getBlobContainer()).asyncBlobUpload(writeContext, completionListener);
     }
 
     /**

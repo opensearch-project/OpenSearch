@@ -42,6 +42,7 @@ import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
+import org.opensearch.crypto.CryptoManagerRegistry;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexingPressureService;
 import org.opensearch.index.recovery.RemoteStoreRestoreService;
@@ -55,6 +56,7 @@ import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.extensions.NoopExtensionsManager;
 import org.opensearch.monitor.fs.FsInfo;
 import org.opensearch.monitor.fs.FsProbe;
+import org.opensearch.plugins.CryptoKeyProviderPlugin;
 import org.opensearch.plugins.ExtensionAwarePlugin;
 import org.opensearch.plugins.SearchPipelinePlugin;
 import org.opensearch.telemetry.tracing.NoopTracerFactory;
@@ -913,6 +915,7 @@ public class Node implements Closeable {
                 xContentRegistry,
                 recoverySettings
             );
+            CryptoManagerRegistry.initRegistry(pluginsService.filterPlugins(CryptoKeyProviderPlugin.class), settings);
             RepositoriesService repositoryService = repositoriesModule.getRepositoryService();
             repositoriesServiceReference.set(repositoryService);
             SnapshotsService snapshotsService = new SnapshotsService(

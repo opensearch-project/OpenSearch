@@ -10,7 +10,7 @@ package org.opensearch.remotestore.multipart.mocks;
 
 import org.apache.lucene.index.CorruptIndexException;
 import org.opensearch.core.action.ActionListener;
-import org.opensearch.common.blobstore.VerifyingMultiStreamBlobContainer;
+import org.opensearch.common.blobstore.AsyncMultiStreamBlobContainer;
 import org.opensearch.common.io.InputStreamContainer;
 import org.opensearch.common.StreamContext;
 import org.opensearch.common.blobstore.BlobPath;
@@ -28,13 +28,13 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
-public class MockFsVerifyingBlobContainer extends FsBlobContainer implements VerifyingMultiStreamBlobContainer {
+public class MockFsAsyncBlobContainer extends FsBlobContainer implements AsyncMultiStreamBlobContainer {
 
     private static final int TRANSFER_TIMEOUT_MILLIS = 30000;
 
     private final boolean triggerDataIntegrityFailure;
 
-    public MockFsVerifyingBlobContainer(FsBlobStore blobStore, BlobPath blobPath, Path path, boolean triggerDataIntegrityFailure) {
+    public MockFsAsyncBlobContainer(FsBlobStore blobStore, BlobPath blobPath, Path path, boolean triggerDataIntegrityFailure) {
         super(blobStore, blobPath, path);
         this.triggerDataIntegrityFailure = triggerDataIntegrityFailure;
     }
@@ -112,6 +112,11 @@ public class MockFsVerifyingBlobContainer extends FsBlobContainer implements Ver
             completionListener.onFailure(e);
         }
 
+    }
+
+    @Override
+    public boolean remoteIntegrityCheckSupported() {
+        return true;
     }
 
     private boolean isSegmentFile(String filename) {

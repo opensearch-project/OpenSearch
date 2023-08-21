@@ -73,6 +73,7 @@ import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.blobstore.DeleteResult;
+import org.opensearch.common.blobstore.EncryptedBlobStore;
 import org.opensearch.common.blobstore.fs.FsBlobContainer;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesArray;
@@ -742,6 +743,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     }
                     try {
                         store = createBlobStore();
+                        if (metadata.cryptoMetadata() != null) {
+                            store = new EncryptedBlobStore(store, metadata.cryptoMetadata());
+                        }
                     } catch (RepositoryException e) {
                         throw e;
                     } catch (Exception e) {

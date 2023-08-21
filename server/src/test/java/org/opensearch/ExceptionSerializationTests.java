@@ -83,6 +83,7 @@ import org.opensearch.core.index.snapshots.IndexShardSnapshotFailedException;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentLocation;
+import org.opensearch.crypto.CryptoRegistryException;
 import org.opensearch.discovery.MasterNotDiscoveredException;
 import org.opensearch.env.ShardLockObtainFailedException;
 import org.opensearch.index.engine.RecoveryEngineException;
@@ -890,6 +891,7 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
         ids.put(168, PreferenceBasedSearchNotAllowedException.class);
         ids.put(169, NodeWeighedAwayException.class);
         ids.put(170, SearchPipelineProcessingException.class);
+        ids.put(171, CryptoRegistryException.class);
         ids.put(10001, IndexCreateBlockException.class);
 
         Map<Class<? extends OpenSearchException>, Integer> reverse = new HashMap<>();

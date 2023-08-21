@@ -38,6 +38,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.Version;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.ActionRunnable;
+import org.opensearch.action.admin.cluster.crypto.CryptoSettings;
 import org.opensearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
 import org.opensearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.opensearch.cluster.AckedClusterStateUpdateTask;
@@ -49,6 +50,7 @@ import org.opensearch.cluster.RestoreInProgress;
 import org.opensearch.cluster.SnapshotDeletionsInProgress;
 import org.opensearch.cluster.SnapshotsInProgress;
 import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
+import org.opensearch.cluster.metadata.CryptoMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.RepositoriesMetadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
@@ -162,9 +164,17 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     public void registerRepository(final PutRepositoryRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
         assert lifecycle.started() : "Trying to register new repository but service is in state [" + lifecycle.state() + "]";
 
-        final RepositoryMetadata newRepositoryMetadata = new RepositoryMetadata(request.name(), request.type(), request.settings());
+        final RepositoryMetadata newRepositoryMetadata = new RepositoryMetadata(
+            request.name(),
+            request.type(),
+            request.settings(),
+            CryptoMetadata.fromRequest(request.cryptoSettings())
+        );
         validate(request.name());
         validateRepositoryMetadataSettings(clusterService, request.name(), request.settings());
+        if (newRepositoryMetadata.cryptoMetadata() != null) {
+            validate(newRepositoryMetadata.cryptoMetadata().keyProviderName());
+        }
 
         final ActionListener<ClusterStateUpdateResponse> registrationListener;
         if (request.verify()) {
@@ -211,7 +221,14 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                     if (repositories == null) {
                         logger.info("put repository [{}]", request.name());
                         repositories = new RepositoriesMetadata(
-                            Collections.singletonList(new RepositoryMetadata(request.name(), request.type(), request.settings()))
+                            Collections.singletonList(
+                                new RepositoryMetadata(
+                                    request.name(),
+                                    request.type(),
+                                    request.settings(),
+                                    CryptoMetadata.fromRequest(request.cryptoSettings())
+                                )
+                            )
                         );
                     } else {
                         boolean found = false;
@@ -223,6 +240,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                                     // Previous version is the same as this one no update is needed.
                                     return currentState;
                                 }
+                                ensureCryptoSettingsAreSame(repositoryMetadata, request);
                                 found = true;
                                 repositoriesMetadata.add(newRepositoryMetadata);
                             } else {
@@ -231,7 +249,14 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                         }
                         if (!found) {
                             logger.info("put repository [{}]", request.name());
-                            repositoriesMetadata.add(new RepositoryMetadata(request.name(), request.type(), request.settings()));
+                            repositoriesMetadata.add(
+                                new RepositoryMetadata(
+                                    request.name(),
+                                    request.type(),
+                                    request.settings(),
+                                    CryptoMetadata.fromRequest(request.cryptoSettings())
+                                )
+                            );
                         } else {
                             logger.info("update repository [{}]", request.name());
                         }
@@ -598,15 +623,15 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         }
     }
 
-    private static void validate(final String repositoryName) {
-        if (Strings.hasLength(repositoryName) == false) {
-            throw new RepositoryException(repositoryName, "cannot be empty");
+    private static void validate(final String identifier) {
+        if (org.opensearch.core.common.Strings.hasLength(identifier) == false) {
+            throw new RepositoryException(identifier, "cannot be empty");
         }
-        if (repositoryName.contains("#")) {
-            throw new RepositoryException(repositoryName, "must not contain '#'");
+        if (identifier.contains("#")) {
+            throw new RepositoryException(identifier, "must not contain '#'");
         }
-        if (Strings.validFileName(repositoryName) == false) {
-            throw new RepositoryException(repositoryName, "must not contain the following characters " + Strings.INVALID_FILENAME_CHARS);
+        if (Strings.validFileName(identifier) == false) {
+            throw new RepositoryException(identifier, "must not contain the following characters " + Strings.INVALID_FILENAME_CHARS);
         }
     }
 
@@ -639,6 +664,23 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     private static void ensureRepositoryNotInUse(ClusterState clusterState, String repository) {
         if (isRepositoryInUse(clusterState, repository)) {
             throw new IllegalStateException("trying to modify or unregister repository that is currently used");
+        }
+    }
+
+    private static void ensureCryptoSettingsAreSame(RepositoryMetadata repositoryMetadata, PutRepositoryRequest request) {
+        if (repositoryMetadata.cryptoMetadata() == null && request.cryptoSettings() == null) {
+            return;
+        }
+        if (repositoryMetadata.cryptoMetadata() == null || request.cryptoSettings() == null) {
+            throw new IllegalArgumentException("Crypto settings changes found in the repository update request. This is not allowed");
+        }
+
+        CryptoMetadata cryptoMetadata = repositoryMetadata.cryptoMetadata();
+        CryptoSettings cryptoSettings = request.cryptoSettings();
+        if (!cryptoMetadata.keyProviderName().equals(cryptoSettings.getKeyProviderName())
+            || !cryptoMetadata.keyProviderType().equals(cryptoSettings.getKeyProviderType())
+            || !cryptoMetadata.settings().toString().equals(cryptoSettings.getSettings().toString())) {
+            throw new IllegalArgumentException("Changes in crypto settings found in the repository update request. This is not allowed");
         }
     }
 

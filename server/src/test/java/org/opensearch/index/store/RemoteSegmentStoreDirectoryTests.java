@@ -26,7 +26,7 @@ import org.mockito.Mockito;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.UUIDs;
-import org.opensearch.common.blobstore.VerifyingMultiStreamBlobContainer;
+import org.opensearch.common.blobstore.AsyncMultiStreamBlobContainer;
 import org.opensearch.common.blobstore.stream.write.WriteContext;
 import org.opensearch.common.io.VersionedCodecStreamWrapper;
 import org.opensearch.common.io.stream.BytesStreamOutput;
@@ -490,7 +490,7 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
 
         assertFalse(remoteSegmentStoreDirectory.getSegmentsUploadedToRemoteStore().containsKey(filename));
 
-        VerifyingMultiStreamBlobContainer blobContainer = mock(VerifyingMultiStreamBlobContainer.class);
+        AsyncMultiStreamBlobContainer blobContainer = mock(AsyncMultiStreamBlobContainer.class);
         when(remoteDataDirectory.getBlobContainer()).thenReturn(blobContainer);
         Mockito.doAnswer(invocation -> {
             ActionListener<Void> completionListener = invocation.getArgument(1);
@@ -528,7 +528,7 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
 
         assertFalse(remoteSegmentStoreDirectory.getSegmentsUploadedToRemoteStore().containsKey(filename));
 
-        VerifyingMultiStreamBlobContainer blobContainer = mock(VerifyingMultiStreamBlobContainer.class);
+        AsyncMultiStreamBlobContainer blobContainer = mock(AsyncMultiStreamBlobContainer.class);
         when(remoteDataDirectory.getBlobContainer()).thenReturn(blobContainer);
         Mockito.doAnswer(invocation -> {
             ActionListener<Void> completionListener = invocation.getArgument(1);

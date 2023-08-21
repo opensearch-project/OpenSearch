@@ -36,6 +36,7 @@ import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
 import org.opensearch.action.search.CreatePitController;
 import org.opensearch.cluster.routing.allocation.decider.NodeLoadAwareAllocationDecider;
 import org.opensearch.common.util.FeatureFlags;
+import org.opensearch.crypto.CryptoManagerRegistry;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.IndexingPressure;
@@ -658,7 +659,12 @@ public final class ClusterSettings extends AbstractScopedSettings {
 
                 // Related to monitoring of task cancellation
                 TaskCancellationMonitoringSettings.IS_ENABLED_SETTING,
-                TaskCancellationMonitoringSettings.DURATION_MILLIS_SETTING
+                TaskCancellationMonitoringSettings.DURATION_MILLIS_SETTING,
+
+                // Crypto settings
+                CryptoManagerRegistry.CRYPTO_KEY_REFRESH_INTERVAL,
+                CryptoManagerRegistry.CRYPTO_ALGORITHM,
+                CryptoManagerRegistry.CRYPTO_KEY_CACHE_SIZE
             )
         )
     );

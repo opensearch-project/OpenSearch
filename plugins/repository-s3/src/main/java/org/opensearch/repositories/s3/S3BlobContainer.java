@@ -45,7 +45,7 @@ import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStoreException;
 import org.opensearch.common.blobstore.DeleteResult;
-import org.opensearch.common.blobstore.VerifyingMultiStreamBlobContainer;
+import org.opensearch.common.blobstore.AsyncMultiStreamBlobContainer;
 import org.opensearch.common.blobstore.stream.write.WriteContext;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.blobstore.support.AbstractBlobContainer;
@@ -97,7 +97,7 @@ import static org.opensearch.repositories.s3.S3Repository.MAX_FILE_SIZE;
 import static org.opensearch.repositories.s3.S3Repository.MAX_FILE_SIZE_USING_MULTIPART;
 import static org.opensearch.repositories.s3.S3Repository.MIN_PART_SIZE_USING_MULTIPART;
 
-class S3BlobContainer extends AbstractBlobContainer implements VerifyingMultiStreamBlobContainer {
+class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamBlobContainer {
 
     private static final Logger logger = LogManager.getLogger(S3BlobContainer.class);
 
@@ -208,6 +208,11 @@ class S3BlobContainer extends AbstractBlobContainer implements VerifyingMultiStr
             logger.info("exception error from blob container for file {}", writeContext.getFileName());
             throw new IOException(e);
         }
+    }
+
+    @Override
+    public boolean remoteIntegrityCheckSupported() {
+        return true;
     }
 
     // package private for testing

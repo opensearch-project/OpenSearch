@@ -8,6 +8,8 @@
 
 package org.opensearch.index.store;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
@@ -44,6 +46,7 @@ import java.util.stream.Collectors;
 public class RemoteDirectory extends Directory {
 
     protected final BlobContainer blobContainer;
+    private static final Logger logger = LogManager.getLogger(RemoteDirectory.class);
 
     public BlobContainer getBlobContainer() {
         return blobContainer;
@@ -152,7 +155,14 @@ public class RemoteDirectory extends Directory {
             return new RemoteIndexInput(name, inputStream, fileLength(name));
         } catch (Exception e) {
             // Incase the RemoteIndexInput creation fails, close the input stream to avoid file handler leak.
-            if (inputStream != null) inputStream.close();
+            if (inputStream != null) {
+                try {
+                    inputStream.close();
+                } catch (Exception closeEx) {
+                    e.addSuppressed(closeEx);
+                }
+            }
+            logger.error("Exception while reading blob for file: " + name + " for path " + blobContainer.path());
             throw e;
         }
     }

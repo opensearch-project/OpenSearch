@@ -14,12 +14,12 @@ import org.opensearch.common.blobstore.stream.write.WriteContext;
 import java.io.IOException;
 
 /**
- * An extension of {@link BlobContainer} that adds {@link VerifyingMultiStreamBlobContainer#asyncBlobUpload} to allow
+ * An extension of {@link BlobContainer} that adds {@link AsyncMultiStreamBlobContainer#asyncBlobUpload} to allow
  * multipart uploads and performs integrity checks on transferred files
  *
  * @opensearch.internal
  */
-public interface VerifyingMultiStreamBlobContainer extends BlobContainer {
+public interface AsyncMultiStreamBlobContainer extends BlobContainer {
 
     /**
      * Reads blob content from multiple streams, each from a specific part of the file, which is provided by the
@@ -31,4 +31,11 @@ public interface VerifyingMultiStreamBlobContainer extends BlobContainer {
      * @throws IOException if any of the input streams could not be read, or the target blob could not be written to
      */
     void asyncBlobUpload(WriteContext writeContext, ActionListener<Void> completionListener) throws IOException;
+
+    /**
+     * @return whether underlying blobContainer can verify integrity of data after transfer. If true and if expected
+     * checksum is provided in WriteContext, then the checksum of transferred data is compared with expected checksum
+     * by underlying blobContainer. In this case, caller doesn't need to ensure integrity of data.
+     */
+    boolean remoteIntegrityCheckSupported();
 }
