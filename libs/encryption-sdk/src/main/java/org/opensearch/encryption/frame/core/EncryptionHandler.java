@@ -55,6 +55,7 @@ import java.util.Map;
  * <p>This class creates the ciphertext headers and delegates the encryption of the plaintext to the
  * {@link FrameEncryptionHandler}.
  */
+@SuppressWarnings({ "rawtypes", "unchecked" })
 public class EncryptionHandler implements MessageCryptoHandler {
 
     private final Map<String, String> encryptionContext_;
