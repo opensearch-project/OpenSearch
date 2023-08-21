@@ -139,19 +139,9 @@ public class FrameCryptoProvider implements CryptoProvider {
     ) {
         EncryptionMetadata encryptionMetadata = parseEncryptionMetadata(cryptoContextObj);
 
-        boolean includeHeader = streamIdx == 0;
-        boolean includeFooter = streamIdx == (totalStreams - 1);
         int frameStartNumber = (int) (stream.getOffset() / getFrameSize()) + 1;
 
-        return awsCrypto.createEncryptingStream(
-            stream,
-            streamIdx,
-            totalStreams,
-            frameStartNumber,
-            includeHeader,
-            includeFooter,
-            encryptionMetadata
-        );
+        return awsCrypto.createEncryptingStream(stream, streamIdx, totalStreams, frameStartNumber, encryptionMetadata);
     }
 
     private EncryptionMetadata parseEncryptionMetadata(Object cryptoContextObj) {

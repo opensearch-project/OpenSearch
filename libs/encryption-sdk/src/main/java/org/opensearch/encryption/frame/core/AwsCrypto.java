@@ -5,6 +5,7 @@
  * this file be licensed under the Apache-2.0 license or a
  * compatible open source license.
  */
+
 package org.opensearch.encryption.frame.core;
 
 import com.amazonaws.encryptionsdk.CommitmentPolicy;
@@ -53,13 +54,11 @@ public class AwsCrypto {
         int streamIdx,
         int totalStreams,
         int frameNumber,
-        boolean includeHeader,
-        boolean includeFooter,
         EncryptionMetadata encryptionMetadata
     ) {
 
-        boolean isLastStream = streamIdx == totalStreams - 1 && includeFooter;
-        boolean firstOperation = streamIdx == 0 && includeHeader;
+        boolean isLastStream = streamIdx == totalStreams - 1;
+        boolean firstOperation = streamIdx == 0;
         if (stream.getContentLength() % encryptionMetadata.getFrameSize() != 0 && !isLastStream) {
             throw new AwsCryptoException(
                 "Length of each inputStream should be exactly divisible by frame size except "
@@ -138,7 +137,7 @@ public class AwsCrypto {
         final long size,
         final ParsedCiphertext parsedCiphertext,
         final int frameStartNum,
-        boolean lastPart
+        boolean isLastPart
     ) {
 
         final MessageCryptoHandler cryptoHandler = DecryptionHandler.create(
@@ -149,7 +148,7 @@ public class AwsCrypto {
             1,
             frameStartNum
         );
-        CryptoInputStream<?> cryptoInputStream = new CryptoInputStream<>(inputStream, cryptoHandler, lastPart);
+        CryptoInputStream<?> cryptoInputStream = new CryptoInputStream<>(inputStream, cryptoHandler, isLastPart);
         cryptoInputStream.setMaxInputLength(size);
         return cryptoInputStream;
     }
