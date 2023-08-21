@@ -124,6 +124,11 @@ public class RemoteSegmentTransferTracker {
     private volatile long totalUploadsSucceeded;
 
     /**
+     * Cumulative sum of time taken in remote refresh (in milliseconds)
+     */
+    private volatile long totalUploadTimeInMs;
+
+    /**
      * Cumulative sum of rejection counts for this shard.
      */
     private final AtomicLong rejectionCount = new AtomicLong();
@@ -509,6 +514,7 @@ public class RemoteSegmentTransferTracker {
     }
 
     public void addUploadTimeMs(long timeMs) {
+        totalUploadTimeInMs += timeMs;
         synchronized (uploadTimeMsMutex) {
             this.uploadTimeMsMovingAverageReference.get().record(timeMs);
         }
@@ -523,6 +529,10 @@ public class RemoteSegmentTransferTracker {
         synchronized (uploadTimeMsMutex) {
             this.uploadTimeMsMovingAverageReference.set(this.uploadTimeMsMovingAverageReference.get().copyWithSize(updatedSize));
         }
+    }
+
+    public long getTotalUploadTimeInMs() {
+        return totalUploadTimeInMs;
     }
 
     public DirectoryFileTransferTracker getDirectoryFileTransferTracker() {
@@ -550,6 +560,7 @@ public class RemoteSegmentTransferTracker {
             uploadBytesPerSecMovingAverageReference.get().getAverage(),
             uploadTimeMsMovingAverageReference.get().getAverage(),
             getBytesLag(),
+            totalUploadTimeInMs,
             directoryFileTransferTracker.stats()
         );
     }
@@ -578,6 +589,7 @@ public class RemoteSegmentTransferTracker {
         public final long lastSuccessfulRemoteRefreshBytes;
         public final double uploadBytesMovingAverage;
         public final double uploadBytesPerSecMovingAverage;
+        public final long totalUploadTimeInMs;
         public final double uploadTimeMovingAverage;
         public final long bytesLag;
         public final DirectoryFileTransferTracker.Stats directoryFileTransferTrackerStats;
@@ -602,6 +614,7 @@ public class RemoteSegmentTransferTracker {
             double uploadBytesPerSecMovingAverage,
             double uploadTimeMovingAverage,
             long bytesLag,
+            long totalUploadTimeInMs,
             DirectoryFileTransferTracker.Stats directoryFileTransferTrackerStats
         ) {
             this.shardId = shardId;
@@ -623,6 +636,7 @@ public class RemoteSegmentTransferTracker {
             this.uploadBytesPerSecMovingAverage = uploadBytesPerSecMovingAverage;
             this.uploadTimeMovingAverage = uploadTimeMovingAverage;
             this.bytesLag = bytesLag;
+            this.totalUploadTimeInMs = totalUploadTimeInMs;
             this.directoryFileTransferTrackerStats = directoryFileTransferTrackerStats;
         }
 
@@ -647,6 +661,7 @@ public class RemoteSegmentTransferTracker {
                 this.uploadBytesPerSecMovingAverage = in.readDouble();
                 this.uploadTimeMovingAverage = in.readDouble();
                 this.bytesLag = in.readLong();
+                this.totalUploadTimeInMs = in.readLong();
                 this.directoryFileTransferTrackerStats = in.readOptionalWriteable(DirectoryFileTransferTracker.Stats::new);
             } catch (IOException e) {
                 throw e;
@@ -674,6 +689,7 @@ public class RemoteSegmentTransferTracker {
             out.writeDouble(uploadBytesPerSecMovingAverage);
             out.writeDouble(uploadTimeMovingAverage);
             out.writeLong(bytesLag);
+            out.writeLong(totalUploadTimeInMs);
             out.writeOptionalWriteable(directoryFileTransferTrackerStats);
         }
 
@@ -702,6 +718,7 @@ public class RemoteSegmentTransferTracker {
                 && Double.compare(this.uploadBytesPerSecMovingAverage, other.uploadBytesPerSecMovingAverage) == 0
                 && Double.compare(this.uploadTimeMovingAverage, other.uploadTimeMovingAverage) == 0
                 && this.bytesLag == other.bytesLag
+                && this.totalUploadTimeInMs == other.totalUploadTimeInMs
                 && this.directoryFileTransferTrackerStats.equals(other.directoryFileTransferTrackerStats);
         }
 
@@ -727,6 +744,7 @@ public class RemoteSegmentTransferTracker {
                 uploadBytesPerSecMovingAverage,
                 uploadTimeMovingAverage,
                 bytesLag,
+                totalUploadTimeInMs,
                 directoryFileTransferTrackerStats
             );
         }

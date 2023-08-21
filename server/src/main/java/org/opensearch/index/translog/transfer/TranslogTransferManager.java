@@ -158,7 +158,7 @@ public class TranslogTransferManager {
     }
 
     public boolean downloadTranslog(String primaryTerm, String generation, Path location) throws IOException {
-        logger.info(
+        logger.debug(
             "Downloading translog files with: Primary Term = {}, Generation = {}, Location = {}",
             primaryTerm,
             generation,
@@ -303,7 +303,7 @@ public class TranslogTransferManager {
      * @param minPrimaryTermToKeep all primary terms below this primary term are deleted.
      */
     public void deletePrimaryTermsAsync(long minPrimaryTermToKeep) {
-        logger.info("Deleting primary terms from remote store lesser than {}", minPrimaryTermToKeep);
+        logger.debug("Deleting primary terms from remote store lesser than {}", minPrimaryTermToKeep);
         transferService.listFoldersAsync(ThreadPool.Names.REMOTE_PURGE, remoteDataTransferPath, new ActionListener<>() {
             @Override
             public void onResponse(Set<String> folders) {
@@ -341,7 +341,7 @@ public class TranslogTransferManager {
             new ActionListener<>() {
                 @Override
                 public void onResponse(Void unused) {
-                    logger.info("Deleted primary term {}", primaryTerm);
+                    logger.debug("Deleted primary term {}", primaryTerm);
                 }
 
                 @Override
