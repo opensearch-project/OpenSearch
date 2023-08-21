@@ -56,12 +56,12 @@ import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.extensions.NoopExtensionsManager;
 import org.opensearch.monitor.fs.FsInfo;
 import org.opensearch.monitor.fs.FsProbe;
+import org.opensearch.plugins.CryptoKeyProviderPlugin;
 import org.opensearch.plugins.ExtensionAwarePlugin;
 import org.opensearch.plugins.SearchPipelinePlugin;
 import org.opensearch.telemetry.tracing.NoopTracerFactory;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.telemetry.tracing.TracerFactory;
-import org.opensearch.plugins.CryptoPlugin;
 import org.opensearch.search.backpressure.SearchBackpressureService;
 import org.opensearch.search.backpressure.settings.SearchBackpressureSettings;
 import org.opensearch.search.pipeline.SearchPipelineService;
@@ -915,7 +915,7 @@ public class Node implements Closeable {
                 xContentRegistry,
                 recoverySettings
             );
-            CryptoManagerRegistry.initRegistry(pluginsService.filterPlugins(CryptoPlugin.class));
+            CryptoManagerRegistry.initRegistry(pluginsService.filterPlugins(CryptoKeyProviderPlugin.class), settings);
             RepositoriesService repositoryService = repositoriesModule.getRepositoryService();
             repositoriesServiceReference.set(repositoryService);
             SnapshotsService snapshotsService = new SnapshotsService(

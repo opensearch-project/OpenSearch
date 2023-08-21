@@ -9,7 +9,7 @@
 package org.opensearch.common.blobstore;
 
 import org.opensearch.cluster.metadata.CryptoMetadata;
-import org.opensearch.crypto.CryptoManager;
+import org.opensearch.encryption.CryptoManager;
 import org.opensearch.crypto.CryptoManagerRegistry;
 import org.opensearch.crypto.CryptoRegistryException;
 
@@ -36,7 +36,9 @@ public class EncryptedBlobStore implements BlobStore {
      * @throws CryptoRegistryException If the CryptoManager is not found during encrypted BlobStore creation.
      */
     public EncryptedBlobStore(BlobStore blobStore, CryptoMetadata cryptoMetadata) {
-        this.cryptoManager = CryptoManagerRegistry.fetchCryptoManager(cryptoMetadata);
+        CryptoManagerRegistry cryptoManagerRegistry = CryptoManagerRegistry.getInstance();
+        assert cryptoManagerRegistry != null : "CryptoManagerRegistry is not initialized";
+        this.cryptoManager = cryptoManagerRegistry.fetchCryptoManager(cryptoMetadata);
         if (cryptoManager == null) {
             throw new CryptoRegistryException(
                 cryptoMetadata.keyProviderName(),

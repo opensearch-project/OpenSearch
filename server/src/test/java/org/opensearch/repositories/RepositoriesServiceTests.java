@@ -64,7 +64,7 @@ import org.opensearch.common.io.InputStreamContainer;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
-import org.opensearch.crypto.CryptoManager;
+import org.opensearch.encryption.CryptoManager;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
@@ -86,7 +86,6 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -154,36 +153,6 @@ public class RepositoriesServiceTests extends OpenSearchTestCase {
 
         repositoriesService.start();
         return repositoriesService;
-    }
-
-    static class CryptoCreator implements CryptoManager.Factory {
-        private final Map<String, CryptoManager> cryptoManagers = new HashMap<>();
-        private final String type;
-
-        public CryptoCreator(String type) {
-            this.type = type;
-        }
-
-        @Override
-        public CryptoManager create(Settings cryptoSettings, String keyProviderName) {
-            if (cryptoManagers.containsKey(keyProviderName)) {
-                cryptoManagers.get(keyProviderName).incRef();
-                return cryptoManagers.get(keyProviderName);
-            }
-
-            CryptoManager cryptoManager;
-            switch (type) {
-                case TestCryptoManagerTypeA.TYPE:
-                    cryptoManager = new TestCryptoManagerTypeA(cryptoSettings, keyProviderName);
-                    cryptoManagers.put(keyProviderName, cryptoManager);
-                    return cryptoManager;
-                case TestCryptoManagerTypeB.TYPE:
-                    cryptoManager = new TestCryptoManagerTypeB(cryptoSettings, keyProviderName);
-                    cryptoManagers.put(keyProviderName, cryptoManager);
-                    return cryptoManager;
-            }
-            return null;
-        }
     }
 
     public void testRegisterInternalRepository() {

@@ -13,12 +13,19 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.cluster.metadata.CryptoMetadata;
 import org.opensearch.common.SetOnce;
-import org.opensearch.plugins.CryptoPlugin;
+import org.opensearch.common.crypto.MasterKeyProvider;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.plugins.CryptoKeyProviderPlugin;
+import org.opensearch.encryption.CryptoManagerFactory;
+import org.opensearch.encryption.CryptoManager;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 
 /**
  * During node bootstrap, installed key provider extensions responsible for generating data keys are loaded.
@@ -28,27 +35,88 @@ import java.util.Objects;
 public class CryptoManagerRegistry {
     private static final Logger logger = LogManager.getLogger(CryptoManagerRegistry.class);
     // Package private for tests
-    static SetOnce<Map<String, CryptoManager.Factory>> registry = new SetOnce<>();
-    private static final Map<String, CryptoManager> registeredCryptoManagers = new HashMap<>();
+    SetOnce<Map<String, CryptoKeyProviderPlugin>> registry = new SetOnce<>();
+
+    // Package private for tests
+    SetOnce<CryptoManagerFactory> cryptoManagerFactory = new SetOnce<CryptoManagerFactory>();
+    private final Map<CryptoMetadata, CryptoManager> registeredCryptoManagers = new HashMap<>();
+
+    private static volatile CryptoManagerRegistry instance;
+    private static final Object lock = new Object();
+
+    /**
+     * The crypto algorithm to be used by {@link CryptoManager} to encrypt data.
+     */
+    public static final Setting<String> CRYPTO_ALGORITHM = new Setting<>(
+        "crypto.algorithm",
+        "ALG_AES_256_GCM_HKDF_SHA512_COMMIT_KEY",
+        Function.identity(),
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Refresh interval for the rotation of crypto key used in encrypting data.
+     */
+    public static final Setting<TimeValue> CRYPTO_KEY_REFRESH_INTERVAL = Setting.timeSetting(
+        "crypto.key.refresh_interval",
+        TimeValue.timeValueDays(2),
+        TimeValue.timeValueHours(1),
+        TimeValue.timeValueDays(10),
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Size of cache used for encryption keys.
+     */
+    public static final Setting<Integer> CRYPTO_KEY_CACHE_SIZE = Setting.intSetting(
+        "crypto.key.cache_size",
+        500,
+        100,
+        Setting.Property.NodeScope
+    );
 
     /**
      * Initializes the registry with crypto factories for the installed crypto key providers.
      *
-     * @param cryptoPlugins The list of installed crypto plugins containing key providers.
+     * @param cryptoPlugins The list of installed crypto key provider plugins.
+     * @param settings Crypto settings.
      */
-    public static void initRegistry(List<CryptoPlugin> cryptoPlugins) {
+    protected CryptoManagerRegistry(List<CryptoKeyProviderPlugin> cryptoPlugins, Settings settings) {
+        cryptoManagerFactory.set(
+            new CryptoManagerFactory(
+                CRYPTO_ALGORITHM.get(settings),
+                CRYPTO_KEY_REFRESH_INTERVAL.get(settings),
+                CRYPTO_KEY_CACHE_SIZE.get(settings)
+            )
+        );
         registry.set(loadCryptoFactories(cryptoPlugins));
     }
 
-    private static Map<String, CryptoManager.Factory> loadCryptoFactories(List<CryptoPlugin> cryptoPlugins) {
-        Map<String, CryptoManager.Factory> cryptoFactories = new HashMap<>();
-        for (CryptoPlugin cryptoPlugin : cryptoPlugins) {
-            for (String keyProviderType : cryptoPlugin.getKeyProviderTypes()) {
-                if (cryptoFactories.containsKey(keyProviderType)) {
-                    throw new IllegalArgumentException("Crypto plugin key provider type [" + keyProviderType + "] is already registered");
+    public static CryptoManagerRegistry getInstance() {
+        return instance;
+    }
+
+    public static CryptoManagerRegistry initRegistry(List<CryptoKeyProviderPlugin> cryptoPlugins, Settings settings) {
+        CryptoManagerRegistry curInstance = instance;
+        if (curInstance == null) {
+            synchronized (lock) {
+                curInstance = instance;
+                if (curInstance == null) {
+                    instance = curInstance = new CryptoManagerRegistry(cryptoPlugins, settings);
                 }
-                cryptoFactories.put(keyProviderType, cryptoPlugin.createClientFactory(keyProviderType));
             }
+        }
+        return curInstance;
+    }
+
+    // For tests
+    protected Map<String, CryptoKeyProviderPlugin> loadCryptoFactories(List<CryptoKeyProviderPlugin> cryptoPlugins) {
+        Map<String, CryptoKeyProviderPlugin> cryptoFactories = new HashMap<>();
+        for (CryptoKeyProviderPlugin cryptoPlugin : cryptoPlugins) {
+            if (cryptoFactories.containsKey(cryptoPlugin.type())) {
+                throw new IllegalArgumentException("Crypto plugin key provider type [" + cryptoPlugin.type() + "] is already registered");
+            }
+            cryptoFactories.put(cryptoPlugin.type(), cryptoPlugin);
         }
 
         return cryptoFactories;
@@ -62,7 +130,7 @@ public class CryptoManagerRegistry {
      *         instances in a {@link org.opensearch.common.blobstore.EncryptedBlobStore}.
      * @throws IllegalStateException If the crypto registry is not yet loaded.
      */
-    public static CryptoManager.Factory getCryptoManagerFactory(String keyProviderType) {
+    public CryptoKeyProviderPlugin getCryptoKeyProviderPlugin(String keyProviderType) {
         if (registry.get() == null) {
             throw new IllegalStateException("Crypto registry is not yet loaded");
         }
@@ -77,50 +145,48 @@ public class CryptoManagerRegistry {
      * @return The crypto manager for performing encrypt/decrypt operations.
      * @throws CryptoRegistryException If the key provider is not installed or there is an error during crypto manager creation.
      */
-    public static CryptoManager fetchCryptoManager(CryptoMetadata cryptoMetadata) {
-        String cryptoKey = cryptoManagerKey(cryptoMetadata.keyProviderName(), cryptoMetadata.keyProviderType());
-        CryptoManager cryptoManager = registeredCryptoManagers.get(cryptoKey);
+    public CryptoManager fetchCryptoManager(CryptoMetadata cryptoMetadata) {
+        CryptoManager cryptoManager = registeredCryptoManagers.get(cryptoMetadata);
         if (cryptoManager == null) {
             synchronized (registeredCryptoManagers) {
-                cryptoManager = registeredCryptoManagers.get(cryptoKey);
+                cryptoManager = registeredCryptoManagers.get(cryptoMetadata);
                 if (cryptoManager == null) {
-                    cryptoManager = createCryptoManager(cryptoMetadata);
-                    registeredCryptoManagers.put(cryptoKey, cryptoManager);
+                    Runnable onClose = () -> {
+                        synchronized (registeredCryptoManagers) {
+                            registeredCryptoManagers.remove(cryptoMetadata);
+                        }
+                    };
+                    cryptoManager = createCryptoManager(cryptoMetadata, onClose);
+                    registeredCryptoManagers.put(cryptoMetadata, cryptoManager);
                 }
             }
         }
         return cryptoManager;
     }
 
-    private static CryptoManager createCryptoManager(CryptoMetadata cryptoMetadata) {
+    private CryptoManager createCryptoManager(CryptoMetadata cryptoMetadata, Runnable onClose) {
         logger.debug("creating crypto client [{}][{}]", cryptoMetadata.keyProviderType(), cryptoMetadata.keyProviderName());
-        CryptoManager.Factory factory = getCryptoManagerFactory(cryptoMetadata.keyProviderType());
-        if (factory == null) {
-            throw new CryptoRegistryException(
-                cryptoMetadata.keyProviderName(),
-                "Crypto manager of type [" + cryptoMetadata.keyProviderType() + " is not installed ]"
-            );
+        CryptoKeyProviderPlugin keyProviderPlugin = getCryptoKeyProviderPlugin(cryptoMetadata.keyProviderType());
+        if (keyProviderPlugin == null) {
+            throw new CryptoRegistryException(cryptoMetadata.keyProviderName(), cryptoMetadata.keyProviderType());
         }
 
-        CryptoManager cryptoManager;
         try {
-            cryptoManager = factory.create(cryptoMetadata.settings(), cryptoMetadata.keyProviderName());
-            return cryptoManager;
+            MasterKeyProvider masterKeyProvider = keyProviderPlugin.createKeyProvider(cryptoMetadata);
+            return Objects.requireNonNull(cryptoManagerFactory.get())
+                .getOrCreateCryptoManager(masterKeyProvider, cryptoMetadata.keyProviderName(), cryptoMetadata.keyProviderType(), onClose);
+
         } catch (Exception e) {
             logger.warn(
                 new ParameterizedMessage(
-                    "failed to create crypto manager [{}][{}]",
-                    cryptoMetadata.keyProviderType(),
-                    cryptoMetadata.keyProviderName()
+                    "failed to create crypto manager of name [{}] and type [{}]",
+                    cryptoMetadata.keyProviderName(),
+                    cryptoMetadata.keyProviderType()
                 ),
                 e
             );
             throw new CryptoRegistryException(cryptoMetadata.keyProviderName(), cryptoMetadata.keyProviderType(), e);
         }
-    }
-
-    private static String cryptoManagerKey(String keyProviderName, String keyProviderType) {
-        return keyProviderName + "#" + keyProviderType;
     }
 
 }

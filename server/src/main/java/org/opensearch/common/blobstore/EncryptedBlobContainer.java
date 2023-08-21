@@ -8,6 +8,7 @@
 
 package org.opensearch.common.blobstore;
 
+import org.opensearch.common.CheckedBiConsumer;
 import org.opensearch.common.crypto.CryptoProvider;
 import org.opensearch.common.crypto.DecryptedRangedStreamProvider;
 import org.opensearch.common.crypto.EncryptedHeaderContentSupplier;
@@ -18,7 +19,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
-import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 /**
@@ -81,7 +81,8 @@ public class EncryptedBlobContainer implements BlobContainer {
         return blobContainer.readBlobPreferredLength();
     }
 
-    private void executeWrite(InputStream inputStream, long blobSize, BiConsumer<InputStream, Long> writeConsumer) {
+    private void executeWrite(InputStream inputStream, long blobSize, CheckedBiConsumer<InputStream, Long, IOException> writeConsumer)
+        throws IOException {
         Object cryptoContext = cryptoProvider.initEncryptionMetadata();
         InputStreamContainer streamContainer = new InputStreamContainer(inputStream, blobSize, 0);
         InputStreamContainer encryptedStream = cryptoProvider.createEncryptingStream(cryptoContext, streamContainer);
@@ -91,32 +92,25 @@ public class EncryptedBlobContainer implements BlobContainer {
 
     @Override
     public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
-        IOException[] ioException = new IOException[1];
-        executeWrite(inputStream, blobSize, (encryptedStream, encryptedLength) -> {
-            try {
-                blobContainer.writeBlob(blobName, encryptedStream, encryptedLength, failIfAlreadyExists);
-            } catch (IOException ex) {
-                ioException[0] = ex;
-            }
-        });
-        if (ioException[0] != null) {
-            throw ioException[0];
-        }
+        executeWrite(
+            inputStream,
+            blobSize,
+            (encryptedStream, encryptedLength) -> blobContainer.writeBlob(blobName, encryptedStream, encryptedLength, failIfAlreadyExists)
+        );
     }
 
     @Override
     public void writeBlobAtomic(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
-        IOException[] ioException = new IOException[1];
-        executeWrite(inputStream, blobSize, (encryptedStream, encryptedLength) -> {
-            try {
-                blobContainer.writeBlobAtomic(blobName, encryptedStream, encryptedLength, failIfAlreadyExists);
-            } catch (IOException ex) {
-                ioException[0] = ex;
-            }
-        });
-        if (ioException[0] != null) {
-            throw ioException[0];
-        }
+        executeWrite(
+            inputStream,
+            blobSize,
+            (encryptedStream, encryptedLength) -> blobContainer.writeBlobAtomic(
+                blobName,
+                encryptedStream,
+                encryptedLength,
+                failIfAlreadyExists
+            )
+        );
     }
 
     @Override

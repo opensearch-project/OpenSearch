@@ -44,6 +44,20 @@ public class CryptoRegistryExceptionTests extends OpenSearchTestCase {
         assertEquals(cause, exception.getCause());
     }
 
+    public void testConstructorWithClientNameTypeAndIllegalArgsCause() {
+        String clientName = "test-client";
+        String clientType = "test-type";
+        String causeMessage = "Bad arguments.";
+        IllegalArgumentException cause = new IllegalArgumentException(causeMessage);
+        ;
+        CryptoRegistryException exception = new CryptoRegistryException(clientName, clientType, cause);
+
+        assertEquals(RestStatus.BAD_REQUEST, exception.status());
+        assertEquals(clientName, exception.getName());
+        assertEquals(clientType, exception.getType());
+        assertEquals(cause, exception.getCause());
+    }
+
     public void testConstructorWithClientNameTypeAndCustomMessage() {
         String clientName = "TestClient";
         String clientType = "TestType";

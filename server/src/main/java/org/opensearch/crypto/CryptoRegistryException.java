@@ -49,7 +49,11 @@ public class CryptoRegistryException extends OpenSearchException {
         super("[Client name : " + clientName + " Type " + clientType + " ]", cause);
         this.name = clientName;
         this.type = clientType;
-        this.restStatus = RestStatus.INTERNAL_SERVER_ERROR;
+        if (cause instanceof IllegalArgumentException) {
+            this.restStatus = RestStatus.BAD_REQUEST;
+        } else {
+            this.restStatus = RestStatus.INTERNAL_SERVER_ERROR;
+        }
     }
 
     /**

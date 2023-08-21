@@ -105,6 +105,7 @@ dependencies {
   api project(':libs:opensearch-x-content')
   api project(":libs:opensearch-geo")
   api project(":libs:opensearch-telemetry")
+  api project(":libs:opensearch-encryption-sdk")
 
 
   compileOnly project(':libs:opensearch-plugin-classloader')
