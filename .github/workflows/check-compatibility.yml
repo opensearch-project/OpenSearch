@@ -17,7 +17,7 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Run compatibility task
-        run: ./gradlew checkCompatibility -i -PrepositoryUrls=https://github.com/opensearch-project/common-utils | tee $HOME/gradlew-check.out
+        run: ./gradlew checkCompatibility -i | tee $HOME/gradlew-check.out
 
       - name: Get results
         run: |
