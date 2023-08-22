@@ -12,17 +12,27 @@ import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStor
 import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStoreResponse;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.health.ClusterHealthStatus;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.repositories.RepositoriesService;
+import org.opensearch.repositories.Repository;
+import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.greaterThan;
@@ -388,14 +398,42 @@ public class RemoteStoreRestoreIT extends BaseRemoteStoreRestoreIT {
     public void testRateLimitedRemoteDownloads() throws Exception {
         clusterSettingsSuppliedByTest = true;
         int shardCount = randomIntBetween(1, 3);
+        Path segmentRepoPath = randomRepoPath();
+        Path tlogRepoPath = randomRepoPath();
         prepareCluster(
             1,
             3,
             INDEX_NAME,
             0,
             shardCount,
-            buildRemoteStoreNodeAttributes(REPOSITORY_NAME, randomRepoPath(), REPOSITORY_2_NAME, randomRepoPath(), true)
+            buildRemoteStoreNodeAttributes(REPOSITORY_NAME, segmentRepoPath, REPOSITORY_2_NAME, tlogRepoPath, true)
         );
+
+        // validate inplace repository metadata update
+        ClusterService clusterService = internalCluster().getInstance(ClusterService.class);
+        DiscoveryNode node = clusterService.localNode();
+        String settingsAttributeKeyPrefix = String.format(
+            Locale.getDefault(),
+            REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX,
+            REPOSITORY_NAME
+        );
+        Map<String, String> settingsMap = node.getAttributes()
+            .keySet()
+            .stream()
+            .filter(key -> key.startsWith(settingsAttributeKeyPrefix))
+            .collect(Collectors.toMap(key -> key.replace(settingsAttributeKeyPrefix, ""), key -> node.getAttributes().get(key)));
+        Settings.Builder settings = Settings.builder();
+        settingsMap.entrySet().forEach(entry -> settings.put(entry.getKey(), entry.getValue()));
+        settings.put(BlobStoreRepository.SYSTEM_REPOSITORY_SETTING.getKey(), true);
+        settings.put("location", segmentRepoPath).put("max_remote_download_bytes_per_sec", 4, ByteSizeUnit.KB);
+
+        assertAcked(client().admin().cluster().preparePutRepository(REPOSITORY_NAME).setType("fs").setSettings(settings).get());
+
+        for (RepositoriesService repositoriesService : internalCluster().getDataNodeInstances(RepositoriesService.class)) {
+            Repository segmentRepo = repositoriesService.repository(REPOSITORY_NAME);
+            assertEquals("4096b", segmentRepo.getMetadata().settings().get("max_remote_download_bytes_per_sec"));
+        }
+
         Map<String, Long> indexStats = indexData(5, false, INDEX_NAME);
         assertEquals(shardCount, getNumShards(INDEX_NAME).totalNumShards);
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primaryNodeName(INDEX_NAME)));
@@ -414,6 +452,15 @@ public class RemoteStoreRestoreIT extends BaseRemoteStoreRestoreIT {
         assertEquals(shardCount, getNumShards(INDEX_NAME).totalNumShards);
         assertEquals(0, getNumShards(INDEX_NAME).numReplicas);
         verifyRestoredData(indexStats, INDEX_NAME);
+
+        // revert repo metadata to pass asserts on repo metadata vs. node attrs during teardown
+        // https://github.com/opensearch-project/OpenSearch/pull/9569#discussion_r1345668700
+        settings.remove("max_remote_download_bytes_per_sec");
+        assertAcked(client().admin().cluster().preparePutRepository(REPOSITORY_NAME).setType("fs").setSettings(settings).get());
+        for (RepositoriesService repositoriesService : internalCluster().getDataNodeInstances(RepositoriesService.class)) {
+            Repository segmentRepo = repositoriesService.repository(REPOSITORY_NAME);
+            assertNull(segmentRepo.getMetadata().settings().get("max_remote_download_bytes_per_sec"));
+        }
     }
 
     // TODO: Restore flow - index aliases

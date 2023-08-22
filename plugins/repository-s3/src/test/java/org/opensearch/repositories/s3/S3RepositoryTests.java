@@ -104,6 +104,7 @@ public class S3RepositoryTests extends OpenSearchTestCase implements ConfigPathS
 
     private Settings bufferAndChunkSettings(long buffer, long chunk) {
         return Settings.builder()
+            .put("storage_class", "standard")
             .put(S3Repository.BUFFER_SIZE_SETTING.getKey(), new ByteSizeValue(buffer, ByteSizeUnit.MB).getStringRep())
             .put(S3Repository.CHUNK_SIZE_SETTING.getKey(), new ByteSizeValue(chunk, ByteSizeUnit.MB).getStringRep())
             .build();
@@ -117,7 +118,7 @@ public class S3RepositoryTests extends OpenSearchTestCase implements ConfigPathS
         final RepositoryMetadata metadata = new RepositoryMetadata(
             "dummy-repo",
             "mock",
-            Settings.builder().put(S3Repository.BASE_PATH_SETTING.getKey(), "foo/bar").build()
+            Settings.builder().put(S3Repository.BASE_PATH_SETTING.getKey(), "foo/bar").put("storage_class", "standard").build()
         );
         try (S3Repository s3repo = createS3Repo(metadata)) {
             assertEquals("foo/bar/", s3repo.basePath().buildAsString());
@@ -125,7 +126,8 @@ public class S3RepositoryTests extends OpenSearchTestCase implements ConfigPathS
     }
 
     public void testDefaultBufferSize() {
-        final RepositoryMetadata metadata = new RepositoryMetadata("dummy-repo", "mock", Settings.EMPTY);
+        Settings settings = Settings.builder().put("storage_class", "standard").build();
+        final RepositoryMetadata metadata = new RepositoryMetadata("dummy-repo", "mock", settings);
         try (S3Repository s3repo = createS3Repo(metadata)) {
             assertThat(s3repo.getBlobStore(), is(nullValue()));
             s3repo.start();
@@ -133,6 +135,14 @@ public class S3RepositoryTests extends OpenSearchTestCase implements ConfigPathS
             assertThat(s3repo.getBlobStore(), not(nullValue()));
             assertThat(defaultBufferSize, Matchers.lessThanOrEqualTo(100L * 1024 * 1024));
             assertThat(defaultBufferSize, Matchers.greaterThanOrEqualTo(5L * 1024 * 1024));
+        }
+    }
+
+    public void testIsReloadable() {
+        Settings settings = Settings.builder().put("storage_class", "standard").build();
+        final RepositoryMetadata metadata = new RepositoryMetadata("dummy-repo", "mock", settings);
+        try (S3Repository s3repo = createS3Repo(metadata)) {
+            assertTrue(s3repo.isReloadable());
         }
     }
 
