@@ -22,6 +22,10 @@ jobs:
       - name: Setup docker (missing on MacOS)
         if: runner.os == 'macos'
         run: |
+          # Workaround for https://github.com/actions/runner-images/issues/8104
+          brew remove --ignore-dependencies qemu
+          curl -o ./qemu.rb https://raw.githubusercontent.com/Homebrew/homebrew-core/f88e30b3a23ef3735580f9b05535ce5a0a03c9e3/Formula/qemu.rb
+          brew install ./qemu.rb
           brew install docker
           colima start
           sudo ln -sf $HOME/.colima/default/docker.sock /var/run/docker.sock
