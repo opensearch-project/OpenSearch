@@ -91,7 +91,7 @@ import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_PUBLISH_POR
 public abstract class AbstractHttpServerTransport extends AbstractLifecycleComponent implements HttpServerTransport {
     private static final Logger logger = LogManager.getLogger(AbstractHttpServerTransport.class);
     private static final ActionListener<Void> NO_OP = ActionListener.wrap(() -> {});
-    private static final List<String> HEADERS_TO_BE_POPULATED = Arrays.asList(AttributeNames.SPAN_ATTR_KEY_TRACE);
+    private static final List<String> HEADERS_TO_BE_POPULATED = Arrays.asList(AttributeNames.TRACE);
     public static final String SPAN_NAME_REST_REQ_PREFIX = "req_";
 
     protected final Settings settings;
@@ -366,10 +366,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().stashContext()) {
             // TODO: Add support for parsing the otel incoming tracer.
             final SpanScope httpRequestSpanScope = tracer.startSpan(createSpanName(httpRequest), buildSpanAttributes(httpRequest));
-            httpRequestSpanScope.addSpanAttribute(
-                AttributeNames.SPAN_ATTR_KEY_HTTP_REQ_INBOUND_EX,
-                httpRequest.getInboundException() != null
-            );
+            httpRequestSpanScope.addSpanAttribute(AttributeNames.HTTP_REQ_INBOUND_EX, httpRequest.getInboundException() != null);
             HttpChannel traceableHttpChannel = new TraceableHttpChannel(httpChannel, httpRequestSpanScope);
             handleIncomingRequest(httpRequest, traceableHttpChannel, httpRequest.getInboundException());
         }
@@ -381,9 +378,9 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
 
     private Attributes buildSpanAttributes(HttpRequest httpRequest) {
         Attributes attributes = Attributes.create()
-            .addAttribute(AttributeNames.SPAN_ATTR_KEY_HTTP_URI, httpRequest.uri())
-            .addAttribute(AttributeNames.SPAN_ATTR_KEY_HTTP_METHOD, httpRequest.method().name())
-            .addAttribute(AttributeNames.SPAN_ATTR_KEY_HTTP_PROTOCOL_VERSION, httpRequest.protocolVersion().name());
+            .addAttribute(AttributeNames.HTTP_URI, httpRequest.uri())
+            .addAttribute(AttributeNames.HTTP_METHOD, httpRequest.method().name())
+            .addAttribute(AttributeNames.HTTP_PROTOCOL_VERSION, httpRequest.protocolVersion().name());
         populateHeader(httpRequest, attributes);
         return attributes;
     }
@@ -400,8 +397,8 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     void dispatchRequest(final RestRequest restRequest, final RestChannel channel, final Throwable badRequestCause) {
         final SpanScope spanScope = tracer.startSpan(createRestRequestSpanName(restRequest));
         if (restRequest != null) {
-            spanScope.addSpanAttribute(AttributeNames.SPAN_ATTR_KEY_REST_REQ_ID, restRequest.getRequestId());
-            spanScope.addSpanAttribute(AttributeNames.SPAN_ATTR_KEY_REST_REQ_RAW_PATH, restRequest.rawPath());
+            spanScope.addSpanAttribute(AttributeNames.REST_REQ_ID, restRequest.getRequestId());
+            spanScope.addSpanAttribute(AttributeNames.REST_REQ_RAW_PATH, restRequest.rawPath());
         }
 
         RestChannel traceableRestChannel = channel;
