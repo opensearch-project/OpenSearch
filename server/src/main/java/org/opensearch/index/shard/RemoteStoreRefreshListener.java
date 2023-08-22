@@ -119,6 +119,7 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
         this.checkpointPublisher = checkpointPublisher;
         this.statsListener = new UploadListener() {
             private long uploadStartTime = 0;
+
             @Override
             public void beforeUpload(String file) {
                 // Start tracking the upload bytes started
