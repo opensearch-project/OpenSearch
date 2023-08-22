@@ -43,4 +43,3 @@ public class DelimitedTermFrequencyTokenFilterFactory extends AbstractTokenFilte
         );
     }
 }
-

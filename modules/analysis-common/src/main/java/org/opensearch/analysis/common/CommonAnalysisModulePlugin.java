@@ -506,10 +506,7 @@ public class CommonAnalysisModulePlugin extends Plugin implements AnalysisPlugin
             PreConfiguredTokenFilter.singleton(
                 "delimited_termfreq",
                 false,
-                input -> new DelimitedTermFrequencyTokenFilter(
-                    input,
-                    DelimitedTermFrequencyTokenFilterFactory.DEFAULT_DELIMITER
-                )
+                input -> new DelimitedTermFrequencyTokenFilter(input, DelimitedTermFrequencyTokenFilterFactory.DEFAULT_DELIMITER)
             )
         );
         filters.add(PreConfiguredTokenFilter.singleton("dutch_stem", false, input -> new SnowballFilter(input, new DutchStemmer())));
