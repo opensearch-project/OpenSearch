@@ -163,7 +163,7 @@ public class RemoteClusterServiceTests extends OpenSearchTestCase {
                     Settings.EMPTY,
                     Version.CURRENT,
                     threadPool,
-                    null
+                    NoopTracer.INSTANCE
                 )
             ) {
                 transportService.start();
@@ -234,7 +234,7 @@ public class RemoteClusterServiceTests extends OpenSearchTestCase {
                     Settings.EMPTY,
                     Version.CURRENT,
                     threadPool,
-                    null
+                    NoopTracer.INSTANCE
                 )
             ) {
                 transportService.start();
@@ -327,7 +327,7 @@ public class RemoteClusterServiceTests extends OpenSearchTestCase {
                     Settings.EMPTY,
                     Version.CURRENT,
                     threadPool,
-                    null
+                    NoopTracer.INSTANCE
                 )
             ) {
                 transportService.start();
@@ -394,7 +394,12 @@ public class RemoteClusterServiceTests extends OpenSearchTestCase {
             }
             Settings settings = settingsBuilder.build();
             try (
-                MockTransportService transportService = MockTransportService.createNewService(settings, Version.CURRENT, threadPool, null)
+                MockTransportService transportService = MockTransportService.createNewService(
+                    settings,
+                    Version.CURRENT,
+                    threadPool,
+                    NoopTracer.INSTANCE
+                )
             ) {
                 transportService.start();
                 transportService.acceptIncomingRequests();
@@ -437,7 +442,7 @@ public class RemoteClusterServiceTests extends OpenSearchTestCase {
                     transportSettings,
                     Version.CURRENT,
                     threadPool,
-                    null
+                    NoopTracer.INSTANCE
                 )
             ) {
                 transportService.start();
@@ -475,7 +480,7 @@ public class RemoteClusterServiceTests extends OpenSearchTestCase {
                     Settings.EMPTY,
                     Version.CURRENT,
                     threadPool,
-                    null
+                    NoopTracer.INSTANCE
                 )
             ) {
                 transportService.start();
@@ -524,7 +529,12 @@ public class RemoteClusterServiceTests extends OpenSearchTestCase {
             Collections.shuffle(knownNodes, random());
 
             try (
-                MockTransportService transportService = MockTransportService.createNewService(settings, Version.CURRENT, threadPool, null)
+                MockTransportService transportService = MockTransportService.createNewService(
+                    settings,
+                    Version.CURRENT,
+                    threadPool,
+                    NoopTracer.INSTANCE
+                )
             ) {
                 transportService.start();
                 transportService.acceptIncomingRequests();
@@ -587,7 +597,12 @@ public class RemoteClusterServiceTests extends OpenSearchTestCase {
             Collections.shuffle(knownNodes, random());
 
             try (
-                MockTransportService transportService = MockTransportService.createNewService(settings, Version.CURRENT, threadPool, null)
+                MockTransportService transportService = MockTransportService.createNewService(
+                    settings,
+                    Version.CURRENT,
+                    threadPool,
+                    NoopTracer.INSTANCE
+                )
             ) {
                 transportService.start();
                 transportService.acceptIncomingRequests();
@@ -907,7 +922,7 @@ public class RemoteClusterServiceTests extends OpenSearchTestCase {
                     Settings.EMPTY,
                     Version.CURRENT,
                     threadPool,
-                    null
+                    NoopTracer.INSTANCE
                 )
             ) {
                 transportService.start();
@@ -989,7 +1004,14 @@ public class RemoteClusterServiceTests extends OpenSearchTestCase {
             knownNodes.add(seedNode);
             Settings.Builder builder = Settings.builder();
             builder.putList("cluster.remote.cluster1.seeds", seedTransport.getLocalDiscoNode().getAddress().toString());
-            try (MockTransportService service = MockTransportService.createNewService(builder.build(), Version.CURRENT, threadPool, null)) {
+            try (
+                MockTransportService service = MockTransportService.createNewService(
+                    builder.build(),
+                    Version.CURRENT,
+                    threadPool,
+                    NoopTracer.INSTANCE
+                )
+            ) {
                 service.start();
                 service.acceptIncomingRequests();
 
@@ -1008,7 +1030,9 @@ public class RemoteClusterServiceTests extends OpenSearchTestCase {
 
     public void testRemoteClusterServiceNotEnabledGetRemoteClusterConnection() {
         final Settings settings = removeRoles(Collections.singleton(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE));
-        try (MockTransportService service = MockTransportService.createNewService(settings, Version.CURRENT, threadPool, null)) {
+        try (
+            MockTransportService service = MockTransportService.createNewService(settings, Version.CURRENT, threadPool, NoopTracer.INSTANCE)
+        ) {
             service.start();
             service.acceptIncomingRequests();
             final IllegalArgumentException e = expectThrows(
@@ -1021,7 +1045,9 @@ public class RemoteClusterServiceTests extends OpenSearchTestCase {
 
     public void testRemoteClusterServiceNotEnabledGetCollectNodes() {
         final Settings settings = removeRoles(Collections.singleton(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE));
-        try (MockTransportService service = MockTransportService.createNewService(settings, Version.CURRENT, threadPool, null)) {
+        try (
+            MockTransportService service = MockTransportService.createNewService(settings, Version.CURRENT, threadPool, NoopTracer.INSTANCE)
+        ) {
             service.start();
             service.acceptIncomingRequests();
             final IllegalArgumentException e = expectThrows(
