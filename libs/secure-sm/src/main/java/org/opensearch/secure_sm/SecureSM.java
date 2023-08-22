@@ -78,6 +78,8 @@ import java.util.Set;
  */
 public class SecureSM extends SecurityManager {
 
+    static final String INNOCUOUS_THREAD_CLASS_NAME = "jdk.internal.misc.InnocuousThread";
+
     private final String[] classesThatCanExit;
 
     /**
@@ -212,11 +214,22 @@ public class SecureSM extends SecurityManager {
     private static final Permission MODIFY_THREAD_PERMISSION = new RuntimePermission("modifyThread");
     private static final Permission MODIFY_ARBITRARY_THREAD_PERMISSION = new ThreadPermission("modifyArbitraryThread");
 
+    private boolean innocuousThread(Thread t) {
+        final Class<?> clazz = t.getClass();
+        return clazz.getModule() == Objects.class.getModule() && INNOCUOUS_THREAD_CLASS_NAME.equals(clazz.getName());
+    }
+
     protected void checkThreadAccess(Thread t) {
         Objects.requireNonNull(t);
 
-        // first, check if we can modify threads at all.
-        checkPermission(MODIFY_THREAD_PERMISSION);
+        // InnocuousThread - threads which
+        // have no permissions, are not members of any user-defined ThreadGroup
+        // and supports the ability to erase ThreadLocals
+        final boolean innocuousThread = innocuousThread(t);
+        if (Thread.currentThread() != t && innocuousThread == false) {
+            // first, check if we can modify threads at all.
+            checkPermission(MODIFY_THREAD_PERMISSION);
+        }
 
         // check the threadgroup, if its our thread group or an ancestor, its fine.
         final ThreadGroup source = Thread.currentThread().getThreadGroup();
@@ -224,7 +237,7 @@ public class SecureSM extends SecurityManager {
 
         if (target == null) {
             return;    // its a dead thread, do nothing.
-        } else if (source.parentOf(target) == false) {
+        } else if (source.parentOf(target) == false && innocuousThread == false) {
             checkPermission(MODIFY_ARBITRARY_THREAD_PERMISSION);
         }
     }
