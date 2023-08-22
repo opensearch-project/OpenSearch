@@ -153,6 +153,8 @@ import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.tasks.consumer.TopNSearchTasksLogger;
 import org.opensearch.telemetry.TelemetrySettings;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.throttling.admissioncontrol.AdmissionControlSettings;
+import org.opensearch.throttling.admissioncontrol.settings.IOBasedAdmissionControllerSettings;
 import org.opensearch.transport.ProxyConnectionStrategy;
 import org.opensearch.transport.RemoteClusterService;
 import org.opensearch.transport.RemoteConnectionStrategy;
@@ -682,7 +684,12 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING,
                 RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING,
                 IndicesService.CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING,
-                IndicesService.CLUSTER_REMOTE_INDEX_RESTRICT_ASYNC_DURABILITY_SETTING
+                IndicesService.CLUSTER_REMOTE_INDEX_RESTRICT_ASYNC_DURABILITY_SETTING,
+                AdmissionControlSettings.ADMISSION_CONTROL_TRANSPORT_LAYER_MODE,
+                IOBasedAdmissionControllerSettings.IO_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE,
+                IOBasedAdmissionControllerSettings.GLOBAL_IO_USAGE_AC_LIMIT_SETTING,
+                IOBasedAdmissionControllerSettings.IO_USAGE_SEARCH_AC_LIMIT_SETTING,
+                IOBasedAdmissionControllerSettings.IO_USAGE_INDEXING_AC_LIMIT_SETTING
             )
         )
     );

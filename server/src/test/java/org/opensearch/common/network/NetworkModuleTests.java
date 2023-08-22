@@ -322,7 +322,8 @@ public class NetworkModuleTests extends OpenSearchTestCase {
             null,
             new NullDispatcher(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            NoopTracer.INSTANCE
+            NoopTracer.INSTANCE,
+            null
         );
     }
 }

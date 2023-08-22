@@ -234,10 +234,13 @@ import org.opensearch.telemetry.tracing.TracerFactory;
 import org.opensearch.threadpool.ExecutorBuilder;
 import org.opensearch.threadpool.RunnableTaskExecutionListener;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.transport.RemoteClusterService;
-import org.opensearch.transport.Transport;
+import org.opensearch.throttling.admissioncontrol.AdmissionControlService;
+import org.opensearch.throttling.admissioncontrol.transport.AdmissionControlTransportInterceptor;
 import org.opensearch.transport.TransportInterceptor;
 import org.opensearch.transport.TransportService;
+import org.opensearch.transport.Transport;
+import org.opensearch.transport.TransportInterceptorRegistry;
+import org.opensearch.transport.RemoteClusterService;
 import org.opensearch.usage.UsageService;
 import org.opensearch.watcher.ResourceWatcherService;
 
@@ -819,6 +822,17 @@ public class Node implements Closeable {
                 remoteStoreStatsTrackerFactory,
                 recoverySettings
             );
+            TransportInterceptorRegistry transportInterceptorRegistry = new TransportInterceptorRegistry();
+
+            final AdmissionControlService admissionControlService = AdmissionControlService.newAdmissionControlService(
+                settings,
+                clusterService.getClusterSettings(),
+                threadPool
+            );
+
+            AdmissionControlTransportInterceptor admissionControlTransportInterceptor = new AdmissionControlTransportInterceptor(admissionControlService);
+            transportInterceptorRegistry.registerTransportInterceptor(admissionControlTransportInterceptor);
+
             final AliasValidator aliasValidator = new AliasValidator();
 
             final ShardLimitValidator shardLimitValidator = new ShardLimitValidator(settings, clusterService, systemIndices);
@@ -902,7 +916,8 @@ public class Node implements Closeable {
                 networkService,
                 restController,
                 clusterService.getClusterSettings(),
-                tracer
+                tracer,
+                transportInterceptorRegistry
             );
             Collection<UnaryOperator<Map<String, IndexTemplateMetadata>>> indexTemplateMetadataUpgraders = pluginsService.filterPlugins(
                 Plugin.class
@@ -1178,6 +1193,7 @@ public class Node implements Closeable {
                 b.bind(IndexingPressureService.class).toInstance(indexingPressureService);
                 b.bind(TaskResourceTrackingService.class).toInstance(taskResourceTrackingService);
                 b.bind(SearchBackpressureService.class).toInstance(searchBackpressureService);
+                b.bind(AdmissionControlService.class).toInstance(admissionControlService);
                 b.bind(UsageService.class).toInstance(usageService);
                 b.bind(AggregationUsageService.class).toInstance(searchModule.getValuesSourceRegistry().getUsageService());
                 b.bind(NamedWriteableRegistry.class).toInstance(namedWriteableRegistry);
