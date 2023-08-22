@@ -10,9 +10,6 @@ package org.opensearch.index.shard;
 
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.SegmentInfos;
-import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.FilterDirectory;
-import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
@@ -23,14 +20,11 @@ import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.InternalEngine;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.mapper.MapperService;
-import org.opensearch.index.replication.TestReplicationSource;
-import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
-import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
 import org.opensearch.indices.replication.CheckpointInfoResponse;
 import org.opensearch.indices.replication.GetSegmentFilesResponse;
-import org.opensearch.indices.replication.SegmentReplicationSource;
+import org.opensearch.indices.replication.RemoteStoreReplicationSource;
 import org.opensearch.indices.replication.SegmentReplicationSourceFactory;
 import org.opensearch.indices.replication.SegmentReplicationTargetService;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
@@ -106,66 +100,16 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
             IndexShard primary = shards.getPrimary();
             final IndexShard replica = shards.getReplicas().get(0);
             primary.refresh("Test");
-
             final SegmentReplicationSourceFactory sourceFactory = mock(SegmentReplicationSourceFactory.class);
             final SegmentReplicationTargetService targetService = newTargetService(sourceFactory);
-
-            // Create custom replication source in order to trigger shard close operations at specific point of segment replication
-            // lifecycle
-            SegmentReplicationSource source = new TestReplicationSource() {
-                RemoteSegmentStoreDirectory remoteDirectory;
-
-                @Override
-                public void getCheckpointMetadata(
-                    long replicationId,
-                    ReplicationCheckpoint checkpoint,
-                    ActionListener<CheckpointInfoResponse> listener
-                ) {
-                    // shard is closing while fetching metadata
-                    targetService.beforeIndexShardClosed(replica.shardId, replica, Settings.EMPTY);
-                    FilterDirectory remoteStoreDirectory = (FilterDirectory) replica.remoteStore().directory();
-                    FilterDirectory byteSizeCachingStoreDirectory = (FilterDirectory) remoteStoreDirectory.getDelegate();
-                    this.remoteDirectory = (RemoteSegmentStoreDirectory) byteSizeCachingStoreDirectory.getDelegate();
-
-                    RemoteSegmentMetadata mdFile = null;
-                    try {
-                        mdFile = remoteDirectory.init();
-                        final Version version = replica.getSegmentInfosSnapshot().get().getCommitLuceneVersion();
-                        Map<String, StoreFileMetadata> metadataMap = mdFile.getMetadata()
-                            .entrySet()
-                            .stream()
-                            .collect(
-                                Collectors.toMap(
-                                    e -> e.getKey(),
-                                    e -> new StoreFileMetadata(
-                                        e.getValue().getOriginalFilename(),
-                                        e.getValue().getLength(),
-                                        Store.digestToString(Long.valueOf(e.getValue().getChecksum())),
-                                        version,
-                                        null
-                                    )
-                                )
-                            );
-                        listener.onResponse(
-                            new CheckpointInfoResponse(mdFile.getReplicationCheckpoint(), metadataMap, mdFile.getSegmentInfosBytes())
-                        );
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
-                    }
-                }
-
-                @Override
-                public void getSegmentFiles(
-                    long replicationId,
-                    ReplicationCheckpoint checkpoint,
-                    List<StoreFileMetadata> filesToFetch,
-                    IndexShard indexShard,
-                    ActionListener<GetSegmentFilesResponse> listener
-                ) {
-                    Assert.fail("Unreachable");
-                }
-            };
-            when(sourceFactory.get(any())).thenReturn(source);
+            Runnable beforeCkpSourceCall = () -> targetService.beforeIndexShardClosed(replica.shardId, replica, Settings.EMPTY);
+            Runnable beforeGetFilesSourceCall = () -> Assert.fail("Should not have been executed");
+            TestRSReplicationSource testRSReplicationSource = new TestRSReplicationSource(
+                replica,
+                beforeCkpSourceCall,
+                beforeGetFilesSourceCall
+            );
+            when(sourceFactory.get(any())).thenReturn(testRSReplicationSource);
             startReplicationAndAssertCancellation(replica, primary, targetService);
             shards.removeReplica(replica);
             closeShards(replica);
@@ -183,67 +127,14 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
 
             final SegmentReplicationSourceFactory sourceFactory = mock(SegmentReplicationSourceFactory.class);
             final SegmentReplicationTargetService targetService = newTargetService(sourceFactory);
-            SegmentReplicationSource source = new TestReplicationSource() {
-                RemoteSegmentStoreDirectory remoteDirectory;
-
-                @Override
-                public void getCheckpointMetadata(
-                    long replicationId,
-                    ReplicationCheckpoint checkpoint,
-                    ActionListener<CheckpointInfoResponse> listener
-                ) {
-                    try {
-                        FilterDirectory remoteStoreDirectory = (FilterDirectory) replica.remoteStore().directory();
-                        FilterDirectory byteSizeCachingStoreDirectory = (FilterDirectory) remoteStoreDirectory.getDelegate();
-                        this.remoteDirectory = (RemoteSegmentStoreDirectory) byteSizeCachingStoreDirectory.getDelegate();
-
-                        RemoteSegmentMetadata mdFile = remoteDirectory.init();
-                        final Version version = replica.getSegmentInfosSnapshot().get().getCommitLuceneVersion();
-                        Map<String, StoreFileMetadata> metadataMap = mdFile.getMetadata()
-                            .entrySet()
-                            .stream()
-                            .collect(
-                                Collectors.toMap(
-                                    e -> e.getKey(),
-                                    e -> new StoreFileMetadata(
-                                        e.getValue().getOriginalFilename(),
-                                        e.getValue().getLength(),
-                                        Store.digestToString(Long.valueOf(e.getValue().getChecksum())),
-                                        version,
-                                        null
-                                    )
-                                )
-                            );
-                        listener.onResponse(
-                            new CheckpointInfoResponse(mdFile.getReplicationCheckpoint(), metadataMap, mdFile.getSegmentInfosBytes())
-                        );
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
-                    }
-                }
-
-                @Override
-                public void getSegmentFiles(
-                    long replicationId,
-                    ReplicationCheckpoint checkpoint,
-                    List<StoreFileMetadata> filesToFetch,
-                    IndexShard indexShard,
-                    ActionListener<GetSegmentFilesResponse> listener
-                ) {
-                    try {
-                        // shard is closing while we are copying files.
-                        targetService.beforeIndexShardClosed(replica.shardId, replica, Settings.EMPTY);
-                        final Directory storeDirectory = indexShard.store().directory();
-                        for (StoreFileMetadata fileMetadata : filesToFetch) {
-                            String file = fileMetadata.name();
-                            storeDirectory.copyFrom(remoteDirectory, file, file, IOContext.DEFAULT);
-                        }
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
-                    }
-                }
-            };
-            when(sourceFactory.get(any())).thenReturn(source);
+            Runnable beforeCkpSourceCall = () -> {};
+            Runnable beforeGetFilesSourceCall = () -> targetService.beforeIndexShardClosed(replica.shardId, replica, Settings.EMPTY);
+            TestRSReplicationSource testRSReplicationSource = new TestRSReplicationSource(
+                replica,
+                beforeCkpSourceCall,
+                beforeGetFilesSourceCall
+            );
+            when(sourceFactory.get(any())).thenReturn(testRSReplicationSource);
             startReplicationAndAssertCancellation(replica, primary, targetService);
             shards.removeReplica(replica);
             closeShards(replica);
@@ -520,5 +411,44 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
             .collect(Collectors.toSet());
         assertEquals("Expected a single segment file", 1, segmentsFileNames.size());
         assertEquals(segmentsFileNames.stream().findFirst().get(), fileName);
+    }
+}
+
+class TestRSReplicationSource extends RemoteStoreReplicationSource {
+
+    private final Thread beforeCheckpoint;
+    private final Thread beforeGetFiles;
+
+    public TestRSReplicationSource(IndexShard indexShard, Runnable beforeCheckpoint, Runnable beforeGetFiles) {
+        super(indexShard);
+        this.beforeCheckpoint = new Thread(beforeCheckpoint);
+        this.beforeGetFiles = new Thread(beforeGetFiles);
+    }
+
+    @Override
+    public void getCheckpointMetadata(
+        long replicationId,
+        ReplicationCheckpoint checkpoint,
+        ActionListener<CheckpointInfoResponse> listener
+    ) {
+        this.beforeCheckpoint.start();
+        super.getCheckpointMetadata(replicationId, checkpoint, listener);
+    }
+
+    @Override
+    public void getSegmentFiles(
+        long replicationId,
+        ReplicationCheckpoint checkpoint,
+        List<StoreFileMetadata> filesToFetch,
+        IndexShard indexShard,
+        ActionListener<GetSegmentFilesResponse> listener
+    ) {
+        this.beforeGetFiles.start();
+        super.getSegmentFiles(replicationId, checkpoint, filesToFetch, indexShard, listener);
+    }
+
+    @Override
+    public String getDescription() {
+        return "TestReplicationSource";
     }
 }

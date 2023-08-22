@@ -158,13 +158,11 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         logger.trace(new ParameterizedMessage("Starting Replication Target: {}", description()));
         // Get list of files to copy from this checkpoint.
         state.setStage(SegmentReplicationState.Stage.GET_CHECKPOINT_INFO);
-        cancellableThreads.checkForCancel();
         cancellableThreads.execute(() -> source.getCheckpointMetadata(getId(), checkpoint, checkpointInfoListener));
 
         checkpointInfoListener.whenComplete(checkpointInfo -> {
             final List<StoreFileMetadata> filesToFetch = getFiles(checkpointInfo);
             state.setStage(SegmentReplicationState.Stage.GET_FILES);
-            cancellableThreads.checkForCancel();
             cancellableThreads.execute(
                 () -> source.getSegmentFiles(getId(), checkpointInfo.getCheckpoint(), filesToFetch, indexShard, getFilesListener)
             );
@@ -177,7 +175,6 @@ public class SegmentReplicationTarget extends ReplicationTarget {
     }
 
     private List<StoreFileMetadata> getFiles(CheckpointInfoResponse checkpointInfo) throws IOException {
-        cancellableThreads.checkForCancel();
         state.setStage(SegmentReplicationState.Stage.FILE_DIFF);
         final Store.RecoveryDiff diff = Store.segmentReplicationDiff(checkpointInfo.getMetadataMap(), indexShard.getSegmentMetadataMap());
         logger.trace(() -> new ParameterizedMessage("Replication diff for checkpoint {} {}", checkpointInfo.getCheckpoint(), diff));
@@ -203,7 +200,6 @@ public class SegmentReplicationTarget extends ReplicationTarget {
     }
 
     private void finalizeReplication(CheckpointInfoResponse checkpointInfoResponse) throws OpenSearchCorruptionException {
-        cancellableThreads.checkForCancel();
         state.setStage(SegmentReplicationState.Stage.FINALIZE_REPLICATION);
         // Handle empty SegmentInfos bytes for recovering replicas
         if (checkpointInfoResponse.getInfosBytes() == null) {
