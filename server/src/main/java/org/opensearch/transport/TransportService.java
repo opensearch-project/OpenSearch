@@ -235,7 +235,7 @@ public class TransportService extends AbstractLifecycleComponent
         this.asyncSender = interceptor.interceptSender(this::sendRequestInternal);
         this.remoteClusterClient = DiscoveryNode.isRemoteClusterClient(settings);
         this.tracer = tracer;
-        remoteClusterService = new RemoteClusterService(settings, this, tracer);
+        remoteClusterService = new RemoteClusterService(settings, this);
         responseHandlers = transport.getResponseHandlers();
         if (clusterSettings != null) {
             clusterSettings.addSettingsUpdateConsumer(TransportSettings.TRACE_LOG_INCLUDE_SETTING, this::setTracerLogInclude);
@@ -866,7 +866,7 @@ public class TransportService extends AbstractLifecycleComponent
     ) {
         try {
             logger.debug("Action: " + action);
-            final SpanScope spanScope = tracer.startSpan(action, populateAttributes(action, connection));
+            final SpanScope spanScope = tracer.startSpan(createSpanName(action, connection), populateAttributes(action, connection));
             final TransportResponseHandler<T> traceableTransportResponseHandler = getTransportResponseHandler(spanScope, handler);
             final TransportResponseHandler<T> delegate;
             if (request.getParentTask().isSet()) {
@@ -916,6 +916,10 @@ public class TransportService extends AbstractLifecycleComponent
         }
     }
 
+    private String createSpanName(String action, Transport.Connection connection) {
+        return action + " " + (connection.getNode() != null ? connection.getNode().getHostAddress() : null);
+    }
+
     private <T extends TransportResponse> TransportResponseHandler<T> getTransportResponseHandler(
         SpanScope spanScope,
         TransportResponseHandler<T> handler
@@ -953,9 +957,9 @@ public class TransportService extends AbstractLifecycleComponent
     }
 
     private Attributes populateAttributes(String action, Transport.Connection connection) {
-        Attributes attributes = Attributes.create().addAttribute(AttributeNames.SPAN_ATTR_KEY_ACTION, action);
+        Attributes attributes = Attributes.create().addAttribute(AttributeNames.TRANSPORT_ACTION, action);
         if (connection != null && connection.getNode() != null) {
-            attributes.addAttribute(AttributeNames.SPAN_ATTR_KEY_TARGET_HOST, connection.getNode().getHostAddress());
+            attributes.addAttribute(AttributeNames.TRANSPORT_TARGET_HOST, connection.getNode().getHostAddress());
         }
         return attributes;
     }

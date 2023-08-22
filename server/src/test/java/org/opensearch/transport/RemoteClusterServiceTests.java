@@ -171,7 +171,7 @@ public class RemoteClusterServiceTests extends OpenSearchTestCase {
                 Settings.Builder builder = Settings.builder();
                 builder.putList("cluster.remote.cluster_1.seeds", cluster1Seed.getAddress().toString());
                 builder.putList("cluster.remote.cluster_2.seeds", cluster2Seed.getAddress().toString());
-                try (RemoteClusterService service = new RemoteClusterService(builder.build(), transportService, NoopTracer.INSTANCE)) {
+                try (RemoteClusterService service = new RemoteClusterService(builder.build(), transportService)) {
                     assertFalse(service.isCrossClusterSearchEnabled());
                     initializeRemoteClusters(service);
                     assertTrue(service.isCrossClusterSearchEnabled());
@@ -242,7 +242,7 @@ public class RemoteClusterServiceTests extends OpenSearchTestCase {
                 Settings.Builder builder = Settings.builder();
                 builder.putList("cluster.remote.cluster_1.seeds", cluster1Seed.getAddress().toString());
                 builder.putList("cluster.remote.cluster_2.seeds", cluster2Seed.getAddress().toString());
-                try (RemoteClusterService service = new RemoteClusterService(builder.build(), transportService, NoopTracer.INSTANCE)) {
+                try (RemoteClusterService service = new RemoteClusterService(builder.build(), transportService)) {
                     assertFalse(service.isCrossClusterSearchEnabled());
                     initializeRemoteClusters(service);
                     assertTrue(service.isCrossClusterSearchEnabled());
@@ -335,7 +335,7 @@ public class RemoteClusterServiceTests extends OpenSearchTestCase {
                 Settings.Builder builder = Settings.builder();
                 builder.putList("cluster.remote.cluster_1.seeds", cluster1Seed.getAddress().toString());
                 builder.putList("cluster.remote.cluster_2.seeds", cluster2Seed.getAddress().toString());
-                try (RemoteClusterService service = new RemoteClusterService(Settings.EMPTY, transportService, NoopTracer.INSTANCE)) {
+                try (RemoteClusterService service = new RemoteClusterService(Settings.EMPTY, transportService)) {
                     assertFalse(service.isCrossClusterSearchEnabled());
                     initializeRemoteClusters(service);
                     assertFalse(service.isCrossClusterSearchEnabled());
@@ -403,7 +403,7 @@ public class RemoteClusterServiceTests extends OpenSearchTestCase {
             ) {
                 transportService.start();
                 transportService.acceptIncomingRequests();
-                try (RemoteClusterService service = new RemoteClusterService(settings, transportService, NoopTracer.INSTANCE)) {
+                try (RemoteClusterService service = new RemoteClusterService(settings, transportService)) {
                     assertFalse(service.isCrossClusterSearchEnabled());
                     initializeRemoteClusters(service);
                     assertTrue(service.isCrossClusterSearchEnabled());
@@ -456,7 +456,7 @@ public class RemoteClusterServiceTests extends OpenSearchTestCase {
                 TimeValue pingSchedule2 = // randomBoolean() ? TimeValue.MINUS_ONE :
                     TimeValue.timeValueSeconds(randomIntBetween(1, 10));
                 builder.put("cluster.remote.cluster_2.transport.ping_schedule", pingSchedule2);
-                try (RemoteClusterService service = new RemoteClusterService(builder.build(), transportService, NoopTracer.INSTANCE)) {
+                try (RemoteClusterService service = new RemoteClusterService(builder.build(), transportService)) {
                     initializeRemoteClusters(service);
                     assertTrue(service.isRemoteClusterRegistered("cluster_1"));
                     RemoteClusterConnection remoteClusterConnection1 = service.getRemoteClusterConnection("cluster_1");
@@ -487,7 +487,7 @@ public class RemoteClusterServiceTests extends OpenSearchTestCase {
                 transportService.acceptIncomingRequests();
                 Settings.Builder builder = Settings.builder();
                 builder.putList("cluster.remote.cluster_1.seeds", cluster1Seed.getAddress().toString());
-                try (RemoteClusterService service = new RemoteClusterService(builder.build(), transportService, NoopTracer.INSTANCE)) {
+                try (RemoteClusterService service = new RemoteClusterService(builder.build(), transportService)) {
                     initializeRemoteClusters(service);
                     RemoteClusterConnection remoteClusterConnection = service.getRemoteClusterConnection("cluster_1");
                     Settings.Builder settingsChange = Settings.builder();
@@ -541,7 +541,7 @@ public class RemoteClusterServiceTests extends OpenSearchTestCase {
                 final Settings.Builder builder = Settings.builder();
                 builder.putList("cluster.remote.cluster_1.seed", c1N1Node.getAddress().toString());
                 builder.putList("cluster.remote.cluster_2.seed", c2N1Node.getAddress().toString());
-                try (RemoteClusterService service = new RemoteClusterService(settings, transportService, NoopTracer.INSTANCE)) {
+                try (RemoteClusterService service = new RemoteClusterService(settings, transportService)) {
                     assertFalse(service.isCrossClusterSearchEnabled());
                     initializeRemoteClusters(service);
                     assertFalse(service.isCrossClusterSearchEnabled());
@@ -609,7 +609,7 @@ public class RemoteClusterServiceTests extends OpenSearchTestCase {
                 final Settings.Builder builder = Settings.builder();
                 builder.putList("cluster.remote.cluster_1.seed", c1N1Node.getAddress().toString());
                 builder.putList("cluster.remote.cluster_2.seed", c2N1Node.getAddress().toString());
-                try (RemoteClusterService service = new RemoteClusterService(settings, transportService, NoopTracer.INSTANCE)) {
+                try (RemoteClusterService service = new RemoteClusterService(settings, transportService)) {
                     assertFalse(service.isCrossClusterSearchEnabled());
                     initializeRemoteClusters(service);
                     assertFalse(service.isCrossClusterSearchEnabled());
@@ -682,7 +682,7 @@ public class RemoteClusterServiceTests extends OpenSearchTestCase {
                 final Settings.Builder builder = Settings.builder();
                 builder.putList("cluster.remote.cluster_1.seed", c1N1Node.getAddress().toString());
                 builder.putList("cluster.remote.cluster_2.seed", c2N1Node.getAddress().toString());
-                try (RemoteClusterService service = new RemoteClusterService(settings, transportService, NoopTracer.INSTANCE)) {
+                try (RemoteClusterService service = new RemoteClusterService(settings, transportService)) {
                     assertFalse(service.isCrossClusterSearchEnabled());
                     initializeRemoteClusters(service);
                     assertFalse(service.isCrossClusterSearchEnabled());
@@ -930,7 +930,7 @@ public class RemoteClusterServiceTests extends OpenSearchTestCase {
 
                 final Settings.Builder builder = Settings.builder();
                 builder.putList("cluster.remote.cluster_test.seeds", Collections.singletonList(node0.getAddress().toString()));
-                try (RemoteClusterService service = new RemoteClusterService(builder.build(), transportService, NoopTracer.INSTANCE)) {
+                try (RemoteClusterService service = new RemoteClusterService(builder.build(), transportService)) {
                     assertFalse(service.isCrossClusterSearchEnabled());
                     initializeRemoteClusters(service);
                     assertTrue(service.isCrossClusterSearchEnabled());

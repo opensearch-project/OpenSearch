@@ -37,9 +37,7 @@ public class TraceableTaskListener<Response> implements TaskListener<Response> {
 
     @Override
     public void onResponse(Task task, Response response) {
-        try (spanScope) {
-            delegate.onResponse(task, response);
-        }
+        delegate.onResponse(task, response);
     }
 
     @Override
