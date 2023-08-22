@@ -10,6 +10,7 @@ package org.opensearch.telemetry;
 
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.telemetry.tracing.OTelTracingTelemetry;
 import org.opensearch.telemetry.tracing.TracingTelemetry;
@@ -32,9 +33,8 @@ public class OTelTelemetryPluginTests extends OpenSearchTestCase {
 
     @Before
     public void setup() {
-        // TRACER_EXPORTER_DELAY_SETTING should always be less than 10 seconds because
-        // io.opentelemetry.sdk.OpenTelemetrySdk.close waits only for 10 seconds for shutdown to complete.
-        oTelTracerModulePlugin = new OTelTelemetryPlugin();
+        Settings settings = Settings.builder().build();
+        oTelTracerModulePlugin = new OTelTelemetryPlugin(settings);
         telemetry = oTelTracerModulePlugin.getTelemetry();
         tracingTelemetry = telemetry.get().getTracingTelemetry();
     }

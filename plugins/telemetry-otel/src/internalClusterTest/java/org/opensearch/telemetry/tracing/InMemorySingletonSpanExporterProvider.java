@@ -12,7 +12,7 @@ import io.opentelemetry.sdk.autoconfigure.spi.ConfigProperties;
 import io.opentelemetry.sdk.autoconfigure.spi.traces.ConfigurableSpanExporterProvider;
 import io.opentelemetry.sdk.trace.export.SpanExporter;
 
-public class InMemorySingletonSpanProvider implements ConfigurableSpanExporterProvider {
+public class InMemorySingletonSpanExporterProvider implements ConfigurableSpanExporterProvider {
 
     @Override
     public SpanExporter createExporter(ConfigProperties config) {

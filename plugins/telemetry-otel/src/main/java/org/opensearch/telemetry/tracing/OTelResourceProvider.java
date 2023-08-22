@@ -8,6 +8,8 @@
 
 package org.opensearch.telemetry.tracing;
 
+import org.opensearch.common.settings.Settings;
+
 import java.util.Map;
 
 import io.opentelemetry.api.OpenTelemetry;
@@ -23,9 +25,10 @@ public final class OTelResourceProvider {
 
     /**
      * Creates OpenTelemetry instance with AutoConfiguredOpenTelemetrySdk settings configuration
+     * @param settings cluster settings
      * @return OpenTelemetry instance
      */
-    public static OpenTelemetry get() {
+    public static OpenTelemetry get(Settings settings) {
         OpenTelemetry openTelemetry = AutoConfiguredOpenTelemetrySdk.builder()
             .setResultAsGlobal(false)
             .addPropertiesSupplier(() -> Map.of("otel.logs.exporter", "none", "otel.metrics.exporter", "none"))

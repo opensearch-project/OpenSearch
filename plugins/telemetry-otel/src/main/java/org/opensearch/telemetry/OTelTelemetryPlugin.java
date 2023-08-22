@@ -8,6 +8,7 @@
 
 package org.opensearch.telemetry;
 
+import org.opensearch.common.settings.Settings;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.TelemetryPlugin;
 import org.opensearch.telemetry.metrics.MetricsTelemetry;
@@ -24,10 +25,15 @@ public class OTelTelemetryPlugin extends Plugin implements TelemetryPlugin {
 
     static final String OTEL_TRACER_NAME = "otel";
 
+    private final Settings settings;
+
     /**
      * Creates Otel plugin
+     * @param settings cluster settings
      */
-    public OTelTelemetryPlugin() {}
+    public OTelTelemetryPlugin(Settings settings) {
+        this.settings = settings;
+    }
 
     @Override
     public Optional<Telemetry> getTelemetry() {
@@ -40,7 +46,7 @@ public class OTelTelemetryPlugin extends Plugin implements TelemetryPlugin {
     }
 
     private Telemetry telemetry() {
-        return new OTelTelemetry(new OTelTracingTelemetry(OTelResourceProvider.get()), new MetricsTelemetry() {
+        return new OTelTelemetry(new OTelTracingTelemetry(OTelResourceProvider.get(settings)), new MetricsTelemetry() {
         });
     }
 

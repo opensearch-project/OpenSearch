@@ -8,6 +8,7 @@
 
 package org.opensearch.telemetry.tracing;
 
+import org.opensearch.common.settings.Settings;
 import org.opensearch.telemetry.OTelTelemetryPlugin;
 import org.opensearch.telemetry.Telemetry;
 
@@ -21,9 +22,10 @@ import io.opentelemetry.api.GlobalOpenTelemetry;
 public class IntegrationTestOTelTelemetryPlugin extends OTelTelemetryPlugin {
     /**
      * Creates IntegrationTestOTelTelemetryPlugin
+     * @param settings cluster settings
      */
-    public IntegrationTestOTelTelemetryPlugin() {
-        super();
+    public IntegrationTestOTelTelemetryPlugin(Settings settings) {
+        super(settings);
     }
 
     /**

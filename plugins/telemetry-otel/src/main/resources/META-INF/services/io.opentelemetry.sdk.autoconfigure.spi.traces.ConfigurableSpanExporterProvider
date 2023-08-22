@@ -6,4 +6,4 @@
 # compatible open source license.
 #
 
-org.opensearch.telemetry.tracing.InMemorySingletonSpanProvider
+org.opensearch.telemetry.tracing.InMemorySingletonSpanExporterProvider
