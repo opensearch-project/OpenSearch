@@ -70,7 +70,7 @@ dependencies {
   api 'org.codehaus.woodstox:stax2-api:4.2.1'
   implementation "com.fasterxml.woodstox:woodstox-core:${versions.woodstox}"
   runtimeOnly "com.google.guava:guava:${versions.guava}"
-  api 'org.apache.commons:commons-lang3:3.12.0'
+  api 'org.apache.commons:commons-lang3:3.13.0'
   testImplementation project(':test:fixtures:azure-fixture')
 }
 
