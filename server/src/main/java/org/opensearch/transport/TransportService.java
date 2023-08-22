@@ -867,6 +867,7 @@ public class TransportService extends AbstractLifecycleComponent
         try {
             logger.debug("Action: " + action);
             final SpanScope spanScope = tracer.startSpan(action, populateAttributes(action, connection));
+            final TransportResponseHandler<T> traceableTransportResponseHandler = getTransportResponseHandler(spanScope, handler);
             final TransportResponseHandler<T> delegate;
             if (request.getParentTask().isSet()) {
                 // TODO: capture the connection instead so that we can cancel child tasks on the remote connections.
@@ -874,36 +875,33 @@ public class TransportService extends AbstractLifecycleComponent
                 delegate = new TransportResponseHandler<T>() {
                     @Override
                     public void handleResponse(T response) {
-                        spanScope.close();
                         unregisterChildNode.close();
-                        handler.handleResponse(response);
+                        traceableTransportResponseHandler.handleResponse(response);
                     }
 
                     @Override
                     public void handleException(TransportException exp) {
-                        spanScope.setError(exp);
-                        spanScope.close();
                         unregisterChildNode.close();
-                        handler.handleException(exp);
+                        traceableTransportResponseHandler.handleException(exp);
                     }
 
                     @Override
                     public String executor() {
-                        return handler.executor();
+                        return traceableTransportResponseHandler.executor();
                     }
 
                     @Override
                     public T read(StreamInput in) throws IOException {
-                        return handler.read(in);
+                        return traceableTransportResponseHandler.read(in);
                     }
 
                     @Override
                     public String toString() {
-                        return getClass().getName() + "/[" + action + "]:" + handler.toString();
+                        return getClass().getName() + "/[" + action + "]:" + traceableTransportResponseHandler.toString();
                     }
                 };
             } else {
-                delegate = handler;
+                delegate = traceableTransportResponseHandler;
             }
             asyncSender.sendRequest(connection, action, request, options, delegate);
         } catch (final Exception ex) {
@@ -916,6 +914,42 @@ public class TransportService extends AbstractLifecycleComponent
             }
             handler.handleException(te);
         }
+    }
+
+    private <T extends TransportResponse> TransportResponseHandler<T> getTransportResponseHandler(
+        SpanScope spanScope,
+        TransportResponseHandler<T> handler
+    ) {
+        return new TransportResponseHandler<T>() {
+
+            @Override
+            public void handleResponse(T response) {
+                spanScope.close();
+                handler.handleResponse(response);
+            }
+
+            @Override
+            public void handleException(TransportException exp) {
+                spanScope.setError(exp);
+                spanScope.close();
+                handler.handleException(exp);
+            }
+
+            @Override
+            public String executor() {
+                return handler.executor();
+            }
+
+            @Override
+            public T read(StreamInput in) throws IOException {
+                return handler.read(in);
+            }
+
+            @Override
+            public String toString() {
+                return handler.toString();
+            }
+        };
     }
 
     private Attributes populateAttributes(String action, Transport.Connection connection) {

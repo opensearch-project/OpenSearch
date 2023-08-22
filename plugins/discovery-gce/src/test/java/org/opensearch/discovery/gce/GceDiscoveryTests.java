@@ -38,6 +38,7 @@ import org.opensearch.cloud.gce.GceMetadataService;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.transport.TransportAddress;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.threadpool.TestThreadPool;
@@ -109,7 +110,7 @@ public class GceDiscoveryTests extends OpenSearchTestCase {
 
     @Before
     public void createTransportService() {
-        transportService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool, null);
+        transportService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool, NoopTracer.INSTANCE);
     }
 
     @After

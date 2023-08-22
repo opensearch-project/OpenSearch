@@ -235,7 +235,14 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
     }
 
     public void testProcessRemoteShards() {
-        try (TransportService transportService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool, null)) {
+        try (
+            TransportService transportService = MockTransportService.createNewService(
+                Settings.EMPTY,
+                Version.CURRENT,
+                threadPool,
+                NoopTracer.INSTANCE
+            )
+        ) {
             RemoteClusterService service = transportService.getRemoteClusterService();
             assertFalse(service.isCrossClusterSearchEnabled());
             Map<String, ClusterSearchShardsResponse> searchShardsResponseMap = new HashMap<>();
