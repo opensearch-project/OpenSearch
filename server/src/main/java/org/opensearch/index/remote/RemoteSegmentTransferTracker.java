@@ -124,7 +124,7 @@ public class RemoteSegmentTransferTracker {
     private volatile long totalUploadsSucceeded;
 
     /**
-     * Cumulative sum of time taken in remote refresh (in milliseconds)
+     * Cumulative sum of time taken in remote refresh (in milliseconds) [Tracked per file]
      */
     private volatile long totalUploadTimeInMs;
 
@@ -513,8 +513,7 @@ public class RemoteSegmentTransferTracker {
         return uploadTimeMsMovingAverageReference.get().getAverage();
     }
 
-    public void addUploadTimeMs(long timeMs) {
-        totalUploadTimeInMs += timeMs;
+    public void addTimeForCompletedUploadSync(long timeMs) {
         synchronized (uploadTimeMsMutex) {
             this.uploadTimeMsMovingAverageReference.get().record(timeMs);
         }
@@ -529,6 +528,10 @@ public class RemoteSegmentTransferTracker {
         synchronized (uploadTimeMsMutex) {
             this.uploadTimeMsMovingAverageReference.set(this.uploadTimeMsMovingAverageReference.get().copyWithSize(updatedSize));
         }
+    }
+
+    public void addTotalUploadTimeInMs(long fileUploadTimeInMs) {
+        this.totalUploadTimeInMs += fileUploadTimeInMs;
     }
 
     public long getTotalUploadTimeInMs() {

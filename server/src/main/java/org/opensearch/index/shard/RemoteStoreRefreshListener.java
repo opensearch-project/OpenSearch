@@ -118,10 +118,12 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
         resetBackOffDelayIterator();
         this.checkpointPublisher = checkpointPublisher;
         this.statsListener = new UploadListener() {
+            private long uploadStartTime = 0;
             @Override
             public void beforeUpload(String file) {
                 // Start tracking the upload bytes started
                 segmentTracker.addUploadBytesStarted(segmentTracker.getLatestLocalFileNameLengthMap().get(file));
+                uploadStartTime = System.currentTimeMillis();
             }
 
             @Override
@@ -129,6 +131,10 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
                 // Track upload success
                 segmentTracker.addUploadBytesSucceeded(segmentTracker.getLatestLocalFileNameLengthMap().get(file));
                 segmentTracker.addToLatestUploadedFiles(file);
+                long fileUploadTime = System.currentTimeMillis() - uploadStartTime;
+                // Round off upload time to 1 millisecond
+                fileUploadTime = fileUploadTime > 0 ? fileUploadTime : 1;
+                segmentTracker.addTotalUploadTimeInMs(fileUploadTime);
             }
 
             @Override
@@ -443,7 +449,7 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
             segmentTracker.incrementTotalUploadsSucceeded();
             segmentTracker.addUploadBytes(bytesUploaded);
             segmentTracker.addUploadBytesPerSec((bytesUploaded * 1_000L) / Math.max(1, timeTakenInMS));
-            segmentTracker.addUploadTimeMs(timeTakenInMS);
+            segmentTracker.addTimeForCompletedUploadSync(timeTakenInMS);
         } else {
             segmentTracker.incrementTotalUploadsFailed();
         }

@@ -130,6 +130,7 @@ public class RemoteSegmentStats implements Writeable, ToXContentFragment {
     }
 
     // Getter and setters. All are visible for testing
+    // Setters are only used for testing
     public long getUploadBytesStarted() {
         return uploadBytesStarted;
     }
@@ -234,8 +235,8 @@ public class RemoteSegmentStats implements Writeable, ToXContentFragment {
             this.maxRefreshTimeLag = Math.max(this.maxRefreshTimeLag, existingStats.getMaxRefreshTimeLag());
             this.maxRefreshBytesLag = Math.max(this.maxRefreshBytesLag, existingStats.getMaxRefreshBytesLag());
             this.totalRefreshBytesLag += existingStats.getTotalRefreshBytesLag();
-            this.totalUploadTime += existingStats.totalUploadTime;
-            this.totalDownloadTime += existingStats.totalDownloadTime;
+            this.totalUploadTime += existingStats.getTotalUploadTime();
+            this.totalDownloadTime += existingStats.getTotalDownloadTime();
         }
     }
 
