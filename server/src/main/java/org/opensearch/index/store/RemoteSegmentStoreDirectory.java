@@ -448,7 +448,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         if (remoteDataDirectory.getBlobContainer() instanceof VerifyingMultiStreamBlobContainer) {
             VerifyingMultiStreamBlobContainer blobContainer = (VerifyingMultiStreamBlobContainer) remoteDataDirectory.getBlobContainer();
             Path destinationPath = segmentDirectoryPath.resolve(src);
-            blobContainer.asyncBlobDownload(blobName, destinationPath, segmentCompletionListener);
+            blobContainer.asyncBlobDownload(blobName, destinationPath, threadPool, segmentCompletionListener);
         } else {
             // Fallback to older mechanism of downloading the file
             try {

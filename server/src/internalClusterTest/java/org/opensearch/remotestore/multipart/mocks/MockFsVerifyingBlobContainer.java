@@ -9,11 +9,13 @@
 package org.opensearch.remotestore.multipart.mocks;
 
 import org.apache.lucene.index.CorruptIndexException;
+import org.opensearch.common.CheckedTriFunction;
 import org.opensearch.common.StreamContext;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.VerifyingMultiStreamBlobContainer;
 import org.opensearch.common.blobstore.fs.FsBlobContainer;
 import org.opensearch.common.blobstore.fs.FsBlobStore;
+import org.opensearch.common.blobstore.stream.read.ReadContext;
 import org.opensearch.common.blobstore.stream.write.WriteContext;
 import org.opensearch.common.io.InputStreamContainer;
 import org.opensearch.core.action.ActionListener;
@@ -115,14 +117,34 @@ public class MockFsVerifyingBlobContainer extends FsBlobContainer implements Ver
     }
 
     @Override
-    public void readBlobAsync(String blobName, long position, long length, ActionListener<InputStream> listener) {
+    public void readBlobAsync(String blobName, ActionListener<ReadContext> listener) {
         new Thread(() -> {
             try {
-                listener.onResponse(readBlob(blobName, position, length));
+                long blobSize = listBlobs().get(blobName).length();
+                long partSize = blobSize / 10;
+                ReadContext readContext = supplyReadContext(partSize, blobSize, blobName);
+                listener.onResponse(readContext);
             } catch (Exception e) {
                 listener.onFailure(e);
             }
         }).start();
+    }
+
+    ReadContext supplyReadContext(long partSize, long contentLength, String blobName) {
+        long lastPartSize = (contentLength % partSize) != 0 ? contentLength % partSize : partSize;
+        int numberOfParts = (int) ((contentLength % partSize) == 0 ? contentLength / partSize : (contentLength / partSize) + 1);
+        return new ReadContext(getTransferPartStreamSupplier(blobName), partSize, lastPartSize, numberOfParts, null);
+    }
+
+    private CheckedTriFunction<Integer, Long, Long, InputStreamContainer, IOException> getTransferPartStreamSupplier(String blobName) {
+        return ((partNo, size, position) -> {
+            try {
+                InputStream inputStream = readBlob(blobName, position, size);
+                return new InputStreamContainer(inputStream, size, position);
+            } catch (IOException e) {
+                throw e;
+            }
+        });
     }
 
     private boolean isSegmentFile(String filename) {

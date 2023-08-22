@@ -889,7 +889,7 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
 
         final UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class, () -> {
             final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
-            blobContainer.readBlobAsync(blobName, 0, 0, new PlainActionFuture<>());
+            blobContainer.readBlobAsync(blobName, new PlainActionFuture<>());
         });
 
         assertEquals("S3 BlobContainer currently does not support async blob downloads", e.getMessage());
