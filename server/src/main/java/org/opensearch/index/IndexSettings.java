@@ -1147,7 +1147,9 @@ public final class IndexSettings {
      */
     public static boolean same(final Settings left, final Settings right) {
         return left.filter(IndexScopedSettings.INDEX_SETTINGS_KEY_PREDICATE)
-            .equals(right.filter(IndexScopedSettings.INDEX_SETTINGS_KEY_PREDICATE));
+            .equals(right.filter(IndexScopedSettings.INDEX_SETTINGS_KEY_PREDICATE))
+            && left.filter(IndexScopedSettings.ARCHIVED_SETTINGS_KEY_PREDICATE)
+                .equals(right.filter(IndexScopedSettings.ARCHIVED_SETTINGS_KEY_PREDICATE));
     }
 
     /**
