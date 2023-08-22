@@ -145,6 +145,7 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
         filters.put("cjkwidth", CJKWidthFilterFactory.class);
         filters.put("cjkbigram", CJKBigramFilterFactory.class);
         filters.put("delimitedpayload", DelimitedPayloadTokenFilterFactory.class);
+        filters.put("delimitedtermfreq", DelimitedTermFrequencyTokenFilterFactory.class);
         filters.put("keepword", KeepWordFilterFactory.class);
         filters.put("type", KeepTypesFilterFactory.class);
         filters.put("classic", ClassicFilterFactory.class);
