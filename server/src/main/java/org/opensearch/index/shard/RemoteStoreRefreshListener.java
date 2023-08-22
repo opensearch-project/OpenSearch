@@ -20,6 +20,7 @@ import org.apache.lucene.store.IndexInput;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.action.bulk.BackoffPolicy;
 import org.opensearch.action.support.GroupedActionListener;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.unit.TimeValue;
@@ -183,7 +184,6 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
             }
             return true;
         }
-        ReplicationCheckpoint checkpoint = indexShard.getLatestReplicationCheckpoint();
         beforeSegmentsSync();
         long refreshTimeMs = segmentTracker.getLocalRefreshTimeMs(), refreshClockTimeMs = segmentTracker.getLocalRefreshClockTimeMs();
         long refreshSeqNo = segmentTracker.getLocalRefreshSeqNo();
@@ -198,13 +198,14 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
                 if (isRefreshAfterCommit()) {
                     remoteDirectory.deleteStaleSegmentsAsync(LAST_N_METADATA_FILES_TO_KEEP);
                 }
-
-                try (GatedCloseable<SegmentInfos> segmentInfosGatedCloseable = indexShard.getSegmentInfosSnapshot()) {
+                final Tuple<GatedCloseable<SegmentInfos>, ReplicationCheckpoint> tuple = indexShard.getLatestSegmentInfosAndCheckpoint();
+                try (GatedCloseable<SegmentInfos> segmentInfosGatedCloseable = tuple.v1()) {
+                    final ReplicationCheckpoint checkpoint = tuple.v2();
                     SegmentInfos segmentInfos = segmentInfosGatedCloseable.get();
-                    assert segmentInfos.getGeneration() == checkpoint.getSegmentsGen() : "SegmentInfos generation: "
-                        + segmentInfos.getGeneration()
-                        + " does not match metadata generation: "
-                        + checkpoint.getSegmentsGen();
+                    assert segmentInfos.getVersion() == checkpoint.getSegmentInfosVersion() : "SegmentInfos version: "
+                        + segmentInfos.getVersion()
+                        + " does not match metadata version: "
+                        + checkpoint.getSegmentInfosVersion();
                     // Capture replication checkpoint before uploading the segments as upload can take some time and checkpoint can
                     // move.
                     long lastRefreshedCheckpoint = ((InternalEngine) indexShard.getEngine()).lastRefreshedCheckpoint();

@@ -2134,18 +2134,10 @@ public class InternalEngine extends Engine {
 
     @Override
     protected SegmentInfos getLatestSegmentInfos() {
-        OpenSearchDirectoryReader reader = null;
-        try {
-            reader = internalReaderManager.acquire();
-            return ((StandardDirectoryReader) reader.getDelegate()).getSegmentInfos();
+        try (final GatedCloseable<SegmentInfos> snapshot = getSegmentInfosSnapshot()) {
+            return snapshot.get();
         } catch (IOException e) {
             throw new EngineException(shardId, e.getMessage(), e);
-        } finally {
-            try {
-                internalReaderManager.release(reader);
-            } catch (IOException e) {
-                throw new EngineException(shardId, e.getMessage(), e);
-            }
         }
     }
 
@@ -2156,15 +2148,26 @@ public class InternalEngine extends Engine {
      */
     @Override
     public GatedCloseable<SegmentInfos> getSegmentInfosSnapshot() {
-        final SegmentInfos segmentInfos = getLatestSegmentInfos();
+        final SegmentInfos segmentInfos;
+        final OpenSearchDirectoryReader reader;
+        final GatedCloseable<IndexCommit> lastIndexCommit = acquireLastIndexCommit(false);
         try {
-            indexWriter.incRefDeleter(segmentInfos);
+            reader = internalReaderManager.acquire();
+            SegmentInfos readerInfos = ((StandardDirectoryReader) reader.getDelegate()).getSegmentInfos();
+            // if the latest index commit on disk has a higher gen than the reader load that instead.
+            // This ensures our commit file will exist throughout upload process.
+            if (lastIndexCommit.get().getGeneration() > readerInfos.getGeneration()) {
+                segmentInfos = SegmentInfos.readCommit(store.directory(), lastIndexCommit.get().getSegmentsFileName());
+            } else {
+                segmentInfos = readerInfos;
+            }
         } catch (IOException e) {
             throw new EngineException(shardId, e.getMessage(), e);
         }
         return new GatedCloseable<>(segmentInfos, () -> {
             try {
-                indexWriter.decRefDeleter(segmentInfos);
+                internalReaderManager.release(reader);
+                lastIndexCommit.close();
             } catch (AlreadyClosedException e) {
                 logger.warn("Engine is already closed.", e);
             }
