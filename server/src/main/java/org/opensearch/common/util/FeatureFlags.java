@@ -22,6 +22,11 @@ import org.opensearch.common.settings.Settings;
 public class FeatureFlags {
 
     /**
+     * Gates the visibility of the index settings that allows the utilization of ZStd compression algorithm features for indexing operations.
+     */
+    public static final String ZSTD_COMPRESSION = "opensearch.experimental.feature.compression.zstd.enabled";
+
+    /**
      * Gates the visibility of the segment replication experimental features that allows users to test unreleased beta features.
      */
     public static final String SEGMENT_REPLICATION_EXPERIMENTAL =
@@ -95,6 +100,8 @@ public class FeatureFlags {
         false,
         Property.NodeScope
     );
+
+    public static final Setting<Boolean> ZSTD_COMPRESSION_SETTING = Setting.boolSetting(ZSTD_COMPRESSION, false, Property.NodeScope);
 
     public static final Setting<Boolean> REMOTE_STORE_SETTING = Setting.boolSetting(REMOTE_STORE, false, Property.NodeScope);
 

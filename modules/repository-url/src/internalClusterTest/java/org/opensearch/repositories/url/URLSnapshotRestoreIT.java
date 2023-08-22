@@ -39,6 +39,7 @@ import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.client.Client;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeUnit;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.plugin.repository.url.URLRepositoryPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.fs.FsRepository;
@@ -56,6 +57,10 @@ import static org.hamcrest.Matchers.notNullValue;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST)
 public class URLSnapshotRestoreIT extends OpenSearchIntegTestCase {
+    @Override
+    protected Settings featureFlagSettings() {
+        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.ZSTD_COMPRESSION, "true").build();
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -76,6 +81,7 @@ public class URLSnapshotRestoreIT extends OpenSearchIntegTestCase {
                     Settings.builder()
                         .put(FsRepository.LOCATION_SETTING.getKey(), repositoryLocation)
                         .put(FsRepository.COMPRESS_SETTING.getKey(), randomBoolean())
+                        .put(FsRepository.COMPRESSION_TYPE_SETTING.getKey(), randomFrom("zstd", "deflate"))
                         .put(FsRepository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
                 )
         );

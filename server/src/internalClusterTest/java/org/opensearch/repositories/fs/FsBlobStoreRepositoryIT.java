@@ -39,6 +39,7 @@ import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.repositories.blobstore.OpenSearchBlobStoreRepositoryIntegTestCase;
 
@@ -53,6 +54,11 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class FsBlobStoreRepositoryIT extends OpenSearchBlobStoreRepositoryIntegTestCase {
+
+    @Override
+    protected Settings featureFlagSettings() {
+        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.ZSTD_COMPRESSION, "true").build();
+    }
 
     @Override
     protected String repositoryType() {

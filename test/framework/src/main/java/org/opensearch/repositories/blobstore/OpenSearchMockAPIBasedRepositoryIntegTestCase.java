@@ -46,6 +46,7 @@ import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.network.InetAddresses;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.Strings;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
@@ -98,6 +99,11 @@ public abstract class OpenSearchMockAPIBasedRepositoryIntegTestCase extends Open
     protected Map<String, HttpHandler> handlers;
 
     private static final Logger log = LogManager.getLogger();
+
+    @Override
+    protected Settings featureFlagSettings() {
+        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.ZSTD_COMPRESSION, "true").build();
+    }
 
     @BeforeClass
     public static void startHttpServer() throws Exception {

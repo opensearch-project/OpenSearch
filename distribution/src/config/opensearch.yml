@@ -132,3 +132,9 @@ ${path.logs}
 # index searcher threadpool.
 #
 #opensearch.experimental.feature.concurrent_segment_search.enabled: false
+#
+#
+# Gates the visibility of the ZStd compression algorithm features
+#  for indexing operations.
+#
+#opensearch.experimental.feature.compression.zstd.enabled: false

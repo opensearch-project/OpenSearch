@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `com.github.luben:zstd-jni` from 1.5.5-3 to 1.5.5-5 ([#9431](https://github.com/opensearch-project/OpenSearch/pull/9431)
 
 ### Changed
+- Moving ZStd Compressor Type behind a feature flag ([#9485](https://github.com/opensearch-project/OpenSearch/pull/9485))
 
 ### Deprecated
 

@@ -58,6 +58,7 @@ import org.opensearch.common.compress.CompressorType;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -109,6 +110,11 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
 public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestCase {
+
+    @Override
+    protected Settings featureFlagSettings() {
+        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.ZSTD_COMPRESSION, "true").build();
+    }
 
     protected final static String TEST_REMOTE_STORE_REPO_SUFFIX = "__rs";
     private static final String OLD_VERSION_SNAPSHOT_PREFIX = "old-version-snapshot-";

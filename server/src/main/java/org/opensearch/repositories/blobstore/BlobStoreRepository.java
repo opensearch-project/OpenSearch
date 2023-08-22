@@ -92,6 +92,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
@@ -268,7 +269,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     public static final Setting<CompressorType> COMPRESSION_TYPE_SETTING = new Setting<>(
         "compression_type",
         CompressorType.DEFLATE.name().toLowerCase(Locale.ROOT),
-        s -> CompressorType.valueOf(s.toUpperCase(Locale.ROOT)),
+        s -> {
+            if (s.toUpperCase(Locale.ROOT).equals(CompressorType.ZSTD.name())
+                && FeatureFlags.isEnabled(FeatureFlags.ZSTD_COMPRESSION) == false) {
+                throw new IllegalArgumentException("ZStandard feature must be enabled to set " + s + " compression type.");
+            }
+            return CompressorType.valueOf(s.toUpperCase(Locale.ROOT));
+        },
         Setting.Property.NodeScope
     );
 
