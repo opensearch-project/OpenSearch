@@ -301,6 +301,20 @@ public class SettingsTests extends OpenSearchTestCase {
         assertThat(settings.get("foo.test"), equalTo("test"));
     }
 
+    public void testPrefixNormalizationArchived() {
+        Settings settings = Settings.builder().put("archived.foo.bar", "baz").normalizePrefix("foo.").build();
+
+        assertThat(settings.size(), equalTo(1));
+        assertThat(settings.get("foo.archived.foo.bar"), nullValue());
+        assertThat(settings.get("archived.foo.bar"), equalTo("baz"));
+
+        settings = Settings.builder().put("archived.foo.*", "baz").normalizePrefix("foo.").build();
+
+        assertThat(settings.size(), equalTo(1));
+        assertThat(settings.get("foo.archived.foo.*"), nullValue());
+        assertThat(settings.get("archived.foo.*"), equalTo("baz"));
+    }
+
     public void testFilteredMap() {
         Settings.Builder builder = Settings.builder();
         builder.put("a", "a1");
