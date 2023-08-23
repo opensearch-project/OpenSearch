@@ -257,6 +257,10 @@ public class AggregatorFactories {
         this.factories = factories;
     }
 
+    public AggregatorFactory[] getFactories() {
+        return factories;
+    }
+
     /**
      * Create all aggregators so that they can be consumed with multiple
      * buckets.

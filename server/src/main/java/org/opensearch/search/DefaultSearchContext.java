@@ -65,6 +65,7 @@ import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.search.NestedHelper;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.similarity.SimilarityService;
+import org.opensearch.search.aggregations.AggregatorFactory;
 import org.opensearch.search.aggregations.BucketCollectorProcessor;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.SearchContextAggregations;
@@ -183,7 +184,8 @@ final class DefaultSearchContext extends SearchContext {
     private final QueryShardContext queryShardContext;
     private final FetchPhase fetchPhase;
     private final Function<SearchSourceBuilder, InternalAggregation.ReduceContextBuilder> requestToAggReduceContextBuilder;
-    private final boolean useConcurrentSearch;
+    private final boolean concurrentSearchSettingsEnabled;
+    private boolean requestShouldUseConcurrentSearch;
 
     DefaultSearchContext(
         ReaderContext readerContext,
@@ -214,14 +216,14 @@ final class DefaultSearchContext extends SearchContext {
         this.indexShard = readerContext.indexShard();
         this.clusterService = clusterService;
         this.engineSearcher = readerContext.acquireSearcher("search");
-        this.useConcurrentSearch = useConcurrentSearch(executor);
+        this.concurrentSearchSettingsEnabled = evaluateConcurrentSegmentSearchSettings(executor);
         this.searcher = new ContextIndexSearcher(
             engineSearcher.getIndexReader(),
             engineSearcher.getSimilarity(),
             engineSearcher.getQueryCache(),
             engineSearcher.getQueryCachingPolicy(),
             lowLevelCancellation,
-            useConcurrentSearch ? executor : null,
+            concurrentSearchSettingsEnabled ? executor : null,
             this
         );
         this.relativeTimeSupplier = relativeTimeSupplier;
@@ -879,8 +881,20 @@ final class DefaultSearchContext extends SearchContext {
      * Returns concurrent segment search status for the search context
      */
     @Override
-    public boolean isConcurrentSegmentSearchEnabled() {
-        return useConcurrentSearch;
+    public boolean shouldUseConcurrentSearch() {
+        // concurrentSearchSettingsEnabled is evaluated when searchContext is created
+        return concurrentSearchSettingsEnabled && requestShouldUseConcurrentSearch;
+    }
+
+    public void evaluateRequestShouldUseConcurrentSearch() {
+        requestShouldUseConcurrentSearch = true;
+        if (aggregations() != null && aggregations().factories() != null) {
+            for (AggregatorFactory factory : aggregations().factories().getFactories()) {
+                if (factory.traverseChildFactories() == false) {
+                    requestShouldUseConcurrentSearch = false;
+                }
+            }
+        }
     }
 
     public void setProfilers(Profilers profilers) {
@@ -910,7 +924,7 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public InternalAggregation.ReduceContext partialOnShard() {
         InternalAggregation.ReduceContext rc = requestToAggReduceContextBuilder.apply(request.source()).forPartialReduction();
-        rc.setSliceLevel(isConcurrentSegmentSearchEnabled());
+        rc.setSliceLevel(shouldUseConcurrentSearch());
         return rc;
     }
 
@@ -929,7 +943,7 @@ final class DefaultSearchContext extends SearchContext {
      * @return true: use concurrent search
      *         false: otherwise
      */
-    private boolean useConcurrentSearch(Executor concurrentSearchExecutor) {
+    private boolean evaluateConcurrentSegmentSearchSettings(Executor concurrentSearchExecutor) {
         if (FeatureFlags.isEnabled(FeatureFlags.CONCURRENT_SEGMENT_SEARCH)
             && (clusterService != null)
             && (concurrentSearchExecutor != null)) {
@@ -946,7 +960,7 @@ final class DefaultSearchContext extends SearchContext {
 
     @Override
     public int getTargetMaxSliceCount() {
-        if (isConcurrentSegmentSearchEnabled() == false) {
+        if (shouldUseConcurrentSearch() == false) {
             throw new IllegalStateException("Target slice count should not be used when concurrent search is disabled");
         }
         return clusterService.getClusterSettings().get(SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING);

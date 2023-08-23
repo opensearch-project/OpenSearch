@@ -114,4 +114,17 @@ public abstract class AggregatorFactory {
     public String getStatsSubtype() {
         return OTHER_SUBTYPE;
     }
+
+    protected boolean supportsConcurrentSegmentSearch() {
+        return false;
+    }
+
+    public boolean traverseChildFactories() {
+        for (AggregatorFactory aggregatorFactory : factories.getFactories()) {
+            if (aggregatorFactory.traverseChildFactories() == false) {
+                return false;
+            }
+        }
+        return supportsConcurrentSegmentSearch();
+    }
 }
