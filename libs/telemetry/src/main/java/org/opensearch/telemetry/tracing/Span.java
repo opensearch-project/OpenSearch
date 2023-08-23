@@ -90,4 +90,10 @@ public interface Span {
      */
     String getSpanId();
 
+    /**
+     * Returns whether the span is ended or not.
+     * @return Span end Status.
+     */
+    boolean hasEnded();
+
 }

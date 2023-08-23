@@ -31,6 +31,15 @@ public class OTelSpanTests extends OpenSearchTestCase {
         verify(mockSpan).end();
     }
 
+    public void testHasEndSpanTest() {
+        Span mockSpan = getMockSpan();
+        when(mockSpan.isRecording()).thenReturn(false);
+        OTelSpan oTelSpan = new OTelSpan("spanName", mockSpan, null);
+        oTelSpan.endSpan();
+        assertTrue(oTelSpan.hasEnded());
+        verify(mockSpan).end();
+    }
+
     public void testAddAttributeString() {
         Span mockSpan = getMockSpan();
         OTelSpan oTelSpan = new OTelSpan("spanName", mockSpan, null);

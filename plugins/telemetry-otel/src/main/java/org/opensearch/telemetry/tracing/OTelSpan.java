@@ -69,6 +69,11 @@ class OTelSpan extends AbstractSpan {
         return delegateSpan.getSpanContext().getSpanId();
     }
 
+    @Override
+    public boolean hasEnded() {
+        return !delegateSpan.isRecording();
+    }
+
     io.opentelemetry.api.trace.Span getDelegateSpan() {
         return delegateSpan;
     }
