@@ -1747,13 +1747,13 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         };
     }
 
-    /**
-     * creates an empty lucene index and a corresponding empty translog. Any existing data will be deleted.
-     */
-    public void createEmpty(Version luceneVersion) throws IOException {
+    public void createEmpty(Version luceneVersion, String translogUUID) throws IOException {
         metadataLock.writeLock().lock();
         try (IndexWriter writer = newEmptyIndexWriter(directory, luceneVersion)) {
             final Map<String, String> map = new HashMap<>();
+            if (translogUUID != null) {
+                map.put(Translog.TRANSLOG_UUID_KEY, translogUUID);
+            }
             map.put(Engine.HISTORY_UUID_KEY, UUIDs.randomBase64UUID());
             map.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(SequenceNumbers.NO_OPS_PERFORMED));
             map.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(SequenceNumbers.NO_OPS_PERFORMED));
@@ -1762,6 +1762,13 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         } finally {
             metadataLock.writeLock().unlock();
         }
+    }
+
+    /**
+     * creates an empty lucene index and a corresponding empty translog. Any existing data will be deleted.
+     */
+    public void createEmpty(Version luceneVersion) throws IOException {
+        createEmpty(luceneVersion, null);
     }
 
     /**
