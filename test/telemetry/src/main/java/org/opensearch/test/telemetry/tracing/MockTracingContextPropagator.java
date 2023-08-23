@@ -8,13 +8,17 @@
 
 package org.opensearch.test.telemetry.tracing;
 
+import org.opensearch.core.common.Strings;
 import org.opensearch.telemetry.tracing.Span;
 import org.opensearch.telemetry.tracing.TracingContextPropagator;
 import org.opensearch.telemetry.tracing.attributes.Attributes;
+import org.opensearch.telemetry.tracing.http.HttpHeader;
 
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.BiConsumer;
+import java.util.stream.Collectors;
 
 /**
  * Mock {@link TracingContextPropagator} to persist the span for internode communication.
@@ -44,6 +48,20 @@ public class MockTracingContextPropagator implements TracingContextPropagator {
         } else {
             return null;
         }
+    }
+
+    @Override
+    public Span extract(HttpHeader httpHeader) {
+        if (httpHeader != null && httpHeader.getHeader() != null) {
+            Map<String, List<String>> headerMap = httpHeader.getHeader();
+            Map<String, String> convertedHeader = headerMap.entrySet()
+                .stream()
+                .collect(Collectors.toMap(Map.Entry::getKey, e -> Strings.collectionToCommaDelimitedString(e.getValue())));
+            return extract(convertedHeader);
+        } else {
+            return null;
+        }
+
     }
 
     @Override

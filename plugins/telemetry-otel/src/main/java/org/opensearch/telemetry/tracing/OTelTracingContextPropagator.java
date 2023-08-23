@@ -8,6 +8,11 @@
 
 package org.opensearch.telemetry.tracing;
 
+import org.opensearch.core.common.Strings;
+import org.opensearch.telemetry.tracing.http.HttpHeader;
+
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
 
@@ -34,11 +39,23 @@ public class OTelTracingContextPropagator implements TracingContextPropagator {
     @Override
     public Span extract(Map<String, String> props) {
         Context context = openTelemetry.getPropagators().getTextMapPropagator().extract(Context.current(), props, TEXT_MAP_GETTER);
+        return getPropagatedSpan(context);
+    }
+
+    private static OTelPropagatedSpan getPropagatedSpan(Context context) {
         if (context != null) {
             io.opentelemetry.api.trace.Span span = io.opentelemetry.api.trace.Span.fromContext(context);
             return new OTelPropagatedSpan(span);
         }
         return null;
+    }
+
+    @Override
+    public Span extract(HttpHeader httpHeader) {
+        Context context = openTelemetry.getPropagators()
+            .getTextMapPropagator()
+            .extract(Context.current(), httpHeader, HTTP_HEADER_MAP_GETTER);
+        return getPropagatedSpan(context);
     }
 
     @Override
@@ -67,6 +84,27 @@ public class OTelTracingContextPropagator implements TracingContextPropagator {
         public String get(Map<String, String> headers, String key) {
             if (headers != null && headers.containsKey(key)) {
                 return headers.get(key);
+            }
+            return null;
+        }
+    };
+
+    private static final TextMapGetter<HttpHeader> HTTP_HEADER_MAP_GETTER = new TextMapGetter<>() {
+        @Override
+        public Iterable<String> keys(HttpHeader httpHeader) {
+            Map<String, List<String>> headerMap = httpHeader.getHeader();
+            if (headerMap != null) {
+                return httpHeader.getHeader().keySet();
+            } else {
+                return Collections.emptySet();
+            }
+        }
+
+        @Override
+        public String get(HttpHeader httpHeader, String key) {
+            Map<String, List<String>> headerMap = httpHeader.getHeader();
+            if (headerMap != null && headerMap.containsKey(key)) {
+                return Strings.collectionToCommaDelimitedString(headerMap.get(key));
             }
             return null;
         }
