@@ -88,7 +88,6 @@ import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.opensearch.common.unit.ByteSizeValue.parseBytesSizeValue;
 import static org.opensearch.common.settings.AbstractScopedSettings.ARCHIVED_SETTINGS_PREFIX;
 import static org.opensearch.common.unit.TimeValue.parseTimeValue;
 import static org.opensearch.core.common.unit.ByteSizeValue.parseBytesSizeValue;
