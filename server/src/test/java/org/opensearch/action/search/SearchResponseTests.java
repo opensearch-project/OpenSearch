@@ -37,9 +37,11 @@ import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.ParseField;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
@@ -71,6 +73,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.UUID;
 
 import static java.util.Collections.singletonMap;
 import static org.opensearch.test.XContentTestUtils.insertRandomFields;
@@ -82,6 +85,9 @@ public class SearchResponseTests extends OpenSearchTestCase {
     static {
         List<NamedXContentRegistry.Entry> namedXContents = new ArrayList<>(InternalAggregationTestCase.getDefaultNamedXContents());
         namedXContents.addAll(SuggestTests.getDefaultNamedXContents());
+        namedXContents.add(
+            new NamedXContentRegistry.Entry(SearchExtBuilder.class, DummySearchExtBuilder.DUMMY_FIELD, DummySearchExtBuilder::parse)
+        );
         xContentRegistry = new NamedXContentRegistry(namedXContents);
     }
 
@@ -91,8 +97,8 @@ public class SearchResponseTests extends OpenSearchTestCase {
             public List<SearchExtSpec<?>> getSearchExts() {
                 return List.of(
                     new SearchExtSpec<>(
-                        "DummySearchExtBuilder",
-                        input -> new DummySearchExtBuilder("id"),
+                        DummySearchExtBuilder.DUMMY_FIELD,
+                        DummySearchExtBuilder::new,
                         parser -> DummySearchExtBuilder.parse(parser)
                     )
                 );
@@ -160,7 +166,8 @@ public class SearchResponseTests extends OpenSearchTestCase {
                 profileShardResults,
                 timedOut,
                 terminatedEarly,
-                numReducePhases
+                numReducePhases,
+                searchExtBuilders
             );
         } else {
             internalSearchResponse = InternalSearchResponse.empty();
@@ -175,8 +182,7 @@ public class SearchResponseTests extends OpenSearchTestCase {
             tookInMillis,
             shardSearchFailures,
             randomBoolean() ? randomClusters() : SearchResponse.Clusters.EMPTY,
-            null,
-            searchExtBuilders
+            null
         );
     }
 
@@ -193,6 +199,10 @@ public class SearchResponseTests extends OpenSearchTestCase {
      */
     public void testFromXContent() throws IOException {
         doFromXContentTestWithRandomFields(createTestItem(), false);
+    }
+
+    public void testFromXContentWithSearchExtBuilders() throws IOException {
+        doFromXContentTestWithRandomFields(createTestItem(false, List.of(new DummySearchExtBuilder(UUID.randomUUID().toString()))), false);
     }
 
     /**
@@ -277,7 +287,8 @@ public class SearchResponseTests extends OpenSearchTestCase {
                     null,
                     false,
                     null,
-                    1
+                    1,
+                    List.of(new DummySearchExtBuilder("id"))
                 ),
                 null,
                 0,
@@ -286,8 +297,7 @@ public class SearchResponseTests extends OpenSearchTestCase {
                 0,
                 ShardSearchFailure.EMPTY_ARRAY,
                 SearchResponse.Clusters.EMPTY,
-                null,
-                List.of(new DummySearchExtBuilder("id"))
+                null
             );
             StringBuilder expectedString = new StringBuilder();
             expectedString.append("{");
@@ -314,7 +324,7 @@ public class SearchResponseTests extends OpenSearchTestCase {
             }
             expectedString.append("}");
             assertEquals(expectedString.toString(), Strings.toString(MediaTypeRegistry.JSON, response));
-            List<SearchExtBuilder> searchExtBuilders = response.getSearchExtBuilders();
+            List<SearchExtBuilder> searchExtBuilders = response.getInternalResponse().getSearchExtBuilders();
             assertEquals(1, searchExtBuilders.size());
         }
         {
@@ -384,7 +394,8 @@ public class SearchResponseTests extends OpenSearchTestCase {
     }
 
     public void testSerializationWithSearchExtBuilders() throws IOException {
-        SearchResponse searchResponse = createTestItem(false, List.of(new DummySearchExtBuilder("id")));
+        String id = UUID.randomUUID().toString();
+        SearchResponse searchResponse = createTestItem(false, List.of(new DummySearchExtBuilder(id)));
         SearchResponse deserialized = copyWriteable(searchResponse, namedWriteableRegistry, SearchResponse::new, Version.CURRENT);
         if (searchResponse.getHits().getTotalHits() == null) {
             assertNull(deserialized.getHits().getTotalHits());
@@ -398,7 +409,10 @@ public class SearchResponseTests extends OpenSearchTestCase {
         assertEquals(searchResponse.getTotalShards(), deserialized.getTotalShards());
         assertEquals(searchResponse.getSkippedShards(), deserialized.getSkippedShards());
         assertEquals(searchResponse.getClusters(), deserialized.getClusters());
-        assertEquals(searchResponse.getSearchExtBuilders().get(0), deserialized.getSearchExtBuilders().get(0));
+        assertEquals(
+            searchResponse.getInternalResponse().getSearchExtBuilders().get(0),
+            deserialized.getInternalResponse().getSearchExtBuilders().get(0)
+        );
     }
 
     public void testToXContentEmptyClusters() throws IOException {
@@ -420,11 +434,17 @@ public class SearchResponseTests extends OpenSearchTestCase {
 
     static class DummySearchExtBuilder extends SearchExtBuilder {
 
+        static ParseField DUMMY_FIELD = new ParseField("dummy");
+
         private final String id;
 
         public DummySearchExtBuilder(String id) {
             assertNotNull(id);
             this.id = id;
+        }
+
+        public DummySearchExtBuilder(StreamInput in) throws IOException {
+            this.id = in.readString();
         }
 
         public String getId() {
@@ -433,12 +453,12 @@ public class SearchResponseTests extends OpenSearchTestCase {
 
         @Override
         public String getWriteableName() {
-            return "DummySearchExtBuilder";
+            return DUMMY_FIELD.getPreferredName();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeString("foo");
+            out.writeString(this.id);
         }
 
         @Override
