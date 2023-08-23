@@ -144,6 +144,12 @@ public final class BytesRefHash implements Releasable {
      */
     private ByteArray keys;
 
+    /**
+     * Pre-computed hashes of the stored keys.
+     * It is used to speed up reinserts when doubling the capacity.
+     */
+    private LongArray hashes;
+
     public BytesRefHash(final BigArrays bigArrays) {
         this(DEFAULT_INITIAL_CAPACITY, DEFAULT_LOAD_FACTOR, DEFAULT_HASHER, bigArrays);
     }
@@ -175,6 +181,7 @@ public final class BytesRefHash implements Releasable {
         offsets = bigArrays.newLongArray(initialCapacity + 1, false);
         offsets.set(0, 0);
         keys = bigArrays.newByteArray(initialCapacity * 3, false);
+        hashes = bigArrays.newLongArray(initialCapacity, false);
     }
 
     /**
@@ -193,7 +200,7 @@ public final class BytesRefHash implements Releasable {
                 } else {
                     table.set(idx, val);
                 }
-                return append(key);
+                return append(key, hash);
             } else if (((value & MASK_FINGERPRINT) == fingerprint) && key.bytesEquals(get(ordinal = (value & MASK_ORDINAL), scratch))) {
                 return -1 - ordinal;
             }
@@ -254,13 +261,15 @@ public final class BytesRefHash implements Releasable {
     /**
      * Appends the key in the keys' and offsets' tables.
      */
-    private long append(final BytesRef key) {
+    private long append(final BytesRef key, final long hash) {
         final long start = offsets.get(size);
         final long end = start + key.length;
         offsets = bigArrays.grow(offsets, size + 2);
         offsets.set(size + 1, end);
         keys = bigArrays.grow(keys, end);
         keys.set(start, key.bytes, key.offset, key.length);
+        hashes = bigArrays.grow(hashes, size + 1);
+        hashes.set(size, hash);
         return size++;
     }
 
@@ -282,7 +291,7 @@ public final class BytesRefHash implements Releasable {
         table.set(hash & mask, value);
 
         for (long ordinal = 0; ordinal < size; ordinal++) {
-            reinsert(ordinal, hasher.hash(get(ordinal, scratch)));
+            reinsert(ordinal, hashes.get(ordinal));
         }
     }
 
@@ -300,7 +309,7 @@ public final class BytesRefHash implements Releasable {
 
     @Override
     public void close() {
-        Releasables.close(table, offsets, keys);
+        Releasables.close(table, offsets, keys, hashes);
     }
 
     /**
