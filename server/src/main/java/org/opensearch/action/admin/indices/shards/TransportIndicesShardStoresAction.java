@@ -61,6 +61,7 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.gateway.AsyncShardFetch;
 import org.opensearch.gateway.TransportNodesListGatewayStartedShards;
 import org.opensearch.gateway.TransportNodesListGatewayStartedShards.NodeGatewayStartedShards;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -96,7 +97,8 @@ public class TransportIndicesShardStoresAction extends TransportClusterManagerNo
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        TransportNodesListGatewayStartedShards listShardStoresInfo
+        TransportNodesListGatewayStartedShards listShardStoresInfo,
+        Tracer tracer
     ) {
         super(
             IndicesShardStoresAction.NAME,
@@ -105,7 +107,8 @@ public class TransportIndicesShardStoresAction extends TransportClusterManagerNo
             threadPool,
             actionFilters,
             IndicesShardStoresRequest::new,
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            tracer
         );
         this.listShardStoresInfo = listShardStoresInfo;
     }

@@ -53,6 +53,7 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.tasks.Task;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportChannel;
 import org.opensearch.transport.TransportException;
@@ -90,9 +91,10 @@ public abstract class TransportBroadcastAction<
         IndexNameExpressionResolver indexNameExpressionResolver,
         Writeable.Reader<Request> request,
         Writeable.Reader<ShardRequest> shardRequest,
-        String shardExecutor
+        String shardExecutor,
+        Tracer tracer
     ) {
-        super(actionName, transportService, actionFilters, request);
+        super(actionName, transportService, actionFilters, request, tracer);
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;

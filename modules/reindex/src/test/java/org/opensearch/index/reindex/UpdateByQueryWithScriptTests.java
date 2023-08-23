@@ -35,6 +35,7 @@ package org.opensearch.index.reindex;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.script.ScriptService;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.transport.TransportService;
 
 import java.util.Collections;
@@ -79,7 +80,8 @@ public class UpdateByQueryWithScriptTests extends AbstractAsyncBulkByScrollActio
             null,
             transportService,
             scriptService,
-            null
+            null,
+            NoopTracer.INSTANCE
         );
         return new TransportUpdateByQueryAction.AsyncIndexBySearchAction(
             task,

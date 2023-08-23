@@ -34,6 +34,7 @@ import org.opensearch.plugin.correlation.utils.CorrelationRuleIndices;
 import org.opensearch.plugin.correlation.utils.IndexUtils;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.tasks.Task;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
@@ -68,9 +69,10 @@ public class TransportIndexCorrelationRuleAction extends HandledTransportAction<
         Client client,
         ActionFilters actionFilters,
         ClusterService clusterService,
-        CorrelationRuleIndices correlationRuleIndices
+        CorrelationRuleIndices correlationRuleIndices,
+        Tracer tracer
     ) {
-        super(IndexCorrelationRuleAction.NAME, transportService, actionFilters, IndexCorrelationRuleRequest::new);
+        super(IndexCorrelationRuleAction.NAME, transportService, actionFilters, IndexCorrelationRuleRequest::new, tracer);
         this.client = client;
         this.clusterService = clusterService;
         this.correlationRuleIndices = correlationRuleIndices;

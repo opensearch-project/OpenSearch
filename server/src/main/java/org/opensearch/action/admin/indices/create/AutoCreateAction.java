@@ -56,6 +56,7 @@ import org.opensearch.common.Priority;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -96,9 +97,19 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
             ActionFilters actionFilters,
             IndexNameExpressionResolver indexNameExpressionResolver,
             MetadataCreateIndexService createIndexService,
-            MetadataCreateDataStreamService metadataCreateDataStreamService
+            MetadataCreateDataStreamService metadataCreateDataStreamService,
+            Tracer tracer
         ) {
-            super(NAME, transportService, clusterService, threadPool, actionFilters, CreateIndexRequest::new, indexNameExpressionResolver);
+            super(
+                NAME,
+                transportService,
+                clusterService,
+                threadPool,
+                actionFilters,
+                CreateIndexRequest::new,
+                indexNameExpressionResolver,
+                tracer
+            );
             this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
             this.createIndexService = createIndexService;
             this.metadataCreateDataStreamService = metadataCreateDataStreamService;

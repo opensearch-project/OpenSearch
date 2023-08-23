@@ -65,6 +65,10 @@ import org.opensearch.index.engine.InternalEngineFactory;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
 import org.opensearch.indices.IndicesService;
+<<<<<<< HEAD
+=======
+import org.opensearch.telemetry.tracing.Tracer;
+>>>>>>> 2eea5c821f6 (Add instrumentation for Transport action)
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.transport.MockTransport;
 import org.opensearch.threadpool.ThreadPool;
@@ -472,7 +476,8 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
             ShardId shardId,
             IndexShard primary,
             IndexShard replica,
-            SetOnce<Boolean> executedOnPrimary
+            SetOnce<Boolean> executedOnPrimary,
+            Tracer tracer
         ) {
             super(
                 settings,
@@ -485,7 +490,8 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
                 new ActionFilters(new HashSet<>()),
                 Request::new,
                 Request::new,
-                ThreadPool.Names.SAME
+                ThreadPool.Names.SAME,
+                tracer
             );
             this.shardId = Objects.requireNonNull(shardId);
             this.primary = Objects.requireNonNull(primary);
@@ -579,7 +585,8 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
                 shardId,
                 primary,
                 replica,
-                new SetOnce<>()
+                new SetOnce<>(),
+                NoopTracer.INSTANCE
             );
             this.globalBlock = globalBlock;
         }
@@ -647,7 +654,8 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
                 shardId,
                 primary,
                 replica,
-                new SetOnce<>()
+                new SetOnce<>(),
+                NoopTracer.INSTANCE
             );
         }
 

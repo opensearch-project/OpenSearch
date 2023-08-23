@@ -58,6 +58,7 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.tasks.Task;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.NodeShouldNotConnectException;
 import org.opensearch.transport.TransportChannel;
@@ -107,9 +108,10 @@ public abstract class TransportBroadcastByNodeAction<
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         Writeable.Reader<Request> request,
-        String executor
+        String executor,
+        Tracer tracer
     ) {
-        this(actionName, clusterService, transportService, actionFilters, indexNameExpressionResolver, request, executor, true);
+        this(actionName, clusterService, transportService, actionFilters, indexNameExpressionResolver, request, executor, true, tracer);
     }
 
     public TransportBroadcastByNodeAction(
@@ -120,9 +122,10 @@ public abstract class TransportBroadcastByNodeAction<
         IndexNameExpressionResolver indexNameExpressionResolver,
         Writeable.Reader<Request> request,
         String executor,
-        boolean canTripCircuitBreaker
+        boolean canTripCircuitBreaker,
+        Tracer tracer
     ) {
-        super(actionName, canTripCircuitBreaker, transportService, actionFilters, request);
+        super(actionName, canTripCircuitBreaker, transportService, actionFilters, request, tracer);
 
         this.clusterService = clusterService;
         this.transportService = transportService;

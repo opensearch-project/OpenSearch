@@ -43,6 +43,7 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.tasks.Task;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.transport.TransportService;
 
 public class TransportNoopBulkAction extends HandledTransportAction<BulkRequest, BulkResponse> {
@@ -53,8 +54,8 @@ public class TransportNoopBulkAction extends HandledTransportAction<BulkRequest,
     );
 
     @Inject
-    public TransportNoopBulkAction(TransportService transportService, ActionFilters actionFilters) {
-        super(NoopBulkAction.NAME, transportService, actionFilters, BulkRequest::new);
+    public TransportNoopBulkAction(TransportService transportService, ActionFilters actionFilters, Tracer tracer) {
+        super(NoopBulkAction.NAME, transportService, actionFilters, BulkRequest::new, tracer);
     }
 
     @Override

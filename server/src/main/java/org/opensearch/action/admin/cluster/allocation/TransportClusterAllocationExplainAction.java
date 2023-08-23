@@ -55,6 +55,7 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.snapshots.SnapshotsInfoService;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -88,7 +89,8 @@ public class TransportClusterAllocationExplainAction extends TransportClusterMan
         ClusterInfoService clusterInfoService,
         SnapshotsInfoService snapshotsInfoService,
         AllocationDeciders allocationDeciders,
-        AllocationService allocationService
+        AllocationService allocationService,
+        Tracer tracer
     ) {
         super(
             ClusterAllocationExplainAction.NAME,
@@ -97,7 +99,8 @@ public class TransportClusterAllocationExplainAction extends TransportClusterMan
             threadPool,
             actionFilters,
             ClusterAllocationExplainRequest::new,
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            tracer
         );
         this.clusterInfoService = clusterInfoService;
         this.snapshotsInfoService = snapshotsInfoService;

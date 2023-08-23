@@ -67,6 +67,7 @@ import org.opensearch.plugins.NetworkPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.Task;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportException;
@@ -286,7 +287,12 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
     public static class TransportTestTaskAction extends TransportNodesAction<NodesRequest, NodesResponse, NodeRequest, NodeResponse> {
 
         @Inject
-        public TransportTestTaskAction(ThreadPool threadPool, ClusterService clusterService, TransportService transportService) {
+        public TransportTestTaskAction(
+            ThreadPool threadPool,
+            ClusterService clusterService,
+            TransportService transportService,
+            Tracer tracer
+        ) {
             super(
                 TestTaskAction.NAME,
                 threadPool,
@@ -296,7 +302,8 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
                 NodesRequest::new,
                 NodeRequest::new,
                 ThreadPool.Names.GENERIC,
-                NodeResponse.class
+                NodeResponse.class,
+                tracer
             );
         }
 
@@ -428,7 +435,7 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
         UnblockTestTaskResponse> {
 
         @Inject
-        public TransportUnblockTestTasksAction(ClusterService clusterService, TransportService transportService) {
+        public TransportUnblockTestTasksAction(ClusterService clusterService, TransportService transportService, Tracer tracer) {
             super(
                 UnblockTestTasksAction.NAME,
                 clusterService,
@@ -437,7 +444,8 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
                 UnblockTestTasksRequest::new,
                 UnblockTestTasksResponse::new,
                 UnblockTestTaskResponse::new,
-                ThreadPool.Names.MANAGEMENT
+                ThreadPool.Names.MANAGEMENT,
+                tracer
             );
         }
 

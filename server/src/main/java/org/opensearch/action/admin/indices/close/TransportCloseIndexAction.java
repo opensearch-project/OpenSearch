@@ -53,6 +53,7 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.index.Index;
 import org.opensearch.tasks.Task;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -88,7 +89,8 @@ public class TransportCloseIndexAction extends TransportClusterManagerNodeAction
         ClusterSettings clusterSettings,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        DestructiveOperations destructiveOperations
+        DestructiveOperations destructiveOperations,
+        Tracer tracer
     ) {
         super(
             CloseIndexAction.NAME,
@@ -97,7 +99,8 @@ public class TransportCloseIndexAction extends TransportClusterManagerNodeAction
             threadPool,
             actionFilters,
             CloseIndexRequest::new,
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            tracer
         );
         this.indexStateService = indexStateService;
         this.destructiveOperations = destructiveOperations;

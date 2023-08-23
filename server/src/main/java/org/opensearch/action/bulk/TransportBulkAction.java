@@ -83,6 +83,7 @@ import org.opensearch.indices.SystemIndices;
 import org.opensearch.ingest.IngestService;
 import org.opensearch.node.NodeClosedException;
 import org.opensearch.tasks.Task;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.threadpool.ThreadPool.Names;
 import org.opensearch.transport.TransportService;
@@ -143,7 +144,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         IndexNameExpressionResolver indexNameExpressionResolver,
         AutoCreateIndex autoCreateIndex,
         IndexingPressureService indexingPressureService,
-        SystemIndices systemIndices
+        SystemIndices systemIndices,
+        Tracer tracer
     ) {
         this(
             threadPool,
@@ -157,7 +159,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             autoCreateIndex,
             indexingPressureService,
             systemIndices,
-            System::nanoTime
+            System::nanoTime,
+            tracer
         );
     }
 
@@ -173,9 +176,10 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         AutoCreateIndex autoCreateIndex,
         IndexingPressureService indexingPressureService,
         SystemIndices systemIndices,
-        LongSupplier relativeTimeProvider
+        LongSupplier relativeTimeProvider,
+        Tracer tracer
     ) {
-        super(BulkAction.NAME, transportService, actionFilters, BulkRequest::new, ThreadPool.Names.SAME);
+        super(BulkAction.NAME, transportService, actionFilters, BulkRequest::new, ThreadPool.Names.SAME, tracer);
         Objects.requireNonNull(relativeTimeProvider);
         this.threadPool = threadPool;
         this.clusterService = clusterService;

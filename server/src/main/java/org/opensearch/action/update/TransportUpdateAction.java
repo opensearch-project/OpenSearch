@@ -69,6 +69,7 @@ import org.opensearch.index.engine.VersionConflictEngineException;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.tasks.Task;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.threadpool.ThreadPool.Names;
 import org.opensearch.transport.TransportService;
@@ -104,7 +105,8 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
         IndexNameExpressionResolver indexNameExpressionResolver,
         IndicesService indicesService,
         AutoCreateIndex autoCreateIndex,
-        NodeClient client
+        NodeClient client,
+        Tracer tracer
     ) {
         super(
             UpdateAction.NAME,
@@ -113,7 +115,8 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
             transportService,
             actionFilters,
             indexNameExpressionResolver,
-            UpdateRequest::new
+            UpdateRequest::new,
+            tracer
         );
         this.updateHelper = updateHelper;
         this.indicesService = indicesService;

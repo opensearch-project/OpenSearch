@@ -14,6 +14,7 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskManager;
+import org.opensearch.telemetry.tracing.Tracer;
 
 /**
  * A proxy transport action used to proxy a transport request from an extension to execute on another extension
@@ -28,9 +29,10 @@ public class ExtensionTransportAction extends TransportAction<ExtensionActionReq
         String actionName,
         ActionFilters actionFilters,
         TaskManager taskManager,
-        ExtensionsManager extensionsManager
+        ExtensionsManager extensionsManager,
+        Tracer tracer
     ) {
-        super(actionName, actionFilters, taskManager);
+        super(actionName, actionFilters, taskManager, tracer);
         this.extensionsManager = extensionsManager;
     }
 

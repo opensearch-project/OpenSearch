@@ -179,7 +179,8 @@ public class ClusterStateHealthTests extends OpenSearchTestCase {
             new ActionFilters(new HashSet<>()),
             indexNameExpressionResolver,
             new AllocationService(null, new TestGatewayAllocator(), null, null, null),
-            null
+            null,
+            NoopTracer.INSTANCE
         );
         PlainActionFuture<ClusterHealthResponse> listener = new PlainActionFuture<>();
         action.execute(new ClusterHealthRequest().waitForGreenStatus(), listener);

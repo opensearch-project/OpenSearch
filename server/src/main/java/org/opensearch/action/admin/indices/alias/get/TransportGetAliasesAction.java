@@ -46,6 +46,7 @@ import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.indices.SystemIndices;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -77,7 +78,8 @@ public class TransportGetAliasesAction extends TransportClusterManagerNodeReadAc
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        SystemIndices systemIndices
+        SystemIndices systemIndices,
+        Tracer tracer
     ) {
         super(
             GetAliasesAction.NAME,
@@ -86,7 +88,8 @@ public class TransportGetAliasesAction extends TransportClusterManagerNodeReadAc
             threadPool,
             actionFilters,
             GetAliasesRequest::new,
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            tracer
         );
         this.systemIndices = systemIndices;
     }

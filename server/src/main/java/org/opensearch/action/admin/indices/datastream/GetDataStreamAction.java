@@ -61,6 +61,7 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -297,9 +298,10 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             ClusterService clusterService,
             ThreadPool threadPool,
             ActionFilters actionFilters,
-            IndexNameExpressionResolver indexNameExpressionResolver
+            IndexNameExpressionResolver indexNameExpressionResolver,
+            Tracer tracer
         ) {
-            super(NAME, transportService, clusterService, threadPool, actionFilters, Request::new, indexNameExpressionResolver);
+            super(NAME, transportService, clusterService, threadPool, actionFilters, Request::new, indexNameExpressionResolver, tracer);
         }
 
         @Override

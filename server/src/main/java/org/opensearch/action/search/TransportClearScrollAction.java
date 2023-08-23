@@ -39,6 +39,7 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.tasks.Task;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.transport.TransportService;
 
 /**
@@ -58,9 +59,10 @@ public class TransportClearScrollAction extends HandledTransportAction<ClearScro
         ClusterService clusterService,
         ActionFilters actionFilters,
         SearchTransportService searchTransportService,
-        NamedWriteableRegistry namedWriteableRegistry
+        NamedWriteableRegistry namedWriteableRegistry,
+        Tracer tracer
     ) {
-        super(ClearScrollAction.NAME, transportService, actionFilters, ClearScrollRequest::new);
+        super(ClearScrollAction.NAME, transportService, actionFilters, ClearScrollRequest::new, tracer);
         this.clusterService = clusterService;
         this.searchTransportService = searchTransportService;
         this.namedWriteableRegistry = namedWriteableRegistry;

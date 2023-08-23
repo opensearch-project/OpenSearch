@@ -65,6 +65,7 @@ import org.opensearch.snapshots.SnapshotShardFailure;
 import org.opensearch.snapshots.SnapshotShardsService;
 import org.opensearch.snapshots.SnapshotState;
 import org.opensearch.snapshots.SnapshotsService;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -103,7 +104,8 @@ public class TransportSnapshotsStatusAction extends TransportClusterManagerNodeA
         RepositoriesService repositoriesService,
         TransportNodesSnapshotsStatus transportNodesSnapshotsStatus,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Tracer tracer
     ) {
         super(
             SnapshotsStatusAction.NAME,
@@ -112,7 +114,8 @@ public class TransportSnapshotsStatusAction extends TransportClusterManagerNodeA
             threadPool,
             actionFilters,
             SnapshotsStatusRequest::new,
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            tracer
         );
         this.repositoriesService = repositoriesService;
         this.transportNodesSnapshotsStatus = transportNodesSnapshotsStatus;

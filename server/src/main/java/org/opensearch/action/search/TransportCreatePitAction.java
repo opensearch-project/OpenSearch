@@ -23,6 +23,7 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.internal.ShardSearchContextId;
 import org.opensearch.tasks.Task;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportService;
 
@@ -50,9 +51,10 @@ public class TransportCreatePitAction extends HandledTransportAction<CreatePitRe
         ClusterService clusterService,
         TransportSearchAction transportSearchAction,
         NamedWriteableRegistry namedWriteableRegistry,
-        CreatePitController createPitController
+        CreatePitController createPitController,
+        Tracer tracer
     ) {
-        super(CreatePitAction.NAME, transportService, actionFilters, in -> new CreatePitRequest(in));
+        super(CreatePitAction.NAME, transportService, actionFilters, in -> new CreatePitRequest(in), tracer);
         this.transportService = transportService;
         this.searchTransportService = searchTransportService;
         this.clusterService = clusterService;

@@ -45,6 +45,7 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.index.Index;
 import org.opensearch.tasks.Task;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -66,7 +67,8 @@ public class TransportAutoPutMappingAction extends TransportClusterManagerNodeAc
         final ThreadPool threadPool,
         final MetadataMappingService metadataMappingService,
         final ActionFilters actionFilters,
-        final IndexNameExpressionResolver indexNameExpressionResolver
+        final IndexNameExpressionResolver indexNameExpressionResolver,
+        Tracer tracer
     ) {
         super(
             AutoPutMappingAction.NAME,
@@ -75,7 +77,8 @@ public class TransportAutoPutMappingAction extends TransportClusterManagerNodeAc
             threadPool,
             actionFilters,
             PutMappingRequest::new,
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            tracer
         );
         this.metadataMappingService = metadataMappingService;
     }

@@ -20,6 +20,7 @@ import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.extensions.AcknowledgedResponse;
 import org.opensearch.extensions.DiscoveryExtensionNode;
 import org.opensearch.extensions.ExtensionsManager;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.ActionNotFoundTransportException;
 import org.opensearch.transport.TransportException;
@@ -50,13 +51,15 @@ public class ExtensionTransportActionsHandler {
     private final ActionFilters actionFilters;
     private final DynamicActionRegistry dynamicActionRegistry;
     private final ExtensionsManager extensionsManager;
+    private final Tracer tracer;
 
     public ExtensionTransportActionsHandler(
         Map<String, DiscoveryExtensionNode> extensionIdMap,
         TransportService transportService,
         NodeClient client,
         ActionModule actionModule,
-        ExtensionsManager extensionsManager
+        ExtensionsManager extensionsManager,
+        Tracer tracer
     ) {
         this.extensionIdMap = extensionIdMap;
         this.transportService = transportService;
@@ -64,6 +67,7 @@ public class ExtensionTransportActionsHandler {
         this.actionFilters = actionModule.getActionFilters();
         this.dynamicActionRegistry = actionModule.getDynamicActionRegistry();
         this.extensionsManager = extensionsManager;
+        this.tracer = tracer;
     }
 
     /**
@@ -81,7 +85,7 @@ public class ExtensionTransportActionsHandler {
         // Register the action in the action module's dynamic actions map
         dynamicActionRegistry.registerDynamicAction(
             new ExtensionAction(uniqueId, action),
-            new ExtensionTransportAction(action, actionFilters, transportService.getTaskManager(), extensionsManager)
+            new ExtensionTransportAction(action, actionFilters, transportService.getTaskManager(), extensionsManager, tracer)
         );
     }
 

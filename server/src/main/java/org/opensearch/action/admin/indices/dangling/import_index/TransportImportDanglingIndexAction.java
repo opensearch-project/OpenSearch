@@ -49,6 +49,7 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.gateway.LocalAllocateDangledIndices;
 import org.opensearch.tasks.Task;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.transport.TransportService;
 
 import java.util.ArrayList;
@@ -76,9 +77,10 @@ public class TransportImportDanglingIndexAction extends HandledTransportAction<I
         ActionFilters actionFilters,
         TransportService transportService,
         LocalAllocateDangledIndices danglingIndexAllocator,
-        NodeClient nodeClient
+        NodeClient nodeClient,
+        Tracer tracer
     ) {
-        super(ImportDanglingIndexAction.NAME, transportService, actionFilters, ImportDanglingIndexRequest::new);
+        super(ImportDanglingIndexAction.NAME, transportService, actionFilters, ImportDanglingIndexRequest::new, tracer);
         this.danglingIndexAllocator = danglingIndexAllocator;
         this.nodeClient = nodeClient;
     }

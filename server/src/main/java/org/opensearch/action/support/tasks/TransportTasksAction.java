@@ -51,6 +51,7 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.tasks.Task;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.NodeShouldNotConnectException;
 import org.opensearch.transport.TransportChannel;
@@ -98,9 +99,10 @@ public abstract class TransportTasksAction<
         Writeable.Reader<TasksRequest> requestReader,
         Writeable.Reader<TasksResponse> responsesReader,
         Writeable.Reader<TaskResponse> responseReader,
-        String nodeExecutor
+        String nodeExecutor,
+        Tracer tracer
     ) {
-        super(actionName, transportService, actionFilters, requestReader);
+        super(actionName, transportService, actionFilters, requestReader, tracer);
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.transportNodeAction = actionName + "[n]";

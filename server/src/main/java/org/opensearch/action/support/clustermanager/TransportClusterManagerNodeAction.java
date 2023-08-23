@@ -62,6 +62,7 @@ import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.discovery.ClusterManagerNotDiscoveredException;
 import org.opensearch.node.NodeClosedException;
 import org.opensearch.tasks.Task;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.ConnectTransportException;
 import org.opensearch.transport.RemoteTransportException;
@@ -95,9 +96,10 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
         ThreadPool threadPool,
         ActionFilters actionFilters,
         Writeable.Reader<Request> request,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Tracer tracer
     ) {
-        this(actionName, true, transportService, clusterService, threadPool, actionFilters, request, indexNameExpressionResolver);
+        this(actionName, true, transportService, clusterService, threadPool, actionFilters, request, indexNameExpressionResolver, tracer);
     }
 
     protected TransportClusterManagerNodeAction(
@@ -108,9 +110,10 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
         ThreadPool threadPool,
         ActionFilters actionFilters,
         Writeable.Reader<Request> request,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Tracer tracer
     ) {
-        super(actionName, canTripCircuitBreaker, transportService, actionFilters, request);
+        super(actionName, canTripCircuitBreaker, transportService, actionFilters, request, tracer);
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.threadPool = threadPool;

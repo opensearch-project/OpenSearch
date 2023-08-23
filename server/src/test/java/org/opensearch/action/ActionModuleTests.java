@@ -59,6 +59,7 @@ import org.opensearch.rest.RestRequest.Method;
 import org.opensearch.rest.action.RestMainAction;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskManager;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
@@ -102,8 +103,8 @@ public class ActionModuleTests extends OpenSearchTestCase {
             }
         }
         class FakeTransportAction extends TransportAction<FakeRequest, ActionResponse> {
-            protected FakeTransportAction(String actionName, ActionFilters actionFilters, TaskManager taskManager) {
-                super(actionName, actionFilters, taskManager);
+            protected FakeTransportAction(String actionName, ActionFilters actionFilters, TaskManager taskManager, Tracer tracer) {
+                super(actionName, actionFilters, taskManager, tracer);
             }
 
             @Override

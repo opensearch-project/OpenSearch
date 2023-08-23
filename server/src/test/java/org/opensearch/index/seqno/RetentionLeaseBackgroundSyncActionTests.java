@@ -125,7 +125,8 @@ public class RetentionLeaseBackgroundSyncActionTests extends OpenSearchTestCase 
             indicesService,
             threadPool,
             shardStateAction,
-            new ActionFilters(Collections.emptySet())
+            new ActionFilters(Collections.emptySet()),
+            NoopTracer.INSTANCE
         );
         final RetentionLeases retentionLeases = mock(RetentionLeases.class);
         final RetentionLeaseBackgroundSyncAction.Request request = new RetentionLeaseBackgroundSyncAction.Request(
@@ -164,7 +165,8 @@ public class RetentionLeaseBackgroundSyncActionTests extends OpenSearchTestCase 
             indicesService,
             threadPool,
             shardStateAction,
-            new ActionFilters(Collections.emptySet())
+            new ActionFilters(Collections.emptySet()),
+            NoopTracer.INSTANCE
         );
         final RetentionLeases retentionLeases = mock(RetentionLeases.class);
         final RetentionLeaseBackgroundSyncAction.Request request = new RetentionLeaseBackgroundSyncAction.Request(
@@ -206,7 +208,8 @@ public class RetentionLeaseBackgroundSyncActionTests extends OpenSearchTestCase 
             indicesService,
             threadPool,
             shardStateAction,
-            new ActionFilters(Collections.emptySet())
+            new ActionFilters(Collections.emptySet()),
+            NoopTracer.INSTANCE
         );
 
         assertNull(action.indexBlockLevel());
@@ -234,7 +237,8 @@ public class RetentionLeaseBackgroundSyncActionTests extends OpenSearchTestCase 
             mock(IndicesService.class),
             threadPool,
             shardStateAction,
-            new ActionFilters(Collections.emptySet())
+            new ActionFilters(Collections.emptySet()),
+            NoopTracer.INSTANCE
         );
     }
 

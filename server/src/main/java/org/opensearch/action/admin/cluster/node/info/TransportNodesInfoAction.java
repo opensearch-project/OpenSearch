@@ -40,6 +40,7 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.node.NodeService;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportService;
@@ -67,7 +68,8 @@ public class TransportNodesInfoAction extends TransportNodesAction<
         ClusterService clusterService,
         TransportService transportService,
         NodeService nodeService,
-        ActionFilters actionFilters
+        ActionFilters actionFilters,
+        Tracer tracer
     ) {
         super(
             NodesInfoAction.NAME,
@@ -78,7 +80,8 @@ public class TransportNodesInfoAction extends TransportNodesAction<
             NodesInfoRequest::new,
             NodeInfoRequest::new,
             ThreadPool.Names.MANAGEMENT,
-            NodeInfo.class
+            NodeInfo.class,
+            tracer
         );
         this.nodeService = nodeService;
     }

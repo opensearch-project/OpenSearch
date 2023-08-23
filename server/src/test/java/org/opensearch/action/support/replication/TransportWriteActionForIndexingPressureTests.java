@@ -37,6 +37,7 @@ import org.opensearch.index.stats.IndexingPressurePerShardStats;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.SystemIndices;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.CapturingTransport;
@@ -137,7 +138,15 @@ public class TransportWriteActionForIndexingPressureTests extends OpenSearchTest
             .build();
         this.indexingPressureService = new IndexingPressureService(settings, clusterService);
 
-        TestAction action = new TestAction(settings, "internal:testAction", transportService, clusterService, shardStateAction, threadPool);
+        TestAction action = new TestAction(
+            settings,
+            "internal:testAction",
+            transportService,
+            clusterService,
+            shardStateAction,
+            threadPool,
+            NoopTracer.INSTANCE
+        );
 
         action.handleReplicaRequest(
             new TransportReplicationAction.ConcreteReplicaRequest<>(
@@ -169,7 +178,15 @@ public class TransportWriteActionForIndexingPressureTests extends OpenSearchTest
             .build();
         this.indexingPressureService = new IndexingPressureService(settings, clusterService);
 
-        TestAction action = new TestAction(settings, "internal:testAction", transportService, clusterService, shardStateAction, threadPool);
+        TestAction action = new TestAction(
+            settings,
+            "internal:testAction",
+            transportService,
+            clusterService,
+            shardStateAction,
+            threadPool,
+            NoopTracer.INSTANCE
+        );
 
         action.handleReplicaRequest(
             new TransportReplicationAction.ConcreteReplicaRequest<>(
@@ -210,7 +227,8 @@ public class TransportWriteActionForIndexingPressureTests extends OpenSearchTest
             transportService,
             clusterService,
             shardStateAction,
-            threadPool
+            threadPool,
+            NoopTracer.INSTANCE
         );
 
         action.handlePrimaryRequest(
@@ -249,7 +267,8 @@ public class TransportWriteActionForIndexingPressureTests extends OpenSearchTest
             transportService,
             clusterService,
             shardStateAction,
-            threadPool
+            threadPool,
+            NoopTracer.INSTANCE
         );
 
         action.handlePrimaryRequest(
@@ -285,7 +304,15 @@ public class TransportWriteActionForIndexingPressureTests extends OpenSearchTest
             .build();
         this.indexingPressureService = new IndexingPressureService(settings, clusterService);
 
-        TestAction action = new TestAction(settings, "internal:testAction", transportService, clusterService, shardStateAction, threadPool);
+        TestAction action = new TestAction(
+            settings,
+            "internal:testAction",
+            transportService,
+            clusterService,
+            shardStateAction,
+            threadPool,
+            NoopTracer.INSTANCE
+        );
 
         action.handlePrimaryRequest(
             new TransportReplicationAction.ConcreteShardRequest<>(
@@ -317,7 +344,15 @@ public class TransportWriteActionForIndexingPressureTests extends OpenSearchTest
             .build();
         this.indexingPressureService = new IndexingPressureService(settings, clusterService);
 
-        TestAction action = new TestAction(settings, "internal:testAction", transportService, clusterService, shardStateAction, threadPool);
+        TestAction action = new TestAction(
+            settings,
+            "internal:testAction",
+            transportService,
+            clusterService,
+            shardStateAction,
+            threadPool,
+            NoopTracer.INSTANCE
+        );
 
         action.handlePrimaryRequest(
             new TransportReplicationAction.ConcreteShardRequest<>(
@@ -376,7 +411,8 @@ public class TransportWriteActionForIndexingPressureTests extends OpenSearchTest
             TransportService transportService,
             ClusterService clusterService,
             ShardStateAction shardStateAction,
-            ThreadPool threadPool
+            ThreadPool threadPool,
+            Tracer tracer
         ) {
             super(
                 settings,
@@ -392,7 +428,8 @@ public class TransportWriteActionForIndexingPressureTests extends OpenSearchTest
                 ignore -> ThreadPool.Names.SAME,
                 false,
                 TransportWriteActionForIndexingPressureTests.this.indexingPressureService,
-                new SystemIndices(emptyMap())
+                new SystemIndices(emptyMap()),
+                tracer
             );
         }
 

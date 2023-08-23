@@ -45,6 +45,7 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -67,7 +68,8 @@ public class TransportGetComponentTemplateAction extends TransportClusterManager
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Tracer tracer
     ) {
         super(
             GetComponentTemplateAction.NAME,
@@ -76,7 +78,8 @@ public class TransportGetComponentTemplateAction extends TransportClusterManager
             threadPool,
             actionFilters,
             GetComponentTemplateAction.Request::new,
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            tracer
         );
     }
 

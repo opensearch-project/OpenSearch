@@ -50,6 +50,7 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.index.Index;
 import org.opensearch.tasks.Task;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -75,7 +76,8 @@ public class TransportOpenIndexAction extends TransportClusterManagerNodeAction<
         MetadataIndexStateService indexStateService,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        DestructiveOperations destructiveOperations
+        DestructiveOperations destructiveOperations,
+        Tracer tracer
     ) {
         super(
             OpenIndexAction.NAME,
@@ -84,7 +86,8 @@ public class TransportOpenIndexAction extends TransportClusterManagerNodeAction<
             threadPool,
             actionFilters,
             OpenIndexRequest::new,
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            tracer
         );
         this.indexStateService = indexStateService;
         this.destructiveOperations = destructiveOperations;

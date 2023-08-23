@@ -20,6 +20,7 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.index.recovery.RemoteStoreRestoreService;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -42,7 +43,8 @@ public final class TransportRestoreRemoteStoreAction extends TransportClusterMan
         ThreadPool threadPool,
         RemoteStoreRestoreService restoreService,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Tracer tracer
     ) {
         super(
             RestoreRemoteStoreAction.NAME,
@@ -51,7 +53,8 @@ public final class TransportRestoreRemoteStoreAction extends TransportClusterMan
             threadPool,
             actionFilters,
             RestoreRemoteStoreRequest::new,
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            tracer
         );
         this.restoreService = restoreService;
     }

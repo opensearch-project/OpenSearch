@@ -52,6 +52,7 @@ import org.opensearch.script.TemplateScript;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.tasks.Task;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
@@ -71,9 +72,10 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
         ActionFilters actionFilters,
         ScriptService scriptService,
         NamedXContentRegistry xContentRegistry,
-        NodeClient client
+        NodeClient client,
+        Tracer tracer
     ) {
-        super(SearchTemplateAction.NAME, transportService, actionFilters, SearchTemplateRequest::new);
+        super(SearchTemplateAction.NAME, transportService, actionFilters, SearchTemplateRequest::new, tracer);
         this.scriptService = scriptService;
         this.xContentRegistry = xContentRegistry;
         this.client = client;

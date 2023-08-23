@@ -64,6 +64,7 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardNotFoundException;
 import org.opensearch.index.store.StoreStats;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -379,7 +380,8 @@ public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Re
             TransportService transportService,
             IndicesService indicesService,
             ActionFilters actionFilters,
-            IndexNameExpressionResolver indexNameExpressionResolver
+            IndexNameExpressionResolver indexNameExpressionResolver,
+            Tracer tracer
         ) {
             super(
                 DataStreamsStatsAction.NAME,
@@ -388,7 +390,8 @@ public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Re
                 actionFilters,
                 indexNameExpressionResolver,
                 Request::new,
-                ThreadPool.Names.MANAGEMENT
+                ThreadPool.Names.MANAGEMENT,
+                tracer
             );
             this.clusterService = clusterService;
             this.indicesService = indicesService;

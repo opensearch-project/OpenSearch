@@ -19,6 +19,7 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.search.pipeline.SearchPipelineService;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -40,7 +41,8 @@ public class DeleteSearchPipelineTransportAction extends TransportClusterManager
         SearchPipelineService searchPipelineService,
         TransportService transportService,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Tracer tracer
     ) {
         super(
             DeleteSearchPipelineAction.NAME,
@@ -49,7 +51,8 @@ public class DeleteSearchPipelineTransportAction extends TransportClusterManager
             threadPool,
             actionFilters,
             DeleteSearchPipelineRequest::new,
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            tracer
         );
         this.searchPipelineService = searchPipelineService;
     }

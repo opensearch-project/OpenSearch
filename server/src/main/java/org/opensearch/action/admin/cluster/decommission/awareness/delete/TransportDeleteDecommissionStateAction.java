@@ -21,6 +21,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -45,7 +46,8 @@ public class TransportDeleteDecommissionStateAction extends TransportClusterMana
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        DecommissionService decommissionService
+        DecommissionService decommissionService,
+        Tracer tracer
     ) {
         super(
             DeleteDecommissionStateAction.NAME,
@@ -54,7 +56,8 @@ public class TransportDeleteDecommissionStateAction extends TransportClusterMana
             threadPool,
             actionFilters,
             DeleteDecommissionStateRequest::new,
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            tracer
         );
         this.decommissionService = decommissionService;
     }

@@ -154,7 +154,8 @@ public class TransportVerifyShardBeforeCloseActionTests extends OpenSearchTestCa
             mock(IndicesService.class),
             mock(ThreadPool.class),
             shardStateAction,
-            mock(ActionFilters.class)
+            mock(ActionFilters.class),
+            NoopTracer.INSTANCE
         );
     }
 
@@ -351,7 +352,8 @@ public class TransportVerifyShardBeforeCloseActionTests extends OpenSearchTestCa
             mock(IndicesService.class),
             mock(ThreadPool.class),
             mock(ShardStateAction.class),
-            mock(ActionFilters.class)
+            mock(ActionFilters.class),
+            NoopTracer.INSTANCE
         );
     }
 

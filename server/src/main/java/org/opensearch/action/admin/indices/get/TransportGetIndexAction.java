@@ -47,6 +47,7 @@ import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -78,7 +79,8 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         IndicesService indicesService,
-        IndexScopedSettings indexScopedSettings
+        IndexScopedSettings indexScopedSettings,
+        Tracer tracer
     ) {
         super(
             GetIndexAction.NAME,
@@ -87,7 +89,8 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
             threadPool,
             actionFilters,
             GetIndexRequest::new,
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            tracer
         );
         this.indicesService = indicesService;
         this.settingsFilter = settingsFilter;

@@ -113,7 +113,13 @@ public class MainActionTests extends OpenSearchTestCase {
             Collections.emptySet(),
             NoopTracer.INSTANCE
         );
-        TransportMainAction action = new TransportMainAction(settings, transportService, mock(ActionFilters.class), clusterService);
+        TransportMainAction action = new TransportMainAction(
+            settings,
+            transportService,
+            mock(ActionFilters.class),
+            clusterService,
+            NoopTracer.INSTANCE
+        );
         AtomicReference<MainResponse> responseRef = new AtomicReference<>();
         action.doExecute(mock(Task.class), new MainRequest(), new ActionListener<MainResponse>() {
             @Override

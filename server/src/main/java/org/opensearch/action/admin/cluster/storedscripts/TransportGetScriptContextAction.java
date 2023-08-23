@@ -38,6 +38,7 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.script.ScriptContextInfo;
 import org.opensearch.script.ScriptService;
 import org.opensearch.tasks.Task;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.transport.TransportService;
 
 import java.util.Set;
@@ -52,8 +53,13 @@ public class TransportGetScriptContextAction extends HandledTransportAction<GetS
     private final ScriptService scriptService;
 
     @Inject
-    public TransportGetScriptContextAction(TransportService transportService, ActionFilters actionFilters, ScriptService scriptService) {
-        super(GetScriptContextAction.NAME, transportService, actionFilters, GetScriptContextRequest::new);
+    public TransportGetScriptContextAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        ScriptService scriptService,
+        Tracer tracer
+    ) {
+        super(GetScriptContextAction.NAME, transportService, actionFilters, GetScriptContextRequest::new, tracer);
         this.scriptService = scriptService;
     }
 

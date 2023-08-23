@@ -107,7 +107,8 @@ public class ExtensionTransportActionsHandlerTests extends OpenSearchTestCase {
             transportService,
             client,
             mockActionModule,
-            null
+            null,
+            NoopTracer.INSTANCE
         );
     }
 

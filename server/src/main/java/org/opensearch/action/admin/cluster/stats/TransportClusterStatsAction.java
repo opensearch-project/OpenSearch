@@ -55,6 +55,7 @@ import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.node.NodeService;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportService;
@@ -94,7 +95,8 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         TransportService transportService,
         NodeService nodeService,
         IndicesService indicesService,
-        ActionFilters actionFilters
+        ActionFilters actionFilters,
+        Tracer tracer
     ) {
         super(
             ClusterStatsAction.NAME,
@@ -106,7 +108,8 @@ public class TransportClusterStatsAction extends TransportNodesAction<
             ClusterStatsNodeRequest::new,
             ThreadPool.Names.MANAGEMENT,
             ThreadPool.Names.MANAGEMENT,
-            ClusterStatsNodeResponse.class
+            ClusterStatsNodeResponse.class,
+            tracer
         );
         this.nodeService = nodeService;
         this.indicesService = indicesService;

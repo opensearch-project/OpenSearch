@@ -100,6 +100,7 @@ import org.opensearch.repositories.RepositoryException;
 import org.opensearch.repositories.RepositoryMissingException;
 import org.opensearch.repositories.RepositoryShardId;
 import org.opensearch.repositories.ShardGenerations;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -205,7 +206,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         IndexNameExpressionResolver indexNameExpressionResolver,
         RepositoriesService repositoriesService,
         TransportService transportService,
-        ActionFilters actionFilters
+        ActionFilters actionFilters,
+        Tracer tracer
     ) {
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
@@ -220,7 +222,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             clusterService,
             threadPool,
             actionFilters,
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            tracer
         );
         if (DiscoveryNode.isClusterManagerNode(settings)) {
             // addLowPriorityApplier to make sure that Repository will be created before snapshot
@@ -3182,7 +3185,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             ClusterService clusterService,
             ThreadPool threadPool,
             ActionFilters actionFilters,
-            IndexNameExpressionResolver indexNameExpressionResolver
+            IndexNameExpressionResolver indexNameExpressionResolver,
+            Tracer tracer
         ) {
             super(
                 UPDATE_SNAPSHOT_STATUS_ACTION_NAME,
@@ -3192,7 +3196,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 threadPool,
                 actionFilters,
                 UpdateIndexShardSnapshotStatusRequest::new,
-                indexNameExpressionResolver
+                indexNameExpressionResolver,
+                tracer
             );
         }
 

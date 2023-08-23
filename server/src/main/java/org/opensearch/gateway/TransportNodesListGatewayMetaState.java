@@ -50,6 +50,7 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportService;
@@ -79,7 +80,8 @@ public class TransportNodesListGatewayMetaState extends TransportNodesAction<
         ClusterService clusterService,
         TransportService transportService,
         ActionFilters actionFilters,
-        GatewayMetaState metaState
+        GatewayMetaState metaState,
+        Tracer tracer
     ) {
         super(
             ACTION_NAME,
@@ -90,7 +92,8 @@ public class TransportNodesListGatewayMetaState extends TransportNodesAction<
             Request::new,
             NodeRequest::new,
             ThreadPool.Names.GENERIC,
-            NodeGatewayMetaState.class
+            NodeGatewayMetaState.class,
+            tracer
         );
         this.metaState = metaState;
     }

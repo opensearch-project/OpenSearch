@@ -16,6 +16,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.tasks.Task;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.transport.TransportService;
 
 /**
@@ -33,9 +34,10 @@ public class ExtensionProxyTransportAction extends HandledTransportAction<Extens
         TransportService transportService,
         ActionFilters actionFilters,
         ClusterService clusterService,
-        ExtensionsManager extensionsManager
+        ExtensionsManager extensionsManager,
+        Tracer tracer
     ) {
-        super(ExtensionProxyAction.NAME, transportService, actionFilters, ExtensionActionRequest::new);
+        super(ExtensionProxyAction.NAME, transportService, actionFilters, ExtensionActionRequest::new, tracer);
         this.extensionsManager = extensionsManager;
     }
 

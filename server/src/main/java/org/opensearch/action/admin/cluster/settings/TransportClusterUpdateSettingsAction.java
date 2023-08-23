@@ -55,6 +55,7 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -85,7 +86,8 @@ public class TransportClusterUpdateSettingsAction extends TransportClusterManage
         AllocationService allocationService,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        ClusterSettings clusterSettings
+        ClusterSettings clusterSettings,
+        Tracer tracer
     ) {
         super(
             ClusterUpdateSettingsAction.NAME,
@@ -95,7 +97,8 @@ public class TransportClusterUpdateSettingsAction extends TransportClusterManage
             threadPool,
             actionFilters,
             ClusterUpdateSettingsRequest::new,
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            tracer
         );
         this.allocationService = allocationService;
         this.clusterSettings = clusterSettings;

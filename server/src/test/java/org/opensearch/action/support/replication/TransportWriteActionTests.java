@@ -477,7 +477,8 @@ public class TransportWriteActionTests extends OpenSearchTestCase {
                 ignore -> ThreadPool.Names.SAME,
                 false,
                 new IndexingPressureService(Settings.EMPTY, TransportWriteActionTests.this.clusterService),
-                new SystemIndices(emptyMap())
+                new SystemIndices(emptyMap()),
+                NoopTracer.INSTANCE
             );
             this.withDocumentFailureOnPrimary = withDocumentFailureOnPrimary;
             this.withDocumentFailureOnReplica = withDocumentFailureOnReplica;
@@ -505,7 +506,8 @@ public class TransportWriteActionTests extends OpenSearchTestCase {
                 ignore -> ThreadPool.Names.SAME,
                 false,
                 new IndexingPressureService(settings, clusterService),
-                new SystemIndices(emptyMap())
+                new SystemIndices(emptyMap()),
+                NoopTracer.INSTANCE
             );
             this.withDocumentFailureOnPrimary = false;
             this.withDocumentFailureOnReplica = false;

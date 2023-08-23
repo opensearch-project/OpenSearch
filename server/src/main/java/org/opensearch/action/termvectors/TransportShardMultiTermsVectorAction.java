@@ -47,6 +47,7 @@ import org.opensearch.index.IndexService;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.termvectors.TermVectorsService;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -70,7 +71,8 @@ public class TransportShardMultiTermsVectorAction extends TransportSingleShardAc
         IndicesService indicesService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Tracer tracer
     ) {
         super(
             ACTION_NAME,
@@ -80,7 +82,8 @@ public class TransportShardMultiTermsVectorAction extends TransportSingleShardAc
             actionFilters,
             indexNameExpressionResolver,
             MultiTermVectorsShardRequest::new,
-            ThreadPool.Names.GET
+            ThreadPool.Names.GET,
+            tracer
         );
         this.indicesService = indicesService;
     }

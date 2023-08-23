@@ -43,6 +43,7 @@ import org.opensearch.action.support.replication.ReplicationResponse;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.tasks.Task;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.transport.TransportService;
 
 /**
@@ -62,9 +63,10 @@ public abstract class TransportSingleItemBulkWriteAction<
         TransportService transportService,
         ActionFilters actionFilters,
         Writeable.Reader<Request> requestReader,
-        TransportBulkAction bulkAction
+        TransportBulkAction bulkAction,
+        Tracer tracer
     ) {
-        super(actionName, transportService, actionFilters, requestReader);
+        super(actionName, transportService, actionFilters, requestReader, tracer);
         this.bulkAction = bulkAction;
     }
 

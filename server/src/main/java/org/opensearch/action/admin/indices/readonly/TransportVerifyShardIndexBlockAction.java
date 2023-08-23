@@ -53,6 +53,7 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.tasks.TaskId;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -84,7 +85,8 @@ public class TransportVerifyShardIndexBlockAction extends TransportReplicationAc
         final IndicesService indicesService,
         final ThreadPool threadPool,
         final ShardStateAction stateAction,
-        final ActionFilters actionFilters
+        final ActionFilters actionFilters,
+        final Tracer tracer
     ) {
         super(
             settings,
@@ -97,7 +99,8 @@ public class TransportVerifyShardIndexBlockAction extends TransportReplicationAc
             actionFilters,
             ShardRequest::new,
             ShardRequest::new,
-            ThreadPool.Names.MANAGEMENT
+            ThreadPool.Names.MANAGEMENT,
+            tracer
         );
     }
 

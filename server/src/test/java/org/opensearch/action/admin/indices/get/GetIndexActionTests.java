@@ -146,7 +146,8 @@ public class GetIndexActionTests extends OpenSearchSingleNodeTestCase {
                 new ActionFilters(emptySet()),
                 new GetIndexActionTests.Resolver(),
                 indicesService,
-                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS
+                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+                NoopTracer.INSTANCE
             );
         }
 

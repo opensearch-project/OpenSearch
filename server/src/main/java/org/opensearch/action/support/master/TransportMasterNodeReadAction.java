@@ -38,6 +38,7 @@ import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -59,9 +60,10 @@ public abstract class TransportMasterNodeReadAction<Request extends MasterNodeRe
         ThreadPool threadPool,
         ActionFilters actionFilters,
         Writeable.Reader<Request> request,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Tracer tracer
     ) {
-        super(actionName, true, transportService, clusterService, threadPool, actionFilters, request, indexNameExpressionResolver);
+        super(actionName, true, transportService, clusterService, threadPool, actionFilters, request, indexNameExpressionResolver, tracer);
     }
 
     protected TransportMasterNodeReadAction(
@@ -72,7 +74,8 @@ public abstract class TransportMasterNodeReadAction<Request extends MasterNodeRe
         ThreadPool threadPool,
         ActionFilters actionFilters,
         Writeable.Reader<Request> request,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Tracer tracer
     ) {
         super(
             actionName,
@@ -82,7 +85,8 @@ public abstract class TransportMasterNodeReadAction<Request extends MasterNodeRe
             threadPool,
             actionFilters,
             request,
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            tracer
         );
     }
 

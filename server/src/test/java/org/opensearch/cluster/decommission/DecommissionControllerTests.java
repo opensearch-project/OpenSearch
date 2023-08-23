@@ -107,7 +107,8 @@ public class DecommissionControllerTests extends OpenSearchTestCase {
             clusterService,
             threadPool,
             new ActionFilters(emptySet()),
-            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY))
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
+            NoopTracer.INSTANCE
         ); // registers action
 
         new TransportClearVotingConfigExclusionsAction(
@@ -115,7 +116,8 @@ public class DecommissionControllerTests extends OpenSearchTestCase {
             clusterService,
             threadPool,
             new ActionFilters(emptySet()),
-            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY))
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
+            NoopTracer.INSTANCE
         ); // registers action
 
         transportService.start();

@@ -208,7 +208,8 @@ public class MultiSearchActionTookTests extends OpenSearchTestCase {
                 clusterService,
                 availableProcessors,
                 expected::get,
-                client
+                client,
+                NoopTracer.INSTANCE
             ) {
                 @Override
                 void executeSearch(
@@ -230,7 +231,8 @@ public class MultiSearchActionTookTests extends OpenSearchTestCase {
                 clusterService,
                 availableProcessors,
                 System::nanoTime,
-                client
+                client,
+                NoopTracer.INSTANCE
             ) {
                 @Override
                 void executeSearch(

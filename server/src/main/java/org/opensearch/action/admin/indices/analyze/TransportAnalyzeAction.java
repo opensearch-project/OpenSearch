@@ -66,6 +66,7 @@ import org.opensearch.index.analysis.TokenizerFactory;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.StringFieldType;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -98,7 +99,8 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
         TransportService transportService,
         IndicesService indicesService,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Tracer tracer
     ) {
         super(
             AnalyzeAction.NAME,
@@ -108,7 +110,8 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
             actionFilters,
             indexNameExpressionResolver,
             AnalyzeAction.Request::new,
-            ThreadPool.Names.ANALYZE
+            ThreadPool.Names.ANALYZE,
+            tracer
         );
         this.settings = settings;
         this.indicesService = indicesService;

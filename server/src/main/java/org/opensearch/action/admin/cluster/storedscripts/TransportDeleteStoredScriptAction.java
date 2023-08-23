@@ -46,6 +46,7 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.script.ScriptService;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -68,7 +69,8 @@ public class TransportDeleteStoredScriptAction extends TransportClusterManagerNo
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        ScriptService scriptService
+        ScriptService scriptService,
+        Tracer tracer
     ) {
         super(
             DeleteStoredScriptAction.NAME,
@@ -77,7 +79,8 @@ public class TransportDeleteStoredScriptAction extends TransportClusterManagerNo
             threadPool,
             actionFilters,
             DeleteStoredScriptRequest::new,
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            tracer
         );
         this.scriptService = scriptService;
         // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.

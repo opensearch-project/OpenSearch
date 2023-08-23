@@ -44,6 +44,7 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.tasks.Task;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.NodeShouldNotConnectException;
 import org.opensearch.transport.TransportChannel;
@@ -103,9 +104,10 @@ public abstract class TransportNodesAction<
         Writeable.Reader<NodeRequest> nodeRequest,
         String nodeExecutor,
         String finalExecutor,
-        Class<NodeResponse> nodeResponseClass
+        Class<NodeResponse> nodeResponseClass,
+        Tracer tracer
     ) {
-        super(actionName, transportService, actionFilters, request);
+        super(actionName, transportService, actionFilters, request, tracer);
         this.threadPool = threadPool;
         this.clusterService = Objects.requireNonNull(clusterService);
         this.transportService = Objects.requireNonNull(transportService);
@@ -118,7 +120,7 @@ public abstract class TransportNodesAction<
 
     /**
      * Same as {@link #TransportNodesAction(String, ThreadPool, ClusterService, TransportService, ActionFilters, Writeable.Reader,
-     * Writeable.Reader, String, String, Class)} but executes final response collection on the transport thread except for when the final
+     * Writeable.Reader, String, String, Class, Tracer)} but executes final response collection on the transport thread except for when the final
      * node response is received from the local node, in which case {@code nodeExecutor} is used.
      * This constructor should only be used for actions for which the creation of the final response is fast enough to be safely executed
      * on a transport thread.
@@ -132,7 +134,8 @@ public abstract class TransportNodesAction<
         Writeable.Reader<NodesRequest> request,
         Writeable.Reader<NodeRequest> nodeRequest,
         String nodeExecutor,
-        Class<NodeResponse> nodeResponseClass
+        Class<NodeResponse> nodeResponseClass,
+        Tracer tracer
     ) {
         this(
             actionName,
@@ -144,7 +147,8 @@ public abstract class TransportNodesAction<
             nodeRequest,
             nodeExecutor,
             ThreadPool.Names.SAME,
-            nodeResponseClass
+            nodeResponseClass,
+            tracer
         );
     }
 

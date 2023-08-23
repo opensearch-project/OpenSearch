@@ -44,6 +44,7 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.tasks.TaskId;
 import org.opensearch.tasks.TaskInfo;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -57,7 +58,8 @@ public class TransportRethrottleAction extends TransportTasksAction<BulkByScroll
         ClusterService clusterService,
         TransportService transportService,
         ActionFilters actionFilters,
-        Client client
+        Client client,
+        Tracer tracer
     ) {
         super(
             RethrottleAction.NAME,
@@ -67,7 +69,8 @@ public class TransportRethrottleAction extends TransportTasksAction<BulkByScroll
             RethrottleRequest::new,
             ListTasksResponse::new,
             TaskInfo::new,
-            ThreadPool.Names.MANAGEMENT
+            ThreadPool.Names.MANAGEMENT,
+            tracer
         );
         this.client = client;
     }

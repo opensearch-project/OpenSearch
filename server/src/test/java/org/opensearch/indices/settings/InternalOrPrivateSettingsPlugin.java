@@ -54,6 +54,7 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -149,7 +150,8 @@ public class InternalOrPrivateSettingsPlugin extends Plugin implements ActionPlu
             final ClusterService clusterService,
             final ThreadPool threadPool,
             final ActionFilters actionFilters,
-            final IndexNameExpressionResolver indexNameExpressionResolver
+            final IndexNameExpressionResolver indexNameExpressionResolver,
+            final Tracer tracer
         ) {
             super(
                 UpdateInternalOrPrivateAction.NAME,
@@ -158,7 +160,8 @@ public class InternalOrPrivateSettingsPlugin extends Plugin implements ActionPlu
                 threadPool,
                 actionFilters,
                 UpdateInternalOrPrivateAction.Request::new,
-                indexNameExpressionResolver
+                indexNameExpressionResolver,
+                tracer
             );
         }
 

@@ -73,6 +73,7 @@ import org.opensearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.PersistentTaskPlugin;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -563,7 +564,12 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
         TestTaskResponse> {
 
         @Inject
-        public TransportTestTaskAction(ClusterService clusterService, TransportService transportService, ActionFilters actionFilters) {
+        public TransportTestTaskAction(
+            ClusterService clusterService,
+            TransportService transportService,
+            ActionFilters actionFilters,
+            Tracer tracer
+        ) {
             super(
                 TestTaskAction.NAME,
                 clusterService,
@@ -572,7 +578,8 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
                 TestTasksRequest::new,
                 TestTasksResponse::new,
                 TestTaskResponse::new,
-                ThreadPool.Names.MANAGEMENT
+                ThreadPool.Names.MANAGEMENT,
+                tracer
             );
         }
 

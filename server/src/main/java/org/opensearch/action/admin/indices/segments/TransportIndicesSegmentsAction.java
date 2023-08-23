@@ -47,6 +47,7 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -71,7 +72,8 @@ public class TransportIndicesSegmentsAction extends TransportBroadcastByNodeActi
         TransportService transportService,
         IndicesService indicesService,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Tracer tracer
     ) {
         super(
             IndicesSegmentsAction.NAME,
@@ -80,7 +82,8 @@ public class TransportIndicesSegmentsAction extends TransportBroadcastByNodeActi
             actionFilters,
             indexNameExpressionResolver,
             IndicesSegmentsRequest::new,
-            ThreadPool.Names.MANAGEMENT
+            ThreadPool.Names.MANAGEMENT,
+            tracer
         );
         this.indicesService = indicesService;
     }

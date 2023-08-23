@@ -59,6 +59,7 @@ import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.Translog.Location;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.SystemIndices;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -97,7 +98,8 @@ public abstract class TransportWriteAction<
         Function<IndexShard, String> executorFunction,
         boolean forceExecutionOnPrimary,
         IndexingPressureService indexingPressureService,
-        SystemIndices systemIndices
+        SystemIndices systemIndices,
+        Tracer tracer
     ) {
         // We pass ThreadPool.Names.SAME to the super class as we control the dispatching to the
         // ThreadPool.Names.WRITE/ThreadPool.Names.SYSTEM_WRITE thread pools in this class.
@@ -114,7 +116,8 @@ public abstract class TransportWriteAction<
             replicaRequest,
             ThreadPool.Names.SAME,
             true,
-            forceExecutionOnPrimary
+            forceExecutionOnPrimary,
+            tracer
         );
         this.executorFunction = executorFunction;
         this.indexingPressureService = indexingPressureService;

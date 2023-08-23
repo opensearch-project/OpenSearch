@@ -41,6 +41,7 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.monitor.jvm.HotThreads;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportService;
@@ -64,7 +65,8 @@ public class TransportNodesHotThreadsAction extends TransportNodesAction<
         ThreadPool threadPool,
         ClusterService clusterService,
         TransportService transportService,
-        ActionFilters actionFilters
+        ActionFilters actionFilters,
+        Tracer tracer
     ) {
         super(
             NodesHotThreadsAction.NAME,
@@ -75,7 +77,8 @@ public class TransportNodesHotThreadsAction extends TransportNodesAction<
             NodesHotThreadsRequest::new,
             NodeRequest::new,
             ThreadPool.Names.GENERIC,
-            NodeHotThreads.class
+            NodeHotThreads.class,
+            tracer
         );
     }
 

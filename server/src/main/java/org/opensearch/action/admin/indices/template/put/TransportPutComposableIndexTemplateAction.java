@@ -45,6 +45,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -68,7 +69,8 @@ public class TransportPutComposableIndexTemplateAction extends TransportClusterM
         ThreadPool threadPool,
         MetadataIndexTemplateService indexTemplateService,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Tracer tracer
     ) {
         super(
             PutComposableIndexTemplateAction.NAME,
@@ -77,7 +79,8 @@ public class TransportPutComposableIndexTemplateAction extends TransportClusterM
             threadPool,
             actionFilters,
             PutComposableIndexTemplateAction.Request::new,
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            tracer
         );
         this.indexTemplateService = indexTemplateService;
     }

@@ -49,6 +49,7 @@ import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestToXContentListener;
 import org.opensearch.tasks.Task;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
@@ -134,13 +135,13 @@ public class GrokProcessorGetAction extends ActionType<GrokProcessorGetAction.Re
         private final Map<String, String> sortedGrokPatterns;
 
         @Inject
-        public TransportAction(TransportService transportService, ActionFilters actionFilters) {
-            this(transportService, actionFilters, Grok.BUILTIN_PATTERNS);
+        public TransportAction(TransportService transportService, ActionFilters actionFilters, Tracer tracer) {
+            this(transportService, actionFilters, Grok.BUILTIN_PATTERNS, tracer);
         }
 
         // visible for testing
-        TransportAction(TransportService transportService, ActionFilters actionFilters, Map<String, String> grokPatterns) {
-            super(NAME, transportService, actionFilters, Request::new);
+        TransportAction(TransportService transportService, ActionFilters actionFilters, Map<String, String> grokPatterns, Tracer tracer) {
+            super(NAME, transportService, actionFilters, Request::new, tracer);
             this.grokPatterns = grokPatterns;
             this.sortedGrokPatterns = new TreeMap<>(this.grokPatterns);
         }

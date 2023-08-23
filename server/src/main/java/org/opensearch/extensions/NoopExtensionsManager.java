@@ -17,6 +17,7 @@ import org.opensearch.extensions.action.ExtensionActionRequest;
 import org.opensearch.extensions.action.ExtensionActionResponse;
 import org.opensearch.extensions.action.RemoteExtensionActionResponse;
 import org.opensearch.identity.IdentityService;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
@@ -42,7 +43,8 @@ public class NoopExtensionsManager extends ExtensionsManager {
         ClusterService clusterService,
         Settings initialEnvironmentSettings,
         NodeClient client,
-        IdentityService identityService
+        IdentityService identityService,
+        Tracer tracer
     ) {
         // no-op
     }

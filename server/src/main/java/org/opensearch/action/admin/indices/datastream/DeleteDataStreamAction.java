@@ -64,6 +64,7 @@ import org.opensearch.core.common.util.CollectionUtils;
 import org.opensearch.core.index.Index;
 import org.opensearch.snapshots.SnapshotInProgressException;
 import org.opensearch.snapshots.SnapshotsService;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -178,9 +179,10 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
             ThreadPool threadPool,
             ActionFilters actionFilters,
             IndexNameExpressionResolver indexNameExpressionResolver,
-            MetadataDeleteIndexService deleteIndexService
+            MetadataDeleteIndexService deleteIndexService,
+            Tracer tracer
         ) {
-            super(NAME, transportService, clusterService, threadPool, actionFilters, Request::new, indexNameExpressionResolver);
+            super(NAME, transportService, clusterService, threadPool, actionFilters, Request::new, indexNameExpressionResolver, tracer);
             this.deleteIndexService = deleteIndexService;
             // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
             removeDataStreamTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.REMOVE_DATA_STREAM_KEY, true);

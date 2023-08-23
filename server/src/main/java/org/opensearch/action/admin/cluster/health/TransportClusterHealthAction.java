@@ -67,6 +67,7 @@ import org.opensearch.discovery.Discovery;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.node.NodeClosedException;
 import org.opensearch.tasks.Task;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -94,7 +95,8 @@ public class TransportClusterHealthAction extends TransportClusterManagerNodeRea
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         AllocationService allocationService,
-        Discovery discovery
+        Discovery discovery,
+        Tracer tracer
     ) {
         super(
             ClusterHealthAction.NAME,
@@ -104,7 +106,8 @@ public class TransportClusterHealthAction extends TransportClusterManagerNodeRea
             threadPool,
             actionFilters,
             ClusterHealthRequest::new,
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            tracer
         );
         this.allocationService = allocationService;
         this.discovery = discovery;

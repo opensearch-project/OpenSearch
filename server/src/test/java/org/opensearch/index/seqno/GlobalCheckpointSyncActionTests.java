@@ -135,7 +135,8 @@ public class GlobalCheckpointSyncActionTests extends OpenSearchTestCase {
             indicesService,
             threadPool,
             shardStateAction,
-            new ActionFilters(Collections.emptySet())
+            new ActionFilters(Collections.emptySet()),
+            NoopTracer.INSTANCE
         );
         final GlobalCheckpointSyncAction.Request primaryRequest = new GlobalCheckpointSyncAction.Request(indexShard.shardId());
         if (randomBoolean()) {
@@ -178,7 +179,8 @@ public class GlobalCheckpointSyncActionTests extends OpenSearchTestCase {
             indicesService,
             threadPool,
             shardStateAction,
-            new ActionFilters(Collections.emptySet())
+            new ActionFilters(Collections.emptySet()),
+            NoopTracer.INSTANCE
         );
     }
 

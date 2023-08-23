@@ -173,7 +173,8 @@ public class TransportDeletePitActionTests extends OpenSearchTestCase {
                     transportService,
                     actionFilters,
                     namedWriteableRegistry,
-                    pitService
+                    pitService,
+                    NoopTracer.INSTANCE
                 );
                 DeletePitRequest deletePITRequest = new DeletePitRequest(pitId);
                 PlainActionFuture<DeletePitResponse> future = newFuture();
@@ -248,7 +249,8 @@ public class TransportDeletePitActionTests extends OpenSearchTestCase {
                     transportService,
                     actionFilters,
                     namedWriteableRegistry,
-                    pitService
+                    pitService,
+                    NoopTracer.INSTANCE
                 );
                 DeletePitRequest deletePITRequest = new DeletePitRequest("_all");
                 PlainActionFuture<DeletePitResponse> future = newFuture();
@@ -314,7 +316,8 @@ public class TransportDeletePitActionTests extends OpenSearchTestCase {
                     transportService,
                     actionFilters,
                     namedWriteableRegistry,
-                    pitService
+                    pitService,
+                    NoopTracer.INSTANCE
                 );
                 DeletePitRequest deletePITRequest = new DeletePitRequest(pitId);
                 PlainActionFuture<DeletePitResponse> future = newFuture();
@@ -370,7 +373,8 @@ public class TransportDeletePitActionTests extends OpenSearchTestCase {
                     transportService,
                     actionFilters,
                     namedWriteableRegistry,
-                    pitService
+                    pitService,
+                    NoopTracer.INSTANCE
                 );
                 DeletePitRequest deletePITRequest = new DeletePitRequest(pitId);
                 PlainActionFuture<DeletePitResponse> future = newFuture();
@@ -435,7 +439,8 @@ public class TransportDeletePitActionTests extends OpenSearchTestCase {
                     transportService,
                     actionFilters,
                     namedWriteableRegistry,
-                    pitService
+                    pitService,
+                    NoopTracer.INSTANCE
                 );
                 DeletePitRequest deletePITRequest = new DeletePitRequest(pitId);
                 PlainActionFuture<DeletePitResponse> future = newFuture();
@@ -512,7 +517,8 @@ public class TransportDeletePitActionTests extends OpenSearchTestCase {
                     transportService,
                     actionFilters,
                     namedWriteableRegistry,
-                    pitService
+                    pitService,
+                    NoopTracer.INSTANCE
                 );
                 DeletePitRequest deletePITRequest = new DeletePitRequest("_all");
                 PlainActionFuture<DeletePitResponse> future = newFuture();
@@ -585,7 +591,8 @@ public class TransportDeletePitActionTests extends OpenSearchTestCase {
                     transportService,
                     actionFilters,
                     namedWriteableRegistry,
-                    pitService
+                    pitService,
+                    NoopTracer.INSTANCE
                 );
                 DeletePitRequest deletePITRequest = new DeletePitRequest("_all");
                 PlainActionFuture<DeletePitResponse> future = newFuture();
@@ -662,7 +669,8 @@ public class TransportDeletePitActionTests extends OpenSearchTestCase {
                     transportService,
                     actionFilters,
                     namedWriteableRegistry,
-                    pitService
+                    pitService,
+                    NoopTracer.INSTANCE
                 );
                 DeletePitRequest deletePITRequest = new DeletePitRequest("_all");
                 PlainActionFuture<DeletePitResponse> future = newFuture();

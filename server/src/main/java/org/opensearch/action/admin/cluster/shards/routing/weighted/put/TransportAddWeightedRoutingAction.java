@@ -20,6 +20,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -43,7 +44,8 @@ public class TransportAddWeightedRoutingAction extends TransportClusterManagerNo
         WeightedRoutingService weightedRoutingService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Tracer tracer
     ) {
         super(
             ClusterAddWeightedRoutingAction.NAME,
@@ -52,7 +54,8 @@ public class TransportAddWeightedRoutingAction extends TransportClusterManagerNo
             threadPool,
             actionFilters,
             ClusterPutWeightedRoutingRequest::new,
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            tracer
         );
         this.weightedRoutingService = weightedRoutingService;
     }

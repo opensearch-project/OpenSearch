@@ -100,6 +100,7 @@ public class TransportRemoteStoreStatsActionTests extends IndexShardTestCase {
             mock(ActionFilters.class),
             mock(IndexNameExpressionResolver.class),
             remoteStoreStatsTrackerFactory
+            NoopTracer.INSTANCE
         );
 
     }

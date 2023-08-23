@@ -46,6 +46,7 @@ import org.opensearch.core.tasks.TaskId;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskListener;
 import org.opensearch.tasks.TaskManager;
+import org.opensearch.telemetry.tracing.Tracer;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -59,16 +60,18 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
     public final String actionName;
     private final ActionFilter[] filters;
     protected final TaskManager taskManager;
+    private final Tracer tracer;
     /**
      * @deprecated declare your own logger.
      */
     @Deprecated
     protected Logger logger = LogManager.getLogger(getClass());
 
-    protected TransportAction(String actionName, ActionFilters actionFilters, TaskManager taskManager) {
+    protected TransportAction(String actionName, ActionFilters actionFilters, TaskManager taskManager, Tracer tracer) {
         this.actionName = actionName;
         this.filters = actionFilters.filters();
         this.taskManager = taskManager;
+        this.tracer = tracer;
     }
 
     private Releasable registerChildNode(TaskId parentTask) {

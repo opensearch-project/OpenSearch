@@ -51,6 +51,7 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.threadpool.ThreadPool.Names;
 import org.opensearch.transport.TransportService;
@@ -77,7 +78,8 @@ public class TransportClearVotingConfigExclusionsAction extends TransportCluster
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Tracer tracer
     ) {
         super(
             ClearVotingConfigExclusionsAction.NAME,
@@ -86,7 +88,8 @@ public class TransportClearVotingConfigExclusionsAction extends TransportCluster
             threadPool,
             actionFilters,
             ClearVotingConfigExclusionsRequest::new,
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            tracer
         );
     }
 

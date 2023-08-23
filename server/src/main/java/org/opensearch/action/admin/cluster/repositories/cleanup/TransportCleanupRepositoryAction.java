@@ -59,6 +59,7 @@ import org.opensearch.repositories.RepositoryCleanupResult;
 import org.opensearch.repositories.RepositoryData;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.snapshots.SnapshotsService;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -109,7 +110,8 @@ public final class TransportCleanupRepositoryAction extends TransportClusterMana
         SnapshotsService snapshotsService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Tracer tracer
     ) {
         super(
             CleanupRepositoryAction.NAME,
@@ -118,7 +120,8 @@ public final class TransportCleanupRepositoryAction extends TransportClusterMana
             threadPool,
             actionFilters,
             CleanupRepositoryRequest::new,
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            tracer
         );
         this.repositoriesService = repositoriesService;
         this.snapshotsService = snapshotsService;

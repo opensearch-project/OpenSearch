@@ -128,7 +128,8 @@ public class TransportMultiSearchActionTests extends OpenSearchTestCase {
                 clusterService,
                 10,
                 System::nanoTime,
-                client
+                client,
+                NoopTracer.INSTANCE
             );
 
             PlainActionFuture<MultiSearchResponse> future = newFuture();
@@ -222,7 +223,8 @@ public class TransportMultiSearchActionTests extends OpenSearchTestCase {
             clusterService,
             10,
             System::nanoTime,
-            client
+            client,
+            NoopTracer.INSTANCE
         );
 
         // Execute the multi search api and fail if we find an error after executing:

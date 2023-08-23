@@ -83,6 +83,7 @@ import org.opensearch.indices.IndexClosedException;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.node.NodeClosedException;
 import org.opensearch.tasks.Task;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.ConnectTransportException;
 import org.opensearch.transport.TransportChannel;
@@ -162,7 +163,8 @@ public abstract class TransportReplicationAction<
         ActionFilters actionFilters,
         Writeable.Reader<Request> requestReader,
         Writeable.Reader<ReplicaRequest> replicaRequestReader,
-        String executor
+        String executor,
+        Tracer tracer
     ) {
         this(
             settings,
@@ -177,7 +179,8 @@ public abstract class TransportReplicationAction<
             replicaRequestReader,
             executor,
             false,
-            false
+            false,
+            tracer
         );
     }
 
@@ -194,9 +197,10 @@ public abstract class TransportReplicationAction<
         Writeable.Reader<ReplicaRequest> replicaRequestReader,
         String executor,
         boolean syncGlobalCheckpointAfterOperation,
-        boolean forceExecutionOnPrimary
+        boolean forceExecutionOnPrimary,
+        Tracer tracer
     ) {
-        super(actionName, actionFilters, transportService.getTaskManager());
+        super(actionName, actionFilters, transportService.getTaskManager(), tracer);
         this.threadPool = threadPool;
         this.transportService = transportService;
         this.clusterService = clusterService;

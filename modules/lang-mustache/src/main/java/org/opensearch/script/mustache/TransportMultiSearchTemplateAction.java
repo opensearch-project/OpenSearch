@@ -43,6 +43,7 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.script.ScriptService;
 import org.opensearch.tasks.Task;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.transport.TransportService;
 
 import java.util.ArrayList;
@@ -62,9 +63,10 @@ public class TransportMultiSearchTemplateAction extends HandledTransportAction<M
         ActionFilters actionFilters,
         ScriptService scriptService,
         NamedXContentRegistry xContentRegistry,
-        NodeClient client
+        NodeClient client,
+        Tracer tracer
     ) {
-        super(MultiSearchTemplateAction.NAME, transportService, actionFilters, MultiSearchTemplateRequest::new);
+        super(MultiSearchTemplateAction.NAME, transportService, actionFilters, MultiSearchTemplateRequest::new, tracer);
         this.scriptService = scriptService;
         this.xContentRegistry = xContentRegistry;
         this.client = client;

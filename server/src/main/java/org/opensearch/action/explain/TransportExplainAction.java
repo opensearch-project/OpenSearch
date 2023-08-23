@@ -60,6 +60,7 @@ import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.rescore.RescoreContext;
 import org.opensearch.search.rescore.Rescorer;
 import org.opensearch.tasks.Task;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -83,7 +84,8 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
         TransportService transportService,
         SearchService searchService,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Tracer tracer
     ) {
         super(
             ExplainAction.NAME,
@@ -93,7 +95,8 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
             actionFilters,
             indexNameExpressionResolver,
             ExplainRequest::new,
-            ThreadPool.Names.GET
+            ThreadPool.Names.GET,
+            tracer
         );
         this.searchService = searchService;
     }

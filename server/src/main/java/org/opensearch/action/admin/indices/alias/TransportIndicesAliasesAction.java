@@ -54,6 +54,7 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.index.Index;
 import org.opensearch.rest.action.admin.indices.AliasesNotFoundException;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -89,7 +90,8 @@ public class TransportIndicesAliasesAction extends TransportClusterManagerNodeAc
         final MetadataIndexAliasesService indexAliasesService,
         final ActionFilters actionFilters,
         final IndexNameExpressionResolver indexNameExpressionResolver,
-        final RequestValidators<IndicesAliasesRequest> requestValidators
+        final RequestValidators<IndicesAliasesRequest> requestValidators,
+        final Tracer tracer
     ) {
         super(
             IndicesAliasesAction.NAME,
@@ -98,7 +100,8 @@ public class TransportIndicesAliasesAction extends TransportClusterManagerNodeAc
             threadPool,
             actionFilters,
             IndicesAliasesRequest::new,
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            tracer
         );
         this.indexAliasesService = indexAliasesService;
         this.requestValidators = Objects.requireNonNull(requestValidators);

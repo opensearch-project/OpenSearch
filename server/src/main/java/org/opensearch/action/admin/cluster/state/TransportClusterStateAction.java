@@ -51,6 +51,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.node.NodeClosedException;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -80,7 +81,8 @@ public class TransportClusterStateAction extends TransportClusterManagerNodeRead
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Tracer tracer
     ) {
         super(
             ClusterStateAction.NAME,
@@ -90,7 +92,8 @@ public class TransportClusterStateAction extends TransportClusterManagerNodeRead
             threadPool,
             actionFilters,
             ClusterStateRequest::new,
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            tracer
         );
     }
 

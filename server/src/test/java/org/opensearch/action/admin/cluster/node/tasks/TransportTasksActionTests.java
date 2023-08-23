@@ -63,6 +63,7 @@ import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskInfo;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.tasks.MockTaskManager;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportRequest;
@@ -247,7 +248,8 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
                 TestTasksRequest::new,
                 TestTasksResponse::new,
                 TestTaskResponse::new,
-                ThreadPool.Names.MANAGEMENT
+                ThreadPool.Names.MANAGEMENT,
+                NoopTracer.INSTANCE
             );
         }
 

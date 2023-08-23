@@ -49,6 +49,7 @@ import org.opensearch.index.mapper.RoutingFieldMapper;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptService;
 import org.opensearch.tasks.Task;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -69,13 +70,15 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
         Client client,
         TransportService transportService,
         ScriptService scriptService,
-        ClusterService clusterService
+        ClusterService clusterService,
+        Tracer tracer
     ) {
         super(
             UpdateByQueryAction.NAME,
             transportService,
             actionFilters,
-            (Writeable.Reader<UpdateByQueryRequest>) UpdateByQueryRequest::new
+            (Writeable.Reader<UpdateByQueryRequest>) UpdateByQueryRequest::new,
+            tracer
         );
         this.threadPool = threadPool;
         this.client = client;

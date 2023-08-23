@@ -87,6 +87,7 @@ import org.opensearch.search.profile.ProfileShardResult;
 import org.opensearch.search.profile.SearchProfileShardResults;
 import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.Task;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.RemoteClusterAware;
 import org.opensearch.transport.RemoteClusterService;
@@ -170,9 +171,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         NamedWriteableRegistry namedWriteableRegistry,
-        SearchPipelineService searchPipelineService
+        SearchPipelineService searchPipelineService,
+        Tracer tracer
     ) {
-        super(SearchAction.NAME, transportService, actionFilters, (Writeable.Reader<SearchRequest>) SearchRequest::new);
+        super(SearchAction.NAME, transportService, actionFilters, (Writeable.Reader<SearchRequest>) SearchRequest::new, tracer);
         this.client = client;
         this.threadPool = threadPool;
         this.circuitBreaker = circuitBreakerService.getBreaker(CircuitBreaker.REQUEST);
