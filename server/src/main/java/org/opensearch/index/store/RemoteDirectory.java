@@ -79,6 +79,10 @@ public class RemoteDirectory extends Directory {
         return blobContainer;
     }
 
+    public RemoteDirectory(BlobContainer blobContainer) {
+        this(blobContainer, UnaryOperator.identity(), UnaryOperator.identity());
+    }
+
     public RemoteDirectory(
         BlobContainer blobContainer,
         UnaryOperator<OffsetRangeInputStream> uploadRateLimiter,

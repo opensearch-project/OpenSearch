@@ -1790,6 +1790,16 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         return restoreRateLimitingTimeInNanos.count();
     }
 
+    @Override
+    public long getRemoteUploadThrottleTimeInNanos() {
+        return remoteUploadRateLimitingTimeInNanos.count();
+    }
+
+    @Override
+    public long getRemoteDownloadThrottleTimeInNanos() {
+        return remoteUploadRateLimitingTimeInNanos.count();
+    }
+
     protected void assertSnapshotOrGenericThread() {
         assert Thread.currentThread().getName().contains('[' + ThreadPool.Names.SNAPSHOT + ']')
             || Thread.currentThread().getName().contains('[' + ThreadPool.Names.GENERIC + ']') : "Expected current thread ["
@@ -3017,48 +3027,75 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         });
     }
 
-    private static InputStream maybeRateLimit(InputStream stream, Supplier<RateLimiter> rateLimiterSupplier, CounterMetric metric) {
-        return new RateLimitingInputStream(stream, rateLimiterSupplier, metric::inc);
+    private static void mayBeLogRateLimits(BlobStoreTransferContext context, RateLimiter rateLimiter, long time) {
+        logger.info(
+            () -> new ParameterizedMessage(
+                "Rate limited blob store transfer, context [{}], for duration [{} ms] for configured rate [{} MBps]",
+                context,
+                TimeValue.timeValueNanos(time).millis(),
+                rateLimiter.getMBPerSec()
+            )
+        );
+    }
+
+    private static InputStream maybeRateLimit(
+        InputStream stream,
+        Supplier<RateLimiter> rateLimiterSupplier,
+        CounterMetric metric,
+        BlobStoreTransferContext context
+    ) {
+        return new RateLimitingInputStream(stream, rateLimiterSupplier, (t) -> {
+            mayBeLogRateLimits(context, rateLimiterSupplier.get(), t);
+            metric.inc(t);
+        });
     }
 
     private static OffsetRangeInputStream maybeRateLimitRemoteTransfers(
         OffsetRangeInputStream offsetRangeInputStream,
         Supplier<RateLimiter> rateLimiterSupplier,
-        CounterMetric metric
+        CounterMetric metric,
+        BlobStoreTransferContext context
     ) {
-        return new RateLimitingOffsetRangeInputStream(offsetRangeInputStream, rateLimiterSupplier, metric::inc);
+        return new RateLimitingOffsetRangeInputStream(offsetRangeInputStream, rateLimiterSupplier, (t) -> {
+            mayBeLogRateLimits(context, rateLimiterSupplier.get(), t);
+            metric.inc(t);
+        });
     }
 
     public InputStream maybeRateLimitRestores(InputStream stream) {
         return maybeRateLimit(
-            maybeRateLimit(stream, () -> restoreRateLimiter, restoreRateLimitingTimeInNanos),
+            maybeRateLimit(stream, () -> restoreRateLimiter, restoreRateLimitingTimeInNanos, BlobStoreTransferContext.SNAPSHOT_RESTORE),
             recoverySettings::rateLimiter,
-            restoreRateLimitingTimeInNanos
+            restoreRateLimitingTimeInNanos,
+            BlobStoreTransferContext.SNAPSHOT_RESTORE
         );
     }
 
     public OffsetRangeInputStream maybeRateLimitRemoteUploadTransfers(OffsetRangeInputStream offsetRangeInputStream) {
-        return maybeRateLimitRemoteTransfers(offsetRangeInputStream, () -> remoteUploadRateLimiter, remoteUploadRateLimitingTimeInNanos);
-    }
-
-    public OffsetRangeInputStream maybeRateLimitRemoteDownloadTransfers(OffsetRangeInputStream offsetRangeInputStream) {
         return maybeRateLimitRemoteTransfers(
-            maybeRateLimitRemoteTransfers(offsetRangeInputStream, () -> remoteDownloadRateLimiter, remoteDownloadRateLimitingTimeInNanos),
-            recoverySettings::rateLimiter,
-            remoteDownloadRateLimitingTimeInNanos
+            offsetRangeInputStream,
+            () -> remoteUploadRateLimiter,
+            remoteUploadRateLimitingTimeInNanos,
+            BlobStoreTransferContext.REMOTE_UPLOAD
         );
     }
 
     public InputStream maybeRateLimitRemoteDownloadTransfers(InputStream inputStream) {
         return maybeRateLimit(
-            maybeRateLimit(inputStream, () -> remoteDownloadRateLimiter, remoteDownloadRateLimitingTimeInNanos),
+            maybeRateLimit(
+                inputStream,
+                () -> remoteDownloadRateLimiter,
+                remoteDownloadRateLimitingTimeInNanos,
+                BlobStoreTransferContext.REMOTE_DOWNLOAD
+            ),
             recoverySettings::rateLimiter,
-            remoteDownloadRateLimitingTimeInNanos
+            remoteDownloadRateLimitingTimeInNanos,
+            BlobStoreTransferContext.REMOTE_DOWNLOAD
         );
     }
 
     public InputStream maybeRateLimitSnapshots(InputStream stream) {
-        return maybeRateLimit(stream, () -> snapshotRateLimiter, snapshotRateLimitingTimeInNanos);
+        return maybeRateLimit(stream, () -> snapshotRateLimiter, snapshotRateLimitingTimeInNanos, BlobStoreTransferContext.SNAPSHOT);
     }
 
     @Override
@@ -3417,6 +3454,24 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             this.shardId = shardId;
             this.newGeneration = newGeneration;
             this.blobsToDelete = blobsToDelete;
+        }
+    }
+
+    enum BlobStoreTransferContext {
+        REMOTE_UPLOAD("remote_upload"),
+        REMOTE_DOWNLOAD("remote_download"),
+        SNAPSHOT("snapshot"),
+        SNAPSHOT_RESTORE("snapshot_restore");
+
+        private final String name;
+
+        BlobStoreTransferContext(String name) {
+            this.name = name;
+        }
+
+        @Override
+        public String toString() {
+            return name;
         }
     }
 }

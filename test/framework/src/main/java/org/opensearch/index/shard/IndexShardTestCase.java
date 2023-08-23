@@ -785,7 +785,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
     }
 
     private RemoteDirectory newRemoteDirectory(Path f) throws IOException {
-        return new RemoteDirectory(getBlobContainer(f), r -> r, r -> r);
+        return new RemoteDirectory(getBlobContainer(f));
     }
 
     protected BlobContainer getBlobContainer(Path f) throws IOException {

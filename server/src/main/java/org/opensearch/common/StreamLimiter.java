@@ -8,6 +8,8 @@
 
 package org.opensearch.common;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.RateLimiter;
 
 import java.io.IOException;
@@ -23,6 +25,8 @@ public class StreamLimiter {
     private final StreamLimiter.Listener listener;
 
     private int bytesSinceLastRateLimit;
+
+    private static final Logger logger = LogManager.getLogger(StreamLimiter.class);
 
     public StreamLimiter(Supplier<RateLimiter> rateLimiterSupplier, Listener listener) {
         this.rateLimiterSupplier = rateLimiterSupplier;

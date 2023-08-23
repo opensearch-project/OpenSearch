@@ -68,7 +68,7 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Dire
                 blobStoreRepository::maybeRateLimitRemoteUploadTransfers,
                 blobStoreRepository::maybeRateLimitRemoteDownloadTransfers
             );
-            RemoteDirectory metadataDirectory = createRemoteDirectory(blobStoreRepository, commonBlobPath, "metadata", r -> r, r -> r);
+            RemoteDirectory metadataDirectory = createRemoteDirectory(blobStoreRepository, commonBlobPath, "metadata");
             RemoteStoreLockManager mdLockManager = RemoteStoreLockManagerFactory.newLockManager(
                 repositoriesService.get(),
                 repositoryName,
@@ -85,12 +85,21 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Dire
     private RemoteDirectory createRemoteDirectory(
         BlobStoreRepository repository,
         BlobPath commonBlobPath,
-        String extention,
+        String extension,
         UnaryOperator<OffsetRangeInputStream> uploadRateLimiter,
         UnaryOperator<InputStream> downLoadRateLimiter
     ) {
-        BlobPath extendedPath = commonBlobPath.add(extention);
-        BlobContainer dataBlobContainer = repository.blobStore().blobContainer(extendedPath);
-        return new RemoteDirectory(dataBlobContainer, uploadRateLimiter, downLoadRateLimiter);
+        return new RemoteDirectory(
+            repository.blobStore().blobContainer(commonBlobPath.add(extension)),
+            uploadRateLimiter, downLoadRateLimiter
+        );
+    }
+
+    private RemoteDirectory createRemoteDirectory(
+        BlobStoreRepository repository,
+        BlobPath commonBlobPath,
+        String extension
+    ) {
+        return new RemoteDirectory(repository.blobStore().blobContainer(commonBlobPath.add(extension)));
     }
 }
