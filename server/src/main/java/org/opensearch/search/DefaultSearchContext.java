@@ -185,7 +185,7 @@ final class DefaultSearchContext extends SearchContext {
     private final FetchPhase fetchPhase;
     private final Function<SearchSourceBuilder, InternalAggregation.ReduceContextBuilder> requestToAggReduceContextBuilder;
     private final boolean concurrentSearchSettingsEnabled;
-    private boolean requestShouldUseConcurrentSearch;
+    private boolean requestShouldUseConcurrentSearch = true;
 
     DefaultSearchContext(
         ReaderContext readerContext,
@@ -882,12 +882,13 @@ final class DefaultSearchContext extends SearchContext {
      */
     @Override
     public boolean shouldUseConcurrentSearch() {
-        // concurrentSearchSettingsEnabled is evaluated when searchContext is created
         return concurrentSearchSettingsEnabled && requestShouldUseConcurrentSearch;
     }
 
+    /**
+     * Evaluate if parsed request supports concurrent segment search
+     */
     public void evaluateRequestShouldUseConcurrentSearch() {
-        requestShouldUseConcurrentSearch = true;
         if (aggregations() != null && aggregations().factories() != null) {
             for (AggregatorFactory factory : aggregations().factories().getFactories()) {
                 if (factory.traverseChildFactories() == false) {
