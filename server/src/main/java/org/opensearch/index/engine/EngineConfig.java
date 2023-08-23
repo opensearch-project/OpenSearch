@@ -135,6 +135,11 @@ public final class EngineConfig {
             case "zlib":
             case "lucene_default":
                 return s;
+            case "zstd":
+            case "zstd_no_dict":
+                if (Codec.availableCodecs().contains("Lucene95CustomCodec")) {
+                    return s;
+                }
             default:
                 if (("zstd".equals(s) || "zstd_no_dict".equals(s)) && Codec.availableCodecs().contains("Lucene95CustomCodec")) {
                     return s;

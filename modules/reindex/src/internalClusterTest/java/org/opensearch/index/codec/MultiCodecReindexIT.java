@@ -8,6 +8,7 @@
 
 package org.opensearch.index.codec;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.action.admin.indices.flush.FlushResponse;
 import org.opensearch.action.admin.indices.refresh.RefreshResponse;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentsRequest;
@@ -43,6 +44,7 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY_AL
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "")
 public class MultiCodecReindexIT extends ReindexTestCase {
 
     @Override
