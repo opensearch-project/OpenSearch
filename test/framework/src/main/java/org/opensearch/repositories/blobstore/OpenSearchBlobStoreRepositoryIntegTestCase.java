@@ -165,6 +165,27 @@ public abstract class OpenSearchBlobStoreRepositoryIntegTestCase extends OpenSea
         }
     }
 
+    public void testReadRange() throws IOException {
+        try (BlobStore store = newBlobStore()) {
+            final BlobContainer container = store.blobContainer(new BlobPath());
+            final byte[] data = randomBytes(4096);
+
+            // Pick a subrange starting somewhere between position 100 and 1000
+            // and ending somewhere between 100 bytes past that position and
+            // 100 bytes before the end
+            final int startOffset = randomIntBetween(100, 1000);
+            final int endOffset = randomIntBetween(startOffset + 100, data.length - 100);
+            final byte[] subrangeData = Arrays.copyOfRange(data, startOffset, endOffset);
+
+            writeBlob(container, "foobar", new BytesArray(data), randomBoolean());
+            try (InputStream stream = container.readBlob("foobar", startOffset, subrangeData.length)) {
+                final byte[] actual = stream.readAllBytes();
+                assertArrayEquals(subrangeData, actual);
+            }
+            container.delete();
+        }
+    }
+
     public void testList() throws IOException {
         try (BlobStore store = newBlobStore()) {
             final BlobContainer container = store.blobContainer(new BlobPath());

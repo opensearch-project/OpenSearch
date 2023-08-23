@@ -38,7 +38,6 @@ import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 
 import org.opensearch.common.io.Streams;
-import org.opensearch.repositories.s3.utils.HttpRangeUtils;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.ByteArrayInputStream;
@@ -104,11 +103,11 @@ public class S3RetryingInputStreamTests extends OpenSearchTestCase {
     }
 
     private S3RetryingInputStream createInputStream(final byte[] data, final Long start, final Long length) throws IOException {
-        long end = Math.addExact(start, length - 1);
+        final long end = Math.addExact(start, length - 1);
         final S3Client client = mock(S3Client.class);
         when(client.getObject(any(GetObjectRequest.class))).thenReturn(
             new ResponseInputStream<>(
-                GetObjectResponse.builder().contentLength(length).contentRange(HttpRangeUtils.toHttpRangeHeader(start, end)).build(),
+                GetObjectResponse.builder().contentLength(length).build(),
                 new ByteArrayInputStream(data, Math.toIntExact(start), Math.toIntExact(length))
             )
         );
