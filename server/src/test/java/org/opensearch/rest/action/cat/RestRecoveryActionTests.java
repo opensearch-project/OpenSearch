@@ -49,6 +49,7 @@ import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
 import org.opensearch.indices.replication.common.ReplicationTimer;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
@@ -164,9 +165,9 @@ public class RestRecoveryActionTests extends OpenSearchTestCase {
             final List<Object> expectedValues = Arrays.asList(
                 "index",
                 i,
-                XContentOpenSearchExtension.DEFAULT_DATE_PRINTER.print(state.getTimer().startTime()),
+                XContentOpenSearchExtension.DEFAULT_FORMATTER.format(Instant.ofEpochMilli(state.getTimer().startTime())),
                 state.getTimer().startTime(),
-                XContentOpenSearchExtension.DEFAULT_DATE_PRINTER.print(state.getTimer().stopTime()),
+                XContentOpenSearchExtension.DEFAULT_FORMATTER.format(Instant.ofEpochMilli(state.getTimer().stopTime())),
                 state.getTimer().stopTime(),
                 new TimeValue(state.getTimer().time()),
                 state.getRecoverySource().getType().name().toLowerCase(Locale.ROOT),

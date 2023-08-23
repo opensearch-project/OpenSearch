@@ -192,9 +192,9 @@ public class XContentBuilderTests extends OpenSearchTestCase {
 
     public void testDateTypesConversion() throws Exception {
         Date date = new Date();
-        String expectedDate = XContentOpenSearchExtension.DEFAULT_DATE_PRINTER.print(date.getTime());
+        String expectedDate = XContentOpenSearchExtension.DEFAULT_FORMATTER.format(date.toInstant());
         Calendar calendar = new GregorianCalendar(TimeZone.getTimeZone("UTC"), Locale.ROOT);
-        String expectedCalendar = XContentOpenSearchExtension.DEFAULT_DATE_PRINTER.print(calendar.getTimeInMillis());
+        String expectedCalendar = XContentOpenSearchExtension.DEFAULT_FORMATTER.format(calendar.toInstant());
         XContentBuilder builder = MediaTypeRegistry.contentBuilder(MediaTypeRegistry.JSON);
         builder.startObject().timeField("date", date).endObject();
         assertThat(builder.toString(), equalTo("{\"date\":\"" + expectedDate + "\"}"));
