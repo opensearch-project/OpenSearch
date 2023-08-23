@@ -42,6 +42,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.AtomicArray;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.breaker.NoopCircuitBreaker;
 import org.opensearch.core.common.bytes.BytesArray;
@@ -68,6 +69,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static org.mockito.ArgumentMatchers.anyString;
@@ -1377,5 +1379,90 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
         } catch (Exception e) {
             fail("Wrong exception type: " + e.getClass());
         }
+    }
+
+    private static class FakeStatefulRequestProcessor extends AbstractProcessor implements StatefulSearchRequestProcessor {
+        private final String type;
+        private final Consumer<Map<String, Object>> stateConsumer;
+
+        public FakeStatefulRequestProcessor(String type, Consumer<Map<String, Object>> stateConsumer) {
+            super(null, null, false);
+            this.type = type;
+            this.stateConsumer = stateConsumer;
+        }
+
+        @Override
+        public String getType() {
+            return type;
+        }
+
+        @Override
+        public SearchRequest processRequest(SearchRequest request, Map<String, Object> requestContext) throws Exception {
+            stateConsumer.accept(requestContext);
+            return request;
+        }
+    }
+
+    private static class FakeStatefulResponseProcessor extends AbstractProcessor implements StatefulSearchResponseProcessor {
+        private final String type;
+        private final Consumer<Map<String, Object>> stateConsumer;
+
+        public FakeStatefulResponseProcessor(String type, Consumer<Map<String, Object>> stateConsumer) {
+            super(null, null, false);
+            this.type = type;
+            this.stateConsumer = stateConsumer;
+        }
+
+        @Override
+        public String getType() {
+            return type;
+        }
+
+        @Override
+        public SearchResponse processResponse(SearchRequest request, SearchResponse response, Map<String, Object> requestContext)
+            throws Exception {
+            stateConsumer.accept(requestContext);
+            return response;
+        }
+    }
+
+    public void testStatefulProcessors() throws Exception {
+        AtomicReference<String> contextHolder = new AtomicReference<>();
+        SearchPipelineService searchPipelineService = createWithProcessors(
+            Map.of("write_context", (pf, t, d, igf, cfg, ctx) -> new FakeStatefulRequestProcessor("write_context", (c) -> c.put("a", "b"))),
+            Map.of(
+                "read_context",
+                (pf, t, d, igf, cfg, ctx) -> new FakeStatefulResponseProcessor(
+                    "read_context",
+                    (c) -> contextHolder.set((String) c.get("a"))
+                )
+            ),
+            Collections.emptyMap()
+        );
+
+        SearchPipelineMetadata metadata = new SearchPipelineMetadata(
+            Map.of(
+                "p1",
+                new PipelineConfiguration(
+                    "p1",
+                    new BytesArray(
+                        "{\"request_processors\" : [ { \"write_context\": {} } ], \"response_processors\": [ { \"read_context\": {} }] }"
+                    ),
+                    XContentType.JSON
+                )
+            )
+        );
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
+        ClusterState previousState = clusterState;
+        clusterState = ClusterState.builder(clusterState)
+            .metadata(Metadata.builder().putCustom(SearchPipelineMetadata.TYPE, metadata))
+            .build();
+        searchPipelineService.applyClusterState(new ClusterChangedEvent("", clusterState, previousState));
+
+        PipelinedRequest request = searchPipelineService.resolvePipeline(new SearchRequest().pipeline("p1"));
+        assertNull(contextHolder.get());
+        syncExecutePipeline(request, new SearchResponse(null, null, 0, 0, 0, 0, null, null));
+        assertNotNull(contextHolder.get());
+        assertEquals("b", contextHolder.get());
     }
 }

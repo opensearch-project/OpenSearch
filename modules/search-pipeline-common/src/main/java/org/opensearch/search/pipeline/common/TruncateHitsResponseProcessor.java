@@ -17,9 +17,12 @@ import org.opensearch.search.pipeline.AbstractProcessor;
 import org.opensearch.search.pipeline.Processor;
 import org.opensearch.search.pipeline.SearchResponseProcessor;
 import org.opensearch.search.pipeline.StatefulSearchResponseProcessor;
+import org.opensearch.search.pipeline.common.helpers.ContextUtils;
 import org.opensearch.search.pipeline.common.helpers.SearchResponseUtil;
 
 import java.util.Map;
+
+import static org.opensearch.search.pipeline.common.helpers.ContextUtils.applyContextPrefix;
 
 /**
  * Truncates the returned search hits from the {@link SearchResponse}. If no target size is specified in the pipeline, then
@@ -30,17 +33,19 @@ public class TruncateHitsResponseProcessor extends AbstractProcessor implements 
      * Key to reference this processor type from a search pipeline.
      */
     public static final String TYPE = "truncate_hits";
-    private static final String TARGET_SIZE = "target_size";
+    static final String TARGET_SIZE = "target_size";
     private final int targetSize;
+    private final String contextPrefix;
 
     @Override
     public String getType() {
         return TYPE;
     }
 
-    private TruncateHitsResponseProcessor(String tag, String description, boolean ignoreFailure, int targetSize) {
+    private TruncateHitsResponseProcessor(String tag, String description, boolean ignoreFailure, int targetSize, String contextPrefix) {
         super(tag, description, ignoreFailure);
         this.targetSize = targetSize;
+        this.contextPrefix = contextPrefix;
     }
 
     @Override
@@ -48,7 +53,12 @@ public class TruncateHitsResponseProcessor extends AbstractProcessor implements 
 
         int size;
         if (targetSize < 0) {
-            size = (int) requestContext.get(OversampleRequestProcessor.ORIGINAL_SIZE);
+            String key = applyContextPrefix(contextPrefix, OversampleRequestProcessor.ORIGINAL_SIZE);
+            Object o = requestContext.get(key);
+            if (o == null) {
+                throw new IllegalStateException("Must specify target_size unless an earlier processor set " + key);
+            }
+            size = (int) o;
         } else {
             size = targetSize;
         }
@@ -71,16 +81,17 @@ public class TruncateHitsResponseProcessor extends AbstractProcessor implements 
     static class Factory implements Processor.Factory<SearchResponseProcessor> {
 
         @Override
-        public SearchResponseProcessor create(
+        public TruncateHitsResponseProcessor create(
             Map<String, Processor.Factory<SearchResponseProcessor>> processorFactories,
             String tag,
             String description,
             boolean ignoreFailure,
             Map<String, Object> config,
             PipelineContext pipelineContext
-        ) throws Exception {
+        ) {
             int targetSize = ConfigurationUtils.readIntProperty(TYPE, tag, config, TARGET_SIZE, -1);
-            return new TruncateHitsResponseProcessor(tag, description, ignoreFailure, targetSize);
+            String contextPrefix = ConfigurationUtils.readOptionalStringProperty(TYPE, tag, config, ContextUtils.CONTEXT_PREFIX_PARAMETER);
+            return new TruncateHitsResponseProcessor(tag, description, ignoreFailure, targetSize, contextPrefix);
         }
     }
 

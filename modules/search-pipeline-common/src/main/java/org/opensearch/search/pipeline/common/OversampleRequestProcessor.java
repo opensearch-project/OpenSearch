@@ -14,8 +14,11 @@ import org.opensearch.search.pipeline.AbstractProcessor;
 import org.opensearch.search.pipeline.Processor;
 import org.opensearch.search.pipeline.SearchRequestProcessor;
 import org.opensearch.search.pipeline.StatefulSearchRequestProcessor;
+import org.opensearch.search.pipeline.common.helpers.ContextUtils;
 
 import java.util.Map;
+
+import static org.opensearch.search.pipeline.common.helpers.ContextUtils.applyContextPrefix;
 
 /**
  * Multiplies the "size" parameter on the {@link SearchRequest} by the given scaling factor, storing the original value
@@ -27,20 +30,22 @@ public class OversampleRequestProcessor extends AbstractProcessor implements Sta
      * Key to reference this processor type from a search pipeline.
      */
     public static final String TYPE = "oversample";
-    private static final String SAMPLE_FACTOR = "sample_factor";
+    static final String SAMPLE_FACTOR = "sample_factor";
     static final String ORIGINAL_SIZE = "original_size";
     private final double sampleFactor;
+    private final String contextPrefix;
 
-    private OversampleRequestProcessor(String tag, String description, boolean ignoreFailure, double sampleFactor) {
+    private OversampleRequestProcessor(String tag, String description, boolean ignoreFailure, double sampleFactor, String contextPrefix) {
         super(tag, description, ignoreFailure);
         this.sampleFactor = sampleFactor;
+        this.contextPrefix = contextPrefix;
     }
 
     @Override
     public SearchRequest processRequest(SearchRequest request, Map<String, Object> requestContext) {
         if (request.source() != null) {
             int originalSize = request.source().size();
-            requestContext.put(ORIGINAL_SIZE, originalSize);
+            requestContext.put(applyContextPrefix(contextPrefix, ORIGINAL_SIZE), originalSize);
             int newSize = (int) Math.ceil(originalSize * sampleFactor);
             request.source().size(newSize);
         }
@@ -53,7 +58,6 @@ public class OversampleRequestProcessor extends AbstractProcessor implements Sta
     }
 
     static class Factory implements Processor.Factory<SearchRequestProcessor> {
-
         @Override
         public OversampleRequestProcessor create(
             Map<String, Processor.Factory<SearchRequestProcessor>> processorFactories,
@@ -67,7 +71,8 @@ public class OversampleRequestProcessor extends AbstractProcessor implements Sta
             if (sampleFactor < 1.0) {
                 throw ConfigurationUtils.newConfigurationException(TYPE, tag, SAMPLE_FACTOR, "Value must be >= 1.0");
             }
-            return new OversampleRequestProcessor(tag, description, ignoreFailure, sampleFactor);
+            String contextPrefix = ConfigurationUtils.readOptionalStringProperty(TYPE, tag, config, ContextUtils.CONTEXT_PREFIX_PARAMETER);
+            return new OversampleRequestProcessor(tag, description, ignoreFailure, sampleFactor, contextPrefix);
         }
     }
 }

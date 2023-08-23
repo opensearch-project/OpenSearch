@@ -9,8 +9,9 @@
 package org.opensearch.search.pipeline.common.helpers;
 
 import org.opensearch.action.search.SearchResponse;
-import org.opensearch.action.search.SearchResponseSections;
 import org.opensearch.search.SearchHits;
+import org.opensearch.search.aggregations.InternalAggregations;
+import org.opensearch.search.internal.InternalSearchResponse;
 import org.opensearch.search.profile.SearchProfileShardResults;
 
 /**
@@ -29,13 +30,13 @@ public final class SearchResponseUtil {
      */
     public static SearchResponse replaceHits(SearchHits newHits, SearchResponse response) {
         return new SearchResponse(
-            new SearchResponseSections(
+            new InternalSearchResponse(
                 newHits,
-                response.getAggregations(),
+                (InternalAggregations) response.getAggregations(),
                 response.getSuggest(),
+                new SearchProfileShardResults(response.getProfileResults()),
                 response.isTimedOut(),
                 response.isTerminatedEarly(),
-                new SearchProfileShardResults(response.getProfileResults()),
                 response.getNumReducePhases()
             ),
             response.getScrollId(),
