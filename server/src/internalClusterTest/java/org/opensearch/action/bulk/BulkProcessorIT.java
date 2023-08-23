@@ -33,6 +33,7 @@
 package org.opensearch.action.bulk;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
 import org.opensearch.action.get.MultiGetItemResponse;
 import org.opensearch.action.get.MultiGetRequestBuilder;
 import org.opensearch.action.get.MultiGetResponse;
@@ -41,9 +42,9 @@ import org.opensearch.client.Client;
 import org.opensearch.client.Requests;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.unit.ByteSizeUnit;
-import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.Arrays;

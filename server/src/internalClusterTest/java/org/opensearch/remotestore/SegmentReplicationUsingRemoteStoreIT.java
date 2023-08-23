@@ -8,16 +8,16 @@
 
 package org.opensearch.remotestore;
 
-import org.junit.After;
-import org.junit.Before;
-import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.indices.replication.SegmentReplicationIT;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.junit.After;
+import org.junit.Before;
 
 import java.nio.file.Path;
 
+import static org.opensearch.remotestore.RemoteStoreBaseIntegTestCase.remoteStoreClusterSettings;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 /**
@@ -32,13 +32,12 @@ public class SegmentReplicationUsingRemoteStoreIT extends SegmentReplicationIT {
     private static final String REPOSITORY_NAME = "test-remote-store-repo";
 
     @Override
-    public Settings indexSettings() {
-        return Settings.builder()
-            .put(super.indexSettings())
-            .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
-            .put(IndexMetadata.SETTING_REMOTE_STORE_REPOSITORY, REPOSITORY_NAME)
-            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED, false)
-            .build();
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal)).put(remoteStoreClusterSettings(REPOSITORY_NAME)).build();
+    }
+
+    protected boolean segmentReplicationWithRemoteEnabled() {
+        return true;
     }
 
     @Override
@@ -62,5 +61,17 @@ public class SegmentReplicationUsingRemoteStoreIT extends SegmentReplicationIT {
     @After
     public void teardown() {
         assertAcked(clusterAdmin().prepareDeleteRepository(REPOSITORY_NAME));
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/7592")
+    @Override
+    public void testPressureServiceStats() throws Exception {
+        super.testPressureServiceStats();
+    }
+
+    @Override
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/8059")
+    public void testDropPrimaryDuringReplication() throws Exception {
+        super.testDropPrimaryDuringReplication();
     }
 }

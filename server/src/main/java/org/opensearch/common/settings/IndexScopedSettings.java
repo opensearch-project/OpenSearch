@@ -185,11 +185,13 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexModule.INDEX_STORE_TYPE_SETTING,
                 IndexModule.INDEX_STORE_PRE_LOAD_SETTING,
                 IndexModule.INDEX_STORE_HYBRID_MMAP_EXTENSIONS,
+                IndexModule.INDEX_STORE_HYBRID_NIO_EXTENSIONS,
                 IndexModule.INDEX_RECOVERY_TYPE_SETTING,
                 IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING,
                 FsDirectoryFactory.INDEX_LOCK_FACTOR_SETTING,
                 Store.FORCE_RAM_TERM_DICT,
                 EngineConfig.INDEX_CODEC_SETTING,
+                EngineConfig.INDEX_CODEC_COMPRESSION_LEVEL_SETTING,
                 EngineConfig.INDEX_OPTIMIZE_AUTO_GENERATED_IDS,
                 IndexMetadata.SETTING_WAIT_FOR_ACTIVE_SHARDS,
                 IndexSettings.DEFAULT_PIPELINE,
@@ -206,6 +208,9 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexSettings.SEARCHABLE_SNAPSHOT_INDEX_ID,
                 IndexSettings.SEARCHABLE_SNAPSHOT_ID_NAME,
                 IndexSettings.SEARCHABLE_SNAPSHOT_ID_UUID,
+
+                // Settings for remote translog
+                IndexSettings.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING,
 
                 // validate that built-in similarities don't get redefined
                 Setting.groupSetting("index.similarity.", (s) -> {
@@ -233,10 +238,8 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         FeatureFlags.REMOTE_STORE,
         List.of(
             IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING,
-            IndexMetadata.INDEX_REMOTE_STORE_REPOSITORY_SETTING,
-            IndexMetadata.INDEX_REMOTE_TRANSLOG_STORE_ENABLED_SETTING,
-            IndexMetadata.INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING,
-            IndexMetadata.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING
+            IndexMetadata.INDEX_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING,
+            IndexMetadata.INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING
         ),
         FeatureFlags.CONCURRENT_SEGMENT_SEARCH,
         List.of(IndexSettings.INDEX_CONCURRENT_SEGMENT_SEARCH_SETTING)

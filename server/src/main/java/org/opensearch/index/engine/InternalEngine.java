@@ -50,6 +50,7 @@ import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.ShuffleForcedMergePolicy;
 import org.apache.lucene.index.SoftDeletesRetentionMergePolicy;
 import org.apache.lucene.index.StandardDirectoryReader;
+import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -66,7 +67,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.InfoStream;
-import org.opensearch.core.Assertions;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.common.Booleans;
@@ -82,12 +82,14 @@ import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.lucene.uid.VersionsAndSeqNoResolver;
 import org.opensearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndSeqNo;
 import org.opensearch.common.metrics.CounterMetric;
-import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.KeyedLock;
 import org.opensearch.common.util.concurrent.ReleasableLock;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.core.Assertions;
+import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.fieldvisitor.IdOnlyFieldVisitor;
@@ -103,15 +105,14 @@ import org.opensearch.index.seqno.LocalCheckpointTracker;
 import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.OpenSearchMergePolicy;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.index.translog.InternalTranslogManager;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogCorruptedException;
 import org.opensearch.index.translog.TranslogDeletionPolicy;
-import org.opensearch.index.translog.TranslogStats;
 import org.opensearch.index.translog.TranslogException;
-import org.opensearch.index.translog.InternalTranslogManager;
-import org.opensearch.index.translog.listener.TranslogEventListener;
+import org.opensearch.index.translog.TranslogStats;
 import org.opensearch.index.translog.listener.CompositeTranslogEventListener;
+import org.opensearch.index.translog.listener.TranslogEventListener;
 import org.opensearch.search.suggest.completion.CompletionStats;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -596,7 +597,7 @@ public class InternalEngine extends Engine {
 
     @Override
     public boolean isTranslogSyncNeeded() {
-        return translogManager.getTranslog().syncNeeded();
+        return translogManager.isTranslogSyncNeeded();
     }
 
     @Override
@@ -611,7 +612,7 @@ public class InternalEngine extends Engine {
 
     @Override
     public TranslogStats getTranslogStats() {
-        return translogManager.getTranslog().stats();
+        return translogManager.getTranslogStats();
     }
 
     @Override
@@ -800,6 +801,7 @@ public class InternalEngine extends Engine {
         final OpVsLuceneDocStatus status;
         VersionValue versionValue = getVersionFromMap(op.uid().bytes());
         assert incrementVersionLookup();
+        boolean segRepEnabled = engineConfig.getIndexSettings().isSegRepEnabled();
         if (versionValue != null) {
             status = compareOpToVersionMapOnSeqNo(op.id(), op.seqNo(), op.primaryTerm(), versionValue);
         } else {
@@ -812,10 +814,8 @@ public class InternalEngine extends Engine {
                 } else if (op.seqNo() > docAndSeqNo.seqNo) {
                     status = OpVsLuceneDocStatus.OP_NEWER;
                 } else if (op.seqNo() == docAndSeqNo.seqNo) {
-                    assert localCheckpointTracker.hasProcessed(op.seqNo()) : "local checkpoint tracker is not updated seq_no="
-                        + op.seqNo()
-                        + " id="
-                        + op.id();
+                    assert localCheckpointTracker.hasProcessed(op.seqNo()) || segRepEnabled
+                        : "local checkpoint tracker is not updated seq_no=" + op.seqNo() + " id=" + op.id();
                     status = OpVsLuceneDocStatus.OP_STALE_OR_EQUAL;
                 } else {
                     status = OpVsLuceneDocStatus.OP_STALE_OR_EQUAL;
@@ -1017,6 +1017,7 @@ public class InternalEngine extends Engine {
                             plan.currentNotFoundOrDeleted
                         );
                     }
+
                 }
                 if (index.origin().isFromTranslog() == false) {
                     final Translog.Location location;
@@ -1095,10 +1096,18 @@ public class InternalEngine extends Engine {
             assert maxSeqNoOfUpdatesOrDeletes < index.seqNo() : index.seqNo() + ">=" + maxSeqNoOfUpdatesOrDeletes;
             plan = IndexingStrategy.optimizedAppendOnly(index.version(), 0);
         } else {
+            boolean segRepEnabled = engineConfig.getIndexSettings().isSegRepEnabled();
             versionMap.enforceSafeAccess();
             final OpVsLuceneDocStatus opVsLucene = compareOpToLuceneDocBasedOnSeqNo(index);
             if (opVsLucene == OpVsLuceneDocStatus.OP_STALE_OR_EQUAL) {
-                plan = IndexingStrategy.processAsStaleOp(index.version());
+                if (segRepEnabled) {
+                    // For segrep based indices, we can't completely rely on localCheckpointTracker
+                    // as the preserved checkpoint may not have all the operations present in lucene
+                    // we don't need to index it again as stale op as it would create multiple documents for same seq no
+                    plan = IndexingStrategy.processButSkipLucene(false, index.version());
+                } else {
+                    plan = IndexingStrategy.processAsStaleOp(index.version());
+                }
             } else {
                 plan = IndexingStrategy.processNormally(opVsLucene == OpVsLuceneDocStatus.LUCENE_DOC_NOT_FOUND, index.version(), 0);
             }
@@ -1532,9 +1541,17 @@ public class InternalEngine extends Engine {
             // See testRecoveryWithOutOfOrderDelete for an example of peer recovery
             plan = DeletionStrategy.processButSkipLucene(false, delete.version());
         } else {
+            boolean segRepEnabled = engineConfig.getIndexSettings().isSegRepEnabled();
             final OpVsLuceneDocStatus opVsLucene = compareOpToLuceneDocBasedOnSeqNo(delete);
             if (opVsLucene == OpVsLuceneDocStatus.OP_STALE_OR_EQUAL) {
-                plan = DeletionStrategy.processAsStaleOp(delete.version());
+                if (segRepEnabled) {
+                    // For segrep based indices, we can't completely rely on localCheckpointTracker
+                    // as the preserved checkpoint may not have all the operations present in lucene
+                    // we don't need to index it again as stale op as it would create multiple documents for same seq no
+                    plan = DeletionStrategy.processButSkipLucene(false, delete.version());
+                } else {
+                    plan = DeletionStrategy.processAsStaleOp(delete.version());
+                }
             } else {
                 plan = DeletionStrategy.processNormally(opVsLucene == OpVsLuceneDocStatus.LUCENE_DOC_NOT_FOUND, delete.version(), 0);
             }
@@ -1892,31 +1909,10 @@ public class InternalEngine extends Engine {
         final long localCheckpointOfLastCommit = Long.parseLong(
             lastCommittedSegmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)
         );
-        final long translogGenerationOfLastCommit = translogManager.getTranslog()
-            .getMinGenerationForSeqNo(localCheckpointOfLastCommit + 1).translogFileGeneration;
-        final long flushThreshold = config().getIndexSettings().getFlushThresholdSize().getBytes();
-        if (translogManager.getTranslog().sizeInBytesByMinGen(translogGenerationOfLastCommit) < flushThreshold) {
-            return false;
-        }
-        /*
-         * We flush to reduce the size of uncommitted translog but strictly speaking the uncommitted size won't always be
-         * below the flush-threshold after a flush. To avoid getting into an endless loop of flushing, we only enable the
-         * periodically flush condition if this condition is disabled after a flush. The condition will change if the new
-         * commit points to the later generation the last commit's(eg. gen-of-last-commit < gen-of-new-commit)[1].
-         *
-         * When the local checkpoint equals to max_seqno, and translog-gen of the last commit equals to translog-gen of
-         * the new commit, we know that the last generation must contain operations because its size is above the flush
-         * threshold and the flush-threshold is guaranteed to be higher than an empty translog by the setting validation.
-         * This guarantees that the new commit will point to the newly rolled generation. In fact, this scenario only
-         * happens when the generation-threshold is close to or above the flush-threshold; otherwise we have rolled
-         * generations as the generation-threshold was reached, then the first condition (eg. [1]) is already satisfied.
-         *
-         * This method is to maintain translog only, thus IndexWriter#hasUncommittedChanges condition is not considered.
-         */
-        final long translogGenerationOfNewCommit = translogManager.getTranslog()
-            .getMinGenerationForSeqNo(localCheckpointTracker.getProcessedCheckpoint() + 1).translogFileGeneration;
-        return translogGenerationOfLastCommit < translogGenerationOfNewCommit
-            || localCheckpointTracker.getProcessedCheckpoint() == localCheckpointTracker.getMaxSeqNo();
+        return translogManager.shouldPeriodicallyFlush(
+            localCheckpointOfLastCommit,
+            config().getIndexSettings().getFlushThresholdSize().getBytes()
+        );
     }
 
     @Override
@@ -1955,7 +1951,7 @@ public class InternalEngine extends Engine {
                     )) {
                     translogManager.ensureCanFlush();
                     try {
-                        translogManager.getTranslog().rollGeneration();
+                        translogManager.rollTranslogGeneration();
                         logger.trace("starting commit for flush; commitTranslog=true");
                         commitIndexWriter(indexWriter, translogManager.getTranslog());
                         logger.trace("finished commit for flush");
@@ -2247,8 +2243,8 @@ public class InternalEngine extends Engine {
             }
             failEngine("already closed by tragic event on the index writer", tragicException);
             engineFailed = true;
-        } else if (translogManager.getTranslog().isOpen() == false && translogManager.getTranslog().getTragicException() != null) {
-            failEngine("already closed by tragic event on the translog", translogManager.getTranslog().getTragicException());
+        } else if (translogManager.getTragicExceptionIfClosed() != null) {
+            failEngine("already closed by tragic event on the translog", translogManager.getTragicExceptionIfClosed());
             engineFailed = true;
         } else if (failedEngine.get() == null && isClosed.get() == false) { // we are closed but the engine is not failed yet?
             // this smells like a bug - we only expect ACE if we are in a fatal case ie. either translog or IW is closed by
@@ -2273,7 +2269,7 @@ public class InternalEngine extends Engine {
             return failOnTragicEvent((AlreadyClosedException) e);
         } else if (e != null
             && ((indexWriter.isOpen() == false && indexWriter.getTragicException() == e)
-                || (translogManager.getTranslog().isOpen() == false && translogManager.getTranslog().getTragicException() == e))) {
+                || (translogManager.getTragicExceptionIfClosed() == e))) {
                     // this spot on - we are handling the tragic event exception here so we have to fail the engine
                     // right away
                     failEngine(source, e);
@@ -2381,7 +2377,7 @@ public class InternalEngine extends Engine {
                     logger.warn("Failed to close ReaderManager", e);
                 }
                 try {
-                    IOUtils.close(translogManager.getTranslog());
+                    IOUtils.close(translogManager);
                 } catch (Exception e) {
                     logger.warn("Failed to close translog", e);
                 }
@@ -2952,7 +2948,7 @@ public class InternalEngine extends Engine {
      * Returns the current local checkpoint getting refreshed internally.
      */
     public final long currentOngoingRefreshCheckpoint() {
-        return lastRefreshedCheckpointListener.pendingCheckpoint;
+        return lastRefreshedCheckpointListener.pendingCheckpoint.get();
     }
 
     private final Object refreshIfNeededMutex = new Object();
@@ -2972,29 +2968,33 @@ public class InternalEngine extends Engine {
 
     private final class LastRefreshedCheckpointListener implements ReferenceManager.RefreshListener {
         final AtomicLong refreshedCheckpoint;
-        volatile long pendingCheckpoint;
+        volatile AtomicLong pendingCheckpoint;
 
         LastRefreshedCheckpointListener(long initialLocalCheckpoint) {
             this.refreshedCheckpoint = new AtomicLong(initialLocalCheckpoint);
-            this.pendingCheckpoint = initialLocalCheckpoint;
+            this.pendingCheckpoint = new AtomicLong(initialLocalCheckpoint);
         }
 
         @Override
         public void beforeRefresh() {
             // all changes until this point should be visible after refresh
-            pendingCheckpoint = localCheckpointTracker.getProcessedCheckpoint();
+            pendingCheckpoint.updateAndGet(curr -> Math.max(curr, localCheckpointTracker.getProcessedCheckpoint()));
         }
 
         @Override
         public void afterRefresh(boolean didRefresh) {
             if (didRefresh) {
-                updateRefreshedCheckpoint(pendingCheckpoint);
+                updateRefreshedCheckpoint(pendingCheckpoint.get());
             }
         }
 
         void updateRefreshedCheckpoint(long checkpoint) {
             refreshedCheckpoint.updateAndGet(curr -> Math.max(curr, checkpoint));
             assert refreshedCheckpoint.get() >= checkpoint : refreshedCheckpoint.get() + " < " + checkpoint;
+            // This shouldn't be required ideally, but we're also invoking this method from refresh as of now.
+            // This change is added as safety check to ensure that our checkpoint values are consistent at all times.
+            pendingCheckpoint.updateAndGet(curr -> Math.max(curr, checkpoint));
+
         }
     }
 
@@ -3074,6 +3074,7 @@ public class InternalEngine extends Engine {
             final CombinedDocValues dv = new CombinedDocValues(leaf.reader());
             final IdOnlyFieldVisitor idFieldVisitor = new IdOnlyFieldVisitor();
             final DocIdSetIterator iterator = scorer.iterator();
+            final StoredFields storedFields = leaf.reader().storedFields();
             int docId;
             while ((docId = iterator.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
                 final long primaryTerm = dv.docPrimaryTerm(docId);
@@ -3081,7 +3082,7 @@ public class InternalEngine extends Engine {
                 localCheckpointTracker.markSeqNoAsProcessed(seqNo);
                 localCheckpointTracker.markSeqNoAsPersisted(seqNo);
                 idFieldVisitor.reset();
-                leaf.reader().document(docId, idFieldVisitor);
+                storedFields.document(docId, idFieldVisitor);
                 if (idFieldVisitor.getId() == null) {
                     assert dv.isTombstone(docId);
                     continue;

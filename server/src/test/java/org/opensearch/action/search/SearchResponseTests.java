@@ -35,16 +35,18 @@ package org.opensearch.action.search;
 import org.apache.lucene.search.TotalHits;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.common.Strings;
-import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.core.xcontent.XContentHelper;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.rest.action.search.RestSearchAction;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
@@ -57,8 +59,8 @@ import org.opensearch.search.profile.SearchProfileShardResults;
 import org.opensearch.search.profile.SearchProfileShardResultsTests;
 import org.opensearch.search.suggest.Suggest;
 import org.opensearch.search.suggest.SuggestTests;
-import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.InternalAggregationTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.After;
 import org.junit.Before;
 
@@ -181,7 +183,7 @@ public class SearchResponseTests extends OpenSearchTestCase {
     }
 
     private void doFromXContentTestWithRandomFields(SearchResponse response, boolean addRandomFields) throws IOException {
-        XContentType xcontentType = randomFrom(XContentType.values());
+        MediaType xcontentType = randomFrom(XContentType.values());
         boolean humanReadable = randomBoolean();
         final ToXContent.Params params = new ToXContent.MapParams(singletonMap(RestSearchAction.TYPED_KEYS_PARAM, "true"));
         BytesReference originalBytes = toShuffledXContent(response, xcontentType, params, humanReadable);
@@ -282,7 +284,7 @@ public class SearchResponseTests extends OpenSearchTestCase {
                 }
             }
             expectedString.append("}");
-            assertEquals(expectedString.toString(), Strings.toString(XContentType.JSON, response));
+            assertEquals(expectedString.toString(), Strings.toString(MediaTypeRegistry.JSON, response));
         }
         {
             SearchResponse response = new SearchResponse(
@@ -329,7 +331,7 @@ public class SearchResponseTests extends OpenSearchTestCase {
                 }
             }
             expectedString.append("}");
-            assertEquals(expectedString.toString(), Strings.toString(XContentType.JSON, response));
+            assertEquals(expectedString.toString(), Strings.toString(MediaTypeRegistry.JSON, response));
         }
     }
 
@@ -362,8 +364,8 @@ public class SearchResponseTests extends OpenSearchTestCase {
             SearchResponse.Clusters.EMPTY
         );
         SearchResponse deserialized = copyWriteable(searchResponse, namedWriteableRegistry, SearchResponse::new, Version.CURRENT);
-        XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent());
+        XContentBuilder builder = XContentBuilder.builder(MediaTypeRegistry.JSON.xContent());
         deserialized.getClusters().toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertEquals(0, Strings.toString(builder).length());
+        assertEquals(0, builder.toString().length());
     }
 }

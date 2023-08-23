@@ -49,16 +49,14 @@ import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.TestShardRouting;
-import org.opensearch.common.Strings;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.transport.TransportAddress;
+import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.common.transport.TransportAddress;
+import org.opensearch.core.index.Index;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.json.JsonXContent;
-import org.opensearch.index.Index;
-import org.opensearch.index.shard.ShardId;
-import org.opensearch.rest.RestStatus;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.TestCustomMetadata;
 
@@ -66,6 +64,7 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -125,9 +124,9 @@ public class ClusterStateTests extends OpenSearchTestCase {
     public void testBuilderRejectsNullInCustoms() {
         final ClusterState.Builder builder = ClusterState.builder(ClusterName.DEFAULT);
         final String key = randomAlphaOfLength(10);
-        final ImmutableOpenMap.Builder<String, ClusterState.Custom> mapBuilder = ImmutableOpenMap.builder();
+        final Map<String, ClusterState.Custom> mapBuilder = new HashMap<>();
         mapBuilder.put(key, null);
-        final ImmutableOpenMap<String, ClusterState.Custom> map = mapBuilder.build();
+        final Map<String, ClusterState.Custom> map = Collections.unmodifiableMap(mapBuilder);
         assertThat(expectThrows(NullPointerException.class, () -> builder.customs(map)).getMessage(), containsString(key));
     }
 
@@ -327,7 +326,7 @@ public class ClusterStateTests extends OpenSearchTestCase {
                 + "    }\n"
                 + "  }\n"
                 + "}",
-            Strings.toString(builder)
+            builder.toString()
         );
 
     }
@@ -527,7 +526,7 @@ public class ClusterStateTests extends OpenSearchTestCase {
                 + "    }\n"
                 + "  }\n"
                 + "}",
-            Strings.toString(builder)
+            builder.toString()
         );
 
     }
@@ -734,7 +733,7 @@ public class ClusterStateTests extends OpenSearchTestCase {
                 + "    }\n"
                 + "  }\n"
                 + "}",
-            Strings.toString(builder)
+            builder.toString()
         );
 
     }
@@ -844,7 +843,7 @@ public class ClusterStateTests extends OpenSearchTestCase {
                 + "    \"nodes\" : { }\n"
                 + "  }\n"
                 + "}",
-            Strings.toString(builder)
+            builder.toString()
         );
     }
 

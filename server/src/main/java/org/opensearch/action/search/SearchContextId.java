@@ -33,15 +33,15 @@
 package org.opensearch.action.search;
 
 import org.opensearch.Version;
-import org.opensearch.common.Strings;
-import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.io.stream.ByteBufferStreamInput;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.common.io.stream.NamedWriteableAwareStreamInput;
-import org.opensearch.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.ByteBufferStreamInput;
+import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.internal.AliasFilter;
@@ -90,7 +90,7 @@ public class SearchContextId {
         }
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.setVersion(version);
-            Version.writeVersion(version, out);
+            out.writeVersion(version);
             out.writeMap(shards, (o, k) -> k.writeTo(o), (o, v) -> v.writeTo(o));
             out.writeMap(aliasFilter, StreamOutput::writeString, (o, v) -> v.writeTo(o));
             return Base64.getUrlEncoder().encodeToString(BytesReference.toBytes(out.bytes()));
@@ -107,7 +107,7 @@ public class SearchContextId {
             throw new IllegalArgumentException("invalid id: [" + id + "]", e);
         }
         try (StreamInput in = new NamedWriteableAwareStreamInput(new ByteBufferStreamInput(byteBuffer), namedWriteableRegistry)) {
-            final Version version = Version.readVersion(in);
+            final Version version = in.readVersion();
             in.setVersion(version);
             final Map<ShardId, SearchContextIdForNode> shards = in.readMap(ShardId::new, SearchContextIdForNode::new);
             final Map<String, AliasFilter> aliasFilters = in.readMap(StreamInput::readString, AliasFilter::new);

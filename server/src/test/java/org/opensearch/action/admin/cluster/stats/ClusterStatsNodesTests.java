@@ -38,7 +38,7 @@ import org.opensearch.action.admin.cluster.node.stats.NodeStatsTests;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Arrays;
@@ -51,7 +51,7 @@ import java.util.TreeMap;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
-import static org.opensearch.common.xcontent.XContentHelper.toXContent;
+import static org.opensearch.core.xcontent.XContentHelper.toXContent;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ClusterStatsNodesTests extends OpenSearchTestCase {
@@ -62,11 +62,17 @@ public class ClusterStatsNodesTests extends OpenSearchTestCase {
      */
     public void testNetworkTypesToXContent() throws Exception {
         ClusterStatsNodes.NetworkTypes stats = new ClusterStatsNodes.NetworkTypes(emptyList());
-        assertEquals("{\"transport_types\":{},\"http_types\":{}}", toXContent(stats, XContentType.JSON, randomBoolean()).utf8ToString());
+        assertEquals(
+            "{\"transport_types\":{},\"http_types\":{}}",
+            toXContent(stats, MediaTypeRegistry.JSON, randomBoolean()).utf8ToString()
+        );
 
         List<NodeInfo> nodeInfos = singletonList(createNodeInfo("node_0", null, null));
         stats = new ClusterStatsNodes.NetworkTypes(nodeInfos);
-        assertEquals("{\"transport_types\":{},\"http_types\":{}}", toXContent(stats, XContentType.JSON, randomBoolean()).utf8ToString());
+        assertEquals(
+            "{\"transport_types\":{},\"http_types\":{}}",
+            toXContent(stats, MediaTypeRegistry.JSON, randomBoolean()).utf8ToString()
+        );
 
         nodeInfos = Arrays.asList(
             createNodeInfo("node_1", "", ""),
@@ -76,7 +82,7 @@ public class ClusterStatsNodesTests extends OpenSearchTestCase {
         stats = new ClusterStatsNodes.NetworkTypes(nodeInfos);
         assertEquals(
             "{" + "\"transport_types\":{\"custom\":1}," + "\"http_types\":{\"custom\":2}" + "}",
-            toXContent(stats, XContentType.JSON, randomBoolean()).utf8ToString()
+            toXContent(stats, MediaTypeRegistry.JSON, randomBoolean()).utf8ToString()
         );
     }
 
@@ -89,15 +95,15 @@ public class ClusterStatsNodesTests extends OpenSearchTestCase {
                 processorStats.compute(stat.getType(), (key, value) -> {
                     if (value == null) {
                         return new long[] {
-                            stat.getStats().getIngestCount(),
-                            stat.getStats().getIngestFailedCount(),
-                            stat.getStats().getIngestCurrent(),
-                            stat.getStats().getIngestTimeInMillis() };
+                            stat.getStats().getCount(),
+                            stat.getStats().getFailedCount(),
+                            stat.getStats().getCurrent(),
+                            stat.getStats().getTotalTimeInMillis() };
                     } else {
-                        value[0] += stat.getStats().getIngestCount();
-                        value[1] += stat.getStats().getIngestFailedCount();
-                        value[2] += stat.getStats().getIngestCurrent();
-                        value[3] += stat.getStats().getIngestTimeInMillis();
+                        value[0] += stat.getStats().getCount();
+                        value[1] += stat.getStats().getFailedCount();
+                        value[2] += stat.getStats().getCurrent();
+                        value[3] += stat.getStats().getTotalTimeInMillis();
                         return value;
                     }
                 });
@@ -132,7 +138,7 @@ public class ClusterStatsNodesTests extends OpenSearchTestCase {
         }
         processorStatsString += "}";
         assertThat(
-            toXContent(stats, XContentType.JSON, false).utf8ToString(),
+            toXContent(stats, MediaTypeRegistry.JSON, false).utf8ToString(),
             equalTo(
                 "{\"ingest\":{"
                     + "\"number_of_pipelines\":"

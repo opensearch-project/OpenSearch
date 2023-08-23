@@ -8,22 +8,27 @@
 
 package org.opensearch.index.shard;
 
-import org.junit.Assert;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.DocIdSeqNoAndSource;
 import org.opensearch.index.engine.NRTReplicationEngine;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.replication.OpenSearchIndexLevelReplicationTestCase;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.translog.WriteOnlyTranslogManager;
 import org.opensearch.indices.recovery.RecoveryTarget;
 import org.opensearch.indices.replication.common.ReplicationType;
+import org.junit.Assert;
+import org.junit.Before;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -34,20 +39,28 @@ public class ReplicaRecoveryWithRemoteTranslogOnPrimaryTests extends OpenSearchI
     private static final Settings settings = Settings.builder()
         .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
         .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, "true")
-        .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED, "true")
         .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "translog-repo")
-        .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_BUFFER_INTERVAL, "100ms")
+        .put(IndexSettings.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.getKey(), "100ms")
         .build();
 
-    public void testStartSequenceForReplicaRecovery() throws Exception {
-        try (ReplicationGroup shards = createGroup(0, settings, new NRTReplicationEngineFactory())) {
+    @Before
+    public void setup() {
+        // Todo: Remove feature flag once remote store integration with segrep goes GA
+        FeatureFlags.initializeFeatureFlags(
+            Settings.builder().put(FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL_SETTING.getKey(), "true").build()
+        );
+    }
 
+    public void testStartSequenceForReplicaRecovery() throws Exception {
+        final Path remoteDir = createTempDir();
+        final String indexMapping = "{ \"" + MapperService.SINGLE_MAPPING_NAME + "\": {} }";
+        try (ReplicationGroup shards = createGroup(0, settings, indexMapping, new NRTReplicationEngineFactory(), remoteDir)) {
             shards.startPrimary();
             final IndexShard primary = shards.getPrimary();
             int numDocs = shards.indexDocs(randomIntBetween(10, 100));
             shards.flush();
 
-            final IndexShard replica = shards.addReplica();
+            final IndexShard replica = shards.addReplica(remoteDir);
             shards.startAll();
 
             allowShardFailures();
@@ -62,7 +75,6 @@ public class ReplicaRecoveryWithRemoteTranslogOnPrimaryTests extends OpenSearchI
 
             int moreDocs = shards.indexDocs(randomIntBetween(20, 100));
             shards.flush();
-
             IndexShard newReplicaShard = newShard(
                 newShardRouting(
                     replicaRouting.shardId(),
@@ -80,7 +92,7 @@ public class ReplicaRecoveryWithRemoteTranslogOnPrimaryTests extends OpenSearchI
                 replica.getGlobalCheckpointSyncer(),
                 replica.getRetentionLeaseSyncer(),
                 EMPTY_EVENT_LISTENER,
-                null
+                remoteDir
             );
             shards.addReplica(newReplicaShard);
             AtomicBoolean assertDone = new AtomicBoolean(false);
@@ -103,7 +115,6 @@ public class ReplicaRecoveryWithRemoteTranslogOnPrimaryTests extends OpenSearchI
                     return idxShard;
                 }
             });
-
             shards.flush();
             replicateSegments(primary, shards.getReplicas());
             shards.assertAllEqual(numDocs + moreDocs);
@@ -111,7 +122,9 @@ public class ReplicaRecoveryWithRemoteTranslogOnPrimaryTests extends OpenSearchI
     }
 
     public void testNoTranslogHistoryTransferred() throws Exception {
-        try (ReplicationGroup shards = createGroup(0, settings, new NRTReplicationEngineFactory())) {
+        final Path remoteDir = createTempDir();
+        final String indexMapping = "{ \"" + MapperService.SINGLE_MAPPING_NAME + "\": {} }";
+        try (ReplicationGroup shards = createGroup(0, settings, indexMapping, new NRTReplicationEngineFactory(), remoteDir)) {
 
             // Step1 - Start primary, index docs, flush, index more docs, check translog in primary as expected
             shards.startPrimary();
@@ -120,10 +133,10 @@ public class ReplicaRecoveryWithRemoteTranslogOnPrimaryTests extends OpenSearchI
             shards.flush();
             List<DocIdSeqNoAndSource> docIdAndSeqNosAfterFlush = getDocIdAndSeqNos(primary);
             int moreDocs = shards.indexDocs(randomIntBetween(20, 100));
-            assertEquals(moreDocs, getTranslog(primary).totalOperations());
+            assertEquals(numDocs + moreDocs, getTranslog(primary).totalOperations());
 
             // Step 2 - Start replica, recovery happens, check docs recovered till last flush
-            final IndexShard replica = shards.addReplica();
+            final IndexShard replica = shards.addReplica(remoteDir);
             shards.startAll();
             assertEquals(docIdAndSeqNosAfterFlush, getDocIdAndSeqNos(replica));
             assertDocCount(replica, numDocs);

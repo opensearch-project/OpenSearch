@@ -34,9 +34,7 @@ package org.opensearch.discovery;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.CorruptIndexException;
-
 import org.opensearch.OpenSearchException;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.NoShardAvailableActionException;
 import org.opensearch.action.get.GetResponse;
 import org.opensearch.action.index.IndexRequestBuilder;
@@ -53,13 +51,14 @@ import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
 import org.opensearch.indices.IndicesService;
-import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.InternalTestCluster;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.disruption.NetworkDisruption;
 import org.opensearch.test.disruption.NetworkDisruption.Bridge;
 import org.opensearch.test.disruption.NetworkDisruption.TwoPartitions;
@@ -173,7 +172,10 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
                                 logger.trace("[{}] indexing id [{}] through node [{}] targeting shard [{}]", name, id, node, shard);
                                 IndexRequestBuilder indexRequestBuilder = client.prepareIndex("test")
                                     .setId(id)
-                                    .setSource(Collections.singletonMap(randomFrom(fieldNames), randomNonNegativeLong()), XContentType.JSON)
+                                    .setSource(
+                                        Collections.singletonMap(randomFrom(fieldNames), randomNonNegativeLong()),
+                                        MediaTypeRegistry.JSON
+                                    )
                                     .setTimeout(timeout);
 
                                 if (conflictMode == ConflictMode.external) {
@@ -515,7 +517,10 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
                     try {
                         IndexResponse response = client().prepareIndex(index)
                             .setId(id)
-                            .setSource(Collections.singletonMap("f" + randomIntBetween(1, 10), randomNonNegativeLong()), XContentType.JSON)
+                            .setSource(
+                                Collections.singletonMap("f" + randomIntBetween(1, 10), randomNonNegativeLong()),
+                                MediaTypeRegistry.JSON
+                            )
                             .get();
                         assertThat(response.getResult(), is(oneOf(CREATED, UPDATED)));
                         logger.info("--> index id={} seq_no={}", response.getId(), response.getSeqNo());

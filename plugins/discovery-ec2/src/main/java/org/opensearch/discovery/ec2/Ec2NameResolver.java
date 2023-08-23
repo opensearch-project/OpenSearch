@@ -32,12 +32,13 @@
 
 package org.opensearch.discovery.ec2;
 
+import software.amazon.awssdk.core.SdkSystemSetting;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.network.NetworkService.CustomNameResolver;
 import org.opensearch.common.util.io.IOUtils;
-import software.amazon.awssdk.core.SdkSystemSetting;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -117,7 +118,7 @@ class Ec2NameResolver implements CustomNameResolver {
 
                 String metadataResult = urlReader.readLine();
                 if (metadataResult == null || metadataResult.length() == 0) {
-                    throw new IOException("no gce metadata returned from [" + url + "] for [" + type.configName + "]");
+                    throw new IOException("no ec2 metadata returned from [" + url + "] for [" + type.configName + "]");
                 }
                 logger.debug("obtained ec2 hostname from ec2 meta-data url {}: {}", url, metadataResult);
                 // only one address: because we explicitly ask for only one via the Ec2HostnameType

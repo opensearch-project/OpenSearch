@@ -8,26 +8,26 @@
 
 package org.opensearch.search.pipeline.common;
 
-import org.junit.Before;
 import org.opensearch.action.search.SearchRequest;
-import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.script.MockScriptEngine;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptModule;
 import org.opensearch.script.ScriptService;
-import org.opensearch.script.SearchScript;
 import org.opensearch.script.ScriptType;
+import org.opensearch.script.SearchScript;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.pipeline.common.helpers.SearchRequestMap;
 import org.opensearch.test.OpenSearchTestCase;
+import org.junit.Before;
 
 import java.util.Collections;
-import java.util.Map;
 import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.core.Is.is;
-import java.util.concurrent.TimeUnit;
 
 public class ScriptRequestProcessorTests extends OpenSearchTestCase {
 
@@ -82,7 +82,7 @@ public class ScriptRequestProcessorTests extends OpenSearchTestCase {
     }
 
     public void testScriptingWithoutPrecompiledScriptFactory() throws Exception {
-        ScriptRequestProcessor processor = new ScriptRequestProcessor(randomAlphaOfLength(10), null, script, null, scriptService);
+        ScriptRequestProcessor processor = new ScriptRequestProcessor(randomAlphaOfLength(10), null, false, script, null, scriptService);
         SearchRequest searchRequest = new SearchRequest();
         searchRequest.source(createSearchSourceBuilder());
 
@@ -92,7 +92,14 @@ public class ScriptRequestProcessorTests extends OpenSearchTestCase {
     }
 
     public void testScriptingWithPrecompiledIngestScript() throws Exception {
-        ScriptRequestProcessor processor = new ScriptRequestProcessor(randomAlphaOfLength(10), null, script, searchScript, scriptService);
+        ScriptRequestProcessor processor = new ScriptRequestProcessor(
+            randomAlphaOfLength(10),
+            null,
+            false,
+            script,
+            searchScript,
+            scriptService
+        );
         SearchRequest searchRequest = new SearchRequest();
         searchRequest.source(createSearchSourceBuilder());
 

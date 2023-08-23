@@ -32,7 +32,6 @@
 
 package org.opensearch.cluster.routing.allocation;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.Version;
@@ -153,9 +152,9 @@ public class FailedNodeRoutingTests extends OpenSearchAllocationTestCase {
         }
 
         // Log the node versions (for debugging if necessary)
-        for (ObjectCursor<DiscoveryNode> cursor : state.nodes().getDataNodes().values()) {
-            Version nodeVer = cursor.value.getVersion();
-            logger.info("--> node [{}] has version [{}]", cursor.value.getId(), nodeVer);
+        for (final DiscoveryNode cursor : state.nodes().getDataNodes().values()) {
+            Version nodeVer = cursor.getVersion();
+            logger.info("--> node [{}] has version [{}]", cursor.getId(), nodeVer);
         }
 
         // randomly create some indices

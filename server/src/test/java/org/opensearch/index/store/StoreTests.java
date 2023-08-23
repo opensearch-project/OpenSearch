@@ -64,33 +64,33 @@ import org.apache.lucene.tests.store.BaseDirectoryWrapper;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Version;
-import org.hamcrest.Matchers;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.UUIDs;
-import org.opensearch.common.io.stream.InputStreamStreamInput;
-import org.opensearch.common.io.stream.OutputStreamStreamOutput;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.core.common.io.stream.InputStreamStreamInput;
+import org.opensearch.core.common.io.stream.OutputStreamStreamOutput;
+import org.opensearch.core.index.Index;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.env.ShardLock;
-import org.opensearch.index.Index;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.seqno.ReplicationTracker;
 import org.opensearch.index.seqno.RetentionLease;
 import org.opensearch.index.seqno.SequenceNumbers;
-import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.indices.store.TransportNodesListShardStoreMetadata;
 import org.opensearch.test.DummyShardLock;
 import org.opensearch.test.FeatureFlagSetter;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.OpenSearchTestCase;
+import org.hamcrest.Matchers;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -110,6 +110,9 @@ import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.Collections.unmodifiableMap;
+import static org.opensearch.index.seqno.SequenceNumbers.LOCAL_CHECKPOINT_KEY;
+import static org.opensearch.index.store.remote.directory.RemoteSnapshotDirectory.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY_MINIMUM_VERSION;
+import static org.opensearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -121,9 +124,6 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.opensearch.index.seqno.SequenceNumbers.LOCAL_CHECKPOINT_KEY;
-import static org.opensearch.index.store.remote.directory.RemoteSnapshotDirectory.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY_MINIMUM_VERSION;
-import static org.opensearch.test.VersionUtils.randomVersion;
 
 public class StoreTests extends OpenSearchTestCase {
 
@@ -1164,45 +1164,6 @@ public class StoreTests extends OpenSearchTestCase {
         // loose check for equality
         assertEquals(segmentInfos.getSegmentsFileName(), metadataSnapshot.getSegmentsFile().name());
         store.close();
-    }
-
-    public void testCleanupAndPreserveLatestCommitPoint() throws IOException {
-        final ShardId shardId = new ShardId("index", "_na_", 1);
-        Store store = new Store(
-            shardId,
-            SEGMENT_REPLICATION_INDEX_SETTINGS,
-            StoreTests.newDirectory(random()),
-            new DummyShardLock(shardId)
-        );
-        commitRandomDocs(store);
-
-        Store.MetadataSnapshot commitMetadata = store.getMetadata();
-
-        // index more docs but only IW.flush, this will create additional files we'll clean up.
-        final IndexWriter writer = indexRandomDocs(store);
-        writer.flush();
-        writer.close();
-
-        final List<String> additionalSegments = new ArrayList<>();
-        for (String file : store.directory().listAll()) {
-            if (commitMetadata.contains(file) == false) {
-                additionalSegments.add(file);
-            }
-        }
-        assertFalse(additionalSegments.isEmpty());
-
-        // clean up everything not in the latest commit point.
-        store.cleanupAndPreserveLatestCommitPoint("test", store.readLastCommittedSegmentsInfo());
-
-        // we want to ensure commitMetadata files are preserved after calling cleanup
-        for (String existingFile : store.directory().listAll()) {
-            if (!IndexWriter.WRITE_LOCK_NAME.equals(existingFile)) {
-                assertTrue(commitMetadata.contains(existingFile));
-                assertFalse(additionalSegments.contains(existingFile));
-            }
-        }
-        deleteContent(store.directory());
-        IOUtils.close(store);
     }
 
     public void testGetSegmentMetadataMap() throws IOException {

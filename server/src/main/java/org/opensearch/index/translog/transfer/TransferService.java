@@ -8,12 +8,16 @@
 
 package org.opensearch.index.translog.transfer;
 
-import org.opensearch.action.ActionListener;
+import org.opensearch.common.blobstore.BlobMetadata;
+import org.opensearch.common.blobstore.BlobPath;
+import org.opensearch.common.blobstore.stream.write.WritePriority;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.index.translog.transfer.FileSnapshot.TransferFileSnapshot;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -25,25 +29,40 @@ public interface TransferService {
 
     /**
      * Uploads the {@link TransferFileSnapshot} async, once the upload is complete the callback is invoked
-     * @param threadpoolName threadpool type which will be used to upload blobs asynchronously
+     * @param threadPoolName threadpool type which will be used to upload blobs asynchronously
      * @param fileSnapshot the file snapshot to upload
      * @param remotePath the remote path where upload should be made
      * @param listener the callback to be invoked once upload completes successfully/fails
      */
-    void uploadBlobAsync(
-        String threadpoolName,
+    void uploadBlob(
+        String threadPoolName,
         final TransferFileSnapshot fileSnapshot,
         Iterable<String> remotePath,
-        ActionListener<TransferFileSnapshot> listener
+        ActionListener<TransferFileSnapshot> listener,
+        WritePriority writePriority
     );
+
+    /**
+     * Uploads multiple {@link TransferFileSnapshot}, once the upload is complete the callback is invoked
+     * @param fileSnapshots the file snapshots to upload
+     * @param blobPaths Primary term to {@link BlobPath} map
+     * @param listener the callback to be invoked once uploads complete successfully/fail
+     */
+    void uploadBlobs(
+        Set<TransferFileSnapshot> fileSnapshots,
+        final Map<Long, BlobPath> blobPaths,
+        ActionListener<TransferFileSnapshot> listener,
+        WritePriority writePriority
+    ) throws Exception;
 
     /**
      * Uploads the {@link TransferFileSnapshot} blob
      * @param fileSnapshot the file snapshot to upload
      * @param remotePath the remote path where upload should be made
+     * @param writePriority Priority by which content needs to be written.
      * @throws IOException the exception while transferring the data
      */
-    void uploadBlob(final TransferFileSnapshot fileSnapshot, Iterable<String> remotePath) throws IOException;
+    void uploadBlob(final TransferFileSnapshot fileSnapshot, Iterable<String> remotePath, WritePriority writePriority) throws IOException;
 
     void deleteBlobs(Iterable<String> path, List<String> fileNames) throws IOException;
 
@@ -81,14 +100,6 @@ public interface TransferService {
     Set<String> listAll(Iterable<String> path) throws IOException;
 
     /**
-     * Lists the files and invokes the listener on success or failure
-     * @param threadpoolName threadpool type which will be used to list all files asynchronously.
-     * @param path the path to list
-     * @param listener the callback to be invoked once list operation completes successfully/fails.
-     */
-    void listAllAsync(String threadpoolName, Iterable<String> path, ActionListener<Set<String>> listener);
-
-    /**
      * Lists the folders inside the path.
      * @param path : the path
      * @return list of folders inside the path
@@ -113,5 +124,15 @@ public interface TransferService {
      * @throws IOException the exception while reading the data
      */
     InputStream downloadBlob(Iterable<String> path, String fileName) throws IOException;
+
+    void listAllInSortedOrder(Iterable<String> path, String filenamePrefix, int limit, ActionListener<List<BlobMetadata>> listener);
+
+    void listAllInSortedOrderAsync(
+        String threadpoolName,
+        Iterable<String> path,
+        String filenamePrefix,
+        int limit,
+        ActionListener<List<BlobMetadata>> listener
+    );
 
 }

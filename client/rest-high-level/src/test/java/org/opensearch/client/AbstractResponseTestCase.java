@@ -31,22 +31,16 @@
 
 package org.opensearch.client;
 
-import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContent;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.Map;
-import java.util.Set;
 
 /**
  * Base class for HLRC response parsing tests.
@@ -64,7 +58,7 @@ public abstract class AbstractResponseTestCase<S extends ToXContent, C> extends 
         final S serverTestInstance = createServerTestInstance(xContentType);
         final BytesReference bytes = toShuffledXContent(serverTestInstance, xContentType, getParams(), randomBoolean());
 
-        final XContent xContent = XContentFactory.xContent(xContentType);
+        final XContent xContent = xContentType.xContent();
         final XContentParser parser = xContent.createParser(
             NamedXContentRegistry.EMPTY,
             LoggingDeprecationHandler.INSTANCE,
@@ -102,18 +96,5 @@ public abstract class AbstractResponseTestCase<S extends ToXContent, C> extends 
      */
     protected ToXContent.Params getParams() {
         return ToXContent.EMPTY_PARAMS;
-    }
-
-    protected static <T> void assertMapEquals(ImmutableOpenMap<String, T> expected, Map<String, T> actual) {
-        Set<String> expectedKeys = new HashSet<>();
-        Iterator<String> keysIt = expected.keysIt();
-        while (keysIt.hasNext()) {
-            expectedKeys.add(keysIt.next());
-        }
-
-        assertEquals(expectedKeys, actual.keySet());
-        for (String key : expectedKeys) {
-            assertEquals(expected.get(key), actual.get(key));
-        }
     }
 }

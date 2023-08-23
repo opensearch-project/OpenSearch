@@ -32,8 +32,6 @@
 
 package org.opensearch.gateway;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
-
 import org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
 import org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
 import org.opensearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsAction;
@@ -48,27 +46,26 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.Strings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.core.index.Index;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.env.NodeEnvironment;
-import org.opensearch.index.Index;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.MergePolicyConfig;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.query.QueryBuilders;
-import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.test.InternalSettingsPlugin;
+import org.opensearch.test.InternalTestCluster.RestartCallback;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.OpenSearchIntegTestCase.Scope;
-import org.opensearch.test.InternalSettingsPlugin;
-import org.opensearch.test.InternalTestCluster.RestartCallback;
 import org.opensearch.test.store.MockFSIndexStore;
 
 import java.nio.file.DirectoryStream;
@@ -112,16 +109,15 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
 
         internalCluster().startNode();
 
-        String mapping = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("properties")
-                .startObject("appAccountIds")
-                .field("type", "text")
-                .endObject()
-                .endObject()
-                .endObject()
-        );
+        String mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("appAccountIds")
+            .field("type", "text")
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
         assertAcked(prepareCreate("test").setMapping(mapping));
 
         client().prepareIndex("test")
@@ -181,8 +177,7 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
         }
         final Map<String, long[]> result = new HashMap<>();
         final ClusterState state = client().admin().cluster().prepareState().get().getState();
-        for (ObjectCursor<IndexMetadata> cursor : state.metadata().indices().values()) {
-            final IndexMetadata indexMetadata = cursor.value;
+        for (final IndexMetadata indexMetadata : state.metadata().indices().values()) {
             final String index = indexMetadata.getIndex().getName();
             final long[] previous = previousTerms.get(index);
             final long[] current = IntStream.range(0, indexMetadata.getNumberOfShards()).mapToLong(indexMetadata::primaryTerm).toArray();
@@ -207,19 +202,18 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
     public void testSingleNodeNoFlush() throws Exception {
         internalCluster().startNode();
 
-        String mapping = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("properties")
-                .startObject("field")
-                .field("type", "text")
-                .endObject()
-                .startObject("num")
-                .field("type", "integer")
-                .endObject()
-                .endObject()
-                .endObject()
-        );
+        String mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("field")
+            .field("type", "text")
+            .endObject()
+            .startObject("num")
+            .field("type", "integer")
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
         // note: default replica settings are tied to #data nodes-1 which is 0 here. We can do with 1 in this test.
         int numberOfShards = numberOfShards();
         assertAcked(

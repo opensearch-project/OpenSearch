@@ -8,13 +8,13 @@
 
 package org.opensearch.search.pit;
 
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.search.DeletePitRequest;
 import org.opensearch.action.search.DeletePitResponse;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.SetOnce;
-import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.search.RestDeletePitAction;
 import org.opensearch.test.OpenSearchTestCase;
@@ -35,7 +35,7 @@ public class RestDeletePitActionTests extends OpenSearchTestCase {
         RestDeletePitAction action = new RestDeletePitAction();
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withContent(
             new BytesArray("{invalid_json}"),
-            XContentType.JSON
+            MediaTypeRegistry.JSON
         ).build();
         Exception e = expectThrows(IllegalArgumentException.class, () -> action.prepareRequest(request, null));
         assertThat(e.getMessage(), equalTo("Failed to parse request body"));
@@ -54,7 +54,7 @@ public class RestDeletePitActionTests extends OpenSearchTestCase {
             RestDeletePitAction action = new RestDeletePitAction();
             RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withContent(
                 new BytesArray("{\"pit_id\": [\"BODY\"]}"),
-                XContentType.JSON
+                MediaTypeRegistry.JSON
             ).build();
             FakeRestChannel channel = new FakeRestChannel(request, false, 0);
             action.handleRequest(request, channel, nodeClient);
@@ -95,7 +95,7 @@ public class RestDeletePitActionTests extends OpenSearchTestCase {
             RestDeletePitAction action = new RestDeletePitAction();
             RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withContent(
                 new BytesArray("{\"pit_id\": [\"BODY\"]}"),
-                XContentType.JSON
+                MediaTypeRegistry.JSON
             ).withPath("/_all").build();
             FakeRestChannel channel = new FakeRestChannel(request, false, 0);
 

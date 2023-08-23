@@ -32,10 +32,8 @@
 
 package org.opensearch.plugin.analysis.icu;
 
-import static java.util.Collections.singletonMap;
-
 import org.apache.lucene.analysis.Analyzer;
-import org.opensearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.index.analysis.AnalyzerProvider;
 import org.opensearch.index.analysis.CharFilterFactory;
 import org.opensearch.index.analysis.IcuAnalyzerProvider;
@@ -59,6 +57,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import static java.util.Collections.singletonMap;
 
 public class AnalysisICUPlugin extends Plugin implements AnalysisPlugin, MapperPlugin {
     @Override

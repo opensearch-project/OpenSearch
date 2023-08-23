@@ -33,7 +33,6 @@
 package org.opensearch.action.bulk;
 
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.DocWriteRequest;
 import org.opensearch.action.admin.indices.create.CreateIndexResponse;
 import org.opensearch.action.index.IndexAction;
@@ -47,17 +46,16 @@ import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateApplier;
 import org.opensearch.cluster.metadata.AliasMetadata;
+import org.opensearch.cluster.metadata.ComposableIndexTemplate;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.IndexTemplateMetadata;
-import org.opensearch.cluster.metadata.ComposableIndexTemplate;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.Template;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
@@ -65,6 +63,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AtomicArray;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.IndexingPressureService;
@@ -78,15 +77,17 @@ import org.opensearch.threadpool.ThreadPool.Names;
 import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
 import org.junit.Before;
-import org.mockito.ArgumentCaptor;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
+
+import org.mockito.ArgumentCaptor;
 
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.containsString;
@@ -95,8 +96,8 @@ import static org.mockito.Answers.RETURNS_MOCKS;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyInt;
 import static org.mockito.Mockito.anyString;
-import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
@@ -235,42 +236,37 @@ public class TransportBulkActionIngestTests extends OpenSearchTestCase {
         remoteNode1 = mock(DiscoveryNode.class);
         remoteNode2 = mock(DiscoveryNode.class);
         nodes = mock(DiscoveryNodes.class);
-        ImmutableOpenMap<String, DiscoveryNode> ingestNodes = ImmutableOpenMap.<String, DiscoveryNode>builder(2)
-            .fPut("node1", remoteNode1)
-            .fPut("node2", remoteNode2)
-            .build();
+        final Map<String, DiscoveryNode> ingestNodes = Map.of("node1", remoteNode1, "node2", remoteNode2);
         when(nodes.getIngestNodes()).thenReturn(ingestNodes);
         when(nodes.getMinNodeVersion()).thenReturn(VersionUtils.randomCompatibleVersion(random(), Version.CURRENT));
         ClusterState state = mock(ClusterState.class);
         when(state.getNodes()).thenReturn(nodes);
         Metadata metadata = Metadata.builder()
             .indices(
-                ImmutableOpenMap.<String, IndexMetadata>builder()
-                    .putAll(
-                        MapBuilder.<String, IndexMetadata>newMapBuilder()
-                            .put(
-                                WITH_DEFAULT_PIPELINE,
-                                IndexMetadata.builder(WITH_DEFAULT_PIPELINE)
-                                    .settings(
-                                        settings(Version.CURRENT).put(IndexSettings.DEFAULT_PIPELINE.getKey(), "default_pipeline").build()
-                                    )
-                                    .putAlias(AliasMetadata.builder(WITH_DEFAULT_PIPELINE_ALIAS).build())
-                                    .numberOfShards(1)
-                                    .numberOfReplicas(1)
-                                    .build()
-                            )
-                            .put(
-                                ".system",
-                                IndexMetadata.builder(".system")
-                                    .settings(settings(Version.CURRENT))
-                                    .system(true)
-                                    .numberOfShards(1)
-                                    .numberOfReplicas(0)
-                                    .build()
-                            )
-                            .map()
-                    )
-                    .build()
+                new HashMap<>(
+                    MapBuilder.<String, IndexMetadata>newMapBuilder()
+                        .put(
+                            WITH_DEFAULT_PIPELINE,
+                            IndexMetadata.builder(WITH_DEFAULT_PIPELINE)
+                                .settings(
+                                    settings(Version.CURRENT).put(IndexSettings.DEFAULT_PIPELINE.getKey(), "default_pipeline").build()
+                                )
+                                .putAlias(AliasMetadata.builder(WITH_DEFAULT_PIPELINE_ALIAS).build())
+                                .numberOfShards(1)
+                                .numberOfReplicas(1)
+                                .build()
+                        )
+                        .put(
+                            ".system",
+                            IndexMetadata.builder(".system")
+                                .settings(settings(Version.CURRENT))
+                                .system(true)
+                                .numberOfShards(1)
+                                .numberOfReplicas(0)
+                                .build()
+                        )
+                        .map()
+                )
             )
             .build();
         when(state.getMetadata()).thenReturn(metadata);
@@ -659,7 +655,7 @@ public class TransportBulkActionIngestTests extends OpenSearchTestCase {
         Exception exception = new Exception("fake exception");
         ClusterState state = clusterService.state();
 
-        ImmutableOpenMap.Builder<String, IndexTemplateMetadata> templateMetadataBuilder = ImmutableOpenMap.builder();
+        final Map<String, IndexTemplateMetadata> templateMetadataBuilder = new HashMap<>();
         templateMetadataBuilder.put(
             "template1",
             IndexTemplateMetadata.builder("template1")
@@ -692,9 +688,9 @@ public class TransportBulkActionIngestTests extends OpenSearchTestCase {
         Metadata metadata = mock(Metadata.class);
         when(state.metadata()).thenReturn(metadata);
         when(state.getMetadata()).thenReturn(metadata);
-        when(metadata.templates()).thenReturn(templateMetadataBuilder.build());
-        when(metadata.getTemplates()).thenReturn(templateMetadataBuilder.build());
-        when(metadata.indices()).thenReturn(ImmutableOpenMap.of());
+        when(metadata.templates()).thenReturn(templateMetadataBuilder);
+        when(metadata.getTemplates()).thenReturn(templateMetadataBuilder);
+        when(metadata.indices()).thenReturn(Map.of());
 
         IndexRequest indexRequest = new IndexRequest("missing_index").id("id");
         indexRequest.source(emptyMap());

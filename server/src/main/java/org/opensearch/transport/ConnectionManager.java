@@ -32,8 +32,8 @@
 
 package org.opensearch.transport;
 
-import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.core.action.ActionListener;
 
 import java.io.Closeable;
 import java.util.Set;

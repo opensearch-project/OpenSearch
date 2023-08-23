@@ -47,12 +47,6 @@ public class FeatureFlags {
     public static final String EXTENSIONS = "opensearch.experimental.feature.extensions.enabled";
 
     /**
-     * Gates the search pipeline features during initial development.
-     * Once the feature is complete and ready for release, this feature flag can be removed.
-     */
-    public static final String SEARCH_PIPELINE = "opensearch.experimental.feature.search_pipeline.enabled";
-
-    /**
      * Gates the functionality of identity.
      */
     public static final String IDENTITY = "opensearch.experimental.feature.identity.enabled";
@@ -62,6 +56,11 @@ public class FeatureFlags {
      * Once the feature is ready for release, this feature flag can be removed.
      */
     public static final String CONCURRENT_SEGMENT_SEARCH = "opensearch.experimental.feature.concurrent_segment_search.enabled";
+
+    /**
+     * Gates the functionality of telemetry framework.
+     */
+    public static final String TELEMETRY = "opensearch.experimental.feature.telemetry.enabled";
 
     /**
      * Should store the settings from opensearch.yml.
@@ -101,9 +100,9 @@ public class FeatureFlags {
 
     public static final Setting<Boolean> EXTENSIONS_SETTING = Setting.boolSetting(EXTENSIONS, false, Property.NodeScope);
 
-    public static final Setting<Boolean> SEARCH_PIPELINE_SETTING = Setting.boolSetting(SEARCH_PIPELINE, false, Property.NodeScope);
-
     public static final Setting<Boolean> IDENTITY_SETTING = Setting.boolSetting(IDENTITY, false, Property.NodeScope);
+
+    public static final Setting<Boolean> TELEMETRY_SETTING = Setting.boolSetting(TELEMETRY, false, Property.NodeScope);
 
     public static final Setting<Boolean> CONCURRENT_SEGMENT_SEARCH_SETTING = Setting.boolSetting(
         CONCURRENT_SEGMENT_SEARCH,

@@ -32,17 +32,18 @@
 
 package org.opensearch.discovery.azure.classic;
 
-import com.microsoft.windowsazure.management.compute.models.DeploymentSlot;
-import com.microsoft.windowsazure.management.compute.models.DeploymentStatus;
 import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpsConfigurator;
 import com.sun.net.httpserver.HttpsServer;
+
+import com.microsoft.windowsazure.management.compute.models.DeploymentSlot;
+import com.microsoft.windowsazure.management.compute.models.DeploymentStatus;
 import org.apache.logging.log4j.LogManager;
 import org.opensearch.cloud.azure.classic.management.AzureComputeService;
 import org.opensearch.common.SuppressForbidden;
-import org.opensearch.common.io.FileSystemUtils;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.util.FileSystemUtils;
 import org.opensearch.discovery.DiscoveryModule;
 import org.opensearch.env.Environment;
 import org.opensearch.node.Node;
@@ -62,6 +63,7 @@ import javax.xml.XMLConstants;
 import javax.xml.stream.XMLOutputFactory;
 import javax.xml.stream.XMLStreamException;
 import javax.xml.stream.XMLStreamWriter;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;

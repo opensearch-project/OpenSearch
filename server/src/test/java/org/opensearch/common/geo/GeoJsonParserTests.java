@@ -32,12 +32,11 @@
 
 package org.opensearch.common.geo;
 
-import org.opensearch.common.Strings;
-import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParseException;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.geometry.Circle;
 import org.opensearch.geometry.Geometry;
 import org.opensearch.geometry.GeometryCollection;
@@ -479,85 +478,84 @@ public class GeoJsonParserTests extends BaseGeoParsingTestCase {
 
     public void testParseInvalidDimensionalMultiPolygon() throws IOException {
         // test invalid multipolygon (an "accidental" polygon with inner rings outside outer ring)
-        String multiPolygonGeoJson = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .field("type", "MultiPolygon")
-                .startArray("coordinates")
-                .startArray()// first poly (without holes)
-                .startArray()
-                .startArray()
-                .value(102.0)
-                .value(2.0)
-                .endArray()
-                .startArray()
-                .value(103.0)
-                .value(2.0)
-                .endArray()
-                .startArray()
-                .value(103.0)
-                .value(3.0)
-                .endArray()
-                .startArray()
-                .value(102.0)
-                .value(3.0)
-                .endArray()
-                .startArray()
-                .value(102.0)
-                .value(2.0)
-                .endArray()
-                .endArray()
-                .endArray()
-                .startArray()// second poly (with hole)
-                .startArray()
-                .startArray()
-                .value(100.0)
-                .value(0.0)
-                .endArray()
-                .startArray()
-                .value(101.0)
-                .value(0.0)
-                .endArray()
-                .startArray()
-                .value(101.0)
-                .value(1.0)
-                .endArray()
-                .startArray()
-                .value(100.0)
-                .value(1.0)
-                .endArray()
-                .startArray()
-                .value(100.0)
-                .value(0.0)
-                .endArray()
-                .endArray()
-                .startArray()// hole
-                .startArray()
-                .value(100.2)
-                .value(0.8)
-                .endArray()
-                .startArray()
-                .value(100.2)
-                .value(0.2)
-                .value(10.0)
-                .endArray()
-                .startArray()
-                .value(100.8)
-                .value(0.2)
-                .endArray()
-                .startArray()
-                .value(100.8)
-                .value(0.8)
-                .endArray()
-                .startArray()
-                .value(100.2)
-                .value(0.8)
-                .endArray()
-                .endArray()
-                .endArray()
-                .endArray()
-                .endObject()
-        );
+        String multiPolygonGeoJson = XContentFactory.jsonBuilder()
+            .startObject()
+            .field("type", "MultiPolygon")
+            .startArray("coordinates")
+            .startArray()// first poly (without holes)
+            .startArray()
+            .startArray()
+            .value(102.0)
+            .value(2.0)
+            .endArray()
+            .startArray()
+            .value(103.0)
+            .value(2.0)
+            .endArray()
+            .startArray()
+            .value(103.0)
+            .value(3.0)
+            .endArray()
+            .startArray()
+            .value(102.0)
+            .value(3.0)
+            .endArray()
+            .startArray()
+            .value(102.0)
+            .value(2.0)
+            .endArray()
+            .endArray()
+            .endArray()
+            .startArray()// second poly (with hole)
+            .startArray()
+            .startArray()
+            .value(100.0)
+            .value(0.0)
+            .endArray()
+            .startArray()
+            .value(101.0)
+            .value(0.0)
+            .endArray()
+            .startArray()
+            .value(101.0)
+            .value(1.0)
+            .endArray()
+            .startArray()
+            .value(100.0)
+            .value(1.0)
+            .endArray()
+            .startArray()
+            .value(100.0)
+            .value(0.0)
+            .endArray()
+            .endArray()
+            .startArray()// hole
+            .startArray()
+            .value(100.2)
+            .value(0.8)
+            .endArray()
+            .startArray()
+            .value(100.2)
+            .value(0.2)
+            .value(10.0)
+            .endArray()
+            .startArray()
+            .value(100.8)
+            .value(0.2)
+            .endArray()
+            .startArray()
+            .value(100.8)
+            .value(0.8)
+            .endArray()
+            .startArray()
+            .value(100.2)
+            .value(0.8)
+            .endArray()
+            .endArray()
+            .endArray()
+            .endArray()
+            .endObject()
+            .toString();
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, multiPolygonGeoJson)) {
             parser.nextToken();
@@ -572,24 +570,23 @@ public class GeoJsonParserTests extends BaseGeoParsingTestCase {
          * per the GeoJSON specification
          */
         // test case 1: create an invalid polygon with only 2 points
-        String invalidPoly = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .field("type", "polygon")
-                .startArray("coordinates")
-                .startArray()
-                .startArray()
-                .value(-74.011)
-                .value(40.753)
-                .endArray()
-                .startArray()
-                .value(-75.022)
-                .value(41.783)
-                .endArray()
-                .endArray()
-                .endArray()
-                .endObject()
-        );
+        String invalidPoly = XContentFactory.jsonBuilder()
+            .startObject()
+            .field("type", "polygon")
+            .startArray("coordinates")
+            .startArray()
+            .startArray()
+            .value(-74.011)
+            .value(40.753)
+            .endArray()
+            .startArray()
+            .value(-75.022)
+            .value(41.783)
+            .endArray()
+            .endArray()
+            .endArray()
+            .endObject()
+            .toString();
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, invalidPoly)) {
             parser.nextToken();
             expectThrows(XContentParseException.class, () -> new GeoJson(true, false, new GeographyValidator(false)).fromXContent(parser));
@@ -597,20 +594,19 @@ public class GeoJsonParserTests extends BaseGeoParsingTestCase {
         }
 
         // test case 2: create an invalid polygon with only 1 point
-        invalidPoly = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .field("type", "polygon")
-                .startArray("coordinates")
-                .startArray()
-                .startArray()
-                .value(-74.011)
-                .value(40.753)
-                .endArray()
-                .endArray()
-                .endArray()
-                .endObject()
-        );
+        invalidPoly = XContentFactory.jsonBuilder()
+            .startObject()
+            .field("type", "polygon")
+            .startArray("coordinates")
+            .startArray()
+            .startArray()
+            .value(-74.011)
+            .value(40.753)
+            .endArray()
+            .endArray()
+            .endArray()
+            .endObject()
+            .toString();
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, invalidPoly)) {
             parser.nextToken();
@@ -619,18 +615,17 @@ public class GeoJsonParserTests extends BaseGeoParsingTestCase {
         }
 
         // test case 3: create an invalid polygon with 0 points
-        invalidPoly = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .field("type", "polygon")
-                .startArray("coordinates")
-                .startArray()
-                .startArray()
-                .endArray()
-                .endArray()
-                .endArray()
-                .endObject()
-        );
+        invalidPoly = XContentFactory.jsonBuilder()
+            .startObject()
+            .field("type", "polygon")
+            .startArray("coordinates")
+            .startArray()
+            .startArray()
+            .endArray()
+            .endArray()
+            .endArray()
+            .endObject()
+            .toString();
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, invalidPoly)) {
             parser.nextToken();
@@ -639,20 +634,19 @@ public class GeoJsonParserTests extends BaseGeoParsingTestCase {
         }
 
         // test case 4: create an invalid polygon with null value points
-        invalidPoly = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .field("type", "polygon")
-                .startArray("coordinates")
-                .startArray()
-                .startArray()
-                .nullValue()
-                .nullValue()
-                .endArray()
-                .endArray()
-                .endArray()
-                .endObject()
-        );
+        invalidPoly = XContentFactory.jsonBuilder()
+            .startObject()
+            .field("type", "polygon")
+            .startArray("coordinates")
+            .startArray()
+            .startArray()
+            .nullValue()
+            .nullValue()
+            .endArray()
+            .endArray()
+            .endArray()
+            .endObject()
+            .toString();
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, invalidPoly)) {
             parser.nextToken();
@@ -661,16 +655,15 @@ public class GeoJsonParserTests extends BaseGeoParsingTestCase {
         }
 
         // test case 5: create an invalid polygon with 1 invalid LinearRing
-        invalidPoly = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .field("type", "polygon")
-                .startArray("coordinates")
-                .nullValue()
-                .nullValue()
-                .endArray()
-                .endObject()
-        );
+        invalidPoly = XContentFactory.jsonBuilder()
+            .startObject()
+            .field("type", "polygon")
+            .startArray("coordinates")
+            .nullValue()
+            .nullValue()
+            .endArray()
+            .endObject()
+            .toString();
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, invalidPoly)) {
             parser.nextToken();
@@ -679,9 +672,13 @@ public class GeoJsonParserTests extends BaseGeoParsingTestCase {
         }
 
         // test case 6: create an invalid polygon with 0 LinearRings
-        invalidPoly = Strings.toString(
-            XContentFactory.jsonBuilder().startObject().field("type", "polygon").startArray("coordinates").endArray().endObject()
-        );
+        invalidPoly = XContentFactory.jsonBuilder()
+            .startObject()
+            .field("type", "polygon")
+            .startArray("coordinates")
+            .endArray()
+            .endObject()
+            .toString();
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, invalidPoly)) {
             parser.nextToken();
@@ -690,18 +687,17 @@ public class GeoJsonParserTests extends BaseGeoParsingTestCase {
         }
 
         // test case 7: create an invalid polygon with 0 LinearRings
-        invalidPoly = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .field("type", "polygon")
-                .startArray("coordinates")
-                .startArray()
-                .value(-74.011)
-                .value(40.753)
-                .endArray()
-                .endArray()
-                .endObject()
-        );
+        invalidPoly = XContentFactory.jsonBuilder()
+            .startObject()
+            .field("type", "polygon")
+            .startArray("coordinates")
+            .startArray()
+            .value(-74.011)
+            .value(40.753)
+            .endArray()
+            .endArray()
+            .endObject()
+            .toString();
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, invalidPoly)) {
             parser.nextToken();

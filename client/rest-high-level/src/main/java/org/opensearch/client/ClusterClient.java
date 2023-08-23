@@ -32,7 +32,6 @@
 
 package org.opensearch.client;
 
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.cluster.settings.ClusterGetSettingsRequest;
@@ -47,7 +46,8 @@ import org.opensearch.client.indices.DeleteComponentTemplateRequest;
 import org.opensearch.client.indices.GetComponentTemplatesRequest;
 import org.opensearch.client.indices.GetComponentTemplatesResponse;
 import org.opensearch.client.indices.PutComponentTemplateRequest;
-import org.opensearch.rest.RestStatus;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.rest.RestStatus;
 
 import java.io.IOException;
 

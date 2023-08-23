@@ -32,7 +32,6 @@
 
 package org.opensearch.cluster.routing.allocation;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.Version;
@@ -49,7 +48,7 @@ import org.opensearch.cluster.routing.allocation.command.AllocationCommands;
 import org.opensearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.opensearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.test.VersionUtils;
 
 import java.util.ArrayList;
@@ -734,14 +733,14 @@ public class FailedShardsRoutingTests extends OpenSearchAllocationTestCase {
         assertNotNull(replicaNodeVersion);
         logger.info("--> shard {} got assigned to node with version {}", startedReplica, replicaNodeVersion);
 
-        for (ObjectCursor<DiscoveryNode> cursor : clusterState.nodes().getDataNodes().values()) {
-            if ("node1".equals(cursor.value.getId())) {
+        for (final DiscoveryNode cursor : clusterState.nodes().getDataNodes().values()) {
+            if ("node1".equals(cursor.getId())) {
                 // Skip the node that the primary was on, it doesn't have a replica so doesn't need a version check
                 continue;
             }
-            Version nodeVer = cursor.value.getVersion();
+            Version nodeVer = cursor.getVersion();
             assertTrue(
-                "expected node [" + cursor.value.getId() + "] with version " + nodeVer + " to be before " + replicaNodeVersion,
+                "expected node [" + cursor.getId() + "] with version " + nodeVer + " to be before " + replicaNodeVersion,
                 replicaNodeVersion.onOrAfter(nodeVer)
             );
         }
@@ -765,15 +764,15 @@ public class FailedShardsRoutingTests extends OpenSearchAllocationTestCase {
         assertNotNull(replicaNodeVersion);
         logger.info("--> shard {} got assigned to node with version {}", startedReplica, replicaNodeVersion);
 
-        for (ObjectCursor<DiscoveryNode> cursor : clusterState.nodes().getDataNodes().values()) {
-            if (primaryShardToFail.currentNodeId().equals(cursor.value.getId())
-                || secondPrimaryShardToFail.currentNodeId().equals(cursor.value.getId())) {
+        for (final DiscoveryNode cursor : clusterState.nodes().getDataNodes().values()) {
+            if (primaryShardToFail.currentNodeId().equals(cursor.getId())
+                || secondPrimaryShardToFail.currentNodeId().equals(cursor.getId())) {
                 // Skip the node that the primary was on, it doesn't have a replica so doesn't need a version check
                 continue;
             }
-            Version nodeVer = cursor.value.getVersion();
+            Version nodeVer = cursor.getVersion();
             assertTrue(
-                "expected node [" + cursor.value.getId() + "] with version " + nodeVer + " to be before " + replicaNodeVersion,
+                "expected node [" + cursor.getId() + "] with version " + nodeVer + " to be before " + replicaNodeVersion,
                 replicaNodeVersion.onOrAfter(nodeVer)
             );
         }

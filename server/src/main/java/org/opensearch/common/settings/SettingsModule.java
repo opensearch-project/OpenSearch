@@ -32,15 +32,14 @@
 
 package org.opensearch.common.settings;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
-import org.opensearch.common.Strings;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.common.inject.Binder;
 import org.opensearch.common.inject.Module;
 import org.opensearch.common.util.FeatureFlags;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -157,12 +156,12 @@ public class SettingsModule implements Module {
                 builder.append(System.lineSeparator());
                 builder.append(System.lineSeparator());
                 builder.append("curl -XPUT 'http://localhost:9200/_all/_settings?preserve_existing=true' -d '");
-                try (XContentBuilder xContentBuilder = XContentBuilder.builder(XContentType.JSON.xContent())) {
+                try (XContentBuilder xContentBuilder = MediaTypeRegistry.JSON.contentBuilder()) {
                     xContentBuilder.prettyPrint();
                     xContentBuilder.startObject();
                     indexSettings.toXContent(xContentBuilder, new ToXContent.MapParams(Collections.singletonMap("flat_settings", "true")));
                     xContentBuilder.endObject();
-                    builder.append(Strings.toString(xContentBuilder));
+                    builder.append(xContentBuilder);
                 }
                 builder.append("'");
                 builder.append(System.lineSeparator());

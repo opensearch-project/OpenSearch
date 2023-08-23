@@ -31,14 +31,12 @@
 
 package org.opensearch.test;
 
-import com.carrotsearch.hppc.ObjectLongMap;
-import com.carrotsearch.hppc.cursors.IntObjectCursor;
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.SeedUtils;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
@@ -61,7 +59,6 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.IndexRoutingTable;
-import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.OperationRouting;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.allocation.DiskThresholdSettings;
@@ -69,30 +66,32 @@ import org.opensearch.cluster.routing.allocation.decider.ThrottlingAllocationDec
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Randomness;
-import org.opensearch.common.Strings;
-import org.opensearch.common.breaker.CircuitBreaker;
-import org.opensearch.common.component.LifecycleListener;
-import org.opensearch.common.io.FileSystemUtils;
-import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.lease.Releasables;
+import org.opensearch.common.lifecycle.LifecycleListener;
 import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.SecureSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.Settings.Builder;
-import org.opensearch.common.unit.ByteSizeUnit;
-import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.PageCacheRecycler;
-import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.concurrent.FutureUtils;
+import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.common.util.set.Sets;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.common.util.set.Sets;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.breaker.CircuitBreaker;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.core.index.Index;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.indices.breaker.CircuitBreakerService;
+import org.opensearch.core.util.FileSystemUtils;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.env.ShardLockObtainFailedException;
 import org.opensearch.http.HttpServerTransport;
-import org.opensearch.index.Index;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexingPressure;
 import org.opensearch.index.engine.DocIdSeqNoAndSource;
@@ -103,9 +102,7 @@ import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
-import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.IndicesService;
-import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.opensearch.indices.recovery.RecoverySettings;
@@ -155,26 +152,26 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-import static org.apache.lucene.tests.util.LuceneTestCase.TEST_NIGHTLY;
-import static org.apache.lucene.tests.util.LuceneTestCase.rarely;
 import static org.opensearch.cluster.coordination.ClusterBootstrapService.INITIAL_CLUSTER_MANAGER_NODES_SETTING;
 import static org.opensearch.common.unit.TimeValue.timeValueMillis;
 import static org.opensearch.common.unit.TimeValue.timeValueSeconds;
 import static org.opensearch.discovery.DiscoveryModule.DISCOVERY_TYPE_SETTING;
 import static org.opensearch.discovery.DiscoveryModule.ZEN2_DISCOVERY_TYPE;
 import static org.opensearch.discovery.FileBasedSeedHostsProvider.UNICAST_HOSTS_FILE;
-import static org.opensearch.test.NodeRoles.onlyRoles;
-import static org.opensearch.test.OpenSearchTestCase.assertBusy;
-import static org.opensearch.test.OpenSearchTestCase.randomFrom;
 import static org.opensearch.test.NodeRoles.dataOnlyNode;
 import static org.opensearch.test.NodeRoles.noRoles;
 import static org.opensearch.test.NodeRoles.onlyRole;
+import static org.opensearch.test.NodeRoles.onlyRoles;
 import static org.opensearch.test.NodeRoles.removeRoles;
+import static org.opensearch.test.OpenSearchTestCase.assertBusy;
+import static org.opensearch.test.OpenSearchTestCase.randomFrom;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
+import static org.apache.lucene.tests.util.LuceneTestCase.TEST_NIGHTLY;
+import static org.apache.lucene.tests.util.LuceneTestCase.rarely;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
@@ -1492,15 +1489,15 @@ public final class InternalTestCluster extends TestCluster {
     public void assertSeqNos() throws Exception {
         assertBusy(() -> {
             final ClusterState state = clusterService().state();
-            for (ObjectObjectCursor<String, IndexRoutingTable> indexRoutingTable : state.routingTable().indicesRouting()) {
-                for (IntObjectCursor<IndexShardRoutingTable> indexShardRoutingTable : indexRoutingTable.value.shards()) {
-                    ShardRouting primaryShardRouting = indexShardRoutingTable.value.primaryShard();
+            for (final IndexRoutingTable indexRoutingTable : state.routingTable().indicesRouting().values()) {
+                for (var indexShardRoutingTable : indexRoutingTable.shards().values()) {
+                    ShardRouting primaryShardRouting = indexShardRoutingTable.primaryShard();
                     final IndexShard primaryShard = getShardOrNull(state, primaryShardRouting);
                     if (primaryShard == null) {
                         continue; // just ignore - shard movement
                     }
                     final SeqNoStats primarySeqNoStats;
-                    final ObjectLongMap<String> syncGlobalCheckpoints;
+                    final Map<String, Long> syncGlobalCheckpoints;
                     try {
                         primarySeqNoStats = primaryShard.seqNoStats();
                         syncGlobalCheckpoints = primaryShard.getInSyncGlobalCheckpoints();
@@ -1512,7 +1509,7 @@ public final class InternalTestCluster extends TestCluster {
                         primarySeqNoStats.getGlobalCheckpoint(),
                         not(equalTo(SequenceNumbers.UNASSIGNED_SEQ_NO))
                     );
-                    for (ShardRouting replicaShardRouting : indexShardRoutingTable.value.replicaShards()) {
+                    for (ShardRouting replicaShardRouting : indexShardRoutingTable.replicaShards()) {
                         final IndexShard replicaShard = getShardOrNull(state, replicaShardRouting);
                         if (replicaShard == null) {
                             continue; // just ignore - shard movement
@@ -1525,11 +1522,13 @@ public final class InternalTestCluster extends TestCluster {
                         }
                         assertThat(replicaShardRouting + " seq_no_stats mismatch", seqNoStats, equalTo(primarySeqNoStats));
                         // the local knowledge on the primary of the global checkpoint equals the global checkpoint on the shard
-                        assertThat(
-                            replicaShardRouting + " global checkpoint syncs mismatch",
-                            seqNoStats.getGlobalCheckpoint(),
-                            equalTo(syncGlobalCheckpoints.get(replicaShardRouting.allocationId().getId()))
-                        );
+                        if (primaryShard.isRemoteTranslogEnabled() == false) {
+                            assertThat(
+                                replicaShardRouting + " global checkpoint syncs mismatch",
+                                seqNoStats.getGlobalCheckpoint(),
+                                equalTo(syncGlobalCheckpoints.get(replicaShardRouting.allocationId().getId()))
+                            );
+                        }
                     }
                 }
             }
@@ -1542,9 +1541,9 @@ public final class InternalTestCluster extends TestCluster {
     public void assertSameDocIdsOnShards() throws Exception {
         assertBusy(() -> {
             ClusterState state = client().admin().cluster().prepareState().get().getState();
-            for (ObjectObjectCursor<String, IndexRoutingTable> indexRoutingTable : state.routingTable().indicesRouting()) {
-                for (IntObjectCursor<IndexShardRoutingTable> indexShardRoutingTable : indexRoutingTable.value.shards()) {
-                    ShardRouting primaryShardRouting = indexShardRoutingTable.value.primaryShard();
+            for (final IndexRoutingTable indexRoutingTable : state.routingTable().indicesRouting().values()) {
+                for (var indexShardRoutingTable : indexRoutingTable.shards().values()) {
+                    ShardRouting primaryShardRouting = indexShardRoutingTable.primaryShard();
                     IndexShard primaryShard = getShardOrNull(state, primaryShardRouting);
                     if (primaryShard == null) {
                         continue;
@@ -1555,7 +1554,7 @@ public final class InternalTestCluster extends TestCluster {
                     } catch (AlreadyClosedException ex) {
                         continue;
                     }
-                    for (ShardRouting replicaShardRouting : indexShardRoutingTable.value.replicaShards()) {
+                    for (ShardRouting replicaShardRouting : indexShardRoutingTable.replicaShards()) {
                         IndexShard replicaShard = getShardOrNull(state, replicaShardRouting);
                         if (replicaShard == null) {
                             continue;
@@ -2156,6 +2155,10 @@ public final class InternalTestCluster extends TestCluster {
         return set;
     }
 
+    public Set<String> getDataNodeNames() {
+        return allDataNodesButN(0);
+    }
+
     /**
      * Returns a set of nodes that have at least one shard of the given index.
      */
@@ -2667,6 +2670,7 @@ public final class InternalTestCluster extends TestCluster {
                 CommonStatsFlags flags = new CommonStatsFlags(Flag.FieldData, Flag.QueryCache, Flag.Segments);
                 NodeStats stats = nodeService.stats(
                     flags,
+                    false,
                     false,
                     false,
                     false,

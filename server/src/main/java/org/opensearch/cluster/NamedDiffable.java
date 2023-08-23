@@ -32,7 +32,7 @@
 
 package org.opensearch.cluster;
 
-import org.opensearch.common.io.stream.VersionedNamedWriteable;
+import org.opensearch.core.common.io.stream.VersionedNamedWriteable;
 
 /**
  * Diff that also support {@link VersionedNamedWriteable} interface

@@ -35,19 +35,20 @@ package org.opensearch.action.search;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.TimestampParsingException;
-import org.opensearch.common.ParsingException;
-import org.opensearch.common.Strings;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.ParsingException;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.rest.RestStatus;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContent;
-import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.shard.IndexShardClosedException;
-import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.InvalidIndexTemplateException;
-import org.opensearch.rest.RestStatus;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -111,7 +112,7 @@ public class SearchPhaseExecutionExceptionTests extends OpenSearchTestCase {
                 + "  ]"
                 + "}"
         );
-        assertEquals(expectedJson, Strings.toString(XContentType.JSON, exception));
+        assertEquals(expectedJson, Strings.toString(MediaTypeRegistry.JSON, exception));
     }
 
     public void testToAndFromXContent() throws IOException {

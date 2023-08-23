@@ -9,7 +9,7 @@
 package org.opensearch.index.translog;
 
 import org.opensearch.common.util.concurrent.ReleasableLock;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 
 import java.io.IOException;
 import java.util.stream.Stream;
@@ -114,5 +114,12 @@ public class NoOpTranslogManager implements TranslogManager {
     @Override
     public Translog.Location add(Translog.Operation operation) throws IOException {
         return new Translog.Location(0, 0, 0);
+    }
+
+    public void onDelete() {}
+
+    @Override
+    public Translog.TranslogGeneration getTranslogGeneration() {
+        return null;
     }
 }

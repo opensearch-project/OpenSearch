@@ -33,10 +33,10 @@ package org.opensearch.rest.action.admin.indices;
 
 import org.opensearch.action.admin.indices.analyze.AnalyzeAction;
 import org.opensearch.client.node.NodeClient;
-import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.analysis.NameOrDefinition;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.test.OpenSearchTestCase;
@@ -118,7 +118,7 @@ public class RestAnalyzeActionTests extends OpenSearchTestCase {
         RestAnalyzeAction action = new RestAnalyzeAction();
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withContent(
             new BytesArray("{invalid_json}"),
-            XContentType.JSON
+            MediaTypeRegistry.JSON
         ).build();
         try (NodeClient client = new NoOpNodeClient(this.getClass().getSimpleName())) {
             IOException e = expectThrows(IOException.class, () -> action.handleRequest(request, null, client));

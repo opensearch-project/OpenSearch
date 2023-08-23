@@ -20,6 +20,7 @@ import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
 import org.opensearch.repositories.RepositoryMissingException;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.function.Supplier;
@@ -34,8 +35,11 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Dire
 
     private final Supplier<RepositoriesService> repositoriesService;
 
-    public RemoteSegmentStoreDirectoryFactory(Supplier<RepositoriesService> repositoriesService) {
+    private final ThreadPool threadPool;
+
+    public RemoteSegmentStoreDirectoryFactory(Supplier<RepositoriesService> repositoriesService, ThreadPool threadPool) {
         this.repositoriesService = repositoriesService;
+        this.threadPool = threadPool;
     }
 
     @Override
@@ -43,6 +47,11 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Dire
         String repositoryName = indexSettings.getRemoteStoreRepository();
         String indexUUID = indexSettings.getIndex().getUUID();
         String shardId = String.valueOf(path.getShardId().getId());
+
+        return newDirectory(repositoryName, indexUUID, shardId);
+    }
+
+    public Directory newDirectory(String repositoryName, String indexUUID, String shardId) throws IOException {
         try (Repository repository = repositoriesService.get().repository(repositoryName)) {
             assert repository instanceof BlobStoreRepository : "repository should be instance of BlobStoreRepository";
             BlobPath commonBlobPath = ((BlobStoreRepository) repository).basePath();
@@ -57,7 +66,7 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Dire
                 shardId
             );
 
-            return new RemoteSegmentStoreDirectory(dataDirectory, metadataDirectory, mdLockManager);
+            return new RemoteSegmentStoreDirectory(dataDirectory, metadataDirectory, mdLockManager, threadPool);
         } catch (RepositoryMissingException e) {
             throw new IllegalArgumentException("Repository should be created before creating index with remote_store enabled setting", e);
         }

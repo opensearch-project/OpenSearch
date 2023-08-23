@@ -32,6 +32,21 @@
 
 package org.opensearch.http.netty4;
 
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.rest.RestStatus;
+import org.opensearch.http.HttpRequest;
+import org.opensearch.rest.RestRequest;
+import org.opensearch.transport.netty4.Netty4Utils;
+
+import java.util.AbstractMap;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
+
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
@@ -43,20 +58,6 @@ import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.cookie.Cookie;
 import io.netty.handler.codec.http.cookie.ServerCookieDecoder;
 import io.netty.handler.codec.http.cookie.ServerCookieEncoder;
-import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.http.HttpRequest;
-import org.opensearch.rest.RestRequest;
-import org.opensearch.rest.RestStatus;
-import org.opensearch.transport.netty4.Netty4Utils;
-
-import java.util.AbstractMap;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.Collectors;
 
 public class Netty4HttpRequest implements HttpRequest {
 

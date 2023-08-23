@@ -33,10 +33,10 @@
 package org.opensearch.analysis.common;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.tests.analysis.MockTokenizer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+import org.apache.lucene.tests.analysis.MockTokenizer;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;

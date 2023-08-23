@@ -64,10 +64,9 @@ import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
 import org.apache.http.util.EntityUtils;
 import org.junit.After;
 import org.junit.Before;
-import org.mockito.ArgumentCaptor;
-import org.mockito.stubbing.Answer;
 
 import javax.net.ssl.SSLHandshakeException;
+
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
@@ -86,6 +85,9 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicReference;
 
+import org.mockito.ArgumentCaptor;
+import org.mockito.stubbing.Answer;
+
 import static java.util.Collections.singletonList;
 import static org.opensearch.client.RestClientTestUtil.getAllErrorStatusCodes;
 import static org.opensearch.client.RestClientTestUtil.getHttpMethods;
@@ -101,8 +103,8 @@ import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.mockito.Mockito.any;
-import static org.mockito.Mockito.nullable;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.nullable;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;

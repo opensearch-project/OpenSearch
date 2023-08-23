@@ -11,10 +11,11 @@ package org.opensearch.search.aggregations;
 import org.apache.lucene.search.Query;
 import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.search.internal.SearchContext;
-import org.opensearch.search.profile.query.InternalProfileComponent;
+import org.opensearch.search.profile.query.InternalProfileCollector;
 import org.opensearch.search.query.QueryPhaseExecutionException;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -24,10 +25,14 @@ import java.util.List;
  */
 public class DefaultAggregationProcessor implements AggregationProcessor {
 
+    private final BucketCollectorProcessor bucketCollectorProcessor = new BucketCollectorProcessor();
+
     @Override
     public void preProcess(SearchContext context) {
         try {
             if (context.aggregations() != null) {
+                // update the bucket collector process as there is aggregation in the request
+                context.setBucketCollectorProcessor(bucketCollectorProcessor);
                 if (context.aggregations().factories().hasNonGlobalAggregator()) {
                     context.queryCollectorManagers()
                         .put(NonGlobalAggCollectorManager.class, new NonGlobalAggCollectorManagerWithSingleCollector(context));
@@ -70,7 +75,13 @@ public class DefaultAggregationProcessor implements AggregationProcessor {
                     if (context.getProfilers() != null) {
                         context.getProfilers()
                             .addQueryProfiler()
-                            .setCollector((InternalProfileComponent) globalCollectorManager.newCollector());
+                            .setCollector(
+                                new InternalProfileCollector(
+                                    globalCollectorManager.newCollector(),
+                                    globalCollectorManager.getCollectorReason(),
+                                    Collections.emptyList()
+                                )
+                            );
                     }
                     context.searcher().search(query, globalCollectorManager.newCollector());
                     globalCollectorManager.reduce(List.of()).reduce(context.queryResult());

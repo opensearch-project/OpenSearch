@@ -32,12 +32,12 @@
 package org.opensearch.rest;
 
 import org.opensearch.common.Nullable;
-import org.opensearch.common.Strings;
 import org.opensearch.common.io.Streams;
 import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -86,43 +86,40 @@ public abstract class AbstractRestChannel implements RestChannel {
 
     @Override
     public XContentBuilder newBuilder() throws IOException {
-        return newBuilder(request.getXContentType(), true);
+        return newBuilder(request.getMediaType(), true);
     }
 
     @Override
     public XContentBuilder newErrorBuilder() throws IOException {
         // Disable filtering when building error responses
-        return newBuilder(request.getXContentType(), false);
+        return newBuilder(request.getMediaType(), false);
     }
 
     /**
      * Creates a new {@link XContentBuilder} for a response to be sent using this channel. The builder's type is determined by the following
-     * logic. If the request has a format parameter that will be used to attempt to map to an {@link XContentType}. If there is no format
-     * parameter, the HTTP Accept header is checked to see if it can be matched to a {@link XContentType}. If this first attempt to map
+     * logic. If the request has a format parameter that will be used to attempt to map to an {@link MediaType}. If there is no format
+     * parameter, the HTTP Accept header is checked to see if it can be matched to a {@link MediaType}. If this first attempt to map
      * fails, the request content type will be used if the value is not {@code null}; if the value is {@code null} the output format falls
      * back to JSON.
      */
     @Override
-    public XContentBuilder newBuilder(@Nullable XContentType requestContentType, boolean useFiltering) throws IOException {
+    public XContentBuilder newBuilder(@Nullable MediaType requestContentType, boolean useFiltering) throws IOException {
         return newBuilder(requestContentType, null, useFiltering);
     }
 
     /**
      * Creates a new {@link XContentBuilder} for a response to be sent using this channel. The builder's type can be sent as a parameter,
-     * through {@code responseContentType} or it can fallback to {@link #newBuilder(XContentType, boolean)} logic if the sent type value
+     * through {@code responseContentType} or it can fallback to {@link #newBuilder(MediaType, boolean)} logic if the sent type value
      * is {@code null}.
      */
     @Override
-    public XContentBuilder newBuilder(
-        @Nullable XContentType requestContentType,
-        @Nullable XContentType responseContentType,
-        boolean useFiltering
-    ) throws IOException {
+    public XContentBuilder newBuilder(@Nullable MediaType requestContentType, @Nullable MediaType responseContentType, boolean useFiltering)
+        throws IOException {
         if (responseContentType == null) {
             // TODO should format vs acceptHeader always be the same, do we allow overriding?
-            responseContentType = XContentType.fromFormat(format);
+            responseContentType = MediaType.fromFormat(format);
             if (responseContentType == null) {
-                responseContentType = XContentType.fromMediaType(acceptHeader);
+                responseContentType = MediaType.fromMediaType(acceptHeader);
             }
         }
         // try to determine the response content type from the media type or the format query string parameter, with the format parameter
@@ -134,7 +131,7 @@ public abstract class AbstractRestChannel implements RestChannel {
                 responseContentType = requestContentType;
             } else {
                 // default to JSON output when all else fails
-                responseContentType = XContentType.JSON;
+                responseContentType = MediaTypeRegistry.getDefaultMediaType();
             }
         }
 
@@ -147,12 +144,7 @@ public abstract class AbstractRestChannel implements RestChannel {
         }
 
         OutputStream unclosableOutputStream = Streams.flushOnCloseStream(bytesOutput());
-        XContentBuilder builder = new XContentBuilder(
-            XContentFactory.xContent(responseContentType),
-            unclosableOutputStream,
-            includes,
-            excludes
-        );
+        XContentBuilder builder = new XContentBuilder(responseContentType.xContent(), unclosableOutputStream, includes, excludes);
         if (pretty) {
             builder.prettyPrint().lfAtEnd();
         }

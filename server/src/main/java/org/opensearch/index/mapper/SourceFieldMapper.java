@@ -39,16 +39,16 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.Strings;
-import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.common.util.CollectionUtils;
-import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.support.XContentMapValues;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.util.CollectionUtils;
+import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.QueryShardException;
 import org.opensearch.search.lookup.SearchLookup;
@@ -202,7 +202,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     @Override
     public void preParse(ParseContext context) throws IOException {
         BytesReference originalSource = context.sourceToParse().source();
-        XContentType contentType = context.sourceToParse().getXContentType();
+        MediaType contentType = context.sourceToParse().getMediaType();
         final BytesReference adaptedSource = applyFilters(originalSource, contentType);
 
         if (adaptedSource != null) {
@@ -219,16 +219,16 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     }
 
     @Nullable
-    public BytesReference applyFilters(@Nullable BytesReference originalSource, @Nullable XContentType contentType) throws IOException {
+    public BytesReference applyFilters(@Nullable BytesReference originalSource, @Nullable MediaType contentType) throws IOException {
         if (enabled && originalSource != null) {
             // Percolate and tv APIs may not set the source and that is ok, because these APIs will not index any data
             if (filter != null) {
                 // we don't update the context source if we filter, we want to keep it as is...
-                Tuple<XContentType, Map<String, Object>> mapTuple = XContentHelper.convertToMap(originalSource, true, contentType);
+                Tuple<? extends MediaType, Map<String, Object>> mapTuple = XContentHelper.convertToMap(originalSource, true, contentType);
                 Map<String, Object> filteredSource = filter.apply(mapTuple.v2());
                 BytesStreamOutput bStream = new BytesStreamOutput();
-                XContentType actualContentType = mapTuple.v1();
-                XContentBuilder builder = XContentFactory.contentBuilder(actualContentType, bStream).map(filteredSource);
+                MediaType actualContentType = mapTuple.v1();
+                XContentBuilder builder = MediaTypeRegistry.contentBuilder(actualContentType, bStream).map(filteredSource);
                 builder.close();
                 return bStream.bytes();
             } else {

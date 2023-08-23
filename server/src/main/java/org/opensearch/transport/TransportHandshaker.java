@@ -33,14 +33,15 @@ package org.opensearch.transport;
 
 import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.EOFException;
@@ -234,7 +235,7 @@ final class TransportHandshaker {
                 version = null;
             } else {
                 try (StreamInput messageStreamInput = remainingMessage.streamInput()) {
-                    this.version = Version.readVersion(messageStreamInput);
+                    this.version = messageStreamInput.readVersion();
                 }
             }
         }
@@ -244,7 +245,7 @@ final class TransportHandshaker {
             super.writeTo(streamOutput);
             assert version != null;
             try (BytesStreamOutput messageStreamOutput = new BytesStreamOutput(4)) {
-                Version.writeVersion(version, messageStreamOutput);
+                messageStreamOutput.writeVersion(version);
                 BytesReference reference = messageStreamOutput.bytes();
                 streamOutput.writeBytesReference(reference);
             }
@@ -261,13 +262,13 @@ final class TransportHandshaker {
 
         private HandshakeResponse(StreamInput in) throws IOException {
             super(in);
-            responseVersion = Version.readVersion(in);
+            responseVersion = in.readVersion();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             assert responseVersion != null;
-            Version.writeVersion(responseVersion, out);
+            out.writeVersion(responseVersion);
         }
 
         Version getResponseVersion() {

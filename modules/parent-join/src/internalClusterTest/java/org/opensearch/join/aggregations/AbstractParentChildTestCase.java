@@ -32,7 +32,9 @@
 
 package org.opensearch.join.aggregations;
 
-import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
+import org.opensearch.action.index.IndexRequestBuilder;
+import org.opensearch.join.query.ParentChildTestCase;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -41,9 +43,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import org.opensearch.action.index.IndexRequestBuilder;
-import org.opensearch.join.query.ParentChildTestCase;
-import org.junit.Before;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 /**
  * Small base test-class which combines stuff used for Children and Parent aggregation tests

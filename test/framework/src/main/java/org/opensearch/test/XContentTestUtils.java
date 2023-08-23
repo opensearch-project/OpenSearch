@@ -32,18 +32,19 @@
 
 package org.opensearch.test;
 
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.test.rest.yaml.ObjectPath;
 
 import java.io.IOException;
@@ -57,9 +58,9 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static com.carrotsearch.randomizedtesting.generators.RandomStrings.randomAsciiOfLength;
-import static org.opensearch.core.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.opensearch.common.xcontent.XContentHelper.createParser;
+import static org.opensearch.core.xcontent.ToXContent.EMPTY_PARAMS;
+import static com.carrotsearch.randomizedtesting.generators.RandomStrings.randomAsciiOfLength;
 
 public final class XContentTestUtils {
     private XContentTestUtils() {
@@ -75,7 +76,7 @@ public final class XContentTestUtils {
     }
 
     public static BytesReference convertToXContent(Map<String, ?> map, XContentType xContentType) throws IOException {
-        try (XContentBuilder builder = XContentFactory.contentBuilder(xContentType)) {
+        try (XContentBuilder builder = MediaTypeRegistry.contentBuilder(xContentType)) {
             builder.map(map);
             return BytesReference.bytes(builder);
         }

@@ -32,14 +32,14 @@
 
 package org.opensearch.action.ingest;
 
-import org.opensearch.action.ActionType;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionListenerResponseHandler;
 import org.opensearch.action.ActionRequest;
+import org.opensearch.action.ActionType;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterStateApplier;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.Randomness;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.transport.TransportService;
 
 import java.util.concurrent.atomic.AtomicInteger;
@@ -82,6 +82,6 @@ public final class IngestActionForwarder implements ClusterStateApplier {
 
     @Override
     public void applyClusterState(ClusterChangedEvent event) {
-        ingestNodes = event.state().getNodes().getIngestNodes().values().toArray(DiscoveryNode.class);
+        ingestNodes = event.state().getNodes().getIngestNodes().values().toArray(new DiscoveryNode[0]);
     }
 }

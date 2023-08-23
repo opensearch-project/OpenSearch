@@ -36,11 +36,12 @@ import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.action.support.master.AcknowledgedRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
-import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
-import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.util.Map;
 
@@ -97,8 +98,8 @@ public class CreateIndexRequestBuilder extends AcknowledgedRequestBuilder<
     /**
      * The settings to create the index with (either json or yaml format)
      */
-    public CreateIndexRequestBuilder setSettings(String source, XContentType xContentType) {
-        request.settings(source, xContentType);
+    public CreateIndexRequestBuilder setSettings(String source, MediaType mediaType) {
+        request.settings(source, mediaType);
         return this;
     }
 
@@ -200,24 +201,24 @@ public class CreateIndexRequestBuilder extends AcknowledgedRequestBuilder<
     /**
      * Sets the settings and mappings as a single source.
      */
-    public CreateIndexRequestBuilder setSource(String source, XContentType xContentType) {
-        request.source(source, xContentType);
+    public CreateIndexRequestBuilder setSource(String source, MediaType mediaType) {
+        request.source(source, mediaType);
         return this;
     }
 
     /**
      * Sets the settings and mappings as a single source.
      */
-    public CreateIndexRequestBuilder setSource(BytesReference source, XContentType xContentType) {
-        request.source(source, xContentType);
+    public CreateIndexRequestBuilder setSource(BytesReference source, MediaType mediaType) {
+        request.source(source, mediaType);
         return this;
     }
 
     /**
      * Sets the settings and mappings as a single source.
      */
-    public CreateIndexRequestBuilder setSource(byte[] source, XContentType xContentType) {
-        request.source(source, xContentType);
+    public CreateIndexRequestBuilder setSource(byte[] source, MediaType mediaType) {
+        request.source(source, mediaType);
         return this;
     }
 

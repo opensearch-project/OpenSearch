@@ -148,7 +148,6 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
             : includeExclude.convertToStringFilter(DocValueFormat.RAW, maxRegexLength);
 
         MapStringTermsAggregator.CollectorSource collectorSource = new SignificantTextCollectorSource(
-            queryShardContext.lookup().source(),
             queryShardContext.bigArrays(),
             fieldType,
             sourceFieldNames,
@@ -186,13 +185,14 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
         private ObjectArray<DuplicateByteSequenceSpotter> dupSequenceSpotters;
 
         SignificantTextCollectorSource(
-            SourceLookup sourceLookup,
             BigArrays bigArrays,
             MappedFieldType fieldType,
             String[] sourceFieldNames,
             boolean filterDuplicateText
         ) {
-            this.sourceLookup = sourceLookup;
+            // Create a new SourceLookup instance per aggregator instead of use the shared one from SearchLookup. This is fine because it
+            // will only be accessed by this Aggregator instance and not anywhere else.
+            this.sourceLookup = new SourceLookup();
             this.bigArrays = bigArrays;
             this.fieldType = fieldType;
             this.sourceFieldNames = sourceFieldNames;

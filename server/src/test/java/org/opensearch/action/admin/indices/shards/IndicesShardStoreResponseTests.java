@@ -36,20 +36,19 @@ import org.apache.lucene.util.CollectionUtil;
 import org.opensearch.Version;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.UUIDs;
-import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.collect.ImmutableOpenIntMap;
-import org.opensearch.common.collect.ImmutableOpenMap;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.NodeDisconnectedException;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -59,11 +58,10 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class IndicesShardStoreResponseTests extends OpenSearchTestCase {
     public void testBasicSerialization() throws Exception {
-        ImmutableOpenMap.Builder<String, ImmutableOpenIntMap<List<IndicesShardStoresResponse.StoreStatus>>> indexStoreStatuses =
-            ImmutableOpenMap.builder();
+        final Map<String, Map<Integer, List<IndicesShardStoresResponse.StoreStatus>>> indexStoreStatuses = new HashMap<>();
 
         List<IndicesShardStoresResponse.Failure> failures = new ArrayList<>();
-        ImmutableOpenIntMap.Builder<List<IndicesShardStoresResponse.StoreStatus>> storeStatuses = ImmutableOpenIntMap.builder();
+        final Map<Integer, List<IndicesShardStoresResponse.StoreStatus>> storeStatuses = new HashMap<>();
 
         DiscoveryNode node1 = new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         DiscoveryNode node2 = new DiscoveryNode("node2", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
@@ -89,14 +87,14 @@ public class IndicesShardStoreResponseTests extends OpenSearchTestCase {
         );
         storeStatuses.put(0, storeStatusList);
         storeStatuses.put(1, storeStatusList);
-        ImmutableOpenIntMap<List<IndicesShardStoresResponse.StoreStatus>> storesMap = storeStatuses.build();
+        final Map<Integer, List<IndicesShardStoresResponse.StoreStatus>> storesMap = Collections.unmodifiableMap(storeStatuses);
         indexStoreStatuses.put("test", storesMap);
         indexStoreStatuses.put("test2", storesMap);
 
         failures.add(new IndicesShardStoresResponse.Failure("node1", "test", 3, new NodeDisconnectedException(node1, "")));
 
         IndicesShardStoresResponse storesResponse = new IndicesShardStoresResponse(
-            indexStoreStatuses.build(),
+            indexStoreStatuses,
             Collections.unmodifiableList(failures)
         );
         XContentBuilder contentBuilder = XContentFactory.jsonBuilder();

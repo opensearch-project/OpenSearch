@@ -49,8 +49,8 @@ import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.util.BigArrays;
+import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
-import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.MultiValueMode;
 import org.opensearch.search.aggregations.support.ValuesSourceType;
@@ -120,11 +120,13 @@ public interface IndexFieldData<FD extends LeafFieldData> {
         protected final MultiValueMode sortMode;
         protected final Object missingValue;
         protected final Nested nested;
+        protected boolean enableSkipping;
 
         public XFieldComparatorSource(Object missingValue, MultiValueMode sortMode, Nested nested) {
             this.sortMode = sortMode;
             this.missingValue = missingValue;
             this.nested = nested;
+            this.enableSkipping = true; // true by default
         }
 
         public MultiValueMode sortMode() {
@@ -133,6 +135,10 @@ public interface IndexFieldData<FD extends LeafFieldData> {
 
         public Nested nested() {
             return this.nested;
+        }
+
+        public void disableSkipping() {
+            this.enableSkipping = false;
         }
 
         /**

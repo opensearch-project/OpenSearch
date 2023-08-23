@@ -57,3 +57,21 @@
     - match:  { detail.tokenizer.tokens.0.start_offset: 0 }
     - match:  { detail.tokenizer.tokens.0.end_offset: 15 }
     - match:  { detail.tokenizer.tokens.0.position: 0 }
+---
+"mapping_with_hashtag":
+  - do:
+      indices.analyze:
+        body:
+          text: 'test #test @test'
+          tokenizer: standard
+          filter:
+            - lowercase
+          char_filter:
+            - type: mapping
+              mappings:
+                - "# => _hashsign_"
+                - "@ => _atsign_"
+  - length: { tokens: 3 }
+  - match: { tokens.0.token: test }
+  - match: { tokens.1.token: _hashsign_test }
+  - match: { tokens.2.token: _atsign_test }

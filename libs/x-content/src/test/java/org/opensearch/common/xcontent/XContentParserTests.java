@@ -36,11 +36,10 @@ import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.dataformat.yaml.JacksonYAMLParseException;
 
 import org.opensearch.common.CheckedSupplier;
-import org.opensearch.common.Strings;
-import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.xcontent.cbor.CborXContent;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.common.xcontent.smile.SmileXContent;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParseException;
 import org.opensearch.core.xcontent.XContentParser;
@@ -347,7 +346,7 @@ public class XContentParserTests extends OpenSearchTestCase {
     public void testEmptyList() throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject().startArray("some_array").endArray().endObject();
 
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, Strings.toString(builder))) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, builder.toString())) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
             assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
             assertEquals("some_array", parser.currentName());
@@ -369,7 +368,7 @@ public class XContentParserTests extends OpenSearchTestCase {
             .endArray()
             .endObject();
 
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, Strings.toString(builder))) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, builder.toString())) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
             assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
             assertEquals("some_array", parser.currentName());
@@ -397,7 +396,7 @@ public class XContentParserTests extends OpenSearchTestCase {
             .endArray()
             .endObject();
 
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, Strings.toString(builder))) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, builder.toString())) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
             assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
             assertEquals("some_array", parser.currentName());
@@ -421,7 +420,7 @@ public class XContentParserTests extends OpenSearchTestCase {
             .endArray()
             .endObject();
 
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, Strings.toString(builder))) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, builder.toString())) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
             assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
             assertEquals("some_array", parser.currentName());
@@ -497,7 +496,7 @@ public class XContentParserTests extends OpenSearchTestCase {
         XContentBuilder builder = XContentFactory.jsonBuilder();
         int numberOfTokens;
         numberOfTokens = generateRandomObjectForMarking(builder);
-        String content = Strings.toString(builder);
+        String content = builder.toString();
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, content)) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
@@ -545,7 +544,7 @@ public class XContentParserTests extends OpenSearchTestCase {
         builder.endArray();
         builder.endObject();
 
-        String content = Strings.toString(builder);
+        String content = builder.toString();
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, content)) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
@@ -578,7 +577,7 @@ public class XContentParserTests extends OpenSearchTestCase {
     public void testCreateSubParserAtAWrongPlace() throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder();
         generateRandomObjectForMarking(builder);
-        String content = Strings.toString(builder);
+        String content = builder.toString();
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, content)) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
@@ -592,7 +591,7 @@ public class XContentParserTests extends OpenSearchTestCase {
     public void testCreateRootSubParser() throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder();
         int numberOfTokens = generateRandomObjectForMarking(builder);
-        String content = Strings.toString(builder);
+        String content = builder.toString();
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, content)) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());

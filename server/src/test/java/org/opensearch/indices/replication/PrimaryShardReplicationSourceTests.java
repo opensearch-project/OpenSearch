@@ -10,8 +10,6 @@ package org.opensearch.indices.replication;
 
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.util.Version;
-import org.junit.Assert;
-import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.service.ClusterService;
@@ -19,6 +17,7 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
 import org.opensearch.index.store.StoreFileMetadata;
@@ -27,6 +26,7 @@ import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.test.ClusterServiceUtils;
 import org.opensearch.test.transport.CapturingTransport;
 import org.opensearch.transport.TransportService;
+import org.junit.Assert;
 
 import java.util.Arrays;
 import java.util.Collections;

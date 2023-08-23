@@ -32,7 +32,7 @@
 
 package org.opensearch.common.time;
 
-import org.opensearch.common.Strings;
+import org.opensearch.core.common.Strings;
 import org.joda.time.DateTime;
 
 import java.time.Instant;

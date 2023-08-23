@@ -8,6 +8,8 @@
 
 package org.opensearch.geo;
 
+import org.opensearch.geometry.utils.StandardValidator;
+import org.opensearch.geometry.utils.WellKnownText;
 import org.opensearch.index.mapper.GeoShapeFieldMapper;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -21,6 +23,11 @@ import java.util.Collections;
  * for the test cluster on which integration tests are running.
  */
 public abstract class GeoModulePluginIntegTestCase extends OpenSearchIntegTestCase {
+
+    protected static final double GEOHASH_TOLERANCE = 1E-5D;
+
+    protected static final WellKnownText WKT = new WellKnownText(true, new StandardValidator(true));
+
     /**
      * Returns a collection of plugins that should be loaded on each node for doing the integration tests. As this
      * geo plugin is not getting packaged in a zip, we need to load it before the tests run.

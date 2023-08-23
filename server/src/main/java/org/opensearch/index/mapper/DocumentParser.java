@@ -36,14 +36,15 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexableField;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
-import org.opensearch.common.Strings;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.DynamicTemplate.XContentFieldType;
 
@@ -76,14 +77,14 @@ final class DocumentParser {
     ParsedDocument parseDocument(SourceToParse source, MetadataFieldMapper[] metadataFieldsMappers) throws MapperParsingException {
         final Mapping mapping = docMapper.mapping();
         final ParseContext.InternalParseContext context;
-        final XContentType xContentType = source.getXContentType();
+        final MediaType mediaType = source.getMediaType();
 
         try (
             XContentParser parser = XContentHelper.createParser(
                 docMapperParser.getXContentRegistry(),
                 LoggingDeprecationHandler.INSTANCE,
                 source.source(),
-                xContentType
+                mediaType
             )
         ) {
             context = new ParseContext.InternalParseContext(indexSettings, docMapperParser, docMapper, source, parser);
@@ -182,7 +183,7 @@ final class DocumentParser {
             source.routing(),
             context.docs(),
             context.sourceToParse().source(),
-            context.sourceToParse().getXContentType(),
+            context.sourceToParse().getMediaType(),
             update
         );
     }
@@ -762,7 +763,7 @@ final class DocumentParser {
                             DateFieldMapper.Resolution.MILLISECONDS,
                             dateTimeFormatter,
                             ignoreMalformed,
-                            Version.indexCreated(context.indexSettings().getSettings())
+                            IndexMetadata.indexCreated(context.indexSettings().getSettings())
                         );
                     }
                     return builder;

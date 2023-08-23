@@ -13,7 +13,6 @@ import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.Query;
 import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.search.internal.SearchContext;
-import org.opensearch.search.profile.query.CollectorResult;
 import org.opensearch.search.profile.query.InternalProfileCollectorManager;
 import org.opensearch.search.profile.query.InternalProfileComponent;
 import org.opensearch.search.query.QueryPhaseExecutionException;
@@ -28,12 +27,16 @@ import java.util.Collections;
  * avoid the increase in aggregation result sets returned by each shard to coordinator where final reduce happens for results received from
  * all the shards
  */
-public class ConcurrentAggregationProcessor extends DefaultAggregationProcessor {
+public class ConcurrentAggregationProcessor implements AggregationProcessor {
+
+    private final BucketCollectorProcessor bucketCollectorProcessor = new BucketCollectorProcessor();
 
     @Override
     public void preProcess(SearchContext context) {
         try {
             if (context.aggregations() != null) {
+                // update the bucket collector process as there is aggregation in the request
+                context.setBucketCollectorProcessor(bucketCollectorProcessor);
                 if (context.aggregations().factories().hasNonGlobalAggregator()) {
                     context.queryCollectorManagers().put(NonGlobalAggCollectorManager.class, new NonGlobalAggCollectorManager(context));
                 }
@@ -61,12 +64,12 @@ public class ConcurrentAggregationProcessor extends DefaultAggregationProcessor 
         try {
             if (globalCollectorManager != null) {
                 Query query = context.buildFilteredQuery(Queries.newMatchAllQuery());
-                globalCollectorManager = new InternalProfileCollectorManager(
-                    globalCollectorManager,
-                    CollectorResult.REASON_AGGREGATION_GLOBAL,
-                    Collections.emptyList()
-                );
                 if (context.getProfilers() != null) {
+                    globalCollectorManager = new InternalProfileCollectorManager(
+                        globalCollectorManager,
+                        ((AggregationCollectorManager) globalCollectorManager).getCollectorReason(),
+                        Collections.emptyList()
+                    );
                     context.getProfilers().addQueryProfiler().setCollector((InternalProfileComponent) globalCollectorManager);
                 }
                 final ReduceableSearchResult result = context.searcher().search(query, globalCollectorManager);

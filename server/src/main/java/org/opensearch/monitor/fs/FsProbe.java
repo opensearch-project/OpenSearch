@@ -39,7 +39,7 @@ import org.apache.lucene.util.Constants;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.PathUtils;
-import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.env.NodeEnvironment.NodePath;
 import org.opensearch.index.store.remote.filecache.FileCache;

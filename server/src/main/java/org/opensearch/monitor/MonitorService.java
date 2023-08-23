@@ -32,7 +32,7 @@
 
 package org.opensearch.monitor;
 
-import org.opensearch.common.component.AbstractLifecycleComponent;
+import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.store.remote.filecache.FileCache;

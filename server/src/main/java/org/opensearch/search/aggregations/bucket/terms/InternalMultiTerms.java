@@ -9,8 +9,8 @@
 package org.opensearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.util.BytesRef;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.AggregationExecutionException;
@@ -233,17 +233,16 @@ public class InternalMultiTerms extends InternalTerms<InternalMultiTerms, Intern
         String name,
         BucketOrder reduceOrder,
         BucketOrder order,
-        int requiredSize,
-        long minDocCount,
         Map<String, Object> metadata,
         int shardSize,
         boolean showTermDocCountError,
         long otherDocCount,
         long docCountError,
         List<DocValueFormat> formats,
-        List<Bucket> buckets
+        List<Bucket> buckets,
+        TermsAggregator.BucketCountThresholds bucketCountThresholds
     ) {
-        super(name, reduceOrder, order, requiredSize, minDocCount, metadata);
+        super(name, reduceOrder, order, bucketCountThresholds, metadata);
         this.shardSize = shardSize;
         this.showTermDocCountError = showTermDocCountError;
         this.otherDocCount = otherDocCount;
@@ -278,15 +277,14 @@ public class InternalMultiTerms extends InternalTerms<InternalMultiTerms, Intern
             name,
             reduceOrder,
             order,
-            requiredSize,
-            minDocCount,
             metadata,
             shardSize,
             showTermDocCountError,
             otherDocCount,
             docCountError,
             termFormats,
-            buckets
+            buckets,
+            bucketCountThresholds
         );
     }
 
@@ -357,15 +355,14 @@ public class InternalMultiTerms extends InternalTerms<InternalMultiTerms, Intern
             name,
             reduceOrder,
             order,
-            requiredSize,
-            minDocCount,
             metadata,
             shardSize,
             showTermDocCountError,
             otherDocCount,
             docCountError,
             termFormats,
-            buckets
+            buckets,
+            bucketCountThresholds
         );
     }
 

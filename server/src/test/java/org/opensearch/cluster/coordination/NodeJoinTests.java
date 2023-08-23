@@ -33,7 +33,6 @@ package org.opensearch.cluster.coordination;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.OpenSearchAllocationTestCase;
@@ -47,14 +46,16 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;
-import org.opensearch.cluster.service.FakeThreadPoolClusterManagerService;
 import org.opensearch.cluster.service.ClusterManagerService;
+import org.opensearch.cluster.service.FakeThreadPoolClusterManagerService;
 import org.opensearch.cluster.service.MasterServiceTests;
 import org.opensearch.common.Randomness;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.BaseFuture;
 import org.opensearch.common.util.concurrent.FutureUtils;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.monitor.NodeHealthService;
 import org.opensearch.monitor.StatusInfo;
 import org.opensearch.node.Node;
@@ -68,7 +69,6 @@ import org.opensearch.transport.TestTransportChannel;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportRequestOptions;
-import org.opensearch.transport.TransportResponse;
 import org.opensearch.transport.TransportService;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -208,15 +208,20 @@ public class NodeJoinTests extends OpenSearchTestCase {
         CapturingTransport capturingTransport = new CapturingTransport() {
             @Override
             protected void onSendRequest(long requestId, String action, TransportRequest request, DiscoveryNode destination) {
-                if (action.equals(HANDSHAKE_ACTION_NAME)) {
-                    handleResponse(
-                        requestId,
-                        new TransportService.HandshakeResponse(destination, initialState.getClusterName(), destination.getVersion())
-                    );
-                } else if (action.equals(JoinHelper.VALIDATE_JOIN_ACTION_NAME)) {
-                    handleResponse(requestId, new TransportResponse.Empty());
-                } else {
-                    super.onSendRequest(requestId, action, request, destination);
+                switch (action) {
+                    case HANDSHAKE_ACTION_NAME:
+                        handleResponse(
+                            requestId,
+                            new TransportService.HandshakeResponse(destination, initialState.getClusterName(), destination.getVersion())
+                        );
+                        break;
+                    case JoinHelper.VALIDATE_JOIN_ACTION_NAME:
+                    case JoinHelper.VALIDATE_COMPRESSED_JOIN_ACTION_NAME:
+                        handleResponse(requestId, new TransportResponse.Empty());
+                        break;
+                    default:
+                        super.onSendRequest(requestId, action, request, destination);
+                        break;
                 }
             }
 

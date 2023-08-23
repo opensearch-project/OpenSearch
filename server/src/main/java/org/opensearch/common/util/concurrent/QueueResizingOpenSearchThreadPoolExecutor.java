@@ -32,8 +32,8 @@
 
 package org.opensearch.common.util.concurrent;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.common.ExponentiallyWeightedMovingAverage;
 import org.opensearch.common.unit.TimeValue;

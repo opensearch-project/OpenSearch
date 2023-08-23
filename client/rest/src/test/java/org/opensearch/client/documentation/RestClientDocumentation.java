@@ -62,6 +62,7 @@ import org.opensearch.client.RestClientBuilder;
 import org.opensearch.client.RestClientBuilder.HttpClientConfigCallback;
 
 import javax.net.ssl.SSLContext;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;

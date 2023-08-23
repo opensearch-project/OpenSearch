@@ -34,7 +34,6 @@ package org.opensearch.index.replication;
 
 import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.DocWriteRequest;
 import org.opensearch.action.DocWriteResponse;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
@@ -74,14 +73,16 @@ import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.common.collect.Iterators;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.index.Index;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.index.Index;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.DocIdSeqNoAndSource;
 import org.opensearch.index.engine.EngineConfigFactory;
@@ -96,9 +97,7 @@ import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
 import org.opensearch.index.shard.PrimaryReplicaSyncer;
-import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.shard.ShardPath;
-import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.recovery.RecoveryTarget;
@@ -149,7 +148,11 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
 
     protected ReplicationGroup createGroup(int replicas, Settings settings, String mappings, EngineFactory engineFactory)
         throws IOException {
-        return createGroup(replicas, settings, mappings, engineFactory, null);
+        Path remotePath = null;
+        if ("true".equals(settings.get(IndexMetadata.SETTING_REMOTE_STORE_ENABLED))) {
+            remotePath = createTempDir();
+        }
+        return createGroup(replicas, settings, mappings, engineFactory, remotePath);
     }
 
     protected ReplicationGroup createGroup(int replicas, Settings settings, String mappings, EngineFactory engineFactory, Path remotePath)
@@ -249,10 +252,6 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
 
         protected ReplicationGroup(final IndexMetadata indexMetadata, Path remotePath) throws IOException {
             final ShardRouting primaryRouting = this.createShardRouting("s0", true);
-            Store remoteStore = null;
-            if (remotePath != null) {
-                remoteStore = createRemoteStore(remotePath, primaryRouting, indexMetadata);
-            }
             primary = newShard(
                 primaryRouting,
                 indexMetadata,
@@ -260,7 +259,7 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
                 getEngineFactory(primaryRouting),
                 () -> {},
                 retentionLeaseSyncer,
-                remoteStore
+                remotePath
             );
             replicas = new CopyOnWriteArrayList<>();
             this.indexMetadata = indexMetadata;
@@ -291,7 +290,7 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
         public int indexDocs(final int numOfDoc) throws Exception {
             for (int doc = 0; doc < numOfDoc; doc++) {
                 final IndexRequest indexRequest = new IndexRequest(index.getName()).id(Integer.toString(docId.incrementAndGet()))
-                    .source("{}", XContentType.JSON);
+                    .source("{}", MediaTypeRegistry.JSON);
                 final BulkItemResponse response = index(indexRequest);
                 if (response.isFailed()) {
                     throw response.getFailure().getCause();
@@ -304,7 +303,7 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
 
         public int appendDocs(final int numOfDoc) throws Exception {
             for (int doc = 0; doc < numOfDoc; doc++) {
-                final IndexRequest indexRequest = new IndexRequest(index.getName()).source("{}", XContentType.JSON);
+                final IndexRequest indexRequest = new IndexRequest(index.getName()).source("{}", MediaTypeRegistry.JSON);
                 final BulkItemResponse response = index(indexRequest);
                 if (response.isFailed()) {
                     throw response.getFailure().getCause();
@@ -386,10 +385,6 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
 
         public IndexShard addReplica(Path remotePath) throws IOException {
             final ShardRouting replicaRouting = createShardRouting("s" + replicaId.incrementAndGet(), false);
-            Store remoteStore = null;
-            if (remotePath != null) {
-                remoteStore = createRemoteStore(remotePath, replicaRouting, indexMetadata);
-            }
             final IndexShard replica = newShard(
                 replicaRouting,
                 indexMetadata,
@@ -397,7 +392,7 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
                 getEngineFactory(replicaRouting),
                 () -> {},
                 retentionLeaseSyncer,
-                remoteStore
+                remotePath
             );
             addReplica(replica);
             return replica;
@@ -627,8 +622,8 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
             return primary;
         }
 
-        public synchronized void reinitPrimaryShard() throws IOException {
-            primary = reinitShard(primary);
+        public synchronized void reinitPrimaryShard(Path remotePath) throws IOException {
+            primary = reinitShard(primary, remotePath);
             computeReplicationTargets();
         }
 

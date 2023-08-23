@@ -32,14 +32,14 @@
 
 package org.opensearch.action.search;
 
-import org.opensearch.OpenSearchException;
 import org.opensearch.ExceptionsHelper;
-import org.opensearch.action.ShardOperationFailedException;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.util.CollectionUtils;
+import org.opensearch.OpenSearchException;
+import org.opensearch.core.action.ShardOperationFailedException;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.util.CollectionUtils;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -161,12 +161,21 @@ public class SearchPhaseExecutionException extends OpenSearchException {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         Throwable ex = ExceptionsHelper.unwrapCause(this);
         if (ex != this) {
-            generateThrowableXContent(builder, params, this);
+            OpenSearchException.generateThrowableXContent(builder, params, this);
         } else {
             // We don't have a cause when all shards failed, but we do have shards failures so we can "guess" a cause
             // (see {@link #getCause()}). Here, we use super.getCause() because we don't want the guessed exception to
             // be rendered twice (one in the "cause" field, one in "failed_shards")
-            innerToXContent(builder, params, this, getExceptionName(), getMessage(), getHeaders(), getMetadata(), super.getCause());
+            OpenSearchException.innerToXContent(
+                builder,
+                params,
+                this,
+                getExceptionName(),
+                getMessage(),
+                getHeaders(),
+                getMetadata(),
+                super.getCause()
+            );
         }
         return builder;
     }

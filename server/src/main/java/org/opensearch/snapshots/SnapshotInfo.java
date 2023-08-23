@@ -33,23 +33,23 @@ package org.opensearch.snapshots;
 
 import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
-import org.opensearch.action.ShardOperationFailedException;
 import org.opensearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.opensearch.cluster.SnapshotsInProgress;
 import org.opensearch.common.Nullable;
-import org.opensearch.core.ParseField;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.ParseField;
+import org.opensearch.core.action.ShardOperationFailedException;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentParserUtils;
+import org.opensearch.core.xcontent.XContentParserUtils;
 import org.opensearch.repositories.IndexId;
-import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -420,7 +420,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         totalShards = in.readVInt();
         successfulShards = in.readVInt();
         shardFailures = Collections.unmodifiableList(in.readList(SnapshotShardFailure::new));
-        version = in.readBoolean() ? Version.readVersion(in) : null;
+        version = in.readBoolean() ? in.readVersion() : null;
         includeGlobalState = in.readOptionalBoolean();
         if (in.getVersion().onOrAfter(METADATA_FIELD_INTRODUCED)) {
             userMetadata = in.readMap();
@@ -544,6 +544,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         return includeGlobalState;
     }
 
+    @Nullable
     public Boolean isRemoteStoreIndexShallowCopyEnabled() {
         return remoteStoreIndexShallowCopy;
     }
@@ -875,7 +876,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         out.writeList(shardFailures);
         if (version != null) {
             out.writeBoolean(true);
-            Version.writeVersion(version, out);
+            out.writeVersion(version);
         } else {
             out.writeBoolean(false);
         }

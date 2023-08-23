@@ -34,7 +34,6 @@ package org.opensearch.repositories;
 
 import org.apache.lucene.index.IndexCommit;
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterName;
@@ -47,18 +46,21 @@ import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterApplierService;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.Strings;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
-import org.opensearch.common.component.Lifecycle;
-import org.opensearch.common.component.LifecycleListener;
+import org.opensearch.common.lifecycle.Lifecycle;
+import org.opensearch.common.lifecycle.LifecycleListener;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.index.mapper.MapperService;
-import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
+import org.opensearch.index.snapshots.blobstore.RemoteStoreShardShallowCopySnapshot;
 import org.opensearch.index.store.Store;
+import org.opensearch.index.store.lockmanager.RemoteStoreLockManagerFactory;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.repositories.blobstore.MeteredBlobStoreRepository;
@@ -348,6 +350,15 @@ public class RepositoriesServiceTests extends OpenSearchTestCase {
         }
 
         @Override
+        public RemoteStoreShardShallowCopySnapshot getRemoteStoreShallowCopyShardMetadata(
+            SnapshotId snapshotId,
+            IndexId indexId,
+            ShardId snapshotShardId
+        ) {
+            return null;
+        }
+
+        @Override
         public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
             return null;
         }
@@ -368,6 +379,18 @@ public class RepositoriesServiceTests extends OpenSearchTestCase {
             SnapshotId target,
             RepositoryShardId shardId,
             String shardGeneration,
+            ActionListener<String> listener
+        ) {
+
+        }
+
+        @Override
+        public void cloneRemoteStoreIndexShardSnapshot(
+            SnapshotId source,
+            SnapshotId target,
+            RepositoryShardId shardId,
+            String shardGeneration,
+            RemoteStoreLockManagerFactory remoteStoreLockManagerFactory,
             ActionListener<String> listener
         ) {
 

@@ -40,7 +40,7 @@ import java.util.Map;
 public class S3ServiceTests extends AbstractS3RepositoryTestCase {
     public void testCachedClientsAreReleased() {
         final S3Service s3Service = new S3Service(configPath());
-        final Settings settings = Settings.builder().put("endpoint", "http://first").build();
+        final Settings settings = Settings.builder().put("endpoint", "http://first").put("region", "region").build();
         final RepositoryMetadata metadata1 = new RepositoryMetadata("first", "s3", settings);
         final RepositoryMetadata metadata2 = new RepositoryMetadata("second", "s3", settings);
         final S3ClientSettings clientSettings = s3Service.settings(metadata2);

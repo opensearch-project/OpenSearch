@@ -33,15 +33,15 @@
 package org.opensearch.transport.nio;
 
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.util.MockPageCacheRecycler;
-import org.opensearch.indices.breaker.NoneCircuitBreakerService;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.transport.TransportAddress;
+import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.transport.AbstractSimpleTransportTestCase;
 import org.opensearch.transport.ConnectTransportException;
 import org.opensearch.transport.ConnectionProfile;

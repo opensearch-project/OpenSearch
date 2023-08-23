@@ -33,18 +33,18 @@
 package org.opensearch.rest.action.admin.indices;
 
 import org.opensearch.cluster.metadata.AliasMetadata;
-import org.opensearch.common.collect.ImmutableOpenMap;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
-import static org.opensearch.rest.RestStatus.OK;
-import static org.opensearch.rest.RestStatus.NOT_FOUND;
+import static org.opensearch.core.rest.RestStatus.NOT_FOUND;
+import static org.opensearch.core.rest.RestStatus.OK;
 import static org.hamcrest.Matchers.equalTo;
 
 public class RestGetAliasesActionTests extends OpenSearchTestCase {
@@ -59,29 +59,24 @@ public class RestGetAliasesActionTests extends OpenSearchTestCase {
     // }'
 
     public void testBareRequest() throws Exception {
-        final XContentBuilder xContentBuilder = XContentFactory.contentBuilder(XContentType.JSON);
-        final ImmutableOpenMap.Builder<String, List<AliasMetadata>> openMapBuilder = ImmutableOpenMap.builder();
+        final XContentBuilder xContentBuilder = MediaTypeRegistry.contentBuilder(MediaTypeRegistry.JSON);
+        final Map<String, List<AliasMetadata>> openMapBuilder = new HashMap<>();
         final AliasMetadata foobarAliasMetadata = AliasMetadata.builder("foobar").build();
         final AliasMetadata fooAliasMetadata = AliasMetadata.builder("foo").build();
         openMapBuilder.put("index", Arrays.asList(fooAliasMetadata, foobarAliasMetadata));
-        final RestResponse restResponse = RestGetAliasesAction.buildRestResponse(
-            false,
-            new String[0],
-            openMapBuilder.build(),
-            xContentBuilder
-        );
+        final RestResponse restResponse = RestGetAliasesAction.buildRestResponse(false, new String[0], openMapBuilder, xContentBuilder);
         assertThat(restResponse.status(), equalTo(OK));
         assertThat(restResponse.contentType(), equalTo("application/json; charset=UTF-8"));
         assertThat(restResponse.content().utf8ToString(), equalTo("{\"index\":{\"aliases\":{\"foo\":{},\"foobar\":{}}}}"));
     }
 
     public void testSimpleAliasWildcardMatchingNothing() throws Exception {
-        final XContentBuilder xContentBuilder = XContentFactory.contentBuilder(XContentType.JSON);
-        final ImmutableOpenMap.Builder<String, List<AliasMetadata>> openMapBuilder = ImmutableOpenMap.builder();
+        final XContentBuilder xContentBuilder = MediaTypeRegistry.contentBuilder(MediaTypeRegistry.JSON);
+        final Map<String, List<AliasMetadata>> openMapBuilder = new HashMap<>();
         final RestResponse restResponse = RestGetAliasesAction.buildRestResponse(
             true,
             new String[] { "baz*" },
-            openMapBuilder.build(),
+            openMapBuilder,
             xContentBuilder
         );
         assertThat(restResponse.status(), equalTo(OK));
@@ -90,14 +85,14 @@ public class RestGetAliasesActionTests extends OpenSearchTestCase {
     }
 
     public void testMultipleAliasWildcardsSomeMatching() throws Exception {
-        final XContentBuilder xContentBuilder = XContentFactory.contentBuilder(XContentType.JSON);
-        final ImmutableOpenMap.Builder<String, List<AliasMetadata>> openMapBuilder = ImmutableOpenMap.builder();
+        final XContentBuilder xContentBuilder = MediaTypeRegistry.contentBuilder(MediaTypeRegistry.JSON);
+        final Map<String, List<AliasMetadata>> openMapBuilder = new HashMap<>();
         final AliasMetadata aliasMetadata = AliasMetadata.builder("foobar").build();
         openMapBuilder.put("index", Arrays.asList(aliasMetadata));
         final RestResponse restResponse = RestGetAliasesAction.buildRestResponse(
             true,
             new String[] { "baz*", "foobar*" },
-            openMapBuilder.build(),
+            openMapBuilder,
             xContentBuilder
         );
         assertThat(restResponse.status(), equalTo(OK));
@@ -106,12 +101,12 @@ public class RestGetAliasesActionTests extends OpenSearchTestCase {
     }
 
     public void testAliasWildcardsIncludeAndExcludeAll() throws Exception {
-        final XContentBuilder xContentBuilder = XContentFactory.contentBuilder(XContentType.JSON);
-        final ImmutableOpenMap.Builder<String, List<AliasMetadata>> openMapBuilder = ImmutableOpenMap.builder();
+        final XContentBuilder xContentBuilder = MediaTypeRegistry.contentBuilder(MediaTypeRegistry.JSON);
+        final Map<String, List<AliasMetadata>> openMapBuilder = new HashMap<>();
         final RestResponse restResponse = RestGetAliasesAction.buildRestResponse(
             true,
             new String[] { "foob*", "-foo*" },
-            openMapBuilder.build(),
+            openMapBuilder,
             xContentBuilder
         );
         assertThat(restResponse.status(), equalTo(OK));
@@ -120,14 +115,14 @@ public class RestGetAliasesActionTests extends OpenSearchTestCase {
     }
 
     public void testAliasWildcardsIncludeAndExcludeSome() throws Exception {
-        final XContentBuilder xContentBuilder = XContentFactory.contentBuilder(XContentType.JSON);
-        final ImmutableOpenMap.Builder<String, List<AliasMetadata>> openMapBuilder = ImmutableOpenMap.builder();
+        final XContentBuilder xContentBuilder = MediaTypeRegistry.contentBuilder(MediaTypeRegistry.JSON);
+        final Map<String, List<AliasMetadata>> openMapBuilder = new HashMap<>();
         final AliasMetadata aliasMetadata = AliasMetadata.builder("foo").build();
         openMapBuilder.put("index", Arrays.asList(aliasMetadata));
         final RestResponse restResponse = RestGetAliasesAction.buildRestResponse(
             true,
             new String[] { "foo*", "-foob*" },
-            openMapBuilder.build(),
+            openMapBuilder,
             xContentBuilder
         );
         assertThat(restResponse.status(), equalTo(OK));
@@ -136,8 +131,8 @@ public class RestGetAliasesActionTests extends OpenSearchTestCase {
     }
 
     public void testAliasWildcardsIncludeAndExcludeSomeAndExplicitMissing() throws Exception {
-        final XContentBuilder xContentBuilder = XContentFactory.contentBuilder(XContentType.JSON);
-        final ImmutableOpenMap.Builder<String, List<AliasMetadata>> openMapBuilder = ImmutableOpenMap.builder();
+        final XContentBuilder xContentBuilder = MediaTypeRegistry.contentBuilder(MediaTypeRegistry.JSON);
+        final Map<String, List<AliasMetadata>> openMapBuilder = new HashMap<>();
         final AliasMetadata aliasMetadata = AliasMetadata.builder("foo").build();
         openMapBuilder.put("index", Arrays.asList(aliasMetadata));
         final String[] aliasPattern;
@@ -147,12 +142,7 @@ public class RestGetAliasesActionTests extends OpenSearchTestCase {
             aliasPattern = new String[] { "foo*", "-foob*", "missing" };
         }
 
-        final RestResponse restResponse = RestGetAliasesAction.buildRestResponse(
-            true,
-            aliasPattern,
-            openMapBuilder.build(),
-            xContentBuilder
-        );
+        final RestResponse restResponse = RestGetAliasesAction.buildRestResponse(true, aliasPattern, openMapBuilder, xContentBuilder);
         assertThat(restResponse.status(), equalTo(NOT_FOUND));
         assertThat(restResponse.contentType(), equalTo("application/json; charset=UTF-8"));
         assertThat(
@@ -162,12 +152,12 @@ public class RestGetAliasesActionTests extends OpenSearchTestCase {
     }
 
     public void testAliasWildcardsExcludeExplicitMissing() throws Exception {
-        final XContentBuilder xContentBuilder = XContentFactory.contentBuilder(XContentType.JSON);
-        final ImmutableOpenMap.Builder<String, List<AliasMetadata>> openMapBuilder = ImmutableOpenMap.builder();
+        final XContentBuilder xContentBuilder = MediaTypeRegistry.contentBuilder(MediaTypeRegistry.JSON);
+        final Map<String, List<AliasMetadata>> openMapBuilder = new HashMap<>();
         final RestResponse restResponse = RestGetAliasesAction.buildRestResponse(
             true,
             new String[] { "foo", "foofoo", "-foo*" },
-            openMapBuilder.build(),
+            openMapBuilder,
             xContentBuilder
         );
         assertThat(restResponse.status(), equalTo(OK));

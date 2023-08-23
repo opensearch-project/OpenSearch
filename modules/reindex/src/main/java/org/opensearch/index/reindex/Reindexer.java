@@ -32,7 +32,6 @@
 
 package org.opensearch.index.reindex;
 
-import java.util.Optional;
 import org.apache.http.Header;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpRequestInterceptor;
@@ -44,7 +43,6 @@ import org.apache.http.impl.nio.reactor.IOReactorConfig;
 import org.apache.http.message.BasicHeader;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.DocWriteRequest;
 import org.opensearch.action.bulk.BackoffPolicy;
 import org.opensearch.action.bulk.BulkItemResponse;
@@ -54,14 +52,15 @@ import org.opensearch.client.ParentTaskAssigningClient;
 import org.opensearch.client.RestClient;
 import org.opensearch.client.RestClientBuilder;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.Strings;
-import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.lucene.uid.Versions;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.DeprecationHandler;
+import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.mapper.VersionFieldMapper;
 import org.opensearch.index.reindex.remote.RemoteScrollableHitSource;
@@ -77,6 +76,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 
@@ -368,27 +368,24 @@ public class Reindexer {
             index.id(doc.getId());
 
             // the source xcontent type and destination could be different
-            final XContentType sourceXContentType = doc.getXContentType();
-            final XContentType mainRequestXContentType = mainRequest.getDestination().getContentType();
-            if (mainRequestXContentType != null && doc.getXContentType() != mainRequestXContentType) {
+            final MediaType sourceMediaType = doc.getMediaType();
+            final MediaType mainRequestMediaType = mainRequest.getDestination().getContentType();
+            if (mainRequestMediaType != null && doc.getMediaType() != mainRequestMediaType) {
                 // we need to convert
                 try (
                     InputStream stream = doc.getSource().streamInput();
-                    XContentParser parser = sourceXContentType.xContent()
+                    XContentParser parser = sourceMediaType.xContent()
                         .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, stream);
-                    XContentBuilder builder = XContentBuilder.builder(mainRequestXContentType.xContent())
+                    XContentBuilder builder = XContentBuilder.builder(mainRequestMediaType.xContent())
                 ) {
                     parser.nextToken();
                     builder.copyCurrentStructure(parser);
                     index.source(BytesReference.bytes(builder), builder.contentType());
                 } catch (IOException e) {
-                    throw new UncheckedIOException(
-                        "failed to convert hit from " + sourceXContentType + " to " + mainRequestXContentType,
-                        e
-                    );
+                    throw new UncheckedIOException("failed to convert hit from " + sourceMediaType + " to " + mainRequestMediaType, e);
                 }
             } else {
-                index.source(doc.getSource(), doc.getXContentType());
+                index.source(doc.getSource(), doc.getMediaType());
             }
 
             /*

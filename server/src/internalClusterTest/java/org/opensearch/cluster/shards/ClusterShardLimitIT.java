@@ -33,7 +33,6 @@
 package org.opensearch.cluster.shards;
 
 import org.opensearch.Version;
-
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
@@ -46,8 +45,8 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.common.Priority;
 import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.indices.ShardLimitValidator;
 import org.opensearch.snapshots.SnapshotInfo;
 import org.opensearch.snapshots.SnapshotState;
@@ -246,6 +245,7 @@ public class ClusterShardLimitIT extends OpenSearchIntegTestCase {
         assertFalse(clusterState.getMetadata().hasIndex(".test-index"));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/6287")
     public void testCreateIndexWithMaxClusterShardSetting() {
         int dataNodes = client().admin().cluster().prepareState().get().getState().getNodes().getDataNodes().size();
         ClusterState clusterState = client().admin().cluster().prepareState().get().getState();

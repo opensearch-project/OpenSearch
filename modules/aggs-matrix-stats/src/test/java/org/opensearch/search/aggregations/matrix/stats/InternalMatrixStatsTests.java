@@ -31,13 +31,13 @@
 
 package org.opensearch.search.aggregations.matrix.stats;
 
-import org.opensearch.core.ParseField;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.MockBigArrays;
 import org.opensearch.common.util.MockPageCacheRecycler;
+import org.opensearch.core.ParseField;
+import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.core.xcontent.ContextParser;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
-import org.opensearch.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.plugins.SearchPlugin;
 import org.opensearch.script.ScriptService;
 import org.opensearch.search.aggregations.Aggregation;

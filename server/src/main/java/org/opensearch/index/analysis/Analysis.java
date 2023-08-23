@@ -69,8 +69,8 @@ import org.apache.lucene.analysis.ru.RussianAnalyzer;
 import org.apache.lucene.analysis.sv.SwedishAnalyzer;
 import org.apache.lucene.analysis.th.ThaiAnalyzer;
 import org.apache.lucene.analysis.tr.TurkishAnalyzer;
-import org.opensearch.common.Strings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.Strings;
 import org.opensearch.env.Environment;
 
 import java.io.BufferedReader;
@@ -222,6 +222,16 @@ public class Analysis {
         return parseWordList(env, settings, settingPrefix + "_path", settingPrefix, parser);
     }
 
+    public static <T> List<T> parseWordList(
+        Environment env,
+        Settings settings,
+        String settingPrefix,
+        CustomMappingRuleParser<T> parser,
+        boolean removeComments
+    ) {
+        return parseWordList(env, settings, settingPrefix + "_path", settingPrefix, parser, removeComments);
+    }
+
     /**
      * Parses a list of words from the specified settings or from a file, with the given parser.
      *
@@ -237,6 +247,17 @@ public class Analysis {
         String settingList,
         CustomMappingRuleParser<T> parser
     ) {
+        return parseWordList(env, settings, settingPath, settingList, parser, true);
+    }
+
+    public static <T> List<T> parseWordList(
+        Environment env,
+        Settings settings,
+        String settingPath,
+        String settingList,
+        CustomMappingRuleParser<T> parser,
+        boolean removeComments
+    ) {
         List<String> words = getWordList(env, settings, settingPath, settingList);
         if (words == null) {
             return null;
@@ -245,7 +266,7 @@ public class Analysis {
         int lineNum = 0;
         for (String word : words) {
             lineNum++;
-            if (word.startsWith("#") == false) {
+            if (removeComments == false || word.startsWith("#") == false) {
                 try {
                     rules.add(parser.apply(word));
                 } catch (RuntimeException ex) {

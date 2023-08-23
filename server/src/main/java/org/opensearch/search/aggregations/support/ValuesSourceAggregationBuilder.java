@@ -33,10 +33,11 @@ package org.opensearch.search.aggregations.support;
 
 import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
-import org.opensearch.core.ParseField;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.joda.Joda;
 import org.opensearch.common.time.DateUtils;
+import org.opensearch.core.ParseField;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.AbstractObjectParser;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -234,7 +235,7 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
         format = in.readOptionalString();
         missing = in.readGenericValue();
         if (in.getVersion().before(LegacyESVersion.V_7_0_0)) {
-            timeZone = DateUtils.dateTimeZoneToZoneId(in.readOptionalTimeZone());
+            timeZone = DateUtils.dateTimeZoneToZoneId(Joda.readOptionalTimeZone(in));
         } else {
             timeZone = in.readOptionalZoneId();
         }
@@ -260,7 +261,7 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
         out.writeOptionalString(format);
         out.writeGenericValue(missing);
         if (out.getVersion().before(LegacyESVersion.V_7_0_0)) {
-            out.writeOptionalTimeZone(DateUtils.zoneIdToDateTimeZone(timeZone));
+            Joda.writeOptionalTimeZone(out, DateUtils.zoneIdToDateTimeZone(timeZone));
         } else {
             out.writeOptionalZoneId(timeZone);
         }

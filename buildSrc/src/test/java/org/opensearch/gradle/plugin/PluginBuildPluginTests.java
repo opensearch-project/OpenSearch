@@ -31,18 +31,19 @@
 
 package org.opensearch.gradle.plugin;
 
-import org.gradle.api.tasks.bundling.AbstractArchiveTask;
 import org.opensearch.gradle.BwcVersions;
 import org.opensearch.gradle.test.GradleUnitTestCase;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.internal.project.ProjectInternal;
+import org.gradle.api.tasks.bundling.AbstractArchiveTask;
 import org.gradle.testfixtures.ProjectBuilder;
 import org.junit.Before;
 import org.junit.Ignore;
-import org.mockito.Mockito;
 
 import java.util.stream.Collectors;
+
+import org.mockito.Mockito;
 
 public class PluginBuildPluginTests extends GradleUnitTestCase {
 

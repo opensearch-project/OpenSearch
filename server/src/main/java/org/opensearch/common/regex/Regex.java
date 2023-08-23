@@ -35,7 +35,7 @@ package org.opensearch.common.regex;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
-import org.opensearch.common.Strings;
+import org.opensearch.core.common.Strings;
 
 import java.util.ArrayList;
 import java.util.List;

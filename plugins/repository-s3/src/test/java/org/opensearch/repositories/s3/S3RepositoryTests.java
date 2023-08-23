@@ -32,18 +32,19 @@
 
 package org.opensearch.repositories.s3;
 
-import org.hamcrest.Matchers;
+import software.amazon.awssdk.services.s3.S3Client;
+
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.unit.ByteSizeUnit;
-import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.repositories.RepositoryException;
 import org.opensearch.repositories.blobstore.BlobStoreTestUtil;
 import org.opensearch.test.OpenSearchTestCase;
-import software.amazon.awssdk.services.s3.S3Client;
+import org.hamcrest.Matchers;
 
 import java.nio.file.Path;
 import java.util.Map;
@@ -138,7 +139,12 @@ public class S3RepositoryTests extends OpenSearchTestCase implements ConfigPathS
             NamedXContentRegistry.EMPTY,
             new DummyS3Service(configPath()),
             BlobStoreTestUtil.mockClusterService(),
-            new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))
+            new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
+            null,
+            null,
+            null,
+            null,
+            false
         ) {
             @Override
             protected void assertSnapshotOrGenericThread() {

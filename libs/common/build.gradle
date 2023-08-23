@@ -13,7 +13,9 @@ import org.opensearch.gradle.info.BuildParams
 
 apply plugin: 'opensearch.publish'
 
-archivesBaseName = 'opensearch-common'
+base {
+  archivesBaseName = 'opensearch-common'
+}
 
 dependencies {
   // This dependency is used only by :libs:core for null-checking interop with other tools
@@ -30,6 +32,10 @@ dependencies {
   testImplementation(project(":test:framework")) {
     exclude group: 'org.opensearch', module: 'opensearch-common'
   }
+}
+
+tasks.withType(JavaCompile).configureEach {
+  options.compilerArgs -= '-Xlint:unchecked'
 }
 
 tasks.named('forbiddenApisMain').configure {

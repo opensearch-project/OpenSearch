@@ -33,12 +33,12 @@
 package org.opensearch.action.admin.indices.mapping.get;
 
 import org.opensearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetadata;
-import org.opensearch.common.Strings;
-import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
@@ -69,7 +69,7 @@ public class GetFieldMappingsResponseTests extends AbstractWireSerializingTestCa
         Map<String, Map<String, FieldMappingMetadata>> mappings = new HashMap<>();
         mappings.put("index", Collections.emptyMap());
         GetFieldMappingsResponse response = new GetFieldMappingsResponse(mappings);
-        assertEquals("{\"index\":{\"mappings\":{}}}", Strings.toString(XContentType.JSON, response));
+        assertEquals("{\"index\":{\"mappings\":{}}}", Strings.toString(MediaTypeRegistry.JSON, response));
     }
 
     @Override

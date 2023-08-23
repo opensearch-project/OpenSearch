@@ -35,10 +35,10 @@ package org.opensearch.gateway;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.health.ClusterHealthStatus;
+import org.opensearch.test.InternalTestCluster.RestartCallback;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.OpenSearchIntegTestCase.Scope;
-import org.opensearch.test.InternalTestCluster.RestartCallback;
 
 import java.util.concurrent.TimeUnit;
 

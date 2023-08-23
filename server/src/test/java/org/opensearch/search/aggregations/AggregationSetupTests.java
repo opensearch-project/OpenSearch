@@ -10,11 +10,11 @@ package org.opensearch.search.aggregations;
 
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.search.SearchRequest;
-import org.opensearch.common.Strings;
 import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.IndexService;
-import org.opensearch.index.shard.ShardId;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.internal.ShardSearchRequest;

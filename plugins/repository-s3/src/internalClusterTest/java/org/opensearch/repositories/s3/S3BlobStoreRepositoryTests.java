@@ -34,7 +34,9 @@ package org.opensearch.repositories.s3;
 import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
-import fixture.s3.S3HttpHandler;
+
+import software.amazon.awssdk.core.internal.http.pipeline.stages.ApplyTransactionIdStage;
+
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
@@ -43,14 +45,14 @@ import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
-import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.plugins.Plugin;
@@ -58,13 +60,12 @@ import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.RepositoryData;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.repositories.blobstore.OpenSearchMockAPIBasedRepositoryIntegTestCase;
+import org.opensearch.repositories.s3.utils.AwsRequestSigner;
 import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.snapshots.SnapshotsService;
-import org.opensearch.repositories.s3.utils.AwsRequestSigner;
 import org.opensearch.snapshots.mockstore.BlobStoreWrapper;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.threadpool.ThreadPool;
-import software.amazon.awssdk.core.internal.http.pipeline.stages.ApplyTransactionIdStage;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -74,6 +75,8 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+
+import fixture.s3.S3HttpHandler;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
@@ -86,15 +89,12 @@ public class S3BlobStoreRepositoryTests extends OpenSearchMockAPIBasedRepository
 
     private static final TimeValue TEST_COOLDOWN_PERIOD = TimeValue.timeValueSeconds(10L);
 
-    private String region;
+    private final String region = "test-region";
     private String signerOverride;
     private String previousOpenSearchPathConf;
 
     @Override
     public void setUp() throws Exception {
-        if (randomBoolean()) {
-            region = "test-region";
-        }
         signerOverride = AwsRequestSigner.VERSION_FOUR_SIGNER.getName();
         previousOpenSearchPathConf = SocketAccess.doPrivileged(() -> System.setProperty("opensearch.path.conf", "config"));
         super.setUp();
@@ -161,9 +161,8 @@ public class S3BlobStoreRepositoryTests extends OpenSearchMockAPIBasedRepository
         if (signerOverride != null) {
             builder.put(S3ClientSettings.SIGNER_OVERRIDE.getConcreteSettingForNamespace("test").getKey(), signerOverride);
         }
-        if (region != null) {
-            builder.put(S3ClientSettings.REGION.getConcreteSettingForNamespace("test").getKey(), region);
-        }
+
+        builder.put(S3ClientSettings.REGION.getConcreteSettingForNamespace("test").getKey(), region);
         return builder.build();
     }
 
@@ -240,7 +239,7 @@ public class S3BlobStoreRepositoryTests extends OpenSearchMockAPIBasedRepository
             ClusterService clusterService,
             RecoverySettings recoverySettings
         ) {
-            return new S3Repository(metadata, registry, service, clusterService, recoverySettings) {
+            return new S3Repository(metadata, registry, service, clusterService, recoverySettings, null, null, null, null, false) {
 
                 @Override
                 public BlobStore blobStore() {
@@ -282,7 +281,7 @@ public class S3BlobStoreRepositoryTests extends OpenSearchMockAPIBasedRepository
             if ("AWS4SignerType".equals(signerOverride)) {
                 assertThat(authorizationHeaderV4, containsString("aws4_request"));
             }
-            if (region != null && authorizationHeaderV4 != null) {
+            if (authorizationHeaderV4 != null) {
                 assertThat(authorizationHeaderV4, containsString("/" + region + "/s3/"));
             }
         }

@@ -35,13 +35,19 @@ package org.opensearch.common.io.stream;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
-import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.geo.GeoPoint;
+import org.opensearch.common.joda.Joda;
 import org.opensearch.common.lucene.BytesRefs;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.PageCacheRecycler;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.NamedWriteable;
+import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.script.JodaCompatibleZonedDateTime;
 import org.opensearch.test.OpenSearchTestCase;
 import org.joda.time.DateTime;
@@ -321,9 +327,9 @@ public class BytesStreamsTests extends OpenSearchTestCase {
         out.writeOptionalBytesReference(new BytesArray("test"));
         out.writeOptionalDouble(null);
         out.writeOptionalDouble(1.2);
-        out.writeTimeZone(DateTimeZone.forID("CET"));
-        out.writeOptionalTimeZone(DateTimeZone.getDefault());
-        out.writeOptionalTimeZone(null);
+        Joda.writeTimeZone(out, DateTimeZone.forID("CET"));
+        Joda.writeOptionalTimeZone(out, DateTimeZone.getDefault());
+        Joda.writeOptionalTimeZone(out, null);
         out.writeGenericValue(new DateTime(123456, DateTimeZone.forID("America/Los_Angeles")));
         final byte[] bytes = BytesReference.toBytes(out.bytes());
         StreamInput in = StreamInput.wrap(BytesReference.toBytes(out.bytes()));
@@ -354,9 +360,9 @@ public class BytesStreamsTests extends OpenSearchTestCase {
         assertThat(in.readOptionalBytesReference(), equalTo(new BytesArray("test")));
         assertNull(in.readOptionalDouble());
         assertThat(in.readOptionalDouble(), closeTo(1.2, 0.0001));
-        assertEquals(DateTimeZone.forID("CET"), in.readTimeZone());
-        assertEquals(DateTimeZone.getDefault(), in.readOptionalTimeZone());
-        assertNull(in.readOptionalTimeZone());
+        assertEquals(DateTimeZone.forID("CET"), Joda.readTimeZone(in));
+        assertEquals(DateTimeZone.getDefault(), Joda.readOptionalTimeZone(in));
+        assertNull(Joda.readOptionalTimeZone(in));
         Object dt = in.readGenericValue();
         assertThat(dt, instanceOf(JodaCompatibleZonedDateTime.class));
         JodaCompatibleZonedDateTime jdt = (JodaCompatibleZonedDateTime) dt;
@@ -534,38 +540,6 @@ public class BytesStreamsTests extends OpenSearchTestCase {
         assertThat(expected, equalTo(loaded));
     }
 
-    public void testWriteImmutableMap() throws IOException {
-        final int size = randomIntBetween(0, 100);
-        final ImmutableOpenMap.Builder<String, String> expectedBuilder = ImmutableOpenMap.builder(randomIntBetween(0, 100));
-        for (int i = 0; i < size; ++i) {
-            expectedBuilder.put(randomAlphaOfLength(2), randomAlphaOfLength(5));
-        }
-
-        final ImmutableOpenMap<String, String> expected = expectedBuilder.build();
-        final BytesStreamOutput out = new BytesStreamOutput();
-        out.writeMap(expected, StreamOutput::writeString, StreamOutput::writeString);
-        final StreamInput in = StreamInput.wrap(BytesReference.toBytes(out.bytes()));
-        final ImmutableOpenMap<String, String> loaded = in.readImmutableMap(StreamInput::readString, StreamInput::readString);
-
-        assertThat(expected, equalTo(loaded));
-    }
-
-    public void testWriteImmutableMapOfWritable() throws IOException {
-        final int size = randomIntBetween(0, 100);
-        final ImmutableOpenMap.Builder<TestWriteable, TestWriteable> expectedBuilder = ImmutableOpenMap.builder(randomIntBetween(0, 100));
-        for (int i = 0; i < size; ++i) {
-            expectedBuilder.put(new TestWriteable(randomBoolean()), new TestWriteable(randomBoolean()));
-        }
-
-        final ImmutableOpenMap<TestWriteable, TestWriteable> expected = expectedBuilder.build();
-        final BytesStreamOutput out = new BytesStreamOutput();
-        out.writeMap(expected);
-        final StreamInput in = StreamInput.wrap(BytesReference.toBytes(out.bytes()));
-        final ImmutableOpenMap<TestWriteable, TestWriteable> loaded = in.readImmutableMap(TestWriteable::new, TestWriteable::new);
-
-        assertThat(expected, equalTo(loaded));
-    }
-
     public void testWriteMapOfLists() throws IOException {
         final int size = randomIntBetween(0, 5);
         final Map<String, List<String>> expected = new HashMap<>(size);
@@ -672,9 +646,9 @@ public class BytesStreamsTests extends OpenSearchTestCase {
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             GeoPoint geoPoint = new GeoPoint(randomDouble(), randomDouble());
-            out.writeGeoPoint(geoPoint);
+            geoPoint.writeTo(out);
             StreamInput wrap = out.bytes().streamInput();
-            GeoPoint point = wrap.readGeoPoint();
+            GeoPoint point = new GeoPoint(wrap);
             assertEquals(point, geoPoint);
         }
     }
@@ -963,7 +937,7 @@ public class BytesStreamsTests extends OpenSearchTestCase {
 
         BytesStreamOutput prodOut = new BytesStreamOutput() {
             @Override
-            boolean failOnTooManyNestedExceptions(Throwable throwable) {
+            public boolean failOnTooManyNestedExceptions(Throwable throwable) {
                 assertThat(throwable, sameInstance(rootEx));
                 return true;
             }

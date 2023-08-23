@@ -33,7 +33,6 @@ package org.opensearch.repositories;
 
 import org.apache.lucene.index.IndexCommit;
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.SnapshotsInProgress;
@@ -42,11 +41,14 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.component.LifecycleComponent;
+import org.opensearch.common.lifecycle.LifecycleComponent;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.mapper.MapperService;
-import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
+import org.opensearch.index.snapshots.blobstore.RemoteStoreShardShallowCopySnapshot;
 import org.opensearch.index.store.Store;
+import org.opensearch.index.store.lockmanager.RemoteStoreLockManagerFactory;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.snapshots.SnapshotInfo;
@@ -180,6 +182,25 @@ public interface Repository extends LifecycleComponent {
         Version repositoryMetaVersion,
         ActionListener<RepositoryData> listener
     );
+
+    /**
+     * Deletes snapshots and releases respective lock files from remote store repository.
+     *
+     * @param snapshotIds                   snapshot ids
+     * @param repositoryStateId             the unique id identifying the state of the repository when the snapshot deletion began
+     * @param repositoryMetaVersion         version of the updated repository metadata to write
+     * @param remoteStoreLockManagerFactory RemoteStoreLockManagerFactory to be used for cleaning up remote store lock files
+     * @param listener                      completion listener
+     */
+    default void deleteSnapshotsAndReleaseLockFiles(
+        Collection<SnapshotId> snapshotIds,
+        long repositoryStateId,
+        Version repositoryMetaVersion,
+        RemoteStoreLockManagerFactory remoteStoreLockManagerFactory,
+        ActionListener<RepositoryData> listener
+    ) {
+        throw new UnsupportedOperationException();
+    }
 
     /**
      * Returns snapshot throttle time in nanoseconds
@@ -319,6 +340,22 @@ public interface Repository extends LifecycleComponent {
     );
 
     /**
+     * Returns Snapshot Shard Metadata for remote store interop enabled snapshot.
+     * <p>
+     * The index can be renamed on restore, hence different {@code shardId} and {@code snapshotShardId} are supplied.
+     * @param snapshotId      snapshot id
+     * @param indexId         id of the index in the repository from which the restore is occurring
+     * @param snapshotShardId shard id (in the snapshot)
+     */
+    default RemoteStoreShardShallowCopySnapshot getRemoteStoreShallowCopyShardMetadata(
+        SnapshotId snapshotId,
+        IndexId indexId,
+        ShardId snapshotShardId
+    ) {
+        throw new UnsupportedOperationException();
+    }
+
+    /**
      * Retrieve shard snapshot status for the stored snapshot
      *
      * @param snapshotId snapshot id
@@ -371,6 +408,27 @@ public interface Repository extends LifecycleComponent {
         @Nullable String shardGeneration,
         ActionListener<String> listener
     );
+
+    /**
+     * Clones a remote store index shard snapshot.
+     *
+     * @param source                        source snapshot
+     * @param target                        target snapshot
+     * @param shardId                       shard id
+     * @param shardGeneration               shard generation in repo
+     * @param remoteStoreLockManagerFactory remoteStoreLockManagerFactory for cloning metadata lock file
+     * @param listener                      listener to complete with new shard generation once clone has completed
+     */
+    default void cloneRemoteStoreIndexShardSnapshot(
+        SnapshotId source,
+        SnapshotId target,
+        RepositoryShardId shardId,
+        @Nullable String shardGeneration,
+        RemoteStoreLockManagerFactory remoteStoreLockManagerFactory,
+        ActionListener<String> listener
+    ) {
+        throw new UnsupportedOperationException();
+    }
 
     /**
      * Hook that allows a repository to filter the user supplied snapshot metadata in {@link SnapshotsInProgress.Entry#userMetadata()}

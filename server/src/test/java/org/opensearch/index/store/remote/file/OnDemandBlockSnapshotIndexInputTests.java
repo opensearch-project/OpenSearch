@@ -8,6 +8,8 @@
 
 package org.opensearch.index.store.remote.file;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
@@ -17,19 +19,17 @@ import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.SimpleFSLockFactory;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.Version;
-import org.junit.Before;
-import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.index.store.remote.utils.BlobFetchRequest;
 import org.opensearch.index.store.remote.utils.TransferManager;
 import org.opensearch.test.OpenSearchTestCase;
+import org.junit.Before;
 
 import java.io.EOFException;
 import java.io.IOException;
 import java.nio.file.Path;
-
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doAnswer;

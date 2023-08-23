@@ -8,16 +8,18 @@
 
 package org.opensearch.tasks;
 
-import org.junit.After;
-import org.junit.Before;
 import org.opensearch.action.admin.cluster.node.tasks.TransportTasksActionTests;
 import org.opensearch.action.search.SearchTask;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.core.tasks.TaskId;
+import org.opensearch.core.tasks.resourcetracker.ThreadResourceInfo;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
+import org.junit.After;
+import org.junit.Before;
 
 import java.util.HashMap;
 import java.util.List;
@@ -26,8 +28,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.opensearch.tasks.ResourceStats.CPU;
-import static org.opensearch.tasks.ResourceStats.MEMORY;
+import static org.opensearch.core.tasks.resourcetracker.ResourceStats.CPU;
+import static org.opensearch.core.tasks.resourcetracker.ResourceStats.MEMORY;
 import static org.opensearch.tasks.TaskResourceTrackingService.TASK_ID;
 
 public class TaskResourceTrackingServiceTests extends OpenSearchTestCase {

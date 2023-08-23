@@ -32,6 +32,11 @@
 
 package org.opensearch.repositories.s3;
 
+import software.amazon.awssdk.auth.credentials.AwsCredentials;
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
+import software.amazon.awssdk.services.s3.DelegatingS3Client;
+import software.amazon.awssdk.services.s3.S3Client;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.client.node.NodeClient;
@@ -52,10 +57,6 @@ import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.action.admin.cluster.RestGetRepositoriesAction;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.test.rest.FakeRestRequest;
-import software.amazon.awssdk.auth.credentials.AwsCredentials;
-import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
-import software.amazon.awssdk.services.s3.DelegatingS3Client;
-import software.amazon.awssdk.services.s3.S3Client;
 
 import java.nio.file.Path;
 import java.security.AccessController;
@@ -65,14 +66,14 @@ import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.opensearch.repositories.s3.S3ClientSettings.ACCESS_KEY_SETTING;
+import static org.opensearch.repositories.s3.S3ClientSettings.SECRET_KEY_SETTING;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.opensearch.repositories.s3.S3ClientSettings.ACCESS_KEY_SETTING;
-import static org.opensearch.repositories.s3.S3ClientSettings.SECRET_KEY_SETTING;
-import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 @SuppressForbidden(reason = "test requires to set a System property to allow insecure settings when running in IDE")
 public class RepositoryCredentialsTests extends OpenSearchSingleNodeTestCase implements ConfigPathSupport {
@@ -291,7 +292,7 @@ public class RepositoryCredentialsTests extends OpenSearchSingleNodeTestCase imp
     public static final class ProxyS3RepositoryPlugin extends S3RepositoryPlugin {
 
         public ProxyS3RepositoryPlugin(Settings settings, Path configPath) {
-            super(settings, configPath, new ProxyS3Service(configPath));
+            super(settings, configPath, new ProxyS3Service(configPath), new S3AsyncService(configPath));
         }
 
         @Override
@@ -301,7 +302,7 @@ public class RepositoryCredentialsTests extends OpenSearchSingleNodeTestCase imp
             ClusterService clusterService,
             RecoverySettings recoverySettings
         ) {
-            return new S3Repository(metadata, registry, service, clusterService, recoverySettings) {
+            return new S3Repository(metadata, registry, service, clusterService, recoverySettings, null, null, null, null, false) {
                 @Override
                 protected void assertSnapshotOrGenericThread() {
                     // eliminate thread name check as we create repo manually on test/main threads

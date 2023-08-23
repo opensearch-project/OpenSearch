@@ -35,13 +35,14 @@ package org.opensearch.discovery.ec2;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
-import org.opensearch.common.settings.MockSecureSettings;
-import org.opensearch.common.settings.Settings;
-import org.opensearch.common.settings.SettingsException;
 import software.amazon.awssdk.core.Protocol;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
 import software.amazon.awssdk.core.retry.RetryPolicy;
 import software.amazon.awssdk.http.apache.ProxyConfiguration;
+
+import org.opensearch.common.settings.MockSecureSettings;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.SettingsException;
 
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;

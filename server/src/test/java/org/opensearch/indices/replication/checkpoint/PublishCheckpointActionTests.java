@@ -9,7 +9,6 @@
 package org.opensearch.indices.replication.checkpoint;
 
 import org.apache.lucene.codecs.Codec;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.ActionTestUtils;
 import org.opensearch.action.support.PlainActionFuture;
@@ -19,10 +18,11 @@ import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.io.IOUtils;
-import org.opensearch.index.Index;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.index.Index;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.shard.IndexShard;
-import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.replication.SegmentReplicationTargetService;
 import org.opensearch.test.OpenSearchTestCase;
@@ -34,12 +34,12 @@ import org.opensearch.transport.TransportService;
 import java.util.Collections;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.opensearch.test.ClusterServiceUtils.createClusterService;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.times;
-import static org.opensearch.test.ClusterServiceUtils.createClusterService;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class PublishCheckpointActionTests extends OpenSearchTestCase {
 

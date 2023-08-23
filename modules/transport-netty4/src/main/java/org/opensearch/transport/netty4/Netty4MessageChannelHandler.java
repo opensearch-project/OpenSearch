@@ -32,18 +32,12 @@
 
 package org.opensearch.transport.netty4;
 
-import io.netty.buffer.ByteBuf;
-import io.netty.channel.Channel;
-import io.netty.channel.ChannelDuplexHandler;
-import io.netty.channel.ChannelFuture;
-import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.ChannelPromise;
-import org.opensearch.OpenSearchException;
 import org.opensearch.ExceptionsHelper;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.OpenSearchException;
 import org.opensearch.common.bytes.ReleasableBytesReference;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.PageCacheRecycler;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.InboundPipeline;
 import org.opensearch.transport.Transport;
@@ -52,6 +46,13 @@ import org.opensearch.transport.Transports;
 import java.nio.channels.ClosedChannelException;
 import java.util.ArrayDeque;
 import java.util.Queue;
+
+import io.netty.buffer.ByteBuf;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelDuplexHandler;
+import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelPromise;
 
 /**
  * A handler (must be the last one!) that does size based frame decoding and forwards the actual message

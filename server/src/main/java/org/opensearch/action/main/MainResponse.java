@@ -35,11 +35,11 @@ package org.opensearch.action.main;
 import org.opensearch.Build;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
-import org.opensearch.action.ActionResponse;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.core.ParseField;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.action.ActionResponse;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -68,10 +68,10 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
     MainResponse(StreamInput in) throws IOException {
         super(in);
         nodeName = in.readString();
-        version = Version.readVersion(in);
+        version = in.readVersion();
         clusterName = new ClusterName(in);
         clusterUuid = in.readString();
-        build = Build.readBuild(in);
+        build = in.readBuild();
         if (in.getVersion().before(LegacyESVersion.V_7_0_0)) {
             in.readBoolean();
         }
@@ -124,13 +124,13 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(nodeName);
         if (out.getVersion().before(Version.V_1_0_0)) {
-            Version.writeVersion(LegacyESVersion.V_7_10_2, out);
+            out.writeVersion(LegacyESVersion.V_7_10_2);
         } else {
-            Version.writeVersion(version, out);
+            out.writeVersion(version);
         }
         clusterName.writeTo(out);
         out.writeString(clusterUuid);
-        Build.writeBuild(build, out);
+        out.writeBuild(build);
         if (out.getVersion().before(LegacyESVersion.V_7_0_0)) {
             out.writeBoolean(true);
         }

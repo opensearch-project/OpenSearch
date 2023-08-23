@@ -40,8 +40,7 @@ import org.opensearch.action.fieldcaps.FieldCapabilities;
 import org.opensearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.opensearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.opensearch.cluster.metadata.MappingMetadata;
-import org.opensearch.common.collect.ImmutableOpenMap;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.indices.IndicesModule;
 import org.opensearch.plugins.MapperPlugin;
 import org.opensearch.plugins.Plugin;
@@ -74,7 +73,7 @@ public class FieldFilterMapperPluginTests extends OpenSearchSingleNodeTestCase {
     public void putMappings() {
         assertAcked(client().admin().indices().prepareCreate("index1"));
         assertAcked(client().admin().indices().prepareCreate("filtered"));
-        assertAcked(client().admin().indices().preparePutMapping("index1", "filtered").setSource(TEST_ITEM, XContentType.JSON));
+        assertAcked(client().admin().indices().preparePutMapping("index1", "filtered").setSource(TEST_ITEM, MediaTypeRegistry.JSON));
     }
 
     public void testGetMappings() {
@@ -166,7 +165,7 @@ public class FieldFilterMapperPluginTests extends OpenSearchSingleNodeTestCase {
         assertEquals("Some unexpected fields were returned: " + fields.keySet(), 0, fields.size());
     }
 
-    private void assertExpectedMappings(ImmutableOpenMap<String, MappingMetadata> mappings) {
+    private void assertExpectedMappings(Map<String, MappingMetadata> mappings) {
         assertEquals(2, mappings.size());
         assertNotFiltered(mappings.get("index1"));
         MappingMetadata filtered = mappings.get("filtered");

@@ -32,17 +32,9 @@
 
 package org.opensearch.action.admin.indices.dangling.import_index;
 
-import static java.util.Collections.singletonList;
-
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
-import java.util.stream.Collectors;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.OpenSearchException;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.admin.indices.dangling.find.FindDanglingIndexAction;
 import org.opensearch.action.admin.indices.dangling.find.FindDanglingIndexRequest;
@@ -54,9 +46,17 @@ import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.inject.Inject;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.gateway.LocalAllocateDangledIndices;
 import org.opensearch.tasks.Task;
 import org.opensearch.transport.TransportService;
+
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.stream.Collectors;
+
+import static java.util.Collections.singletonList;
 
 /**
  * Implements the import of a dangling index. When handling a {@link ImportDanglingIndexAction},

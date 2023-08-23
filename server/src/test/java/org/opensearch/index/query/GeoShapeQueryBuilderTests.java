@@ -40,25 +40,25 @@ import org.opensearch.Version;
 import org.opensearch.action.get.GetRequest;
 import org.opensearch.action.get.GetResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.common.Strings;
-import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.geo.builders.EnvelopeBuilder;
 import org.opensearch.common.geo.builders.ShapeBuilder;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.get.GetResult;
 import org.opensearch.test.AbstractQueryTestCase;
 import org.opensearch.test.VersionUtils;
 import org.opensearch.test.geo.RandomShapeGenerator;
 import org.opensearch.test.geo.RandomShapeGenerator.ShapeType;
 import org.junit.After;
-import org.locationtech.jts.geom.Coordinate;
 
 import java.io.IOException;
+
+import org.locationtech.jts.geom.Coordinate;
 
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.notNullValue;
@@ -107,7 +107,7 @@ public abstract class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<Ge
             builder.field(expectedShapePath, indexedShapeToReturn);
             builder.field(randomAlphaOfLengthBetween(10, 20), "something");
             builder.endObject();
-            json = Strings.toString(builder);
+            json = builder.toString();
         } catch (IOException ex) {
             throw new OpenSearchException("boom", ex);
         }

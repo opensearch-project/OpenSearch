@@ -32,17 +32,12 @@
 
 package org.opensearch.common.util;
 
-import com.carrotsearch.hppc.LongLongHashMap;
-import com.carrotsearch.hppc.LongLongMap;
-import com.carrotsearch.hppc.cursors.LongLongCursor;
-
 import org.opensearch.common.settings.Settings;
-import org.opensearch.indices.breaker.NoneCircuitBreakerService;
+import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 
@@ -74,7 +69,7 @@ public class LongHashTests extends OpenSearchTestCase {
         for (int i = 0; i < values.length; ++i) {
             values[i] = randomLong();
         }
-        final LongLongMap valueToId = new LongLongHashMap();
+        final Map<Long, Integer> valueToId = new HashMap<>();
         final long[] idToValue = new long[values.length];
         final int iters = randomInt(1000000);
         for (int i = 0; i < iters; ++i) {
@@ -89,9 +84,8 @@ public class LongHashTests extends OpenSearchTestCase {
         }
 
         assertEquals(valueToId.size(), hash.size());
-        for (Iterator<LongLongCursor> iterator = valueToId.iterator(); iterator.hasNext();) {
-            final LongLongCursor next = iterator.next();
-            assertEquals(next.value, hash.find(next.key));
+        for (var iterator : valueToId.entrySet()) {
+            assertEquals(iterator.getValue().longValue(), hash.find(iterator.getKey()));
         }
 
         for (long i = 0; i < hash.capacity(); ++i) {

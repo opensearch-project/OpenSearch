@@ -8,15 +8,12 @@
 
 package org.opensearch.cluster.routing;
 
-import com.carrotsearch.hppc.ObjectIntHashMap;
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.ResourceNotFoundException;
-import org.opensearch.action.ActionListener;
-import org.opensearch.action.admin.cluster.shards.routing.weighted.delete.ClusterDeleteWeightedRoutingRequest;
 import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.delete.ClusterDeleteWeightedRoutingRequest;
 import org.opensearch.action.admin.cluster.shards.routing.weighted.delete.ClusterDeleteWeightedRoutingResponse;
 import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingRequest;
 import org.opensearch.cluster.ClusterState;
@@ -31,9 +28,9 @@ import org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDeci
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
 import org.opensearch.common.inject.Inject;
-
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.HashMap;
@@ -212,10 +209,10 @@ public class WeightedRoutingService {
     private void ensureWeightsSetForAllDiscoveredAndForcedAwarenessValues(ClusterState state, ClusterPutWeightedRoutingRequest request) {
         String attributeName = request.getWeightedRouting().attributeName();
         // build attr_value -> nodes map
-        ObjectIntHashMap<String> nodesPerAttribute = state.getRoutingNodes().nodesPerAttributesCounts(attributeName);
+        final Set<String> nodesPerAttribute = state.getRoutingNodes().nodesPerAttributesCounts(attributeName);
         Set<String> discoveredAwarenessValues = new HashSet<>();
-        for (ObjectCursor<String> stringObjectCursor : nodesPerAttribute.keys()) {
-            if (stringObjectCursor.value != null) discoveredAwarenessValues.add(stringObjectCursor.value);
+        for (String stringObjectCursor : nodesPerAttribute) {
+            if (stringObjectCursor != null) discoveredAwarenessValues.add(stringObjectCursor);
         }
         Set<String> allAwarenessValues;
         if (forcedAwarenessAttributes.get(attributeName) == null) {

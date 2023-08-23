@@ -8,7 +8,6 @@
 
 package org.opensearch.common.blobstore.transfer;
 
-import com.jcraft.jzlib.JZlib;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CorruptIndexException;
@@ -25,6 +24,8 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Objects;
+
+import com.jcraft.jzlib.JZlib;
 
 /**
  * RemoteTransferContainer is an encapsulation for managing file transfers.
@@ -160,7 +161,7 @@ public class RemoteTransferContainer implements Closeable {
                     : offsetRangeInputStream;
                 Objects.requireNonNull(inputStreams.get())[streamIdx] = inputStream;
 
-                return new InputStreamContainer(inputStream, size);
+                return new InputStreamContainer(inputStream, size, position);
             } catch (IOException e) {
                 log.error("Failed to create input stream", e);
                 throw e;

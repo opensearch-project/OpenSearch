@@ -32,22 +32,20 @@
 
 package org.opensearch.action.admin.indices.settings.get;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import org.opensearch.action.ActionResponse;
-import org.opensearch.common.Strings;
-import org.opensearch.common.collect.ImmutableOpenMap;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.action.ActionResponse;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentParserUtils;
-import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.xcontent.XContentParserUtils;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -59,21 +57,18 @@ import java.util.Objects;
  */
 public class GetSettingsResponse extends ActionResponse implements ToXContentObject {
 
-    private final ImmutableOpenMap<String, Settings> indexToSettings;
-    private final ImmutableOpenMap<String, Settings> indexToDefaultSettings;
+    private final Map<String, Settings> indexToSettings;
+    private final Map<String, Settings> indexToDefaultSettings;
 
-    public GetSettingsResponse(
-        ImmutableOpenMap<String, Settings> indexToSettings,
-        ImmutableOpenMap<String, Settings> indexToDefaultSettings
-    ) {
-        this.indexToSettings = indexToSettings;
-        this.indexToDefaultSettings = indexToDefaultSettings;
+    public GetSettingsResponse(Map<String, Settings> indexToSettings, Map<String, Settings> indexToDefaultSettings) {
+        this.indexToSettings = Collections.unmodifiableMap(indexToSettings);
+        this.indexToDefaultSettings = Collections.unmodifiableMap(indexToDefaultSettings);
     }
 
     public GetSettingsResponse(StreamInput in) throws IOException {
         super(in);
-        indexToSettings = in.readImmutableMap(StreamInput::readString, Settings::readSettingsFromStream);
-        indexToDefaultSettings = in.readImmutableMap(StreamInput::readString, Settings::readSettingsFromStream);
+        indexToSettings = in.readMap(StreamInput::readString, Settings::readSettingsFromStream);
+        indexToDefaultSettings = in.readMap(StreamInput::readString, Settings::readSettingsFromStream);
     }
 
     /**
@@ -81,7 +76,7 @@ public class GetSettingsResponse extends ActionResponse implements ToXContentObj
      * objects contain only those settings explicitly set on a given index.  Any settings
      * taking effect as defaults must be accessed via {@link #getIndexToDefaultSettings()}.
      */
-    public ImmutableOpenMap<String, Settings> getIndexToSettings() {
+    public Map<String, Settings> getIndexToSettings() {
         return indexToSettings;
     }
 
@@ -93,7 +88,7 @@ public class GetSettingsResponse extends ActionResponse implements ToXContentObj
      * via {@link #getIndexToSettings()}.
      * See also {@link GetSettingsRequest#includeDefaults(boolean)}
      */
-    public ImmutableOpenMap<String, Settings> getIndexToDefaultSettings() {
+    public Map<String, Settings> getIndexToDefaultSettings() {
         return indexToDefaultSettings;
     }
 
@@ -185,10 +180,8 @@ public class GetSettingsResponse extends ActionResponse implements ToXContentObj
             }
         }
 
-        ImmutableOpenMap<String, Settings> settingsMap = ImmutableOpenMap.<String, Settings>builder().putAll(indexToSettings).build();
-        ImmutableOpenMap<String, Settings> defaultSettingsMap = ImmutableOpenMap.<String, Settings>builder()
-            .putAll(indexToDefaultSettings)
-            .build();
+        final Map<String, Settings> settingsMap = Collections.unmodifiableMap(indexToSettings);
+        final Map<String, Settings> defaultSettingsMap = Collections.unmodifiableMap(indexToDefaultSettings);
 
         return new GetSettingsResponse(settingsMap, defaultSettingsMap);
     }
@@ -199,7 +192,7 @@ public class GetSettingsResponse extends ActionResponse implements ToXContentObj
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             XContentBuilder builder = new XContentBuilder(JsonXContent.jsonXContent, baos);
             toXContent(builder, ToXContent.EMPTY_PARAMS, false);
-            return Strings.toString(builder);
+            return builder.toString();
         } catch (IOException e) {
             throw new IllegalStateException(e); // should not be possible here
         }
@@ -212,18 +205,18 @@ public class GetSettingsResponse extends ActionResponse implements ToXContentObj
 
     private XContentBuilder toXContent(XContentBuilder builder, Params params, boolean omitEmptySettings) throws IOException {
         builder.startObject();
-        for (ObjectObjectCursor<String, Settings> cursor : getIndexToSettings()) {
+        for (final Map.Entry<String, Settings> cursor : getIndexToSettings().entrySet()) {
             // no settings, jump over it to shorten the response data
-            if (omitEmptySettings && cursor.value.isEmpty()) {
+            if (omitEmptySettings && cursor.getValue().isEmpty()) {
                 continue;
             }
-            builder.startObject(cursor.key);
+            builder.startObject(cursor.getKey());
             builder.startObject("settings");
-            cursor.value.toXContent(builder, params);
+            cursor.getValue().toXContent(builder, params);
             builder.endObject();
             if (indexToDefaultSettings.isEmpty() == false) {
                 builder.startObject("defaults");
-                indexToDefaultSettings.get(cursor.key).toXContent(builder, params);
+                indexToDefaultSettings.get(cursor.getKey()).toXContent(builder, params);
                 builder.endObject();
             }
             builder.endObject();

@@ -33,8 +33,8 @@
 package org.opensearch.index.engine;
 
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
-import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.analysis.AnalysisRegistry;
@@ -137,7 +137,13 @@ public class TranslogHandler implements TranslogRecoveryRunner {
                 final String indexName = mapperService.index().getName();
                 final Engine.Index engineIndex = IndexShard.prepareIndex(
                     docMapper(MapperService.SINGLE_MAPPING_NAME),
-                    new SourceToParse(indexName, index.id(), index.source(), XContentHelper.xContentType(index.source()), index.routing()),
+                    new SourceToParse(
+                        indexName,
+                        index.id(),
+                        index.source(),
+                        MediaTypeRegistry.xContentType(index.source()),
+                        index.routing()
+                    ),
                     index.seqNo(),
                     index.primaryTerm(),
                     index.version(),

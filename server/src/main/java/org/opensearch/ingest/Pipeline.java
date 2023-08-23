@@ -34,6 +34,8 @@ package org.opensearch.ingest;
 
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.metrics.OperationMetrics;
+import org.opensearch.script.ScriptService;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -42,8 +44,6 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.LongSupplier;
-
-import org.opensearch.script.ScriptService;
 
 /**
  * A pipeline is a list of {@link Processor} instances grouped under a unique id.
@@ -63,7 +63,7 @@ public final class Pipeline {
     @Nullable
     private final Integer version;
     private final CompoundProcessor compoundProcessor;
-    private final IngestMetric metrics;
+    private final OperationMetrics metrics;
     private final LongSupplier relativeTimeProvider;
 
     public Pipeline(String id, @Nullable String description, @Nullable Integer version, CompoundProcessor compoundProcessor) {
@@ -82,7 +82,7 @@ public final class Pipeline {
         this.description = description;
         this.compoundProcessor = compoundProcessor;
         this.version = version;
-        this.metrics = new IngestMetric();
+        this.metrics = new OperationMetrics();
         this.relativeTimeProvider = relativeTimeProvider;
     }
 
@@ -129,12 +129,12 @@ public final class Pipeline {
      */
     public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
         final long startTimeInNanos = relativeTimeProvider.getAsLong();
-        metrics.preIngest();
+        metrics.before();
         compoundProcessor.execute(ingestDocument, (result, e) -> {
             long ingestTimeInMillis = TimeUnit.NANOSECONDS.toMillis(relativeTimeProvider.getAsLong() - startTimeInNanos);
-            metrics.postIngest(ingestTimeInMillis);
+            metrics.after(ingestTimeInMillis);
             if (e != null) {
-                metrics.ingestFailed();
+                metrics.failed();
             }
             handler.accept(result, e);
         });
@@ -198,7 +198,7 @@ public final class Pipeline {
     /**
      * The metrics associated with this pipeline.
      */
-    public IngestMetric getMetrics() {
+    public OperationMetrics getMetrics() {
         return metrics;
     }
 }

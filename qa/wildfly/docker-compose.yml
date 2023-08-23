@@ -2,7 +2,7 @@ version: '3.7'
 services:
 
   wildfly:
-    image: jboss/wildfly:18.0.1.Final
+    image: quay.io/wildfly/wildfly:28.0.1.Final-jdk11
     environment:
       JAVA_OPTS: -Dopensearch.uri=opensearch:9200 -Djboss.http.port=8080 -Djava.net.preferIPv4Stack=true
     volumes:

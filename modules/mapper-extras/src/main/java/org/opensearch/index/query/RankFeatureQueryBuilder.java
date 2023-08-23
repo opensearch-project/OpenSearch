@@ -36,15 +36,15 @@ import org.apache.lucene.document.FeatureField;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.opensearch.core.ParseField;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.ConstructingObjectParser;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.RankFeatureFieldMapper.RankFeatureFieldType;
 import org.opensearch.index.mapper.RankFeatureMetaFieldMapper;
 import org.opensearch.index.mapper.RankFeaturesFieldMapper.RankFeaturesFieldType;
-import org.opensearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
 import java.util.Arrays;

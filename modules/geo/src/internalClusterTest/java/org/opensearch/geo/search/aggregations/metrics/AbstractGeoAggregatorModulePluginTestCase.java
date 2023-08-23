@@ -8,33 +8,34 @@
 
 package org.opensearch.geo.search.aggregations.metrics;
 
-import com.carrotsearch.hppc.ObjectIntHashMap;
-import com.carrotsearch.hppc.ObjectIntMap;
-import com.carrotsearch.hppc.ObjectObjectHashMap;
-import com.carrotsearch.hppc.ObjectObjectMap;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
-import org.opensearch.common.Strings;
 import org.opensearch.common.document.DocumentField;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.geo.GeoModulePluginIntegTestCase;
+import org.opensearch.geo.search.aggregations.common.GeoBoundsHelper;
 import org.opensearch.geo.tests.common.RandomGeoGenerator;
+import org.opensearch.geo.tests.common.RandomGeoGeometryGenerator;
+import org.opensearch.geometry.Geometry;
 import org.opensearch.geometry.utils.Geohash;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.sort.SortBuilders;
 import org.opensearch.search.sort.SortOrder;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.IntStream;
 
-import static org.hamcrest.Matchers.equalTo;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResponse;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
  * This is base class for all Geo Aggregations Integration Tests. This class is similar to what we have in the server
@@ -46,6 +47,7 @@ public abstract class AbstractGeoAggregatorModulePluginTestCase extends GeoModul
 
     protected static final String SINGLE_VALUED_FIELD_NAME = "geo_value";
     protected static final String MULTI_VALUED_FIELD_NAME = "geo_values";
+    protected static final String GEO_SHAPE_FIELD_NAME = "shape";
     protected static final String NUMBER_FIELD_NAME = "l_values";
     protected static final String UNMAPPED_IDX_NAME = "idx_unmapped";
     protected static final String IDX_NAME = "idx";
@@ -57,11 +59,11 @@ public abstract class AbstractGeoAggregatorModulePluginTestCase extends GeoModul
     protected static int numDocs;
     protected static int numUniqueGeoPoints;
     protected static GeoPoint[] singleValues, multiValues;
+    protected static Geometry[] geoShapesValues;
     protected static GeoPoint singleTopLeft, singleBottomRight, multiTopLeft, multiBottomRight, singleCentroid, multiCentroid,
-        unmappedCentroid;
-    protected static ObjectIntMap<String> expectedDocCountsForGeoHash = null;
-    protected static ObjectObjectMap<String, GeoPoint> expectedCentroidsForGeoHash = null;
-    protected static final double GEOHASH_TOLERANCE = 1E-5D;
+        unmappedCentroid, geoShapeTopLeft, geoShapeBottomRight;
+    protected static Map<String, Integer> expectedDocCountsForGeoHash = null;
+    protected static Map<String, GeoPoint> expectedCentroidsForGeoHash = null;
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
@@ -75,7 +77,9 @@ public abstract class AbstractGeoAggregatorModulePluginTestCase extends GeoModul
                 NUMBER_FIELD_NAME,
                 "type=long",
                 "tag",
-                "type=keyword"
+                "type=keyword",
+                GEO_SHAPE_FIELD_NAME,
+                "type=geo_shape"
             )
         );
 
@@ -83,28 +87,34 @@ public abstract class AbstractGeoAggregatorModulePluginTestCase extends GeoModul
         singleBottomRight = new GeoPoint(Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY);
         multiTopLeft = new GeoPoint(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY);
         multiBottomRight = new GeoPoint(Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY);
+        geoShapeTopLeft = new GeoPoint(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY);
+        geoShapeBottomRight = new GeoPoint(Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY);
         singleCentroid = new GeoPoint(0, 0);
         multiCentroid = new GeoPoint(0, 0);
         unmappedCentroid = new GeoPoint(0, 0);
 
         numDocs = randomIntBetween(6, 20);
         numUniqueGeoPoints = randomIntBetween(1, numDocs);
-        expectedDocCountsForGeoHash = new ObjectIntHashMap<>(numDocs * 2);
-        expectedCentroidsForGeoHash = new ObjectObjectHashMap<>(numDocs * 2);
+        expectedDocCountsForGeoHash = new HashMap<>(numDocs * 2);
+        expectedCentroidsForGeoHash = new HashMap<>(numDocs * 2);
 
         singleValues = new GeoPoint[numUniqueGeoPoints];
         for (int i = 0; i < singleValues.length; i++) {
             singleValues[i] = RandomGeoGenerator.randomPoint(random());
-            updateBoundsTopLeft(singleValues[i], singleTopLeft);
-            updateBoundsBottomRight(singleValues[i], singleBottomRight);
+            GeoBoundsHelper.updateBoundsForGeoPoint(singleValues[i], singleTopLeft, singleBottomRight);
         }
 
         multiValues = new GeoPoint[numUniqueGeoPoints];
         for (int i = 0; i < multiValues.length; i++) {
             multiValues[i] = RandomGeoGenerator.randomPoint(random());
-            updateBoundsTopLeft(multiValues[i], multiTopLeft);
-            updateBoundsBottomRight(multiValues[i], multiBottomRight);
+            GeoBoundsHelper.updateBoundsForGeoPoint(multiValues[i], multiTopLeft, multiBottomRight);
         }
+
+        geoShapesValues = new Geometry[numDocs];
+        IntStream.range(0, numDocs).forEach(iterator -> {
+            geoShapesValues[iterator] = RandomGeoGeometryGenerator.randomGeometry(random());
+            GeoBoundsHelper.updateBoundsForGeometry(geoShapesValues[iterator], geoShapeTopLeft, geoShapeBottomRight);
+        });
 
         List<IndexRequestBuilder> builders = new ArrayList<>();
 
@@ -132,6 +142,7 @@ public abstract class AbstractGeoAggregatorModulePluginTestCase extends GeoModul
                             .endArray()
                             .field(NUMBER_FIELD_NAME, i)
                             .field("tag", "tag" + i)
+                            .field(GEO_SHAPE_FIELD_NAME, WKT.toWKT(geoShapesValues[i]))
                             .endObject()
                     )
             );
@@ -147,7 +158,9 @@ public abstract class AbstractGeoAggregatorModulePluginTestCase extends GeoModul
             );
         }
 
-        assertAcked(prepareCreate(EMPTY_IDX_NAME).setMapping(SINGLE_VALUED_FIELD_NAME, "type=geo_point"));
+        assertAcked(
+            prepareCreate(EMPTY_IDX_NAME).setMapping(SINGLE_VALUED_FIELD_NAME, "type=geo_point", GEO_SHAPE_FIELD_NAME, "type=geo_shape")
+        );
 
         assertAcked(
             prepareCreate(DATELINE_IDX_NAME).setMapping(
@@ -242,7 +255,7 @@ public abstract class AbstractGeoAggregatorModulePluginTestCase extends GeoModul
         long totalHits = response.getHits().getTotalHits().value;
         XContentBuilder builder = XContentFactory.jsonBuilder();
         response.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        logger.info("Full high_card_idx Response Content:\n{ {} }", Strings.toString(builder));
+        logger.info("Full high_card_idx Response Content:\n{ {} }", builder.toString());
         for (int i = 0; i < totalHits; i++) {
             SearchHit searchHit = response.getHits().getAt(i);
             assertThat("Hit " + i + " with id: " + searchHit.getId(), searchHit.getIndex(), equalTo("high_card_idx"));
@@ -273,23 +286,5 @@ public abstract class AbstractGeoAggregatorModulePluginTestCase extends GeoModul
         final double newLon = centroid.lon() + (location.lon() - centroid.lon()) / docCount;
         final double newLat = centroid.lat() + (location.lat() - centroid.lat()) / docCount;
         return centroid.reset(newLat, newLon);
-    }
-
-    private void updateBoundsBottomRight(GeoPoint geoPoint, GeoPoint currentBound) {
-        if (geoPoint.lat() < currentBound.lat()) {
-            currentBound.resetLat(geoPoint.lat());
-        }
-        if (geoPoint.lon() > currentBound.lon()) {
-            currentBound.resetLon(geoPoint.lon());
-        }
-    }
-
-    private void updateBoundsTopLeft(GeoPoint geoPoint, GeoPoint currentBound) {
-        if (geoPoint.lat() > currentBound.lat()) {
-            currentBound.resetLat(geoPoint.lat());
-        }
-        if (geoPoint.lon() < currentBound.lon()) {
-            currentBound.resetLon(geoPoint.lon());
-        }
     }
 }

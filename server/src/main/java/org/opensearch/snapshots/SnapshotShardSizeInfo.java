@@ -34,7 +34,9 @@ package org.opensearch.snapshots;
 
 import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.ShardRouting;
-import org.opensearch.common.collect.ImmutableOpenMap;
+
+import java.util.Collections;
+import java.util.Map;
 
 /**
  * Information about a snapshot shard size
@@ -43,12 +45,12 @@ import org.opensearch.common.collect.ImmutableOpenMap;
  */
 public class SnapshotShardSizeInfo {
 
-    public static final SnapshotShardSizeInfo EMPTY = new SnapshotShardSizeInfo(ImmutableOpenMap.of());
+    public static final SnapshotShardSizeInfo EMPTY = new SnapshotShardSizeInfo(Map.of());
 
-    private final ImmutableOpenMap<InternalSnapshotsInfoService.SnapshotShard, Long> snapshotShardSizes;
+    private final Map<InternalSnapshotsInfoService.SnapshotShard, Long> snapshotShardSizes;
 
-    public SnapshotShardSizeInfo(ImmutableOpenMap<InternalSnapshotsInfoService.SnapshotShard, Long> snapshotShardSizes) {
-        this.snapshotShardSizes = snapshotShardSizes;
+    public SnapshotShardSizeInfo(final Map<InternalSnapshotsInfoService.SnapshotShard, Long> snapshotShardSizes) {
+        this.snapshotShardSizes = Collections.unmodifiableMap(snapshotShardSizes);
     }
 
     public Long getShardSize(ShardRouting shardRouting) {

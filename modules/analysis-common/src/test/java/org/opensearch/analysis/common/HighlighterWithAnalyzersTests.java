@@ -34,8 +34,8 @@ package org.opensearch.analysis.common;
 
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.query.Operator;
 import org.opensearch.plugins.Plugin;
@@ -59,10 +59,10 @@ import static org.opensearch.search.builder.SearchSourceBuilder.highlight;
 import static org.opensearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHighlight;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
-import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 
 public class HighlighterWithAnalyzersTests extends OpenSearchIntegTestCase {
     @Override

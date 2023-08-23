@@ -60,7 +60,8 @@ public class GeoModulePlugin extends Plugin implements MapperPlugin, SearchPlugi
     }
 
     /**
-     * Registering {@link GeoBounds} aggregation on GeoPoint field.
+     * Registering {@link GeoBounds}, {@link InternalGeoHashGrid}, {@link InternalGeoTileGrid} aggregation on GeoPoint and GeoShape
+     * fields.
      */
     @Override
     public List<AggregationSpec> getAggregations() {

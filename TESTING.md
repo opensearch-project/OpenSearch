@@ -13,6 +13,7 @@ OpenSearch uses [jUnit](https://junit.org/junit5/) for testing, it also uses ran
   - [Test groups](#test-groups)
   - [Load balancing and caches](#load-balancing-and-caches)
   - [Test compatibility](#test-compatibility)
+  - [Retries](#retries)
   - [Miscellaneous](#miscellaneous)
 - [Running verification tasks](#running-verification-tasks)
 - [Testing the REST layer](#testing-the-rest-layer)
@@ -159,6 +160,10 @@ It's difficult to pick the "right" number here. Hypercores don’t count for CPU
 It is possible to provide a version that allows to adapt the tests' behaviour to older features or bugs that have been changed or fixed in the meantime.
 
     ./gradlew test -Dtests.compatibility=1.0.0
+
+## Retries
+
+The goal of tests is to be completely deterministic such that any test failure can be easily and reliably reproduced. However, the reality is that many OpenSearch integration tests have non-deterministic behavior which results in rare test failures that cannot be easily reproduced even using the same random test seed. To mitigate the pain of frequent non-reproducible test failures, limited retries have been introduced using the Gradle [test-retry](https://plugins.gradle.org/plugin/org.gradle.test-retry) plugin. The known flaky tests are explicitly listed in the test-retry configuration of the build.gradle file. This is intended as a temporary mitigation for existing flakiness, and as such new tests should not be added to the retry list. Any new addition to the retry list must provide a thorough rationale as to why adding retries is the right thing to do as opposed to fixing the underlying flakiness. Existing flaky tests are tracked in GitHub with the [Flaky Random Test Failure](https://github.com/opensearch-project/OpenSearch/issues?q=is%3Aopen+is%3Aissue+label%3A%22flaky-test%22) label.
 
 ## Miscellaneous
 

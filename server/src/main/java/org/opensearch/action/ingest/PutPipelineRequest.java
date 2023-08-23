@@ -32,12 +32,13 @@
 
 package org.opensearch.action.ingest;
 
+import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.master.AcknowledgedRequest;
-import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -54,19 +55,7 @@ public class PutPipelineRequest extends AcknowledgedRequest<PutPipelineRequest> 
 
     private String id;
     private BytesReference source;
-    private XContentType xContentType;
-
-    /**
-     * Create a new pipeline request with the id and source along with the content type of the source
-     *
-     * @deprecated use {@link #PutPipelineRequest(String, BytesReference, MediaType)} instead
-     */
-    @Deprecated
-    public PutPipelineRequest(String id, BytesReference source, XContentType xContentType) {
-        this.id = Objects.requireNonNull(id);
-        this.source = Objects.requireNonNull(source);
-        this.xContentType = Objects.requireNonNull(xContentType);
-    }
+    private MediaType mediaType;
 
     /**
      * Create a new pipeline request with the id and source along with the content type of the source
@@ -74,17 +63,18 @@ public class PutPipelineRequest extends AcknowledgedRequest<PutPipelineRequest> 
     public PutPipelineRequest(String id, BytesReference source, MediaType mediaType) {
         this.id = Objects.requireNonNull(id);
         this.source = Objects.requireNonNull(source);
-        if (mediaType instanceof XContentType == false) {
-            throw new IllegalArgumentException("PutPipelineRequest found unsupported media type [" + mediaType.getClass().getName() + "]");
-        }
-        this.xContentType = XContentType.fromMediaType(Objects.requireNonNull(mediaType));
+        this.mediaType = Objects.requireNonNull(mediaType);
     }
 
     public PutPipelineRequest(StreamInput in) throws IOException {
         super(in);
         id = in.readString();
         source = in.readBytesReference();
-        xContentType = in.readEnum(XContentType.class);
+        if (in.getVersion().onOrAfter(Version.V_2_10_0)) {
+            mediaType = in.readMediaType();
+        } else {
+            mediaType = in.readEnum(XContentType.class);
+        }
     }
 
     PutPipelineRequest() {}
@@ -102,8 +92,8 @@ public class PutPipelineRequest extends AcknowledgedRequest<PutPipelineRequest> 
         return source;
     }
 
-    public XContentType getXContentType() {
-        return xContentType;
+    public MediaType getMediaType() {
+        return mediaType;
     }
 
     @Override
@@ -111,13 +101,17 @@ public class PutPipelineRequest extends AcknowledgedRequest<PutPipelineRequest> 
         super.writeTo(out);
         out.writeString(id);
         out.writeBytesReference(source);
-        out.writeEnum(xContentType);
+        if (out.getVersion().onOrAfter(Version.V_2_10_0)) {
+            mediaType.writeTo(out);
+        } else {
+            out.writeEnum((XContentType) mediaType);
+        }
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         if (source != null) {
-            builder.rawValue(source.streamInput(), xContentType);
+            builder.rawValue(source.streamInput(), mediaType);
         } else {
             builder.startObject().endObject();
         }

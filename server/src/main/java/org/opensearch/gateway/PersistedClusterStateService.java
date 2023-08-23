@@ -31,7 +31,6 @@
 
 package org.opensearch.gateway;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -46,6 +45,7 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SerialMergeScheduler;
+import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
@@ -67,7 +67,6 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SetOnce;
-import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.bytes.RecyclingBytesStreamOutput;
 import org.opensearch.common.io.Streams;
 import org.opensearch.common.lease.Releasable;
@@ -78,18 +77,19 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
-import org.opensearch.common.util.ByteArray;
 import org.opensearch.common.util.PageCacheRecycler;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.util.ByteArray;
+import org.opensearch.core.index.Index;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.env.NodeMetadata;
-import org.opensearch.index.Index;
 
 import java.io.Closeable;
 import java.io.IOError;
@@ -448,7 +448,7 @@ public class PersistedClusterStateService {
         final SetOnce<Metadata.Builder> builderReference = new SetOnce<>();
         consumeFromType(searcher, GLOBAL_TYPE_NAME, bytes -> {
             final Metadata metadata = Metadata.Builder.fromXContent(
-                XContentFactory.xContent(XContentType.SMILE)
+                XContentType.SMILE.xContent()
                     .createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, bytes.bytes, bytes.offset, bytes.length)
             );
             logger.trace("found global metadata with last-accepted term [{}]", metadata.coordinationMetadata().term());
@@ -468,7 +468,7 @@ public class PersistedClusterStateService {
         final Set<String> indexUUIDs = new HashSet<>();
         consumeFromType(searcher, INDEX_TYPE_NAME, bytes -> {
             final IndexMetadata indexMetadata = IndexMetadata.fromXContent(
-                XContentFactory.xContent(XContentType.SMILE)
+                XContentType.SMILE.xContent()
                     .createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, bytes.bytes, bytes.offset, bytes.length)
             );
             logger.trace("found index metadata for {}", indexMetadata.getIndex());
@@ -508,12 +508,11 @@ public class PersistedClusterStateService {
                 final Bits liveDocs = leafReaderContext.reader().getLiveDocs();
                 final IntPredicate isLiveDoc = liveDocs == null ? i -> true : liveDocs::get;
                 final DocIdSetIterator docIdSetIterator = scorer.iterator();
+                final StoredFields storedFields = leafReaderContext.reader().storedFields();
                 while (docIdSetIterator.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
                     if (isLiveDoc.test(docIdSetIterator.docID())) {
                         logger.trace("processing doc {}", docIdSetIterator.docID());
-                        bytesRefConsumer.accept(
-                            leafReaderContext.reader().document(docIdSetIterator.docID()).getBinaryValue(DATA_FIELD_NAME)
-                        );
+                        bytesRefConsumer.accept(storedFields.document(docIdSetIterator.docID()).getBinaryValue(DATA_FIELD_NAME));
                     }
                 }
             }
@@ -745,8 +744,7 @@ public class PersistedClusterStateService {
                 }
 
                 final Map<String, Long> indexMetadataVersionByUUID = new HashMap<>(previouslyWrittenMetadata.indices().size());
-                for (ObjectCursor<IndexMetadata> cursor : previouslyWrittenMetadata.indices().values()) {
-                    final IndexMetadata indexMetadata = cursor.value;
+                for (final IndexMetadata indexMetadata : previouslyWrittenMetadata.indices().values()) {
                     final Long previousValue = indexMetadataVersionByUUID.putIfAbsent(
                         indexMetadata.getIndexUUID(),
                         indexMetadata.getVersion()
@@ -756,8 +754,7 @@ public class PersistedClusterStateService {
 
                 int numIndicesUpdated = 0;
                 int numIndicesUnchanged = 0;
-                for (ObjectCursor<IndexMetadata> cursor : metadata.indices().values()) {
-                    final IndexMetadata indexMetadata = cursor.value;
+                for (final IndexMetadata indexMetadata : metadata.indices().values()) {
                     final Long previousVersion = indexMetadataVersionByUUID.get(indexMetadata.getIndexUUID());
                     if (previousVersion == null || indexMetadata.getVersion() != previousVersion) {
                         logger.trace(
@@ -817,8 +814,7 @@ public class PersistedClusterStateService {
                     metadataIndexWriter.updateGlobalMetadata(globalMetadataDocument);
                 }
 
-                for (ObjectCursor<IndexMetadata> cursor : metadata.indices().values()) {
-                    final IndexMetadata indexMetadata = cursor.value;
+                for (final IndexMetadata indexMetadata : metadata.indices().values()) {
                     final Document indexMetadataDocument = makeIndexMetadataDocument(indexMetadata, documentBuffer);
                     for (MetadataIndexWriter metadataIndexWriter : metadataIndexWriters) {
                         metadataIndexWriter.updateIndexMetadataDocument(indexMetadataDocument, indexMetadata.getIndex());
@@ -925,7 +921,7 @@ public class PersistedClusterStateService {
 
             try (RecyclingBytesStreamOutput streamOutput = documentBuffer.streamOutput()) {
                 try (
-                    XContentBuilder xContentBuilder = XContentFactory.contentBuilder(
+                    XContentBuilder xContentBuilder = MediaTypeRegistry.contentBuilder(
                         XContentType.SMILE,
                         Streams.flushOnCloseStream(streamOutput)
                     )

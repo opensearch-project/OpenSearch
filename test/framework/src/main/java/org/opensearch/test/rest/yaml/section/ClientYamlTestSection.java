@@ -31,7 +31,7 @@
 
 package org.opensearch.test.rest.yaml.section;
 
-import org.opensearch.common.ParsingException;
+import org.opensearch.core.common.ParsingException;
 import org.opensearch.core.xcontent.XContentLocation;
 import org.opensearch.core.xcontent.XContentParser;
 

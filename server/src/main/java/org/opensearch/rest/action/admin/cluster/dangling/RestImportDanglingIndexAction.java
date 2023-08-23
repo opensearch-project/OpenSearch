@@ -32,21 +32,21 @@
 
 package org.opensearch.rest.action.admin.cluster.dangling;
 
-import static java.util.Collections.singletonList;
-import static org.opensearch.rest.RestRequest.Method.POST;
-import static org.opensearch.rest.RestStatus.ACCEPTED;
-
-import java.io.IOException;
-import java.util.List;
-
 import org.opensearch.action.admin.indices.dangling.import_index.ImportDanglingIndexRequest;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.logging.DeprecationLogger;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
-import org.opensearch.rest.RestStatus;
 import org.opensearch.rest.action.RestToXContentListener;
+
+import java.io.IOException;
+import java.util.List;
+
+import static java.util.Collections.singletonList;
+import static org.opensearch.core.rest.RestStatus.ACCEPTED;
+import static org.opensearch.rest.RestRequest.Method.POST;
 
 /**
  * Transport action to import dangling index

@@ -33,7 +33,6 @@
 package org.opensearch.cluster.coordination;
 
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -44,10 +43,11 @@ import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.set.Sets;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.discovery.Discovery;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.TransportException;
-import org.opensearch.transport.TransportResponse;
 
 import java.util.ArrayList;
 import java.util.Arrays;

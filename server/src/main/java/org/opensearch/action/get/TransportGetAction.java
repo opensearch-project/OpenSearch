@@ -32,25 +32,29 @@
 
 package org.opensearch.action.get;
 
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.RoutingMissingException;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.single.shard.TransportSingleShardAction;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.routing.Preference;
 import org.opensearch.cluster.routing.ShardIterator;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
-import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.get.GetResult;
 import org.opensearch.index.shard.IndexShard;
-import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Optional;
 
 /**
  * Performs the get operation.
@@ -88,16 +92,34 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
         return true;
     }
 
+    static boolean isSegmentReplicationEnabled(ClusterState state, String indexName) {
+        return Optional.ofNullable(state.getMetadata().index(indexName))
+            .map(
+                indexMetadata -> ReplicationType.parseString(indexMetadata.getSettings().get(IndexMetadata.SETTING_REPLICATION_TYPE))
+                    .equals(ReplicationType.SEGMENT)
+            )
+            .orElse(false);
+    }
+
+    /**
+     * Returns true if GET request should be routed to primary shards, else false.
+     */
+    protected static boolean shouldForcePrimaryRouting(ClusterState state, boolean realtime, String preference, String indexName) {
+        return isSegmentReplicationEnabled(state, indexName) && realtime && preference == null;
+    }
+
     @Override
     protected ShardIterator shards(ClusterState state, InternalRequest request) {
+        final String preference;
+        // route realtime GET requests when segment replication is enabled to primary shards,
+        // iff there are no other preferences/routings enabled for routing to a specific shard
+        if (shouldForcePrimaryRouting(state, request.request().realtime, request.request().preference(), request.concreteIndex())) {
+            preference = Preference.PRIMARY.type();
+        } else {
+            preference = request.request().preference();
+        }
         return clusterService.operationRouting()
-            .getShards(
-                clusterService.state(),
-                request.concreteIndex(),
-                request.request().id(),
-                request.request().routing(),
-                request.request().preference()
-            );
+            .getShards(clusterService.state(), request.concreteIndex(), request.request().id(), request.request().routing(), preference);
     }
 
     @Override

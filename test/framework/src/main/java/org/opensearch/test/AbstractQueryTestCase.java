@@ -41,26 +41,27 @@ import org.apache.lucene.search.TermQuery;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
 import org.opensearch.action.support.PlainActionFuture;
-import org.opensearch.common.ParsingException;
-import org.opensearch.common.Strings;
-import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.common.io.stream.NamedWriteableAwareStreamInput;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.Writeable.Reader;
 import org.opensearch.common.unit.Fuzziness;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.common.ParsingException;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.Writeable.Reader;
 import org.opensearch.core.xcontent.DeprecationHandler;
+import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentGenerator;
-import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.xcontent.XContentParseException;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.index.query.AbstractQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryRewriteContext;
@@ -262,7 +263,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
 
                 BytesStreamOutput out = new BytesStreamOutput();
                 try (
-                    XContentGenerator generator = XContentType.JSON.xContent().createGenerator(out);
+                    XContentGenerator generator = MediaTypeRegistry.JSON.xContent().createGenerator(out);
                     XContentParser parser = JsonXContent.jsonXContent.createParser(
                         NamedXContentRegistry.EMPTY,
                         DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
@@ -408,7 +409,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     }
 
     protected QueryBuilder parseQuery(AbstractQueryBuilder<?> builder) throws IOException {
-        BytesReference bytes = XContentHelper.toXContent(builder, XContentType.JSON, false);
+        BytesReference bytes = org.opensearch.core.xcontent.XContentHelper.toXContent(builder, MediaTypeRegistry.JSON, false);
         return parseQuery(createParser(JsonXContent.jsonXContent, bytes));
     }
 
@@ -633,11 +634,11 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     public void testValidOutput() throws IOException {
         for (int runs = 0; runs < NUMBER_OF_TESTQUERIES; runs++) {
             QB testQuery = createTestQueryBuilder();
-            XContentType xContentType = XContentType.JSON;
-            String toString = Strings.toString(XContentType.JSON, testQuery);
-            assertParsedQuery(createParser(xContentType.xContent(), toString), testQuery);
-            BytesReference bytes = XContentHelper.toXContent(testQuery, xContentType, false);
-            assertParsedQuery(createParser(xContentType.xContent(), bytes), testQuery);
+            MediaType mediaType = MediaTypeRegistry.JSON;
+            String toString = Strings.toString(MediaTypeRegistry.JSON, testQuery);
+            assertParsedQuery(createParser(mediaType.xContent(), toString), testQuery);
+            BytesReference bytes = org.opensearch.core.xcontent.XContentHelper.toXContent(testQuery, mediaType, false);
+            assertParsedQuery(createParser(mediaType.xContent(), bytes), testQuery);
         }
     }
 
@@ -784,11 +785,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         // now assert that we actually generate the same JSON
         XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
         source.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertEquals(
-            msg(expected, Strings.toString(builder)),
-            expected.replaceAll("\\s+", ""),
-            Strings.toString(builder).replaceAll("\\s+", "")
-        );
+        assertEquals(msg(expected, builder.toString()), expected.replaceAll("\\s+", ""), builder.toString().replaceAll("\\s+", ""));
     }
 
     private static String msg(String left, String right) {

@@ -36,11 +36,10 @@ import org.apache.http.util.EntityUtils;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
-import org.opensearch.common.Strings;
-import org.opensearch.common.io.stream.InputStreamStreamInput;
-import org.opensearch.common.io.stream.NamedWriteableAwareStreamInput;
-import org.opensearch.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.InputStreamStreamInput;
+import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.common.xcontent.XContentHelper;
@@ -198,7 +197,7 @@ public class QueryBuilderBWCIT extends AbstractFullClusterRestartTestCase {
             mappingsAndSettings.endObject();
             Request request = new Request("PUT", "/" + index);
             request.setOptions(allowTypesRemovalWarnings());
-            request.setJsonEntity(Strings.toString(mappingsAndSettings));
+            request.setJsonEntity(mappingsAndSettings.toString());
             Response rsp = client().performRequest(request);
             assertEquals(200, rsp.getStatusLine().getStatusCode());
 

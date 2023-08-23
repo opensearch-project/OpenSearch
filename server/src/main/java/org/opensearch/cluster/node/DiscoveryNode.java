@@ -35,12 +35,12 @@ package org.opensearch.cluster.node;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.common.UUIDs;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.transport.TransportAddress;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.node.Node;
@@ -371,7 +371,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             }
         }
         this.roles = Collections.unmodifiableSortedSet(new TreeSet<>(roles));
-        this.version = Version.readVersion(in);
+        this.version = in.readVersion();
     }
 
     @Override
@@ -414,9 +414,9 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             }
         }
         if (out.getVersion().before(Version.V_1_0_0) && version.onOrAfter(Version.V_1_0_0)) {
-            Version.writeVersion(LegacyESVersion.V_7_10_2, out);
+            out.writeVersion(LegacyESVersion.V_7_10_2);
         } else {
-            Version.writeVersion(version, out);
+            out.writeVersion(version);
         }
     }
 

@@ -37,7 +37,6 @@ import org.opensearch.geometry.LinearRing;
 import org.opensearch.geometry.MultiPolygon;
 import org.opensearch.geometry.Point;
 import org.opensearch.geometry.Polygon;
-import org.locationtech.spatial4j.exception.InvalidShapeException;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -49,9 +48,11 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.apache.lucene.geo.GeoUtils.orient;
+import org.locationtech.spatial4j.exception.InvalidShapeException;
+
 import static org.opensearch.common.geo.GeoUtils.normalizeLat;
 import static org.opensearch.common.geo.GeoUtils.normalizeLon;
+import static org.apache.lucene.geo.GeoUtils.orient;
 
 /**
  * Splits polygons by datelines.

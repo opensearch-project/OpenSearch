@@ -31,9 +31,6 @@
 
 package org.opensearch.search.aggregations.bucket.terms;
 
-import com.carrotsearch.hppc.BitMixer;
-import com.carrotsearch.hppc.LongHashSet;
-import com.carrotsearch.hppc.LongSet;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
@@ -48,10 +45,11 @@ import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 import org.opensearch.OpenSearchParseException;
+import org.opensearch.common.util.BitMixer;
 import org.opensearch.core.ParseField;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
@@ -200,15 +198,15 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
      * @opensearch.internal
      */
     public static class SetBackedLongFilter extends LongFilter {
-        private LongSet valids;
-        private LongSet invalids;
+        private Set<Long> valids;
+        private Set<Long> invalids;
 
         private SetBackedLongFilter(int numValids, int numInvalids) {
             if (numValids > 0) {
-                valids = new LongHashSet(numValids);
+                valids = new HashSet<>(numValids);
             }
             if (numInvalids > 0) {
-                invalids = new LongHashSet(numInvalids);
+                invalids = new HashSet<>(numInvalids);
             }
         }
 

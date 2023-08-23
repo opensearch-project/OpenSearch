@@ -43,12 +43,11 @@ import org.opensearch.client.Client;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.RepositoriesMetadata;
-import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.unit.ByteSizeUnit;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.util.io.IOUtils;
-import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.IndexMetaDataGenerations;
 import org.opensearch.repositories.RepositoriesService;
@@ -363,7 +362,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         Files.write(
             repo.resolve(BlobStoreRepository.INDEX_FILE_PREFIX + withoutVersions.getGenId()),
             BytesReference.toBytes(
-                BytesReference.bytes(withoutVersions.snapshotsToXContent(XContentFactory.jsonBuilder(), Version.CURRENT))
+                BytesReference.bytes(withoutVersions.snapshotsToXContent(MediaTypeRegistry.JSON.contentBuilder(), Version.CURRENT))
             ),
             StandardOpenOption.TRUNCATE_EXISTING
         );
@@ -523,7 +522,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         Files.write(
             repoPath.resolve(BlobStoreRepository.INDEX_FILE_PREFIX + repositoryData1.getGenId()),
             BytesReference.toBytes(
-                BytesReference.bytes(brokenRepoData.snapshotsToXContent(XContentFactory.jsonBuilder(), Version.CURRENT))
+                BytesReference.bytes(brokenRepoData.snapshotsToXContent(MediaTypeRegistry.JSON.contentBuilder(), Version.CURRENT))
             ),
             StandardOpenOption.TRUNCATE_EXISTING
         );

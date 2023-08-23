@@ -31,7 +31,6 @@
 
 package org.opensearch.cluster.metadata;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
@@ -147,8 +146,8 @@ public final class AutoExpandReplicas {
             int numMatchingDataNodes = 0;
             // Only start using new logic once all nodes are migrated to 7.6.0, avoiding disruption during an upgrade
             if (allocation.nodes().getMinNodeVersion().onOrAfter(LegacyESVersion.V_7_6_0)) {
-                for (ObjectCursor<DiscoveryNode> cursor : allocation.nodes().getDataNodes().values()) {
-                    Decision decision = allocation.deciders().shouldAutoExpandToNode(indexMetadata, cursor.value, allocation);
+                for (final DiscoveryNode cursor : allocation.nodes().getDataNodes().values()) {
+                    Decision decision = allocation.deciders().shouldAutoExpandToNode(indexMetadata, cursor, allocation);
                     if (decision.type() != Decision.Type.NO) {
                         numMatchingDataNodes++;
                     }

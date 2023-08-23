@@ -59,6 +59,12 @@ public class LongTermsTests extends InternalTermsTestCase {
         long minDocCount = 1;
         int requiredSize = 3;
         int shardSize = requiredSize + 2;
+        TermsAggregator.BucketCountThresholds bucketCountThresholds = new TermsAggregator.BucketCountThresholds(
+            minDocCount,
+            0,
+            requiredSize,
+            shardSize
+        );
         DocValueFormat format = randomNumericDocValueFormat();
         long otherDocCount = 0;
         List<LongTerms.Bucket> buckets = new ArrayList<>();
@@ -75,15 +81,14 @@ public class LongTermsTests extends InternalTermsTestCase {
             name,
             reduceOrder,
             order,
-            requiredSize,
-            minDocCount,
             metadata,
             format,
             shardSize,
             showTermDocCountError,
             otherDocCount,
             buckets,
-            docCountError
+            docCountError,
+            bucketCountThresholds
         );
     }
 
@@ -158,15 +163,14 @@ public class LongTermsTests extends InternalTermsTestCase {
                 name,
                 longTerms.reduceOrder,
                 order,
-                requiredSize,
-                minDocCount,
                 metadata,
                 format,
                 shardSize,
                 showTermDocCountError,
                 otherDocCount,
                 buckets,
-                docCountError
+                docCountError,
+                new TermsAggregator.BucketCountThresholds(minDocCount, 0, requiredSize, shardSize)
             );
         } else {
             String name = instance.getName();
@@ -195,7 +199,7 @@ public class LongTermsTests extends InternalTermsTestCase {
                 default:
                     throw new AssertionError("Illegal randomisation branch");
             }
-            return new UnmappedTerms(name, order, requiredSize, minDocCount, metadata);
+            return new UnmappedTerms(name, order, new TermsAggregator.BucketCountThresholds(minDocCount, 0, requiredSize, 0), metadata);
         }
     }
 }

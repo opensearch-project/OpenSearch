@@ -32,7 +32,6 @@
 
 package org.opensearch.search.aggregations.metrics;
 
-import org.HdrHistogram.DoubleHistogram;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
 import org.opensearch.common.lease.Releasables;
@@ -49,6 +48,8 @@ import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
+
+import org.HdrHistogram.DoubleHistogram;
 
 /**
  * Base aggregator for HDR percentiles agg

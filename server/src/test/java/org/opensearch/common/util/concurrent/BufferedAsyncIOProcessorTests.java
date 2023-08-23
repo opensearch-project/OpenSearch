@@ -8,14 +8,14 @@
 
 package org.opensearch.common.util.concurrent;
 
-import org.junit.After;
-import org.junit.Before;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -58,7 +58,7 @@ public class BufferedAsyncIOProcessorTests extends OpenSearchTestCase {
             scaledRandomIntBetween(1, 2024),
             threadContext,
             threadpool,
-            TimeValue.timeValueMillis(50)
+            () -> TimeValue.timeValueMillis(50)
         ) {
             @Override
             protected void write(List<Tuple<Object, Consumer<Exception>>> candidates) throws IOException {
@@ -100,7 +100,7 @@ public class BufferedAsyncIOProcessorTests extends OpenSearchTestCase {
             scaledRandomIntBetween(1, 2024),
             threadContext,
             threadpool,
-            TimeValue.timeValueMillis(100)
+            () -> TimeValue.timeValueMillis(100)
         ) {
             @Override
             protected void write(List<Tuple<Object, Consumer<Exception>>> candidates) throws IOException {
@@ -156,7 +156,7 @@ public class BufferedAsyncIOProcessorTests extends OpenSearchTestCase {
             scaledRandomIntBetween(1, 2024),
             threadContext,
             threadpool,
-            TimeValue.timeValueMillis(100)
+            () -> TimeValue.timeValueMillis(100)
         ) {
             @Override
             protected void write(List<Tuple<Object, Consumer<Exception>>> candidates) throws IOException {
@@ -220,7 +220,7 @@ public class BufferedAsyncIOProcessorTests extends OpenSearchTestCase {
             scaledRandomIntBetween(1, 2024),
             threadContext,
             threadpool,
-            TimeValue.timeValueMillis(bufferIntervalMs)
+            () -> TimeValue.timeValueMillis(bufferIntervalMs)
         ) {
             @Override
             protected void write(List<Tuple<Object, Consumer<Exception>>> candidates) throws IOException {

@@ -60,9 +60,9 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-import static org.apache.lucene.search.MultiTermQuery.CONSTANT_SCORE_REWRITE;
-import static org.apache.lucene.search.MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE;
 import static org.hamcrest.Matchers.equalTo;
+import static org.apache.lucene.search.MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE;
+import static org.apache.lucene.search.MultiTermQuery.CONSTANT_SCORE_REWRITE;
 
 public class TextFieldTypeTests extends FieldTypeTestCase {
 

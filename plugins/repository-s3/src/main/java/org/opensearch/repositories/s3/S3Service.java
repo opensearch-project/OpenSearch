@@ -32,20 +32,6 @@
 
 package org.opensearch.repositories.s3;
 
-import org.apache.http.conn.ssl.DefaultHostnameVerifier;
-import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
-import org.apache.http.protocol.HttpContext;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.opensearch.cluster.metadata.RepositoryMetadata;
-import org.opensearch.common.Nullable;
-import org.opensearch.common.Strings;
-import org.opensearch.common.SuppressForbidden;
-import org.opensearch.common.collect.MapBuilder;
-import org.opensearch.common.settings.Settings;
-import org.opensearch.repositories.s3.S3ClientSettings.IrsaCredentials;
-import org.opensearch.repositories.s3.utils.Protocol;
-import org.opensearch.repositories.s3.utils.AwsRequestSigner;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.ContainerCredentialsProvider;
@@ -72,7 +58,23 @@ import software.amazon.awssdk.services.sts.auth.StsAssumeRoleCredentialsProvider
 import software.amazon.awssdk.services.sts.auth.StsWebIdentityTokenFileCredentialsProvider;
 import software.amazon.awssdk.services.sts.model.AssumeRoleRequest;
 
+import org.apache.http.conn.ssl.DefaultHostnameVerifier;
+import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
+import org.apache.http.protocol.HttpContext;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.opensearch.cluster.metadata.RepositoryMetadata;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.SuppressForbidden;
+import org.opensearch.common.collect.MapBuilder;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.Strings;
+import org.opensearch.repositories.s3.S3ClientSettings.IrsaCredentials;
+import org.opensearch.repositories.s3.utils.AwsRequestSigner;
+import org.opensearch.repositories.s3.utils.Protocol;
+
 import javax.net.ssl.SSLContext;
+
 import java.io.Closeable;
 import java.io.IOException;
 import java.net.Authenticator;
@@ -219,7 +221,9 @@ class S3Service implements Closeable {
         // We do this because directly constructing the client is deprecated (was already deprecated in 1.1.223 too)
         // so this change removes that usage of a deprecated API.
         builder.endpointOverride(URI.create(endpoint));
-        builder.region(Region.of(clientSettings.region));
+        if (Strings.hasText(clientSettings.region)) {
+            builder.region(Region.of(clientSettings.region));
+        }
         if (clientSettings.pathStyleAccess) {
             builder.forcePathStyle(true);
         }
@@ -352,9 +356,11 @@ class S3Service implements Closeable {
         if (irsaCredentials != null) {
             logger.debug("Using IRSA credentials");
 
-            final Region region = Region.of(clientSettings.region);
             StsClient stsClient = SocketAccess.doPrivileged(() -> {
-                StsClientBuilder builder = StsClient.builder().region(region);
+                StsClientBuilder builder = StsClient.builder();
+                if (Strings.hasText(clientSettings.region)) {
+                    builder.region(Region.of(clientSettings.region));
+                }
 
                 final String stsEndpoint = System.getProperty(STS_ENDPOINT_OVERRIDE_SYSTEM_PROPERTY);
                 if (stsEndpoint != null) {

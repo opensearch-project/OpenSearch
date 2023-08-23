@@ -31,8 +31,8 @@
 
 package org.opensearch.test.rest.yaml.section;
 
-import org.opensearch.common.ParsingException;
 import org.opensearch.common.xcontent.yaml.YamlXContent;
+import org.opensearch.core.common.ParsingException;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;

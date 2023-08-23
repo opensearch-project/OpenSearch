@@ -35,13 +35,17 @@ package org.opensearch.search.aggregations.support;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.util.BytesRef;
+import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.Rounding;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.time.DateFormatter;
+import org.opensearch.geometry.Geometry;
+import org.opensearch.geometry.utils.WellKnownText;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.IndexGeoPointFieldData;
 import org.opensearch.index.fielddata.IndexNumericFieldData;
 import org.opensearch.index.fielddata.IndexOrdinalsFieldData;
+import org.opensearch.index.fielddata.plain.AbstractGeoShapeIndexFieldData;
 import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.opensearch.index.mapper.MappedFieldType;
@@ -187,6 +191,101 @@ public enum CoreValuesSourceType implements ValuesSourceType {
         @Override
         public DocValueFormat getFormatter(String format, ZoneId tz) {
             return DocValueFormat.GEOHASH;
+        }
+    },
+    GEO_SHAPE() {
+        /**
+         * Called when an aggregation is operating over a known empty set (usually because the field isn't specified), this method allows for
+         * returning a no-op implementation.  All ValuesSource should implement this method.
+         *
+         * @return - Empty specialization of the base ValuesSource
+         */
+        @Override
+        public ValuesSource getEmpty() {
+            return ValuesSource.GeoShape.EMPTY;
+        }
+
+        /**
+         * Returns the type-specific sub class for a script data source. ValuesSource that do not support scripts should throw
+         * AggregationExecutionException.  Note that this method is called when a script is
+         * operating without an underlying field.  Scripts operating over fields are handled by the script argument to getField below.
+         *
+         * @param script          - The script being wrapped
+         * @param scriptValueType - The expected output type of the script
+         * @return - Script specialization of the base ValuesSource
+         */
+        @Override
+        public ValuesSource getScript(AggregationScript.LeafFactory script, ValueType scriptValueType) {
+            throw new AggregationExecutionException(
+                String.format(Locale.ROOT, "value source of type [%s] is not supported by scripts", this.value())
+            );
+        }
+
+        /**
+         * Return a ValuesSource wrapping a field for the given type. All ValuesSource must
+         * implement this method.
+         *
+         * @param fieldContext - The field being wrapped
+         * @param script       - Optional script that might be applied over the field
+         * @return - Field specialization of the base ValuesSource
+         */
+        @Override
+        public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script) {
+            if (!(fieldContext.indexFieldData() instanceof AbstractGeoShapeIndexFieldData)) {
+                throw new IllegalArgumentException(
+                    String.format(
+                        Locale.ROOT,
+                        "Expected geo_shape type on field [%s], but got [%s]",
+                        fieldContext.field(),
+                        fieldContext.fieldType().typeName()
+                    )
+                );
+            }
+            return new ValuesSource.GeoShape.FieldData((AbstractGeoShapeIndexFieldData) fieldContext.indexFieldData());
+        }
+
+        /**
+         * Apply the given missing value to an already-constructed ValuesSource. The parameter rawMissing is
+         * the value which has been supplied by the user. We support String representation only for the
+         * rawMissing for now.
+         *
+         * @param valuesSource   - The original ValuesSource
+         * @param rawMissing     - The missing value we got from the parser, typically a string or number
+         * @param docValueFormat - The format to use for further parsing the user supplied value, e.g. a date format
+         * @param now            - Used in conjunction with the formatter, should return the current time in milliseconds
+         * @return - Wrapper over the provided ValuesSource to apply the given missing value
+         */
+        @Override
+        public ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat, LongSupplier now) {
+            // TODO: also support the structured formats of geo shapes
+            try {
+                final Geometry geometry = WellKnownText.INSTANCE.fromWKT((String) rawMissing);
+                return MissingValues.replaceMissing((ValuesSource.GeoShape) valuesSource, geometry);
+            } catch (Exception e) {
+                throw new OpenSearchParseException(
+                    String.format(Locale.ROOT, "Unable to parse the missing value [%s] provided in the input.", rawMissing),
+                    e
+                );
+            }
+        }
+
+        /**
+         * This method provides a hook for specifying a type-specific formatter. When ValuesSourceConfig can resolve a
+         * MappedFieldType, it prefers to get the formatter from there. Only when a field can't be
+         * resolved (which is to say script cases and unmapped field cases), it will fall back to calling this method on whatever
+         * ValuesSourceType it was able to resolve to.
+         *
+         * For geoshape field we may never hit this function till we have aggregations which are only geo_shape
+         * specific and not present on geo_points, as we use default CoreValueSource types for Geo based aggregations
+         * as GEOPOINT
+         *
+         * @param format - User supplied format string (Optional)
+         * @param tz     - User supplied time zone (Optional)
+         * @return - A formatter object, configured with the passed in settings if appropriate.
+         */
+        @Override
+        public DocValueFormat getFormatter(String format, ZoneId tz) {
+            return DocValueFormat.RAW;
         }
     },
     RANGE() {
@@ -360,6 +459,8 @@ public enum CoreValuesSourceType implements ValuesSourceType {
         return value();
     }
 
+    CoreValuesSourceType() {}
+
     /** List containing all members of the enumeration. */
-    public static List<ValuesSourceType> ALL_CORE = Arrays.asList(CoreValuesSourceType.values());
+    public static final List<ValuesSourceType> ALL_CORE = Arrays.asList(CoreValuesSourceType.values());
 }

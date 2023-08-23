@@ -11,10 +11,10 @@ package org.opensearch.action.admin.cluster.remotestore.restore;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
-import org.opensearch.common.Strings;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 
@@ -35,7 +35,8 @@ import static org.opensearch.action.ValidateActions.addValidationError;
 public class RestoreRemoteStoreRequest extends ClusterManagerNodeRequest<RestoreRemoteStoreRequest> implements ToXContentObject {
 
     private String[] indices = Strings.EMPTY_ARRAY;
-    private Boolean waitForCompletion;
+    private Boolean waitForCompletion = false;
+    private Boolean restoreAllShards = false;
 
     public RestoreRemoteStoreRequest() {}
 
@@ -43,6 +44,7 @@ public class RestoreRemoteStoreRequest extends ClusterManagerNodeRequest<Restore
         super(in);
         indices = in.readStringArray();
         waitForCompletion = in.readOptionalBoolean();
+        restoreAllShards = in.readOptionalBoolean();
     }
 
     @Override
@@ -50,6 +52,7 @@ public class RestoreRemoteStoreRequest extends ClusterManagerNodeRequest<Restore
         super.writeTo(out);
         out.writeStringArray(indices);
         out.writeOptionalBoolean(waitForCompletion);
+        out.writeOptionalBoolean(restoreAllShards);
     }
 
     @Override
@@ -119,6 +122,27 @@ public class RestoreRemoteStoreRequest extends ClusterManagerNodeRequest<Restore
     }
 
     /**
+     * Set the value for restoreAllShards, denoting whether to restore all shards or only unassigned shards
+     *
+     * @param restoreAllShards If true, the operation will restore all the shards of the given indices.
+     *                         If false, the operation will restore only the unassigned shards of the given indices.
+     * @return this request
+     */
+    public RestoreRemoteStoreRequest restoreAllShards(boolean restoreAllShards) {
+        this.restoreAllShards = restoreAllShards;
+        return this;
+    }
+
+    /**
+     * Returns restoreAllShards setting
+     *
+     * @return true if the operation will restore all the shards of the given indices
+     */
+    public boolean restoreAllShards() {
+        return restoreAllShards;
+    }
+
+    /**
      * Parses restore definition
      *
      * @param source restore definition
@@ -167,18 +191,21 @@ public class RestoreRemoteStoreRequest extends ClusterManagerNodeRequest<Restore
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         RestoreRemoteStoreRequest that = (RestoreRemoteStoreRequest) o;
-        return waitForCompletion == that.waitForCompletion && Arrays.equals(indices, that.indices);
+        return waitForCompletion == that.waitForCompletion
+            && restoreAllShards == that.restoreAllShards
+            && Arrays.equals(indices, that.indices);
     }
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(waitForCompletion);
+        int result = Objects.hash(waitForCompletion, restoreAllShards);
         result = 31 * result + Arrays.hashCode(indices);
         return result;
     }
 
     @Override
     public String toString() {
-        return Strings.toString(XContentType.JSON, this);
+        return Strings.toString(MediaTypeRegistry.JSON, this);
     }
+
 }

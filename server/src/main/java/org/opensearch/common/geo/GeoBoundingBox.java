@@ -33,9 +33,9 @@ package org.opensearch.common.geo;
 
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.core.ParseField;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
@@ -79,8 +79,8 @@ public class GeoBoundingBox implements ToXContentObject, Writeable {
     }
 
     public GeoBoundingBox(StreamInput input) throws IOException {
-        this.topLeft = input.readGeoPoint();
-        this.bottomRight = input.readGeoPoint();
+        this.topLeft = new GeoPoint(input);
+        this.bottomRight = new GeoPoint(input);
     }
 
     public boolean isUnbounded() {
@@ -164,8 +164,8 @@ public class GeoBoundingBox implements ToXContentObject, Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeGeoPoint(topLeft);
-        out.writeGeoPoint(bottomRight);
+        topLeft.writeTo(out);
+        bottomRight.writeTo(out);
     }
 
     @Override

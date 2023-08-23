@@ -33,8 +33,6 @@
 package org.opensearch.rest.action.cat;
 
 import org.opensearch.OpenSearchParseException;
-import org.opensearch.action.ActionListener;
-import org.opensearch.action.ActionResponse;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.cluster.state.ClusterStateRequest;
@@ -51,11 +49,13 @@ import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.cluster.health.ClusterIndexHealth;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.common.Strings;
 import org.opensearch.common.Table;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.action.ActionResponse;
+import org.opensearch.core.common.Strings;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
@@ -71,6 +71,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.Spliterators;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -286,8 +287,10 @@ public class RestIndicesAction extends AbstractCatAction {
             public void onResponse(final Collection<ActionResponse> responses) {
                 try {
                     GetSettingsResponse settingsResponse = extractResponse(responses, GetSettingsResponse.class);
-                    Map<String, Settings> indicesSettings = StreamSupport.stream(settingsResponse.getIndexToSettings().spliterator(), false)
-                        .collect(Collectors.toMap(cursor -> cursor.key, cursor -> cursor.value));
+                    Map<String, Settings> indicesSettings = StreamSupport.stream(
+                        Spliterators.spliterator(settingsResponse.getIndexToSettings().entrySet(), 0),
+                        false
+                    ).collect(Collectors.toMap(cursor -> cursor.getKey(), cursor -> cursor.getValue()));
 
                     ClusterStateResponse stateResponse = extractResponse(responses, ClusterStateResponse.class);
                     Map<String, IndexMetadata> indicesStates = StreamSupport.stream(

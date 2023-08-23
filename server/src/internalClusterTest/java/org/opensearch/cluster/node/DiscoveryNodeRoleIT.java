@@ -38,7 +38,6 @@ import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
-
 import org.hamcrest.Matcher;
 
 import java.util.Collection;
@@ -46,13 +45,13 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
-import static org.hamcrest.Matchers.startsWith;
 import static org.opensearch.test.NodeRoles.addRoles;
 import static org.opensearch.test.NodeRoles.onlyRole;
 import static org.opensearch.test.NodeRoles.removeRoles;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.startsWith;
 
 public class DiscoveryNodeRoleIT extends OpenSearchIntegTestCase {
 

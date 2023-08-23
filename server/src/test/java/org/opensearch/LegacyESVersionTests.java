@@ -19,15 +19,15 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
+import static org.opensearch.LegacyESVersion.V_7_0_0;
+import static org.opensearch.VersionTests.isCompatible;
+import static org.opensearch.test.VersionUtils.randomLegacyVersion;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.sameInstance;
-import static org.opensearch.LegacyESVersion.V_7_0_0;
-import static org.opensearch.test.VersionUtils.randomLegacyVersion;
-import static org.opensearch.VersionTests.isCompatible;
 
 /**
  * tests LegacyESVersion utilities.
@@ -114,7 +114,7 @@ public class LegacyESVersionTests extends OpenSearchTestCase {
     }
 
     public void testVersionNoPresentInSettings() {
-        Exception e = expectThrows(IllegalStateException.class, () -> LegacyESVersion.indexCreated(Settings.builder().build()));
+        Exception e = expectThrows(IllegalStateException.class, () -> IndexMetadata.indexCreated(Settings.builder().build()));
         assertThat(e.getMessage(), containsString("[index.version.created] is not present"));
     }
 
@@ -123,7 +123,7 @@ public class LegacyESVersionTests extends OpenSearchTestCase {
         final LegacyESVersion version = (LegacyESVersion) LegacyESVersion.fromId(6000026);
         assertEquals(
             version,
-            LegacyESVersion.indexCreated(
+            IndexMetadata.indexCreated(
                 Settings.builder().put(IndexMetadata.SETTING_INDEX_UUID, "foo").put(IndexMetadata.SETTING_VERSION_CREATED, version).build()
             )
         );

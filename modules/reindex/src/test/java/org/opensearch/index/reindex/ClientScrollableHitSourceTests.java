@@ -33,9 +33,7 @@
 package org.opensearch.index.reindex;
 
 import org.apache.lucene.search.TotalHits;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRequest;
-import org.opensearch.action.ActionResponse;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.bulk.BackoffPolicy;
 import org.opensearch.action.search.SearchAction;
@@ -45,14 +43,16 @@ import org.opensearch.action.search.SearchScrollAction;
 import org.opensearch.action.search.SearchScrollRequest;
 import org.opensearch.client.ParentTaskAssigningClient;
 import org.opensearch.client.support.AbstractClient;
-import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.action.ActionResponse;
+import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
+import org.opensearch.core.tasks.TaskId;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
 import org.opensearch.search.internal.InternalSearchResponse;
-import org.opensearch.tasks.TaskId;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
@@ -69,9 +69,9 @@ import java.util.function.Function;
 import java.util.stream.IntStream;
 
 import static java.util.Collections.emptyMap;
-import static org.apache.lucene.tests.util.TestUtil.randomSimpleString;
 import static org.opensearch.common.unit.TimeValue.timeValueSeconds;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.apache.lucene.tests.util.TestUtil.randomSimpleString;
 
 public class ClientScrollableHitSourceTests extends OpenSearchTestCase {
 
