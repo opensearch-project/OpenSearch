@@ -17,10 +17,6 @@ import org.opensearch.test.telemetry.tracing.MockTracingTelemetry;
 import org.junit.Assert;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -108,26 +104,12 @@ public class DefaultTracerTests extends OpenSearchTestCase {
         Assert.assertEquals(parentSpan.getSpan(), defaultTracer.getCurrentSpan().getSpan().getParentSpan());
     }
 
-    public void testHttpTracer() {
-        String traceId = "trace_id";
-        String spanId = "span_id";
-        TracingTelemetry tracingTelemetry = new MockTracingTelemetry();
-
-        DefaultTracer defaultTracer = new DefaultTracer(
-            tracingTelemetry,
-            new ThreadContextBasedTracerContextStorage(new ThreadContext(Settings.EMPTY), tracingTelemetry)
-        );
-
-        Map<String, List<String>> requestHeaders = new HashMap<>();
-        requestHeaders.put("traceparent", Arrays.asList(traceId + "~" + spanId));
-
-        SpanScope spanScope = defaultTracer.startSpan("test_span", requestHeaders, Attributes.EMPTY);
-        SpanContext currentSpan = defaultTracer.getCurrentSpan();
-        assertNotNull(currentSpan);
-        assertEquals(traceId, currentSpan.getSpan().getTraceId());
-        assertEquals(traceId, currentSpan.getSpan().getParentSpan().getTraceId());
-        assertEquals(spanId, currentSpan.getSpan().getParentSpan().getSpanId());
-        spanScope.close();
+    public void testCreateSpanWithContext() {
+        DefaultTracer defaultTracer = new DefaultTracer(mockTracingTelemetry, mockTracerContextStorage);
+        Attributes attributes = Attributes.create().addAttribute("name", "value");
+        when(mockTracingTelemetry.createSpan("span_name", mockParentSpan, attributes)).thenReturn(mockSpan);
+        defaultTracer.startSpan(new Context("span_name", attributes));
+        verify(mockTracingTelemetry).createSpan("span_name", mockParentSpan, attributes);
     }
 
     public void testCreateSpanWithNullParent() {
@@ -137,7 +119,7 @@ public class DefaultTracerTests extends OpenSearchTestCase {
             new ThreadContextBasedTracerContextStorage(new ThreadContext(Settings.EMPTY), tracingTelemetry)
         );
 
-        defaultTracer.startSpan("span_name");
+        defaultTracer.startSpan("span_name", null, Attributes.EMPTY);
 
         Assert.assertEquals("span_name", defaultTracer.getCurrentSpan().getSpan().getSpanName());
         Assert.assertEquals(null, defaultTracer.getCurrentSpan().getSpan().getParentSpan());
