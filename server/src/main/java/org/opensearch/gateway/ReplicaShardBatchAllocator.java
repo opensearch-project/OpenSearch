@@ -224,6 +224,7 @@ public abstract class ReplicaShardBatchAllocator extends BaseGatewayShardAllocat
                 // Note, this is the existing behavior, as exposed in running CorruptFileTest#testNoPrimaryData
                 logger.trace("{}: no primary shard store found or allocated, letting actual allocation figure it out", unassignedShard);
                 shardAllocationDecisions.put(unassignedShard, AllocateUnassignedDecision.NOT_TAKEN);
+                continue;
             }
 
             // find the matching nodes
@@ -257,7 +258,6 @@ public abstract class ReplicaShardBatchAllocator extends BaseGatewayShardAllocat
                     );
                     // we are throttling this, as we have enough other shards to allocate to this node, so ignore it for now
                     shardAllocationDecisions.put(unassignedShard, AllocateUnassignedDecision.throttle(nodeDecisions));
-                    continue;
                 } else {
                     logger.debug(
                         "[{}][{}]: allocating [{}] to [{}] in order to reuse its unallocated persistent store",
@@ -268,8 +268,8 @@ public abstract class ReplicaShardBatchAllocator extends BaseGatewayShardAllocat
                     );
                     // we found a match
                     shardAllocationDecisions.put(unassignedShard, AllocateUnassignedDecision.yes(nodeWithHighestMatch.node(), null, nodeDecisions, true));
-                    continue;
                 }
+                continue;
             } else if (matchingNodes.hasAnyData() == false && unassignedShard.unassignedInfo().isDelayed()) {
                 // if we didn't manage to find *any* data (regardless of matching sizes), and the replica is
                 // unassigned due to a node leaving, so we delay allocation of this replica to see if the
@@ -286,6 +286,7 @@ public abstract class ReplicaShardBatchAllocator extends BaseGatewayShardAllocat
                     remainingDelayMillis = TimeValue.timeValueNanos(remainingDelayNanos).millis();
                 }
                 shardAllocationDecisions.put(unassignedShard, AllocateUnassignedDecision.delayed(remainingDelayMillis, totalDelayMillis, nodeDecisions));
+                continue;
             }
 
             shardAllocationDecisions.put(unassignedShard, AllocateUnassignedDecision.NOT_TAKEN);
