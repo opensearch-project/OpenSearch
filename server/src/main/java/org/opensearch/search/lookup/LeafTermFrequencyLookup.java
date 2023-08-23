@@ -36,6 +36,12 @@ public class LeafTermFrequencyLookup {
     }
 
     public Object getTermFrequency(TermFrequencyFunctionName functionName, String field, String val, int docId) throws IOException {
+        TermFrequencyFunction termFrequencyFunction = getOrCreateTermFrequencyFunction(functionName, field, val);
+        return termFrequencyFunction.execute(docId);
+    }
+
+    private TermFrequencyFunction getOrCreateTermFrequencyFunction(TermFrequencyFunctionName functionName, String field, String val)
+        throws IOException {
         String cacheKey = (val == null)
             ? String.format(Locale.ROOT, "%s-%s", functionName, field)
             : String.format(Locale.ROOT, "%s-%s-%s", functionName, field, val);
@@ -51,6 +57,6 @@ public class LeafTermFrequencyLookup {
             termFreqCache.put(cacheKey, termFrequencyFunction);
         }
 
-        return termFreqCache.get(cacheKey).execute(docId);
+        return termFreqCache.get(cacheKey);
     }
 }
