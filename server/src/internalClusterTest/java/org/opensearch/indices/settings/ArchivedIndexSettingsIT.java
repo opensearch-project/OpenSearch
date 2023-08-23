@@ -18,6 +18,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.startsWith;
 
@@ -48,12 +49,26 @@ public class ArchivedIndexSettingsIT extends OpenSearchIntegTestCase {
         internalCluster().restartNode(newClusterManagerNode);
 
         // Verify that archived settings exists.
-        assertTrue(
-            client().admin().indices().prepareGetSettings("test").get().getIndexToSettings().get("test").hasValue("archived.index.dummy")
-        );
-        assertTrue(
-            client().admin().indices().prepareGetSettings("test").get().getIndexToSettings().get("test").hasValue("archived.index.dummy2")
-        );
+        assertBusy(() -> {
+            assertTrue(
+                client().admin()
+                    .indices()
+                    .prepareGetSettings("test")
+                    .get()
+                    .getIndexToSettings()
+                    .get("test")
+                    .hasValue("archived.index.dummy")
+            );
+            assertTrue(
+                client().admin()
+                    .indices()
+                    .prepareGetSettings("test")
+                    .get()
+                    .getIndexToSettings()
+                    .get("test")
+                    .hasValue("archived.index.dummy2")
+            );
+        }, 30, TimeUnit.SECONDS);
 
         // Archived setting update should fail on open index.
         IllegalArgumentException exception = expectThrows(
