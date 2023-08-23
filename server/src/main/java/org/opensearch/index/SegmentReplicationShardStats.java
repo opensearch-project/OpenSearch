@@ -30,6 +30,7 @@ public class SegmentReplicationShardStats implements Writeable, ToXContentFragme
     private final long checkpointsBehindCount;
     private final long bytesBehindCount;
     private final long currentReplicationTimeMillis;
+    private final long currentReplicationLagMillis;
     private final long lastCompletedReplicationTimeMillis;
 
     @Nullable
@@ -40,12 +41,14 @@ public class SegmentReplicationShardStats implements Writeable, ToXContentFragme
         long checkpointsBehindCount,
         long bytesBehindCount,
         long currentReplicationTimeMillis,
+        long currentReplicationLagMillis,
         long lastCompletedReplicationTime
     ) {
         this.allocationId = allocationId;
         this.checkpointsBehindCount = checkpointsBehindCount;
         this.bytesBehindCount = bytesBehindCount;
         this.currentReplicationTimeMillis = currentReplicationTimeMillis;
+        this.currentReplicationLagMillis = currentReplicationLagMillis;
         this.lastCompletedReplicationTimeMillis = lastCompletedReplicationTime;
     }
 
@@ -55,6 +58,7 @@ public class SegmentReplicationShardStats implements Writeable, ToXContentFragme
         this.bytesBehindCount = in.readVLong();
         this.currentReplicationTimeMillis = in.readVLong();
         this.lastCompletedReplicationTimeMillis = in.readVLong();
+        this.currentReplicationLagMillis = in.readVLong();
     }
 
     public String getAllocationId() {
@@ -71,6 +75,11 @@ public class SegmentReplicationShardStats implements Writeable, ToXContentFragme
 
     public long getCurrentReplicationTimeMillis() {
         return currentReplicationTimeMillis;
+    }
+
+    // TODO: Add java docs to compare both.
+    public long getCurrentReplicationLagMillis() {
+        return currentReplicationLagMillis;
     }
 
     public long getLastCompletedReplicationTimeMillis() {
@@ -93,6 +102,7 @@ public class SegmentReplicationShardStats implements Writeable, ToXContentFragme
         builder.field("checkpoints_behind", checkpointsBehindCount);
         builder.field("bytes_behind", new ByteSizeValue(bytesBehindCount).toString());
         builder.field("current_replication_time", new TimeValue(currentReplicationTimeMillis));
+        builder.field("current_replication_lag", new TimeValue(currentReplicationLagMillis));
         builder.field("last_completed_replication_time", new TimeValue(lastCompletedReplicationTimeMillis));
         if (currentReplicationState != null) {
             builder.startObject();
@@ -110,6 +120,7 @@ public class SegmentReplicationShardStats implements Writeable, ToXContentFragme
         out.writeVLong(bytesBehindCount);
         out.writeVLong(currentReplicationTimeMillis);
         out.writeVLong(lastCompletedReplicationTimeMillis);
+        out.writeVLong(currentReplicationLagMillis);
     }
 
     @Override
@@ -121,6 +132,8 @@ public class SegmentReplicationShardStats implements Writeable, ToXContentFragme
             + checkpointsBehindCount
             + ", bytesBehindCount="
             + bytesBehindCount
+            + ", currentReplicationLagMillis="
+            + currentReplicationLagMillis
             + ", currentReplicationTimeMillis="
             + currentReplicationTimeMillis
             + ", lastCompletedReplicationTimeMillis="
