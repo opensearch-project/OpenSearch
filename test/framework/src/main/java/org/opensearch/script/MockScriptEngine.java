@@ -33,6 +33,7 @@
 package org.opensearch.script;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Scorable;
 import org.opensearch.index.query.IntervalFilterScript;
 import org.opensearch.index.similarity.ScriptedSimilarity.Doc;
@@ -624,7 +625,7 @@ public class MockScriptEngine implements ScriptEngine {
         }
 
         @Override
-        public ScoreScript.LeafFactory newFactory(Map<String, Object> params, SearchLookup lookup) {
+        public ScoreScript.LeafFactory newFactory(Map<String, Object> params, SearchLookup lookup, IndexSearcher indexSearcher) {
             return new ScoreScript.LeafFactory() {
                 @Override
                 public boolean needs_score() {
@@ -634,7 +635,7 @@ public class MockScriptEngine implements ScriptEngine {
                 @Override
                 public ScoreScript newInstance(LeafReaderContext ctx) throws IOException {
                     Scorable[] scorerHolder = new Scorable[1];
-                    return new ScoreScript(params, lookup, ctx) {
+                    return new ScoreScript(params, lookup, indexSearcher, ctx) {
                         @Override
                         public double execute(ExplanationHolder explanation) {
                             Map<String, Object> vars = new HashMap<>(getParams());
