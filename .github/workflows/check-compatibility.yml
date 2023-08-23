@@ -5,7 +5,7 @@ on:
   pull_request_target
 
 jobs:
-  build:
+  check-compatibility:
     if: github.repository == 'opensearch-project/OpenSearch'
     permissions:
       contents: read
@@ -33,7 +33,7 @@ jobs:
           path: ${{ github.workspace }}/results.txt
 
   add-comment:
-    needs: [build]
+    needs: [check-compatibility]
     permissions:
       pull-requests: write
     runs-on: ubuntu-latest
@@ -42,6 +42,7 @@ jobs:
         uses: actions/download-artifact@v3
         with:
           name: results.txt
+
       - name: Add comment on the PR
         uses: peter-evans/create-or-update-comment@v3
         with:
