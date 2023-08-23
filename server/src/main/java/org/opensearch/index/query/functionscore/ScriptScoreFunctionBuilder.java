@@ -114,7 +114,7 @@ public class ScriptScoreFunctionBuilder extends ScoreFunctionBuilder<ScriptScore
     protected ScoreFunction doToFunction(QueryShardContext context) {
         try {
             ScoreScript.Factory factory = context.compile(script, ScoreScript.CONTEXT);
-            ScoreScript.LeafFactory searchScript = factory.newFactory(script.getParams(), context.lookup());
+            ScoreScript.LeafFactory searchScript = factory.newFactory(script.getParams(), context.lookup(), context.searcher());
             return new ScriptScoreFunction(
                 script,
                 searchScript,
