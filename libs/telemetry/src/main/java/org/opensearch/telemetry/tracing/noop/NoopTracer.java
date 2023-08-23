@@ -12,6 +12,7 @@ import org.opensearch.telemetry.tracing.SpanContext;
 import org.opensearch.telemetry.tracing.SpanScope;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.telemetry.tracing.attributes.Attributes;
+import org.opensearch.telemetry.tracing.http.HttpHeader;
 
 /**
  * No-op implementation of Tracer
@@ -50,5 +51,10 @@ public class NoopTracer implements Tracer {
     @Override
     public void close() {
 
+    }
+
+    @Override
+    public SpanScope startSpan(String spanName, HttpHeader header, Attributes attributes) {
+        return SpanScope.NO_OP;
     }
 }

@@ -14,6 +14,10 @@ package org.opensearch.telemetry.tracing;
  */
 public final class SpanContext {
     private final Span span;
+    /**
+     * Empty {@link SpanContext}
+     */
+    public static final SpanContext EMPTY = new SpanContext(null);
 
     /**
      * Constructor.
