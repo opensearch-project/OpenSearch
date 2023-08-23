@@ -12,6 +12,7 @@ import org.apache.logging.log4j.core.util.Throwables;
 import org.opensearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.concurrent.ExecutionException;
@@ -20,6 +21,11 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST)
 public class CodecCompressionLevelIT extends OpenSearchIntegTestCase {
+
+    @Override
+    protected Settings featureFlagSettings() {
+        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.ZSTD_COMPRESSION, "true").build();
+    }
 
     public void testLuceneCodecsCreateIndexWithCompressionLevel() {
 

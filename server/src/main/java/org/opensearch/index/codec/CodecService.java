@@ -37,7 +37,9 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.lucene95.Lucene95Codec;
 import org.apache.lucene.codecs.lucene95.Lucene95Codec.Mode;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.collect.MapBuilder;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.codec.customcodecs.ZstdCodec;
 import org.opensearch.index.codec.customcodecs.ZstdNoDictCodec;
@@ -67,7 +69,9 @@ public class CodecService {
      * the raw unfiltered lucene default. useful for testing
      */
     public static final String LUCENE_DEFAULT_CODEC = "lucene_default";
+    @ExperimentalApi
     public static final String ZSTD_CODEC = "zstd";
+    @ExperimentalApi
     public static final String ZSTD_NO_DICT_CODEC = "zstd_no_dict";
 
     public CodecService(@Nullable MapperService mapperService, IndexSettings indexSettings, Logger logger) {
@@ -79,15 +83,19 @@ public class CodecService {
             codecs.put(LZ4, new Lucene95Codec());
             codecs.put(BEST_COMPRESSION_CODEC, new Lucene95Codec(Mode.BEST_COMPRESSION));
             codecs.put(ZLIB, new Lucene95Codec(Mode.BEST_COMPRESSION));
-            codecs.put(ZSTD_CODEC, new ZstdCodec(compressionLevel));
-            codecs.put(ZSTD_NO_DICT_CODEC, new ZstdNoDictCodec(compressionLevel));
+            if (FeatureFlags.isEnabled(FeatureFlags.ZSTD_COMPRESSION)) {
+                codecs.put(ZSTD_CODEC, new ZstdCodec(compressionLevel));
+                codecs.put(ZSTD_NO_DICT_CODEC, new ZstdNoDictCodec(compressionLevel));
+            }
         } else {
             codecs.put(DEFAULT_CODEC, new PerFieldMappingPostingFormatCodec(Mode.BEST_SPEED, mapperService, logger));
             codecs.put(LZ4, new PerFieldMappingPostingFormatCodec(Mode.BEST_SPEED, mapperService, logger));
             codecs.put(BEST_COMPRESSION_CODEC, new PerFieldMappingPostingFormatCodec(Mode.BEST_COMPRESSION, mapperService, logger));
             codecs.put(ZLIB, new PerFieldMappingPostingFormatCodec(Mode.BEST_COMPRESSION, mapperService, logger));
-            codecs.put(ZSTD_CODEC, new ZstdCodec(mapperService, logger, compressionLevel));
-            codecs.put(ZSTD_NO_DICT_CODEC, new ZstdNoDictCodec(mapperService, logger, compressionLevel));
+            if (FeatureFlags.isEnabled(FeatureFlags.ZSTD_COMPRESSION)) {
+                codecs.put(ZSTD_CODEC, new ZstdCodec(mapperService, logger, compressionLevel));
+                codecs.put(ZSTD_NO_DICT_CODEC, new ZstdNoDictCodec(mapperService, logger, compressionLevel));
+            }
         }
         codecs.put(LUCENE_DEFAULT_CODEC, Codec.getDefault());
         for (String codec : Codec.availableCodecs()) {

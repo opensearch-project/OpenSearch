@@ -45,6 +45,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.unit.MemorySizeValue;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
@@ -133,9 +134,17 @@ public final class EngineConfig {
             case "lz4":
             case "best_compression":
             case "zlib":
+            case "lucene_default":
+                return s;
             case "zstd":
             case "zstd_no_dict":
-            case "lucene_default":
+                if (FeatureFlags.isEnabled(FeatureFlags.ZSTD_COMPRESSION) == false) {
+                    throw new IllegalArgumentException(
+                        "ZStandard must be enabled via [opensearch.experimental.feature.compression.zstd.enabled] feature flag to set "
+                            + s
+                            + " codec."
+                    );
+                }
                 return s;
             default:
                 if (Codec.availableCodecs().contains(s) == false) { // we don't error message the not officially supported ones
@@ -183,6 +192,11 @@ public final class EngineConfig {
         switch (codec) {
             case "zstd":
             case "zstd_no_dict":
+                if (FeatureFlags.isEnabled(FeatureFlags.ZSTD_COMPRESSION) == false) {
+                    throw new IllegalArgumentException(
+                        "ZStandard must be enabled via [opensearch.experimental.feature.compression.zstd.enabled] feature flag to set compression level."
+                    );
+                }
                 return;
             case "best_compression":
             case "zlib":

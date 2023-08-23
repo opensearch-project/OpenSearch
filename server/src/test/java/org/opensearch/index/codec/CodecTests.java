@@ -45,6 +45,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.LuceneTestCase.SuppressCodecs;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.env.Environment;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.IndexAnalyzers;
@@ -55,8 +56,10 @@ import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.similarity.SimilarityService;
 import org.opensearch.indices.mapper.MapperRegistry;
 import org.opensearch.plugins.MapperPlugin;
+import org.opensearch.test.FeatureFlagSetter;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.OpenSearchTestCase;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -66,6 +69,11 @@ import static org.hamcrest.Matchers.instanceOf;
 
 @SuppressCodecs("*") // we test against default codec so never get a random one here!
 public class CodecTests extends OpenSearchTestCase {
+
+    @Before
+    public void enableZstd() {
+        FeatureFlagSetter.set(FeatureFlags.ZSTD_COMPRESSION);
+    }
 
     public void testResolveDefaultCodecs() throws Exception {
         CodecService codecService = createCodecService(false);
@@ -146,6 +154,20 @@ public class CodecTests extends OpenSearchTestCase {
 
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> indexScopedSettings.validate(settings, true));
         assertTrue(e.getMessage().startsWith("Compression level cannot be set"));
+    }
+
+    public void testZstdFeatureFlag() {
+        FeatureFlagSetter.clear();
+        final Settings zstdSettings = Settings.builder()
+            .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), randomFrom(CodecService.ZSTD_CODEC, CodecService.ZSTD_NO_DICT_CODEC))
+            .build();
+
+        IndexScopedSettings zstdIndexScopedSettings = new IndexScopedSettings(zstdSettings, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> zstdIndexScopedSettings.validate(zstdSettings, true)
+        );
+        assertTrue(e.getMessage().startsWith("ZStandard must be enabled via"));
     }
 
     public void testLuceneCodecsWithCompressionLevel() {

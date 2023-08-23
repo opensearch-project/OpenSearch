@@ -37,6 +37,7 @@ public class FeatureFlagSettings extends AbstractScopedSettings {
             Arrays.asList(
                 FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL_SETTING,
                 FeatureFlags.REMOTE_STORE_SETTING,
+                FeatureFlags.ZSTD_COMPRESSION_SETTING,
                 FeatureFlags.EXTENSIONS_SETTING,
                 FeatureFlags.IDENTITY_SETTING,
                 FeatureFlags.CONCURRENT_SEGMENT_SEARCH_SETTING,
