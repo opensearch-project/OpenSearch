@@ -1172,10 +1172,8 @@ public class StoreTests extends OpenSearchTestCase {
         Store store = new Store(shardId, INDEX_SETTINGS, new NIOFSDirectory(createTempDir()), new DummyShardLock(shardId));
         store.createEmpty(Version.LATEST);
         SegmentInfos segmentInfos = Lucene.readSegmentInfos(store.directory());
-        assertEquals("-1", segmentInfos.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
-        assertEquals("-1", segmentInfos.getUserData().get(SequenceNumbers.MAX_SEQ_NO));
-        assertEquals("-1", segmentInfos.getUserData().get(Engine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID));
         assertFalse(segmentInfos.getUserData().containsKey(Translog.TRANSLOG_UUID_KEY));
+        testDefaultUserData(segmentInfos);
         store.close();
     }
 
@@ -1185,9 +1183,7 @@ public class StoreTests extends OpenSearchTestCase {
         store.createEmpty(Version.LATEST, "dummy-translog-UUID");
         SegmentInfos segmentInfos = Lucene.readSegmentInfos(store.directory());
         assertEquals("dummy-translog-UUID", segmentInfos.getUserData().get(Translog.TRANSLOG_UUID_KEY));
-        assertEquals("-1", segmentInfos.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
-        assertEquals("-1", segmentInfos.getUserData().get(SequenceNumbers.MAX_SEQ_NO));
-        assertEquals("-1", segmentInfos.getUserData().get(Engine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID));
+        testDefaultUserData(segmentInfos);
         store.close();
     }
 
@@ -1197,10 +1193,14 @@ public class StoreTests extends OpenSearchTestCase {
         store.createEmpty(Version.LATEST, null);
         SegmentInfos segmentInfos = Lucene.readSegmentInfos(store.directory());
         assertFalse(segmentInfos.getUserData().containsKey(Translog.TRANSLOG_UUID_KEY));
+        testDefaultUserData(segmentInfos);
+        store.close();
+    }
+
+    private void testDefaultUserData(SegmentInfos segmentInfos) {
         assertEquals("-1", segmentInfos.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
         assertEquals("-1", segmentInfos.getUserData().get(SequenceNumbers.MAX_SEQ_NO));
         assertEquals("-1", segmentInfos.getUserData().get(Engine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID));
-        store.close();
     }
 
     public void testGetSegmentMetadataMap() throws IOException {

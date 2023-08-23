@@ -129,7 +129,6 @@ public class RemoteStoreRestoreIT extends RemoteStoreBaseIntegTestCase {
      * Simulates all data restored using Remote Translog Store.
      * @throws IOException IO Exception.
      */
-    // @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/6188")
     @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/8479")
     public void testRTSRestoreWithNoDataPostCommitPrimaryReplicaDown() throws IOException {
         testRestoreFlowBothPrimaryReplicasDown(1, true, randomIntBetween(1, 5));
