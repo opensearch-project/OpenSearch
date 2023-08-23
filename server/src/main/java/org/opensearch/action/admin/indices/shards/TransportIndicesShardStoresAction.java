@@ -196,7 +196,7 @@ public class TransportIndicesShardStoresAction extends TransportClusterManagerNo
             } else {
                 for (Tuple<ShardId, String> shard : shards) {
                     InternalAsyncFetch fetch = new InternalAsyncFetch(logger, "shard_stores", shard.v1(), shard.v2(), listShardStoresInfo);
-                    fetch.fetchData(nodes, Collections.<String>emptySet());
+                    fetch.fetchData(nodes, Collections.emptyMap());
                 }
             }
         }
@@ -224,7 +224,7 @@ public class TransportIndicesShardStoresAction extends TransportClusterManagerNo
                 List<FailedNodeException> failures,
                 long fetchingRound
             ) {
-                fetchResponses.add(new Response(shardId, responses, failures));
+                fetchResponses.add(new Response(shardToCustomDataPath.keySet().iterator().next(), responses, failures));
                 if (expectedOps.countDown()) {
                     finish();
                 }
@@ -314,7 +314,7 @@ public class TransportIndicesShardStoresAction extends TransportClusterManagerNo
             }
 
             @Override
-            protected void reroute(ShardId shardId, String reason) {
+            protected void reroute(String shardId, String reason) {
                 // no-op
             }
 
