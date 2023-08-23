@@ -48,8 +48,6 @@ import org.opensearch.threadpool.ThreadPool;
  * @opensearch.internal
  */
 final class RemoteClusterAwareClient extends AbstractClient {
-
-    private static final String SPAN_NAME_PREFIX_REMOTE_TRANSPORT_ACTION = "remote_transport_action_";
     private final TransportService service;
     private final String clusterAlias;
     private final RemoteClusterService remoteClusterService;

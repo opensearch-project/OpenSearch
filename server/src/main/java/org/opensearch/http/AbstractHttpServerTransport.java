@@ -91,8 +91,7 @@ import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_PUBLISH_POR
 public abstract class AbstractHttpServerTransport extends AbstractLifecycleComponent implements HttpServerTransport {
     private static final Logger logger = LogManager.getLogger(AbstractHttpServerTransport.class);
     private static final ActionListener<Void> NO_OP = ActionListener.wrap(() -> {});
-    private static final List<String> HEADERS_TO_BE_POPULATED = Arrays.asList(AttributeNames.TRACE);
-    public static final String SPAN_NAME_REST_REQ_PREFIX = "req_";
+    private static final List<String> HEADERS_TO_BE_ADDED_AS_ATTRIBUTES = Arrays.asList(AttributeNames.TRACE);
 
     protected final Settings settings;
     public final HttpHandlingSettings handlingSettings;
@@ -366,7 +365,6 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().stashContext()) {
             // TODO: Add support for parsing the otel incoming tracer.
             final SpanScope httpRequestSpanScope = tracer.startSpan(createSpanName(httpRequest), buildSpanAttributes(httpRequest));
-            httpRequestSpanScope.addSpanAttribute(AttributeNames.HTTP_REQ_INBOUND_EX, httpRequest.getInboundException() != null);
             HttpChannel traceableHttpChannel = new TraceableHttpChannel(httpChannel, httpRequestSpanScope);
             handleIncomingRequest(httpRequest, traceableHttpChannel, httpRequest.getInboundException());
         }
@@ -386,7 +384,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     }
 
     private void populateHeader(HttpRequest httpRequest, Attributes attributes) {
-        HEADERS_TO_BE_POPULATED.forEach(x -> {
+        HEADERS_TO_BE_ADDED_AS_ATTRIBUTES.forEach(x -> {
             if (httpRequest.getHeaders() != null && httpRequest.getHeaders().get(x) != null) {
                 attributes.addAttribute(x, Strings.collectionToCommaDelimitedString(httpRequest.getHeaders().get(x)));
             }
@@ -417,7 +415,18 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     }
 
     private String createRestRequestSpanName(RestRequest restRequest) {
-        return SPAN_NAME_REST_REQ_PREFIX + (restRequest != null ? restRequest.getRequestId() : null);
+        String spanName = "rest_request";
+        if (restRequest != null) {
+            try {
+                String methodName = restRequest.method().name();
+                // path() does the decoding, which may give error
+                String path = restRequest.path();
+                spanName = methodName + " " + path;
+            } catch (Exception e) {
+                // swallow the exception and keep the default name.
+            }
+        }
+        return spanName;
     }
 
     private void handleIncomingRequest(final HttpRequest httpRequest, final HttpChannel httpChannel, final Exception exception) {
