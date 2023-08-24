@@ -240,7 +240,7 @@ public class RemoteStoreStats implements Writeable, ToXContentFragment {
     /**
      * Fields for remote store stats response
      */
-    static final class UploadStatsFields {
+    public static final class UploadStatsFields {
         /**
          * Lag in terms of bytes b/w local and remote store
          */
@@ -294,12 +294,12 @@ public class RemoteStoreStats implements Writeable, ToXContentFragment {
         /**
          * Count of files uploaded to remote store
          */
-        static final String TOTAL_UPLOADS = "total_uploads";
+        public static final String TOTAL_UPLOADS = "total_uploads";
 
         /**
          * Represents the total uploads to remote store in bytes
          */
-        static final String TOTAL_UPLOAD_SIZE = "total_upload_size";
+        public static final String TOTAL_UPLOAD_SIZE = "total_upload_size";
 
         /**
          * Total time spent on remote store uploads
@@ -367,17 +367,17 @@ public class RemoteStoreStats implements Writeable, ToXContentFragment {
     /**
      * Reusable sub fields for {@link UploadStatsFields} and {@link DownloadStatsFields}
      */
-    static final class SubFields {
-        static final String STARTED = "started";
-        static final String SUCCEEDED = "succeeded";
-        static final String FAILED = "failed";
+    public static final class SubFields {
+        public static final String STARTED = "started";
+        public static final String SUCCEEDED = "succeeded";
+        public static final String FAILED = "failed";
 
-        static final String STARTED_BYTES = "started_bytes";
-        static final String SUCCEEDED_BYTES = "succeeded_bytes";
-        static final String FAILED_BYTES = "failed_bytes";
+        public static final String STARTED_BYTES = "started_bytes";
+        public static final String SUCCEEDED_BYTES = "succeeded_bytes";
+        public static final String FAILED_BYTES = "failed_bytes";
 
         static final String DOWNLOAD = "download";
-        static final String UPLOAD = "upload";
+        public static final String UPLOAD = "upload";
 
         /**
          * Moving avg over last N values stat
