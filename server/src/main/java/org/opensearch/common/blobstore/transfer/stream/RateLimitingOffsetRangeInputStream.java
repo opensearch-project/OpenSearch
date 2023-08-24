@@ -16,6 +16,8 @@ import java.util.function.Supplier;
 
 /**
  * Rate Limits an {@link OffsetRangeInputStream}
+ *
+ * @opensearch.internal
  */
 public class RateLimitingOffsetRangeInputStream extends OffsetRangeInputStream {
 

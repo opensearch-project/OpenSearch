@@ -17,6 +17,8 @@ import java.util.function.Supplier;
 
 /**
  * The stream limiter that limits the transfer of bytes
+ *
+ * @opensearch.internal
  */
 public class StreamLimiter {
 
