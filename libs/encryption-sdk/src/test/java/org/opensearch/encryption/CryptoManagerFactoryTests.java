@@ -82,16 +82,4 @@ public class CryptoManagerFactoryTests extends OpenSearchTestCase {
         assertNotNull(cryptoManager);
     }
 
-    // public void testUnsupportedAlgorithm() {
-    // expectThrows(IllegalArgumentException.class, () -> new CryptoManagerFactory("Unsupported_algo", TimeValue.timeValueDays(2), 10));
-    //
-    // expectThrows(
-    // IllegalArgumentException.class,
-    // () -> cryptoManagerFactory.createCryptoProvider(
-    // "Unsupported_algo",
-    // mock(CachingCryptoMaterialsManager.class),
-    // mock(MasterKeyProvider.class)
-    // )
-    // );
-    // }
 }

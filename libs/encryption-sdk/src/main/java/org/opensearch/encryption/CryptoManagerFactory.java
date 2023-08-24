@@ -12,7 +12,7 @@ import org.opensearch.common.crypto.CryptoProvider;
 import org.opensearch.common.crypto.MasterKeyProvider;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRefCounted;
-import org.opensearch.encryption.dummy.DummyCryptoProvider;
+import org.opensearch.encryption.dummy.NoOpCryptoProvider;
 import org.opensearch.encryption.keyprovider.CryptoMasterKey;
 
 import java.security.SecureRandom;
@@ -73,7 +73,7 @@ public class CryptoManagerFactory {
     ) {
         switch (algorithm) {
             default:
-                return new DummyCryptoProvider(materialsManager, masterKeyProvider);
+                return new NoOpCryptoProvider(materialsManager, masterKeyProvider);
         }
     }
 

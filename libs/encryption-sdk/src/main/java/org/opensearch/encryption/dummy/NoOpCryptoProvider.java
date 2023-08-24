@@ -19,11 +19,14 @@ import java.io.InputStream;
 
 import com.amazonaws.encryptionsdk.caching.CachingCryptoMaterialsManager;
 
-public class DummyCryptoProvider implements CryptoProvider {
+/*
+ToDo : Remove this once we have an implementation of CryptoProvider
+ */
+public class NoOpCryptoProvider implements CryptoProvider {
     CachingCryptoMaterialsManager materialsManager;
     MasterKeyProvider masterKeyProvider;
 
-    public DummyCryptoProvider(CachingCryptoMaterialsManager materialsManager, MasterKeyProvider masterKeyProvider) {
+    public NoOpCryptoProvider(CachingCryptoMaterialsManager materialsManager, MasterKeyProvider masterKeyProvider) {
         this.materialsManager = materialsManager;
         this.masterKeyProvider = masterKeyProvider;
     }
