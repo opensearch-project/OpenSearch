@@ -1851,11 +1851,11 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
             Codec.getDefault().getName()
         );
 
-        tracker.setLatestReplicationCheckpoint(initialCheckpoint, true);
+        tracker.setLatestReplicationCheckpoint(initialCheckpoint);
         tracker.startReplicationLagTimers(initialCheckpoint);
-        tracker.setLatestReplicationCheckpoint(secondCheckpoint, true);
+        tracker.setLatestReplicationCheckpoint(secondCheckpoint);
         tracker.startReplicationLagTimers(secondCheckpoint);
-        tracker.setLatestReplicationCheckpoint(thirdCheckpoint, true);
+        tracker.setLatestReplicationCheckpoint(thirdCheckpoint);
         tracker.startReplicationLagTimers(thirdCheckpoint);
 
         final Set<String> expectedIds = ids(initializingIds);
