@@ -13,8 +13,8 @@
 
 package org.opensearch.common.concurrent;
 
-import org.junit.Before;
 import org.opensearch.test.OpenSearchTestCase;
+import org.junit.Before;
 
 public class OneWayGateTests extends OpenSearchTestCase {
 

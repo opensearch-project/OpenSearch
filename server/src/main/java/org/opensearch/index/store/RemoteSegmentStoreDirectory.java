@@ -8,7 +8,6 @@
 
 package org.opensearch.index.store;
 
-import com.jcraft.jzlib.JZlib;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -26,7 +25,6 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.Version;
 import org.opensearch.ExceptionsHelper;
-import org.opensearch.core.action.ActionListener;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.blobstore.VerifyingMultiStreamBlobContainer;
 import org.opensearch.common.blobstore.exception.CorruptFileException;
@@ -37,6 +35,7 @@ import org.opensearch.common.blobstore.transfer.stream.OffsetRangeIndexInputStre
 import org.opensearch.common.io.VersionedCodecStreamWrapper;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.common.util.ByteUtils;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.store.exception.ChecksumCombinationException;
 import org.opensearch.index.store.lockmanager.FileLockInfo;
@@ -62,6 +61,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.zip.CRC32;
+
+import com.jcraft.jzlib.JZlib;
 
 /**
  * A RemoteDirectory extension for remote segment store. We need to make sure we don't overwrite a segment file once uploaded.
@@ -200,7 +201,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
             logger.trace("Reading latest Metadata file {}", latestMetadataFile);
             remoteSegmentMetadata = readMetadataFile(latestMetadataFile);
         } else {
-            logger.info("No metadata file found, this can happen for new index with no data uploaded to remote segment store");
+            logger.trace("No metadata file found, this can happen for new index with no data uploaded to remote segment store");
         }
 
         return remoteSegmentMetadata;
@@ -786,7 +787,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
             Integer.MAX_VALUE
         );
         if (sortedMetadataFileList.size() <= lastNMetadataFilesToKeep) {
-            logger.info(
+            logger.trace(
                 "Number of commits in remote segment store={}, lastNMetadataFilesToKeep={}",
                 sortedMetadataFileList.size(),
                 lastNMetadataFilesToKeep
@@ -849,7 +850,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
                 }
             });
             if (deletionSuccessful.get()) {
-                logger.info("Deleting stale metadata file {} from remote segment store", metadataFile);
+                logger.trace("Deleting stale metadata file {} from remote segment store", metadataFile);
                 remoteMetadataDirectory.deleteFile(metadataFile);
             }
         }

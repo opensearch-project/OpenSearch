@@ -8,12 +8,15 @@
 
 package org.opensearch.gradle.pluginzip;
 
+import org.apache.maven.model.Model;
+import org.apache.maven.model.io.xpp3.MavenXpp3Reader;
+import org.codehaus.plexus.util.xml.pull.XmlPullParserException;
+import org.opensearch.gradle.test.GradleUnitTestCase;
 import org.gradle.api.Project;
 import org.gradle.testfixtures.ProjectBuilder;
 import org.gradle.testkit.runner.BuildResult;
 import org.gradle.testkit.runner.GradleRunner;
 import org.gradle.testkit.runner.UnexpectedBuildFailure;
-import org.opensearch.gradle.test.GradleUnitTestCase;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -28,16 +31,11 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-
-import static org.gradle.testkit.runner.TaskOutcome.SUCCESS;
-
-import org.apache.maven.model.Model;
-import org.apache.maven.model.io.xpp3.MavenXpp3Reader;
-import org.codehaus.plexus.util.xml.pull.XmlPullParserException;
-
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
+
+import static org.gradle.testkit.runner.TaskOutcome.SUCCESS;
 
 public class PublishTests extends GradleUnitTestCase {
     private TemporaryFolder projectDir;

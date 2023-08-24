@@ -8,22 +8,22 @@
 
 package org.opensearch.telemetry.tracing;
 
-import org.junit.Assert;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.telemetry.tracing.attributes.Attributes;
 import org.opensearch.test.OpenSearchTestCase;
-
-import java.io.IOException;
 import org.opensearch.test.telemetry.tracing.MockSpan;
 import org.opensearch.test.telemetry.tracing.MockTracingTelemetry;
+import org.junit.Assert;
+
+import java.io.IOException;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class DefaultTracerTests extends OpenSearchTestCase {
 

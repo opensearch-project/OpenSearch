@@ -31,8 +31,8 @@
 
 package org.opensearch.transport;
 
-import org.opensearch.core.action.ActionListener;
 import org.opensearch.common.SetOnce;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.tasks.TaskId;
 import org.opensearch.test.OpenSearchTestCase;
 

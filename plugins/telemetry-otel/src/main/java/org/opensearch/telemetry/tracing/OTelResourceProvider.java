@@ -8,6 +8,11 @@
 
 package org.opensearch.telemetry.tracing;
 
+import org.opensearch.common.settings.Settings;
+import org.opensearch.telemetry.tracing.exporter.OTelSpanExporterFactory;
+
+import java.util.concurrent.TimeUnit;
+
 import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator;
@@ -19,10 +24,6 @@ import io.opentelemetry.sdk.trace.export.BatchSpanProcessor;
 import io.opentelemetry.sdk.trace.export.SpanExporter;
 import io.opentelemetry.sdk.trace.samplers.Sampler;
 import io.opentelemetry.semconv.resource.attributes.ResourceAttributes;
-import org.opensearch.common.settings.Settings;
-
-import java.util.concurrent.TimeUnit;
-import org.opensearch.telemetry.tracing.exporter.OTelSpanExporterFactory;
 
 import static org.opensearch.telemetry.OTelTelemetrySettings.TRACER_EXPORTER_BATCH_SIZE_SETTING;
 import static org.opensearch.telemetry.OTelTelemetrySettings.TRACER_EXPORTER_DELAY_SETTING;

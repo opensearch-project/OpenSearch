@@ -32,12 +32,12 @@
 
 package org.opensearch.transport;
 
+import org.opensearch.common.io.Streams;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.common.compress.CompressorFactory;
-import org.opensearch.common.io.Streams;
 import org.opensearch.core.common.io.stream.BytesStream;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.compress.CompressorRegistry;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -68,7 +68,7 @@ final class CompressibleBytesOutputStream extends StreamOutput {
         this.bytesStreamOutput = bytesStreamOutput;
         this.shouldCompress = shouldCompress;
         if (shouldCompress) {
-            this.stream = CompressorFactory.defaultCompressor().threadLocalOutputStream(Streams.flushOnCloseStream(bytesStreamOutput));
+            this.stream = CompressorRegistry.defaultCompressor().threadLocalOutputStream(Streams.flushOnCloseStream(bytesStreamOutput));
         } else {
             this.stream = bytesStreamOutput;
         }

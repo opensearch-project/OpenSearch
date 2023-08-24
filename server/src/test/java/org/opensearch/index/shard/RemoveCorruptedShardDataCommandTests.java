@@ -60,6 +60,7 @@ import org.opensearch.gateway.PersistedClusterStateService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.MergePolicyConfig;
 import org.opensearch.index.engine.EngineConfigFactory;
+import org.opensearch.index.engine.EngineCreationFailureException;
 import org.opensearch.index.engine.InternalEngineFactory;
 import org.opensearch.index.seqno.RetentionLeaseSyncer;
 import org.opensearch.index.store.Store;
@@ -292,7 +293,10 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         allowShardFailures();
         // it has to fail on start up due to index.shard.check_on_startup = checksum
         final Exception exception = expectThrows(Exception.class, () -> newStartedShard(p -> corruptedShard, true));
-        final Throwable cause = exception.getCause() instanceof TranslogException ? exception.getCause().getCause() : exception.getCause();
+        // if corruption is in engine UUID in header, the TranslogCorruptedException is caught and rethrown as
+        // EngineCreationFailureException rather than TranslogException
+        final Throwable cause = exception.getCause() instanceof TranslogException
+            || exception.getCause() instanceof EngineCreationFailureException ? exception.getCause().getCause() : exception.getCause();
         assertThat(cause, instanceOf(TranslogCorruptedException.class));
 
         closeShard(corruptedShard, false); // translog is corrupted already - do not check consistency

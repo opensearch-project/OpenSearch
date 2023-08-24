@@ -35,7 +35,6 @@ package org.opensearch.action.support;
 import org.opensearch.action.UnavailableShardsException;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.indices.create.CreateIndexResponse;
-
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.common.Priority;
 import org.opensearch.common.settings.Settings;

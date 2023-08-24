@@ -6,6 +6,7 @@ permissions:
   pull-requests: write
 jobs:
   stale:
+    if: github.repository == 'opensearch-project/OpenSearch'
     runs-on: ubuntu-latest
     steps:
       - name: GitHub App token

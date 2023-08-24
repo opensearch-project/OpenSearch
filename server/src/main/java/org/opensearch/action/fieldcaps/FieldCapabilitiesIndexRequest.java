@@ -39,8 +39,8 @@ import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.query.QueryBuilder;
 
 import java.io.IOException;
 import java.util.Objects;

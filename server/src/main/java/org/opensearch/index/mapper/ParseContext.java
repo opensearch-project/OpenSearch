@@ -35,8 +35,8 @@ package org.opensearch.index.mapper;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
-import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.OpenSearchParseException;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.IndexSettings;
 
 import java.util.ArrayList;

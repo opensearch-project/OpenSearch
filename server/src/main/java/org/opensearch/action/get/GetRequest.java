@@ -43,6 +43,8 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;

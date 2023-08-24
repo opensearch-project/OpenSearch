@@ -9,9 +9,9 @@
 package org.opensearch.search.pipeline.common;
 
 import org.opensearch.action.search.SearchRequest;
-import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -20,8 +20,8 @@ import org.opensearch.index.query.BoolQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.ingest.ConfigurationUtils;
 import org.opensearch.search.builder.SearchSourceBuilder;
-import org.opensearch.search.pipeline.Processor;
 import org.opensearch.search.pipeline.AbstractProcessor;
+import org.opensearch.search.pipeline.Processor;
 import org.opensearch.search.pipeline.SearchRequestProcessor;
 
 import java.io.InputStream;

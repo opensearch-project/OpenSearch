@@ -33,11 +33,11 @@
 package org.opensearch.common.xcontent;
 
 import org.opensearch.OpenSearchParseException;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.common.collect.Tuple;
-import org.opensearch.common.compress.CompressorFactory;
-import org.opensearch.core.common.compress.Compressor;
+import org.opensearch.core.compress.Compressor;
+import org.opensearch.core.compress.CompressorRegistry;
 import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
@@ -77,7 +77,7 @@ public class XContentHelper {
         DeprecationHandler deprecationHandler,
         BytesReference bytes
     ) throws IOException {
-        Compressor compressor = CompressorFactory.compressor(bytes);
+        Compressor compressor = CompressorRegistry.compressor(bytes);
         if (compressor != null) {
             InputStream compressedInput = null;
             try {
@@ -106,7 +106,7 @@ public class XContentHelper {
         MediaType mediaType
     ) throws IOException {
         Objects.requireNonNull(mediaType);
-        Compressor compressor = CompressorFactory.compressor(bytes);
+        Compressor compressor = CompressorRegistry.compressor(bytes);
         if (compressor != null) {
             InputStream compressedInput = null;
             try {
@@ -163,7 +163,7 @@ public class XContentHelper {
         try {
             final MediaType contentType;
             InputStream input;
-            Compressor compressor = CompressorFactory.compressor(bytes);
+            Compressor compressor = CompressorRegistry.compressor(bytes);
             if (compressor != null) {
                 InputStream compressedStreamInput = compressor.threadLocalInputStream(bytes.streamInput());
                 if (compressedStreamInput.markSupported() == false) {
@@ -451,7 +451,7 @@ public class XContentHelper {
      */
     @Deprecated
     public static void writeRawField(String field, BytesReference source, XContentBuilder builder, Params params) throws IOException {
-        Compressor compressor = CompressorFactory.compressor(source);
+        Compressor compressor = CompressorRegistry.compressor(source);
         if (compressor != null) {
             try (InputStream compressedStreamInput = compressor.threadLocalInputStream(source.streamInput())) {
                 builder.rawField(field, compressedStreamInput);
@@ -470,7 +470,7 @@ public class XContentHelper {
     public static void writeRawField(String field, BytesReference source, XContentType xContentType, XContentBuilder builder, Params params)
         throws IOException {
         Objects.requireNonNull(xContentType);
-        Compressor compressor = CompressorFactory.compressor(source);
+        Compressor compressor = CompressorRegistry.compressor(source);
         if (compressor != null) {
             try (InputStream compressedStreamInput = compressor.threadLocalInputStream(source.streamInput())) {
                 builder.rawField(field, compressedStreamInput, xContentType);

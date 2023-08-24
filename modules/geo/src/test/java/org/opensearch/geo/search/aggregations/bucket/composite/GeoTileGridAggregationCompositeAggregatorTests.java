@@ -13,15 +13,15 @@ import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
-import org.junit.Before;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.geo.GeoModulePlugin;
 import org.opensearch.geo.search.aggregations.bucket.geogrid.GeoTileGridAggregationBuilder;
 import org.opensearch.index.mapper.GeoPointFieldMapper;
 import org.opensearch.plugins.SearchPlugin;
-import org.opensearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.opensearch.search.aggregations.bucket.GeoTileUtils;
+import org.opensearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.opensearch.search.aggregations.composite.BaseCompositeAggregatorTestCase;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Arrays;

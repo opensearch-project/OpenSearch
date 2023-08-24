@@ -34,13 +34,13 @@ package org.opensearch.search.aggregations.pipeline;
 
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
+import org.opensearch.search.aggregations.BucketOrder;
 import org.opensearch.search.aggregations.bucket.histogram.Histogram;
 import org.opensearch.search.aggregations.bucket.histogram.Histogram.Bucket;
-import org.opensearch.search.aggregations.bucket.terms.Terms;
 import org.opensearch.search.aggregations.bucket.terms.IncludeExclude;
+import org.opensearch.search.aggregations.bucket.terms.Terms;
 import org.opensearch.search.aggregations.metrics.Sum;
 import org.opensearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
-import org.opensearch.search.aggregations.BucketOrder;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.ArrayList;

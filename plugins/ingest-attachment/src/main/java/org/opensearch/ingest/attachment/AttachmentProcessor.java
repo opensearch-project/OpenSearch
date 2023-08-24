@@ -37,7 +37,6 @@ import org.apache.tika.langdetect.optimaize.OptimaizeLangDetector;
 import org.apache.tika.language.detect.LanguageResult;
 import org.apache.tika.metadata.Metadata;
 import org.apache.tika.metadata.TikaCoreProperties;
-
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.core.common.Strings;
 import org.opensearch.ingest.AbstractProcessor;

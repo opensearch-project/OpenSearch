@@ -8,7 +8,6 @@
 
 package org.opensearch.remotestore;
 
-import org.junit.Before;
 import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStoreRequest;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.support.PlainActionFuture;
@@ -17,6 +16,7 @@ import org.opensearch.plugins.Plugin;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.transport.MockTransportService;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -127,6 +127,7 @@ public class RemoteStoreForceMergeIT extends RemoteStoreBaseIntegTestCase {
     // Following integ tests use randomBoolean to control the number of integ tests. If we use the separate
     // values for each of the flags, number of integ tests become 16 in comparison to current 2.
     // We have run all the 16 tests on local and they run fine.
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/9294")
     public void testRestoreForceMergeSingleIteration() throws IOException {
         boolean invokeFLush = randomBoolean();
         boolean flushAfterMerge = randomBoolean();

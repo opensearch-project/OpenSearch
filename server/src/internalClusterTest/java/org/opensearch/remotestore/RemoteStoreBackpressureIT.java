@@ -12,9 +12,9 @@ import org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStats;
 import org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStatsResponse;
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.remote.RemoteSegmentTransferTracker;
@@ -29,8 +29,8 @@ import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-import static org.opensearch.index.remote.RemoteRefreshSegmentPressureSettings.MIN_CONSECUTIVE_FAILURES_LIMIT;
-import static org.opensearch.index.remote.RemoteRefreshSegmentPressureSettings.REMOTE_REFRESH_SEGMENT_PRESSURE_ENABLED;
+import static org.opensearch.index.remote.RemoteStorePressureSettings.MIN_CONSECUTIVE_FAILURES_LIMIT;
+import static org.opensearch.index.remote.RemoteStorePressureSettings.REMOTE_REFRESH_SEGMENT_PRESSURE_ENABLED;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class RemoteStoreBackpressureIT extends AbstractRemoteStoreMockRepositoryIntegTestCase {
@@ -120,10 +120,10 @@ public class RemoteStoreBackpressureIT extends AbstractRemoteStoreMockRepository
         RemoteStoreStatsResponse response = client().admin().cluster().prepareRemoteStoreStats(INDEX_NAME, shardId).get();
         final String indexShardId = String.format(Locale.ROOT, "[%s][%s]", INDEX_NAME, shardId);
         List<RemoteStoreStats> matches = Arrays.stream(response.getRemoteStoreStats())
-            .filter(stat -> indexShardId.equals(stat.getStats().shardId.toString()))
+            .filter(stat -> indexShardId.equals(stat.getSegmentStats().shardId.toString()))
             .collect(Collectors.toList());
         assertEquals(1, matches.size());
-        return matches.get(0).getStats();
+        return matches.get(0).getSegmentStats();
     }
 
     private void indexDocAndRefresh(BytesReference source, int iterations) {

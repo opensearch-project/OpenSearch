@@ -10,8 +10,8 @@ package org.opensearch.indices.replication;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.store.Directory;
 import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.Version;
