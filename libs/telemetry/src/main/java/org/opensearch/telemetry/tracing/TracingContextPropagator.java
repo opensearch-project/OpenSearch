@@ -28,7 +28,7 @@ public interface TracingContextPropagator {
     Optional<Span> extract(Map<String, String> props);
 
     /**
-     * Extracts current span HTTP headers.
+     * Extracts current span from HTTP headers.
      *
      * @param headers request headers to extract the context from
      * @return current span
