@@ -23,6 +23,10 @@ class org.opensearch.script.ScoreScript @no_import {
 }
 
 static_import {
+    int termFreq(org.opensearch.script.ScoreScript, String, String) bound_to org.opensearch.script.ScoreScriptUtils$TermFreq
+    float tf(org.opensearch.script.ScoreScript, String, String) bound_to org.opensearch.script.ScoreScriptUtils$TF
+    long totalTermFreq(org.opensearch.script.ScoreScript, String, String) bound_to org.opensearch.script.ScoreScriptUtils$TotalTermFreq
+    long sumTotalTermFreq(org.opensearch.script.ScoreScript, String) bound_to org.opensearch.script.ScoreScriptUtils$SumTotalTermFreq
     double saturation(double, double) from_class org.opensearch.script.ScoreScriptUtils
     double sigmoid(double, double, double) from_class org.opensearch.script.ScoreScriptUtils
     double randomScore(org.opensearch.script.ScoreScript, int, String) bound_to org.opensearch.script.ScoreScriptUtils$RandomScoreField
