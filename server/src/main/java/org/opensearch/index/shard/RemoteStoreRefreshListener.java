@@ -89,7 +89,6 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
     private long primaryTerm;
     private volatile Iterator<TimeValue> backoffDelayIterator;
     private final SegmentReplicationCheckpointPublisher checkpointPublisher;
-    private final UploadListener statsListener;
 
     public RemoteStoreRefreshListener(
         IndexShard indexShard,
@@ -117,33 +116,6 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
         this.segmentTracker = segmentTracker;
         resetBackOffDelayIterator();
         this.checkpointPublisher = checkpointPublisher;
-        this.statsListener = new UploadListener() {
-            private long uploadStartTime = 0;
-
-            @Override
-            public void beforeUpload(String file) {
-                // Start tracking the upload bytes started
-                segmentTracker.addUploadBytesStarted(segmentTracker.getLatestLocalFileNameLengthMap().get(file));
-                uploadStartTime = System.currentTimeMillis();
-            }
-
-            @Override
-            public void onSuccess(String file) {
-                // Track upload success
-                segmentTracker.addUploadBytesSucceeded(segmentTracker.getLatestLocalFileNameLengthMap().get(file));
-                segmentTracker.addToLatestUploadedFiles(file);
-                long fileUploadTime = System.currentTimeMillis() - uploadStartTime;
-                // Round off upload time to 1 millisecond
-                fileUploadTime = fileUploadTime > 0 ? fileUploadTime : 1;
-                segmentTracker.addTotalUploadTimeInMs(fileUploadTime);
-            }
-
-            @Override
-            public void onFailure(String file) {
-                // Track upload failure
-                segmentTracker.addUploadBytesFailed(segmentTracker.getLatestLocalFileNameLengthMap().get(file));
-            }
-        };
     }
 
     @Override
@@ -380,6 +352,32 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
         GroupedActionListener<Void> batchUploadListener = new GroupedActionListener<>(mappedListener, filteredFiles.size());
 
         for (String src : filteredFiles) {
+            // Initializing listener here to ensure that the stats increment operations are thread-safe
+            UploadListener statsListener = new UploadListener() {
+                private long uploadStartTime = 0;
+
+                @Override
+                public void beforeUpload(String file) {
+                    // Start tracking the upload bytes started
+                    segmentTracker.addUploadBytesStarted(segmentTracker.getLatestLocalFileNameLengthMap().get(file));
+                    uploadStartTime = System.currentTimeMillis();
+                }
+
+                @Override
+                public void onSuccess(String file) {
+                    // Track upload success
+                    segmentTracker.addUploadBytesSucceeded(segmentTracker.getLatestLocalFileNameLengthMap().get(file));
+                    segmentTracker.addToLatestUploadedFiles(file);
+                    segmentTracker.addTotalUploadTimeInMs(Math.max(1, System.currentTimeMillis() - uploadStartTime));
+                }
+
+                @Override
+                public void onFailure(String file) {
+                    // Track upload failure
+                    segmentTracker.addUploadBytesFailed(segmentTracker.getLatestLocalFileNameLengthMap().get(file));
+                    segmentTracker.addTotalUploadTimeInMs(Math.max(1, System.currentTimeMillis() - uploadStartTime));
+                }
+            };
             ActionListener<Void> aggregatedListener = ActionListener.wrap(resp -> {
                 statsListener.onSuccess(src);
                 batchUploadListener.onResponse(resp);

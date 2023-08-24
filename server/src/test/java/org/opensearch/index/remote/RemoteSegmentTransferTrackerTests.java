@@ -242,10 +242,10 @@ public class RemoteSegmentTransferTrackerTests extends OpenSearchTestCase {
             pressureSettings.getUploadTimeMovingAverageWindowSize()
         );
         long bytesToAdd = randomLongBetween(1000, 1000000);
-        pressureTracker.getDirectoryFileTransferTracker().addTransferredBytesFailed(bytesToAdd);
+        pressureTracker.getDirectoryFileTransferTracker().addTransferredBytesFailed(bytesToAdd, System.currentTimeMillis());
         assertEquals(bytesToAdd, pressureTracker.getDirectoryFileTransferTracker().getTransferredBytesFailed());
         long moreBytesToAdd = randomLongBetween(1000, 10000);
-        pressureTracker.getDirectoryFileTransferTracker().addTransferredBytesFailed(moreBytesToAdd);
+        pressureTracker.getDirectoryFileTransferTracker().addTransferredBytesFailed(moreBytesToAdd, System.currentTimeMillis());
         assertEquals(bytesToAdd + moreBytesToAdd, pressureTracker.getDirectoryFileTransferTracker().getTransferredBytesFailed());
     }
 
@@ -501,18 +501,18 @@ public class RemoteSegmentTransferTrackerTests extends OpenSearchTestCase {
 
         long sum = 0;
         for (int i = 1; i < 20; i++) {
-            pressureTracker.getDirectoryFileTransferTracker().updateLastSuccessfulTransferSize(i);
+            pressureTracker.getDirectoryFileTransferTracker().updateSuccessfulTransferSize(i);
             sum += i;
             assertFalse(pressureTracker.getDirectoryFileTransferTracker().isTransferredBytesAverageReady());
             assertEquals((double) sum / i, pressureTracker.getDirectoryFileTransferTracker().getTransferredBytesAverage(), 0.0d);
         }
 
-        pressureTracker.getDirectoryFileTransferTracker().updateLastSuccessfulTransferSize(20);
+        pressureTracker.getDirectoryFileTransferTracker().updateSuccessfulTransferSize(20);
         sum += 20;
         assertTrue(pressureTracker.getDirectoryFileTransferTracker().isTransferredBytesAverageReady());
         assertEquals((double) sum / 20, pressureTracker.getDirectoryFileTransferTracker().getTransferredBytesAverage(), 0.0d);
 
-        pressureTracker.getDirectoryFileTransferTracker().updateLastSuccessfulTransferSize(100);
+        pressureTracker.getDirectoryFileTransferTracker().updateSuccessfulTransferSize(100);
         sum = sum + 100 - 1;
         assertEquals((double) sum / 20, pressureTracker.getDirectoryFileTransferTracker().getTransferredBytesAverage(), 0.0d);
     }

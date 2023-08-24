@@ -96,17 +96,17 @@ public class RemoteSegmentTransferTracker {
     /**
      * Cumulative sum of size in bytes of segment files for which upload has started during remote refresh.
      */
-    private volatile long uploadBytesStarted;
+    private final AtomicLong uploadBytesStarted = new AtomicLong();
 
     /**
      * Cumulative sum of size in bytes of segment files for which upload has failed during remote refresh.
      */
-    private volatile long uploadBytesFailed;
+    private final AtomicLong uploadBytesFailed = new AtomicLong();
 
     /**
      * Cumulative sum of size in bytes of segment files for which upload has succeeded during remote refresh.
      */
-    private volatile long uploadBytesSucceeded;
+    private final AtomicLong uploadBytesSucceeded = new AtomicLong();
 
     /**
      * Cumulative sum of count of remote refreshes that have started.
@@ -126,7 +126,7 @@ public class RemoteSegmentTransferTracker {
     /**
      * Cumulative sum of time taken in remote refresh (in milliseconds) [Tracked per file]
      */
-    private volatile long totalUploadTimeInMs;
+    private AtomicLong totalUploadTimeInMs = new AtomicLong();
 
     /**
      * Cumulative sum of rejection counts for this shard.
@@ -321,31 +321,31 @@ public class RemoteSegmentTransferTracker {
     }
 
     public long getUploadBytesStarted() {
-        return uploadBytesStarted;
+        return uploadBytesStarted.get();
     }
 
     public void addUploadBytesStarted(long size) {
-        uploadBytesStarted += size;
+        uploadBytesStarted.getAndAdd(size);
     }
 
     public long getUploadBytesFailed() {
-        return uploadBytesFailed;
+        return uploadBytesFailed.get();
     }
 
     public void addUploadBytesFailed(long size) {
-        uploadBytesFailed += size;
+        uploadBytesFailed.getAndAdd(size);
     }
 
     public long getUploadBytesSucceeded() {
-        return uploadBytesSucceeded;
+        return uploadBytesSucceeded.get();
     }
 
     public void addUploadBytesSucceeded(long size) {
-        uploadBytesSucceeded += size;
+        uploadBytesSucceeded.getAndAdd(size);
     }
 
     public long getInflightUploadBytes() {
-        return uploadBytesStarted - uploadBytesFailed - uploadBytesSucceeded;
+        return uploadBytesStarted.get() - uploadBytesFailed.get() - uploadBytesSucceeded.get();
     }
 
     public long getTotalUploadsStarted() {
@@ -531,11 +531,11 @@ public class RemoteSegmentTransferTracker {
     }
 
     public void addTotalUploadTimeInMs(long fileUploadTimeInMs) {
-        this.totalUploadTimeInMs += fileUploadTimeInMs;
+        this.totalUploadTimeInMs.addAndGet(fileUploadTimeInMs);
     }
 
     public long getTotalUploadTimeInMs() {
-        return totalUploadTimeInMs;
+        return totalUploadTimeInMs.get();
     }
 
     public DirectoryFileTransferTracker getDirectoryFileTransferTracker() {
@@ -550,9 +550,9 @@ public class RemoteSegmentTransferTracker {
             timeMsLag,
             localRefreshSeqNo,
             remoteRefreshSeqNo,
-            uploadBytesStarted,
-            uploadBytesSucceeded,
-            uploadBytesFailed,
+            uploadBytesStarted.get(),
+            uploadBytesSucceeded.get(),
+            uploadBytesFailed.get(),
             totalUploadsStarted,
             totalUploadsSucceeded,
             totalUploadsFailed,
@@ -563,7 +563,7 @@ public class RemoteSegmentTransferTracker {
             uploadBytesPerSecMovingAverageReference.get().getAverage(),
             uploadTimeMsMovingAverageReference.get().getAverage(),
             getBytesLag(),
-            totalUploadTimeInMs,
+            totalUploadTimeInMs.get(),
             directoryFileTransferTracker.stats()
         );
     }

@@ -97,7 +97,7 @@ public class RemoteSegmentStats implements Writeable, ToXContentFragment {
           This would have to be removed after the new field addition PRs are also backported to 2.x.
           If possible we would need to ensure that all field addition PRs are backported at once
          */
-        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (in.getVersion().onOrAfter(Version.CURRENT)) {
             totalRefreshBytesLag = in.readLong();
             totalUploadTime = in.readLong();
             totalDownloadTime = in.readLong();
@@ -260,7 +260,7 @@ public class RemoteSegmentStats implements Writeable, ToXContentFragment {
           This would have to be removed after the new field addition PRs are also backported to 2.x.
           If possible we would need to ensure that all field addition PRs are backported at once
          */
-        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (out.getVersion().onOrAfter(Version.CURRENT)) {
             out.writeLong(totalRefreshBytesLag);
             out.writeLong(totalUploadTime);
             out.writeLong(totalDownloadTime);

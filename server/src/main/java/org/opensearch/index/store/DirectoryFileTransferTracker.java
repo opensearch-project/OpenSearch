@@ -16,6 +16,8 @@ import org.opensearch.core.common.io.stream.Writeable;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Tracks the amount of bytes transferred between two {@link Directory} instances
@@ -26,67 +28,69 @@ public class DirectoryFileTransferTracker {
     /**
      * Cumulative size of files (in bytes) attempted to be transferred over from the source {@link Directory}
      */
-    private volatile long transferredBytesStarted;
+    private final AtomicLong transferredBytesStarted = new AtomicLong();
 
     /**
      * Cumulative size of files (in bytes) successfully transferred over from the source {@link Directory}
      */
-    private volatile long transferredBytesFailed;
+    private final AtomicLong transferredBytesFailed = new AtomicLong();
 
     /**
      * Cumulative size of files (in bytes) failed in transfer over from the source {@link Directory}
      */
-    private volatile long transferredBytesSucceeded;
+    private final AtomicLong transferredBytesSucceeded = new AtomicLong();
 
     /**
      * Time in milliseconds for the last successful transfer from the source {@link Directory}
      */
-    private volatile long lastTransferTimestampMs;
+    private final AtomicLong lastTransferTimestampMs = new AtomicLong();
 
     /**
      * Cumulative time in milliseconds spent in successful transfers from the source {@link Directory}
      */
-    private volatile long totalTransferTimeInMs;
+    private final AtomicLong totalTransferTimeInMs = new AtomicLong();
 
     /**
      * Provides moving average over the last N total size in bytes of files transferred from the source {@link Directory}.
      * N is window size
      */
-    private volatile MovingAverage transferredBytesMovingAverageReference;
+    private final AtomicReference<MovingAverage> transferredBytesMovingAverageReference;
 
-    private volatile long lastSuccessfulTransferInBytes;
+    private final AtomicLong lastSuccessfulTransferInBytes = new AtomicLong();
 
     /**
      * Provides moving average over the last N transfer speed (in bytes/s) of segment files transferred from the source {@link Directory}.
      * N is window size
      */
-    private volatile MovingAverage transferredBytesPerSecMovingAverageReference;
+    private final AtomicReference<MovingAverage> transferredBytesPerSecMovingAverageReference;
 
     private final int DIRECTORY_FILES_TRANSFER_DEFAULT_WINDOW_SIZE = 20;
 
+    // Getters and Setters, all are visible for testing
     public long getTransferredBytesStarted() {
-        return transferredBytesStarted;
+        return transferredBytesStarted.get();
     }
 
     public void addTransferredBytesStarted(long size) {
-        transferredBytesStarted += size;
+        transferredBytesStarted.getAndAdd(size);
     }
 
     public long getTransferredBytesFailed() {
-        return transferredBytesFailed;
+        return transferredBytesFailed.get();
     }
 
-    public void addTransferredBytesFailed(long size) {
-        transferredBytesFailed += size;
+    public void addTransferredBytesFailed(long size, long startTimeInMs) {
+        transferredBytesFailed.getAndAdd(size);
+        addTotalTransferTimeInMs(Math.max(1, System.currentTimeMillis() - startTimeInMs));
     }
 
     public long getTransferredBytesSucceeded() {
-        return transferredBytesSucceeded;
+        return transferredBytesSucceeded.get();
     }
 
     public void addTransferredBytesSucceeded(long size, long startTimeInMs) {
-        transferredBytesSucceeded += size;
-        updateLastSuccessfulTransferSize(size);
+        transferredBytesSucceeded.getAndAdd(size);
+        updateSuccessfulTransferSize(size);
         long currentTimeInMs = System.currentTimeMillis();
         updateLastTransferTimestampMs(currentTimeInMs);
         long timeTakenInMS = Math.max(1, currentTimeInMs - startTimeInMs);
@@ -95,65 +99,67 @@ public class DirectoryFileTransferTracker {
     }
 
     public boolean isTransferredBytesPerSecAverageReady() {
-        return transferredBytesPerSecMovingAverageReference.isReady();
+        return transferredBytesPerSecMovingAverageReference.get().isReady();
     }
 
     public double getTransferredBytesPerSecAverage() {
-        return transferredBytesPerSecMovingAverageReference.getAverage();
+        return transferredBytesPerSecMovingAverageReference.get().getAverage();
     }
 
-    // Visible for testing
     public void addTransferredBytesPerSec(long bytesPerSec) {
-        this.transferredBytesPerSecMovingAverageReference.record(bytesPerSec);
+        this.transferredBytesPerSecMovingAverageReference.get().record(bytesPerSec);
     }
 
     public boolean isTransferredBytesAverageReady() {
-        return transferredBytesMovingAverageReference.isReady();
+        return transferredBytesMovingAverageReference.get().isReady();
     }
 
     public double getTransferredBytesAverage() {
-        return transferredBytesMovingAverageReference.getAverage();
+        return transferredBytesMovingAverageReference.get().getAverage();
     }
 
-    // Visible for testing
-    public void updateLastSuccessfulTransferSize(long size) {
-        lastSuccessfulTransferInBytes = size;
-        this.transferredBytesMovingAverageReference.record(size);
+    public void updateLastSuccessfulTransferInBytes(long size) {
+        lastSuccessfulTransferInBytes.set(size);
+    }
+
+    public void updateSuccessfulTransferSize(long size) {
+        updateLastSuccessfulTransferInBytes(size);
+        this.transferredBytesMovingAverageReference.get().record(size);
     }
 
     public long getLastTransferTimestampMs() {
-        return lastTransferTimestampMs;
+        return lastTransferTimestampMs.get();
     }
 
-    // Visible for testing
     public void updateLastTransferTimestampMs(long downloadTimestampInMs) {
-        this.lastTransferTimestampMs = downloadTimestampInMs;
+        this.lastTransferTimestampMs.set(downloadTimestampInMs);
     }
 
     public void addTotalTransferTimeInMs(long totalTransferTimeInMs) {
-        this.totalTransferTimeInMs += totalTransferTimeInMs;
+        this.totalTransferTimeInMs.addAndGet(totalTransferTimeInMs);
     }
 
-    // Visible for testing
     public long getTotalTransferTimeInMs() {
-        return totalTransferTimeInMs;
+        return totalTransferTimeInMs.get();
     }
 
     public DirectoryFileTransferTracker() {
-        transferredBytesMovingAverageReference = new MovingAverage(DIRECTORY_FILES_TRANSFER_DEFAULT_WINDOW_SIZE);
-        transferredBytesPerSecMovingAverageReference = new MovingAverage(DIRECTORY_FILES_TRANSFER_DEFAULT_WINDOW_SIZE);
+        transferredBytesMovingAverageReference = new AtomicReference<>(new MovingAverage(DIRECTORY_FILES_TRANSFER_DEFAULT_WINDOW_SIZE));
+        transferredBytesPerSecMovingAverageReference = new AtomicReference<>(
+            new MovingAverage(DIRECTORY_FILES_TRANSFER_DEFAULT_WINDOW_SIZE)
+        );
     }
 
     public DirectoryFileTransferTracker.Stats stats() {
         return new Stats(
-            transferredBytesStarted,
-            transferredBytesFailed,
-            transferredBytesSucceeded,
-            lastTransferTimestampMs,
-            totalTransferTimeInMs,
-            transferredBytesMovingAverageReference.getAverage(),
-            lastSuccessfulTransferInBytes,
-            transferredBytesPerSecMovingAverageReference.getAverage()
+            transferredBytesStarted.get(),
+            transferredBytesFailed.get(),
+            transferredBytesSucceeded.get(),
+            lastTransferTimestampMs.get(),
+            totalTransferTimeInMs.get(),
+            transferredBytesMovingAverageReference.get().getAverage(),
+            lastSuccessfulTransferInBytes.get(),
+            transferredBytesPerSecMovingAverageReference.get().getAverage()
         );
     }
 

@@ -104,13 +104,13 @@ public class RemoteSegmentStatsFromNodesStatsIT extends RemoteStoreBaseIntegTest
             .setIndices(new CommonStatsFlags().set(CommonStatsFlags.Flag.Segments, true))
             .get();
         RemoteSegmentStats remoteSegmentStats = nodesStatsResponse.getNodes().get(0).getIndices().getSegments().getRemoteSegmentStats();
-        assertEquals(cumulativeUploadsSucceeded, remoteSegmentStats.getUploadBytesSucceeded());
-        assertEquals(cumulativeUploadsStarted, remoteSegmentStats.getUploadBytesStarted());
+        assertTrue(cumulativeUploadsSucceeded > 0 && cumulativeUploadsSucceeded == remoteSegmentStats.getUploadBytesSucceeded());
+        assertTrue(cumulativeUploadsStarted > 0 && cumulativeUploadsStarted == remoteSegmentStats.getUploadBytesStarted());
         assertEquals(cumulativeUploadsFailed, remoteSegmentStats.getUploadBytesFailed());
         assertEquals(totalBytesLag, remoteSegmentStats.getTotalRefreshBytesLag());
         assertEquals(maxBytesLag, remoteSegmentStats.getMaxRefreshBytesLag());
         assertEquals(maxTimeLag, remoteSegmentStats.getMaxRefreshTimeLag());
-        assertEquals(totalUploadTime, remoteSegmentStats.getTotalUploadTime());
+        assertTrue(totalUploadTime > 0 && totalUploadTime == remoteSegmentStats.getTotalUploadTime());
     }
 
     /**
@@ -253,7 +253,15 @@ public class RemoteSegmentStatsFromNodesStatsIT extends RemoteStoreBaseIntegTest
             assertEquals(totalBytesLag, remoteSegmentStats.getTotalRefreshBytesLag());
             assertEquals(maxBytesLag, remoteSegmentStats.getMaxRefreshBytesLag());
             assertEquals(maxTimeLag, remoteSegmentStats.getMaxRefreshTimeLag());
+            // Ensure that total upload time has non-zero value if there has been segments uploaded from the node
+            if (cumulativeUploadsStarted > 0) {
+                assertTrue(totalUploadTime > 0);
+            }
             assertEquals(totalUploadTime, remoteSegmentStats.getTotalUploadTime());
+            // Ensure that total download time has non-zero value if there has been segments downloaded to the node
+            if (cumulativeDownloadsStarted > 0) {
+                assertTrue(totalDownloadTime > 0);
+            }
             assertEquals(totalDownloadTime, remoteSegmentStats.getTotalDownloadTime());
         }
     }
