@@ -8,9 +8,9 @@
 
 package org.opensearch.telemetry.tracing;
 
-import org.opensearch.telemetry.tracing.http.HttpHeader;
-
+import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.BiConsumer;
 
 /**
@@ -29,10 +29,11 @@ public interface TracingContextPropagator {
 
     /**
      * Extracts current span http header.
-     * @param httpHeader properties
+     *
+     * @param header properties
      * @return current span
      */
-    Span extract(HttpHeader httpHeader);
+    Optional<Span> extractFromHeaders(Map<String, List<String>> header);
 
     /**
      * Injects tracing context

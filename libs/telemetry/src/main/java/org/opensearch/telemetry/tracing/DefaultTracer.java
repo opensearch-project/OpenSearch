@@ -9,10 +9,12 @@
 package org.opensearch.telemetry.tracing;
 
 import org.opensearch.telemetry.tracing.attributes.Attributes;
-import org.opensearch.telemetry.tracing.http.HttpHeader;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 /**
  *
@@ -45,13 +47,13 @@ class DefaultTracer implements Tracer {
 
     @Override
     public SpanScope startSpan(String spanName, Attributes attributes) {
-        return startSpan(spanName, SpanContext.EMPTY, attributes);
+        return startSpan(spanName, (SpanContext) null, attributes);
     }
 
     @Override
     public SpanScope startSpan(String spanName, SpanContext parentSpan, Attributes attributes) {
         Span span = null;
-        if (parentSpan != null && parentSpan.getSpan() != null) {
+        if (parentSpan != null) {
             span = createSpan(spanName, parentSpan.getSpan(), attributes);
         } else {
             span = createSpan(spanName, getCurrentSpanInternal(), attributes);
@@ -99,9 +101,9 @@ class DefaultTracer implements Tracer {
     }
 
     @Override
-    public SpanScope startSpan(String spanName, HttpHeader header, Attributes attributes) {
-        Span propagatedSpan = tracingTelemetry.getContextPropagator().extract(header);
-        return startSpan(spanName, new SpanContext(propagatedSpan), attributes);
+    public SpanScope startSpan(String spanName, Map<String, List<String>> header, Attributes attributes) {
+        Optional<Span> propagatedSpan = tracingTelemetry.getContextPropagator().extractFromHeaders(header);
+        return startSpan(spanName, propagatedSpan.isPresent() ? new SpanContext(propagatedSpan.get()) : null, attributes);
     }
 
 }
