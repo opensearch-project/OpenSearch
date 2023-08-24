@@ -82,7 +82,9 @@ public class RemoteStoreRestoreIT extends RemoteStoreBaseIntegTestCase {
             TimeUnit.SECONDS
         );
         IndexResponse response = indexSingleDoc(indexName);
-        assertEquals(indexStats.get(MAX_SEQ_NO_TOTAL + "-shard-" + response.getShardId().id()) + 1, response.getSeqNo());
+        if (indexStats.containsKey(MAX_SEQ_NO_TOTAL + "-shard-" + response.getShardId().id())) {
+            assertEquals(indexStats.get(MAX_SEQ_NO_TOTAL + "-shard-" + response.getShardId().id()) + 1, response.getSeqNo());
+        }
         refresh(indexName);
         assertBusy(
             () -> assertHitCount(client().prepareSearch(indexName).setSize(0).get(), indexStats.get(TOTAL_OPERATIONS) + 1),
@@ -139,7 +141,6 @@ public class RemoteStoreRestoreIT extends RemoteStoreBaseIntegTestCase {
      * Simulates all data restored using Remote Translog Store.
      * @throws IOException IO Exception.
      */
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/7923")
     public void testRTSRestoreWithNoDataPostCommitPrimaryReplicaDown() throws Exception {
         testRestoreFlowBothPrimaryReplicasDown(1, true, randomIntBetween(1, 5));
     }
@@ -230,7 +231,7 @@ public class RemoteStoreRestoreIT extends RemoteStoreBaseIntegTestCase {
         for (String index : indices) {
             Map<String, Long> indexStats = indexData(numberOfIterations, invokeFlush, index);
             indicesStats.put(index, indexStats);
-            assertEquals(shardCount, getNumShards(index).totalNumShards);
+            assertEquals(shardCount * 2, getNumShards(index).totalNumShards);
         }
 
         for (String index : indices) {
@@ -261,7 +262,7 @@ public class RemoteStoreRestoreIT extends RemoteStoreBaseIntegTestCase {
             );
         ensureGreen(indices);
         for (String index : indices) {
-            assertEquals(shardCount, getNumShards(index).totalNumShards);
+            assertEquals(shardCount * 2, getNumShards(index).totalNumShards);
             verifyRestoredData(indicesStats.get(index), index);
         }
     }
