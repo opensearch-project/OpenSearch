@@ -488,7 +488,7 @@ public class RemoteStoreRestoreIT extends RemoteStoreBaseIntegTestCase {
         // This is required to get updated number from already active shards which were not restored
         assertEquals(shardCount, getNumShards(INDEX_NAME).totalNumShards);
         assertEquals(0, getNumShards(INDEX_NAME).numReplicas);
-        verifyRestoredData(indexStats, true, INDEX_NAME);
+        verifyRestoredData(indexStats, INDEX_NAME);
     }
 
     // TODO: Restore flow - index aliases
