@@ -539,7 +539,7 @@ final class StoreRecovery {
 
             indexShard.syncTranslogFilesFromRemoteTranslog();
 
-            if (store.directory().listAll().length == 0) {
+            if (store.directory().listAll().length <= 1) {
                 Path location = indexShard.shardPath().resolveTranslog();
                 Checkpoint checkpoint = Checkpoint.read(location.resolve(CHECKPOINT_FILE_NAME));
                 final Path translogFile = location.resolve(Translog.getFilename(checkpoint.getGeneration()));
