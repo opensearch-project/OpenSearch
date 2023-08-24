@@ -13,7 +13,7 @@ import org.opensearch.telemetry.tracing.attributes.Attributes;
 /**
  * Context for span details.
  */
-public final class Context {
+public final class SpanCreationContext {
     private final String spanName;
     private final Attributes attributes;
 
@@ -22,7 +22,7 @@ public final class Context {
      * @param spanName span name.
      * @param attributes attributes.
      */
-    public Context(String spanName, Attributes attributes) {
+    public SpanCreationContext(String spanName, Attributes attributes) {
         this.spanName = spanName;
         this.attributes = attributes;
     }

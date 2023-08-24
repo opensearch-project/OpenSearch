@@ -18,42 +18,49 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * Utility class, helps in creating the {@link Context} for span.
+ * Utility class, helps in creating the {@link SpanCreationContext} for span.
  */
-public class SpanBuilder {
+public final class SpanBuilder {
 
     private static final List<String> HEADERS_TO_BE_ADDED_AS_ATTRIBUTES = Arrays.asList(AttributeNames.TRACE);
     /**
      * Attribute name Separator
      */
-    public static final String SEPARATOR = " ";
+    private static final String SEPARATOR = " ";
 
     /**
-     * Creates {@link Context} from the {@link HttpRequest}
+     * Constructor
+     */
+    private SpanBuilder() {
+
+    }
+
+    /**
+     * Creates {@link SpanCreationContext} from the {@link HttpRequest}
      * @param request Http request.
      * @return context.
      */
-    public static Context from(HttpRequest request) {
-        return new Context(createSpanName(request), buildSpanAttributes(request));
+    public static SpanCreationContext from(HttpRequest request) {
+        return new SpanCreationContext(createSpanName(request), buildSpanAttributes(request));
     }
 
     /**
-     * Creates {@link Context} from the {@link RestRequest}
+     * Creates {@link SpanCreationContext} from the {@link RestRequest}
      * @param request Rest request
      * @return context
      */
-    public static Context from(RestRequest request) {
-        return new Context(createSpanName(request), buildSpanAttributes(request));
+    public static SpanCreationContext from(RestRequest request) {
+        return new SpanCreationContext(createSpanName(request), buildSpanAttributes(request));
     }
 
     /**
-     * Creates {@link Context} from Transport action and connection details.
+     * Creates {@link SpanCreationContext} from Transport action and connection details.
      * @param action action.
      * @param connection transport connection.
      * @return context
      */
-    public static Context from(String action, Transport.Connection connection) {
-        return new Context(createSpanName(action, connection), buildSpanAttributes(action, connection));
+    public static SpanCreationContext from(String action, Transport.Connection connection) {
+        return new SpanCreationContext(createSpanName(action, connection), buildSpanAttributes(action, connection));
     }
 
     private static String createSpanName(HttpRequest httpRequest) {

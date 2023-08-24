@@ -8,8 +8,8 @@
 
 package org.opensearch.telemetry.tracing.noop;
 
-import org.opensearch.telemetry.tracing.Context;
 import org.opensearch.telemetry.tracing.SpanContext;
+import org.opensearch.telemetry.tracing.SpanCreationContext;
 import org.opensearch.telemetry.tracing.SpanScope;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.telemetry.tracing.attributes.Attributes;
@@ -32,7 +32,7 @@ public class NoopTracer implements Tracer {
     private NoopTracer() {}
 
     @Override
-    public SpanScope startSpan(Context context) {
+    public SpanScope startSpan(SpanCreationContext context) {
         return SpanScope.NO_OP;
     }
 

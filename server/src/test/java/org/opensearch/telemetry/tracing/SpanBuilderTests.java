@@ -34,7 +34,7 @@ public class SpanBuilderTests extends OpenSearchTestCase {
 
     public void testHttpRequestContext() {
         HttpRequest httpRequest = createHttpRequest();
-        Context context = SpanBuilder.from(httpRequest);
+        SpanCreationContext context = SpanBuilder.from(httpRequest);
         Attributes attributes = context.getAttributes();
         assertEquals("GET /_test", context.getSpanName());
         assertEquals("true", attributes.getAttributesMap().get(AttributeNames.TRACE));
@@ -45,7 +45,7 @@ public class SpanBuilderTests extends OpenSearchTestCase {
 
     public void testRestRequestContext() {
         RestRequest restRequest = RestRequest.request(null, createHttpRequest(), null);
-        Context context = SpanBuilder.from(restRequest);
+        SpanCreationContext context = SpanBuilder.from(restRequest);
         Attributes attributes = context.getAttributes();
         assertEquals("GET /_test", context.getSpanName());
         assertEquals("/_test", attributes.getAttributesMap().get(AttributeNames.REST_REQ_RAW_PATH));
@@ -53,7 +53,7 @@ public class SpanBuilderTests extends OpenSearchTestCase {
     }
 
     public void testRestRequestContextForNull() {
-        Context context = SpanBuilder.from((RestRequest) null);
+        SpanCreationContext context = SpanBuilder.from((RestRequest) null);
         assertEquals("rest_request", context.getSpanName());
         assertEquals(Attributes.EMPTY, context.getAttributes());
     }
@@ -61,9 +61,9 @@ public class SpanBuilderTests extends OpenSearchTestCase {
     public void testTransportContext() {
         String action = "test-action";
         Transport.Connection connection = createTransportConnection();
-        Context context = SpanBuilder.from(action, connection);
+        SpanCreationContext context = SpanBuilder.from(action, connection);
         Attributes attributes = context.getAttributes();
-        assertEquals(action + SpanBuilder.SEPARATOR + NetworkAddress.format(TransportAddress.META_ADDRESS), context.getSpanName());
+        assertEquals(action + " " + NetworkAddress.format(TransportAddress.META_ADDRESS), context.getSpanName());
         assertEquals(connection.getNode().getHostAddress(), attributes.getAttributesMap().get(AttributeNames.TRANSPORT_TARGET_HOST));
     }
 

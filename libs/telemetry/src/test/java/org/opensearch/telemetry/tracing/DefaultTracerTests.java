@@ -108,7 +108,7 @@ public class DefaultTracerTests extends OpenSearchTestCase {
         DefaultTracer defaultTracer = new DefaultTracer(mockTracingTelemetry, mockTracerContextStorage);
         Attributes attributes = Attributes.create().addAttribute("name", "value");
         when(mockTracingTelemetry.createSpan("span_name", mockParentSpan, attributes)).thenReturn(mockSpan);
-        defaultTracer.startSpan(new Context("span_name", attributes));
+        defaultTracer.startSpan(new SpanCreationContext("span_name", attributes));
         verify(mockTracingTelemetry).createSpan("span_name", mockParentSpan, attributes);
     }
 

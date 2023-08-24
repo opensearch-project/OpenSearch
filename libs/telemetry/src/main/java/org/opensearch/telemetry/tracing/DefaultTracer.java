@@ -41,7 +41,7 @@ class DefaultTracer implements Tracer {
     }
 
     @Override
-    public SpanScope startSpan(Context context) {
+    public SpanScope startSpan(SpanCreationContext context) {
         return startSpan(context.getSpanName(), context.getAttributes());
     }
 
