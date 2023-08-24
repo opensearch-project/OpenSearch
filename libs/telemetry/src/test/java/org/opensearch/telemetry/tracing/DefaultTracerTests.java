@@ -11,7 +11,6 @@ package org.opensearch.telemetry.tracing;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.telemetry.tracing.attributes.Attributes;
-import org.opensearch.telemetry.tracing.http.HttpHeader;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.telemetry.tracing.MockSpan;
 import org.opensearch.test.telemetry.tracing.MockTracingTelemetry;
@@ -121,9 +120,8 @@ public class DefaultTracerTests extends OpenSearchTestCase {
 
         Map<String, List<String>> requestHeaders = new HashMap<>();
         requestHeaders.put("traceparent", Arrays.asList(traceId + "~" + spanId));
-        HttpHeader header = new HttpHeader(requestHeaders);
 
-        SpanScope spanScope = defaultTracer.startSpan("test_span", header, Attributes.EMPTY);
+        SpanScope spanScope = defaultTracer.startSpan("test_span", requestHeaders, Attributes.EMPTY);
         SpanContext currentSpan = defaultTracer.getCurrentSpan();
         assertNotNull(currentSpan);
         assertEquals(traceId, currentSpan.getSpan().getTraceId());
@@ -139,7 +137,7 @@ public class DefaultTracerTests extends OpenSearchTestCase {
             new ThreadContextBasedTracerContextStorage(new ThreadContext(Settings.EMPTY), tracingTelemetry)
         );
 
-        defaultTracer.startSpan("span_name", SpanContext.EMPTY, Attributes.EMPTY);
+        defaultTracer.startSpan("span_name", (SpanContext) null, Attributes.EMPTY);
 
         Assert.assertEquals("span_name", defaultTracer.getCurrentSpan().getSpan().getSpanName());
         Assert.assertEquals(null, defaultTracer.getCurrentSpan().getSpan().getParentSpan());

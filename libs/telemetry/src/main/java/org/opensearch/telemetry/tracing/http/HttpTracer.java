@@ -12,6 +12,9 @@ import org.opensearch.telemetry.tracing.Span;
 import org.opensearch.telemetry.tracing.SpanScope;
 import org.opensearch.telemetry.tracing.attributes.Attributes;
 
+import java.util.List;
+import java.util.Map;
+
 /**
  * HttpTracer helps in creating a {@link Span} which reads the incoming tracing information
  * from the HttpRequest header and propagate the span accordingly.
@@ -27,5 +30,5 @@ public interface HttpTracer {
      * @param attributes span attributes.
      * @return scope of the span, must be closed with explicit close or with try-with-resource
      */
-    SpanScope startSpan(String spanName, HttpHeader header, Attributes attributes);
+    SpanScope startSpan(String spanName, Map<String, List<String>> header, Attributes attributes);
 }

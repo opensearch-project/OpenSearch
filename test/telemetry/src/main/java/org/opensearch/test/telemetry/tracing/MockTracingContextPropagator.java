@@ -12,11 +12,11 @@ import org.opensearch.core.common.Strings;
 import org.opensearch.telemetry.tracing.Span;
 import org.opensearch.telemetry.tracing.TracingContextPropagator;
 import org.opensearch.telemetry.tracing.attributes.Attributes;
-import org.opensearch.telemetry.tracing.http.HttpHeader;
 
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
@@ -51,15 +51,14 @@ public class MockTracingContextPropagator implements TracingContextPropagator {
     }
 
     @Override
-    public Span extract(HttpHeader httpHeader) {
-        if (httpHeader != null && httpHeader.getHeader() != null) {
-            Map<String, List<String>> headerMap = httpHeader.getHeader();
-            Map<String, String> convertedHeader = headerMap.entrySet()
+    public Optional<Span> extractFromHeaders(Map<String, List<String>> header) {
+        if (header != null) {
+            Map<String, String> convertedHeader = header.entrySet()
                 .stream()
                 .collect(Collectors.toMap(Map.Entry::getKey, e -> Strings.collectionToCommaDelimitedString(e.getValue())));
-            return extract(convertedHeader);
+            return Optional.ofNullable(extract(convertedHeader));
         } else {
-            return null;
+            return Optional.empty();
         }
 
     }

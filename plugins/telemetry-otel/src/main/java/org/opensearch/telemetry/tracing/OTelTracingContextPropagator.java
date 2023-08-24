@@ -9,11 +9,11 @@
 package org.opensearch.telemetry.tracing;
 
 import org.opensearch.core.common.Strings;
-import org.opensearch.telemetry.tracing.http.HttpHeader;
 
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.BiConsumer;
 
 import io.opentelemetry.api.OpenTelemetry;
@@ -51,11 +51,9 @@ public class OTelTracingContextPropagator implements TracingContextPropagator {
     }
 
     @Override
-    public Span extract(HttpHeader httpHeader) {
-        Context context = openTelemetry.getPropagators()
-            .getTextMapPropagator()
-            .extract(Context.current(), httpHeader, HTTP_HEADER_MAP_GETTER);
-        return getPropagatedSpan(context);
+    public Optional<Span> extractFromHeaders(Map<String, List<String>> header) {
+        Context context = openTelemetry.getPropagators().getTextMapPropagator().extract(Context.current(), header, HEADER_TEXT_MAP_GETTER);
+        return Optional.ofNullable(getPropagatedSpan(context));
     }
 
     @Override
@@ -89,22 +87,20 @@ public class OTelTracingContextPropagator implements TracingContextPropagator {
         }
     };
 
-    private static final TextMapGetter<HttpHeader> HTTP_HEADER_MAP_GETTER = new TextMapGetter<>() {
+    private static final TextMapGetter<Map<String, List<String>>> HEADER_TEXT_MAP_GETTER = new TextMapGetter<>() {
         @Override
-        public Iterable<String> keys(HttpHeader httpHeader) {
-            Map<String, List<String>> headerMap = httpHeader.getHeader();
-            if (headerMap != null) {
-                return httpHeader.getHeader().keySet();
+        public Iterable<String> keys(Map<String, List<String>> header) {
+            if (header != null) {
+                return header.keySet();
             } else {
                 return Collections.emptySet();
             }
         }
 
         @Override
-        public String get(HttpHeader httpHeader, String key) {
-            Map<String, List<String>> headerMap = httpHeader.getHeader();
-            if (headerMap != null && headerMap.containsKey(key)) {
-                return Strings.collectionToCommaDelimitedString(headerMap.get(key));
+        public String get(Map<String, List<String>> header, String key) {
+            if (header != null && header.containsKey(key)) {
+                return Strings.collectionToCommaDelimitedString(header.get(key));
             }
             return null;
         }
