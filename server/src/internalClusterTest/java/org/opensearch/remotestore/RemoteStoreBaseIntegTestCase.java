@@ -42,8 +42,8 @@ import static org.opensearch.indices.IndicesService.CLUSTER_REPLICATION_TYPE_SET
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
-    protected static final String REPOSITORY_NAME = "test-remote-store-repo";
-    protected static final String REPOSITORY_2_NAME = "test-remote-store-repo-2";
+    public static final String REPOSITORY_NAME = "test-remote-store-repo";
+    public static final String REPOSITORY_2_NAME = "test-remote-store-repo-2";
     protected static final int SHARD_COUNT = 1;
     protected static final int REPLICA_COUNT = 1;
     protected static final String TOTAL_OPERATIONS = "total-operations";

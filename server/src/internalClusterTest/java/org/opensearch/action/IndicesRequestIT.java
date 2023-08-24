@@ -94,6 +94,7 @@ import org.opensearch.action.update.UpdateRequest;
 import org.opensearch.action.update.UpdateResponse;
 import org.opensearch.client.Requests;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
@@ -101,6 +102,7 @@ import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.plugins.NetworkPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.PluginsService;
+import org.opensearch.remotestore.RemoteStoreBaseIntegTestCase;
 import org.opensearch.script.MockScriptPlugin;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
@@ -116,6 +118,7 @@ import org.opensearch.transport.TransportRequestHandler;
 import org.junit.After;
 import org.junit.Before;
 
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -127,6 +130,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
+import static org.opensearch.remotestore.RemoteStoreBaseIntegTestCase.REPOSITORY_2_NAME;
+import static org.opensearch.remotestore.RemoteStoreBaseIntegTestCase.REPOSITORY_NAME;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.emptyIterable;
@@ -160,6 +165,7 @@ public class IndicesRequestIT extends OpenSearchIntegTestCase {
             // InternalClusterInfoService sends IndicesStatsRequest periodically which messes with this test
             // this setting disables it...
             .put("cluster.routing.allocation.disk.threshold_enabled", false)
+            .put(RemoteStoreBaseIntegTestCase.remoteStoreClusterSettings(REPOSITORY_NAME, REPOSITORY_2_NAME, true))
             .build();
     }
 
@@ -179,6 +185,7 @@ public class IndicesRequestIT extends OpenSearchIntegTestCase {
 
     @Before
     public void setup() {
+        setupRepo();
         int numIndices = iterations(1, 5);
         for (int i = 0; i < numIndices; i++) {
             indices.add("test" + i);
@@ -189,10 +196,35 @@ public class IndicesRequestIT extends OpenSearchIntegTestCase {
         ensureGreen();
     }
 
+    protected void setupRepo() {
+        internalCluster().startClusterManagerOnlyNode();
+        Path absolutePath = randomRepoPath().toAbsolutePath();
+        putRepository(absolutePath);
+        Path absolutePath2 = randomRepoPath().toAbsolutePath();
+        putRepository(absolutePath2, REPOSITORY_2_NAME);
+    }
+
+    protected void putRepository(Path path, String repoName) {
+        assertAcked(clusterAdmin().preparePutRepository(repoName).setType("fs").setSettings(Settings.builder().put("location", path)));
+    }
+
+    protected void putRepository(Path path) {
+        putRepository(path, REPOSITORY_NAME);
+    }
+
     @After
     public void cleanUp() {
         assertAllRequestsHaveBeenConsumed();
         indices.clear();
+    }
+
+    @Override
+    protected Settings featureFlagSettings() {
+        return Settings.builder()
+            .put(super.featureFlagSettings())
+            .put(FeatureFlags.REMOTE_STORE, "true")
+            .put(FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL, "true")
+            .build();
     }
 
     public void testGetFieldMappings() {
