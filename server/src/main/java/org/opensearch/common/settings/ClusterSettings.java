@@ -656,9 +656,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 RemoteStorePressureSettings.BYTES_LAG_VARIANCE_FACTOR,
                 RemoteStorePressureSettings.UPLOAD_TIME_LAG_VARIANCE_FACTOR,
                 RemoteStorePressureSettings.MIN_CONSECUTIVE_FAILURES_LIMIT,
-                RemoteStorePressureSettings.UPLOAD_BYTES_MOVING_AVERAGE_WINDOW_SIZE,
-                RemoteStorePressureSettings.UPLOAD_BYTES_PER_SEC_MOVING_AVERAGE_WINDOW_SIZE,
-                RemoteStorePressureSettings.UPLOAD_TIME_MOVING_AVERAGE_WINDOW_SIZE,
+                RemoteStorePressureSettings.MOVING_AVERAGE_WINDOW_SIZE,
 
                 // Related to monitoring of task cancellation
                 TaskCancellationMonitoringSettings.IS_ENABLED_SETTING,

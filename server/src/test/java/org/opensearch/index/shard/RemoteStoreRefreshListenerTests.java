@@ -28,6 +28,7 @@ import org.opensearch.index.engine.InternalEngineFactory;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.remote.RemoteSegmentTransferTracker;
 import org.opensearch.index.remote.RemoteStorePressureService;
+import org.opensearch.index.remote.RemoteStoreStatsTrackerFactory;
 import org.opensearch.index.store.RemoteDirectory;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory.MetadataFilenameUtils;
@@ -61,6 +62,7 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
     private ClusterService clusterService;
     private RemoteStoreRefreshListener remoteStoreRefreshListener;
     private RemoteStorePressureService remoteStorePressureService;
+    private RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory;
 
     public void setup(boolean primary, int numberOfDocs) throws IOException {
         indexShard = newStartedShard(
@@ -84,8 +86,9 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             threadPool
         );
-        remoteStorePressureService = new RemoteStorePressureService(clusterService, Settings.EMPTY);
-        remoteStorePressureService.afterIndexShardCreated(indexShard);
+        remoteStoreStatsTrackerFactory = new RemoteStoreStatsTrackerFactory(Settings.EMPTY);
+        remoteStorePressureService = new RemoteStorePressureService(clusterService, Settings.EMPTY, remoteStoreStatsTrackerFactory);
+        remoteStoreStatsTrackerFactory.afterIndexShardCreated(indexShard);
         RemoteSegmentTransferTracker tracker = remoteStorePressureService.getRemoteRefreshSegmentTracker(indexShard.shardId());
         remoteStoreRefreshListener = new RemoteStoreRefreshListener(indexShard, SegmentReplicationCheckpointPublisher.EMPTY, tracker);
     }
@@ -539,9 +542,15 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             threadPool
         );
-        RemoteStorePressureService remoteStorePressureService = indexShard.getRemoteStorePressureService();
+        remoteStoreStatsTrackerFactory = new RemoteStoreStatsTrackerFactory(Settings.EMPTY);
+        RemoteStorePressureService remoteStorePressureService = new RemoteStorePressureService(
+            clusterService,
+            Settings.EMPTY,
+            remoteStoreStatsTrackerFactory
+        );
         when(shard.indexSettings()).thenReturn(indexShard.indexSettings());
         when(shard.shardId()).thenReturn(indexShard.shardId());
+        remoteStoreStatsTrackerFactory.afterIndexShardCreated(shard);
         RemoteSegmentTransferTracker tracker = remoteStorePressureService.getRemoteRefreshSegmentTracker(indexShard.shardId());
         RemoteStoreRefreshListener refreshListener = new RemoteStoreRefreshListener(shard, emptyCheckpointPublisher, tracker);
         refreshListener.afterRefresh(true);

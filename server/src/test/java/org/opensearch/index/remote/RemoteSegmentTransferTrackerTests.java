@@ -63,9 +63,7 @@ public class RemoteSegmentTransferTrackerTests extends OpenSearchTestCase {
         pressureTracker = new RemoteSegmentTransferTracker(
             shardId,
             directoryFileTransferTracker,
-            pressureSettings.getUploadBytesMovingAverageWindowSize(),
-            pressureSettings.getUploadBytesPerSecMovingAverageWindowSize(),
-            pressureSettings.getUploadTimeMovingAverageWindowSize()
+            pressureSettings.getMovingAverageWindowSize()
         );
         assertEquals(shardId, pressureTracker.getShardId());
     }
@@ -74,9 +72,7 @@ public class RemoteSegmentTransferTrackerTests extends OpenSearchTestCase {
         pressureTracker = new RemoteSegmentTransferTracker(
             shardId,
             directoryFileTransferTracker,
-            pressureSettings.getUploadBytesMovingAverageWindowSize(),
-            pressureSettings.getUploadBytesPerSecMovingAverageWindowSize(),
-            pressureSettings.getUploadTimeMovingAverageWindowSize()
+            pressureSettings.getMovingAverageWindowSize()
         );
         long refreshSeqNo = 2;
         pressureTracker.updateLocalRefreshSeqNo(refreshSeqNo);
@@ -87,9 +83,7 @@ public class RemoteSegmentTransferTrackerTests extends OpenSearchTestCase {
         pressureTracker = new RemoteSegmentTransferTracker(
             shardId,
             directoryFileTransferTracker,
-            pressureSettings.getUploadBytesMovingAverageWindowSize(),
-            pressureSettings.getUploadBytesPerSecMovingAverageWindowSize(),
-            pressureSettings.getUploadTimeMovingAverageWindowSize()
+            pressureSettings.getMovingAverageWindowSize()
         );
         long refreshSeqNo = 4;
         pressureTracker.updateRemoteRefreshSeqNo(refreshSeqNo);
@@ -100,9 +94,7 @@ public class RemoteSegmentTransferTrackerTests extends OpenSearchTestCase {
         pressureTracker = new RemoteSegmentTransferTracker(
             shardId,
             directoryFileTransferTracker,
-            pressureSettings.getUploadBytesMovingAverageWindowSize(),
-            pressureSettings.getUploadBytesPerSecMovingAverageWindowSize(),
-            pressureSettings.getUploadTimeMovingAverageWindowSize()
+            pressureSettings.getMovingAverageWindowSize()
         );
         long refreshTimeMs = System.nanoTime() / 1_000_000L + randomIntBetween(10, 100);
         pressureTracker.updateLocalRefreshTimeMs(refreshTimeMs);
@@ -113,9 +105,7 @@ public class RemoteSegmentTransferTrackerTests extends OpenSearchTestCase {
         pressureTracker = new RemoteSegmentTransferTracker(
             shardId,
             directoryFileTransferTracker,
-            pressureSettings.getUploadBytesMovingAverageWindowSize(),
-            pressureSettings.getUploadBytesPerSecMovingAverageWindowSize(),
-            pressureSettings.getUploadTimeMovingAverageWindowSize()
+            pressureSettings.getMovingAverageWindowSize()
         );
         long refreshTimeMs = System.nanoTime() / 1_000_000 + randomIntBetween(10, 100);
         pressureTracker.updateRemoteRefreshTimeMs(refreshTimeMs);
@@ -126,9 +116,7 @@ public class RemoteSegmentTransferTrackerTests extends OpenSearchTestCase {
         pressureTracker = new RemoteSegmentTransferTracker(
             shardId,
             directoryFileTransferTracker,
-            pressureSettings.getUploadBytesMovingAverageWindowSize(),
-            pressureSettings.getUploadBytesPerSecMovingAverageWindowSize(),
-            pressureSettings.getUploadTimeMovingAverageWindowSize()
+            pressureSettings.getMovingAverageWindowSize()
         );
         long currentTimeInMs = System.currentTimeMillis();
         pressureTracker.getDirectoryFileTransferTracker().updateLastTransferTimestampMs(currentTimeInMs);
@@ -139,9 +127,7 @@ public class RemoteSegmentTransferTrackerTests extends OpenSearchTestCase {
         pressureTracker = new RemoteSegmentTransferTracker(
             shardId,
             directoryFileTransferTracker,
-            pressureSettings.getUploadBytesMovingAverageWindowSize(),
-            pressureSettings.getUploadBytesPerSecMovingAverageWindowSize(),
-            pressureSettings.getUploadTimeMovingAverageWindowSize()
+            pressureSettings.getMovingAverageWindowSize()
         );
         int localRefreshSeqNo = randomIntBetween(50, 100);
         int remoteRefreshSeqNo = randomIntBetween(20, 50);
@@ -155,9 +141,7 @@ public class RemoteSegmentTransferTrackerTests extends OpenSearchTestCase {
         pressureTracker = new RemoteSegmentTransferTracker(
             shardId,
             directoryFileTransferTracker,
-            pressureSettings.getUploadBytesMovingAverageWindowSize(),
-            pressureSettings.getUploadBytesPerSecMovingAverageWindowSize(),
-            pressureSettings.getUploadTimeMovingAverageWindowSize()
+            pressureSettings.getMovingAverageWindowSize()
         );
         long currentLocalRefreshTimeMs = pressureTracker.getLocalRefreshTimeMs();
         long currentTimeMs = System.nanoTime() / 1_000_000L;
@@ -173,9 +157,7 @@ public class RemoteSegmentTransferTrackerTests extends OpenSearchTestCase {
         pressureTracker = new RemoteSegmentTransferTracker(
             shardId,
             directoryFileTransferTracker,
-            pressureSettings.getUploadBytesMovingAverageWindowSize(),
-            pressureSettings.getUploadBytesPerSecMovingAverageWindowSize(),
-            pressureSettings.getUploadTimeMovingAverageWindowSize()
+            pressureSettings.getMovingAverageWindowSize()
         );
         long bytesToAdd = randomLongBetween(1000, 1000000);
         pressureTracker.addUploadBytesStarted(bytesToAdd);
@@ -189,9 +171,7 @@ public class RemoteSegmentTransferTrackerTests extends OpenSearchTestCase {
         pressureTracker = new RemoteSegmentTransferTracker(
             shardId,
             directoryFileTransferTracker,
-            pressureSettings.getUploadBytesMovingAverageWindowSize(),
-            pressureSettings.getUploadBytesPerSecMovingAverageWindowSize(),
-            pressureSettings.getUploadTimeMovingAverageWindowSize()
+            pressureSettings.getMovingAverageWindowSize()
         );
         long bytesToAdd = randomLongBetween(1000, 1000000);
         pressureTracker.addUploadBytesFailed(bytesToAdd);
@@ -205,9 +185,7 @@ public class RemoteSegmentTransferTrackerTests extends OpenSearchTestCase {
         pressureTracker = new RemoteSegmentTransferTracker(
             shardId,
             directoryFileTransferTracker,
-            pressureSettings.getUploadBytesMovingAverageWindowSize(),
-            pressureSettings.getUploadBytesPerSecMovingAverageWindowSize(),
-            pressureSettings.getUploadTimeMovingAverageWindowSize()
+            pressureSettings.getMovingAverageWindowSize()
         );
         long bytesToAdd = randomLongBetween(1000, 1000000);
         pressureTracker.addUploadBytesSucceeded(bytesToAdd);
@@ -221,9 +199,7 @@ public class RemoteSegmentTransferTrackerTests extends OpenSearchTestCase {
         pressureTracker = new RemoteSegmentTransferTracker(
             shardId,
             directoryFileTransferTracker,
-            pressureSettings.getUploadBytesMovingAverageWindowSize(),
-            pressureSettings.getUploadBytesPerSecMovingAverageWindowSize(),
-            pressureSettings.getUploadTimeMovingAverageWindowSize()
+            pressureSettings.getMovingAverageWindowSize()
         );
         long bytesToAdd = randomLongBetween(1000, 1000000);
         pressureTracker.getDirectoryFileTransferTracker().addTransferredBytesStarted(bytesToAdd);
@@ -237,9 +213,7 @@ public class RemoteSegmentTransferTrackerTests extends OpenSearchTestCase {
         pressureTracker = new RemoteSegmentTransferTracker(
             shardId,
             directoryFileTransferTracker,
-            pressureSettings.getUploadBytesMovingAverageWindowSize(),
-            pressureSettings.getUploadBytesPerSecMovingAverageWindowSize(),
-            pressureSettings.getUploadTimeMovingAverageWindowSize()
+            pressureSettings.getMovingAverageWindowSize()
         );
         long bytesToAdd = randomLongBetween(1000, 1000000);
         pressureTracker.getDirectoryFileTransferTracker().addTransferredBytesFailed(bytesToAdd, System.currentTimeMillis());
@@ -253,9 +227,7 @@ public class RemoteSegmentTransferTrackerTests extends OpenSearchTestCase {
         pressureTracker = new RemoteSegmentTransferTracker(
             shardId,
             directoryFileTransferTracker,
-            pressureSettings.getUploadBytesMovingAverageWindowSize(),
-            pressureSettings.getUploadBytesPerSecMovingAverageWindowSize(),
-            pressureSettings.getUploadTimeMovingAverageWindowSize()
+            pressureSettings.getMovingAverageWindowSize()
         );
         long bytesToAdd = randomLongBetween(1000, 1000000);
         pressureTracker.getDirectoryFileTransferTracker().addTransferredBytesSucceeded(bytesToAdd, System.currentTimeMillis());
@@ -269,9 +241,7 @@ public class RemoteSegmentTransferTrackerTests extends OpenSearchTestCase {
         pressureTracker = new RemoteSegmentTransferTracker(
             shardId,
             directoryFileTransferTracker,
-            pressureSettings.getUploadBytesMovingAverageWindowSize(),
-            pressureSettings.getUploadBytesPerSecMovingAverageWindowSize(),
-            pressureSettings.getUploadTimeMovingAverageWindowSize()
+            pressureSettings.getMovingAverageWindowSize()
         );
         long bytesStarted = randomLongBetween(10000, 100000);
         long bytesSucceeded = randomLongBetween(1000, 10000);
@@ -286,9 +256,7 @@ public class RemoteSegmentTransferTrackerTests extends OpenSearchTestCase {
         pressureTracker = new RemoteSegmentTransferTracker(
             shardId,
             directoryFileTransferTracker,
-            pressureSettings.getUploadBytesMovingAverageWindowSize(),
-            pressureSettings.getUploadBytesPerSecMovingAverageWindowSize(),
-            pressureSettings.getUploadTimeMovingAverageWindowSize()
+            pressureSettings.getMovingAverageWindowSize()
         );
         pressureTracker.incrementTotalUploadsStarted();
         assertEquals(1, pressureTracker.getTotalUploadsStarted());
@@ -300,9 +268,7 @@ public class RemoteSegmentTransferTrackerTests extends OpenSearchTestCase {
         pressureTracker = new RemoteSegmentTransferTracker(
             shardId,
             directoryFileTransferTracker,
-            pressureSettings.getUploadBytesMovingAverageWindowSize(),
-            pressureSettings.getUploadBytesPerSecMovingAverageWindowSize(),
-            pressureSettings.getUploadTimeMovingAverageWindowSize()
+            pressureSettings.getMovingAverageWindowSize()
         );
         pressureTracker.incrementTotalUploadsFailed();
         assertEquals(1, pressureTracker.getTotalUploadsFailed());
@@ -314,9 +280,7 @@ public class RemoteSegmentTransferTrackerTests extends OpenSearchTestCase {
         pressureTracker = new RemoteSegmentTransferTracker(
             shardId,
             directoryFileTransferTracker,
-            pressureSettings.getUploadBytesMovingAverageWindowSize(),
-            pressureSettings.getUploadBytesPerSecMovingAverageWindowSize(),
-            pressureSettings.getUploadTimeMovingAverageWindowSize()
+            pressureSettings.getMovingAverageWindowSize()
         );
         pressureTracker.incrementTotalUploadsSucceeded();
         assertEquals(1, pressureTracker.getTotalUploadsSucceeded());
@@ -328,9 +292,7 @@ public class RemoteSegmentTransferTrackerTests extends OpenSearchTestCase {
         pressureTracker = new RemoteSegmentTransferTracker(
             shardId,
             directoryFileTransferTracker,
-            pressureSettings.getUploadBytesMovingAverageWindowSize(),
-            pressureSettings.getUploadBytesPerSecMovingAverageWindowSize(),
-            pressureSettings.getUploadTimeMovingAverageWindowSize()
+            pressureSettings.getMovingAverageWindowSize()
         );
         pressureTracker.incrementTotalUploadsStarted();
         assertEquals(1, pressureTracker.getInflightUploads());
@@ -346,9 +308,7 @@ public class RemoteSegmentTransferTrackerTests extends OpenSearchTestCase {
         pressureTracker = new RemoteSegmentTransferTracker(
             shardId,
             directoryFileTransferTracker,
-            pressureSettings.getUploadBytesMovingAverageWindowSize(),
-            pressureSettings.getUploadBytesPerSecMovingAverageWindowSize(),
-            pressureSettings.getUploadTimeMovingAverageWindowSize()
+            pressureSettings.getMovingAverageWindowSize()
         );
         pressureTracker.incrementRejectionCount();
         assertEquals(1, pressureTracker.getRejectionCount());
@@ -360,9 +320,7 @@ public class RemoteSegmentTransferTrackerTests extends OpenSearchTestCase {
         pressureTracker = new RemoteSegmentTransferTracker(
             shardId,
             directoryFileTransferTracker,
-            pressureSettings.getUploadBytesMovingAverageWindowSize(),
-            pressureSettings.getUploadBytesPerSecMovingAverageWindowSize(),
-            pressureSettings.getUploadTimeMovingAverageWindowSize()
+            pressureSettings.getMovingAverageWindowSize()
         );
         pressureTracker.incrementTotalUploadsFailed();
         assertEquals(1, pressureTracker.getConsecutiveFailureCount());
@@ -376,9 +334,7 @@ public class RemoteSegmentTransferTrackerTests extends OpenSearchTestCase {
         pressureTracker = new RemoteSegmentTransferTracker(
             shardId,
             directoryFileTransferTracker,
-            pressureSettings.getUploadBytesMovingAverageWindowSize(),
-            pressureSettings.getUploadBytesPerSecMovingAverageWindowSize(),
-            pressureSettings.getUploadTimeMovingAverageWindowSize()
+            pressureSettings.getMovingAverageWindowSize()
         );
 
         // Create local file size map
@@ -403,14 +359,8 @@ public class RemoteSegmentTransferTrackerTests extends OpenSearchTestCase {
     }
 
     public void testIsUploadBytesAverageReady() {
-        int uploadBytesMovingAverageWindowSize = pressureSettings.getUploadBytesMovingAverageWindowSize();
-        pressureTracker = new RemoteSegmentTransferTracker(
-            shardId,
-            directoryFileTransferTracker,
-            uploadBytesMovingAverageWindowSize,
-            pressureSettings.getUploadBytesPerSecMovingAverageWindowSize(),
-            pressureSettings.getUploadTimeMovingAverageWindowSize()
-        );
+        int uploadBytesMovingAverageWindowSize = pressureSettings.getMovingAverageWindowSize();
+        pressureTracker = new RemoteSegmentTransferTracker(shardId, directoryFileTransferTracker, uploadBytesMovingAverageWindowSize);
         assertFalse(pressureTracker.isUploadBytesAverageReady());
 
         long sum = 0;
@@ -432,70 +382,56 @@ public class RemoteSegmentTransferTrackerTests extends OpenSearchTestCase {
     }
 
     public void testIsUploadBytesPerSecAverageReady() {
-        int uploadBytesPerSecMovingAverageWindowSize = pressureSettings.getUploadBytesPerSecMovingAverageWindowSize();
-        pressureTracker = new RemoteSegmentTransferTracker(
-            shardId,
-            directoryFileTransferTracker,
-            pressureSettings.getUploadBytesMovingAverageWindowSize(),
-            uploadBytesPerSecMovingAverageWindowSize,
-            pressureSettings.getUploadTimeMovingAverageWindowSize()
-        );
+        int movingAverageWindowSize = pressureSettings.getMovingAverageWindowSize();
+        pressureTracker = new RemoteSegmentTransferTracker(shardId, directoryFileTransferTracker, movingAverageWindowSize);
         assertFalse(pressureTracker.isUploadBytesPerSecAverageReady());
 
         long sum = 0;
-        for (int i = 1; i < uploadBytesPerSecMovingAverageWindowSize; i++) {
+        for (int i = 1; i < movingAverageWindowSize; i++) {
             pressureTracker.addUploadBytesPerSec(i);
             sum += i;
             assertFalse(pressureTracker.isUploadBytesPerSecAverageReady());
             assertEquals((double) sum / i, pressureTracker.getUploadBytesPerSecAverage(), 0.0d);
         }
 
-        pressureTracker.addUploadBytesPerSec(uploadBytesPerSecMovingAverageWindowSize);
-        sum += uploadBytesPerSecMovingAverageWindowSize;
+        pressureTracker.addUploadBytesPerSec(movingAverageWindowSize);
+        sum += movingAverageWindowSize;
         assertTrue(pressureTracker.isUploadBytesPerSecAverageReady());
-        assertEquals((double) sum / uploadBytesPerSecMovingAverageWindowSize, pressureTracker.getUploadBytesPerSecAverage(), 0.0d);
+        assertEquals((double) sum / movingAverageWindowSize, pressureTracker.getUploadBytesPerSecAverage(), 0.0d);
 
         pressureTracker.addUploadBytesPerSec(100);
         sum = sum + 100 - 1;
-        assertEquals((double) sum / uploadBytesPerSecMovingAverageWindowSize, pressureTracker.getUploadBytesPerSecAverage(), 0.0d);
+        assertEquals((double) sum / movingAverageWindowSize, pressureTracker.getUploadBytesPerSecAverage(), 0.0d);
     }
 
     public void testIsUploadTimeMsAverageReady() {
-        int uploadTimeMovingAverageWindowSize = pressureSettings.getUploadTimeMovingAverageWindowSize();
-        pressureTracker = new RemoteSegmentTransferTracker(
-            shardId,
-            directoryFileTransferTracker,
-            pressureSettings.getUploadBytesMovingAverageWindowSize(),
-            pressureSettings.getUploadBytesPerSecMovingAverageWindowSize(),
-            uploadTimeMovingAverageWindowSize
-        );
+        int movingAverageWindowSize = pressureSettings.getMovingAverageWindowSize();
+        pressureTracker = new RemoteSegmentTransferTracker(shardId, directoryFileTransferTracker, movingAverageWindowSize);
         assertFalse(pressureTracker.isUploadTimeMsAverageReady());
 
         long sum = 0;
-        for (int i = 1; i < uploadTimeMovingAverageWindowSize; i++) {
+        for (int i = 1; i < movingAverageWindowSize; i++) {
             pressureTracker.addTimeForCompletedUploadSync(i);
             sum += i;
             assertFalse(pressureTracker.isUploadTimeMsAverageReady());
             assertEquals((double) sum / i, pressureTracker.getUploadTimeMsAverage(), 0.0d);
         }
 
-        pressureTracker.addTimeForCompletedUploadSync(uploadTimeMovingAverageWindowSize);
-        sum += uploadTimeMovingAverageWindowSize;
+        pressureTracker.addTimeForCompletedUploadSync(movingAverageWindowSize);
+        sum += movingAverageWindowSize;
         assertTrue(pressureTracker.isUploadTimeMsAverageReady());
-        assertEquals((double) sum / uploadTimeMovingAverageWindowSize, pressureTracker.getUploadTimeMsAverage(), 0.0d);
+        assertEquals((double) sum / movingAverageWindowSize, pressureTracker.getUploadTimeMsAverage(), 0.0d);
 
         pressureTracker.addTimeForCompletedUploadSync(100);
         sum = sum + 100 - 1;
-        assertEquals((double) sum / uploadTimeMovingAverageWindowSize, pressureTracker.getUploadTimeMsAverage(), 0.0d);
+        assertEquals((double) sum / movingAverageWindowSize, pressureTracker.getUploadTimeMsAverage(), 0.0d);
     }
 
     public void testIsDownloadBytesAverageReady() {
         pressureTracker = new RemoteSegmentTransferTracker(
             shardId,
             directoryFileTransferTracker,
-            pressureSettings.getUploadBytesMovingAverageWindowSize(),
-            pressureSettings.getUploadBytesPerSecMovingAverageWindowSize(),
-            pressureSettings.getUploadTimeMovingAverageWindowSize()
+            pressureSettings.getMovingAverageWindowSize()
         );
         assertFalse(pressureTracker.getDirectoryFileTransferTracker().isTransferredBytesAverageReady());
 
@@ -521,9 +457,7 @@ public class RemoteSegmentTransferTrackerTests extends OpenSearchTestCase {
         pressureTracker = new RemoteSegmentTransferTracker(
             shardId,
             directoryFileTransferTracker,
-            pressureSettings.getUploadBytesMovingAverageWindowSize(),
-            pressureSettings.getUploadBytesPerSecMovingAverageWindowSize(),
-            pressureSettings.getUploadTimeMovingAverageWindowSize()
+            pressureSettings.getMovingAverageWindowSize()
         );
         assertFalse(pressureTracker.getDirectoryFileTransferTracker().isTransferredBytesPerSecAverageReady());
 
@@ -549,9 +483,7 @@ public class RemoteSegmentTransferTrackerTests extends OpenSearchTestCase {
         pressureTracker = new RemoteSegmentTransferTracker(
             shardId,
             directoryFileTransferTracker,
-            pressureSettings.getUploadBytesMovingAverageWindowSize(),
-            pressureSettings.getUploadBytesPerSecMovingAverageWindowSize(),
-            pressureSettings.getUploadTimeMovingAverageWindowSize()
+            pressureSettings.getMovingAverageWindowSize()
         );
         long timeToAdd = randomLongBetween(100, 200);
         pressureTracker.addTotalUploadTimeInMs(timeToAdd);
@@ -652,9 +584,7 @@ public class RemoteSegmentTransferTrackerTests extends OpenSearchTestCase {
         RemoteSegmentTransferTracker segmentPressureTracker = new RemoteSegmentTransferTracker(
             shardId,
             new DirectoryFileTransferTracker(),
-            pressureSettings.getUploadBytesMovingAverageWindowSize(),
-            pressureSettings.getUploadBytesPerSecMovingAverageWindowSize(),
-            pressureSettings.getUploadTimeMovingAverageWindowSize()
+            pressureSettings.getMovingAverageWindowSize()
         );
         segmentPressureTracker.incrementTotalUploadsFailed();
         segmentPressureTracker.addTimeForCompletedUploadSync(System.nanoTime() / 1_000_000L + randomIntBetween(10, 100));

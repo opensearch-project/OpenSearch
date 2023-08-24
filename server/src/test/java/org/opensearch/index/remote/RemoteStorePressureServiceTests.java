@@ -41,6 +41,8 @@ public class RemoteStorePressureServiceTests extends OpenSearchTestCase {
 
     private RemoteStorePressureService pressureService;
 
+    private RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory;
+
     @Override
     public void setUp() throws Exception {
         super.setUp();
@@ -60,7 +62,8 @@ public class RemoteStorePressureServiceTests extends OpenSearchTestCase {
     }
 
     public void testIsSegmentsUploadBackpressureEnabled() {
-        pressureService = new RemoteStorePressureService(clusterService, Settings.EMPTY);
+        remoteStoreStatsTrackerFactory = new RemoteStoreStatsTrackerFactory(Settings.EMPTY);
+        pressureService = new RemoteStorePressureService(clusterService, Settings.EMPTY, remoteStoreStatsTrackerFactory);
         assertFalse(pressureService.isSegmentsUploadBackpressureEnabled());
 
         Settings newSettings = Settings.builder()
@@ -73,33 +76,36 @@ public class RemoteStorePressureServiceTests extends OpenSearchTestCase {
 
     public void testAfterIndexShardCreatedForRemoteBackedIndex() {
         IndexShard indexShard = createIndexShard(shardId, true);
-        pressureService = new RemoteStorePressureService(clusterService, Settings.EMPTY);
-        pressureService.afterIndexShardCreated(indexShard);
+        remoteStoreStatsTrackerFactory = new RemoteStoreStatsTrackerFactory(Settings.EMPTY);
+        pressureService = new RemoteStorePressureService(clusterService, Settings.EMPTY, remoteStoreStatsTrackerFactory);
+        remoteStoreStatsTrackerFactory.afterIndexShardCreated(indexShard);
         assertNotNull(pressureService.getRemoteRefreshSegmentTracker(indexShard.shardId()));
     }
 
     public void testAfterIndexShardCreatedForNonRemoteBackedIndex() {
         IndexShard indexShard = createIndexShard(shardId, false);
-        pressureService = new RemoteStorePressureService(clusterService, Settings.EMPTY);
-        pressureService.afterIndexShardCreated(indexShard);
+        remoteStoreStatsTrackerFactory = new RemoteStoreStatsTrackerFactory(Settings.EMPTY);
+        pressureService = new RemoteStorePressureService(clusterService, Settings.EMPTY, remoteStoreStatsTrackerFactory);
+        remoteStoreStatsTrackerFactory.afterIndexShardCreated(indexShard);
         assertNull(pressureService.getRemoteRefreshSegmentTracker(indexShard.shardId()));
     }
 
     public void testAfterIndexShardClosed() {
         IndexShard indexShard = createIndexShard(shardId, true);
-        pressureService = new RemoteStorePressureService(clusterService, Settings.EMPTY);
-        pressureService.afterIndexShardCreated(indexShard);
+        remoteStoreStatsTrackerFactory = new RemoteStoreStatsTrackerFactory(Settings.EMPTY);
+        pressureService = new RemoteStorePressureService(clusterService, Settings.EMPTY, remoteStoreStatsTrackerFactory);
+        remoteStoreStatsTrackerFactory.afterIndexShardCreated(indexShard);
         assertNotNull(pressureService.getRemoteRefreshSegmentTracker(shardId));
-
-        pressureService.afterIndexShardClosed(shardId, indexShard, indexShard.indexSettings().getSettings());
+        remoteStoreStatsTrackerFactory.afterIndexShardClosed(shardId, indexShard, indexShard.indexSettings().getSettings());
         assertNull(pressureService.getRemoteRefreshSegmentTracker(shardId));
     }
 
     public void testValidateSegmentUploadLag() {
         // Create the pressure tracker
         IndexShard indexShard = createIndexShard(shardId, true);
-        pressureService = new RemoteStorePressureService(clusterService, Settings.EMPTY);
-        pressureService.afterIndexShardCreated(indexShard);
+        remoteStoreStatsTrackerFactory = new RemoteStoreStatsTrackerFactory(Settings.EMPTY);
+        pressureService = new RemoteStorePressureService(clusterService, Settings.EMPTY, remoteStoreStatsTrackerFactory);
+        remoteStoreStatsTrackerFactory.afterIndexShardCreated(indexShard);
 
         RemoteSegmentTransferTracker pressureTracker = pressureService.getRemoteRefreshSegmentTracker(shardId);
         pressureTracker.updateLocalRefreshSeqNo(6);

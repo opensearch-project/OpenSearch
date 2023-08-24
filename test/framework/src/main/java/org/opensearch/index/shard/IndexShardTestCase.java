@@ -98,6 +98,7 @@ import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.SourceToParse;
 import org.opensearch.index.remote.RemoteStorePressureService;
+import org.opensearch.index.remote.RemoteStoreStatsTrackerFactory;
 import org.opensearch.index.replication.TestReplicationSource;
 import org.opensearch.index.seqno.ReplicationTracker;
 import org.opensearch.index.seqno.RetentionLeaseSyncer;
@@ -641,6 +642,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             );
             Store remoteStore = null;
             RemoteStorePressureService remoteStorePressureService = null;
+            RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory = null;
             RepositoriesService mockRepoSvc = mock(RepositoriesService.class);
 
             if (indexSettings.isRemoteStoreEnabled()) {
@@ -655,7 +657,12 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
 
                 remoteStore = createRemoteStore(remotePath, routing, indexMetadata);
 
-                remoteStorePressureService = new RemoteStorePressureService(clusterService, indexSettings.getSettings());
+                remoteStoreStatsTrackerFactory = new RemoteStoreStatsTrackerFactory(indexSettings.getSettings());
+                remoteStorePressureService = new RemoteStorePressureService(
+                    clusterService,
+                    indexSettings.getSettings(),
+                    remoteStoreStatsTrackerFactory
+                );
                 BlobStoreRepository repo = createRepository(remotePath);
                 when(mockRepoSvc.repository(any())).thenAnswer(invocationOnMock -> repo);
             }
@@ -698,8 +705,8 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 remoteStorePressureService
             );
             indexShard.addShardFailureCallback(DEFAULT_SHARD_FAILURE_HANDLER);
-            if (remoteStorePressureService != null) {
-                remoteStorePressureService.afterIndexShardCreated(indexShard);
+            if (remoteStoreStatsTrackerFactory != null) {
+                remoteStoreStatsTrackerFactory.afterIndexShardCreated(indexShard);
             }
             success = true;
         } finally {

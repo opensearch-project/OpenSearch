@@ -178,6 +178,7 @@ import org.opensearch.index.IndexingPressureService;
 import org.opensearch.index.SegmentReplicationPressureService;
 import org.opensearch.index.analysis.AnalysisRegistry;
 import org.opensearch.index.remote.RemoteStorePressureService;
+import org.opensearch.index.remote.RemoteStoreStatsTrackerFactory;
 import org.opensearch.index.seqno.GlobalCheckpointSyncAction;
 import org.opensearch.index.seqno.RetentionLeaseSyncer;
 import org.opensearch.index.shard.PrimaryReplicaSyncer;
@@ -2126,7 +2127,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     ),
                     RetentionLeaseSyncer.EMPTY,
                     SegmentReplicationCheckpointPublisher.EMPTY,
-                    mock(RemoteStorePressureService.class)
+                    mock(RemoteStorePressureService.class),
+                    mock(RemoteStoreStatsTrackerFactory.class)
                 );
 
                 final SystemIndices systemIndices = new SystemIndices(emptyMap());
