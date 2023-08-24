@@ -47,7 +47,7 @@ import java.util.function.Supplier;
  */
 public class RateLimitingInputStream extends FilterInputStream {
 
-    private StreamLimiter streamLimiter;
+    private final StreamLimiter streamLimiter;
 
     public RateLimitingInputStream(InputStream delegate, Supplier<RateLimiter> rateLimiterSupplier, StreamLimiter.Listener listener) {
         super(delegate);

@@ -28,8 +28,6 @@ public class StreamLimiter {
 
     private int bytesSinceLastRateLimit;
 
-    private static final Logger logger = LogManager.getLogger(StreamLimiter.class);
-
     public StreamLimiter(Supplier<RateLimiter> rateLimiterSupplier, Listener listener) {
         this.rateLimiterSupplier = rateLimiterSupplier;
         this.listener = listener;
