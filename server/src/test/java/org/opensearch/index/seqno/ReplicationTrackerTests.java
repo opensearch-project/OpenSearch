@@ -1852,8 +1852,11 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         );
 
         tracker.setLatestReplicationCheckpoint(initialCheckpoint, true);
+        tracker.startReplicationLagTimers(initialCheckpoint);
         tracker.setLatestReplicationCheckpoint(secondCheckpoint, true);
+        tracker.startReplicationLagTimers(secondCheckpoint);
         tracker.setLatestReplicationCheckpoint(thirdCheckpoint, true);
+        tracker.startReplicationLagTimers(thirdCheckpoint);
 
         final Set<String> expectedIds = ids(initializingIds);
 
@@ -1937,7 +1940,8 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
             1L,
             Codec.getDefault().getName()
         );
-        tracker.setLatestReplicationCheckpoint(initialCheckpoint, true);
+        tracker.setLatestReplicationCheckpoint(initialCheckpoint);
+        tracker.startReplicationLagTimers(initialCheckpoint);
 
         // we expect that the only returned ids from getSegmentReplicationStats will be the initializing ids we marked with
         // markAsTrackingAndInSyncQuietly.

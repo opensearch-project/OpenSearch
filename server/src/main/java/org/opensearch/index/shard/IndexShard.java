@@ -685,7 +685,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                 // It is possible an engine can open with a SegmentInfos on a higher gen but the reader does not refresh to
                                 // trigger our refresh listener.
                                 // Force update the checkpoint post engine reset.
-                                updateReplicationCheckpoint(true);
+                                updateReplicationCheckpoint();
                             }
 
                             replicationTracker.activatePrimaryMode(getLocalCheckpoint());
@@ -2360,7 +2360,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
             if (indexSettings.isSegRepEnabled()) {
                 // set initial replication checkpoints into tracker.
-                updateReplicationCheckpoint(true);
+                updateReplicationCheckpoint();
             }
             // We set active because we are now writing operations to the engine; this way,
             // we can flush if we go idle after some time and become inactive.
@@ -4507,15 +4507,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 // We're only starting to track the replication checkpoint. The timers for replication are started when
                 // the checkpoint is published. This is done so that the timers do not include the time spent by primary
                 // in uploading the segments to remote store.
-                updateReplicationCheckpoint(false);
+                updateReplicationCheckpoint();
             }
         }
     }
 
-    private void updateReplicationCheckpoint(boolean shouldStartTimers) {
+    private void updateReplicationCheckpoint() {
         final Tuple<GatedCloseable<SegmentInfos>, ReplicationCheckpoint> tuple = getLatestSegmentInfosAndCheckpoint();
         try (final GatedCloseable<SegmentInfos> ignored = tuple.v1()) {
-            replicationTracker.setLatestReplicationCheckpoint(tuple.v2(), shouldStartTimers);
+            replicationTracker.setLatestReplicationCheckpoint(tuple.v2());
         } catch (IOException e) {
             throw new OpenSearchException("Error Closing SegmentInfos Snapshot", e);
         }

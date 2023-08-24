@@ -1179,7 +1179,6 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             logger.warn("Ignoring the checkpoint update for allocation ID {} as its not being tracked by primary", allocationId);
             return;
         }
-        logger.info("ankitkala: Updating visible checkpoint");
         if (cps.checkpointTimers.isEmpty() == false) {
             // stop any timers for checkpoints up to the received cp and remove from cps.checkpointTimers.
             // Compute the max lag from the set of completed timers.
@@ -1190,12 +1189,6 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                     final SegmentReplicationLagTimer timer = entry.getValue();
                     timer.stop();
                     lastFinished.set(Math.max(lastFinished.get(), timer.totalElapsedTime()));
-                    logger.info(
-                        "ankitkala: timer created: {}, started: {}, totaltimemillis: {}",
-                        timer.getCreationTime(),
-                        timer.getStartNanoTime(),
-                        timer.totalElapsedTime()
-                    );
                 }
                 return result;
             });
@@ -1218,13 +1211,13 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      * After a new checkpoint is published, create a timer for each replica to the checkpoint.
      * @param checkpoint {@link ReplicationCheckpoint}
      */
-    public synchronized void setLatestReplicationCheckpoint(ReplicationCheckpoint checkpoint, boolean shouldStartTimers) {
+    public synchronized void setLatestReplicationCheckpoint(ReplicationCheckpoint checkpoint) {
         assert indexSettings.isSegRepEnabled();
         if (checkpoint.equals(latestReplicationCheckpoint) == false) {
             this.latestReplicationCheckpoint = checkpoint;
         }
         if (primaryMode) {
-            createReplicationLagTimers(shouldStartTimers);
+            createReplicationLagTimers();
         }
     }
 
@@ -1232,8 +1225,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         return this.latestReplicationCheckpoint;
     }
 
-    private void createReplicationLagTimers(boolean shouldStartTimers) {
-        logger.info("ankitkala: Creating the lag timers");
+    private void createReplicationLagTimers() {
         for (Map.Entry<String, CheckpointState> entry : checkpoints.entrySet()) {
             final String allocationId = entry.getKey();
             if (allocationId.equals(this.shardAllocationId) == false) {
@@ -1245,9 +1237,6 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                     && latestReplicationCheckpoint.isAheadOf(cps.visibleReplicationCheckpoint)) {
                     cps.checkpointTimers.computeIfAbsent(latestReplicationCheckpoint, ignored -> {
                         final SegmentReplicationLagTimer replicationTimer = new SegmentReplicationLagTimer();
-                        if (shouldStartTimers) {
-                            replicationTimer.start();
-                        }
                         return replicationTimer;
                     });
                     logger.trace(
@@ -1269,7 +1258,6 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      * @param checkpoint {@link ReplicationCheckpoint}
      */
     public synchronized void startReplicationLagTimers(ReplicationCheckpoint checkpoint) {
-        logger.info("ankitkala: Starting the lag timers");
         assert indexSettings.isSegRepEnabled();
         if (checkpoint.equals(latestReplicationCheckpoint) == false) {
             this.latestReplicationCheckpoint = checkpoint;
