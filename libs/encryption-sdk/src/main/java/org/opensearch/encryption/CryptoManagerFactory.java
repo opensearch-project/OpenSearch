@@ -8,9 +8,6 @@
 
 package org.opensearch.encryption;
 
-import com.amazonaws.encryptionsdk.CryptoAlgorithm;
-import com.amazonaws.encryptionsdk.caching.CachingCryptoMaterialsManager;
-import com.amazonaws.encryptionsdk.caching.LocalCryptoMaterialsCache;
 import org.opensearch.common.crypto.CryptoProvider;
 import org.opensearch.common.crypto.MasterKeyProvider;
 import org.opensearch.common.unit.TimeValue;
@@ -19,6 +16,10 @@ import org.opensearch.encryption.keyprovider.CryptoMasterKey;
 
 import java.security.SecureRandom;
 import java.util.concurrent.TimeUnit;
+
+import com.amazonaws.encryptionsdk.CryptoAlgorithm;
+import com.amazonaws.encryptionsdk.caching.CachingCryptoMaterialsManager;
+import com.amazonaws.encryptionsdk.caching.LocalCryptoMaterialsCache;
 
 public class CryptoManagerFactory {
 

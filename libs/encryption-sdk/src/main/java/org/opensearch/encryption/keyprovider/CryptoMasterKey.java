@@ -7,20 +7,22 @@
  */
 package org.opensearch.encryption.keyprovider;
 
-import com.amazonaws.encryptionsdk.CryptoAlgorithm;
-import com.amazonaws.encryptionsdk.DataKey;
-import com.amazonaws.encryptionsdk.EncryptedDataKey;
-import com.amazonaws.encryptionsdk.MasterKey;
-import com.amazonaws.encryptionsdk.exception.AwsCryptoException;
 import org.opensearch.common.crypto.DataKeyPair;
 import org.opensearch.common.crypto.MasterKeyProvider;
 
 import javax.crypto.spec.SecretKeySpec;
+
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.Map;
+
+import com.amazonaws.encryptionsdk.CryptoAlgorithm;
+import com.amazonaws.encryptionsdk.DataKey;
+import com.amazonaws.encryptionsdk.EncryptedDataKey;
+import com.amazonaws.encryptionsdk.MasterKey;
+import com.amazonaws.encryptionsdk.exception.AwsCryptoException;
 
 public class CryptoMasterKey extends MasterKey<CryptoMasterKey> implements Closeable {
     private final MasterKeyProvider keyProvider;

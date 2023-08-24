@@ -8,17 +8,18 @@
 
 package org.opensearch.encryption;
 
-import static org.mockito.Mockito.when;
-import static org.mockito.Mockito.mock;
-
-import com.amazonaws.encryptionsdk.caching.CachingCryptoMaterialsManager;
-import org.junit.Before;
 import org.opensearch.common.crypto.CryptoProvider;
 import org.opensearch.common.crypto.MasterKeyProvider;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.test.OpenSearchTestCase;
+import org.junit.Before;
 
 import java.util.Collections;
+
+import com.amazonaws.encryptionsdk.caching.CachingCryptoMaterialsManager;
+
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class CryptoManagerFactoryTests extends OpenSearchTestCase {
 
