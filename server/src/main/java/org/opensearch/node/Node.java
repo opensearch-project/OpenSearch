@@ -137,6 +137,7 @@ import org.opensearch.index.IndexingPressureService;
 import org.opensearch.index.analysis.AnalysisRegistry;
 import org.opensearch.index.engine.EngineFactory;
 import org.opensearch.index.recovery.RemoteStoreRestoreService;
+import org.opensearch.index.remote.RemoteStoreStatsTrackerFactory;
 import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.store.remote.filecache.FileCacheCleaner;
@@ -387,6 +388,7 @@ public class Node implements Closeable {
     final NamedWriteableRegistry namedWriteableRegistry;
     private final AtomicReference<RunnableTaskExecutionListener> runnableTaskListener;
     private FileCache fileCache;
+    private final RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory;
 
     public Node(Environment environment) {
         this(environment, Collections.emptyList(), true);
@@ -737,6 +739,8 @@ public class Node implements Closeable {
                 threadPool
             );
 
+            remoteStoreStatsTrackerFactory = new RemoteStoreStatsTrackerFactory(clusterService, settings);
+
             final IndicesService indicesService = new IndicesService(
                 settings,
                 pluginsService,
@@ -760,7 +764,8 @@ public class Node implements Closeable {
                 recoveryStateFactories,
                 remoteDirectoryFactory,
                 repositoriesServiceReference::get,
-                fileCacheCleaner
+                fileCacheCleaner,
+                remoteStoreStatsTrackerFactory
             );
 
             final AliasValidator aliasValidator = new AliasValidator();
@@ -1117,6 +1122,7 @@ public class Node implements Closeable {
                 b.bind(MetaStateService.class).toInstance(metaStateService);
                 b.bind(PersistedClusterStateService.class).toInstance(lucenePersistedStateFactory);
                 b.bind(IndicesService.class).toInstance(indicesService);
+                b.bind(RemoteStoreStatsTrackerFactory.class).toInstance(remoteStoreStatsTrackerFactory);
                 b.bind(AliasValidator.class).toInstance(aliasValidator);
                 b.bind(MetadataCreateIndexService.class).toInstance(metadataCreateIndexService);
                 b.bind(AwarenessReplicaBalance.class).toInstance(awarenessReplicaBalance);

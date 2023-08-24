@@ -9,6 +9,7 @@
 package org.opensearch.index.translog.transfer;
 
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.remote.RemoteTranslogTransferTracker;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -28,7 +29,8 @@ public class FileTransferTrackerTests extends OpenSearchTestCase {
     }
 
     public void testOnSuccess() throws IOException {
-        fileTransferTracker = new FileTransferTracker(shardId);
+        RemoteTranslogTransferTracker remoteTranslogTransferTracker = new RemoteTranslogTransferTracker(shardId, 20);
+        fileTransferTracker = new FileTransferTracker(shardId, remoteTranslogTransferTracker);
         Path testFile = createTempFile();
         Files.write(testFile, randomByteArrayOfLength(128), StandardOpenOption.APPEND);
         try (
@@ -42,6 +44,10 @@ public class FileTransferTrackerTests extends OpenSearchTestCase {
             // idempotent
             fileTransferTracker.onSuccess(transferFileSnapshot);
             assertEquals(fileTransferTracker.allUploaded().size(), 1);
+
+            // assert translog stats
+            assertTrue(remoteTranslogTransferTracker.getTotalUploadTimeInMillis() > 0);
+
             try {
                 fileTransferTracker.onFailure(transferFileSnapshot, new IOException("random exception"));
                 fail("failure after succcess invalid");
@@ -52,7 +58,8 @@ public class FileTransferTrackerTests extends OpenSearchTestCase {
     }
 
     public void testOnFailure() throws IOException {
-        fileTransferTracker = new FileTransferTracker(shardId);
+        RemoteTranslogTransferTracker remoteTranslogTransferTracker = new RemoteTranslogTransferTracker(shardId, 20);
+        fileTransferTracker = new FileTransferTracker(shardId, remoteTranslogTransferTracker);
         Path testFile = createTempFile();
         Path testFile2 = createTempFile();
         Files.write(testFile, randomByteArrayOfLength(128), StandardOpenOption.APPEND);
@@ -68,18 +75,21 @@ public class FileTransferTrackerTests extends OpenSearchTestCase {
                 null
             )
         ) {
-
             fileTransferTracker.onFailure(transferFileSnapshot, new IOException("random exception"));
             fileTransferTracker.onSuccess(transferFileSnapshot2);
             assertEquals(fileTransferTracker.allUploaded().size(), 1);
 
             fileTransferTracker.onSuccess(transferFileSnapshot);
             assertEquals(fileTransferTracker.allUploaded().size(), 2);
+
+            // assert translog stats
+            assertTrue(remoteTranslogTransferTracker.getTotalUploadTimeInMillis() > 0);
         }
     }
 
     public void testUploaded() throws IOException {
-        fileTransferTracker = new FileTransferTracker(shardId);
+        RemoteTranslogTransferTracker remoteTranslogTransferTracker = new RemoteTranslogTransferTracker(shardId, 20);
+        fileTransferTracker = new FileTransferTracker(shardId, remoteTranslogTransferTracker);
         Path testFile = createTempFile();
         Files.write(testFile, randomByteArrayOfLength(128), StandardOpenOption.APPEND);
         try (
@@ -94,6 +104,9 @@ public class FileTransferTrackerTests extends OpenSearchTestCase {
             String fileName = String.valueOf(testFile.getFileName());
             assertTrue(fileTransferTracker.uploaded(fileName));
             assertFalse(fileTransferTracker.uploaded("random-name"));
+
+            // assert translog stats
+            assertTrue(remoteTranslogTransferTracker.getTotalUploadTimeInMillis() > 0);
 
             fileTransferTracker.delete(List.of(fileName));
             assertFalse(fileTransferTracker.uploaded(fileName));

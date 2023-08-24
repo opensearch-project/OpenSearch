@@ -9,6 +9,7 @@
 package org.opensearch.index.translog.transfer;
 
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.remote.RemoteTranslogTransferTracker;
 import org.opensearch.index.translog.transfer.FileSnapshot.TransferFileSnapshot;
 import org.opensearch.index.translog.transfer.listener.FileTransferListener;
 
@@ -26,15 +27,25 @@ public class FileTransferTracker implements FileTransferListener {
 
     private final ConcurrentHashMap<String, TransferState> fileTransferTracker;
     private final ShardId shardId;
+    private final RemoteTranslogTransferTracker remoteTranslogTransferTracker;
 
-    public FileTransferTracker(ShardId shardId) {
+    private long fileTransferStartTime;
+
+    public FileTransferTracker(ShardId shardId, RemoteTranslogTransferTracker remoteTranslogTransferTracker) {
         this.shardId = shardId;
         this.fileTransferTracker = new ConcurrentHashMap<>();
+        this.remoteTranslogTransferTracker = remoteTranslogTransferTracker;
+    }
+
+    void recordFileTransferStartTime() {
+        fileTransferStartTime = System.nanoTime();
     }
 
     @Override
     public void onSuccess(TransferFileSnapshot fileSnapshot) {
         add(fileSnapshot.getName(), TransferState.SUCCESS);
+        long durationInMillis = (System.nanoTime() - fileTransferStartTime) / 1_000_000L;
+        remoteTranslogTransferTracker.addUploadTimeInMillis(durationInMillis);
     }
 
     void add(String file, boolean success) {
@@ -54,6 +65,8 @@ public class FileTransferTracker implements FileTransferListener {
     @Override
     public void onFailure(TransferFileSnapshot fileSnapshot, Exception e) {
         add(fileSnapshot.getName(), TransferState.FAILED);
+        long durationInMillis = (System.nanoTime() - fileTransferStartTime) / 1_000_000L;
+        remoteTranslogTransferTracker.addUploadTimeInMillis(durationInMillis);
     }
 
     public void delete(List<String> names) {

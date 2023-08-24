@@ -18,6 +18,11 @@ import java.io.IOException;
  * @opensearch.internal
  */
 public interface TranslogTransferListener {
+    /**
+     * Invoked before the transfer of {@link TransferSnapshot}
+     * @param transferSnapshot the transfer snapshot
+     */
+    void beforeUpload(TransferSnapshot transferSnapshot) throws IOException;
 
     /**
      * Invoked when the transfer of {@link TransferSnapshot} succeeds

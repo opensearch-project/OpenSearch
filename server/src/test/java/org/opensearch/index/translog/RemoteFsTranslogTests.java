@@ -40,6 +40,7 @@ import org.opensearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.MissingHistoryOperationsException;
+import org.opensearch.index.remote.RemoteTranslogTransferTracker;
 import org.opensearch.index.seqno.LocalCheckpointTracker;
 import org.opensearch.index.seqno.LocalCheckpointTrackerTests;
 import org.opensearch.index.seqno.SequenceNumbers;
@@ -100,7 +101,7 @@ import static org.hamcrest.Matchers.greaterThan;
 
 @LuceneTestCase.SuppressFileSystems("ExtrasFS")
 
-public class RemoteFSTranslogTests extends OpenSearchTestCase {
+public class RemoteFsTranslogTests extends OpenSearchTestCase {
 
     protected final ShardId shardId = new ShardId("index", "_na_", 1);
 
@@ -172,7 +173,8 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
             getPersistedSeqNoConsumer(),
             repository,
             threadPool,
-            primaryMode::get
+            primaryMode::get,
+            new RemoteTranslogTransferTracker(shardId, 10)
         );
 
     }
@@ -256,6 +258,40 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
         return loc;
     }
 
+    private static void assertUploadStatsNoFailures(RemoteTranslogTransferTracker statsTracker) {
+        assertTrue(statsTracker.getUploadBytesStarted() > 0);
+        assertTrue(statsTracker.getTotalUploadsStarted() > 0);
+
+        assertEquals(0, statsTracker.getTotalUploadsFailed());
+        assertTrue(statsTracker.getTotalUploadsSucceeded() > 0);
+        assertTrue(statsTracker.getLastSuccessfulUploadTimestamp() > 0);
+    }
+
+    private static void assertUploadStatsNoUploads(RemoteTranslogTransferTracker statsTracker) {
+        assertEquals(0, statsTracker.getUploadBytesStarted());
+        assertEquals(0, statsTracker.getUploadBytesFailed());
+        assertEquals(0, statsTracker.getUploadBytesSucceeded());
+        assertEquals(0, statsTracker.getTotalUploadsStarted());
+        assertEquals(0, statsTracker.getTotalUploadsFailed());
+        assertEquals(0, statsTracker.getTotalUploadsSucceeded());
+        assertEquals(0, statsTracker.getTotalUploadTimeInMillis());
+        assertEquals(0, statsTracker.getLastSuccessfulUploadTimestamp());
+    }
+
+    private static void assertDownloadStatsPopulated(RemoteTranslogTransferTracker statsTracker) {
+        assertTrue(statsTracker.getDownloadBytesSucceeded() > 0);
+        assertTrue(statsTracker.getTotalDownloadsSucceeded() > 0);
+        assertTrue(statsTracker.getTotalDownloadTimeInMillis() > 0);
+        assertTrue(statsTracker.getLastSuccessfulDownloadTimestamp() > 0);
+    }
+
+    private static void assertDownloadStatsNoDownloads(RemoteTranslogTransferTracker statsTracker) {
+        assertEquals(0, statsTracker.getDownloadBytesSucceeded());
+        assertEquals(0, statsTracker.getTotalDownloadsSucceeded());
+        assertEquals(0, statsTracker.getTotalDownloadTimeInMillis());
+        assertEquals(0, statsTracker.getLastSuccessfulDownloadTimestamp());
+    }
+
     public void testUploadWithPrimaryModeFalse() {
         // Test setup
         primaryMode.set(false);
@@ -269,6 +305,9 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
             throw new RuntimeException(e);
         }
         assertTrue(translog.syncNeeded());
+        RemoteTranslogTransferTracker statsTracker = translog.getRemoteTranslogTracker();
+        assertUploadStatsNoUploads(statsTracker);
+        assertDownloadStatsNoDownloads(statsTracker);
     }
 
     public void testUploadWithPrimaryModeTrue() {
@@ -281,6 +320,9 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
             throw new RuntimeException(e);
         }
         assertFalse(translog.syncNeeded());
+        RemoteTranslogTransferTracker statsTracker = translog.getRemoteTranslogTracker();
+        assertUploadStatsNoFailures(statsTracker);
+        assertDownloadStatsNoDownloads(statsTracker);
     }
 
     public void testSimpleOperations() throws IOException {
@@ -330,6 +372,9 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
             assertEquals(op, translog.readOperation(locs.get(i++)));
         }
         assertNull(translog.readOperation(new Translog.Location(100, 0, 0)));
+        RemoteTranslogTransferTracker statsTracker = translog.getRemoteTranslogTracker();
+        assertUploadStatsNoFailures(statsTracker);
+        assertDownloadStatsNoDownloads(statsTracker);
     }
 
     public void testReadLocationDownload() throws IOException {
@@ -358,11 +403,16 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
         }
 
         // Creating RemoteFsTranslog with the same location
-        Translog newTranslog = create(translogDir, repository, translogUUID);
+        RemoteFsTranslog newTranslog = create(translogDir, repository, translogUUID);
         i = 0;
         for (Translog.Operation op : ops) {
             assertEquals(op, newTranslog.readOperation(locs.get(i++)));
         }
+
+        RemoteTranslogTransferTracker statsTracker = newTranslog.getRemoteTranslogTracker();
+        assertUploadStatsNoUploads(statsTracker);
+        assertDownloadStatsPopulated(statsTracker);
+
         try {
             newTranslog.close();
         } catch (Exception e) {
@@ -976,6 +1026,9 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
             if (randomBoolean()) {
                 translog.sync();
                 assertFalse("translog has been synced already", translog.ensureSynced(location));
+                RemoteTranslogTransferTracker statsTracker = translog.getRemoteTranslogTracker();
+                assertUploadStatsNoFailures(statsTracker);
+                assertDownloadStatsNoDownloads(statsTracker);
             }
         }
     }
@@ -985,12 +1038,13 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
         int count = 0;
         fail.failAlways();
         ArrayList<Translog.Location> locations = new ArrayList<>();
+        boolean shouldFailAlways = randomBoolean();
         for (int op = 0; op < translogOperations; op++) {
             int seqNo = ++count;
             final Translog.Location location = translog.add(
                 new Translog.Index("" + op, seqNo, primaryTerm.get(), Integer.toString(seqNo).getBytes(Charset.forName("UTF-8")))
             );
-            if (randomBoolean()) {
+            if (shouldFailAlways) {
                 fail.failAlways();
                 try {
                     translog.ensureSynced(location);
@@ -1016,6 +1070,19 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
             assertFalse("all of the locations should be synced: " + location, translog.ensureSynced(location));
         }
 
+        RemoteTranslogTransferTracker statsTracker = translog.getRemoteTranslogTracker();
+        assertTrue(statsTracker.getUploadBytesStarted() > 0);
+        assertTrue(statsTracker.getTotalUploadsStarted() > 0);
+
+        if (shouldFailAlways) {
+            assertTrue(statsTracker.getTotalUploadsFailed() > 0);
+        } else {
+            assertEquals(0, statsTracker.getTotalUploadsFailed());
+        }
+
+        assertTrue(statsTracker.getTotalUploadsSucceeded() > 0);
+        assertTrue(statsTracker.getLastSuccessfulUploadTimestamp() > 0);
+        assertDownloadStatsNoDownloads(statsTracker);
     }
 
     public void testSyncUpToStream() throws IOException {
@@ -1048,6 +1115,11 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
                 translog.sync();
                 assertFalse("translog has been synced already", translog.ensureSynced(locations.stream()));
             }
+
+            RemoteTranslogTransferTracker statsTracker = translog.getRemoteTranslogTracker();
+            assertUploadStatsNoFailures(statsTracker);
+            assertDownloadStatsNoDownloads(statsTracker);
+
             for (Translog.Location location : locations) {
                 assertFalse("all of the locations should be synced: " + location, translog.ensureSynced(location));
             }
@@ -1223,7 +1295,8 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
                 persistedSeqNos::add,
                 repository,
                 threadPool,
-                () -> Boolean.TRUE
+                () -> Boolean.TRUE,
+                new RemoteTranslogTransferTracker(shardId, 10)
             ) {
                 @Override
                 ChannelFactory getChannelFactory() {
@@ -1329,7 +1402,8 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
                 persistedSeqNos::add,
                 repository,
                 threadPool,
-                () -> Boolean.TRUE
+                () -> Boolean.TRUE,
+                new RemoteTranslogTransferTracker(shardId, 10)
             ) {
                 @Override
                 ChannelFactory getChannelFactory() {
