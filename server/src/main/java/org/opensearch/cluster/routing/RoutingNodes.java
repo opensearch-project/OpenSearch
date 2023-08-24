@@ -66,6 +66,8 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.opensearch.action.get.TransportGetAction.isSegmentReplicationEnabled;
+
 /**
  * {@link RoutingNodes} represents a copy the routing information contained in the {@link ClusterState cluster state}.
  * It can be either initialized as mutable or immutable (see {@link #RoutingNodes(ClusterState, boolean)}), allowing
@@ -82,6 +84,7 @@ import java.util.stream.Stream;
  * @opensearch.internal
  */
 public class RoutingNodes implements Iterable<RoutingNode> {
+    private final ClusterState clusterState;
 
     private final Map<String, RoutingNode> nodesToShards = new HashMap<>();
 
@@ -107,6 +110,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
     }
 
     public RoutingNodes(ClusterState clusterState, boolean readOnly) {
+        this.clusterState = clusterState;
         this.readOnly = readOnly;
         final RoutingTable routingTable = clusterState.routingTable();
         this.nodesPerAttributeNames = Collections.synchronizedMap(new HashMap<>());
@@ -368,26 +372,36 @@ public class RoutingNodes implements Iterable<RoutingNode> {
      * Returns one active replica shard for the given shard id or <code>null</code> if
      * no active replica is found.
      *
-     * Since replicas could possibly be on nodes with a older version of OpenSearch than
-     * the primary is, this will return replicas on the highest version of OpenSearch.
+     * Since replicas could possibly be on nodes with an older version of OpenSearch than
+     * the primary is, this will return replicas on the highest version of OpenSearch when
+     * document replication strategy is in use, and will return replicas on oldest version
+     * of OpenSearch when segment replication is enabled.
      *
      */
-    public ShardRouting activeReplicaWithHighestVersion(ShardId shardId) {
+    public ShardRouting activeReplicaBasedOnReplicationStrategy(ShardId shardId) {
         // It's possible for replicaNodeVersion to be null, when disassociating dead nodes
         // that have been removed, the shards are failed, and part of the shard failing
         // calls this method with an out-of-date RoutingNodes, where the version might not
         // be accessible. Therefore, we need to protect against the version being null
         // (meaning the node will be going away).
-        return assignedShards(shardId).stream()
+        Stream<ShardRouting> candidateShards = assignedShards(shardId).stream()
             .filter(shr -> !shr.primary() && shr.active())
-            .filter(shr -> node(shr.currentNodeId()) != null)
-            .max(
+            .filter(shr -> node(shr.currentNodeId()) != null);
+        if (isSegmentReplicationEnabled(clusterState, shardId.getIndexName())) {
+            return candidateShards.min(
                 Comparator.comparing(
                     shr -> node(shr.currentNodeId()).node(),
                     Comparator.nullsFirst(Comparator.comparing(DiscoveryNode::getVersion))
                 )
+            ).orElse(null);
+
+        }
+        return candidateShards.max(
+            Comparator.comparing(
+                shr -> node(shr.currentNodeId()).node(),
+                Comparator.nullsFirst(Comparator.comparing(DiscoveryNode::getVersion))
             )
-            .orElse(null);
+        ).orElse(null);
     }
 
     /**
@@ -724,7 +738,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         RoutingChangesObserver routingChangesObserver
     ) {
         assert failedShard.primary();
-        ShardRouting activeReplica = activeReplicaWithHighestVersion(failedShard.shardId());
+        ShardRouting activeReplica = activeReplicaBasedOnReplicationStrategy(failedShard.shardId());
         if (activeReplica == null) {
             moveToUnassigned(failedShard, unassignedInfo);
         } else {
