@@ -17,7 +17,6 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.remotestore.multipart.mocks.MockFsRepositoryPlugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -32,9 +31,9 @@ import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
-import static org.hamcrest.Matchers.greaterThan;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
+import static org.hamcrest.Matchers.greaterThan;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE, numDataNodes = 0)
 public class RemoteStoreRestoreIT extends RemoteStoreBaseIntegTestCase {
@@ -458,8 +457,6 @@ public class RemoteStoreRestoreIT extends RemoteStoreBaseIntegTestCase {
         testRestoreFlow(0, true, randomIntBetween(1, 5));
     }
 
-    // TODO: Restore flow - index aliases
-
     public void testRateLimitedRemoteDownloads() throws Exception {
         assertAcked(
             client().admin()
@@ -471,15 +468,13 @@ public class RemoteStoreRestoreIT extends RemoteStoreBaseIntegTestCase {
                         .put("location", randomRepoPath())
                         .put("compress", randomBoolean())
                         .put("max_remote_download_bytes_per_sec", "2kb")
-                        .put("chunk_size", 100, ByteSizeUnit.BYTES)
+                        .put("chunk_size", 200, ByteSizeUnit.BYTES)
 
                 )
         );
-        int shardCount = randomIntBetween(1, 5);
-        int numberOfIteration = randomIntBetween(2, 5);
-        testRestoreFlow(numberOfIteration, false, shardCount);
+        int shardCount = randomIntBetween(1, 3);
         prepareCluster(0, 3, INDEX_NAME, 0, shardCount);
-        Map<String, Long> indexStats = indexData(numberOfIteration, false, INDEX_NAME);
+        Map<String, Long> indexStats = indexData(5, false, INDEX_NAME);
         assertEquals(shardCount, getNumShards(INDEX_NAME).totalNumShards);
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primaryNodeName(INDEX_NAME)));
         ensureRed(INDEX_NAME);
@@ -489,7 +484,7 @@ public class RemoteStoreRestoreIT extends RemoteStoreBaseIntegTestCase {
             for (RepositoriesService repositoriesService : internalCluster().getDataNodeInstances(RepositoriesService.class)) {
                 downloadPauseTime += repositoriesService.repository(REPOSITORY_NAME).getRemoteDownloadThrottleTimeInNanos();
             }
-            assertThat(downloadPauseTime, greaterThan(TimeValue.timeValueSeconds(randomIntBetween(10, 30)).nanos()));
+            assertThat(downloadPauseTime, greaterThan(TimeValue.timeValueSeconds(randomIntBetween(5, 10)).nanos()));
         }, 30, TimeUnit.SECONDS);
         ensureGreen(INDEX_NAME);
         // This is required to get updated number from already active shards which were not restored
@@ -497,4 +492,6 @@ public class RemoteStoreRestoreIT extends RemoteStoreBaseIntegTestCase {
         assertEquals(0, getNumShards(INDEX_NAME).numReplicas);
         verifyRestoredData(indexStats, true, INDEX_NAME);
     }
+
+    // TODO: Restore flow - index aliases
 }

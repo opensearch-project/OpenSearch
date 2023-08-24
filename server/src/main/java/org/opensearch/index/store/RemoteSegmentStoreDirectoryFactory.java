@@ -9,9 +9,7 @@
 package org.opensearch.index.store;
 
 import org.apache.lucene.store.Directory;
-import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
-import org.opensearch.common.blobstore.transfer.stream.OffsetRangeInputStream;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManager;
@@ -24,9 +22,7 @@ import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.function.Supplier;
-import java.util.function.UnaryOperator;
 
 /**
  * Factory for a remote store directory
@@ -61,14 +57,14 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Dire
             BlobPath commonBlobPath = blobStoreRepository.basePath();
             commonBlobPath = commonBlobPath.add(indexUUID).add(shardId).add(SEGMENTS);
 
-            RemoteDirectory dataDirectory = createRemoteDirectory(
-                blobStoreRepository,
-                commonBlobPath,
-                "data",
+            RemoteDirectory dataDirectory = new RemoteDirectory(
+                blobStoreRepository.blobStore().blobContainer(commonBlobPath.add("data")),
                 blobStoreRepository::maybeRateLimitRemoteUploadTransfers,
                 blobStoreRepository::maybeRateLimitRemoteDownloadTransfers
             );
-            RemoteDirectory metadataDirectory = createRemoteDirectory(blobStoreRepository, commonBlobPath, "metadata");
+            RemoteDirectory metadataDirectory = new RemoteDirectory(
+                blobStoreRepository.blobStore().blobContainer(commonBlobPath.add("metadata"))
+            );
             RemoteStoreLockManager mdLockManager = RemoteStoreLockManagerFactory.newLockManager(
                 repositoriesService.get(),
                 repositoryName,
@@ -82,24 +78,7 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Dire
         }
     }
 
-    private RemoteDirectory createRemoteDirectory(
-        BlobStoreRepository repository,
-        BlobPath commonBlobPath,
-        String extension,
-        UnaryOperator<OffsetRangeInputStream> uploadRateLimiter,
-        UnaryOperator<InputStream> downLoadRateLimiter
-    ) {
-        return new RemoteDirectory(
-            repository.blobStore().blobContainer(commonBlobPath.add(extension)),
-            uploadRateLimiter, downLoadRateLimiter
-        );
-    }
-
-    private RemoteDirectory createRemoteDirectory(
-        BlobStoreRepository repository,
-        BlobPath commonBlobPath,
-        String extension
-    ) {
+    private RemoteDirectory createRemoteDirectory(BlobStoreRepository repository, BlobPath commonBlobPath, String extension) {
         return new RemoteDirectory(repository.blobStore().blobContainer(commonBlobPath.add(extension)));
     }
 }

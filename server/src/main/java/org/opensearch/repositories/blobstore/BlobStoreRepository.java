@@ -1797,7 +1797,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     @Override
     public long getRemoteDownloadThrottleTimeInNanos() {
-        return remoteUploadRateLimitingTimeInNanos.count();
+        return remoteDownloadRateLimitingTimeInNanos.count();
     }
 
     protected void assertSnapshotOrGenericThread() {
@@ -3028,7 +3028,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     private static void mayBeLogRateLimits(BlobStoreTransferContext context, RateLimiter rateLimiter, long time) {
-        logger.info(
+        logger.debug(
             () -> new ParameterizedMessage(
                 "Rate limited blob store transfer, context [{}], for duration [{} ms] for configured rate [{} MBps]",
                 context,

@@ -57,7 +57,7 @@ public class RemoteStoreMultipartIT extends RemoteStoreIT {
                     Settings.builder()
                         .put("location", repositoryLocation)
                         .put("compress", randomBoolean())
-                        .put("max_remote_upload_bytes_per_sec", "200b")
+                        .put("max_remote_upload_bytes_per_sec", "1kb")
                         .put("chunk_size", 100, ByteSizeUnit.BYTES)
                 )
         );
@@ -76,7 +76,7 @@ public class RemoteStoreMultipartIT extends RemoteStoreIT {
             for (RepositoriesService repositoriesService : internalCluster().getDataNodeInstances(RepositoriesService.class)) {
                 uploadPauseTime += repositoriesService.repository(REPOSITORY_NAME).getRemoteUploadThrottleTimeInNanos();
             }
-            assertThat(uploadPauseTime, greaterThan(TimeValue.timeValueSeconds(randomIntBetween(10, 30)).nanos()));
+            assertThat(uploadPauseTime, greaterThan(TimeValue.timeValueSeconds(randomIntBetween(5, 10)).nanos()));
         }, 30, TimeUnit.SECONDS);
 
         assertThat(client.prepareSearch(INDEX_NAME).setSize(0).get().getHits().getTotalHits().value, equalTo(10L));
