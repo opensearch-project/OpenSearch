@@ -38,25 +38,25 @@ public class MockTracingContextPropagator implements TracingContextPropagator {
     }
 
     @Override
-    public Span extract(Map<String, String> props) {
+    public Optional<Span> extract(Map<String, String> props) {
         String value = props.get(TRACE_PARENT);
         if (value != null) {
             String[] values = value.split(SEPARATOR);
             String traceId = values[0];
             String spanId = values[1];
-            return new MockSpan(null, null, traceId, spanId, spanProcessor, Attributes.EMPTY);
+            return Optional.of(new MockSpan(null, null, traceId, spanId, spanProcessor, Attributes.EMPTY));
         } else {
-            return null;
+            return Optional.empty();
         }
     }
 
     @Override
-    public Optional<Span> extractFromHeaders(Map<String, List<String>> header) {
-        if (header != null) {
-            Map<String, String> convertedHeader = header.entrySet()
+    public Optional<Span> extractFromHeaders(Map<String, List<String>> headers) {
+        if (headers != null) {
+            Map<String, String> convertedHeader = headers.entrySet()
                 .stream()
                 .collect(Collectors.toMap(Map.Entry::getKey, e -> Strings.collectionToCommaDelimitedString(e.getValue())));
-            return Optional.ofNullable(extract(convertedHeader));
+            return extract(convertedHeader);
         } else {
             return Optional.empty();
         }

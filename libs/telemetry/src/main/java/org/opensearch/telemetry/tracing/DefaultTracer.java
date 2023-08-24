@@ -101,9 +101,9 @@ class DefaultTracer implements Tracer {
     }
 
     @Override
-    public SpanScope startSpan(String spanName, Map<String, List<String>> header, Attributes attributes) {
-        Optional<Span> propagatedSpan = tracingTelemetry.getContextPropagator().extractFromHeaders(header);
-        return startSpan(spanName, propagatedSpan.isPresent() ? new SpanContext(propagatedSpan.get()) : null, attributes);
+    public SpanScope startSpan(String spanName, Map<String, List<String>> headers, Attributes attributes) {
+        Optional<Span> propagatedSpan = tracingTelemetry.getContextPropagator().extractFromHeaders(headers);
+        return startSpan(spanName, propagatedSpan.map(SpanContext::new).orElse(null), attributes);
     }
 
 }

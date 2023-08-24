@@ -137,7 +137,7 @@ public class DefaultTracerTests extends OpenSearchTestCase {
             new ThreadContextBasedTracerContextStorage(new ThreadContext(Settings.EMPTY), tracingTelemetry)
         );
 
-        defaultTracer.startSpan("span_name", (SpanContext) null, Attributes.EMPTY);
+        defaultTracer.startSpan("span_name");
 
         Assert.assertEquals("span_name", defaultTracer.getCurrentSpan().getSpan().getSpanName());
         Assert.assertEquals(null, defaultTracer.getCurrentSpan().getSpan().getParentSpan());

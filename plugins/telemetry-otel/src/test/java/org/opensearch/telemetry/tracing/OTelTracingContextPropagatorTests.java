@@ -51,7 +51,7 @@ public class OTelTracingContextPropagatorTests extends OpenSearchTestCase {
         OpenTelemetry mockOpenTelemetry = mock(OpenTelemetry.class);
         when(mockOpenTelemetry.getPropagators()).thenReturn(ContextPropagators.create(W3CTraceContextPropagator.getInstance()));
         TracingContextPropagator tracingContextPropagator = new OTelTracingContextPropagator(mockOpenTelemetry);
-        org.opensearch.telemetry.tracing.Span span = tracingContextPropagator.extract(requestHeaders);
+        org.opensearch.telemetry.tracing.Span span = tracingContextPropagator.extract(requestHeaders).orElse(null);
         assertEquals(TRACE_ID, span.getTraceId());
         assertEquals(SPAN_ID, span.getSpanId());
     }
