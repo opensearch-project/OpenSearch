@@ -26,7 +26,11 @@ public class CryptoManagerFactoryTests extends OpenSearchTestCase {
 
     @Before
     public void setup() {
-        cryptoManagerFactory = new CryptoManagerFactory("ALG_AES_256_GCM_HKDF_SHA512_COMMIT_KEY", TimeValue.timeValueDays(2), 10);
+        cryptoManagerFactory = new CryptoManagerFactory(
+            "ALG_AES_256_GCM_HKDF_SHA512_COMMIT_KEY_ECDSA_P384",
+            TimeValue.timeValueDays(2),
+            10
+        );
     }
 
     public void testGetOrCreateCryptoManager() {
@@ -49,7 +53,7 @@ public class CryptoManagerFactoryTests extends OpenSearchTestCase {
         when(mockKeyProvider.getEncryptionContext()).thenReturn(Collections.emptyMap());
 
         CryptoProvider cryptoProvider = cryptoManagerFactory.createCryptoProvider(
-            "ALG_AES_256_GCM_HKDF_SHA512_COMMIT_KEY",
+            "ALG_AES_256_GCM_HKDF_SHA512_COMMIT_KEY_ECDSA_P384",
             mockMaterialsManager,
             mockKeyProvider
         );
@@ -64,7 +68,7 @@ public class CryptoManagerFactoryTests extends OpenSearchTestCase {
         CachingCryptoMaterialsManager materialsManager = cryptoManagerFactory.createMaterialsManager(
             mockKeyProvider,
             "keyProviderName",
-            "ALG_AES_256_GCM_HKDF_SHA512_COMMIT_KEY"
+            "ALG_AES_256_GCM_HKDF_SHA512_COMMIT_KEY_ECDSA_P384"
         );
 
         assertNotNull(materialsManager);
@@ -83,14 +87,5 @@ public class CryptoManagerFactoryTests extends OpenSearchTestCase {
 
     public void testUnsupportedAlgorithm() {
         expectThrows(IllegalArgumentException.class, () -> new CryptoManagerFactory("Unsupported_algo", TimeValue.timeValueDays(2), 10));
-
-        expectThrows(
-            IllegalArgumentException.class,
-            () -> cryptoManagerFactory.createCryptoProvider(
-                "Unsupported_algo",
-                mock(CachingCryptoMaterialsManager.class),
-                mock(MasterKeyProvider.class)
-            )
-        );
     }
 }

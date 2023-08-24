@@ -15,8 +15,6 @@ import org.opensearch.common.crypto.CryptoProvider;
 import org.opensearch.common.crypto.MasterKeyProvider;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRefCounted;
-import org.opensearch.encryption.frame.FrameCryptoProvider;
-import org.opensearch.encryption.frame.core.AwsCrypto;
 import org.opensearch.encryption.keyprovider.CryptoMasterKey;
 
 import java.security.SecureRandom;
@@ -40,6 +38,7 @@ public class CryptoManagerFactory {
     }
 
     private String validateAndGetAlgorithmId(String algorithm) {
+        // Supporting only 256 bit algorithm
         switch (algorithm) {
             case "ALG_AES_256_GCM_HKDF_SHA512_COMMIT_KEY":
                 return CryptoAlgorithm.ALG_AES_256_GCM_HKDF_SHA512_COMMIT_KEY.getDataKeyAlgo();
@@ -71,20 +70,7 @@ public class CryptoManagerFactory {
         CachingCryptoMaterialsManager materialsManager,
         MasterKeyProvider masterKeyProvider
     ) {
-        switch (algorithm) {
-            case "ALG_AES_256_GCM_HKDF_SHA512_COMMIT_KEY":
-                return new FrameCryptoProvider(
-                    new AwsCrypto(materialsManager, CryptoAlgorithm.ALG_AES_256_GCM_HKDF_SHA512_COMMIT_KEY),
-                    masterKeyProvider.getEncryptionContext()
-                );
-            case "ALG_AES_256_GCM_HKDF_SHA512_COMMIT_KEY_ECDSA_P384":
-                return new FrameCryptoProvider(
-                    new AwsCrypto(materialsManager, CryptoAlgorithm.ALG_AES_256_GCM_HKDF_SHA512_COMMIT_KEY_ECDSA_P384),
-                    masterKeyProvider.getEncryptionContext()
-                );
-            default:
-                throw new IllegalArgumentException("Unsupported algorithm: " + algorithm);
-        }
+        return new NoOpCryptoProvider();
     }
 
     // Package private for tests

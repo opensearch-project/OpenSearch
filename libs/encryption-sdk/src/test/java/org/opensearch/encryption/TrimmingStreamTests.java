@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.encryption.frame;
+package org.opensearch.encryption;
 
 import org.opensearch.test.OpenSearchTestCase;
 
