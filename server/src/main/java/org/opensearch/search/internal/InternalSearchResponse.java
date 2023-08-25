@@ -32,6 +32,7 @@
 
 package org.opensearch.search.internal;
 
+import org.opensearch.Version;
 import org.opensearch.action.search.SearchResponseSections;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -94,9 +95,10 @@ public class InternalSearchResponse extends SearchResponseSections implements Wr
             in.readBoolean(),
             in.readOptionalBoolean(),
             in.readOptionalWriteable(SearchProfileShardResults::new),
-            in.readVInt(),
-            in.readNamedWriteableList(SearchExtBuilder.class)
+            in.readVInt()
         );
+
+        this.searchExtBuilders.addAll(readSearchExtBuildersOnOrAfter(in, Version.V_3_0_0));
     }
 
     @Override
@@ -108,6 +110,16 @@ public class InternalSearchResponse extends SearchResponseSections implements Wr
         out.writeOptionalBoolean(terminatedEarly);
         out.writeOptionalWriteable(profileResults);
         out.writeVInt(numReducePhases);
-        out.writeNamedWriteableList(searchExtBuilders);
+        writeSearchExtBuildersOnOrAfter(out, Version.V_3_0_0);
+    }
+
+    private List<SearchExtBuilder> readSearchExtBuildersOnOrAfter(StreamInput in, Version minSupported) throws IOException {
+        return (in.getVersion().onOrAfter(minSupported)) ? in.readNamedWriteableList(SearchExtBuilder.class) : Collections.emptyList();
+    }
+
+    private void writeSearchExtBuildersOnOrAfter(StreamOutput out, Version minSupported) throws IOException {
+        if (out.getVersion().onOrAfter(minSupported)) {
+            out.writeNamedWriteableList(searchExtBuilders);
+        }
     }
 }

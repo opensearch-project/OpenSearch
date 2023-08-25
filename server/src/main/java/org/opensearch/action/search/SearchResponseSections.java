@@ -71,7 +71,7 @@ public class SearchResponseSections implements ToXContentFragment {
     protected final boolean timedOut;
     protected final Boolean terminatedEarly;
     protected final int numReducePhases;
-    protected List<SearchExtBuilder> searchExtBuilders = new ArrayList<>();
+    protected final List<SearchExtBuilder> searchExtBuilders = new ArrayList<>();
 
     public SearchResponseSections(
         SearchHits hits,
@@ -102,7 +102,7 @@ public class SearchResponseSections implements ToXContentFragment {
         this.timedOut = timedOut;
         this.terminatedEarly = terminatedEarly;
         this.numReducePhases = numReducePhases;
-        this.searchExtBuilders = Objects.requireNonNull(searchExtBuilders, "searchExtBuilders must not be null");
+        this.searchExtBuilders.addAll(Objects.requireNonNull(searchExtBuilders, "searchExtBuilders must not be null"));
     }
 
     public final boolean timedOut() {
@@ -168,7 +168,7 @@ public class SearchResponseSections implements ToXContentFragment {
     }
 
     public List<SearchExtBuilder> getSearchExtBuilders() {
-        return this.searchExtBuilders;
+        return Collections.unmodifiableList(this.searchExtBuilders);
     }
 
     protected void writeTo(StreamOutput out) throws IOException {

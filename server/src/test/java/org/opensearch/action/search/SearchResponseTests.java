@@ -205,6 +205,23 @@ public class SearchResponseTests extends OpenSearchTestCase {
         doFromXContentTestWithRandomFields(createTestItem(false, List.of(new DummySearchExtBuilder(UUID.randomUUID().toString()))), false);
     }
 
+    public void testFromXContentWithUnregisteredSearchExtBuilders() throws IOException {
+        List<NamedXContentRegistry.Entry> namedXContents = new ArrayList<>(InternalAggregationTestCase.getDefaultNamedXContents());
+        namedXContents.addAll(SuggestTests.getDefaultNamedXContents());
+        SearchResponse response = createTestItem(
+            false,
+            List.of(new DummySearchExtBuilder(UUID.randomUUID().toString()), new FakeSearchExtBuilder(UUID.randomUUID().toString()))
+        );
+        MediaType xcontentType = randomFrom(XContentType.values());
+        boolean humanReadable = randomBoolean();
+        final ToXContent.Params params = new ToXContent.MapParams(singletonMap(RestSearchAction.TYPED_KEYS_PARAM, "true"));
+        BytesReference originalBytes = toShuffledXContent(response, xcontentType, params, humanReadable);
+        XContentParser parser = createParser(new NamedXContentRegistry(namedXContents), xcontentType.xContent(), originalBytes);
+        SearchResponse parsed = SearchResponse.fromXContent(parser);
+        assertEquals(2, response.getInternalResponse().getSearchExtBuilders().size());
+        assertEquals(0, parsed.getInternalResponse().getSearchExtBuilders().size());
+    }
+
     /**
      * This test adds random fields and objects to the xContent rendered out to
      * ensure we can parse it back to be forward compatible with additions to
@@ -415,6 +432,78 @@ public class SearchResponseTests extends OpenSearchTestCase {
         );
     }
 
+    public void testSerializationWithSearchExtBuildersOnUnsupportedWriterVersion() throws IOException {
+        String id = UUID.randomUUID().toString();
+        SearchResponse searchResponse = createTestItem(false, List.of(new DummySearchExtBuilder(id)));
+        SearchResponse deserialized = copyWriteable(searchResponse, namedWriteableRegistry, SearchResponse::new, Version.V_2_9_0);
+        if (searchResponse.getHits().getTotalHits() == null) {
+            assertNull(deserialized.getHits().getTotalHits());
+        } else {
+            assertEquals(searchResponse.getHits().getTotalHits().value, deserialized.getHits().getTotalHits().value);
+            assertEquals(searchResponse.getHits().getTotalHits().relation, deserialized.getHits().getTotalHits().relation);
+        }
+        assertEquals(searchResponse.getHits().getHits().length, deserialized.getHits().getHits().length);
+        assertEquals(searchResponse.getNumReducePhases(), deserialized.getNumReducePhases());
+        assertEquals(searchResponse.getFailedShards(), deserialized.getFailedShards());
+        assertEquals(searchResponse.getTotalShards(), deserialized.getTotalShards());
+        assertEquals(searchResponse.getSkippedShards(), deserialized.getSkippedShards());
+        assertEquals(searchResponse.getClusters(), deserialized.getClusters());
+        assertEquals(1, searchResponse.getInternalResponse().getSearchExtBuilders().size());
+        assertTrue(deserialized.getInternalResponse().getSearchExtBuilders().isEmpty());
+    }
+
+    public void testSearchResponseBuilder() throws Exception {
+
+        /**
+         * Case 1: Make sure the builder can make an identical copy.
+         */
+        SearchResponse oldResponse = createTestItem(false);
+        SearchResponse copy = new SearchResponse.Builder().from(oldResponse).build();
+
+        MediaType mediaType = randomFrom(XContentType.values());
+        boolean humanReadable = false;
+        final ToXContent.Params params = new ToXContent.MapParams(singletonMap(RestSearchAction.TYPED_KEYS_PARAM, "true"));
+        BytesReference expected = org.opensearch.core.xcontent.XContentHelper.toXContent(oldResponse, mediaType, params, humanReadable);
+        BytesReference actual = org.opensearch.core.xcontent.XContentHelper.toXContent(copy, mediaType, params, humanReadable);
+        assertEquals(expected, actual);
+
+        /**
+         * Case 2: Make sure the builder can make a copy with just the SearchHits swapped.
+         */
+        SearchResponse anotherResponse = createTestItem(false);
+        SearchResponse newResponse = new SearchResponse.Builder().from(oldResponse).hits(anotherResponse.getHits()).build();
+
+        SearchHit[] expectedHits = anotherResponse.getHits().getHits();
+        SearchHit[] actualHits = newResponse.getHits().getHits();
+
+        assertEquals(expectedHits.length, actualHits.length);
+        for (int i = 0; i < actualHits.length; i++) {
+            assertEquals(expectedHits[i], actualHits[i]);
+        }
+
+        /**
+         * Case 3: Make sure the builder can make a copy with just the SearchExtBuilders swapped (inserted).
+         */
+        SearchResponse oldResponse2 = createTestItem(false, List.of(new DummySearchExtBuilder(UUID.randomUUID().toString())));
+        SearchResponse newResponse2 = new SearchResponse.Builder().from(oldResponse2)
+            .ext(List.of(new FakeSearchExtBuilder(UUID.randomUUID().toString())))
+            .build();
+        List<SearchExtBuilder> extBuilders = newResponse2.getInternalResponse().getSearchExtBuilders();
+        assertTrue(!extBuilders.isEmpty());
+        assertTrue(extBuilders.get(0) instanceof FakeSearchExtBuilder);
+
+        /**
+         * Case 4: If the above search responses receive the same SearchExtBuilders list, after going through the builder,
+         *         make sure they serialize to identical bytes.
+         */
+        List<SearchExtBuilder> newExtBuilders = List.of(new DummySearchExtBuilder(UUID.randomUUID().toString()));
+        SearchResponse copy1 = new SearchResponse.Builder().from(oldResponse2).ext(newExtBuilders).build();
+        SearchResponse copy2 = new SearchResponse.Builder().from(newResponse2).ext(newExtBuilders).build();
+        BytesReference expectedBytes = org.opensearch.core.xcontent.XContentHelper.toXContent(copy1, mediaType, params, humanReadable);
+        BytesReference actualBytes = org.opensearch.core.xcontent.XContentHelper.toXContent(copy2, mediaType, params, humanReadable);
+        assertEquals(expectedBytes, actualBytes);
+    }
+
     public void testToXContentEmptyClusters() throws IOException {
         SearchResponse searchResponse = new SearchResponse(
             InternalSearchResponse.empty(),
@@ -486,6 +575,19 @@ public class SearchResponseTests extends OpenSearchTestCase {
 
         public static DummySearchExtBuilder parse(XContentParser parser) throws IOException {
             return new DummySearchExtBuilder("id");
+        }
+    }
+
+    static class FakeSearchExtBuilder extends DummySearchExtBuilder {
+        static ParseField DUMMY_FIELD = new ParseField("fake");
+
+        public FakeSearchExtBuilder(String id) {
+            super(id);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return builder.field("fake", "foo");
         }
     }
 }
