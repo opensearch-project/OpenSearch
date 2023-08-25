@@ -57,7 +57,7 @@ public class QueryPhaseSearcherWrapper implements QueryPhaseSearcher {
         boolean hasFilterCollector,
         boolean hasTimeout
     ) throws IOException {
-        if (searchContext.isConcurrentSegmentSearchEnabled()) {
+        if (searchContext.shouldUseConcurrentSearch()) {
             LOGGER.info("Using concurrent search over segments (experimental)");
             return concurrentQueryPhaseSearcher.searchWith(searchContext, searcher, query, collectors, hasFilterCollector, hasTimeout);
         } else {
@@ -72,7 +72,7 @@ public class QueryPhaseSearcherWrapper implements QueryPhaseSearcher {
      */
     @Override
     public AggregationProcessor aggregationProcessor(SearchContext searchContext) {
-        if (searchContext.isConcurrentSegmentSearchEnabled()) {
+        if (searchContext.shouldUseConcurrentSearch()) {
             LOGGER.info("Using concurrent search over segments (experimental)");
             return concurrentQueryPhaseSearcher.aggregationProcessor(searchContext);
         } else {

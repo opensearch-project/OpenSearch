@@ -1237,6 +1237,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private void parseSource(DefaultSearchContext context, SearchSourceBuilder source, boolean includeAggregations) {
         // nothing to parse...
         if (source == null) {
+            context.evaluateRequestShouldUseConcurrentSearch();
             return;
         }
         SearchShardTarget shardTarget = context.shardTarget();
@@ -1282,9 +1283,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
         if (source.minScore() != null) {
             context.minimumScore(source.minScore());
-        }
-        if (source.profile()) {
-            context.setProfilers(new Profilers(context.searcher(), context.isConcurrentSegmentSearchEnabled()));
         }
         if (source.timeout() != null) {
             context.timeout(source.timeout());
@@ -1418,6 +1416,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
             final CollapseContext collapseContext = source.collapse().build(queryShardContext);
             context.collapse(collapseContext);
+        }
+        context.evaluateRequestShouldUseConcurrentSearch();
+        if (source.profile()) {
+            context.setProfilers(new Profilers(context.searcher(), context.shouldUseConcurrentSearch()));
         }
     }
 
