@@ -40,7 +40,6 @@ import software.amazon.awssdk.services.s3.model.S3Exception;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.repositories.s3.utils.HttpRangeUtils;
 
@@ -120,7 +119,7 @@ class S3RetryingInputStream extends InputStream {
             );
             this.currentStreamLastOffset = Math.addExact(
                 Math.addExact(start, currentOffset),
-                getStreamLength(getObjectResponseInputStream.response())
+                getObjectResponseInputStream.response().contentLength()
             );
             this.currentStream = getObjectResponseInputStream;
             this.isStreamAborted.set(false);
@@ -131,29 +130,6 @@ class S3RetryingInputStream extends InputStream {
                 }
             }
             throw addSuppressedExceptions(e);
-        }
-    }
-
-    private long getStreamLength(final GetObjectResponse getObjectResponse) {
-        try {
-            // Returns the content range of the object if response contains the Content-Range header.
-            if (getObjectResponse.contentRange() != null) {
-                final Tuple<Long, Long> s3ResponseRange = HttpRangeUtils.fromHttpRangeHeader(getObjectResponse.contentRange());
-                assert s3ResponseRange.v2() >= s3ResponseRange.v1() : s3ResponseRange.v2() + " vs " + s3ResponseRange.v1();
-                assert s3ResponseRange.v1() == start + currentOffset : "Content-Range start value ["
-                    + s3ResponseRange.v1()
-                    + "] exceeds start ["
-                    + start
-                    + "] + current offset ["
-                    + currentOffset
-                    + ']';
-                assert s3ResponseRange.v2() == end : "Content-Range end value [" + s3ResponseRange.v2() + "] exceeds end [" + end + ']';
-                return s3ResponseRange.v2() - s3ResponseRange.v1() + 1L;
-            }
-            return getObjectResponse.contentLength();
-        } catch (Exception e) {
-            assert false : e;
-            return Long.MAX_VALUE - 1L; // assume a large stream so that the underlying stream is aborted on closing, unless eof is reached
         }
     }
 
