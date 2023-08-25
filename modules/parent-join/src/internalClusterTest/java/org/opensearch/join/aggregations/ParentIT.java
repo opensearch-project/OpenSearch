@@ -32,12 +32,18 @@
 
 package org.opensearch.join.aggregations;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.opensearch.action.search.SearchRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.search.aggregations.Aggregation;
 import org.opensearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.opensearch.search.aggregations.bucket.terms.Terms;
 
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -47,14 +53,33 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
 import static org.opensearch.index.query.QueryBuilders.matchQuery;
 import static org.opensearch.join.aggregations.JoinAggregationBuilders.parent;
+import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.search.aggregations.AggregationBuilders.terms;
 import static org.opensearch.search.aggregations.AggregationBuilders.topHits;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ParentIT extends AbstractParentChildTestCase {
+
+    public ParentIT(Settings settings) {
+        super(settings);
+    }
+
+    @ParametersFactory
+    public static Collection<Object[]> parameters() {
+        return Arrays.asList(
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
+        );
+    }
+
+    @Override
+    protected Settings featureFlagSettings() {
+        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
+    }
 
     public void testSimpleParentAgg() throws Exception {
         final SearchRequestBuilder searchRequest = client().prepareSearch("test")
@@ -263,5 +288,19 @@ public class ParentIT extends AbstractParentChildTestCase {
                 assertNotNull(categoryBucket);
             }
         }
+    }
+
+    @Override
+    SearchRequestBuilder getSearchRequest() {
+        return client().prepareSearch("sparse")
+            .setSize(10000)
+            .setQuery(matchAllQuery())
+            .addAggregation(parent("to_article", "comment").subAggregation(terms("category").field("category").size(10000)));
+    }
+
+    @Override
+    void validateSpareSegmentsSearchResponse(SearchResponse searchResponse) {
+        Parent parentAgg = searchResponse.getAggregations().get("to_article");
+        assertEquals(parentAgg.getDocCount(), 1);
     }
 }

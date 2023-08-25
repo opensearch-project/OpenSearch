@@ -90,4 +90,9 @@ class SumAggregatorFactory extends ValuesSourceAggregatorFactory {
             .getAggregator(SumAggregationBuilder.REGISTRY_KEY, config)
             .build(name, config, searchContext, parent, metadata);
     }
+
+    @Override
+    protected boolean supportsConcurrentSegmentSearch() {
+        return true;
+    }
 }

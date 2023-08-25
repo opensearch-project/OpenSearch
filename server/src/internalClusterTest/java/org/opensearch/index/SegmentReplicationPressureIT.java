@@ -139,7 +139,6 @@ public class SegmentReplicationPressureIT extends SegmentReplicationBaseIT {
      * This test ensures that a replica can be added while the index is under write block.
      * Ensuring that only write requests are blocked.
      */
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/8887")
     public void testAddReplicaWhileWritesBlocked() throws Exception {
         final String primaryNode = internalCluster().startNode();
         createIndex(INDEX_NAME);
@@ -176,10 +175,10 @@ public class SegmentReplicationPressureIT extends SegmentReplicationBaseIT {
                     .prepareUpdateSettings(INDEX_NAME)
                     .setSettings(Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, 2))
             );
-            ensureGreen(INDEX_NAME);
             replicaNodes.add(replica_2);
-            waitForSearchableDocs(totalDocs.get(), replica_2);
         }
+        ensureGreen(INDEX_NAME);
+        waitForSearchableDocs(totalDocs.get(), replicaNodes);
         refresh(INDEX_NAME);
         // wait for the replicas to catch up after block is released.
         assertReplicaCheckpointUpdated(primaryShard);
@@ -347,7 +346,7 @@ public class SegmentReplicationPressureIT extends SegmentReplicationBaseIT {
     private int indexUntilCheckpointCount() {
         int total = 0;
         for (int i = 0; i < MAX_CHECKPOINTS_BEHIND; i++) {
-            final int numDocs = randomIntBetween(1, 100);
+            final int numDocs = randomIntBetween(1, 5);
             for (int j = 0; j < numDocs; ++j) {
                 indexDoc();
             }
