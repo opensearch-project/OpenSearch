@@ -8,6 +8,8 @@
 
 package org.opensearch.common.hash;
 
+import org.opensearch.common.annotation.InternalApi;
+
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
@@ -33,6 +35,7 @@ import static java.lang.Long.rotateRight;
  *
  * @opensearch.internal
  */
+@InternalApi
 public final class T1ha1 {
     private static final long SEED = System.nanoTime();
     private static final Mux64 MUX_64_IMPL = fastestMux64Impl();

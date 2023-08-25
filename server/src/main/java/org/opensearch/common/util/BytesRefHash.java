@@ -34,6 +34,7 @@ package org.opensearch.common.util;
 
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.Numbers;
+import org.opensearch.common.annotation.InternalApi;
 import org.opensearch.common.hash.T1ha1;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
@@ -52,6 +53,7 @@ import org.opensearch.core.common.util.ByteArray;
  *
  * @opensearch.internal
  */
+@InternalApi
 public final class BytesRefHash implements Releasable {
     private static final long MAX_CAPACITY = 1L << 32;
     private static final long DEFAULT_INITIAL_CAPACITY = 32;

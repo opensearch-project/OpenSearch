@@ -10,8 +10,12 @@ package org.opensearch.common.hash;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
+import java.lang.invoke.VarHandle;
+import java.nio.ByteOrder;
 
 public class T1Ha1Tests extends HashFunctionTestCase {
+    private static final VarHandle LONG_HANDLE = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.LITTLE_ENDIAN);
+    private final byte[] scratch = new byte[8];
 
     /**
      * Inspired from the tests defined in the reference implementation:
@@ -282,6 +286,18 @@ public class T1Ha1Tests extends HashFunctionTestCase {
         }
     }
 
+    @Override
+    public byte[] hash(byte[] input) {
+        long hash = T1ha1.hash(input, 0, input.length);
+        LONG_HANDLE.set(scratch, 0, hash);
+        return scratch;
+    }
+
+    @Override
+    public int outputBits() {
+        return 64;
+    }
+
     private static boolean hasUnsignedMultiplyHigh() {
         try {
             MethodHandles.publicLookup()
@@ -292,10 +308,5 @@ public class T1Ha1Tests extends HashFunctionTestCase {
         } catch (IllegalAccessException e) {
             throw new RuntimeException(e);
         }
-    }
-
-    @Override
-    public long hash(byte[] input) {
-        return T1ha1.hash(input, 0, input.length);
     }
 }
