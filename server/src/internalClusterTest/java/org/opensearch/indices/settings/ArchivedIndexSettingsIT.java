@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.startsWith;
+import static org.opensearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0, supportsDedicatedMasters = false)
 public class ArchivedIndexSettingsIT extends OpenSearchIntegTestCase {
@@ -50,6 +51,8 @@ public class ArchivedIndexSettingsIT extends OpenSearchIntegTestCase {
 
         // Verify that archived settings exists.
         assertBusy(() -> {
+            // Verify that cluster state is in recovered state.
+            assertFalse(client().admin().cluster().prepareState().get().getState().blocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK));
             assertTrue(
                 client().admin()
                     .indices()
