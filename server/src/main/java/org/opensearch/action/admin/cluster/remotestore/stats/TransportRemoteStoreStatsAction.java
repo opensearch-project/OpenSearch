@@ -153,7 +153,7 @@ public class TransportRemoteStoreStatsAction extends TransportBroadcastByNodeAct
             throw new ShardNotFoundException(indexShard.shardId());
         }
 
-        RemoteSegmentTransferTracker remoteSegmentTransferTracker = remoteStorePressureService.getRemoteRefreshSegmentTracker(
+        RemoteSegmentTransferTracker remoteSegmentTransferTracker = remoteStorePressureService.getRemoteSegmentTransferTracker(
             indexShard.shardId()
         );
         assert Objects.nonNull(remoteSegmentTransferTracker);

@@ -90,7 +90,7 @@ public class TransportRemoteStoreStatsActionTests extends IndexShardTestCase {
             Collections.emptySet()
         );
 
-        when(pressureService.getRemoteRefreshSegmentTracker(any())).thenReturn(mock(RemoteSegmentTransferTracker.class));
+        when(pressureService.getRemoteSegmentTransferTracker(any())).thenReturn(mock(RemoteSegmentTransferTracker.class));
         when(indicesService.indexService(INDEX)).thenReturn(indexService);
         when(indexService.getIndexSettings()).thenReturn(new IndexSettings(remoteStoreIndexMetadata, Settings.EMPTY));
         statsAction = new TransportRemoteStoreStatsAction(

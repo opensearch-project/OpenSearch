@@ -89,7 +89,7 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         remoteStoreStatsTrackerFactory = new RemoteStoreStatsTrackerFactory(Settings.EMPTY);
         remoteStorePressureService = new RemoteStorePressureService(clusterService, Settings.EMPTY, remoteStoreStatsTrackerFactory);
         remoteStoreStatsTrackerFactory.afterIndexShardCreated(indexShard);
-        RemoteSegmentTransferTracker tracker = remoteStorePressureService.getRemoteRefreshSegmentTracker(indexShard.shardId());
+        RemoteSegmentTransferTracker tracker = remoteStorePressureService.getRemoteSegmentTransferTracker(indexShard.shardId());
         remoteStoreRefreshListener = new RemoteStoreRefreshListener(indexShard, SegmentReplicationCheckpointPublisher.EMPTY, tracker);
     }
 
@@ -328,7 +328,7 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         assertBusy(() -> assertEquals(0, refreshCountLatch.getCount()));
         assertBusy(() -> assertEquals(0, successLatch.getCount()));
         RemoteStorePressureService pressureService = tuple.v2();
-        RemoteSegmentTransferTracker segmentTracker = pressureService.getRemoteRefreshSegmentTracker(indexShard.shardId());
+        RemoteSegmentTransferTracker segmentTracker = pressureService.getRemoteSegmentTransferTracker(indexShard.shardId());
         assertNoLagAndTotalUploadsFailed(segmentTracker, 0);
     }
 
@@ -349,7 +349,7 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         assertBusy(() -> assertEquals(0, refreshCountLatch.getCount()));
         assertBusy(() -> assertEquals(0, successLatch.getCount()));
         RemoteStorePressureService pressureService = tuple.v2();
-        RemoteSegmentTransferTracker segmentTracker = pressureService.getRemoteRefreshSegmentTracker(indexShard.shardId());
+        RemoteSegmentTransferTracker segmentTracker = pressureService.getRemoteSegmentTransferTracker(indexShard.shardId());
         assertNoLagAndTotalUploadsFailed(segmentTracker, 1);
     }
 
@@ -395,7 +395,7 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         assertBusy(() -> assertEquals(0, refreshCountLatch.getCount()));
         assertBusy(() -> assertEquals(0, successLatch.getCount()));
         RemoteStorePressureService pressureService = tuple.v2();
-        RemoteSegmentTransferTracker segmentTracker = pressureService.getRemoteRefreshSegmentTracker(indexShard.shardId());
+        RemoteSegmentTransferTracker segmentTracker = pressureService.getRemoteSegmentTransferTracker(indexShard.shardId());
         assertNoLagAndTotalUploadsFailed(segmentTracker, 2);
     }
 
@@ -412,7 +412,7 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         Tuple<RemoteStoreRefreshListener, RemoteStorePressureService> tuple = mockIndexShardWithRetryAndScheduleRefresh(1);
         RemoteStoreRefreshListener listener = tuple.v1();
         RemoteStorePressureService pressureService = tuple.v2();
-        RemoteSegmentTransferTracker tracker = pressureService.getRemoteRefreshSegmentTracker(indexShard.shardId());
+        RemoteSegmentTransferTracker tracker = pressureService.getRemoteSegmentTransferTracker(indexShard.shardId());
         assertNoLag(tracker);
         indexDocs(100, randomIntBetween(100, 200));
         indexShard.refresh("test");
@@ -551,7 +551,7 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         when(shard.indexSettings()).thenReturn(indexShard.indexSettings());
         when(shard.shardId()).thenReturn(indexShard.shardId());
         remoteStoreStatsTrackerFactory.afterIndexShardCreated(shard);
-        RemoteSegmentTransferTracker tracker = remoteStorePressureService.getRemoteRefreshSegmentTracker(indexShard.shardId());
+        RemoteSegmentTransferTracker tracker = remoteStorePressureService.getRemoteSegmentTransferTracker(indexShard.shardId());
         RemoteStoreRefreshListener refreshListener = new RemoteStoreRefreshListener(shard, emptyCheckpointPublisher, tracker);
         refreshListener.afterRefresh(true);
         return Tuple.tuple(refreshListener, remoteStorePressureService);

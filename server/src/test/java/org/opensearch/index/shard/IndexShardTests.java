@@ -1822,7 +1822,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 .build()
         );
         RemoteSegmentTransferTracker remoteRefreshSegmentTracker = shard.getRemoteStorePressureService()
-            .getRemoteRefreshSegmentTracker(shard.shardId);
+            .getRemoteSegmentTransferTracker(shard.shardId);
         populateSampleRemoteStoreStats(remoteRefreshSegmentTracker);
         ShardStats shardStats = new ShardStats(
             shard.routingEntry(),

@@ -59,7 +59,7 @@ public class RemoteStorePressureService {
      * @param shardId shard id
      * @return the tracker if index is remote-backed, else null.
      */
-    public RemoteSegmentTransferTracker getRemoteRefreshSegmentTracker(ShardId shardId) {
+    public RemoteSegmentTransferTracker getRemoteSegmentTransferTracker(ShardId shardId) {
         return remoteStoreStatsTrackerFactory.getRemoteSegmentTransferTracker(shardId);
     }
 

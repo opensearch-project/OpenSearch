@@ -8,17 +8,12 @@
 
 package org.opensearch.index.remote;
 
-import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.index.shard.ShardId;
-import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.IndexShard;
-import org.opensearch.index.store.Store;
-import org.opensearch.indices.replication.common.ReplicationType;
-import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
@@ -28,8 +23,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.IntStream;
 
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import static org.opensearch.index.remote.RemoteStoreTestsHelper.createIndexShard;
 
 public class RemoteStorePressureServiceTests extends OpenSearchTestCase {
 
@@ -74,32 +68,6 @@ public class RemoteStorePressureServiceTests extends OpenSearchTestCase {
         assertTrue(pressureService.isSegmentsUploadBackpressureEnabled());
     }
 
-    public void testAfterIndexShardCreatedForRemoteBackedIndex() {
-        IndexShard indexShard = createIndexShard(shardId, true);
-        remoteStoreStatsTrackerFactory = new RemoteStoreStatsTrackerFactory(Settings.EMPTY);
-        pressureService = new RemoteStorePressureService(clusterService, Settings.EMPTY, remoteStoreStatsTrackerFactory);
-        remoteStoreStatsTrackerFactory.afterIndexShardCreated(indexShard);
-        assertNotNull(pressureService.getRemoteRefreshSegmentTracker(indexShard.shardId()));
-    }
-
-    public void testAfterIndexShardCreatedForNonRemoteBackedIndex() {
-        IndexShard indexShard = createIndexShard(shardId, false);
-        remoteStoreStatsTrackerFactory = new RemoteStoreStatsTrackerFactory(Settings.EMPTY);
-        pressureService = new RemoteStorePressureService(clusterService, Settings.EMPTY, remoteStoreStatsTrackerFactory);
-        remoteStoreStatsTrackerFactory.afterIndexShardCreated(indexShard);
-        assertNull(pressureService.getRemoteRefreshSegmentTracker(indexShard.shardId()));
-    }
-
-    public void testAfterIndexShardClosed() {
-        IndexShard indexShard = createIndexShard(shardId, true);
-        remoteStoreStatsTrackerFactory = new RemoteStoreStatsTrackerFactory(Settings.EMPTY);
-        pressureService = new RemoteStorePressureService(clusterService, Settings.EMPTY, remoteStoreStatsTrackerFactory);
-        remoteStoreStatsTrackerFactory.afterIndexShardCreated(indexShard);
-        assertNotNull(pressureService.getRemoteRefreshSegmentTracker(shardId));
-        remoteStoreStatsTrackerFactory.afterIndexShardClosed(shardId, indexShard, indexShard.indexSettings().getSettings());
-        assertNull(pressureService.getRemoteRefreshSegmentTracker(shardId));
-    }
-
     public void testValidateSegmentUploadLag() {
         // Create the pressure tracker
         IndexShard indexShard = createIndexShard(shardId, true);
@@ -107,7 +75,7 @@ public class RemoteStorePressureServiceTests extends OpenSearchTestCase {
         pressureService = new RemoteStorePressureService(clusterService, Settings.EMPTY, remoteStoreStatsTrackerFactory);
         remoteStoreStatsTrackerFactory.afterIndexShardCreated(indexShard);
 
-        RemoteSegmentTransferTracker pressureTracker = pressureService.getRemoteRefreshSegmentTracker(shardId);
+        RemoteSegmentTransferTracker pressureTracker = pressureService.getRemoteSegmentTransferTracker(shardId);
         pressureTracker.updateLocalRefreshSeqNo(6);
 
         // 1. time lag more than dynamic threshold
@@ -158,17 +126,4 @@ public class RemoteStorePressureServiceTests extends OpenSearchTestCase {
         pressureService.validateSegmentsUploadLag(shardId);
     }
 
-    private static IndexShard createIndexShard(ShardId shardId, boolean remoteStoreEnabled) {
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
-            .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, String.valueOf(remoteStoreEnabled))
-            .build();
-        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test_index", settings);
-        Store store = mock(Store.class);
-        IndexShard indexShard = mock(IndexShard.class);
-        when(indexShard.indexSettings()).thenReturn(indexSettings);
-        when(indexShard.shardId()).thenReturn(shardId);
-        when(indexShard.store()).thenReturn(store);
-        return indexShard;
-    }
 }

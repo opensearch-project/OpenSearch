@@ -1386,7 +1386,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // Populate remote_store stats only if the index is remote store backed
         if (indexSettings.isRemoteStoreEnabled()) {
             segmentsStats.addRemoteSegmentStats(
-                new RemoteSegmentStats(remoteStorePressureService.getRemoteRefreshSegmentTracker(shardId).stats())
+                new RemoteSegmentStats(remoteStorePressureService.getRemoteSegmentTransferTracker(shardId).stats())
             );
         }
         return segmentsStats;
@@ -3696,7 +3696,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     this,
                     // Add the checkpoint publisher if the Segment Replciation via remote store is enabled.
                     indexSettings.isSegRepWithRemoteEnabled() ? this.checkpointPublisher : SegmentReplicationCheckpointPublisher.EMPTY,
-                    remoteStorePressureService.getRemoteRefreshSegmentTracker(shardId())
+                    remoteStorePressureService.getRemoteSegmentTransferTracker(shardId())
                 )
             );
         }
