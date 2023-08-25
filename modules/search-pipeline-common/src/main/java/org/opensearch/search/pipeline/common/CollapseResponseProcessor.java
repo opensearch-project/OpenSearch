@@ -20,10 +20,10 @@ import org.opensearch.search.pipeline.SearchResponseProcessor;
 import org.opensearch.search.pipeline.common.helpers.SearchResponseUtil;
 
 import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * A simple implementation of field collapsing on search responses. Note that this is not going to work as well as
@@ -35,12 +35,12 @@ public class CollapseResponseProcessor extends AbstractProcessor implements Sear
      * Key to reference this processor type from a search pipeline.
      */
     public static final String TYPE = "collapse";
-    private static final String COLLAPSE_FIELD = "field";
+    static final String COLLAPSE_FIELD = "field";
     private final String collapseField;
 
     private CollapseResponseProcessor(String tag, String description, boolean ignoreFailure, String collapseField) {
         super(tag, description, ignoreFailure);
-        this.collapseField = collapseField;
+        this.collapseField = Objects.requireNonNull(collapseField);
     }
 
     @Override
@@ -49,34 +49,47 @@ public class CollapseResponseProcessor extends AbstractProcessor implements Sear
     }
 
     @Override
-    public SearchResponse processResponse(SearchRequest request, SearchResponse response) throws Exception {
+    public SearchResponse processResponse(SearchRequest request, SearchResponse response) {
 
         if (response.getHits() != null) {
-            Map<String, SearchHit> collapsedHits = new HashMap<>();
+            if (response.getHits().getCollapseField() != null) {
+                throw new IllegalStateException(
+                    "Cannot collapse on " + collapseField + ". Results already collapsed on " + response.getHits().getCollapseField()
+                );
+            }
+            Map<String, SearchHit> collapsedHits = new LinkedHashMap<>();
+            List<Object> collapseValues = new ArrayList<>();
             for (SearchHit hit : response.getHits()) {
-                String fieldValue = "<missing>";
+                Object fieldValue = null;
                 DocumentField docField = hit.getFields().get(collapseField);
                 if (docField != null) {
                     if (docField.getValues().size() > 1) {
-                        throw new IllegalStateException("Document " + hit.getId() + " has multiple values for field " + collapseField);
+                        throw new IllegalStateException(
+                            "Failed to collapse " + hit.getId() + ": doc has multiple values for field " + collapseField
+                        );
                     }
-                    fieldValue = docField.getValues().get(0).toString();
-                } else if (hit.hasSource()) {
-                    Object val = hit.getSourceAsMap().get(collapseField);
-                    if (val != null) {
-                        fieldValue = val.toString();
-                    }
+                    fieldValue = docField.getValues().get(0);
+                } else if (hit.getSourceAsMap() != null) {
+                    fieldValue = hit.getSourceAsMap().get(collapseField);
                 }
-                SearchHit previousHit = collapsedHits.get(fieldValue);
-                // TODO - Support the sort used in the request, rather than just score
-                if (previousHit == null || hit.getScore() > previousHit.getScore()) {
-                    collapsedHits.put(fieldValue, hit);
+                String fieldValueString;
+                if (fieldValue == null) {
+                    fieldValueString = "__missing__";
+                } else {
+                    fieldValueString = fieldValue.toString();
+                }
+
+                // Results are already sorted by sort criterion. Only keep the first hit for each field.
+                if (collapsedHits.containsKey(fieldValueString) == false) {
+                    collapsedHits.put(fieldValueString, hit);
+                    collapseValues.add(fieldValue);
                 }
             }
-            List<SearchHit> hitsToReturn = new ArrayList<>(collapsedHits.values());
-            hitsToReturn.sort(Comparator.comparingDouble(SearchHit::getScore).reversed());
-            SearchHit[] newHits = hitsToReturn.toArray(new SearchHit[0]);
-            List<String> collapseValues = new ArrayList<>(collapsedHits.keySet());
+            SearchHit[] newHits = new SearchHit[collapsedHits.size()];
+            int i = 0;
+            for (SearchHit collapsedHit : collapsedHits.values()) {
+                newHits[i++] = collapsedHit;
+            }
             SearchHits searchHits = new SearchHits(
                 newHits,
                 response.getHits().getTotalHits(),
