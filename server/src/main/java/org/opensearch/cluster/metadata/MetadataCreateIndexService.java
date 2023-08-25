@@ -940,7 +940,7 @@ public class MetadataCreateIndexService {
         } else if (CLUSTER_REMOTE_STORE_ENABLED_SETTING.get(clusterSettings)) {
             settingsBuilder.put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT);
         } else {
-            settingsBuilder.put(SETTING_REPLICATION_TYPE, CLUSTER_REPLICATION_TYPE_SETTING.get(clusterSettings));
+            settingsBuilder.put(SETTING_REPLICATION_TYPE, CLUSTER_REPLICATION_TYPE_SETTING.getDefault(clusterSettings));
         }
     }
 
