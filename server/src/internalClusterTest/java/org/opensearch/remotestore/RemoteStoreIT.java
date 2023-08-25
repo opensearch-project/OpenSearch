@@ -38,7 +38,7 @@ import static org.hamcrest.Matchers.oneOf;
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE, numDataNodes = 0)
 public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
 
-    private static final String INDEX_NAME = "remote-store-test-idx-1";
+    protected final String INDEX_NAME = "remote-store-test-idx-1";
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
