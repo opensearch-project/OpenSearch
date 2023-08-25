@@ -950,14 +950,14 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             long fileSize = from.fileLength(src);
             beforeDownload(fileSize);
             boolean success = false;
+            long startTime = System.currentTimeMillis();
             try {
-                long startTime = System.currentTimeMillis();
                 super.copyFrom(from, src, dest, context);
                 success = true;
                 afterDownload(fileSize, startTime);
             } finally {
                 if (!success) {
-                    downloadFailed(fileSize);
+                    downloadFailed(fileSize, startTime);
                 }
             }
         }
@@ -983,8 +983,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         /**
          * Updates the amount of bytes failed in download
          */
-        private void downloadFailed(long fileSize) {
-            directoryFileTransferTracker.addTransferredBytesFailed(fileSize);
+        private void downloadFailed(long fileSize, long startTimeInMs) {
+            directoryFileTransferTracker.addTransferredBytesFailed(fileSize, startTimeInMs);
         }
     }
 
