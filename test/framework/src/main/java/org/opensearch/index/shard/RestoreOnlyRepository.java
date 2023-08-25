@@ -151,6 +151,16 @@ public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent i
     }
 
     @Override
+    public long getRemoteUploadThrottleTimeInNanos() {
+        return 0;
+    }
+
+    @Override
+    public long getRemoteDownloadThrottleTimeInNanos() {
+        return 0;
+    }
+
+    @Override
     public String startVerification() {
         return null;
     }

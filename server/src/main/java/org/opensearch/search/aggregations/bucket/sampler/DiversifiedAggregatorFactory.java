@@ -159,4 +159,9 @@ public class DiversifiedAggregatorFactory extends ValuesSourceAggregatorFactory 
             }
         };
     }
+
+    @Override
+    protected boolean supportsConcurrentSegmentSearch() {
+        return true;
+    }
 }
