@@ -303,9 +303,9 @@ public class RemoteDirectory extends Directory {
     public boolean copyFrom(
         Directory from,
         String src,
+        String remoteFileName,
         IOContext context,
         Runnable postUploadRunner,
-        String remoteFileName,
         ActionListener<Void> listener
     ) {
         if (blobContainer instanceof VerifyingMultiStreamBlobContainer) {
