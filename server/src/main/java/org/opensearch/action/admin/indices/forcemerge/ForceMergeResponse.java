@@ -32,8 +32,8 @@
 
 package org.opensearch.action.admin.indices.forcemerge;
 
-import org.opensearch.core.action.support.DefaultShardOperationFailedException;
 import org.opensearch.action.support.broadcast.BroadcastResponse;
+import org.opensearch.core.action.support.DefaultShardOperationFailedException;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.xcontent.ConstructingObjectParser;
 import org.opensearch.core.xcontent.XContentParser;

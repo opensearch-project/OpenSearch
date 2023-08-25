@@ -50,13 +50,13 @@ import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.search.SearchType;
 import org.opensearch.action.support.WriteRequest;
-import org.opensearch.common.UUIDs;
-import org.opensearch.core.action.support.DefaultShardOperationFailedException;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.common.UUIDs;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.action.support.DefaultShardOperationFailedException;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
@@ -77,10 +77,10 @@ import org.opensearch.indices.IndicesRequestCache;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.search.sort.SortOrder;
+import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.OpenSearchIntegTestCase.Scope;
-import org.opensearch.test.InternalSettingsPlugin;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -1454,6 +1454,7 @@ public class IndexStatsIT extends OpenSearchIntegTestCase {
         assertEquals(0, remoteSegmentStats.getDownloadBytesStarted());
         assertEquals(0, remoteSegmentStats.getDownloadBytesSucceeded());
         assertEquals(0, remoteSegmentStats.getDownloadBytesFailed());
+        assertEquals(0, remoteSegmentStats.getTotalRefreshBytesLag());
         assertEquals(0, remoteSegmentStats.getMaxRefreshBytesLag());
         assertEquals(0, remoteSegmentStats.getMaxRefreshTimeLag());
     }

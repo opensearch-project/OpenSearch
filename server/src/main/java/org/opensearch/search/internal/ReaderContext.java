@@ -32,9 +32,9 @@
 
 package org.opensearch.search.internal;
 
-import org.opensearch.common.util.concurrent.AbstractRefCounted;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
+import org.opensearch.common.util.concurrent.AbstractRefCounted;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.shard.IndexShard;

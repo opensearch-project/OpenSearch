@@ -34,18 +34,18 @@ package org.opensearch.action.admin.cluster.node.stats;
 
 import org.opensearch.action.admin.indices.stats.CommonStats;
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
+import org.opensearch.cluster.coordination.PendingClusterStateStats;
+import org.opensearch.cluster.coordination.PublishClusterStateStats;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.WeightedRoutingStats;
 import org.opensearch.cluster.service.ClusterManagerThrottlingStats;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.common.metrics.OperationStats;
-import org.opensearch.discovery.DiscoveryStats;
-import org.opensearch.cluster.coordination.PendingClusterStateStats;
-import org.opensearch.cluster.coordination.PublishClusterStateStats;
-import org.opensearch.http.HttpStats;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.indices.breaker.AllCircuitBreakerStats;
 import org.opensearch.core.indices.breaker.CircuitBreakerStats;
+import org.opensearch.discovery.DiscoveryStats;
+import org.opensearch.http.HttpStats;
 import org.opensearch.index.remote.RemoteSegmentStats;
 import org.opensearch.indices.NodeIndicesStats;
 import org.opensearch.ingest.IngestStats;
@@ -459,6 +459,7 @@ public class NodeStatsTests extends OpenSearchTestCase {
                     assertEquals(remoteSegmentStats.getUploadBytesFailed(), deserializedRemoteSegmentStats.getUploadBytesFailed());
                     assertEquals(remoteSegmentStats.getMaxRefreshTimeLag(), deserializedRemoteSegmentStats.getMaxRefreshTimeLag());
                     assertEquals(remoteSegmentStats.getMaxRefreshBytesLag(), deserializedRemoteSegmentStats.getMaxRefreshBytesLag());
+                    assertEquals(remoteSegmentStats.getTotalRefreshBytesLag(), deserializedRemoteSegmentStats.getTotalRefreshBytesLag());
                 }
             }
         }
@@ -789,7 +790,8 @@ public class NodeStatsTests extends OpenSearchTestCase {
             remoteSegmentStats.addDownloadBytesStarted(10L);
             remoteSegmentStats.addDownloadBytesSucceeded(10L);
             remoteSegmentStats.addDownloadBytesFailed(1L);
-            remoteSegmentStats.setMaxRefreshBytesLag(5L);
+            remoteSegmentStats.addTotalRefreshBytesLag(5L);
+            remoteSegmentStats.addMaxRefreshBytesLag(2L);
             remoteSegmentStats.setMaxRefreshTimeLag(2L);
         }
         return indicesStats;

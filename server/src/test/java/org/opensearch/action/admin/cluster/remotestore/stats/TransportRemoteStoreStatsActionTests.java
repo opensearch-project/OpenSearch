@@ -8,7 +8,6 @@
 
 package org.opensearch.action.admin.cluster.remotestore.stats;
 
-import org.mockito.Mockito;
 import org.opensearch.Version;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.cluster.ClusterName;
@@ -28,8 +27,8 @@ import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.index.remote.RemoteRefreshSegmentPressureService;
 import org.opensearch.index.remote.RemoteSegmentTransferTracker;
+import org.opensearch.index.remote.RemoteStorePressureService;
 import org.opensearch.index.shard.IndexShardTestCase;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.replication.common.ReplicationType;
@@ -40,19 +39,21 @@ import org.opensearch.transport.TransportService;
 import java.util.Collections;
 import java.util.stream.Collectors;
 
+import org.mockito.Mockito;
+
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUID;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_ENABLED;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUID;
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_ENABLED;
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY;
 
 public class TransportRemoteStoreStatsActionTests extends IndexShardTestCase {
     private IndicesService indicesService;
-    private RemoteRefreshSegmentPressureService pressureService;
+    private RemoteStorePressureService pressureService;
     private IndexMetadata remoteStoreIndexMetadata;
     private TransportService transportService;
     private ClusterService clusterService;
@@ -66,7 +67,7 @@ public class TransportRemoteStoreStatsActionTests extends IndexShardTestCase {
         indicesService = mock(IndicesService.class);
         IndexService indexService = mock(IndexService.class);
         clusterService = mock(ClusterService.class);
-        pressureService = mock(RemoteRefreshSegmentPressureService.class);
+        pressureService = mock(RemoteStorePressureService.class);
         MockTransport mockTransport = new MockTransport();
         localNode = new DiscoveryNode("node0", buildNewFakeTransportAddress(), Version.CURRENT);
         remoteStoreIndexMetadata = IndexMetadata.builder(INDEX.getName())

@@ -70,8 +70,8 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.text.BreakIterator;
 import java.util.Locale;
 
-import static org.apache.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.apache.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR;
 
 public class CustomUnifiedHighlighterTests extends OpenSearchTestCase {
     private void assertHighlightOneDoc(

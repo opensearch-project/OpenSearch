@@ -722,6 +722,8 @@ public abstract class StreamInput extends InputStream {
                 return readByte();
             case 12:
                 return readDate();
+            case 13:
+                return readZonedDateTime();
             case 14:
                 return readBytesReference();
             case 15:

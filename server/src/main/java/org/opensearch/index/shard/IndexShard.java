@@ -56,17 +56,15 @@ import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.ThreadInterruptedException;
-import org.opensearch.cluster.metadata.DataStream;
-import org.opensearch.core.Assertions;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
-import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.opensearch.action.admin.indices.upgrade.post.UpgradeRequest;
 import org.opensearch.action.support.replication.PendingReplicationActions;
 import org.opensearch.action.support.replication.ReplicationResponse;
+import org.opensearch.cluster.metadata.DataStream;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.MappingMetadata;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
@@ -83,12 +81,13 @@ import org.opensearch.common.SetOnce;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.common.metrics.MeanMetric;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
@@ -96,14 +95,17 @@ import org.opensearch.common.util.concurrent.AsyncIOProcessor;
 import org.opensearch.common.util.concurrent.BufferedAsyncIOProcessor;
 import org.opensearch.common.util.concurrent.RunOnce;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.common.util.set.Sets;
 import org.opensearch.common.util.io.IOUtils;
-import org.opensearch.common.lease.Releasable;
-import org.opensearch.common.lease.Releasables;
+import org.opensearch.common.util.set.Sets;
+import org.opensearch.core.Assertions;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.indices.breaker.CircuitBreakerService;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.gateway.WriteStateException;
-import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
@@ -144,8 +146,8 @@ import org.opensearch.index.mapper.Uid;
 import org.opensearch.index.merge.MergeStats;
 import org.opensearch.index.recovery.RecoveryStats;
 import org.opensearch.index.refresh.RefreshStats;
-import org.opensearch.index.remote.RemoteRefreshSegmentPressureService;
 import org.opensearch.index.remote.RemoteSegmentStats;
+import org.opensearch.index.remote.RemoteStorePressureService;
 import org.opensearch.index.search.stats.SearchStats;
 import org.opensearch.index.search.stats.ShardSearchStats;
 import org.opensearch.index.seqno.ReplicationTracker;
@@ -174,7 +176,6 @@ import org.opensearch.index.warmer.ShardIndexWarmerService;
 import org.opensearch.index.warmer.WarmerStats;
 import org.opensearch.indices.IndexingMemoryController;
 import org.opensearch.indices.IndicesService;
-import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.indices.cluster.IndicesClusterStateService;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoveryFailedException;
@@ -185,7 +186,6 @@ import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
-import org.opensearch.core.rest.RestStatus;
 import org.opensearch.search.suggest.completion.CompletionStats;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -333,8 +333,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final Store remoteStore;
     private final BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier;
     private final boolean isTimeSeriesIndex;
-
-    private final RemoteRefreshSegmentPressureService remoteRefreshSegmentPressureService;
+    private final RemoteStorePressureService remoteStorePressureService;
 
     private final List<ReferenceManager.RefreshListener> internalRefreshListener = new ArrayList<>();
 
@@ -362,7 +361,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier,
         @Nullable final SegmentReplicationCheckpointPublisher checkpointPublisher,
         @Nullable final Store remoteStore,
-        final RemoteRefreshSegmentPressureService remoteRefreshSegmentPressureService
+        final RemoteStorePressureService remoteStorePressureService
     ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
@@ -457,7 +456,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.isTimeSeriesIndex = (mapperService == null || mapperService.documentMapper() == null)
             ? false
             : mapperService.documentMapper().mappers().containsTimeStampField();
-        this.remoteRefreshSegmentPressureService = remoteRefreshSegmentPressureService;
+        this.remoteStorePressureService = remoteStorePressureService;
     }
 
     public ThreadPool getThreadPool() {
@@ -547,8 +546,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /** Only used for testing **/
-    protected RemoteRefreshSegmentPressureService getRemoteRefreshSegmentPressureService() {
-        return remoteRefreshSegmentPressureService;
+    protected RemoteStorePressureService getRemoteStorePressureService() {
+        return remoteStorePressureService;
     }
 
     @Override
@@ -1387,7 +1386,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // Populate remote_store stats only if the index is remote store backed
         if (indexSettings.isRemoteStoreEnabled()) {
             segmentsStats.addRemoteSegmentStats(
-                new RemoteSegmentStats(remoteRefreshSegmentPressureService.getRemoteRefreshSegmentTracker(shardId).stats())
+                new RemoteSegmentStats(remoteStorePressureService.getRemoteRefreshSegmentTracker(shardId).stats())
             );
         }
         return segmentsStats;
@@ -3697,7 +3696,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     this,
                     // Add the checkpoint publisher if the Segment Replciation via remote store is enabled.
                     indexSettings.isSegRepWithRemoteEnabled() ? this.checkpointPublisher : SegmentReplicationCheckpointPublisher.EMPTY,
-                    remoteRefreshSegmentPressureService.getRemoteRefreshSegmentTracker(shardId())
+                    remoteStorePressureService.getRemoteRefreshSegmentTracker(shardId())
                 )
             );
         }

@@ -67,12 +67,12 @@ import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.InfoStream;
 import org.opensearch.ExceptionsHelper;
-import org.opensearch.core.Assertions;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.concurrent.GatedCloseable;
+import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lucene.LoggerInfoStream;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
@@ -81,13 +81,14 @@ import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.lucene.uid.VersionsAndSeqNoResolver;
 import org.opensearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndSeqNo;
 import org.opensearch.common.metrics.CounterMetric;
-import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.KeyedLock;
 import org.opensearch.common.util.concurrent.ReleasableLock;
 import org.opensearch.common.util.io.IOUtils;
-import org.opensearch.common.lease.Releasable;
+import org.opensearch.core.Assertions;
+import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.fieldvisitor.IdOnlyFieldVisitor;
@@ -103,15 +104,14 @@ import org.opensearch.index.seqno.LocalCheckpointTracker;
 import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.OpenSearchMergePolicy;
-import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.translog.InternalTranslogManager;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogCorruptedException;
 import org.opensearch.index.translog.TranslogDeletionPolicy;
-import org.opensearch.index.translog.TranslogManager;
 import org.opensearch.index.translog.TranslogException;
-import org.opensearch.index.translog.InternalTranslogManager;
-import org.opensearch.index.translog.listener.TranslogEventListener;
+import org.opensearch.index.translog.TranslogManager;
 import org.opensearch.index.translog.listener.CompositeTranslogEventListener;
+import org.opensearch.index.translog.listener.TranslogEventListener;
 import org.opensearch.search.suggest.completion.CompletionStats;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -2784,7 +2784,7 @@ public class InternalEngine extends Engine {
      * Returns the current local checkpoint getting refreshed internally.
      */
     public final long currentOngoingRefreshCheckpoint() {
-        return lastRefreshedCheckpointListener.pendingCheckpoint;
+        return lastRefreshedCheckpointListener.pendingCheckpoint.get();
     }
 
     private final Object refreshIfNeededMutex = new Object();
@@ -2804,29 +2804,33 @@ public class InternalEngine extends Engine {
 
     private final class LastRefreshedCheckpointListener implements ReferenceManager.RefreshListener {
         final AtomicLong refreshedCheckpoint;
-        volatile long pendingCheckpoint;
+        volatile AtomicLong pendingCheckpoint;
 
         LastRefreshedCheckpointListener(long initialLocalCheckpoint) {
             this.refreshedCheckpoint = new AtomicLong(initialLocalCheckpoint);
-            this.pendingCheckpoint = initialLocalCheckpoint;
+            this.pendingCheckpoint = new AtomicLong(initialLocalCheckpoint);
         }
 
         @Override
         public void beforeRefresh() {
             // all changes until this point should be visible after refresh
-            pendingCheckpoint = localCheckpointTracker.getProcessedCheckpoint();
+            pendingCheckpoint.updateAndGet(curr -> Math.max(curr, localCheckpointTracker.getProcessedCheckpoint()));
         }
 
         @Override
         public void afterRefresh(boolean didRefresh) {
             if (didRefresh) {
-                updateRefreshedCheckpoint(pendingCheckpoint);
+                updateRefreshedCheckpoint(pendingCheckpoint.get());
             }
         }
 
         void updateRefreshedCheckpoint(long checkpoint) {
             refreshedCheckpoint.updateAndGet(curr -> Math.max(curr, checkpoint));
             assert refreshedCheckpoint.get() >= checkpoint : refreshedCheckpoint.get() + " < " + checkpoint;
+            // This shouldn't be required ideally, but we're also invoking this method from refresh as of now.
+            // This change is added as safety check to ensure that our checkpoint values are consistent at all times.
+            pendingCheckpoint.updateAndGet(curr -> Math.max(curr, checkpoint));
+
         }
     }
 

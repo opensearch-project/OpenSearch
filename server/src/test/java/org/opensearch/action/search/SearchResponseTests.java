@@ -64,8 +64,8 @@ import org.opensearch.search.profile.SearchProfileShardResults;
 import org.opensearch.search.profile.SearchProfileShardResultsTests;
 import org.opensearch.search.suggest.Suggest;
 import org.opensearch.search.suggest.SuggestTests;
-import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.InternalAggregationTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.After;
 import org.junit.Before;
 

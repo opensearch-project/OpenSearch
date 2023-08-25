@@ -32,13 +32,13 @@
 
 package org.opensearch.search.aggregations.bucket.range;
 
-import org.opensearch.core.ParseField;
-import org.opensearch.core.common.ParsingException;
 import org.opensearch.common.geo.GeoDistance;
 import org.opensearch.common.geo.GeoPoint;
+import org.opensearch.common.unit.DistanceUnit;
+import org.opensearch.core.ParseField;
+import org.opensearch.core.common.ParsingException;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.common.unit.DistanceUnit;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;

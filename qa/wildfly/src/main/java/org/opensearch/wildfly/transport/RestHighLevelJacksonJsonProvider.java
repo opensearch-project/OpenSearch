@@ -32,9 +32,8 @@
 
 package org.opensearch.wildfly.transport;
 
-import org.jboss.resteasy.plugins.providers.jackson.ResteasyJackson2Provider;
-
 import jakarta.ws.rs.ext.Provider;
+import org.jboss.resteasy.plugins.providers.jackson.ResteasyJackson2Provider;
 
 @Provider
 public class RestHighLevelJacksonJsonProvider extends ResteasyJackson2Provider {

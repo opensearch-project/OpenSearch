@@ -57,6 +57,7 @@ import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.AbstractIndexComponent;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.IndexWarmer;
@@ -65,7 +66,6 @@ import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.ObjectMapper;
 import org.opensearch.index.shard.IndexShard;
-import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.shard.ShardUtils;
 import org.opensearch.threadpool.ThreadPool;
 

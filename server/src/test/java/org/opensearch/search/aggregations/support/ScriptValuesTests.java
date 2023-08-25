@@ -33,7 +33,7 @@
 package org.opensearch.search.aggregations.support;
 
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
-import java.util.Collections;
+
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.util.BytesRef;
@@ -47,6 +47,7 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;

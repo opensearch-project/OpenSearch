@@ -37,7 +37,6 @@ import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.action.admin.indices.mapping.get.GetMappingsResponse;
-
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.ingest.PutPipelineRequest;
@@ -46,11 +45,11 @@ import org.opensearch.action.support.replication.ReplicationRequest;
 import org.opensearch.action.update.UpdateRequest;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.ingest.IngestTestPlugin;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.core.rest.RestStatus;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.io.IOException;
