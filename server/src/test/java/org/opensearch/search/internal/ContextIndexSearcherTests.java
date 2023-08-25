@@ -383,7 +383,7 @@ public class ContextIndexSearcherTests extends OpenSearchTestCase {
                 IndexShard indexShard = mock(IndexShard.class);
                 when(searchContext.indexShard()).thenReturn(indexShard);
                 when(searchContext.bucketCollectorProcessor()).thenReturn(SearchContext.NO_OP_BUCKET_COLLECTOR_PROCESSOR);
-                when(searchContext.isConcurrentSegmentSearchEnabled()).thenReturn(false);
+                when(searchContext.shouldUseConcurrentSearch()).thenReturn(false);
                 ContextIndexSearcher searcher = new ContextIndexSearcher(
                     directoryReader,
                     IndexSearcher.getDefaultSimilarity(),
@@ -406,7 +406,7 @@ public class ContextIndexSearcherTests extends OpenSearchTestCase {
                     mock(ExecutorService.class),
                     searchContext
                 );
-                when(searchContext.isConcurrentSegmentSearchEnabled()).thenReturn(true);
+                when(searchContext.shouldUseConcurrentSearch()).thenReturn(true);
                 when(searchContext.getTargetMaxSliceCount()).thenReturn(4);
                 int expectedSliceCount = 4;
                 IndexSearcher.LeafSlice[] slices = searcher.slices(leaves);

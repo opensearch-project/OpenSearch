@@ -594,6 +594,11 @@ public class TransportSearchIT extends OpenSearchIntegTestCase {
                 ) throws IOException {
                     return new TestAggregator(name, parent, searchContext);
                 }
+
+                @Override
+                protected boolean supportsConcurrentSegmentSearch() {
+                    return true;
+                }
             };
         }
 
