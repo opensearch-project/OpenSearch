@@ -1264,7 +1264,8 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             settings,
             IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
             randomShardLimitService(),
-            Collections.emptySet()
+            Collections.emptySet(),
+            clusterSettings
         );
         verifyRemoteStoreIndexSettings(
             indexSettings,
