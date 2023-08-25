@@ -1274,6 +1274,7 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
                         .get()
                         .getSetting(index, IndexSettings.INDEX_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey())
                 );
+                searchContext.evaluateRequestShouldUseConcurrentSearch();
                 assertEquals(concurrentSearchEnabled, searchContext.shouldUseConcurrentSearch());
                 // verify executor nullability with concurrent search enabled/disabled
                 if (concurrentSearchEnabled) {
@@ -1328,6 +1329,7 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
                 .get();
             try (DefaultSearchContext searchContext = service.createSearchContext(request, new TimeValue(System.currentTimeMillis()))) {
                 // verify concurrent search state in context
+                searchContext.evaluateRequestShouldUseConcurrentSearch();
                 assertEquals(concurrentSearchSetting, searchContext.shouldUseConcurrentSearch());
                 // verify executor state in searcher
                 assertEquals(concurrentSearchSetting, (searchContext.searcher().getExecutor() != null));

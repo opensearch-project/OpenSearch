@@ -1237,6 +1237,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private void parseSource(DefaultSearchContext context, SearchSourceBuilder source, boolean includeAggregations) {
         // nothing to parse...
         if (source == null) {
+            context.evaluateRequestShouldUseConcurrentSearch();
             return;
         }
         SearchShardTarget shardTarget = context.shardTarget();
@@ -1420,7 +1421,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         if (source.profile()) {
             context.setProfilers(new Profilers(context.searcher(), context.shouldUseConcurrentSearch()));
         }
-        logger.info("Using concurrent search for request: " + context.shouldUseConcurrentSearch());
     }
 
     /**

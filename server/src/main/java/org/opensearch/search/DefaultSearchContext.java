@@ -45,6 +45,7 @@ import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.action.search.SearchType;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.common.unit.TimeValue;
@@ -65,7 +66,6 @@ import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.search.NestedHelper;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.similarity.SimilarityService;
-import org.opensearch.search.aggregations.AggregatorFactory;
 import org.opensearch.search.aggregations.BucketCollectorProcessor;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.SearchContextAggregations;
@@ -185,7 +185,7 @@ final class DefaultSearchContext extends SearchContext {
     private final FetchPhase fetchPhase;
     private final Function<SearchSourceBuilder, InternalAggregation.ReduceContextBuilder> requestToAggReduceContextBuilder;
     private final boolean concurrentSearchSettingsEnabled;
-    private boolean requestShouldUseConcurrentSearch = true;
+    private final SetOnce<Boolean> requestShouldUseConcurrentSearch = new SetOnce<>();
 
     DefaultSearchContext(
         ReaderContext readerContext,
@@ -878,11 +878,12 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     /**
-     * Returns concurrent segment search status for the search context
+     * Returns concurrent segment search status for the search context. This should only be used after request parsing, during which requestShouldUseConcurrentSearch will be set.
      */
     @Override
     public boolean shouldUseConcurrentSearch() {
-        return concurrentSearchSettingsEnabled && requestShouldUseConcurrentSearch;
+        assert requestShouldUseConcurrentSearch.get() != null : "requestShouldUseConcurrentSearch must be set";
+        return concurrentSearchSettingsEnabled && Boolean.TRUE.equals(requestShouldUseConcurrentSearch.get());
     }
 
     /**
@@ -890,11 +891,9 @@ final class DefaultSearchContext extends SearchContext {
      */
     public void evaluateRequestShouldUseConcurrentSearch() {
         if (aggregations() != null && aggregations().factories() != null) {
-            for (AggregatorFactory factory : aggregations().factories().getFactories()) {
-                if (factory.traverseChildFactories() == false) {
-                    requestShouldUseConcurrentSearch = false;
-                }
-            }
+            requestShouldUseConcurrentSearch.set(aggregations().factories().allFactoriesSupportConcurrentSearch());
+        } else {
+            requestShouldUseConcurrentSearch.set(true);
         }
     }
 

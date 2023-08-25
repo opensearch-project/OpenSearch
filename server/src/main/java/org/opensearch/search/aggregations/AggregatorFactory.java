@@ -115,16 +115,14 @@ public abstract class AggregatorFactory {
         return OTHER_SUBTYPE;
     }
 
+    /**
+     * Implementation should override this method and return true if the Aggregator created by the factory works with concurrent segment search execution model
+     */
     protected boolean supportsConcurrentSegmentSearch() {
         return false;
     }
 
-    public boolean traverseChildFactories() {
-        for (AggregatorFactory aggregatorFactory : factories.getFactories()) {
-            if (aggregatorFactory.traverseChildFactories() == false) {
-                return false;
-            }
-        }
-        return supportsConcurrentSegmentSearch();
+    public boolean evaluateChildFactories() {
+        return factories.allFactoriesSupportConcurrentSearch();
     }
 }
