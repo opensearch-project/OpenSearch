@@ -20,8 +20,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-import static org.hamcrest.Matchers.startsWith;
 import static org.opensearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
+import static org.hamcrest.Matchers.startsWith;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0, supportsDedicatedMasters = false)
 public class ArchivedIndexSettingsIT extends OpenSearchIntegTestCase {
