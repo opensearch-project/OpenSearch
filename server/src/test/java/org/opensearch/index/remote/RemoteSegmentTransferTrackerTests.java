@@ -497,9 +497,7 @@ public class RemoteSegmentTransferTrackerTests extends OpenSearchTestCase {
         pressureTracker = new RemoteSegmentTransferTracker(
             shardId,
             directoryFileTransferTracker,
-            pressureSettings.getUploadBytesMovingAverageWindowSize(),
-            pressureSettings.getUploadBytesPerSecMovingAverageWindowSize(),
-            pressureSettings.getUploadTimeMovingAverageWindowSize()
+            pressureSettings.getMovingAverageWindowSize()
         );
         long timeToAdd = randomLongBetween(100, 200);
         pressureTracker.getDirectoryFileTransferTracker().addTotalTransferTimeInMs(timeToAdd);
