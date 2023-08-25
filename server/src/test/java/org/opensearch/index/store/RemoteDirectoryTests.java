@@ -8,12 +8,17 @@
 
 package org.opensearch.index.store;
 
+import org.apache.lucene.codecs.CodecUtil;
+import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
+import org.opensearch.common.blobstore.VerifyingMultiStreamBlobContainer;
+import org.opensearch.common.blobstore.stream.write.WriteContext;
 import org.opensearch.common.blobstore.support.PlainBlobMetadata;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.test.OpenSearchTestCase;
@@ -28,8 +33,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import org.mockito.Mockito;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -56,6 +66,85 @@ public class RemoteDirectoryTests extends OpenSearchTestCase {
         String[] actualFileNames = remoteDirectory.listAll();
         String[] expectedFileName = new String[] {};
         assertArrayEquals(expectedFileName, actualFileNames);
+    }
+
+    public void testCopyFrom() throws IOException, InterruptedException {
+        AtomicReference<Boolean> postUploadInvoked = new AtomicReference<>(false);
+        String filename = "_100.si";
+        VerifyingMultiStreamBlobContainer blobContainer = mock(VerifyingMultiStreamBlobContainer.class);
+        Mockito.doAnswer(invocation -> {
+            ActionListener<Void> completionListener = invocation.getArgument(1);
+            completionListener.onResponse(null);
+            return null;
+        }).when(blobContainer).asyncBlobUpload(any(WriteContext.class), any());
+
+        Directory storeDirectory = LuceneTestCase.newDirectory();
+        IndexOutput indexOutput = storeDirectory.createOutput(filename, IOContext.DEFAULT);
+        indexOutput.writeString("Hello World!");
+        CodecUtil.writeFooter(indexOutput);
+        indexOutput.close();
+        storeDirectory.sync(List.of(filename));
+
+        CountDownLatch countDownLatch = new CountDownLatch(1);
+        RemoteDirectory remoteDirectory = new RemoteDirectory(blobContainer);
+        remoteDirectory.copyFrom(
+            storeDirectory,
+            filename,
+            filename,
+            IOContext.READ,
+            () -> postUploadInvoked.set(true),
+            new ActionListener<>() {
+                @Override
+                public void onResponse(Void t) {
+                    countDownLatch.countDown();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    fail("Listener responded with exception" + e);
+                }
+            }
+        );
+        assertTrue(countDownLatch.await(10, TimeUnit.SECONDS));
+        assertTrue(postUploadInvoked.get());
+        storeDirectory.close();
+    }
+
+    public void testCopyFromWithException() throws IOException, InterruptedException {
+        AtomicReference<Boolean> postUploadInvoked = new AtomicReference<>(false);
+        String filename = "_100.si";
+        VerifyingMultiStreamBlobContainer blobContainer = mock(VerifyingMultiStreamBlobContainer.class);
+        Mockito.doAnswer(invocation -> {
+            ActionListener<Void> completionListener = invocation.getArgument(1);
+            completionListener.onResponse(null);
+            return null;
+        }).when(blobContainer).asyncBlobUpload(any(WriteContext.class), any());
+
+        Directory storeDirectory = LuceneTestCase.newDirectory();
+
+        CountDownLatch countDownLatch = new CountDownLatch(1);
+        RemoteDirectory remoteDirectory = new RemoteDirectory(blobContainer);
+        remoteDirectory.copyFrom(
+            storeDirectory,
+            filename,
+            filename,
+            IOContext.READ,
+            () -> postUploadInvoked.set(true),
+            new ActionListener<>() {
+                @Override
+                public void onResponse(Void t) {
+                    fail("Listener responded with success");
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    countDownLatch.countDown();
+                }
+            }
+        );
+        assertTrue(countDownLatch.await(10, TimeUnit.SECONDS));
+        assertFalse(postUploadInvoked.get());
+        storeDirectory.close();
     }
 
     public void testListAll() throws IOException {

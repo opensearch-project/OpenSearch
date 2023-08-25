@@ -88,6 +88,7 @@ import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.opensearch.common.settings.AbstractScopedSettings.ARCHIVED_SETTINGS_PREFIX;
 import static org.opensearch.common.unit.TimeValue.parseTimeValue;
 import static org.opensearch.core.common.unit.ByteSizeValue.parseBytesSizeValue;
 
@@ -1217,7 +1218,7 @@ public final class Settings implements ToXContentFragment {
         }
 
         /**
-         * Checks that all settings in the builder start with the specified prefix.
+         * Checks that all settings(except archived settings and wildcards) in the builder start with the specified prefix.
          *
          * If a setting doesn't start with the prefix, the builder appends the prefix to such setting.
          */
@@ -1227,7 +1228,7 @@ public final class Settings implements ToXContentFragment {
             while (iterator.hasNext()) {
                 Map.Entry<String, Object> entry = iterator.next();
                 String key = entry.getKey();
-                if (key.startsWith(prefix) == false && key.endsWith("*") == false) {
+                if (key.startsWith(prefix) == false && key.endsWith("*") == false && key.startsWith(ARCHIVED_SETTINGS_PREFIX) == false) {
                     replacements.put(prefix + key, entry.getValue());
                     iterator.remove();
                 }
