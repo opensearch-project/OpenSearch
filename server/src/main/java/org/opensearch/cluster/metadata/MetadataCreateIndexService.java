@@ -926,11 +926,11 @@ public class MetadataCreateIndexService {
      * @param clusterSettings cluster level settings
      */
     private static void updateReplicationStrategy(Settings.Builder settingsBuilder, Settings requestSettings, Settings clusterSettings) {
-        if (INDEX_REPLICATION_TYPE_SETTING.exists(requestSettings) == true) {
+        if (INDEX_REPLICATION_TYPE_SETTING.exists(requestSettings)) {
             settingsBuilder.put(SETTING_REPLICATION_TYPE, INDEX_REPLICATION_TYPE_SETTING.get(requestSettings));
-        } else if (CLUSTER_REPLICATION_TYPE_SETTING.exists(clusterSettings) == true) {
+        } else if (CLUSTER_REPLICATION_TYPE_SETTING.exists(clusterSettings)) {
             settingsBuilder.put(SETTING_REPLICATION_TYPE, CLUSTER_REPLICATION_TYPE_SETTING.get(clusterSettings));
-        } else if (CLUSTER_REMOTE_STORE_ENABLED_SETTING.get(clusterSettings) == true) {
+        } else if (CLUSTER_REMOTE_STORE_ENABLED_SETTING.get(clusterSettings)) {
             settingsBuilder.put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT);
         } else {
             settingsBuilder.put(SETTING_REPLICATION_TYPE, CLUSTER_REPLICATION_TYPE_SETTING.get(clusterSettings));

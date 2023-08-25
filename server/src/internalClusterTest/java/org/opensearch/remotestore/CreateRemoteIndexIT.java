@@ -29,7 +29,6 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_SEGME
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
 import static org.opensearch.index.IndexSettings.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING;
-import static org.opensearch.indices.IndicesService.CLUSTER_REPLICATION_TYPE_SETTING;
 import static org.opensearch.remotestore.RemoteStoreBaseIntegTestCase.remoteStoreClusterSettings;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
@@ -49,7 +48,6 @@ public class CreateRemoteIndexIT extends OpenSearchIntegTestCase {
         Settings.Builder builder = Settings.builder()
             .put(remoteStoreClusterSettings("my-segment-repo-1", "my-translog-repo-1"))
             .put(settings);
-        builder.remove(CLUSTER_REPLICATION_TYPE_SETTING.getKey());
         return builder.build();
     }
 
