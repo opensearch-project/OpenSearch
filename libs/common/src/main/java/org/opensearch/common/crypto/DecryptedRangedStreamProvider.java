@@ -9,7 +9,7 @@
 package org.opensearch.common.crypto;
 
 import java.io.InputStream;
-import java.util.function.Function;
+import java.util.function.UnaryOperator;
 
 /**
  * Contains adjusted range of partial encrypted content which needs to be used for decryption.
@@ -17,14 +17,14 @@ import java.util.function.Function;
 public class DecryptedRangedStreamProvider {
 
     private final long[] adjustedRange;
-    private final Function<InputStream, InputStream> decryptedStreamProvider;
+    private final UnaryOperator<InputStream> decryptedStreamProvider;
 
     /**
      * To construct adjusted encrypted range.
      * @param adjustedRange range of partial encrypted content which needs to be used for decryption.
      * @param decryptedStreamProvider stream provider for decryption and range re-adjustment.
      */
-    public DecryptedRangedStreamProvider(long[] adjustedRange, Function<InputStream, InputStream> decryptedStreamProvider) {
+    public DecryptedRangedStreamProvider(long[] adjustedRange, UnaryOperator<InputStream> decryptedStreamProvider) {
         this.adjustedRange = adjustedRange;
         this.decryptedStreamProvider = decryptedStreamProvider;
     }
@@ -42,7 +42,7 @@ public class DecryptedRangedStreamProvider {
      * desired range of decrypted content by skipping extra content which got decrypted as a result of range adjustment.
      * @return stream provider for decryption and supplying the desired range of content.
      */
-    public Function<InputStream, InputStream> getDecryptedStreamProvider() {
+    public UnaryOperator<InputStream> getDecryptedStreamProvider() {
         return decryptedStreamProvider;
     }
 
