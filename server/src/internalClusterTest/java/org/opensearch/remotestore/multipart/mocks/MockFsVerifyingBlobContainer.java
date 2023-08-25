@@ -120,9 +120,17 @@ public class MockFsVerifyingBlobContainer extends FsBlobContainer implements Ver
     public void readBlobAsync(String blobName, ActionListener<ReadContext> listener) {
         new Thread(() -> {
             try {
-                long blobSize = listBlobs().get(blobName).length();
-                long partSize = blobSize / 10;
-                ReadContext readContext = supplyReadContext(partSize, blobSize, blobName);
+                long contentLength = listBlobs().get(blobName).length();
+                long partSize = contentLength / 10;
+                long lastPartSize = (contentLength % partSize) != 0 ? contentLength % partSize : partSize;
+                int numberOfParts = (int) ((contentLength % partSize) == 0 ? contentLength / partSize : (contentLength / partSize) + 1);
+                ReadContext readContext = new ReadContext(
+                    getTransferPartStreamSupplier(blobName),
+                    partSize,
+                    lastPartSize,
+                    numberOfParts,
+                    null
+                );
                 listener.onResponse(readContext);
             } catch (Exception e) {
                 listener.onFailure(e);
@@ -130,20 +138,10 @@ public class MockFsVerifyingBlobContainer extends FsBlobContainer implements Ver
         }).start();
     }
 
-    ReadContext supplyReadContext(long partSize, long contentLength, String blobName) {
-        long lastPartSize = (contentLength % partSize) != 0 ? contentLength % partSize : partSize;
-        int numberOfParts = (int) ((contentLength % partSize) == 0 ? contentLength / partSize : (contentLength / partSize) + 1);
-        return new ReadContext(getTransferPartStreamSupplier(blobName), partSize, lastPartSize, numberOfParts, null);
-    }
-
     private CheckedTriFunction<Integer, Long, Long, InputStreamContainer, IOException> getTransferPartStreamSupplier(String blobName) {
         return ((partNo, size, position) -> {
-            try {
-                InputStream inputStream = readBlob(blobName, position, size);
-                return new InputStreamContainer(inputStream, size, position);
-            } catch (IOException e) {
-                throw e;
-            }
+            InputStream inputStream = readBlob(blobName, position, size);
+            return new InputStreamContainer(inputStream, size, position);
         });
     }
 

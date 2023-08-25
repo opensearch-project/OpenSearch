@@ -8,7 +8,9 @@
 
 package org.opensearch.repositories.s3.async;
 
+import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.core.async.AsyncRequestBody;
+import software.amazon.awssdk.core.async.AsyncResponseTransformer;
 import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.http.HttpStatusCode;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
@@ -20,6 +22,8 @@ import software.amazon.awssdk.services.s3.model.CompletedPart;
 import software.amazon.awssdk.services.s3.model.CreateMultipartUploadRequest;
 import software.amazon.awssdk.services.s3.model.CreateMultipartUploadResponse;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.utils.CompletableFutureUtils;
@@ -31,11 +35,13 @@ import org.opensearch.ExceptionsHelper;
 import org.opensearch.common.StreamContext;
 import org.opensearch.common.blobstore.exception.CorruptFileException;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.InputStreamContainer;
 import org.opensearch.common.util.ByteUtils;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.repositories.s3.SocketAccess;
 import org.opensearch.repositories.s3.io.CheckedContainer;
+import org.opensearch.repositories.s3.utils.HttpRangeUtils;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -352,5 +358,28 @@ public final class AsyncTransferManager {
             log.error(() -> new ParameterizedMessage("Failed to delete uploaded object of key {}", uploadRequest.getKey()), throwable);
             return null;
         });
+    }
+
+    public CompletableFuture<InputStreamContainer> getPartInputStream(
+        S3AsyncClient s3AsyncClient,
+        String bucketName,
+        String blobName,
+        int partNumber
+    ) {
+        GetObjectRequest.Builder getObjectRequestBuilder = GetObjectRequest.builder()
+            .bucket(bucketName)
+            .key(blobName)
+            .partNumber(partNumber);
+
+        return SocketAccess.doPrivileged(
+            () -> s3AsyncClient.getObject(getObjectRequestBuilder.build(), AsyncResponseTransformer.toBlockingInputStream())
+                .thenApply(this::transformResponseToInputStreamContainer)
+        );
+    }
+
+    private InputStreamContainer transformResponseToInputStreamContainer(ResponseInputStream<GetObjectResponse> streamResponse) {
+        GetObjectResponse getObjectResponse = streamResponse.response();
+        final Tuple<Long, Long> s3ResponseRange = HttpRangeUtils.fromHttpRangeHeader(getObjectResponse.contentRange());
+        return new InputStreamContainer(streamResponse, getObjectResponse.contentLength(), s3ResponseRange.v1());
     }
 }
