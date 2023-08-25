@@ -98,6 +98,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Fix memory leak when using Zstd Dictionary ([#9403](https://github.com/opensearch-project/OpenSearch/pull/9403))
 - Fix condition to remove index create block ([#9437](https://github.com/opensearch-project/OpenSearch/pull/9437))
 - Add support to clear archived index setting ([#9019](https://github.com/opensearch-project/OpenSearch/pull/9019))
+- Fix range reads in respository-s3 ([9512](https://github.com/opensearch-project/OpenSearch/issues/9512))
 
 ### Security
 
