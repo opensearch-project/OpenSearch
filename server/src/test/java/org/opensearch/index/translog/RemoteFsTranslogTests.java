@@ -45,6 +45,8 @@ import org.opensearch.index.seqno.LocalCheckpointTracker;
 import org.opensearch.index.seqno.LocalCheckpointTrackerTests;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.translog.transfer.BlobStoreTransferService;
+import org.opensearch.index.translog.transfer.TranslogTransferManager;
+import org.opensearch.index.translog.transfer.TranslogTransferMetadata;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
@@ -65,6 +67,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -98,6 +101,10 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 @LuceneTestCase.SuppressFileSystems("ExtrasFS")
 
@@ -1464,6 +1471,40 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
                 IOUtils.close(reader);
             }
         }
+    }
+
+    public void testDownloadWithRetries() throws IOException {
+        long generation = 1, primaryTerm = 1;
+        Path location = createTempDir();
+        TranslogTransferMetadata translogTransferMetadata = new TranslogTransferMetadata(primaryTerm, generation, generation, 1);
+        Map<String, String> generationToPrimaryTermMapper = new HashMap<>();
+        generationToPrimaryTermMapper.put(String.valueOf(generation), String.valueOf(primaryTerm));
+        translogTransferMetadata.setGenerationToPrimaryTermMapper(generationToPrimaryTermMapper);
+
+        TranslogTransferManager mockTransfer = mock(TranslogTransferManager.class);
+        when(mockTransfer.readMetadata()).thenReturn(translogTransferMetadata);
+
+        // Always File not found
+        when(mockTransfer.downloadTranslog(any(), any(), any())).thenThrow(new NoSuchFileException("File not found"));
+        TranslogTransferManager finalMockTransfer = mockTransfer;
+        assertThrows(NoSuchFileException.class, () -> RemoteFsTranslog.download(finalMockTransfer, location, logger));
+
+        // File not found in first attempt . File found in second attempt.
+        mockTransfer = mock(TranslogTransferManager.class);
+        when(mockTransfer.downloadTranslog(any(), any(), any())).thenThrow(new NoSuchFileException("File not found")).thenReturn(true);
+
+        AtomicLong downloadCounter = new AtomicLong();
+        doAnswer(invocation -> {
+            if (downloadCounter.incrementAndGet() <= 1) {
+                throw new NoSuchFileException("File not found");
+            } else if (downloadCounter.get() == 2) {
+                Files.createFile(location.resolve(Translog.getCommitCheckpointFileName(generation)));
+            }
+            return true;
+        }).when(mockTransfer).downloadTranslog(any(), any(), any());
+
+        // no exception thrown
+        RemoteFsTranslog.download(mockTransfer, location, logger);
     }
 
     public class ThrowingBlobRepository extends FsRepository {
