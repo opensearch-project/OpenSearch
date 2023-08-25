@@ -569,4 +569,9 @@ public abstract class FilteredSearchContext extends SearchContext {
     public int getTargetMaxSliceCount() {
         return in.getTargetMaxSliceCount();
     }
+
+    @Override
+    public boolean isSortOnTimeSeriesField() {
+        return in.isSortOnTimeSeriesField();
+    }
 }

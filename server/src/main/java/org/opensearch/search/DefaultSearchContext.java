@@ -43,6 +43,7 @@ import org.apache.lucene.search.Query;
 import org.opensearch.Version;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.action.search.SearchType;
+import org.opensearch.cluster.metadata.DataStream;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SetOnce;
@@ -890,11 +891,11 @@ final class DefaultSearchContext extends SearchContext {
      * Evaluate if parsed request supports concurrent segment search
      */
     public void evaluateRequestShouldUseConcurrentSearch() {
+        boolean useConcurrentSearch = !isSortOnTimeSeriesField();
         if (aggregations() != null && aggregations().factories() != null) {
-            requestShouldUseConcurrentSearch.set(aggregations().factories().allFactoriesSupportConcurrentSearch());
-        } else {
-            requestShouldUseConcurrentSearch.set(true);
+            useConcurrentSearch = useConcurrentSearch && aggregations().factories().allFactoriesSupportConcurrentSearch();
         }
+        requestShouldUseConcurrentSearch.set(useConcurrentSearch);
     }
 
     public void setProfilers(Profilers profilers) {
@@ -964,5 +965,15 @@ final class DefaultSearchContext extends SearchContext {
             throw new IllegalStateException("Target slice count should not be used when concurrent search is disabled");
         }
         return clusterService.getClusterSettings().get(SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING);
+    }
+
+    @Override
+    public boolean isSortOnTimeSeriesField() {
+        return sort != null
+            && sort.sort != null
+            && sort.sort.getSort() != null
+            && sort.sort.getSort().length > 0
+            && sort.sort.getSort()[0].getField() != null
+            && sort.sort.getSort()[0].getField().equals(DataStream.TIMESERIES_FIELDNAME);
     }
 }
