@@ -10,6 +10,8 @@ package org.opensearch.telemetry.tracing;
 
 import org.opensearch.common.settings.Settings;
 
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.Map;
 
 import io.opentelemetry.api.OpenTelemetry;
@@ -29,14 +31,15 @@ public final class OTelResourceProvider {
      * @return OpenTelemetry instance
      */
     public static OpenTelemetry get(Settings settings) {
-        OpenTelemetry openTelemetry = AutoConfiguredOpenTelemetrySdk.builder()
-            .setResultAsGlobal(false)
-            .addPropertiesSupplier(() -> Map.of("otel.logs.exporter", "none", "otel.metrics.exporter", "none"))
-            .addResourceCustomizer(
-                (resource, config) -> resource.merge(Resource.builder().put(ResourceAttributes.SERVICE_NAME, "OpenSearch").build())
-            )
-            .build()
-            .getOpenTelemetrySdk();
-        return openTelemetry;
+        return AccessController.doPrivileged(
+            (PrivilegedAction<OpenTelemetry>) () -> AutoConfiguredOpenTelemetrySdk.builder()
+                .setResultAsGlobal(false)
+                .addPropertiesSupplier(() -> Map.of("otel.logs.exporter", "none", "otel.metrics.exporter", "none"))
+                .addResourceCustomizer(
+                    (resource, config) -> resource.merge(Resource.builder().put(ResourceAttributes.SERVICE_NAME, "OpenSearch").build())
+                )
+                .build()
+                .getOpenTelemetrySdk()
+        );
     }
 }
