@@ -64,7 +64,9 @@ import org.opensearch.index.snapshots.blobstore.RemoteStoreShardShallowCopySnaps
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.index.store.Store;
+import org.opensearch.index.translog.Checkpoint;
 import org.opensearch.index.translog.Translog;
+import org.opensearch.index.translog.TranslogHeader;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
 import org.opensearch.repositories.IndexId;
@@ -74,6 +76,8 @@ import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.nio.channels.FileChannel;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -83,6 +87,7 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static org.opensearch.common.unit.TimeValue.timeValueMillis;
+import static org.opensearch.index.translog.Translog.CHECKPOINT_FILE_NAME;
 
 /**
  * This package private utility class encapsulates the logic to recover an index shard from either an existing index on
@@ -532,13 +537,16 @@ final class StoreRecovery {
             // Download segments from remote segment store
             indexShard.syncSegmentsFromRemoteSegmentStore(true, true);
 
+            indexShard.syncTranslogFilesFromRemoteTranslog();
+
             if (store.directory().listAll().length == 0) {
-                store.createEmpty(indexShard.indexSettings().getIndexVersionCreated().luceneVersion);
-            }
-            if (indexShard.indexSettings.isRemoteTranslogStoreEnabled()) {
-                indexShard.syncTranslogFilesFromRemoteTranslog();
-            } else {
-                bootstrap(indexShard, store);
+                Path location = indexShard.shardPath().resolveTranslog();
+                Checkpoint checkpoint = Checkpoint.read(location.resolve(CHECKPOINT_FILE_NAME));
+                final Path translogFile = location.resolve(Translog.getFilename(checkpoint.getGeneration()));
+                try (FileChannel channel = FileChannel.open(translogFile, StandardOpenOption.READ)) {
+                    TranslogHeader translogHeader = TranslogHeader.read(translogFile, channel);
+                    store.createEmpty(indexShard.indexSettings().getIndexVersionCreated().luceneVersion, translogHeader.getTranslogUUID());
+                }
             }
 
             assert indexShard.shardRouting.primary() : "only primary shards can recover from store";

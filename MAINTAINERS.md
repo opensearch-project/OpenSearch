@@ -6,7 +6,7 @@ This document contains a list of maintainers in this repo. See [opensearch-proje
 
 | Maintainer               | GitHub ID                                               | Affiliation |
 |--------------------------| ------------------------------------------------------- | ----------- |
-| Abbas Hussain           | [abbashus](https://github.com/abbashus)     | Meta        |
+| Abbas Hussain            | [abbashus](https://github.com/abbashus)                 | Meta        |
 | Anas Alkouz              | [anasalkouz](https://github.com/anasalkouz)             | Amazon      |
 | Andrew Ross              | [andrross](https://github.com/andrross)                 | Amazon      |
 | Andriy Redko             | [reta](https://github.com/reta)                         | Aiven       |
@@ -19,9 +19,10 @@ This document contains a list of maintainers in this repo. See [opensearch-proje
 | Kartik Ganesh            | [kartg](https://github.com/kartg)                       | Amazon      |
 | Kunal Kotwani            | [kotwanikunal](https://github.com/kotwanikunal)         | Amazon      |
 | Marc Handalian           | [mch2](https://github.com/mch2)                         | Amazon      |
+| Michael Froh             | [msfroh](https://github.com/msfroh)                     | Amazon      |
 | Nick Knize               | [nknize](https://github.com/nknize)                     | Amazon      |
 | Owais Kazi               | [owaiskazi19](https://github.com/owaiskazi19)           | Amazon      |
-| Rabi Panda              | [adnapibar](https://github.com/adnapibar)   | Independent |
+| Rabi Panda               | [adnapibar](https://github.com/adnapibar)               | Independent |
 | Rishikesh Pasham         | [Rishikesh1159](https://github.com/Rishikesh1159)       | Amazon      |
 | Ryan Bogan               | [ryanbogan](https://github.com/ryanbogan)               | Amazon      |
 | Sachin Kale              | [sachinpkale](https://github.com/sachinpkale)           | Amazon      |

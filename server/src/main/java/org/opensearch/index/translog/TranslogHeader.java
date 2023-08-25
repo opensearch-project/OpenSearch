@@ -57,7 +57,7 @@ import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM
  *
  * @opensearch.internal
  */
-final class TranslogHeader {
+public final class TranslogHeader {
     public static final String TRANSLOG_CODEC = "translog";
 
     public static final int VERSION_CHECKSUMS = 1; // pre-2.0 - unsupported
@@ -137,9 +137,26 @@ final class TranslogHeader {
     }
 
     /**
-     * Read a translog header from the given path and file channel
+     * Read a translog header from the given path and file channel and compare the given UUID
      */
     static TranslogHeader read(final String translogUUID, final Path path, final FileChannel channel) throws IOException {
+        TranslogHeader translogHeader = read(path, channel);
+        // verify UUID only after checksum, to ensure that UUID is not corrupted
+        final BytesRef expectedUUID = new BytesRef(translogUUID);
+        final BytesRef actualUUID = new BytesRef(translogHeader.translogUUID);
+        if (actualUUID.bytesEquals(expectedUUID) == false) {
+            throw new TranslogCorruptedException(
+                path.toString(),
+                "expected shard UUID " + expectedUUID + " but got: " + actualUUID + " this translog file belongs to a different translog"
+            );
+        }
+        return translogHeader;
+    }
+
+    /**
+     * Read a translog header from the given path and file channel and compare the given UUID
+     */
+    public static TranslogHeader read(final Path path, final FileChannel channel) throws IOException {
         try {
             // This input is intentionally not closed because closing it will close the FileChannel.
             final BufferedChecksumStreamInput in = new BufferedChecksumStreamInput(
@@ -179,16 +196,7 @@ final class TranslogHeader {
                 + channel.position()
                 + "]";
 
-            // verify UUID only after checksum, to ensure that UUID is not corrupted
-            final BytesRef expectedUUID = new BytesRef(translogUUID);
-            if (uuid.bytesEquals(expectedUUID) == false) {
-                throw new TranslogCorruptedException(
-                    path.toString(),
-                    "expected shard UUID " + expectedUUID + " but got: " + uuid + " this translog file belongs to a different translog"
-                );
-            }
-
-            return new TranslogHeader(translogUUID, primaryTerm, headerSizeInBytes);
+            return new TranslogHeader(uuid.utf8ToString(), primaryTerm, headerSizeInBytes);
         } catch (EOFException e) {
             throw new TranslogCorruptedException(path.toString(), "translog header truncated", e);
         }
