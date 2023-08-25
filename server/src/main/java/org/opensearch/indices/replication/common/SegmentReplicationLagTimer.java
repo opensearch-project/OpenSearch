@@ -22,11 +22,6 @@ import java.io.IOException;
  *                     (excludes the time spent by primary for uploading the segments to remote store).
  */
 public class SegmentReplicationLagTimer extends ReplicationTimer {
-    // TODO: Remove getter
-    public long getCreationTime() {
-        return creationTime;
-    }
-
     private long creationTime;
 
     public SegmentReplicationLagTimer() {

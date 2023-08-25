@@ -77,11 +77,19 @@ public class SegmentReplicationShardStats implements Writeable, ToXContentFragme
         return currentReplicationTimeMillis;
     }
 
-    // TODO: Add java docs to compare both.
+    /**
+     * Total Replication lag observed.
+     * @return currentReplicationLagMillis
+     */
     public long getCurrentReplicationLagMillis() {
         return currentReplicationLagMillis;
     }
 
+    /**
+     * Total time taken for replicas to catch up. Similar to replication lag except this doesn't include time taken by
+     * primary to upload data to remote store.
+     * @return lastCompletedReplicationTimeMillis
+     */
     public long getLastCompletedReplicationTimeMillis() {
         return lastCompletedReplicationTimeMillis;
     }
