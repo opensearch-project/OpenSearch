@@ -517,6 +517,15 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
 
     public void testCopyFilesFromMultipartIOException() throws Exception {
         String filename = "_100.si";
+        VerifyingMultiStreamBlobContainer blobContainer = mock(VerifyingMultiStreamBlobContainer.class);
+        remoteDataDirectory = new RemoteDirectory(blobContainer);
+        remoteSegmentStoreDirectory = new RemoteSegmentStoreDirectory(
+            remoteDataDirectory,
+            remoteMetadataDirectory,
+            mdLockManager,
+            threadPool
+        );
+
         populateMetadata();
         remoteSegmentStoreDirectory.init();
 
@@ -528,9 +537,6 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         storeDirectory.sync(List.of(filename));
 
         assertFalse(remoteSegmentStoreDirectory.getSegmentsUploadedToRemoteStore().containsKey(filename));
-
-        VerifyingMultiStreamBlobContainer blobContainer = mock(VerifyingMultiStreamBlobContainer.class);
-        when(remoteDataDirectory.getBlobContainer()).thenReturn(blobContainer);
         Mockito.doAnswer(invocation -> {
             ActionListener<Void> completionListener = invocation.getArgument(1);
             completionListener.onFailure(new Exception("Test exception"));
