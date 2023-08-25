@@ -257,6 +257,15 @@ public class AggregatorFactories {
         this.factories = factories;
     }
 
+    public boolean allFactoriesSupportConcurrentSearch() {
+        for (AggregatorFactory factory : factories) {
+            if (factory.supportsConcurrentSegmentSearch() == false || factory.evaluateChildFactories() == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     /**
      * Create all aggregators so that they can be consumed with multiple
      * buckets.

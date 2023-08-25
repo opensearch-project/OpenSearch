@@ -105,4 +105,8 @@ public class AdjacencyMatrixAggregatorFactory extends AggregatorFactory {
         );
     }
 
+    @Override
+    protected boolean supportsConcurrentSegmentSearch() {
+        return true;
+    }
 }
