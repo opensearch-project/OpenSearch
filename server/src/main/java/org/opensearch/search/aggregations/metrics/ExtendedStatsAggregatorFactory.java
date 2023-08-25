@@ -94,4 +94,9 @@ class ExtendedStatsAggregatorFactory extends ValuesSourceAggregatorFactory {
             .getAggregator(ExtendedStatsAggregationBuilder.REGISTRY_KEY, config)
             .build(name, config, searchContext, parent, sigma, metadata);
     }
+
+    @Override
+    protected boolean supportsConcurrentSegmentSearch() {
+        return true;
+    }
 }
