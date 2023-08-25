@@ -67,7 +67,8 @@ public class RemoteSegmentStatsFromNodesStatsIT extends RemoteStoreBaseIntegTest
         indexSingleDoc(secondIndex, true);
 
         long cumulativeUploadsSucceeded = 0, cumulativeUploadsStarted = 0, cumulativeUploadsFailed = 0;
-        long total_bytes_lag = 0, max_bytes_lag = 0, max_time_lag = 0;
+        long totalBytesLag = 0, maxBytesLag = 0, maxTimeLag = 0;
+        long totalUploadTime = 0;
         // Fetch upload stats
         RemoteStoreStatsResponse remoteStoreStatsFirstIndex = client(randomDataNode).admin()
             .cluster()
@@ -77,9 +78,10 @@ public class RemoteSegmentStatsFromNodesStatsIT extends RemoteStoreBaseIntegTest
         cumulativeUploadsSucceeded += remoteStoreStatsFirstIndex.getRemoteStoreStats()[0].getSegmentStats().uploadBytesSucceeded;
         cumulativeUploadsStarted += remoteStoreStatsFirstIndex.getRemoteStoreStats()[0].getSegmentStats().uploadBytesStarted;
         cumulativeUploadsFailed += remoteStoreStatsFirstIndex.getRemoteStoreStats()[0].getSegmentStats().uploadBytesFailed;
-        total_bytes_lag += remoteStoreStatsFirstIndex.getRemoteStoreStats()[0].getSegmentStats().bytesLag;
-        max_bytes_lag = Math.max(max_bytes_lag, remoteStoreStatsFirstIndex.getRemoteStoreStats()[0].getSegmentStats().bytesLag);
-        max_time_lag = Math.max(max_time_lag, remoteStoreStatsFirstIndex.getRemoteStoreStats()[0].getSegmentStats().refreshTimeLagMs);
+        totalBytesLag += remoteStoreStatsFirstIndex.getRemoteStoreStats()[0].getSegmentStats().bytesLag;
+        maxBytesLag = Math.max(maxBytesLag, remoteStoreStatsFirstIndex.getRemoteStoreStats()[0].getSegmentStats().bytesLag);
+        maxTimeLag = Math.max(maxTimeLag, remoteStoreStatsFirstIndex.getRemoteStoreStats()[0].getSegmentStats().refreshTimeLagMs);
+        totalUploadTime += remoteStoreStatsFirstIndex.getRemoteStoreStats()[0].getSegmentStats().totalUploadTimeInMs;
 
         RemoteStoreStatsResponse remoteStoreStatsSecondIndex = client(randomDataNode).admin()
             .cluster()
@@ -90,9 +92,10 @@ public class RemoteSegmentStatsFromNodesStatsIT extends RemoteStoreBaseIntegTest
         cumulativeUploadsSucceeded += remoteStoreStatsSecondIndex.getRemoteStoreStats()[0].getSegmentStats().uploadBytesSucceeded;
         cumulativeUploadsStarted += remoteStoreStatsSecondIndex.getRemoteStoreStats()[0].getSegmentStats().uploadBytesStarted;
         cumulativeUploadsFailed += remoteStoreStatsSecondIndex.getRemoteStoreStats()[0].getSegmentStats().uploadBytesFailed;
-        total_bytes_lag += remoteStoreStatsSecondIndex.getRemoteStoreStats()[0].getSegmentStats().bytesLag;
-        max_bytes_lag = Math.max(max_bytes_lag, remoteStoreStatsSecondIndex.getRemoteStoreStats()[0].getSegmentStats().bytesLag);
-        max_time_lag = Math.max(max_time_lag, remoteStoreStatsSecondIndex.getRemoteStoreStats()[0].getSegmentStats().refreshTimeLagMs);
+        totalBytesLag += remoteStoreStatsSecondIndex.getRemoteStoreStats()[0].getSegmentStats().bytesLag;
+        maxBytesLag = Math.max(maxBytesLag, remoteStoreStatsSecondIndex.getRemoteStoreStats()[0].getSegmentStats().bytesLag);
+        maxTimeLag = Math.max(maxTimeLag, remoteStoreStatsSecondIndex.getRemoteStoreStats()[0].getSegmentStats().refreshTimeLagMs);
+        totalUploadTime += remoteStoreStatsSecondIndex.getRemoteStoreStats()[0].getSegmentStats().totalUploadTimeInMs;
 
         // Fetch nodes stats
         NodesStatsResponse nodesStatsResponse = client().admin()
@@ -101,12 +104,13 @@ public class RemoteSegmentStatsFromNodesStatsIT extends RemoteStoreBaseIntegTest
             .setIndices(new CommonStatsFlags().set(CommonStatsFlags.Flag.Segments, true))
             .get();
         RemoteSegmentStats remoteSegmentStats = nodesStatsResponse.getNodes().get(0).getIndices().getSegments().getRemoteSegmentStats();
-        assertEquals(cumulativeUploadsSucceeded, remoteSegmentStats.getUploadBytesSucceeded());
-        assertEquals(cumulativeUploadsStarted, remoteSegmentStats.getUploadBytesStarted());
+        assertTrue(cumulativeUploadsSucceeded > 0 && cumulativeUploadsSucceeded == remoteSegmentStats.getUploadBytesSucceeded());
+        assertTrue(cumulativeUploadsStarted > 0 && cumulativeUploadsStarted == remoteSegmentStats.getUploadBytesStarted());
         assertEquals(cumulativeUploadsFailed, remoteSegmentStats.getUploadBytesFailed());
-        assertEquals(total_bytes_lag, remoteSegmentStats.getTotalRefreshBytesLag());
-        assertEquals(max_bytes_lag, remoteSegmentStats.getMaxRefreshBytesLag());
-        assertEquals(max_time_lag, remoteSegmentStats.getMaxRefreshTimeLag());
+        assertEquals(totalBytesLag, remoteSegmentStats.getTotalRefreshBytesLag());
+        assertEquals(maxBytesLag, remoteSegmentStats.getMaxRefreshBytesLag());
+        assertEquals(maxTimeLag, remoteSegmentStats.getMaxRefreshTimeLag());
+        assertTrue(totalUploadTime > 0 && totalUploadTime == remoteSegmentStats.getTotalUploadTime());
     }
 
     /**
@@ -180,13 +184,16 @@ public class RemoteSegmentStatsFromNodesStatsIT extends RemoteStoreBaseIntegTest
         assertEquals(0, remoteSegmentStats.getTotalRefreshBytesLag());
         assertEquals(0, remoteSegmentStats.getMaxRefreshBytesLag());
         assertEquals(0, remoteSegmentStats.getMaxRefreshTimeLag());
+        assertEquals(0, remoteSegmentStats.getTotalUploadTime());
+        assertEquals(0, remoteSegmentStats.getTotalDownloadTime());
     }
 
     private static void assertNodeStatsParityAcrossNodes(String firstIndex, String secondIndex) {
         for (String dataNode : internalCluster().getDataNodeNames()) {
             long cumulativeUploadsSucceeded = 0, cumulativeUploadsStarted = 0, cumulativeUploadsFailed = 0;
             long cumulativeDownloadsSucceeded = 0, cumulativeDownloadsStarted = 0, cumulativeDownloadsFailed = 0;
-            long total_bytes_lag = 0, max_bytes_lag = 0, max_time_lag = 0;
+            long totalBytesLag = 0, maxBytesLag = 0, maxTimeLag = 0;
+            long totalUploadTime = 0, totalDownloadTime = 0;
             // Fetch upload stats
             RemoteStoreStatsResponse remoteStoreStatsFirstIndex = client(dataNode).admin()
                 .cluster()
@@ -202,9 +209,12 @@ public class RemoteSegmentStatsFromNodesStatsIT extends RemoteStoreBaseIntegTest
                 .getSegmentStats().directoryFileTransferTrackerStats.transferredBytesStarted;
             cumulativeDownloadsFailed += remoteStoreStatsFirstIndex.getRemoteStoreStats()[0]
                 .getSegmentStats().directoryFileTransferTrackerStats.transferredBytesFailed;
-            total_bytes_lag += remoteStoreStatsFirstIndex.getRemoteStoreStats()[0].getSegmentStats().bytesLag;
-            max_bytes_lag = Math.max(max_bytes_lag, remoteStoreStatsFirstIndex.getRemoteStoreStats()[0].getSegmentStats().bytesLag);
-            max_time_lag = Math.max(max_time_lag, remoteStoreStatsFirstIndex.getRemoteStoreStats()[0].getSegmentStats().refreshTimeLagMs);
+            totalBytesLag += remoteStoreStatsFirstIndex.getRemoteStoreStats()[0].getSegmentStats().bytesLag;
+            maxBytesLag = Math.max(maxBytesLag, remoteStoreStatsFirstIndex.getRemoteStoreStats()[0].getSegmentStats().bytesLag);
+            maxTimeLag = Math.max(maxTimeLag, remoteStoreStatsFirstIndex.getRemoteStoreStats()[0].getSegmentStats().refreshTimeLagMs);
+            totalUploadTime += remoteStoreStatsFirstIndex.getRemoteStoreStats()[0].getSegmentStats().totalUploadTimeInMs;
+            totalDownloadTime += remoteStoreStatsFirstIndex.getRemoteStoreStats()[0]
+                .getSegmentStats().directoryFileTransferTrackerStats.totalTransferTimeInMs;
 
             RemoteStoreStatsResponse remoteStoreStatsSecondIndex = client(dataNode).admin()
                 .cluster()
@@ -220,9 +230,12 @@ public class RemoteSegmentStatsFromNodesStatsIT extends RemoteStoreBaseIntegTest
                 .getSegmentStats().directoryFileTransferTrackerStats.transferredBytesStarted;
             cumulativeDownloadsFailed += remoteStoreStatsSecondIndex.getRemoteStoreStats()[0]
                 .getSegmentStats().directoryFileTransferTrackerStats.transferredBytesFailed;
-            total_bytes_lag += remoteStoreStatsSecondIndex.getRemoteStoreStats()[0].getSegmentStats().bytesLag;
-            max_bytes_lag = Math.max(max_bytes_lag, remoteStoreStatsSecondIndex.getRemoteStoreStats()[0].getSegmentStats().bytesLag);
-            max_time_lag = Math.max(max_time_lag, remoteStoreStatsSecondIndex.getRemoteStoreStats()[0].getSegmentStats().refreshTimeLagMs);
+            totalBytesLag += remoteStoreStatsSecondIndex.getRemoteStoreStats()[0].getSegmentStats().bytesLag;
+            maxBytesLag = Math.max(maxBytesLag, remoteStoreStatsSecondIndex.getRemoteStoreStats()[0].getSegmentStats().bytesLag);
+            maxTimeLag = Math.max(maxTimeLag, remoteStoreStatsSecondIndex.getRemoteStoreStats()[0].getSegmentStats().refreshTimeLagMs);
+            totalUploadTime += remoteStoreStatsSecondIndex.getRemoteStoreStats()[0].getSegmentStats().totalUploadTimeInMs;
+            totalDownloadTime += remoteStoreStatsSecondIndex.getRemoteStoreStats()[0]
+                .getSegmentStats().directoryFileTransferTrackerStats.totalTransferTimeInMs;
 
             // Fetch nodes stats
             NodesStatsResponse nodesStatsResponse = client().admin()
@@ -237,9 +250,19 @@ public class RemoteSegmentStatsFromNodesStatsIT extends RemoteStoreBaseIntegTest
             assertEquals(cumulativeDownloadsSucceeded, remoteSegmentStats.getDownloadBytesSucceeded());
             assertEquals(cumulativeDownloadsStarted, remoteSegmentStats.getDownloadBytesStarted());
             assertEquals(cumulativeDownloadsFailed, remoteSegmentStats.getDownloadBytesFailed());
-            assertEquals(total_bytes_lag, remoteSegmentStats.getTotalRefreshBytesLag());
-            assertEquals(max_bytes_lag, remoteSegmentStats.getMaxRefreshBytesLag());
-            assertEquals(max_time_lag, remoteSegmentStats.getMaxRefreshTimeLag());
+            assertEquals(totalBytesLag, remoteSegmentStats.getTotalRefreshBytesLag());
+            assertEquals(maxBytesLag, remoteSegmentStats.getMaxRefreshBytesLag());
+            assertEquals(maxTimeLag, remoteSegmentStats.getMaxRefreshTimeLag());
+            // Ensure that total upload time has non-zero value if there has been segments uploaded from the node
+            if (cumulativeUploadsStarted > 0) {
+                assertTrue(totalUploadTime > 0);
+            }
+            assertEquals(totalUploadTime, remoteSegmentStats.getTotalUploadTime());
+            // Ensure that total download time has non-zero value if there has been segments downloaded to the node
+            if (cumulativeDownloadsStarted > 0) {
+                assertTrue(totalDownloadTime > 0);
+            }
+            assertEquals(totalDownloadTime, remoteSegmentStats.getTotalDownloadTime());
         }
     }
 }
