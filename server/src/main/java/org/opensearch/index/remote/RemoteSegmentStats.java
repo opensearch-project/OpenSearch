@@ -8,7 +8,6 @@
 
 package org.opensearch.index.remote;
 
-import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStats;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -87,21 +86,9 @@ public class RemoteSegmentStats implements Writeable, ToXContentFragment {
         downloadBytesSucceeded = in.readLong();
         maxRefreshTimeLag = in.readLong();
         maxRefreshBytesLag = in.readLong();
-        /* TODO:
-          Adding version checks here since the base PR of adding remote store stats
-          in SegmentStats has already been merged and backported to 2.x branch.
-
-          Since this is a new field that is being added, we need to have this check in place
-          to ensure BWCs don't break.
-
-          This would have to be removed after the new field addition PRs are also backported to 2.x.
-          If possible we would need to ensure that all field addition PRs are backported at once
-         */
-        if (in.getVersion().onOrAfter(Version.CURRENT)) {
-            totalRefreshBytesLag = in.readLong();
-            totalUploadTime = in.readLong();
-            totalDownloadTime = in.readLong();
-        }
+        totalRefreshBytesLag = in.readLong();
+        totalUploadTime = in.readLong();
+        totalDownloadTime = in.readLong();
     }
 
     /**
@@ -250,21 +237,9 @@ public class RemoteSegmentStats implements Writeable, ToXContentFragment {
         out.writeLong(downloadBytesSucceeded);
         out.writeLong(maxRefreshTimeLag);
         out.writeLong(maxRefreshBytesLag);
-        /* TODO:
-          Adding version checks here since the base PR of adding remote store stats
-          in SegmentStats has already been merged and backported to 2.x branch.
-
-          Since this is a new field that is being added, we need to have this check in place
-          to ensure BWCs don't break.
-
-          This would have to be removed after the new field addition PRs are also backported to 2.x.
-          If possible we would need to ensure that all field addition PRs are backported at once
-         */
-        if (out.getVersion().onOrAfter(Version.CURRENT)) {
-            out.writeLong(totalRefreshBytesLag);
-            out.writeLong(totalUploadTime);
-            out.writeLong(totalDownloadTime);
-        }
+        out.writeLong(totalRefreshBytesLag);
+        out.writeLong(totalUploadTime);
+        out.writeLong(totalDownloadTime);
     }
 
     @Override
