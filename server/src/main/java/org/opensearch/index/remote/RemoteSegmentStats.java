@@ -67,6 +67,14 @@ public class RemoteSegmentStats implements Writeable, ToXContentFragment {
      * Used to check for data freshness in the remote store
      */
     private long totalRefreshBytesLag;
+    /**
+     * Total time spent in uploading segments to remote store
+     */
+    private long totalUploadTime;
+    /**
+     * Total time spent in downloading segments from remote store
+     */
+    private long totalDownloadTime;
 
     public RemoteSegmentStats() {}
 
@@ -89,8 +97,10 @@ public class RemoteSegmentStats implements Writeable, ToXContentFragment {
           This would have to be removed after the new field addition PRs are also backported to 2.x.
           If possible we would need to ensure that all field addition PRs are backported at once
          */
-        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (in.getVersion().onOrAfter(Version.CURRENT)) {
             totalRefreshBytesLag = in.readLong();
+            totalUploadTime = in.readLong();
+            totalDownloadTime = in.readLong();
         }
     }
 
@@ -115,9 +125,12 @@ public class RemoteSegmentStats implements Writeable, ToXContentFragment {
         // Aggregations would be performed on the add method
         this.maxRefreshBytesLag = trackerStats.bytesLag;
         this.totalRefreshBytesLag = trackerStats.bytesLag;
+        this.totalUploadTime = trackerStats.totalUploadTimeInMs;
+        this.totalDownloadTime = trackerStats.directoryFileTransferTrackerStats.totalTransferTimeInMs;
     }
 
     // Getter and setters. All are visible for testing
+    // Setters are only used for testing
     public long getUploadBytesStarted() {
         return uploadBytesStarted;
     }
@@ -190,6 +203,22 @@ public class RemoteSegmentStats implements Writeable, ToXContentFragment {
         this.totalRefreshBytesLag += totalRefreshBytesLag;
     }
 
+    public long getTotalUploadTime() {
+        return totalUploadTime;
+    }
+
+    public void addTotalUploadTime(long totalUploadTime) {
+        this.totalUploadTime += totalUploadTime;
+    }
+
+    public long getTotalDownloadTime() {
+        return totalDownloadTime;
+    }
+
+    public void addTotalDownloadTime(long totalDownloadTime) {
+        this.totalDownloadTime += totalDownloadTime;
+    }
+
     /**
      * Adds existing stats. Used for stats roll-ups at index or node level
      *
@@ -206,6 +235,8 @@ public class RemoteSegmentStats implements Writeable, ToXContentFragment {
             this.maxRefreshTimeLag = Math.max(this.maxRefreshTimeLag, existingStats.getMaxRefreshTimeLag());
             this.maxRefreshBytesLag = Math.max(this.maxRefreshBytesLag, existingStats.getMaxRefreshBytesLag());
             this.totalRefreshBytesLag += existingStats.getTotalRefreshBytesLag();
+            this.totalUploadTime += existingStats.getTotalUploadTime();
+            this.totalDownloadTime += existingStats.getTotalDownloadTime();
         }
     }
 
@@ -229,8 +260,10 @@ public class RemoteSegmentStats implements Writeable, ToXContentFragment {
           This would have to be removed after the new field addition PRs are also backported to 2.x.
           If possible we would need to ensure that all field addition PRs are backported at once
          */
-        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (out.getVersion().onOrAfter(Version.CURRENT)) {
             out.writeLong(totalRefreshBytesLag);
+            out.writeLong(totalUploadTime);
+            out.writeLong(totalDownloadTime);
         }
     }
 
@@ -258,6 +291,7 @@ public class RemoteSegmentStats implements Writeable, ToXContentFragment {
         builder.humanReadableField(Fields.MAX_BYTES, Fields.MAX, new ByteSizeValue(maxRefreshBytesLag));
         builder.endObject();
         builder.humanReadableField(Fields.MAX_REFRESH_TIME_LAG_IN_MILLIS, Fields.MAX_REFRESH_TIME_LAG, new TimeValue(maxRefreshTimeLag));
+        builder.humanReadableField(Fields.TOTAL_TIME_SPENT_IN_MILLIS, Fields.TOTAL_TIME_SPENT, new TimeValue(totalUploadTime));
     }
 
     private void buildDownloadStats(XContentBuilder builder) throws IOException {
@@ -266,6 +300,7 @@ public class RemoteSegmentStats implements Writeable, ToXContentFragment {
         builder.humanReadableField(Fields.SUCCEEDED_BYTES, Fields.SUCCEEDED, new ByteSizeValue(downloadBytesSucceeded));
         builder.humanReadableField(Fields.FAILED_BYTES, Fields.FAILED, new ByteSizeValue(downloadBytesFailed));
         builder.endObject();
+        builder.humanReadableField(Fields.TOTAL_TIME_SPENT_IN_MILLIS, Fields.TOTAL_TIME_SPENT, new TimeValue(totalDownloadTime));
     }
 
     static final class Fields {
@@ -287,5 +322,7 @@ public class RemoteSegmentStats implements Writeable, ToXContentFragment {
         static final String TOTAL_BYTES = "total_bytes";
         static final String MAX = "max";
         static final String MAX_BYTES = "max_bytes";
+        static final String TOTAL_TIME_SPENT = "total_time_spent";
+        static final String TOTAL_TIME_SPENT_IN_MILLIS = "total_time_spent_in_millis";
     }
 }
