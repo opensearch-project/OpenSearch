@@ -84,6 +84,7 @@ import org.opensearch.index.engine.Engine;
 import org.opensearch.index.seqno.ReplicationTracker;
 import org.opensearch.index.seqno.RetentionLease;
 import org.opensearch.index.seqno.SequenceNumbers;
+import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.indices.store.TransportNodesListShardStoreMetadata;
 import org.opensearch.test.DummyShardLock;
@@ -1164,6 +1165,42 @@ public class StoreTests extends OpenSearchTestCase {
         // loose check for equality
         assertEquals(segmentInfos.getSegmentsFileName(), metadataSnapshot.getSegmentsFile().name());
         store.close();
+    }
+
+    public void testCreateEmptyStore() throws IOException {
+        final ShardId shardId = new ShardId("index", "_na_", 1);
+        Store store = new Store(shardId, INDEX_SETTINGS, new NIOFSDirectory(createTempDir()), new DummyShardLock(shardId));
+        store.createEmpty(Version.LATEST);
+        SegmentInfos segmentInfos = Lucene.readSegmentInfos(store.directory());
+        assertFalse(segmentInfos.getUserData().containsKey(Translog.TRANSLOG_UUID_KEY));
+        testDefaultUserData(segmentInfos);
+        store.close();
+    }
+
+    public void testCreateEmptyStoreWithTranlogUUID() throws IOException {
+        final ShardId shardId = new ShardId("index", "_na_", 1);
+        Store store = new Store(shardId, INDEX_SETTINGS, new NIOFSDirectory(createTempDir()), new DummyShardLock(shardId));
+        store.createEmpty(Version.LATEST, "dummy-translog-UUID");
+        SegmentInfos segmentInfos = Lucene.readSegmentInfos(store.directory());
+        assertEquals("dummy-translog-UUID", segmentInfos.getUserData().get(Translog.TRANSLOG_UUID_KEY));
+        testDefaultUserData(segmentInfos);
+        store.close();
+    }
+
+    public void testCreateEmptyWithNullTranlogUUID() throws IOException {
+        final ShardId shardId = new ShardId("index", "_na_", 1);
+        Store store = new Store(shardId, INDEX_SETTINGS, new NIOFSDirectory(createTempDir()), new DummyShardLock(shardId));
+        store.createEmpty(Version.LATEST, null);
+        SegmentInfos segmentInfos = Lucene.readSegmentInfos(store.directory());
+        assertFalse(segmentInfos.getUserData().containsKey(Translog.TRANSLOG_UUID_KEY));
+        testDefaultUserData(segmentInfos);
+        store.close();
+    }
+
+    private void testDefaultUserData(SegmentInfos segmentInfos) {
+        assertEquals("-1", segmentInfos.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
+        assertEquals("-1", segmentInfos.getUserData().get(SequenceNumbers.MAX_SEQ_NO));
+        assertEquals("-1", segmentInfos.getUserData().get(Engine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID));
     }
 
     public void testGetSegmentMetadataMap() throws IOException {
