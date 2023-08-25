@@ -8,13 +8,13 @@
 
 package org.opensearch.plugin.correlation.settings;
 
-import org.junit.Assert;
-import org.junit.Before;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.plugin.correlation.EventsCorrelationPlugin;
 import org.opensearch.test.OpenSearchTestCase;
+import org.junit.Assert;
+import org.junit.Before;
 
 import java.util.List;
 import java.util.concurrent.TimeUnit;

@@ -8,7 +8,6 @@
 
 package org.opensearch.upgrade;
 
-import org.junit.Before;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.cli.MockTerminal;
 import org.opensearch.common.collect.Tuple;
@@ -17,6 +16,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
 import org.opensearch.test.OpenSearchTestCase;
+import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.Map;

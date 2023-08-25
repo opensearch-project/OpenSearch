@@ -41,11 +41,11 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.Version;
 import org.opensearch.client.NodeSelector;
-import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;

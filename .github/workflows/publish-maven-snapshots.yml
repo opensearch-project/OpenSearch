@@ -10,6 +10,7 @@ on:
 
 jobs:
   build-and-publish-snapshots:
+    if: github.repository == 'opensearch-project/OpenSearch'
     runs-on: ubuntu-latest
 
     permissions:
@@ -25,7 +26,7 @@ jobs:
           java-version: 17
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v1
+        uses: aws-actions/configure-aws-credentials@v2
         with:
           role-to-assume: ${{ secrets.PUBLISH_SNAPSHOTS_ROLE }}
           aws-region: us-east-1

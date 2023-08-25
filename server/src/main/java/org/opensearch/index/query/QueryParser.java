@@ -32,8 +32,8 @@
 
 package org.opensearch.index.query;
 
-import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.core.xcontent.XContent;
+import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
 

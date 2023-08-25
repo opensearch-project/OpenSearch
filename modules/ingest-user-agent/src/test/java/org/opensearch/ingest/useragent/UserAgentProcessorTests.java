@@ -32,8 +32,8 @@
 
 package org.opensearch.ingest.useragent;
 
-import org.opensearch.ingest.RandomDocumentPicks;
 import org.opensearch.ingest.IngestDocument;
+import org.opensearch.ingest.RandomDocumentPicks;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.BeforeClass;
 

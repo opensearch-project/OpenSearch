@@ -66,11 +66,7 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.Version;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.common.UUIDs;
-import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
@@ -80,8 +76,13 @@ import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRefCounted;
 import org.opensearch.common.util.concurrent.RefCounted;
-import org.opensearch.common.util.iterable.Iterables;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.common.util.iterable.Iterables;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.env.ShardLock;
 import org.opensearch.env.ShardLockObtainFailedException;
@@ -91,7 +92,6 @@ import org.opensearch.index.engine.Engine;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.AbstractIndexShardComponent;
 import org.opensearch.index.shard.IndexShard;
-import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.translog.Translog;
 
 import java.io.Closeable;
@@ -950,14 +950,14 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             long fileSize = from.fileLength(src);
             beforeDownload(fileSize);
             boolean success = false;
+            long startTime = System.currentTimeMillis();
             try {
-                long startTime = System.currentTimeMillis();
                 super.copyFrom(from, src, dest, context);
                 success = true;
                 afterDownload(fileSize, startTime);
             } finally {
                 if (!success) {
-                    downloadFailed(fileSize);
+                    downloadFailed(fileSize, startTime);
                 }
             }
         }
@@ -983,8 +983,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         /**
          * Updates the amount of bytes failed in download
          */
-        private void downloadFailed(long fileSize) {
-            directoryFileTransferTracker.addTransferredBytesFailed(fileSize);
+        private void downloadFailed(long fileSize, long startTimeInMs) {
+            directoryFileTransferTracker.addTransferredBytesFailed(fileSize, startTimeInMs);
         }
     }
 
@@ -1747,13 +1747,13 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         };
     }
 
-    /**
-     * creates an empty lucene index and a corresponding empty translog. Any existing data will be deleted.
-     */
-    public void createEmpty(Version luceneVersion) throws IOException {
+    public void createEmpty(Version luceneVersion, String translogUUID) throws IOException {
         metadataLock.writeLock().lock();
         try (IndexWriter writer = newEmptyIndexWriter(directory, luceneVersion)) {
             final Map<String, String> map = new HashMap<>();
+            if (translogUUID != null) {
+                map.put(Translog.TRANSLOG_UUID_KEY, translogUUID);
+            }
             map.put(Engine.HISTORY_UUID_KEY, UUIDs.randomBase64UUID());
             map.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(SequenceNumbers.NO_OPS_PERFORMED));
             map.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(SequenceNumbers.NO_OPS_PERFORMED));
@@ -1762,6 +1762,13 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         } finally {
             metadataLock.writeLock().unlock();
         }
+    }
+
+    /**
+     * creates an empty lucene index and a corresponding empty translog. Any existing data will be deleted.
+     */
+    public void createEmpty(Version luceneVersion) throws IOException {
+        createEmpty(luceneVersion, null);
     }
 
     /**

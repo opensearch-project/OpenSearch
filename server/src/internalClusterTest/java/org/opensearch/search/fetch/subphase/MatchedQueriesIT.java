@@ -34,8 +34,8 @@ package org.opensearch.search.fetch.subphase;
 
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.core.xcontent.XContentHelper;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.core.xcontent.XContentHelper;
 import org.opensearch.index.query.MatchQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryBuilders;

@@ -8,16 +8,16 @@
 
 package org.opensearch.index.store.remote.metadata;
 
-import java.io.IOException;
-import java.util.Map;
-import java.util.stream.Collectors;
-
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
+
+import java.io.IOException;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Metadata object for Remote Segment

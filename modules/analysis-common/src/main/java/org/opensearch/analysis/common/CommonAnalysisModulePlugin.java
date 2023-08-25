@@ -128,10 +128,10 @@ import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.SetOnce;
-import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
@@ -154,8 +154,6 @@ import org.opensearch.script.ScriptContext;
 import org.opensearch.script.ScriptService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.watcher.ResourceWatcherService;
-import org.tartarus.snowball.ext.DutchStemmer;
-import org.tartarus.snowball.ext.FrenchStemmer;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -164,6 +162,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.function.Supplier;
+
+import org.tartarus.snowball.ext.DutchStemmer;
+import org.tartarus.snowball.ext.FrenchStemmer;
 
 import static org.opensearch.plugins.AnalysisPlugin.requiresAnalysisSettings;
 

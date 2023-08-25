@@ -39,7 +39,6 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.OpenSearchException;
 import org.opensearch.ResourceAlreadyExistsException;
 import org.opensearch.Version;
-import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.opensearch.action.admin.indices.shrink.ResizeType;
@@ -69,14 +68,17 @@ import org.opensearch.common.ValidationException;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.logging.DeprecationLogger;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.index.Index;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
-import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
@@ -125,14 +127,14 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DAT
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUID;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_ENABLED;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_ENABLED;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
 import static org.opensearch.cluster.metadata.Metadata.DEFAULT_REPLICA_COUNT_SETTING;
 import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING;
-import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING;
 import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_STORE_ENABLED_SETTING;
+import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING;
 import static org.opensearch.indices.IndicesService.CLUSTER_REPLICATION_TYPE_SETTING;
 
 /**
@@ -573,7 +575,8 @@ public class MetadataCreateIndexService {
             settings,
             indexScopedSettings,
             shardLimitValidator,
-            indexSettingProviders
+            indexSettingProviders,
+            clusterService.getClusterSettings()
         );
         int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, null);
         IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(currentState, aggregatedIndexSettings, request, routingNumShards);
@@ -637,7 +640,8 @@ public class MetadataCreateIndexService {
             settings,
             indexScopedSettings,
             shardLimitValidator,
-            indexSettingProviders
+            indexSettingProviders,
+            clusterService.getClusterSettings()
         );
         int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, null);
         IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(currentState, aggregatedIndexSettings, request, routingNumShards);
@@ -717,7 +721,8 @@ public class MetadataCreateIndexService {
             settings,
             indexScopedSettings,
             shardLimitValidator,
-            indexSettingProviders
+            indexSettingProviders,
+            clusterService.getClusterSettings()
         );
         final int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, sourceMetadata);
         IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(currentState, aggregatedIndexSettings, request, routingNumShards);
@@ -800,7 +805,8 @@ public class MetadataCreateIndexService {
         Settings settings,
         IndexScopedSettings indexScopedSettings,
         ShardLimitValidator shardLimitValidator,
-        Set<IndexSettingProvider> indexSettingProviders
+        Set<IndexSettingProvider> indexSettingProviders,
+        ClusterSettings clusterSettings
     ) {
         // Create builders for the template and request settings. We transform these into builders
         // because we may want settings to be "removed" from these prior to being set on the new
@@ -915,6 +921,7 @@ public class MetadataCreateIndexService {
         }
         validateTranslogRetentionSettings(indexSettings);
         validateStoreTypeSettings(indexSettings);
+        validateRefreshIntervalSettings(request.settings(), clusterSettings);
 
         return indexSettings;
     }
@@ -1467,6 +1474,29 @@ public class MetadataCreateIndexService {
                         + "They will be removed in a future version."
                 );
             }
+        }
+    }
+
+    /**
+     * Validates {@code index.refresh_interval} is equal or below the {@code cluster.minimum.index.refresh_interval}.
+     *
+     * @param requestSettings settings passed in during index create request
+     * @param clusterSettings cluster setting
+     */
+    static void validateRefreshIntervalSettings(Settings requestSettings, ClusterSettings clusterSettings) {
+        if (IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.exists(requestSettings) == false) {
+            return;
+        }
+        TimeValue requestRefreshInterval = IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.get(requestSettings);
+        TimeValue clusterMinimumRefreshInterval = clusterSettings.get(IndicesService.CLUSTER_MINIMUM_INDEX_REFRESH_INTERVAL_SETTING);
+        if (requestRefreshInterval.millis() < clusterMinimumRefreshInterval.millis()) {
+            throw new IllegalArgumentException(
+                "invalid index.refresh_interval ["
+                    + requestRefreshInterval
+                    + "]: cannot be smaller than cluster.minimum.index.refresh_interval ["
+                    + clusterMinimumRefreshInterval
+                    + "]"
+            );
         }
     }
 }

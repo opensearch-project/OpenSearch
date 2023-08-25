@@ -8,10 +8,10 @@
 
 package org.opensearch.action.admin.cluster.remotestore.stats;
 
+import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.remote.RemoteSegmentTransferTracker;
@@ -24,7 +24,9 @@ import java.io.IOException;
  * @opensearch.internal
  */
 public class RemoteStoreStats implements Writeable, ToXContentFragment {
-
+    /**
+     * Stats related to Remote Segment Store operations
+     */
     private final RemoteSegmentTransferTracker.Stats remoteSegmentShardStats;
 
     private final ShardRouting shardRouting;
@@ -39,7 +41,7 @@ public class RemoteStoreStats implements Writeable, ToXContentFragment {
         this.shardRouting = new ShardRouting(in);
     }
 
-    public RemoteSegmentTransferTracker.Stats getStats() {
+    public RemoteSegmentTransferTracker.Stats getSegmentStats() {
         return remoteSegmentShardStats;
     }
 
@@ -55,16 +57,16 @@ public class RemoteStoreStats implements Writeable, ToXContentFragment {
         builder.startObject(SubFields.DOWNLOAD);
         // Ensuring that we are not showing 0 metrics to the user
         if (remoteSegmentShardStats.directoryFileTransferTrackerStats.transferredBytesStarted != 0) {
-            buildDownloadStats(builder);
+            buildSegmentDownloadStats(builder);
         }
-        builder.endObject();
+        builder.endObject(); // segment.download
         builder.startObject(SubFields.UPLOAD);
         // Ensuring that we are not showing 0 metrics to the user
         if (remoteSegmentShardStats.totalUploadsStarted != 0) {
-            buildUploadStats(builder);
+            buildSegmentUploadStats(builder);
         }
-        builder.endObject();
-        builder.endObject();
+        builder.endObject(); // segment.upload
+        builder.endObject(); // segment
         return builder.endObject();
     }
 
@@ -74,7 +76,7 @@ public class RemoteStoreStats implements Writeable, ToXContentFragment {
         shardRouting.writeTo(out);
     }
 
-    private void buildUploadStats(XContentBuilder builder) throws IOException {
+    private void buildSegmentUploadStats(XContentBuilder builder) throws IOException {
         builder.field(UploadStatsFields.LOCAL_REFRESH_TIMESTAMP, remoteSegmentShardStats.localRefreshClockTimeMs)
             .field(UploadStatsFields.REMOTE_REFRESH_TIMESTAMP, remoteSegmentShardStats.remoteRefreshClockTimeMs)
             .field(UploadStatsFields.REFRESH_TIME_LAG_IN_MILLIS, remoteSegmentShardStats.refreshTimeLagMs)
@@ -104,7 +106,7 @@ public class RemoteStoreStats implements Writeable, ToXContentFragment {
         builder.endObject();
     }
 
-    private void buildDownloadStats(XContentBuilder builder) throws IOException {
+    private void buildSegmentDownloadStats(XContentBuilder builder) throws IOException {
         builder.field(
             DownloadStatsFields.LAST_SYNC_TIMESTAMP,
             remoteSegmentShardStats.directoryFileTransferTrackerStats.lastTransferTimestampMs

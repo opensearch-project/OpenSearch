@@ -33,14 +33,14 @@
 package org.opensearch.common.xcontent.builder;
 
 import org.apache.lucene.util.BytesRef;
-import org.opensearch.core.common.bytes.BytesArray;
-import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.xcontent.XContentOpenSearchExtension;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentGenerator;
@@ -192,9 +192,9 @@ public class XContentBuilderTests extends OpenSearchTestCase {
 
     public void testDateTypesConversion() throws Exception {
         Date date = new Date();
-        String expectedDate = XContentOpenSearchExtension.DEFAULT_DATE_PRINTER.print(date.getTime());
+        String expectedDate = XContentOpenSearchExtension.DEFAULT_FORMATTER.format(date.toInstant());
         Calendar calendar = new GregorianCalendar(TimeZone.getTimeZone("UTC"), Locale.ROOT);
-        String expectedCalendar = XContentOpenSearchExtension.DEFAULT_DATE_PRINTER.print(calendar.getTimeInMillis());
+        String expectedCalendar = XContentOpenSearchExtension.DEFAULT_FORMATTER.format(calendar.toInstant());
         XContentBuilder builder = MediaTypeRegistry.contentBuilder(MediaTypeRegistry.JSON);
         builder.startObject().timeField("date", date).endObject();
         assertThat(builder.toString(), equalTo("{\"date\":\"" + expectedDate + "\"}"));

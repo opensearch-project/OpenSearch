@@ -39,7 +39,6 @@ import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.query.SpatialArgs;
 import org.apache.lucene.spatial.query.SpatialOperation;
 import org.apache.lucene.spatial.query.UnsupportedSpatialOperation;
-
 import org.opensearch.Version;
 import org.opensearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.opensearch.action.bulk.BulkItemResponse;
@@ -47,7 +46,6 @@ import org.opensearch.action.bulk.BulkResponse;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Priority;
-import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.geo.GeoUtils;
 import org.opensearch.common.geo.builders.CoordinatesBuilder;
@@ -56,20 +54,16 @@ import org.opensearch.common.geo.builders.MultiPolygonBuilder;
 import org.opensearch.common.geo.builders.PointBuilder;
 import org.opensearch.common.geo.builders.PolygonBuilder;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.io.Streams;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.util.io.Streams;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.search.SearchHit;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.VersionUtils;
-
 import org.junit.BeforeClass;
-import org.locationtech.spatial4j.context.SpatialContext;
-import org.locationtech.spatial4j.distance.DistanceUtils;
-import org.locationtech.spatial4j.exception.InvalidShapeException;
-import org.locationtech.spatial4j.shape.Shape;
 
 import java.io.ByteArrayOutputStream;
 import java.io.FileNotFoundException;
@@ -78,6 +72,11 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Random;
 import java.util.zip.GZIPInputStream;
+
+import org.locationtech.spatial4j.context.SpatialContext;
+import org.locationtech.spatial4j.distance.DistanceUtils;
+import org.locationtech.spatial4j.exception.InvalidShapeException;
+import org.locationtech.spatial4j.shape.Shape;
 
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.geometry.utils.Geohash.addNeighbors;

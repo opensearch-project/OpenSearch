@@ -35,10 +35,10 @@ package org.opensearch.index.mapper;
 import org.opensearch.common.geo.GeometryFormat;
 import org.opensearch.common.geo.GeometryParser;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
+import org.opensearch.core.xcontent.MapXContentParser;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.core.xcontent.MapXContentParser;
 import org.opensearch.geometry.Geometry;
 
 import java.io.IOException;

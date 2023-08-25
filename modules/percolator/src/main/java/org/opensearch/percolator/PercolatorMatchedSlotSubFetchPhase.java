@@ -57,8 +57,8 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 import static org.opensearch.percolator.PercolatorHighlightSubFetchPhase.locatePercolatorQuery;
+import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
 /**
  * Adds a special field to a percolator query hit to indicate which documents matched with the percolator query.

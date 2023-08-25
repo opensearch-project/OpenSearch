@@ -32,14 +32,14 @@
 package org.opensearch.common.settings;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.common.settings.Setting.Property;
-import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.rest.RestRequest;
-import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.MockLogAppender;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.rest.FakeRestRequest;
 
 import java.io.IOException;

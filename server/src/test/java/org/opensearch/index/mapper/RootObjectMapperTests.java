@@ -33,8 +33,8 @@
 package org.opensearch.index.mapper;
 
 import org.opensearch.common.compress.CompressedXContent;
-import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.mapper.MapperService.MergeReason;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 

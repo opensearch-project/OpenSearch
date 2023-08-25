@@ -35,8 +35,8 @@ package org.opensearch.action;
 import org.opensearch.OpenSearchException;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.index.mapper.MapperService;
 import org.opensearch.core.rest.RestStatus;
+import org.opensearch.index.mapper.MapperService;
 
 import java.io.IOException;
 import java.util.Objects;

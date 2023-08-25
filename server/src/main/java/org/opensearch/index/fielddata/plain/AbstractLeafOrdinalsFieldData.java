@@ -35,8 +35,8 @@ package org.opensearch.index.fielddata.plain;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.Accountable;
-import org.opensearch.index.fielddata.LeafOrdinalsFieldData;
 import org.opensearch.index.fielddata.FieldData;
+import org.opensearch.index.fielddata.LeafOrdinalsFieldData;
 import org.opensearch.index.fielddata.ScriptDocValues;
 import org.opensearch.index.fielddata.SortedBinaryDocValues;
 

@@ -32,12 +32,12 @@
 
 package org.opensearch.search.aggregations.bucket.terms.heuristic;
 
-import java.io.IOException;
-
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.XContentBuilder;
+
+import java.io.IOException;
 
 /**
  * JLHScore heuristic for significant terms agg

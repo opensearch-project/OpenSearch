@@ -33,6 +33,7 @@
 package org.opensearch.ingest.geoip;
 
 import com.maxmind.geoip2.model.AbstractResponse;
+
 import org.opensearch.common.network.InetAddresses;
 import org.opensearch.ingest.geoip.IngestGeoIpModulePlugin.GeoIpCache;
 import org.opensearch.test.OpenSearchTestCase;

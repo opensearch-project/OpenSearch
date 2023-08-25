@@ -42,11 +42,10 @@ import org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
-import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.test.OpenSearchIntegTestCase;
-
 import org.junit.After;
 
 import java.util.Arrays;

@@ -33,7 +33,6 @@
 package org.opensearch.search.basic;
 
 import org.apache.lucene.tests.util.English;
-
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.DocWriteResponse;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;

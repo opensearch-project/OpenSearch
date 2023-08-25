@@ -13,6 +13,7 @@ permissions:
 
 jobs:
   gradle-check:
+    if: github.repository == 'opensearch-project/OpenSearch'
     permissions:
       contents: read # to fetch code (actions/checkout)
       pull-requests: write # to create or update comment (peter-evans/create-or-update-comment)

@@ -32,10 +32,6 @@
 
 package org.opensearch.http.nio;
 
-import io.netty.channel.Channel;
-import io.netty.channel.ChannelPromise;
-import io.netty.util.concurrent.Future;
-import io.netty.util.concurrent.GenericFutureListener;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.common.util.concurrent.FutureUtils;
 
@@ -43,6 +39,11 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.BiConsumer;
+
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelPromise;
+import io.netty.util.concurrent.Future;
+import io.netty.util.concurrent.GenericFutureListener;
 
 /**
  * This is an {@link BiConsumer} that interfaces with netty code. It wraps a netty promise and will
