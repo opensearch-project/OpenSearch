@@ -22,55 +22,49 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
- * This is an extension of {@Code DiscoveryNode} which provides an abstraction for validating and storing information
- * specific to remote backed storage nodes.
+ * This is an abstraction for validating and storing information specific to remote backed storage nodes.
  *
  * @opensearch.internal
  */
-public class RemoteStoreNode extends DiscoveryNode {
+public class RemoteStoreNode {
 
     public static final String REMOTE_STORE_NODE_ATTRIBUTE_KEY_PREFIX = "remote_store";
     public static final String REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY = "remote_store.segment.repository";
     public static final String REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY = "remote_store.translog.repository";
     public static final String REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT = "remote_store.repository.%s.type";
     public static final String REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX = "remote_store.repository.%s.settings.";
-    private final DiscoveryNode node;
     private final RepositoriesMetadata repositoriesMetadata;
+    private final DiscoveryNode node;
 
     /**
      * Creates a new {@link RemoteStoreNode}
      */
     public RemoteStoreNode(DiscoveryNode node) {
-        super(node.getName(), node.getId(), node.getAddress(), node.getAttributes(), node.getRoles(), node.getVersion());
         this.node = node;
-        this.repositoriesMetadata = buildRepositoriesMetadata(node);
+        this.repositoriesMetadata = buildRepositoriesMetadata();
     }
 
-    private String validateAttributeNonNull(DiscoveryNode node, String attributeKey) {
+    private String validateAttributeNonNull(String attributeKey) {
         String attributeValue = node.getAttributes().get(attributeKey);
         if (attributeValue == null || attributeValue.isEmpty()) {
-            throw new IllegalStateException("joining node [" + node + "] doesn't have the node attribute [" + attributeKey + "].");
+            throw new IllegalStateException("joining node [" + this + "] doesn't have the node attribute [" + attributeKey + "].");
         }
 
         return attributeValue;
     }
 
-    private Map<String, String> validateSettingsAttributesNonNull(DiscoveryNode node, String settingsAttributeKeyPrefix) {
+    private Map<String, String> validateSettingsAttributesNonNull(String settingsAttributeKeyPrefix) {
         return node.getAttributes()
             .keySet()
             .stream()
             .filter(key -> key.startsWith(settingsAttributeKeyPrefix))
-            .collect(Collectors.toMap(key -> key.replace(settingsAttributeKeyPrefix, ""), key -> validateAttributeNonNull(node, key)));
+            .collect(Collectors.toMap(key -> key.replace(settingsAttributeKeyPrefix, ""), key -> validateAttributeNonNull(key)));
     }
 
     // TODO: Add logic to mark these repository as System Repository once thats merged.
-    private RepositoryMetadata buildRepositoryMetadata(DiscoveryNode node, String name) {
-        String type = validateAttributeNonNull(
-            node,
-            String.format(Locale.getDefault(), REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT, name)
-        );
+    private RepositoryMetadata buildRepositoryMetadata(String name) {
+        String type = validateAttributeNonNull(String.format(Locale.getDefault(), REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT, name));
         Map<String, String> settingsMap = validateSettingsAttributesNonNull(
-            node,
             String.format(Locale.getDefault(), REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX, name)
         );
 
@@ -80,15 +74,15 @@ public class RemoteStoreNode extends DiscoveryNode {
         return new RepositoryMetadata(name, type, settings.build());
     }
 
-    private RepositoriesMetadata buildRepositoriesMetadata(DiscoveryNode node) {
+    private RepositoriesMetadata buildRepositoriesMetadata() {
         String segmentRepositoryName = node.getAttributes().get(REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY);
         String translogRepositoryName = node.getAttributes().get(REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY);
         if (segmentRepositoryName.equals(translogRepositoryName)) {
-            return new RepositoriesMetadata(Collections.singletonList(buildRepositoryMetadata(node, segmentRepositoryName)));
+            return new RepositoriesMetadata(Collections.singletonList(buildRepositoryMetadata(segmentRepositoryName)));
         } else {
             List<RepositoryMetadata> repositoryMetadataList = new ArrayList<>();
-            repositoryMetadataList.add(buildRepositoryMetadata(node, segmentRepositoryName));
-            repositoryMetadataList.add(buildRepositoryMetadata(node, translogRepositoryName));
+            repositoryMetadataList.add(buildRepositoryMetadata(segmentRepositoryName));
+            repositoryMetadataList.add(buildRepositoryMetadata(translogRepositoryName));
             return new RepositoriesMetadata(repositoryMetadataList);
         }
     }

@@ -43,6 +43,7 @@ import org.opensearch.Version;
 import org.opensearch.action.ActionModule;
 import org.opensearch.action.ActionModule.DynamicActionRegistry;
 import org.opensearch.action.ActionType;
+import org.opensearch.action.admin.cluster.remotestore.RemoteStoreNode;
 import org.opensearch.action.admin.cluster.remotestore.RemoteStoreService;
 import org.opensearch.action.admin.cluster.snapshots.status.TransportNodesSnapshotsStatus;
 import org.opensearch.action.search.SearchExecutionStatsCollector;
@@ -523,7 +524,10 @@ public class Node implements Closeable {
                     .collect(Collectors.toCollection(LinkedHashSet::new))
             );
             resourcesToClose.add(nodeEnvironment);
-            localNodeFactory = new LocalNodeFactory(settings, nodeEnvironment.nodeId());
+
+            final SetOnce<RepositoriesService> repositoriesServiceReference = new SetOnce<>();
+            final RemoteStoreService remoteStoreService = new RemoteStoreService(repositoriesServiceReference::get);
+            localNodeFactory = new LocalNodeFactory(settings, nodeEnvironment.nodeId(), remoteStoreService);
 
             final List<ExecutorBuilder<?>> executorBuilders = pluginsService.getExecutorBuilders(settings);
 
@@ -592,7 +596,6 @@ public class Node implements Closeable {
                 client
             );
 
-            final SetOnce<RepositoriesService> repositoriesServiceReference = new SetOnce<>();
             final ClusterInfoService clusterInfoService = newClusterInfoService(settings, clusterService, threadPool, client);
             final UsageService usageService = new UsageService();
 
@@ -985,8 +988,6 @@ public class Node implements Closeable {
                 rerouteService
             );
             clusterInfoService.addListener(diskThresholdMonitor::onNewInfo);
-
-            final RemoteStoreService remoteStoreService = new RemoteStoreService(repositoriesServiceReference::get);
 
             final DiscoveryModule discoveryModule = new DiscoveryModule(
                 settings,
@@ -1743,15 +1744,26 @@ public class Node implements Closeable {
         private final SetOnce<DiscoveryNode> localNode = new SetOnce<>();
         private final String persistentNodeId;
         private final Settings settings;
+        private final RemoteStoreService remoteStoreService;
 
-        private LocalNodeFactory(Settings settings, String persistentNodeId) {
+        private LocalNodeFactory(Settings settings, String persistentNodeId, RemoteStoreService remoteStoreService) {
             this.persistentNodeId = persistentNodeId;
             this.settings = settings;
+            this.remoteStoreService = remoteStoreService;
         }
 
         @Override
         public DiscoveryNode apply(BoundTransportAddress boundTransportAddress) {
-            localNode.set(DiscoveryNode.createLocal(settings, boundTransportAddress.publishAddress(), persistentNodeId));
+            if (Node.NODE_ATTRIBUTES.getAsMap(settings)
+                .keySet()
+                .stream()
+                .anyMatch(key -> key.startsWith(RemoteStoreNode.REMOTE_STORE_NODE_ATTRIBUTE_KEY_PREFIX))) {
+                localNode.set(DiscoveryNode.createLocal(settings, boundTransportAddress.publishAddress(), persistentNodeId));
+            } else {
+                localNode.set(
+                    DiscoveryNode.createLocal(settings, boundTransportAddress.publishAddress(), persistentNodeId, remoteStoreService)
+                );
+            }
             return localNode.get();
         }
 
