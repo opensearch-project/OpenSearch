@@ -426,7 +426,7 @@ You may want to run BWC tests for a secure OpenSearch cluster. In order to do th
   -i
 ```
 
-`-Dtests.security.manager=false` handles access issues attempting to read the certificates from the file system.
+`-Dtests.security.manager=false` handles access issues when attempting to read the certificates from the file system.
 `-Dtests.opensearch.http.protocol=https` tells the wait for cluster startup task to do the right thing.
 `-PcustomDistributionUrl=...` uses a custom build of the distribution of OpenSearch. This is unnecessary when running against standard/unmodified OpenSearch core distributions. 
 
