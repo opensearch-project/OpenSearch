@@ -43,6 +43,7 @@ import org.opensearch.Version;
 import org.opensearch.action.ActionModule;
 import org.opensearch.action.ActionModule.DynamicActionRegistry;
 import org.opensearch.action.ActionType;
+import org.opensearch.action.admin.cluster.remotestore.RemoteStoreService;
 import org.opensearch.action.admin.cluster.snapshots.status.TransportNodesSnapshotsStatus;
 import org.opensearch.action.search.SearchExecutionStatsCollector;
 import org.opensearch.action.search.SearchPhaseController;
@@ -985,6 +986,8 @@ public class Node implements Closeable {
             );
             clusterInfoService.addListener(diskThresholdMonitor::onNewInfo);
 
+            final RemoteStoreService remoteStoreService = new RemoteStoreService(repositoriesServiceReference::get);
+
             final DiscoveryModule discoveryModule = new DiscoveryModule(
                 settings,
                 threadPool,
@@ -1000,7 +1003,8 @@ public class Node implements Closeable {
                 gatewayMetaState,
                 rerouteService,
                 fsHealthService,
-                persistedStateRegistry
+                persistedStateRegistry,
+                remoteStoreService
             );
             final SearchPipelineService searchPipelineService = new SearchPipelineService(
                 clusterService,

@@ -602,6 +602,13 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     }
 
     /**
+     * Creates repository holder. This method starts the non-internal repository
+     */
+    public Repository createRepository(RepositoryMetadata repositoryMetadata) {
+        return this.createRepository(repositoryMetadata, typesRegistry);
+    }
+
+    /**
      * Creates repository holder. This method starts the repository
      */
     private Repository createRepository(RepositoryMetadata repositoryMetadata, Map<String, Repository.Factory> factories) {
@@ -625,7 +632,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         }
     }
 
-    private static void validate(final String identifier) {
+    public static void validate(final String identifier) {
         if (org.opensearch.core.common.Strings.hasLength(identifier) == false) {
             throw new RepositoryException(identifier, "cannot be empty");
         }

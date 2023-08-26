@@ -60,6 +60,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.opensearch.action.admin.cluster.remotestore.RemoteStoreNode.REMOTE_STORE_NODE_ATTRIBUTE_KEY_PREFIX;
 import static org.opensearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
 
 /**
@@ -458,6 +459,15 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
      */
     public boolean isSearchNode() {
         return roles.contains(DiscoveryNodeRole.SEARCH_ROLE);
+    }
+
+    /**
+     * Returns whether the node is a remote store node.
+     *
+     * @return true if the node contains remote store node attributes, false otherwise
+     */
+    public boolean isRemoteStoreNode() {
+        return this.getAttributes().keySet().stream().anyMatch(key -> key.startsWith(REMOTE_STORE_NODE_ATTRIBUTE_KEY_PREFIX));
     }
 
     /**
