@@ -10,21 +10,25 @@ package org.opensearch.action.admin.cluster.remotestore;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.RepositoriesMetadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.settings.Setting;
-import org.opensearch.core.action.ActionListener;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
+import org.opensearch.repositories.RepositoryVerificationException;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 /**
@@ -34,6 +38,7 @@ public class RemoteStoreService {
 
     private static final Logger logger = LogManager.getLogger(RemoteStoreService.class);
     private final Supplier<RepositoriesService> repositoriesService;
+    private final ThreadPool threadPool;
     public static final Setting<String> REMOTE_STORE_COMPATIBILITY_MODE_SETTING = Setting.simpleString(
         "remote_store.compatibility_mode",
         CompatibilityMode.ALLOW_ONLY_REMOTE_STORE_NODES.value,
@@ -44,8 +49,7 @@ public class RemoteStoreService {
 
     public enum CompatibilityMode {
         ALLOW_ONLY_REMOTE_STORE_NODES("allow_only_remote_store_nodes"),
-        ALLOW_ALL_NODES("allow_all_nodes"),
-        MIGRATING_TO_HOT("migrating_to_hot");
+        ALLOW_ALL_NODES("allow_all_nodes");
 
         public static CompatibilityMode validate(String compatibilityMode) {
             try {
@@ -69,35 +73,35 @@ public class RemoteStoreService {
         }
     }
 
-    public RemoteStoreService(Supplier<RepositoriesService> repositoriesService) {
+    public RemoteStoreService(Supplier<RepositoriesService> repositoriesService, ThreadPool threadPool) {
         this.repositoriesService = repositoriesService;
+        this.threadPool = threadPool;
     }
 
-    public void verifyRepository(List<Repository> repositories) {
-        ActionListener<VerifyRepositoryResponse> listener = new ActionListener<>() {
-
-            @Override
-            public void onResponse(VerifyRepositoryResponse verifyRepositoryResponse) {
-                logger.info("Successfully verified repository : " + verifyRepositoryResponse.toString());
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                throw new IllegalStateException("Failed to finish remote store repository verification" + e.getMessage());
-            }
-        };
-
+    public void verifyRepository(List<Repository> repositories, DiscoveryNode localNode) {
         for (Repository repository : repositories) {
-            repositoriesService.get()
-                .verifyRepository(
-                    repository.getMetadata().name(),
-                    ActionListener.delegateFailure(
-                        listener,
-                        (delegatedListener, verifyResponse) -> delegatedListener.onResponse(
-                            new VerifyRepositoryResponse(verifyResponse.toArray(new DiscoveryNode[0]))
-                        )
-                    )
-                );
+            String verificationToken = repository.startVerification();
+            ExecutorService executor = threadPool.executor(ThreadPool.Names.GENERIC);
+            executor.execute(() -> {
+                try {
+                    repository.verify(verificationToken, localNode);
+                } catch (Exception e) {
+                    logger.warn(() -> new ParameterizedMessage("[{}] failed to verify repository", repository), e);
+                    throw new RepositoryVerificationException(repository.getMetadata().name(), e.getMessage());
+                }
+            });
+
+            // TODO: See if using listener here which is async makes sense, made this sync as
+            //  we need the repository registration for remote store node to be completed before the bootstrap
+            //  completes.
+            try {
+                if(executor.awaitTermination(5000, TimeUnit.MILLISECONDS)) {
+                    throw new RepositoryVerificationException(repository.getMetadata().name(), "could not complete " +
+                        "repository verification within timeout.");
+                }
+            } catch (InterruptedException e) {
+                throw new RepositoryVerificationException(repository.getMetadata().name(), e.getMessage());
+            }
         }
     }
 

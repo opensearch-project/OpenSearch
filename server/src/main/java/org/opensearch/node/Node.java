@@ -525,14 +525,14 @@ public class Node implements Closeable {
             );
             resourcesToClose.add(nodeEnvironment);
 
-            final SetOnce<RepositoriesService> repositoriesServiceReference = new SetOnce<>();
-            final RemoteStoreService remoteStoreService = new RemoteStoreService(repositoriesServiceReference::get);
-            localNodeFactory = new LocalNodeFactory(settings, nodeEnvironment.nodeId(), remoteStoreService);
-
             final List<ExecutorBuilder<?>> executorBuilders = pluginsService.getExecutorBuilders(settings);
 
             runnableTaskListener = new AtomicReference<>();
             final ThreadPool threadPool = new ThreadPool(settings, runnableTaskListener, executorBuilders.toArray(new ExecutorBuilder[0]));
+
+            final SetOnce<RepositoriesService> repositoriesServiceReference = new SetOnce<>();
+            final RemoteStoreService remoteStoreService = new RemoteStoreService(repositoriesServiceReference::get, threadPool);
+            localNodeFactory = new LocalNodeFactory(settings, nodeEnvironment.nodeId(), remoteStoreService);
             resourcesToClose.add(() -> ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS));
             final ResourceWatcherService resourceWatcherService = new ResourceWatcherService(settings, threadPool);
             resourcesToClose.add(resourceWatcherService);
@@ -1758,11 +1758,11 @@ public class Node implements Closeable {
                 .keySet()
                 .stream()
                 .anyMatch(key -> key.startsWith(RemoteStoreNode.REMOTE_STORE_NODE_ATTRIBUTE_KEY_PREFIX))) {
-                localNode.set(DiscoveryNode.createLocal(settings, boundTransportAddress.publishAddress(), persistentNodeId));
-            } else {
                 localNode.set(
                     DiscoveryNode.createLocal(settings, boundTransportAddress.publishAddress(), persistentNodeId, remoteStoreService)
                 );
+            } else {
+                localNode.set(DiscoveryNode.createLocal(settings, boundTransportAddress.publishAddress(), persistentNodeId));
             }
             return localNode.get();
         }

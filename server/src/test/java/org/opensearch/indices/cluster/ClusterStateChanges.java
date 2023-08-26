@@ -376,7 +376,7 @@ public class ClusterStateChanges {
             threadPool
         );
 
-        remoteStoreService = new RemoteStoreService(new SetOnce<>(repositoriesService)::get);
+        remoteStoreService = new RemoteStoreService(new SetOnce<>(repositoriesService)::get, threadPool);
 
         nodeRemovalExecutor = new NodeRemovalClusterStateTaskExecutor(allocationService, logger);
         joinTaskExecutor = new JoinTaskExecutor(Settings.EMPTY, allocationService, logger, (s, p, r) -> {}, remoteStoreService);
