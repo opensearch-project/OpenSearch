@@ -116,4 +116,9 @@ public class VariableWidthHistogramAggregatorFactory extends ValuesSourceAggrega
             metadata
         );
     }
+
+    @Override
+    protected boolean supportsConcurrentSegmentSearch() {
+        return true;
+    }
 }

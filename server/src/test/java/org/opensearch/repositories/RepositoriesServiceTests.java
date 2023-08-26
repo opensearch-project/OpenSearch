@@ -282,6 +282,16 @@ public class RepositoriesServiceTests extends OpenSearchTestCase {
         }
 
         @Override
+        public long getRemoteUploadThrottleTimeInNanos() {
+            return 0;
+        }
+
+        @Override
+        public long getRemoteDownloadThrottleTimeInNanos() {
+            return 0;
+        }
+
+        @Override
         public String startVerification() {
             return null;
         }

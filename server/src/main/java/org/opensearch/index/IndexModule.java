@@ -52,6 +52,7 @@ import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
@@ -222,7 +223,6 @@ public final class IndexModule {
             "tvd",
             "liv",
             "dii",
-            "vec",
             "vem"
         ),
         Function.identity(),
@@ -598,7 +598,8 @@ public final class IndexModule {
         BooleanSupplier idFieldDataEnabled,
         ValuesSourceRegistry valuesSourceRegistry,
         IndexStorePlugin.DirectoryFactory remoteDirectoryFactory,
-        BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier
+        BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier,
+        Supplier<TimeValue> clusterDefaultRefreshIntervalSupplier
     ) throws IOException {
         final IndexEventListener eventListener = freeze();
         Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> readerWrapperFactory = indexReaderWrapper
@@ -654,7 +655,8 @@ public final class IndexModule {
                 expressionResolver,
                 valuesSourceRegistry,
                 recoveryStateFactory,
-                translogFactorySupplier
+                translogFactorySupplier,
+                clusterDefaultRefreshIntervalSupplier
             );
             success = true;
             return indexService;
