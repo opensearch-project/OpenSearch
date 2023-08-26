@@ -34,9 +34,14 @@ import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.opensearch.action.admin.cluster.remotestore.RemoteStoreNode.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX;
+import static org.opensearch.action.admin.cluster.remotestore.RemoteStoreNode.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT;
+import static org.opensearch.action.admin.cluster.remotestore.RemoteStoreNode.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY;
+import static org.opensearch.action.admin.cluster.remotestore.RemoteStoreNode.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING;
 import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_STORE_ENABLED_SETTING;
 import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING;
@@ -55,6 +60,7 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
 
     protected Path absolutePath;
     protected Path absolutePath2;
+    protected Settings nodeAttributesSettings;
     private final List<String> documentKeys = List.of(
         randomAlphaOfLength(5),
         randomAlphaOfLength(5),
@@ -108,9 +114,13 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
+        if (nodeAttributesSettings == null) {
+            nodeAttributesSettings = remoteStoreNodeAttributes(REPOSITORY_NAME, REPOSITORY_2_NAME);
+        }
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
             .put(remoteStoreClusterSettings(REPOSITORY_NAME, REPOSITORY_2_NAME, true))
+            .put(nodeAttributesSettings)
             .build();
     }
 
@@ -181,6 +191,36 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
         return settingsBuilder.build();
     }
 
+    public Settings remoteStoreNodeAttributes(String segmentRepoName, String translogRepoName) {
+        absolutePath = randomRepoPath().toAbsolutePath();
+        absolutePath2 = randomRepoPath().toAbsolutePath();
+        if (segmentRepoName.equals(translogRepoName)) {
+            absolutePath2 = absolutePath;
+        }
+        return Settings.builder()
+            .put("node.attr." + REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY, segmentRepoName)
+            .put(
+                String.format(Locale.getDefault(), "node.attr." + REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT, segmentRepoName),
+                "fs"
+            )
+            .put(
+                String.format(Locale.getDefault(), "node.attr." + REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX, segmentRepoName)
+                    + "location",
+                absolutePath.toString()
+            )
+            .put("node.attr." + REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY, translogRepoName)
+            .put(
+                String.format(Locale.getDefault(), "node.attr." + REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT, translogRepoName),
+                "fs"
+            )
+            .put(
+                String.format(Locale.getDefault(), "node.attr." + REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX, translogRepoName)
+                    + "location",
+                absolutePath2.toString()
+            )
+            .build();
+    }
+
     private Settings defaultIndexSettings() {
         return Settings.builder()
             .put(super.indexSettings())
@@ -236,6 +276,7 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
 
     @After
     public void teardown() {
+        nodeAttributesSettings = null;
         assertAcked(clusterAdmin().prepareDeleteRepository(REPOSITORY_NAME));
         assertAcked(clusterAdmin().prepareDeleteRepository(REPOSITORY_2_NAME));
     }

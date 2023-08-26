@@ -61,7 +61,6 @@ public class RemoteStoreNode {
             .collect(Collectors.toMap(key -> key.replace(settingsAttributeKeyPrefix, ""), key -> validateAttributeNonNull(key)));
     }
 
-    // TODO: Add logic to mark these repository as System Repository once thats merged.
     private RepositoryMetadata buildRepositoryMetadata(String name) {
         String type = validateAttributeNonNull(String.format(Locale.getDefault(), REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT, name));
         Map<String, String> settingsMap = validateSettingsAttributesNonNull(

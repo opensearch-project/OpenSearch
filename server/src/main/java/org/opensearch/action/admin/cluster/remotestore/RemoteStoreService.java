@@ -78,6 +78,11 @@ public class RemoteStoreService {
         this.threadPool = threadPool;
     }
 
+    /**
+     * Performs repository verification during node startup post its creation by invoking verify method against
+     * repository mentioned. This verification will happen on a local node to validate if the node is able to connect
+     * to the repository.
+     */
     public void verifyRepository(List<Repository> repositories, DiscoveryNode localNode) {
         for (Repository repository : repositories) {
             String verificationToken = repository.startVerification();
@@ -105,6 +110,9 @@ public class RemoteStoreService {
         }
     }
 
+    /**
+     * Creates a repository during a node startup.
+     */
     public List<Repository> createRepositories(RemoteStoreNode node) {
         List<Repository> repositories = new ArrayList<>();
         for (RepositoryMetadata repositoryMetadata : node.getRepositoriesMetadata().repositories()) {
@@ -153,9 +161,14 @@ public class RemoteStoreService {
         return ClusterState.builder(currentState).metadata(mdBuilder).build();
     }
 
-    public ClusterState updateClusterStateRepositoriesMetadata(RemoteStoreNode node, ClusterState currentState) {
+    /**
+     * Updates repositories metadata in the cluster state if not already present. If a repository metadata for a
+     * repository is already present in the cluster state and if it's different then the joining remote store node
+     * repository metadata an exception will be thrown and the node will not be allowed to join the cluster.
+     */
+    public ClusterState updateClusterStateRepositoriesMetadata(RemoteStoreNode joiningNode, ClusterState currentState) {
         ClusterState newState = ClusterState.builder(currentState).build();
-        for (RepositoryMetadata newRepositoryMetadata : node.getRepositoriesMetadata().repositories()) {
+        for (RepositoryMetadata newRepositoryMetadata : joiningNode.getRepositoriesMetadata().repositories()) {
             newState = updateRepositoryMetadata(newRepositoryMetadata, newState);
         }
         return newState;
