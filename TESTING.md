@@ -414,7 +414,7 @@ You may want to run BWC tests for a secure OpenSearch cluster. In order to do th
 1. Clone the OpenSearch Security repository from https://github.com/opensearch-project/security.
 2. Get both the old version of the Security plugin (the version you wish to come from) and the new version of the Security plugin (the version you wish to go to). This can be done either by fetching the maven artifact with a command like `wget https://repo1.maven.org/maven2/org/opensearch/plugin/opensearch-security/<TARGET_VERSION>.0/opensearch-security-<TARGET_VERSION>.0.zip` or by running `./gradlew assemble` from the base of the Security repository. 
 3. Move both of the Security artifacts into new directories at the path `/security/bwc-test/src/test/resources/<TARGET_VERSION>.0`. You should end up with two different directories in `/security/bwc-test/src/test/resources/`, one named the old version and one the new version. 
-4. Run the following command from the base of the Security repository
+4. Run the following command from the base of the Security repository:
 
 ```
   ./gradlew -p bwc-test clean bwcTestSuite \
