@@ -40,15 +40,15 @@ public class RemoteStoreService {
     private final ThreadPool threadPool;
     public static final Setting<String> REMOTE_STORE_COMPATIBILITY_MODE_SETTING = Setting.simpleString(
         "remote_store.compatibility_mode",
-        CompatibilityMode.ALLOW_ONLY_REMOTE_STORE_NODES.value,
+        CompatibilityMode.STRICT.value,
         CompatibilityMode::validate,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
 
     public enum CompatibilityMode {
-        ALLOW_ONLY_REMOTE_STORE_NODES("allow_only_remote_store_nodes"),
-        ALLOW_ALL_NODES("allow_all_nodes");
+        STRICT("strict"),
+        ALLOW_MIX("allow_mix");
 
         public static CompatibilityMode validate(String compatibilityMode) {
             try {

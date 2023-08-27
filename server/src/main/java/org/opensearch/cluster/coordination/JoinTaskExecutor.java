@@ -61,7 +61,7 @@ import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
-import static org.opensearch.action.admin.cluster.remotestore.RemoteStoreService.CompatibilityMode.ALLOW_ONLY_REMOTE_STORE_NODES;
+import static org.opensearch.action.admin.cluster.remotestore.RemoteStoreService.CompatibilityMode.STRICT;
 import static org.opensearch.action.admin.cluster.remotestore.RemoteStoreService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING;
 import static org.opensearch.cluster.decommission.DecommissionHelper.nodeCommissioned;
 import static org.opensearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
@@ -473,7 +473,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         // TODO: The below check is valid till we support migration, once we start supporting migration a remote
         // store node will be able to join a non remote store cluster and vice versa. #7986
         String remoteStoreCompatibilityMode = REMOTE_STORE_COMPATIBILITY_MODE_SETTING.get(currentState.metadata().settings());
-        if (ALLOW_ONLY_REMOTE_STORE_NODES.value.equals(remoteStoreCompatibilityMode)) {
+        if (STRICT.value.equals(remoteStoreCompatibilityMode)) {
             DiscoveryNode existingNode = existingNodes.get(0);
             if (joiningNode.isRemoteStoreNode()) {
                 if (existingNode.isRemoteStoreNode()) {
