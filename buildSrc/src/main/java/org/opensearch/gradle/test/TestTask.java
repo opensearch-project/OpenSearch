@@ -15,7 +15,7 @@ import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.testing.Test;
 
 @CacheableTask
-public class TestTask extends Test implements TestSuiteConventionMappings {
+public abstract class TestTask extends Test implements TestSuiteConventionMappings {
     @SuppressWarnings("rawtypes")
     @Override
     public Task configure(Closure closure) {

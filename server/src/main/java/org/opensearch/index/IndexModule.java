@@ -223,7 +223,6 @@ public final class IndexModule {
             "tvd",
             "liv",
             "dii",
-            "vec",
             "vem"
         ),
         Function.identity(),
