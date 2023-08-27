@@ -695,7 +695,7 @@ public class GatewayMetaState implements Closeable {
 
         @Override
         public void close() throws IOException {
-            PersistedState.super.close();
+            remoteClusterStateService.close();
         }
 
         private void handleExceptionOnWrite(Exception e) {

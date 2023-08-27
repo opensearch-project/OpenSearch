@@ -20,6 +20,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.gateway.remote.ClusterMetadataMarker.UploadedIndexMetadata;
 import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.repositories.RepositoriesService;
@@ -27,6 +28,7 @@ import org.opensearch.repositories.Repository;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.repositories.blobstore.ChecksumBlobStoreFormat;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -46,7 +48,7 @@ import static org.opensearch.gateway.PersistedClusterStateService.SLOW_WRITE_LOG
  *
  * @opensearch.internal
  */
-public class RemoteClusterStateService {
+public class RemoteClusterStateService implements Closeable {
 
     public static final String METADATA_NAME_FORMAT = "%s.dat";
 
@@ -85,6 +87,7 @@ public class RemoteClusterStateService {
 
     private static final String DELIMITER = "__";
 
+    private final String nodeId;
     private final Supplier<RepositoriesService> repositoriesService;
     private final Settings settings;
     private final LongSupplier relativeTimeMillisSupplier;
@@ -92,11 +95,13 @@ public class RemoteClusterStateService {
     private volatile TimeValue slowWriteLoggingThreshold;
 
     public RemoteClusterStateService(
+        String nodeId,
         Supplier<RepositoriesService> repositoriesService,
         Settings settings,
         ClusterSettings clusterSettings,
         LongSupplier relativeTimeMillisSupplier
     ) {
+        this.nodeId = nodeId;
         this.repositoriesService = repositoriesService;
         this.settings = settings;
         this.relativeTimeMillisSupplier = relativeTimeMillisSupplier;
@@ -264,6 +269,13 @@ public class RemoteClusterStateService {
         return null;
     }
 
+    @Override
+    public void close() throws IOException {
+        if (blobStoreRepository != null) {
+            IOUtils.close(blobStoreRepository);
+        }
+    }
+
     // Visible for testing
     void ensureRepositorySet() {
         if (blobStoreRepository != null) {
@@ -289,6 +301,7 @@ public class RemoteClusterStateService {
                 clusterState.metadata().clusterUUID(),
                 clusterState.stateUUID(),
                 Version.CURRENT,
+                nodeId,
                 committed,
                 uploadedIndexMetadata
             );
