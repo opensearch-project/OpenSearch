@@ -48,14 +48,17 @@ public class DelimitedTermFrequencyTokenFilterFactoryTests extends OpenSearchTok
     }
 
     public void testDelimiterLongerThanOneCharThrows() {
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> AnalysisTestsHelper.createTestAnalysisFromSettings(
-            Settings.builder()
-                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                .put("index.analysis.filter.my_delimited_termfreq.type", "delimited_termfreq")
-                .put("index.analysis.filter.my_delimited_termfreq.delimiter", "^^")
-                .build(),
-            new CommonAnalysisModulePlugin()
-        ));
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> AnalysisTestsHelper.createTestAnalysisFromSettings(
+                Settings.builder()
+                    .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+                    .put("index.analysis.filter.my_delimited_termfreq.type", "delimited_termfreq")
+                    .put("index.analysis.filter.my_delimited_termfreq.delimiter", "^^")
+                    .build(),
+                new CommonAnalysisModulePlugin()
+            )
+        );
 
         assertEquals("Setting [delimiter] must be a single, non-null character. [^^] was provided.", ex.getMessage());
     }
@@ -77,7 +80,8 @@ public class DelimitedTermFrequencyTokenFilterFactoryTests extends OpenSearchTok
         stream.close();
     }
 
-    void assertTermEquals(String expected, TokenStream stream, CharTermAttribute termAtt, TermFrequencyAttribute tfAtt, int expectedTf) throws Exception {
+    void assertTermEquals(String expected, TokenStream stream, CharTermAttribute termAtt, TermFrequencyAttribute tfAtt, int expectedTf)
+        throws Exception {
         assertTrue(stream.incrementToken());
         assertEquals(expected, termAtt.toString());
         assertEquals(expectedTf, tfAtt.getTermFrequency());
