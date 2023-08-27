@@ -46,6 +46,11 @@ public class RemoteStoreService {
         Setting.Property.NodeScope
     );
 
+    /**
+     * Node join compatibility mode introduced with remote store.
+     *
+     * @opensearch.internal
+     */
     public enum CompatibilityMode {
         STRICT("strict"),
         ALLOW_MIX("allow_mix");
