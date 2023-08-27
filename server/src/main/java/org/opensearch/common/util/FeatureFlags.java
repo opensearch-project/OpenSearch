@@ -56,6 +56,13 @@ public class FeatureFlags {
     public static final String TELEMETRY = "opensearch.experimental.feature.telemetry.enabled";
 
     /**
+     * Gates the functionality around allowing bloom filter postings for document ids.
+     * Once the feature is ready for release, this feature flag can be removed.
+     */
+    public static final String BLOOM_FILTER_FOR_DOC_IDS =
+        "opensearch.experimental.feature.allow_bloom_filter_for_doc_ids.enabled";
+
+    /**
      * Should store the settings from opensearch.yml.
      */
     private static Settings settings;

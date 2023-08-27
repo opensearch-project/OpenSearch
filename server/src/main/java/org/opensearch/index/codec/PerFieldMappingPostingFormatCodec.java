@@ -39,9 +39,13 @@ import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
 import org.apache.lucene.codecs.lucene95.Lucene95Codec;
 import org.opensearch.common.lucene.Lucene;
-import org.opensearch.index.mapper.CompletionFieldMapper;
-import org.opensearch.index.mapper.MappedFieldType;
-import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.codec.fuzzy.FuzzyFilterPostingsFormat;
+import org.opensearch.index.codec.fuzzy.FuzzySet;
+import org.opensearch.index.codec.fuzzy.FuzzySetFactory;
+import org.opensearch.index.codec.fuzzy.FuzzySetParameters;
+import org.opensearch.index.mapper.*;
+
+import java.util.Map;
 
 /**
  * {@link PerFieldMappingPostingFormatCodec This postings format} is the default
@@ -57,6 +61,7 @@ public class PerFieldMappingPostingFormatCodec extends Lucene95Codec {
     private final Logger logger;
     private final MapperService mapperService;
     private final DocValuesFormat dvFormat = new Lucene90DocValuesFormat();
+    private FuzzyFilterPostingsFormat fuzzyFilterPostingsFormat;
 
     static {
         assert Codec.forName(Lucene.LATEST_CODEC).getClass().isAssignableFrom(PerFieldMappingPostingFormatCodec.class)
@@ -76,6 +81,9 @@ public class PerFieldMappingPostingFormatCodec extends Lucene95Codec {
             logger.warn("no index mapper found for field: [{}] returning default postings format", field);
         } else if (fieldType instanceof CompletionFieldMapper.CompletionFieldType) {
             return CompletionFieldMapper.CompletionFieldType.postingsFormat();
+        } else if (IdFieldMapper.NAME.equals(field) && mapperService.getIndexSettings().isUseBloomFilterForDocIds()) {
+            // Create a default Fuzzy Set Factory for bloom filter.
+            return getFuzzyFilterPostingsFormat(field);
         }
         return super.getPostingsFormatForField(field);
     }
@@ -83,5 +91,14 @@ public class PerFieldMappingPostingFormatCodec extends Lucene95Codec {
     @Override
     public DocValuesFormat getDocValuesFormatForField(String field) {
         return dvFormat;
+    }
+
+    private PostingsFormat getFuzzyFilterPostingsFormat(String field) {
+        if (fuzzyFilterPostingsFormat == null) {
+            fuzzyFilterPostingsFormat = new FuzzyFilterPostingsFormat(super.getPostingsFormatForField(field), new FuzzySetFactory(Map.of(
+                IdFieldMapper.NAME, new FuzzySetParameters(mapperService.getIndexSettings().getBloomFilterForDocIdFalsePositiveProbability(), FuzzySet.SetType.BLOOM_FILTER_V1) // This can be replaced with a setting/mapping type
+            )));
+        }
+        return fuzzyFilterPostingsFormat;
     }
 }

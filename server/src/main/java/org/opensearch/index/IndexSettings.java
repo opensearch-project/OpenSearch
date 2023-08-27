@@ -48,6 +48,7 @@ import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.Index;
+import org.opensearch.index.codec.fuzzy.FuzzySetParameters;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.ingest.IngestService;
@@ -620,6 +621,22 @@ public final class IndexSettings {
         Property.IndexScope
     );
 
+    public static final Setting<Boolean> DOC_ID_FUZZY_SET_ENABLED_SETTING = Setting.boolSetting(
+        "index.doc_id_fuzzy_set.enabled",
+        false,
+        Property.IndexScope,
+        Property.Dynamic
+    );
+
+    public static final Setting<Double> DOC_ID_FUZZY_SET_FALSE_POSITIVE_PROBABILITY_SETTING = Setting.doubleSetting(
+        "index.doc_id_fuzzy_set.false_positive_probability",
+        FuzzySetParameters.DEFAULT_FALSE_POSITIVE_PROBABILITY,
+        0.0d,
+        0.4096d,
+        Property.IndexScope,
+        Property.Dynamic
+    );
+
     private final Index index;
     private final Version version;
     private final Logger logger;
@@ -662,6 +679,10 @@ public final class IndexSettings {
 
     private volatile String defaultSearchPipeline;
     private final boolean widenIndexSortType;
+
+    private volatile boolean useBloomFilterForDocIds;
+
+    private volatile double bloomFilterForDocIdFalsePositiveProbability;
 
     /**
      * The maximum age of a retention lease before it is considered expired.
@@ -866,6 +887,8 @@ public final class IndexSettings {
          * Now this sortField (IndexSort) is stored in SegmentInfo and we need to maintain backward compatibility for them.
          */
         widenIndexSortType = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings).before(V_2_7_0);
+        useBloomFilterForDocIds = scopedSettings.get(DOC_ID_FUZZY_SET_ENABLED_SETTING);
+        bloomFilterForDocIdFalsePositiveProbability = scopedSettings.get(DOC_ID_FUZZY_SET_FALSE_POSITIVE_PROBABILITY_SETTING);
 
         scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING, mergePolicyConfig::setNoCFSRatio);
         scopedSettings.addSettingsUpdateConsumer(
@@ -945,6 +968,10 @@ public final class IndexSettings {
             INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING,
             this::setRemoteTranslogUploadBufferInterval
         );
+        scopedSettings.addSettingsUpdateConsumer(DOC_ID_FUZZY_SET_ENABLED_SETTING,
+            this::setUseBloomFilterForDocIdSetting);
+        scopedSettings.addSettingsUpdateConsumer(DOC_ID_FUZZY_SET_FALSE_POSITIVE_PROBABILITY_SETTING,
+            this::setBloomFilterForDocIdFalsePositiveProbability);
     }
 
     private void setSearchIdleAfter(TimeValue searchIdleAfter) {
@@ -1668,5 +1695,31 @@ public final class IndexSettings {
      */
     public boolean shouldWidenIndexSortType() {
         return this.widenIndexSortType;
+    }
+
+    public boolean isUseBloomFilterForDocIds() {
+        return useBloomFilterForDocIds;
+    }
+
+    public void setUseBloomFilterForDocIdSetting(boolean useBloomFilterForDocIds) {
+        if (FeatureFlags.isEnabled(FeatureFlags.BLOOM_FILTER_FOR_DOC_IDS)) {
+            this.useBloomFilterForDocIds = useBloomFilterForDocIds;
+        } else {
+            throw new IllegalArgumentException("Setting cannot be updated as feature flag: " + FeatureFlags.BLOOM_FILTER_FOR_DOC_IDS +
+                " is not enabled.");
+        }
+    }
+
+    public double getBloomFilterForDocIdFalsePositiveProbability() {
+        return bloomFilterForDocIdFalsePositiveProbability;
+    }
+
+    public void setBloomFilterForDocIdFalsePositiveProbability(double bloomFilterForDocIdFalsePositiveProbability) {
+        if (FeatureFlags.isEnabled(FeatureFlags.BLOOM_FILTER_FOR_DOC_IDS)) {
+            this.bloomFilterForDocIdFalsePositiveProbability = bloomFilterForDocIdFalsePositiveProbability;
+        } else {
+            throw new IllegalArgumentException("Setting cannot be updated as feature flag: " + FeatureFlags.BLOOM_FILTER_FOR_DOC_IDS +
+                " is not enabled.");
+        }
     }
 }
