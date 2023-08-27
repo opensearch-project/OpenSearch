@@ -30,7 +30,7 @@ public class DelimitedTermFrequencyTokenFilterFactory extends AbstractTokenFilte
         return new DelimitedTermFrequencyTokenFilter(tokenStream, delimiter);
     }
 
-    private static char parseDelimiter(Settings settings) throws IllegalArgumentException {
+    private static char parseDelimiter(Settings settings) {
         String delimiter = settings.get(DELIMITER);
         if (delimiter == null) {
             return DEFAULT_DELIMITER;

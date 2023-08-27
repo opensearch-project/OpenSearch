@@ -1199,6 +1199,9 @@
 
 ---
 "delimited_termfreq":
+  - skip:
+      version: " - 2.9.99"
+      reason: "delimited_termfreq token filter was added in v2.10.0"
   - do:
       indices.create:
         index: test
