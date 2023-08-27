@@ -220,6 +220,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             allocationService,
             clusterManagerService,
             transportService,
+            remoteStoreService,
             this::getCurrentTerm,
             this::getStateForClusterManagerService,
             this::handleJoinRequest,
@@ -228,8 +229,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             rerouteService,
             nodeHealthService,
             this::onNodeCommissionStatusChange,
-            namedWriteableRegistry,
-            remoteStoreService
+            namedWriteableRegistry
         );
         this.persistedStateSupplier = persistedStateSupplier;
         this.noClusterManagerBlockService = new NoClusterManagerBlockService(settings, clusterSettings);

@@ -33,6 +33,7 @@ package org.opensearch.cluster.coordination;
 
 import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
+import org.opensearch.action.admin.cluster.remotestore.RemoteStoreService;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateTaskExecutor;
@@ -42,21 +43,33 @@ import org.opensearch.cluster.decommission.DecommissionStatus;
 import org.opensearch.cluster.decommission.NodeDecommissionedException;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.metadata.RepositoriesMetadata;
+import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.RerouteService;
 import org.opensearch.cluster.routing.allocation.AllocationService;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
 
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.stream.Collectors;
 
+import static org.opensearch.action.admin.cluster.remotestore.RemoteStoreNode.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX;
+import static org.opensearch.action.admin.cluster.remotestore.RemoteStoreNode.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT;
+import static org.opensearch.action.admin.cluster.remotestore.RemoteStoreNode.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY;
+import static org.opensearch.action.admin.cluster.remotestore.RemoteStoreNode.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.test.VersionUtils.allVersions;
 import static org.opensearch.test.VersionUtils.maxCompatibleVersion;
 import static org.opensearch.test.VersionUtils.randomCompatibleVersion;
@@ -174,8 +187,15 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
         final AllocationService allocationService = mock(AllocationService.class);
         when(allocationService.adaptAutoExpandReplicas(any())).then(invocationOnMock -> invocationOnMock.getArguments()[0]);
         final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
+        final RemoteStoreService remoteStoreService = mock(RemoteStoreService.class);
 
-        final JoinTaskExecutor joinTaskExecutor = new JoinTaskExecutor(Settings.EMPTY, allocationService, logger, rerouteService);
+        final JoinTaskExecutor joinTaskExecutor = new JoinTaskExecutor(
+            Settings.EMPTY,
+            allocationService,
+            logger,
+            rerouteService,
+            remoteStoreService
+        );
 
         final DiscoveryNode clusterManagerNode = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.CURRENT);
 
@@ -271,8 +291,15 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
         final AllocationService allocationService = mock(AllocationService.class);
         when(allocationService.adaptAutoExpandReplicas(any())).then(invocationOnMock -> invocationOnMock.getArguments()[0]);
         final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
+        final RemoteStoreService remoteStoreService = mock(RemoteStoreService.class);
 
-        final JoinTaskExecutor joinTaskExecutor = new JoinTaskExecutor(Settings.EMPTY, allocationService, logger, rerouteService);
+        final JoinTaskExecutor joinTaskExecutor = new JoinTaskExecutor(
+            Settings.EMPTY,
+            allocationService,
+            logger,
+            rerouteService,
+            remoteStoreService
+        );
 
         final DiscoveryNode clusterManagerNode = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.CURRENT);
 
@@ -327,6 +354,383 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
         JoinTaskExecutor.ensureNodeCommissioned(discoveryNode, metadata);
     }
 
+    public void testJoinClusterWithNonRemoteStoreNodeJoining() {
+        ClusterState currentState = ClusterState.builder(ClusterName.DEFAULT).build();
+
+        DiscoveryNode joiningNode = newDiscoveryNode(Collections.emptyMap());
+        JoinTaskExecutor.ensureRemoteStoreNodesCompatibility(joiningNode, currentState);
+    }
+
+    public void testJoinClusterWithRemoteStoreNodeJoining() {
+        ClusterState currentState = ClusterState.builder(ClusterName.DEFAULT).build();
+
+        DiscoveryNode joiningNode = newDiscoveryNode(remoteStoreNodeAttributes(SEGMENT_REPO, TRANSLOG_REPO));
+        JoinTaskExecutor.ensureRemoteStoreNodesCompatibility(joiningNode, currentState);
+    }
+
+    public void testJoinClusterWithNonRemoteStoreNodeJoiningNonRemoteStoreCluster() {
+        final DiscoveryNode existingNode = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.CURRENT);
+        ClusterState currentState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(existingNode).localNodeId(existingNode.getId()).build())
+            .build();
+
+        DiscoveryNode joiningNode = newDiscoveryNode(Collections.emptyMap());
+
+        JoinTaskExecutor.ensureRemoteStoreNodesCompatibility(joiningNode, currentState);
+    }
+
+    public void testPreventJoinClusterWithRemoteStoreNodeJoiningNonRemoteStoreCluster() {
+        final DiscoveryNode existingNode = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.CURRENT);
+        ClusterState currentState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(existingNode).localNodeId(existingNode.getId()).build())
+            .build();
+
+        DiscoveryNode joiningNode = newDiscoveryNode(remoteStoreNodeAttributes(SEGMENT_REPO, TRANSLOG_REPO));
+        Exception e = assertThrows(
+            IllegalStateException.class,
+            () -> JoinTaskExecutor.ensureRemoteStoreNodesCompatibility(joiningNode, currentState)
+        );
+        assertTrue(e.getMessage().equals("a remote store node [" + joiningNode + "] is trying to join a non remote " + "store cluster"));
+    }
+
+    public void testJoinClusterWithRemoteStoreNodeJoiningRemoteStoreCluster() {
+        final DiscoveryNode existingNode = new DiscoveryNode(
+            UUIDs.base64UUID(),
+            buildNewFakeTransportAddress(),
+            remoteStoreNodeAttributes(SEGMENT_REPO, TRANSLOG_REPO),
+            DiscoveryNodeRole.BUILT_IN_ROLES,
+            Version.CURRENT
+        );
+        ClusterState currentState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(existingNode).localNodeId(existingNode.getId()).build())
+            .build();
+
+        DiscoveryNode joiningNode = newDiscoveryNode(remoteStoreNodeAttributes(SEGMENT_REPO, TRANSLOG_REPO));
+        JoinTaskExecutor.ensureRemoteStoreNodesCompatibility(joiningNode, currentState);
+    }
+
+    public void testPreventJoinClusterWithRemoteStoreNodeWithDifferentAttributesJoiningRemoteStoreCluster() {
+        Map<String, String> existingNodeAttributes = remoteStoreNodeAttributes(SEGMENT_REPO, TRANSLOG_REPO);
+        Map<String, String> remoteStoreNodeAttributes = remoteStoreNodeAttributes(SEGMENT_REPO, TRANSLOG_REPO);
+        final DiscoveryNode existingNode = new DiscoveryNode(
+            UUIDs.base64UUID(),
+            buildNewFakeTransportAddress(),
+            existingNodeAttributes,
+            DiscoveryNodeRole.BUILT_IN_ROLES,
+            Version.CURRENT
+        );
+        ClusterState currentState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(existingNode).localNodeId(existingNode.getId()).build())
+            .build();
+
+        for (Map.Entry<String, String> nodeAttribute : existingNodeAttributes.entrySet()) {
+            if (nodeAttribute.getKey() != REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY
+                && nodeAttribute.getKey() != REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY) {
+                remoteStoreNodeAttributes.put(nodeAttribute.getKey(), nodeAttribute.getValue() + "-new");
+                validateAttributes(remoteStoreNodeAttributes, nodeAttribute, currentState, existingNode);
+                remoteStoreNodeAttributes.put(nodeAttribute.getKey(), nodeAttribute.getValue());
+            }
+        }
+    }
+
+    public void testPreventJoinClusterWithRemoteStoreNodeWithDifferentNameAttributesJoiningRemoteStoreCluster() {
+        Map<String, String> existingNodeAttributes = remoteStoreNodeAttributes(SEGMENT_REPO, TRANSLOG_REPO);
+        final DiscoveryNode existingNode = new DiscoveryNode(
+            UUIDs.base64UUID(),
+            buildNewFakeTransportAddress(),
+            existingNodeAttributes,
+            DiscoveryNodeRole.BUILT_IN_ROLES,
+            Version.CURRENT
+        );
+        ClusterState currentState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(existingNode).localNodeId(existingNode.getId()).build())
+            .build();
+
+        for (Map.Entry<String, String> nodeAttribute : existingNodeAttributes.entrySet()) {
+            if (REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY.equals(nodeAttribute.getKey())) {
+                Map<String, String> remoteStoreNodeAttributes = remoteStoreNodeAttributes(SEGMENT_REPO + "new", TRANSLOG_REPO);
+                validateAttributes(remoteStoreNodeAttributes, nodeAttribute, currentState, existingNode);
+            } else if (REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY.equals(nodeAttribute.getKey())) {
+                Map<String, String> remoteStoreNodeAttributes = remoteStoreNodeAttributes(SEGMENT_REPO, TRANSLOG_REPO + "new");
+                validateAttributes(remoteStoreNodeAttributes, nodeAttribute, currentState, existingNode);
+            }
+        }
+    }
+
+    public void testPreventJoinClusterWithNonRemoteStoreNodeJoiningRemoteStoreCluster() {
+        final DiscoveryNode existingNode = new DiscoveryNode(
+            UUIDs.base64UUID(),
+            buildNewFakeTransportAddress(),
+            remoteStoreNodeAttributes(SEGMENT_REPO, TRANSLOG_REPO),
+            DiscoveryNodeRole.BUILT_IN_ROLES,
+            Version.CURRENT
+        );
+        ClusterState currentState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(existingNode).localNodeId(existingNode.getId()).build())
+            .build();
+
+        DiscoveryNode joiningNode = newDiscoveryNode(Collections.emptyMap());
+        Exception e = assertThrows(
+            IllegalStateException.class,
+            () -> JoinTaskExecutor.ensureRemoteStoreNodesCompatibility(joiningNode, currentState)
+        );
+        assertTrue(e.getMessage().equals("a non remote store node [" + joiningNode + "] is trying to join a remote " + "store cluster"));
+    }
+
+    public void testPreventJoinClusterWithRemoteStoreNodeWithPartialAttributesJoiningRemoteStoreCluster() {
+        Map<String, String> existingNodeAttributes = remoteStoreNodeAttributes(SEGMENT_REPO, TRANSLOG_REPO);
+        Map<String, String> remoteStoreNodeAttributes = remoteStoreNodeAttributes(SEGMENT_REPO, TRANSLOG_REPO);
+        final DiscoveryNode existingNode = new DiscoveryNode(
+            UUIDs.base64UUID(),
+            buildNewFakeTransportAddress(),
+            existingNodeAttributes,
+            DiscoveryNodeRole.BUILT_IN_ROLES,
+            Version.CURRENT
+        );
+        ClusterState currentState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(existingNode).localNodeId(existingNode.getId()).build())
+            .build();
+
+        for (Map.Entry<String, String> nodeAttribute : existingNodeAttributes.entrySet()) {
+            remoteStoreNodeAttributes.put(nodeAttribute.getKey(), null);
+            DiscoveryNode joiningNode = newDiscoveryNode(remoteStoreNodeAttributes);
+            Exception e = assertThrows(
+                IllegalStateException.class,
+                () -> JoinTaskExecutor.ensureRemoteStoreNodesCompatibility(joiningNode, currentState)
+            );
+            assertTrue(
+                e.getMessage().equals("joining node [" + joiningNode + "] doesn't have the node attribute [" + nodeAttribute.getKey() + "]")
+            );
+
+            remoteStoreNodeAttributes.put(nodeAttribute.getKey(), nodeAttribute.getValue());
+        }
+    }
+
+    public void testUpdatesClusterStateWithSingleNodeCluster() throws Exception {
+        Map<String, String> remoteStoreNodeAttributes = remoteStoreNodeAttributes(SEGMENT_REPO, TRANSLOG_REPO);
+        final AllocationService allocationService = mock(AllocationService.class);
+        when(allocationService.adaptAutoExpandReplicas(any())).then(invocationOnMock -> invocationOnMock.getArguments()[0]);
+        final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
+        final RemoteStoreService remoteStoreService = new RemoteStoreService(new SetOnce<>(mock(RepositoriesService.class))::get, null);
+
+        final JoinTaskExecutor joinTaskExecutor = new JoinTaskExecutor(
+            Settings.EMPTY,
+            allocationService,
+            logger,
+            rerouteService,
+            remoteStoreService
+        );
+
+        final DiscoveryNode clusterManagerNode = new DiscoveryNode(
+            UUIDs.base64UUID(),
+            buildNewFakeTransportAddress(),
+            remoteStoreNodeAttributes,
+            DiscoveryNodeRole.BUILT_IN_ROLES,
+            Version.CURRENT
+        );
+
+        final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(
+                DiscoveryNodes.builder()
+                    .add(clusterManagerNode)
+                    .localNodeId(clusterManagerNode.getId())
+                    .clusterManagerNodeId(clusterManagerNode.getId())
+            )
+            .build();
+
+        final ClusterStateTaskExecutor.ClusterTasksResult<JoinTaskExecutor.Task> result = joinTaskExecutor.execute(
+            clusterState,
+            List.of(new JoinTaskExecutor.Task(clusterManagerNode, "elect leader"))
+        );
+        assertThat(result.executionResults.entrySet(), hasSize(1));
+        final ClusterStateTaskExecutor.TaskResult taskResult = result.executionResults.values().iterator().next();
+        assertTrue(taskResult.isSuccess());
+        validateRepositoryMetadata(result.resultingState, clusterManagerNode, 2);
+    }
+
+    public void testUpdatesClusterStateWithMultiNodeCluster() throws Exception {
+        Map<String, String> remoteStoreNodeAttributes = remoteStoreNodeAttributes(SEGMENT_REPO, TRANSLOG_REPO);
+        final AllocationService allocationService = mock(AllocationService.class);
+        when(allocationService.adaptAutoExpandReplicas(any())).then(invocationOnMock -> invocationOnMock.getArguments()[0]);
+        final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
+        final RemoteStoreService remoteStoreService = new RemoteStoreService(new SetOnce<>(mock(RepositoriesService.class))::get, null);
+
+        final JoinTaskExecutor joinTaskExecutor = new JoinTaskExecutor(
+            Settings.EMPTY,
+            allocationService,
+            logger,
+            rerouteService,
+            remoteStoreService
+        );
+
+        final DiscoveryNode clusterManagerNode = new DiscoveryNode(
+            UUIDs.base64UUID(),
+            buildNewFakeTransportAddress(),
+            remoteStoreNodeAttributes,
+            DiscoveryNodeRole.BUILT_IN_ROLES,
+            Version.CURRENT
+        );
+
+        final RepositoryMetadata segmentRepositoryMetadata = buildRepositoryMetadata(clusterManagerNode, SEGMENT_REPO);
+        final RepositoryMetadata translogRepositoryMetadata = buildRepositoryMetadata(clusterManagerNode, TRANSLOG_REPO);
+        List<RepositoryMetadata> repositoriesMetadata = new ArrayList<>() {
+            {
+                add(segmentRepositoryMetadata);
+                add(translogRepositoryMetadata);
+            }
+        };
+
+        final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(
+                DiscoveryNodes.builder()
+                    .add(clusterManagerNode)
+                    .localNodeId(clusterManagerNode.getId())
+                    .clusterManagerNodeId(clusterManagerNode.getId())
+            )
+            .metadata(Metadata.builder().putCustom(RepositoriesMetadata.TYPE, new RepositoriesMetadata(repositoriesMetadata)))
+            .build();
+
+        final DiscoveryNode joiningNode = new DiscoveryNode(
+            UUIDs.base64UUID(),
+            buildNewFakeTransportAddress(),
+            remoteStoreNodeAttributes,
+            DiscoveryNodeRole.BUILT_IN_ROLES,
+            Version.CURRENT
+        );
+
+        final ClusterStateTaskExecutor.ClusterTasksResult<JoinTaskExecutor.Task> result = joinTaskExecutor.execute(
+            clusterState,
+            List.of(new JoinTaskExecutor.Task(joiningNode, "test"))
+        );
+        assertThat(result.executionResults.entrySet(), hasSize(1));
+        final ClusterStateTaskExecutor.TaskResult taskResult = result.executionResults.values().iterator().next();
+        assertTrue(taskResult.isSuccess());
+        validateRepositoryMetadata(result.resultingState, clusterManagerNode, 2);
+    }
+
+    public void testUpdatesClusterStateWithSingleNodeClusterAndSameRepository() throws Exception {
+        Map<String, String> remoteStoreNodeAttributes = remoteStoreNodeAttributes(COMMON_REPO, COMMON_REPO);
+        final AllocationService allocationService = mock(AllocationService.class);
+        when(allocationService.adaptAutoExpandReplicas(any())).then(invocationOnMock -> invocationOnMock.getArguments()[0]);
+        final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
+        final RemoteStoreService remoteStoreService = new RemoteStoreService(new SetOnce<>(mock(RepositoriesService.class))::get, null);
+
+        final JoinTaskExecutor joinTaskExecutor = new JoinTaskExecutor(
+            Settings.EMPTY,
+            allocationService,
+            logger,
+            rerouteService,
+            remoteStoreService
+        );
+
+        final DiscoveryNode clusterManagerNode = new DiscoveryNode(
+            UUIDs.base64UUID(),
+            buildNewFakeTransportAddress(),
+            remoteStoreNodeAttributes,
+            DiscoveryNodeRole.BUILT_IN_ROLES,
+            Version.CURRENT
+        );
+
+        final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(
+                DiscoveryNodes.builder()
+                    .add(clusterManagerNode)
+                    .localNodeId(clusterManagerNode.getId())
+                    .clusterManagerNodeId(clusterManagerNode.getId())
+            )
+            .build();
+
+        final ClusterStateTaskExecutor.ClusterTasksResult<JoinTaskExecutor.Task> result = joinTaskExecutor.execute(
+            clusterState,
+            List.of(new JoinTaskExecutor.Task(clusterManagerNode, "elect leader"))
+        );
+        assertThat(result.executionResults.entrySet(), hasSize(1));
+        final ClusterStateTaskExecutor.TaskResult taskResult = result.executionResults.values().iterator().next();
+        assertTrue(taskResult.isSuccess());
+        validateRepositoryMetadata(result.resultingState, clusterManagerNode, 1);
+    }
+
+    public void testUpdatesClusterStateWithMultiNodeClusterAndSameRepository() throws Exception {
+        Map<String, String> remoteStoreNodeAttributes = remoteStoreNodeAttributes(COMMON_REPO, COMMON_REPO);
+        final AllocationService allocationService = mock(AllocationService.class);
+        when(allocationService.adaptAutoExpandReplicas(any())).then(invocationOnMock -> invocationOnMock.getArguments()[0]);
+        final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
+        final RemoteStoreService remoteStoreService = new RemoteStoreService(new SetOnce<>(mock(RepositoriesService.class))::get, null);
+
+        final JoinTaskExecutor joinTaskExecutor = new JoinTaskExecutor(
+            Settings.EMPTY,
+            allocationService,
+            logger,
+            rerouteService,
+            remoteStoreService
+        );
+
+        final DiscoveryNode clusterManagerNode = new DiscoveryNode(
+            UUIDs.base64UUID(),
+            buildNewFakeTransportAddress(),
+            remoteStoreNodeAttributes,
+            DiscoveryNodeRole.BUILT_IN_ROLES,
+            Version.CURRENT
+        );
+
+        final RepositoryMetadata segmentRepositoryMetadata = buildRepositoryMetadata(clusterManagerNode, COMMON_REPO);
+        List<RepositoryMetadata> repositoriesMetadata = new ArrayList<>() {
+            {
+                add(segmentRepositoryMetadata);
+            }
+        };
+
+        final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(
+                DiscoveryNodes.builder()
+                    .add(clusterManagerNode)
+                    .localNodeId(clusterManagerNode.getId())
+                    .clusterManagerNodeId(clusterManagerNode.getId())
+            )
+            .metadata(Metadata.builder().putCustom(RepositoriesMetadata.TYPE, new RepositoriesMetadata(repositoriesMetadata)))
+            .build();
+
+        final DiscoveryNode joiningNode = new DiscoveryNode(
+            UUIDs.base64UUID(),
+            buildNewFakeTransportAddress(),
+            remoteStoreNodeAttributes,
+            DiscoveryNodeRole.BUILT_IN_ROLES,
+            Version.CURRENT
+        );
+
+        final ClusterStateTaskExecutor.ClusterTasksResult<JoinTaskExecutor.Task> result = joinTaskExecutor.execute(
+            clusterState,
+            List.of(new JoinTaskExecutor.Task(joiningNode, "test"))
+        );
+        assertThat(result.executionResults.entrySet(), hasSize(1));
+        final ClusterStateTaskExecutor.TaskResult taskResult = result.executionResults.values().iterator().next();
+        assertTrue(taskResult.isSuccess());
+        validateRepositoryMetadata(result.resultingState, clusterManagerNode, 1);
+    }
+
+    private void validateRepositoryMetadata(ClusterState updatedState, DiscoveryNode existingNode, int expectedRepositories)
+        throws Exception {
+
+        final RepositoriesMetadata repositoriesMetadata = updatedState.metadata().custom(RepositoriesMetadata.TYPE);
+        assertTrue(repositoriesMetadata.repositories().size() == expectedRepositories);
+        if (repositoriesMetadata.repositories().size() == 2) {
+            final RepositoryMetadata segmentRepositoryMetadata = buildRepositoryMetadata(existingNode, SEGMENT_REPO);
+            final RepositoryMetadata translogRepositoryMetadata = buildRepositoryMetadata(existingNode, TRANSLOG_REPO);
+            for (RepositoryMetadata repositoryMetadata : repositoriesMetadata.repositories()) {
+                if (repositoryMetadata.name().equals(segmentRepositoryMetadata.name())) {
+                    assertTrue(segmentRepositoryMetadata.equalsIgnoreGenerations(repositoryMetadata));
+                } else if (repositoryMetadata.name().equals(segmentRepositoryMetadata.name())) {
+                    assertTrue(translogRepositoryMetadata.equalsIgnoreGenerations(repositoryMetadata));
+                }
+            }
+        } else if (repositoriesMetadata.repositories().size() == 1) {
+            final RepositoryMetadata repositoryMetadata = buildRepositoryMetadata(existingNode, COMMON_REPO);
+            assertTrue(repositoryMetadata.equalsIgnoreGenerations(repositoriesMetadata.repositories().get(0)));
+        } else {
+            throw new Exception("Stack overflow example: checkedExceptionThrower");
+        }
+    }
+
     private DiscoveryNode newDiscoveryNode(Map<String, String> attributes) {
         return new DiscoveryNode(
             randomAlphaOfLength(10),
@@ -336,5 +740,86 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
             Collections.singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE),
             Version.CURRENT
         );
+    }
+
+    private static final String SEGMENT_REPO = "segment-repo";
+    private static final String TRANSLOG_REPO = "translog-repo";
+    private static final String COMMON_REPO = "remote-repo";
+
+    private Map<String, String> remoteStoreNodeAttributes(String segmentRepoName, String translogRepoName) {
+        String segmentRepositoryTypeAttributeKey = String.format(
+            Locale.getDefault(),
+            REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT,
+            segmentRepoName
+        );
+        String segmentRepositorySettingsAttributeKeyPrefix = String.format(
+            Locale.getDefault(),
+            REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX,
+            segmentRepoName
+        );
+        String translogRepositoryTypeAttributeKey = String.format(
+            Locale.getDefault(),
+            REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT,
+            translogRepoName
+        );
+        String translogRepositorySettingsAttributeKeyPrefix = String.format(
+            Locale.getDefault(),
+            REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX,
+            translogRepoName
+        );
+
+        return new HashMap<>() {
+            {
+                put(REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY, segmentRepoName);
+                put(segmentRepositoryTypeAttributeKey, "s3");
+                put(segmentRepositorySettingsAttributeKeyPrefix + "bucket", "segment_bucket");
+                put(segmentRepositorySettingsAttributeKeyPrefix + "base_path", "/segment/path");
+                put(REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY, translogRepoName);
+                putIfAbsent(translogRepositoryTypeAttributeKey, "s3");
+                putIfAbsent(translogRepositorySettingsAttributeKeyPrefix + "bucket", "translog_bucket");
+                putIfAbsent(translogRepositorySettingsAttributeKeyPrefix + "base_path", "/translog/path");
+            }
+        };
+    }
+
+    private void validateAttributes(
+        Map<String, String> remoteStoreNodeAttributes,
+        Map.Entry<String, String> existingNodeAttribute,
+        ClusterState currentState,
+        DiscoveryNode existingNode
+    ) {
+        DiscoveryNode joiningNode = newDiscoveryNode(remoteStoreNodeAttributes);
+        Exception e = assertThrows(
+            IllegalStateException.class,
+            () -> JoinTaskExecutor.ensureRemoteStoreNodesCompatibility(joiningNode, currentState)
+        );
+        assertTrue(
+            e.getMessage()
+                .equals(
+                    "a remote store node ["
+                        + joiningNode
+                        + "] is trying to join a remote store cluster with incompatible node attributes in "
+                        + "comparison with existing node ["
+                        + existingNode
+                        + "]"
+                )
+        );
+    }
+
+    private RepositoryMetadata buildRepositoryMetadata(DiscoveryNode node, String name) {
+        Map<String, String> nodeAttributes = node.getAttributes();
+        String type = nodeAttributes.get(String.format(Locale.getDefault(), REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT, name));
+
+        String settingsAttributeKeyPrefix = String.format(Locale.getDefault(), REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX, name);
+        Map<String, String> settingsMap = node.getAttributes()
+            .keySet()
+            .stream()
+            .filter(key -> key.startsWith(settingsAttributeKeyPrefix))
+            .collect(Collectors.toMap(key -> key.replace(settingsAttributeKeyPrefix, ""), key -> node.getAttributes().get(key)));
+
+        Settings.Builder settings = Settings.builder();
+        settingsMap.entrySet().forEach(entry -> settings.put(entry.getKey(), entry.getValue()));
+
+        return new RepositoryMetadata(name, type, settings.build());
     }
 }

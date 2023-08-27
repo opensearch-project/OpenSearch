@@ -136,6 +136,7 @@ public class JoinHelper {
         AllocationService allocationService,
         ClusterManagerService clusterManagerService,
         TransportService transportService,
+        RemoteStoreService remoteStoreService,
         LongSupplier currentTermSupplier,
         Supplier<ClusterState> currentStateSupplier,
         BiConsumer<JoinRequest, JoinCallback> joinHandler,
@@ -144,8 +145,7 @@ public class JoinHelper {
         RerouteService rerouteService,
         NodeHealthService nodeHealthService,
         Consumer<Boolean> nodeCommissioned,
-        NamedWriteableRegistry namedWriteableRegistry,
-        RemoteStoreService remoteStoreService
+        NamedWriteableRegistry namedWriteableRegistry
     ) {
         this.clusterManagerService = clusterManagerService;
         this.transportService = transportService;

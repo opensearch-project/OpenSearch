@@ -47,25 +47,36 @@ public class RemoteStoreNode {
     private String validateAttributeNonNull(String attributeKey) {
         String attributeValue = node.getAttributes().get(attributeKey);
         if (attributeValue == null || attributeValue.isEmpty()) {
-            throw new IllegalStateException("joining node [" + this + "] doesn't have the node attribute [" + attributeKey + "].");
+            throw new IllegalStateException("joining node [" + this.node + "] doesn't have the node attribute [" + attributeKey + "]");
         }
 
         return attributeValue;
     }
 
-    private Map<String, String> validateSettingsAttributesNonNull(String settingsAttributeKeyPrefix) {
-        return node.getAttributes()
+    private Map<String, String> validateSettingsAttributesNonNull(String repositoryName) {
+        String settingsAttributeKeyPrefix = String.format(
+            Locale.getDefault(),
+            REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX,
+            repositoryName
+        );
+        Map<String, String> settingsMap = node.getAttributes()
             .keySet()
             .stream()
             .filter(key -> key.startsWith(settingsAttributeKeyPrefix))
             .collect(Collectors.toMap(key -> key.replace(settingsAttributeKeyPrefix, ""), key -> validateAttributeNonNull(key)));
+
+        if (settingsMap.isEmpty()) {
+            throw new IllegalStateException(
+                "joining node [" + this.node + "] doesn't have settings attribute for [" + repositoryName + "] repository"
+            );
+        }
+
+        return settingsMap;
     }
 
     private RepositoryMetadata buildRepositoryMetadata(String name) {
         String type = validateAttributeNonNull(String.format(Locale.getDefault(), REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT, name));
-        Map<String, String> settingsMap = validateSettingsAttributesNonNull(
-            String.format(Locale.getDefault(), REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX, name)
-        );
+        Map<String, String> settingsMap = validateSettingsAttributesNonNull(name);
 
         Settings.Builder settings = Settings.builder();
         settingsMap.forEach(settings::put);
@@ -74,8 +85,8 @@ public class RemoteStoreNode {
     }
 
     private RepositoriesMetadata buildRepositoriesMetadata() {
-        String segmentRepositoryName = node.getAttributes().get(REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY);
-        String translogRepositoryName = node.getAttributes().get(REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY);
+        String segmentRepositoryName = validateAttributeNonNull(REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY);
+        String translogRepositoryName = validateAttributeNonNull(REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY);
         if (segmentRepositoryName.equals(translogRepositoryName)) {
             return new RepositoriesMetadata(Collections.singletonList(buildRepositoryMetadata(segmentRepositoryName)));
         } else {

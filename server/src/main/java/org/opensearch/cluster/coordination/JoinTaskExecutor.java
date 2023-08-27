@@ -458,9 +458,8 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
      * A remote store node is the one which holds all the remote store attributes and a remote store cluster is
      * the one which has only homogeneous remote store nodes with same node attributes
      *
-     * TODO: When we support migration from remote store cluster to non remote store and vice versa the migration
-     *       setting {@link RemoteStoreService::REMOTE_STORE_MIGRATION_SETTING} will be help determine if a non
-     *       remote store node is allowed to join the remote store cluster and vice versa.
+     * TODO: When we support moving from remote store cluster to non remote store and vice versa the this logic will
+     *       needs to be modified.
      */
     public static void ensureRemoteStoreNodesCompatibility(DiscoveryNode joiningNode, ClusterState currentState) {
         List<DiscoveryNode> existingNodes = new ArrayList<>(currentState.getNodes().getNodes().values());
@@ -487,18 +486,18 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
                                 + "] is trying to join a remote store cluster with incompatible node attributes in "
                                 + "comparison with existing node ["
                                 + existingNode
-                                + "]."
+                                + "]"
                         );
                     }
                 } else {
                     throw new IllegalStateException(
-                        "a remote store node [" + joiningNode + "] is trying to join a non remote store cluster."
+                        "a remote store node [" + joiningNode + "] is trying to join a non remote store cluster"
                     );
                 }
             } else {
                 if (existingNode.isRemoteStoreNode()) {
                     throw new IllegalStateException(
-                        "a non remote store node [" + joiningNode + "] is trying to join a remote store cluster."
+                        "a non remote store node [" + joiningNode + "] is trying to join a remote store cluster"
                     );
                 }
             }
