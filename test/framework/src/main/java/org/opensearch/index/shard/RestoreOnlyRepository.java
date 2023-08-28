@@ -196,6 +196,9 @@ public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent i
     public void verify(String verificationToken, DiscoveryNode localNode) {}
 
     @Override
+    public void verifyLocally(DiscoveryNode localNode) {}
+
+    @Override
     public void updateState(final ClusterState state) {}
 
     @Override

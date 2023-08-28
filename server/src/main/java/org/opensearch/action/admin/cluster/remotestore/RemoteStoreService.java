@@ -19,15 +19,12 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
-import org.opensearch.repositories.RepositoryVerificationException;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 /**
@@ -87,50 +84,11 @@ public class RemoteStoreService {
      * repository mentioned. This verification will happen on a local node to validate if the node is able to connect
      * to the repository.
      */
-    public void verifyRepository(List<Repository> repositories, DiscoveryNode localNode) {
-        /*
+    public void verifyRepositoriesLocally(List<Repository> repositories, DiscoveryNode localNode) {
         for (Repository repository : repositories) {
-            String verificationToken = repository.startVerification();
             String repositoryName = repository.getMetadata().name();
-            try {
-                repository.verify(verificationToken, localNode);
-                logger.info(() -> new ParameterizedMessage("successfully verified [{}] repository", repositoryName));
-            } catch (Exception e) {
-                logger.warn(() -> new ParameterizedMessage("[{}] failed to verify repository", repository), e);
-                throw new RepositoryVerificationException(repositoryName, e.getMessage());
-            }
-        }
-        Replace the below code with this once #9088 is merged.
-         */
-
-        for (Repository repository : repositories) {
-            String verificationToken = repository.startVerification();
-            String repositoryName = repository.getMetadata().name();
-            CountDownLatch repositoryVerificationLatch = new CountDownLatch(1);
-            threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
-                try {
-                    repository.verify(verificationToken, localNode);
-                    logger.info(() -> new ParameterizedMessage("successfully verified [{}] repository", repositoryName));
-                    repositoryVerificationLatch.countDown();
-                } catch (Exception e) {
-                    logger.warn(() -> new ParameterizedMessage("[{}] failed to verify repository", repository), e);
-                    throw new RepositoryVerificationException(repositoryName, e.getMessage());
-                }
-            });
-
-            // TODO: See if using listener here which is async makes sense, made this sync as
-            // we need the repository registration for remote store backed node to be completed before the
-            // bootstrap completes.
-            try {
-                if (repositoryVerificationLatch.await(1000, TimeUnit.MILLISECONDS) == false) {
-                    throw new RepositoryVerificationException(
-                        repository.getMetadata().name(),
-                        "could not complete " + "repository verification within timeout."
-                    );
-                }
-            } catch (InterruptedException e) {
-                throw new RepositoryVerificationException(repository.getMetadata().name(), e.getMessage());
-            }
+            repository.verifyLocally(localNode);
+            logger.info(() -> new ParameterizedMessage("successfully verified [{}] repository", repositoryName));
         }
     }
 

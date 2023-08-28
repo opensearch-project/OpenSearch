@@ -305,7 +305,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         );
         RemoteStoreNode remoteStoreNode = new RemoteStoreNode(discoveryNode);
         List<Repository> repositories = remoteStoreService.createRepositories(remoteStoreNode);
-        remoteStoreService.verifyRepository(repositories, discoveryNode);
+        remoteStoreService.verifyRepositoriesLocally(repositories, discoveryNode);
         return discoveryNode;
     }
 

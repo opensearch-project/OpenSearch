@@ -163,6 +163,11 @@ public class FilterRepository implements Repository {
     }
 
     @Override
+    public void verifyLocally(DiscoveryNode localNode) {
+        in.verifyLocally(localNode);
+    }
+
+    @Override
     public boolean isReadOnly() {
         return in.isReadOnly();
     }

@@ -14,11 +14,12 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.settings.Settings;
 
 import java.util.ArrayList;
-import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -85,19 +86,20 @@ public class RemoteStoreNode {
     }
 
     private RepositoriesMetadata buildRepositoriesMetadata() {
-        String segmentRepositoryName = validateAttributeNonNull(REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY);
-        String translogRepositoryName = validateAttributeNonNull(REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY);
-        if (segmentRepositoryName.equals(translogRepositoryName)) {
-            return new RepositoriesMetadata(Collections.singletonList(buildRepositoryMetadata(segmentRepositoryName)));
-        } else {
-            List<RepositoryMetadata> repositoryMetadataList = new ArrayList<>();
-            repositoryMetadataList.add(buildRepositoryMetadata(segmentRepositoryName));
-            repositoryMetadataList.add(buildRepositoryMetadata(translogRepositoryName));
-            return new RepositoriesMetadata(repositoryMetadataList);
+        List<RepositoryMetadata> repositoryMetadataList = new ArrayList<>();
+        Set<String> repositoryNames = new HashSet<>();
+
+        repositoryNames.add(validateAttributeNonNull(REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY));
+        repositoryNames.add(validateAttributeNonNull(REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY));
+
+        for (String repositoryName : repositoryNames) {
+            repositoryMetadataList.add(buildRepositoryMetadata(repositoryName));
         }
+
+        return new RepositoriesMetadata(repositoryMetadataList);
     }
 
-    RepositoriesMetadata getRepositoriesMetadata() {
+    public RepositoriesMetadata getRepositoriesMetadata() {
         return this.repositoriesMetadata;
     }
 
