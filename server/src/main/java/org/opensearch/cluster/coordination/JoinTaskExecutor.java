@@ -189,9 +189,9 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
             } else if (currentNodes.nodeExistsWithSameRoles(node)) {
                 logger.debug("received a join request for an existing node [{}]", node);
                 if (node.isRemoteStoreNode()) {
-                    /** joinCluster for remote store node is invoked here as elect leader task can have same node
-                     * present in join task as well as current node. We want the repositories to be registered during
-                     * first node join. See
+                    /** cluster state is updated here as elect leader task can have same node present in join task as
+                     *  well as current node. We want the repositories to be added in cluster state during first node
+                     *  join. See
                      * {@link org.opensearch.gateway.GatewayMetaState#prepareInitialClusterState(TransportService, ClusterService, ClusterState)} **/
                     newState = ClusterState.builder(
                         remoteStoreService.updateClusterStateRepositoriesMetadata(new RemoteStoreNode(node), currentState)
@@ -219,6 +219,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
                         joiniedNodeNameIds.put(node.getName(), node.getId());
                     }
                     if (node.isRemoteStoreNode()) {
+                        // Try updating repositories metadata in cluster state once its compatible with the cluster.
                         newState = ClusterState.builder(
                             remoteStoreService.updateClusterStateRepositoriesMetadata(new RemoteStoreNode(node), currentState)
                         );
@@ -452,11 +453,15 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
     }
 
     /**
-     * The method ensures two conditions -
-     * 1. The joining node is remote store if it is joining a remote store cluster.
-     * 2. The joining node is non-remote store if it is joining a non-remote store cluster.
-     * A remote store node is the one which holds all the remote store attributes and a remote store cluster is
-     * the one which has only homogeneous remote store nodes with same node attributes
+     * The method ensures homogeneity -
+     * 1. The joining node has to be a remote store backed if it's joining a remote store backed cluster. Validates
+     * remote store attributes of joining node against the existing nodes of cluster.
+     * 2. The joining node has to be a non-remote store backed if it is joining a non-remote store backed cluster.
+     * Validates no remote store attributes are present in joining node as existing nodes in the cluster doesn't have
+     * remote store attributes.
+     *
+     * A remote store backed node is the one which holds all the remote store attributes and a remote store backed
+     * cluster is the one which has only homogeneous remote store backed nodes with same node attributes
      *
      * TODO: When we support moving from remote store cluster to non remote store and vice versa the this logic will
      *       needs to be modified.

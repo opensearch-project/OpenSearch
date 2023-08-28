@@ -31,7 +31,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 /**
- * Contains all the method needed for a remote store node lifecycle.
+ * Contains all the method needed for a remote store backed node lifecycle.
  */
 public class RemoteStoreService {
 
@@ -47,7 +47,7 @@ public class RemoteStoreService {
     );
 
     /**
-     * Node join compatibility mode introduced with remote store.
+     * Node join compatibility mode introduced with remote backed storage.
      *
      * @opensearch.internal
      */
@@ -88,6 +88,21 @@ public class RemoteStoreService {
      * to the repository.
      */
     public void verifyRepository(List<Repository> repositories, DiscoveryNode localNode) {
+        /*
+        for (Repository repository : repositories) {
+            String verificationToken = repository.startVerification();
+            String repositoryName = repository.getMetadata().name();
+            try {
+                repository.verify(verificationToken, localNode);
+                logger.info(() -> new ParameterizedMessage("successfully verified [{}] repository", repositoryName));
+            } catch (Exception e) {
+                logger.warn(() -> new ParameterizedMessage("[{}] failed to verify repository", repository), e);
+                throw new RepositoryVerificationException(repositoryName, e.getMessage());
+            }
+        }
+        Replace the below code with this once #9088 is merged.
+         */
+
         for (Repository repository : repositories) {
             String verificationToken = repository.startVerification();
             String repositoryName = repository.getMetadata().name();
@@ -104,8 +119,8 @@ public class RemoteStoreService {
             });
 
             // TODO: See if using listener here which is async makes sense, made this sync as
-            // we need the repository registration for remote store node to be completed before the bootstrap
-            // completes.
+            // we need the repository registration for remote store backed node to be completed before the
+            // bootstrap completes.
             try {
                 if (repositoryVerificationLatch.await(1000, TimeUnit.MILLISECONDS) == false) {
                     throw new RepositoryVerificationException(
@@ -128,7 +143,7 @@ public class RemoteStoreService {
             RepositoriesService.validate(repositoryMetadata.name());
             Repository repository = repositoriesService.get().createRepository(repositoryMetadata);
             logger.info(
-                "Remote store repository with name {} and type {} created.",
+                "remote backed storage repository with name {} and type {} created.",
                 repository.getMetadata().name(),
                 repository.getMetadata().type()
             );
@@ -172,8 +187,8 @@ public class RemoteStoreService {
 
     /**
      * Updates repositories metadata in the cluster state if not already present. If a repository metadata for a
-     * repository is already present in the cluster state and if it's different then the joining remote store node
-     * repository metadata an exception will be thrown and the node will not be allowed to join the cluster.
+     * repository is already present in the cluster state and if it's different then the joining remote store backed
+     * node repository metadata an exception will be thrown and the node will not be allowed to join the cluster.
      */
     public ClusterState updateClusterStateRepositoriesMetadata(RemoteStoreNode joiningNode, ClusterState currentState) {
         ClusterState newState = ClusterState.builder(currentState).build();
