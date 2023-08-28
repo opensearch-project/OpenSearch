@@ -144,7 +144,7 @@ public final class GenericSearchExtBuilder extends SearchExtBuilder {
 
     @Override
     public int hashCode() {
-        return Objects.hash(this.genericObj);
+        return Objects.hash(this.valueType, this.genericObj);
     }
 
     @Override
@@ -155,6 +155,7 @@ public final class GenericSearchExtBuilder extends SearchExtBuilder {
         if (!(obj instanceof GenericSearchExtBuilder)) {
             return false;
         }
-        return Objects.equals(getValue(), ((GenericSearchExtBuilder) obj).getValue());
+        return Objects.equals(getValue(), ((GenericSearchExtBuilder) obj).getValue())
+            && Objects.equals(valueType, ((GenericSearchExtBuilder) obj).valueType);
     }
 }

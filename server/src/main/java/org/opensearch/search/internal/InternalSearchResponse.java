@@ -95,10 +95,9 @@ public class InternalSearchResponse extends SearchResponseSections implements Wr
             in.readBoolean(),
             in.readOptionalBoolean(),
             in.readOptionalWriteable(SearchProfileShardResults::new),
-            in.readVInt()
+            in.readVInt(),
+            readSearchExtBuildersOnOrAfter(in)
         );
-
-        this.searchExtBuilders.addAll(readSearchExtBuildersOnOrAfter(in));
     }
 
     @Override
@@ -110,14 +109,14 @@ public class InternalSearchResponse extends SearchResponseSections implements Wr
         out.writeOptionalBoolean(terminatedEarly);
         out.writeOptionalWriteable(profileResults);
         out.writeVInt(numReducePhases);
-        writeSearchExtBuildersOnOrAfter(out);
+        writeSearchExtBuildersOnOrAfter(out, searchExtBuilders);
     }
 
-    private List<SearchExtBuilder> readSearchExtBuildersOnOrAfter(StreamInput in) throws IOException {
+    private static List<SearchExtBuilder> readSearchExtBuildersOnOrAfter(StreamInput in) throws IOException {
         return (in.getVersion().onOrAfter(Version.V_3_0_0)) ? in.readNamedWriteableList(SearchExtBuilder.class) : Collections.emptyList();
     }
 
-    private void writeSearchExtBuildersOnOrAfter(StreamOutput out) throws IOException {
+    private static void writeSearchExtBuildersOnOrAfter(StreamOutput out, List<SearchExtBuilder> searchExtBuilders) throws IOException {
         if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
             out.writeNamedWriteableList(searchExtBuilders);
         }
