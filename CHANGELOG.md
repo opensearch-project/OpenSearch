@@ -175,6 +175,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Handle null partSize in OnDemandBlockSnapshotIndexInput ([#9291](https://github.com/opensearch-project/OpenSearch/issues/9291))
 - Fix condition to remove index create block ([#9437](https://github.com/opensearch-project/OpenSearch/pull/9437))
 - Add support to clear archived index setting ([#9019](https://github.com/opensearch-project/OpenSearch/pull/9019))
+- [Segment Replication] Fixed bug where replica shard temporarily serves stale data during an engine reset ([#9495](https://github.com/opensearch-project/OpenSearch/pull/9495))
 
 ### Security
 
