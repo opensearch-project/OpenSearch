@@ -91,7 +91,15 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
 
     public static final String CONTENT_TYPE = "date";
     public static final String DATE_NANOS_CONTENT_TYPE = "date_nanos";
-    public static final DateFormatter DEFAULT_DATE_TIME_FORMATTER = DateFormatter.forPattern("strict_date_optional_time||epoch_millis");
+    @Deprecated
+    public static final DateFormatter LEGACY_DEFAULT_DATE_TIME_FORMATTER = DateFormatter.forPattern(
+        // TODO remove in 3.0 after backporting
+        "strict_date_optional_time||epoch_millis"
+    );
+    public static final DateFormatter DEFAULT_DATE_TIME_FORMATTER = DateFormatter.forPattern(
+        "strict_date_time_no_millis||strict_date_optional_time||epoch_millis",
+        "strict_date_optional_time"
+    );
 
     /**
      * Resolution of the date time
@@ -225,6 +233,12 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             m -> toType(m).format,
             DEFAULT_DATE_TIME_FORMATTER.pattern()
         );
+        private final Parameter<String> printFormat = Parameter.stringParam(
+            "print_format",
+            false,
+            m -> toType(m).printFormat,
+            DEFAULT_DATE_TIME_FORMATTER.printPattern()
+        ).acceptsNull();
         private final Parameter<Locale> locale = new Parameter<>(
             "locale",
             false,
@@ -253,13 +267,18 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             this.ignoreMalformed = Parameter.boolParam("ignore_malformed", true, m -> toType(m).ignoreMalformed, ignoreMalformedByDefault);
             if (dateFormatter != null) {
                 this.format.setValue(dateFormatter.pattern());
+                this.printFormat.setValue(dateFormatter.printPattern());
                 this.locale.setValue(dateFormatter.locale());
             }
         }
 
         private DateFormatter buildFormatter() {
             try {
-                return DateFormatter.forPattern(format.getValue()).withLocale(locale.getValue());
+                if (format.isConfigured() && !printFormat.isConfigured()) {
+                    return DateFormatter.forPattern(format.getValue(), null, !format.isConfigured()).withLocale(locale.getValue());
+                }
+                return DateFormatter.forPattern(format.getValue(), printFormat.getValue(), !format.isConfigured())
+                    .withLocale(locale.getValue());
             } catch (IllegalArgumentException e) {
                 throw new IllegalArgumentException("Error parsing [format] on field [" + name() + "]: " + e.getMessage(), e);
             }
@@ -267,7 +286,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         protected List<Parameter<?>> getParameters() {
-            return Arrays.asList(index, docValues, store, format, locale, nullValue, ignoreMalformed, boost, meta);
+            return Arrays.asList(index, docValues, store, format, printFormat, locale, nullValue, ignoreMalformed, boost, meta);
         }
 
         private Long parseNullValue(DateFieldType fieldType) {
@@ -610,6 +629,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
     private final boolean hasDocValues;
     private final Locale locale;
     private final String format;
+    private final String printFormat;
     private final boolean ignoreMalformed;
     private final Long nullValue;
     private final String nullValueAsString;
@@ -633,6 +653,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         this.hasDocValues = builder.docValues.getValue();
         this.locale = builder.locale.getValue();
         this.format = builder.format.getValue();
+        this.printFormat = builder.printFormat.getValue();
         this.ignoreMalformed = builder.ignoreMalformed.getValue();
         this.nullValueAsString = builder.nullValue.getValue();
         this.nullValue = nullValue;
