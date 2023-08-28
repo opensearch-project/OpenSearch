@@ -185,7 +185,7 @@ public class RemoteFsTranslog extends Translog {
         throw ex;
     }
 
-    static void downloadOnce(TranslogTransferManager translogTransferManager, Path location, Logger logger) throws IOException {
+    static private void downloadOnce(TranslogTransferManager translogTransferManager, Path location, Logger logger) throws IOException {
         logger.trace("Downloading translog files from remote");
         RemoteTranslogTransferTracker statsTracker = translogTransferManager.getRemoteTranslogTransferTracker();
         long prevDownloadBytesSucceeded = statsTracker.getDownloadBytesSucceeded();
