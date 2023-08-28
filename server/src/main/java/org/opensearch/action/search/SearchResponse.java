@@ -32,8 +32,6 @@
 
 package org.opensearch.action.search;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.TotalHits;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.unit.TimeValue;
@@ -52,6 +50,7 @@ import org.opensearch.core.xcontent.XContentParseException;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.core.xcontent.XContentParser.Token;
 import org.opensearch.rest.action.RestActions;
+import org.opensearch.search.GenericSearchExtBuilder;
 import org.opensearch.search.SearchExtBuilder;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
@@ -64,7 +63,6 @@ import org.opensearch.search.suggest.Suggest;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -79,8 +77,6 @@ import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedTok
  * @opensearch.internal
  */
 public class SearchResponse extends ActionResponse implements StatusToXContentObject {
-
-    private static final Logger log = LogManager.getLogger();
 
     private static final ParseField SCROLL_ID = new ParseField("_scroll_id");
     private static final ParseField POINT_IN_TIME_ID = new ParseField("pit_id");
@@ -348,7 +344,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         String searchContextId = null;
         List<ShardSearchFailure> failures = new ArrayList<>();
         Clusters clusters = Clusters.EMPTY;
-        List<SearchExtBuilder> extBuilders = Collections.emptyList();
+        List<SearchExtBuilder> extBuilders = new ArrayList<>();
         for (Token token = parser.nextToken(); token != Token.END_OBJECT; token = parser.nextToken()) {
             if (token == Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
@@ -428,7 +424,6 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
                     }
                     clusters = new Clusters(total, successful, skipped);
                 } else if (EXT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    extBuilders = new ArrayList<>();
                     String extSectionName = null;
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                         if (token == XContentParser.Token.FIELD_NAME) {
@@ -449,11 +444,10 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
                                             + "]"
                                     );
                                 }
-                                extBuilders.add(searchExtBuilder);
                             } catch (XContentParseException e) {
-                                log.warn("Unable to detect SearchExtBuilder for {}: {}", extSectionName, e);
-                                parser.skipChildren();
+                                searchExtBuilder = GenericSearchExtBuilder.fromXContent(parser);
                             }
+                            extBuilders.add(searchExtBuilder);
                         }
                     }
                 } else {
@@ -632,91 +626,5 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
             clusters,
             null
         );
-    }
-
-    /**
-     * SearchResponse builder that provides an easy way to make a copy of a search response
-     * while replacing only certain (internal) parts of it.
-     *
-     * SearchResponse newResponse = new SearchResponse.Builder().from(oldResponse).hits(newHits).build();
-     *
-     */
-    public static class Builder {
-
-        private SearchResponse searchResponse = null;
-        private SearchResponseSections internal = null;
-        private InternalAggregations aggregations = null;
-        private SearchHits hits = null;
-        private Suggest suggest = null;
-        private Map<String, ProfileShardResult> profileShardResults = null;
-        private Boolean timedOut = null;
-        private Boolean terminatedEarly = null;
-        private Integer numReducePhases = null;
-        private List<SearchExtBuilder> searchExtBuilders = null;
-        private String scrollId = null;
-        private Integer totalShards = null;
-        private Integer successfulShards = null;
-        private Integer skippedShards = null;
-        private Long took = null;
-
-        private boolean shardFailureSet = false;
-        private ShardSearchFailure[] shardSearchFailure = null;
-        private Clusters clusters = null;
-        private String pointInTimeId = null;
-
-        public Builder() {}
-
-        public Builder from(SearchResponse searchResponse) {
-            this.searchResponse = searchResponse;
-            return this;
-        }
-
-        public Builder ext(List<SearchExtBuilder> searchExtBuilders) {
-            this.searchExtBuilders = searchExtBuilders;
-            return this;
-        }
-
-        public Builder internal(SearchResponseSections internal) {
-            this.internal = internal;
-            return this;
-        }
-
-        public Builder hits(SearchHits hits) {
-            this.hits = hits;
-            return this;
-        }
-
-        public SearchResponse build() {
-
-            Objects.requireNonNull(searchResponse);
-
-            return new SearchResponse(
-                ifUnsetElse(
-                    internal,
-                    new InternalSearchResponse(
-                        ifUnsetElse(hits, searchResponse.getHits()),
-                        ifUnsetElse(aggregations, (InternalAggregations) searchResponse.getAggregations()),
-                        ifUnsetElse(suggest, searchResponse.getSuggest()),
-                        new SearchProfileShardResults(ifUnsetElse(profileShardResults, searchResponse.getProfileResults())),
-                        ifUnsetElse(timedOut, searchResponse.isTimedOut()),
-                        ifUnsetElse(terminatedEarly, searchResponse.isTerminatedEarly()),
-                        ifUnsetElse(numReducePhases, searchResponse.getNumReducePhases()),
-                        ifUnsetElse(searchExtBuilders, searchResponse.getInternalResponse().getSearchExtBuilders())
-                    )
-                ),
-                ifUnsetElse(scrollId, searchResponse.getScrollId()),
-                ifUnsetElse(totalShards, searchResponse.getTotalShards()),
-                ifUnsetElse(successfulShards, searchResponse.getSuccessfulShards()),
-                ifUnsetElse(skippedShards, searchResponse.getSkippedShards()),
-                ifUnsetElse(took, searchResponse.getTook().millis()),
-                ifUnsetElse(shardSearchFailure, searchResponse.getShardFailures()),
-                ifUnsetElse(clusters, searchResponse.getClusters()),
-                ifUnsetElse(pointInTimeId, searchResponse.pointInTimeId())
-            );
-        }
-
-        private static <T> T ifUnsetElse(T obj, T defaultObj) {
-            return (obj != null) ? obj : defaultObj;
-        }
     }
 }
