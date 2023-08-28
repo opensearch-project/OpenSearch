@@ -67,11 +67,11 @@ public class RemoteStoreStatsTrackerFactory implements IndexEventListener {
     }
 
     void updateMovingAverageWindowSize(BiConsumer<RemoteSegmentTransferTracker, Integer> biConsumer, int updatedSize) {
+        remoteSegmentTrackerMap.values().forEach(tracker -> biConsumer.accept(tracker, updatedSize));
         movingAverageWindowSize = updatedSize;
-        remoteSegmentTrackerMap.values().forEach(tracker -> biConsumer.accept(tracker, movingAverageWindowSize));
     }
 
-    RemoteSegmentTransferTracker getRemoteSegmentTransferTracker(ShardId shardId) {
+    public RemoteSegmentTransferTracker getRemoteSegmentTransferTracker(ShardId shardId) {
         return remoteSegmentTrackerMap.get(shardId);
     }
 

@@ -2127,7 +2127,6 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     ),
                     RetentionLeaseSyncer.EMPTY,
                     SegmentReplicationCheckpointPublisher.EMPTY,
-                    mock(RemoteStorePressureService.class),
                     mock(RemoteStoreStatsTrackerFactory.class)
                 );
 

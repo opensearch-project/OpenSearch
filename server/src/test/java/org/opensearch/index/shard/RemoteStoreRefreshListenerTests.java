@@ -89,7 +89,7 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         remoteStoreStatsTrackerFactory = new RemoteStoreStatsTrackerFactory(Settings.EMPTY);
         remoteStorePressureService = new RemoteStorePressureService(clusterService, Settings.EMPTY, remoteStoreStatsTrackerFactory);
         remoteStoreStatsTrackerFactory.afterIndexShardCreated(indexShard);
-        RemoteSegmentTransferTracker tracker = remoteStorePressureService.getRemoteSegmentTransferTracker(indexShard.shardId());
+        RemoteSegmentTransferTracker tracker = remoteStoreStatsTrackerFactory.getRemoteSegmentTransferTracker(indexShard.shardId());
         remoteStoreRefreshListener = new RemoteStoreRefreshListener(indexShard, SegmentReplicationCheckpointPublisher.EMPTY, tracker);
     }
 
@@ -320,15 +320,15 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         // We spy on IndexShard.getEngine() to validate that we have successfully hit the terminal code for ascertaining successful upload.
         // Value has been set as 3 as during a successful upload IndexShard.getEngine() is hit thrice and with mockito we are counting down
         CountDownLatch successLatch = new CountDownLatch(3);
-        Tuple<RemoteStoreRefreshListener, RemoteStorePressureService> tuple = mockIndexShardWithRetryAndScheduleRefresh(
+        Tuple<RemoteStoreRefreshListener, RemoteStoreStatsTrackerFactory> tuple = mockIndexShardWithRetryAndScheduleRefresh(
             succeedOnAttempt,
             refreshCountLatch,
             successLatch
         );
         assertBusy(() -> assertEquals(0, refreshCountLatch.getCount()));
         assertBusy(() -> assertEquals(0, successLatch.getCount()));
-        RemoteStorePressureService pressureService = tuple.v2();
-        RemoteSegmentTransferTracker segmentTracker = pressureService.getRemoteSegmentTransferTracker(indexShard.shardId());
+        RemoteStoreStatsTrackerFactory trackerFactory = tuple.v2();
+        RemoteSegmentTransferTracker segmentTracker = trackerFactory.getRemoteSegmentTransferTracker(indexShard.shardId());
         assertNoLagAndTotalUploadsFailed(segmentTracker, 0);
     }
 
@@ -341,15 +341,15 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         // We spy on IndexShard.getEngine() to validate that we have successfully hit the terminal code for ascertaining successful upload.
         // Value has been set as 3 as during a successful upload IndexShard.getEngine() is hit thrice and with mockito we are counting down
         CountDownLatch successLatch = new CountDownLatch(3);
-        Tuple<RemoteStoreRefreshListener, RemoteStorePressureService> tuple = mockIndexShardWithRetryAndScheduleRefresh(
+        Tuple<RemoteStoreRefreshListener, RemoteStoreStatsTrackerFactory> tuple = mockIndexShardWithRetryAndScheduleRefresh(
             succeedOnAttempt,
             refreshCountLatch,
             successLatch
         );
         assertBusy(() -> assertEquals(0, refreshCountLatch.getCount()));
         assertBusy(() -> assertEquals(0, successLatch.getCount()));
-        RemoteStorePressureService pressureService = tuple.v2();
-        RemoteSegmentTransferTracker segmentTracker = pressureService.getRemoteSegmentTransferTracker(indexShard.shardId());
+        RemoteStoreStatsTrackerFactory trackerFactory = tuple.v2();
+        RemoteSegmentTransferTracker segmentTracker = trackerFactory.getRemoteSegmentTransferTracker(indexShard.shardId());
         assertNoLagAndTotalUploadsFailed(segmentTracker, 1);
     }
 
@@ -387,15 +387,15 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         // We spy on IndexShard.getEngine() to validate that we have successfully hit the terminal code for ascertaining successful upload.
         // Value has been set as 3 as during a successful upload IndexShard.getEngine() is hit thrice and with mockito we are counting down
         CountDownLatch successLatch = new CountDownLatch(3);
-        Tuple<RemoteStoreRefreshListener, RemoteStorePressureService> tuple = mockIndexShardWithRetryAndScheduleRefresh(
+        Tuple<RemoteStoreRefreshListener, RemoteStoreStatsTrackerFactory> tuple = mockIndexShardWithRetryAndScheduleRefresh(
             succeedOnAttempt,
             refreshCountLatch,
             successLatch
         );
         assertBusy(() -> assertEquals(0, refreshCountLatch.getCount()));
         assertBusy(() -> assertEquals(0, successLatch.getCount()));
-        RemoteStorePressureService pressureService = tuple.v2();
-        RemoteSegmentTransferTracker segmentTracker = pressureService.getRemoteSegmentTransferTracker(indexShard.shardId());
+        RemoteStoreStatsTrackerFactory trackerFactory = tuple.v2();
+        RemoteSegmentTransferTracker segmentTracker = trackerFactory.getRemoteSegmentTransferTracker(indexShard.shardId());
         assertNoLagAndTotalUploadsFailed(segmentTracker, 2);
     }
 
@@ -409,10 +409,10 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
     }
 
     public void testTrackerData() throws Exception {
-        Tuple<RemoteStoreRefreshListener, RemoteStorePressureService> tuple = mockIndexShardWithRetryAndScheduleRefresh(1);
+        Tuple<RemoteStoreRefreshListener, RemoteStoreStatsTrackerFactory> tuple = mockIndexShardWithRetryAndScheduleRefresh(1);
         RemoteStoreRefreshListener listener = tuple.v1();
-        RemoteStorePressureService pressureService = tuple.v2();
-        RemoteSegmentTransferTracker tracker = pressureService.getRemoteSegmentTransferTracker(indexShard.shardId());
+        RemoteStoreStatsTrackerFactory trackerFactory = tuple.v2();
+        RemoteSegmentTransferTracker tracker = trackerFactory.getRemoteSegmentTransferTracker(indexShard.shardId());
         assertNoLag(tracker);
         indexDocs(100, randomIntBetween(100, 200));
         indexShard.refresh("test");
@@ -434,12 +434,13 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         assertEquals(0, tracker.getTotalUploadsFailed());
     }
 
-    private Tuple<RemoteStoreRefreshListener, RemoteStorePressureService> mockIndexShardWithRetryAndScheduleRefresh(int succeedOnAttempt)
-        throws IOException {
+    private Tuple<RemoteStoreRefreshListener, RemoteStoreStatsTrackerFactory> mockIndexShardWithRetryAndScheduleRefresh(
+        int succeedOnAttempt
+    ) throws IOException {
         return mockIndexShardWithRetryAndScheduleRefresh(succeedOnAttempt, null, null);
     }
 
-    private Tuple<RemoteStoreRefreshListener, RemoteStorePressureService> mockIndexShardWithRetryAndScheduleRefresh(
+    private Tuple<RemoteStoreRefreshListener, RemoteStoreStatsTrackerFactory> mockIndexShardWithRetryAndScheduleRefresh(
         int succeedOnAttempt,
         CountDownLatch refreshCountLatch,
         CountDownLatch successLatch
@@ -448,7 +449,7 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         return mockIndexShardWithRetryAndScheduleRefresh(succeedOnAttempt, refreshCountLatch, successLatch, 1, noOpLatch);
     }
 
-    private Tuple<RemoteStoreRefreshListener, RemoteStorePressureService> mockIndexShardWithRetryAndScheduleRefresh(
+    private Tuple<RemoteStoreRefreshListener, RemoteStoreStatsTrackerFactory> mockIndexShardWithRetryAndScheduleRefresh(
         int succeedOnAttempt,
         CountDownLatch refreshCountLatch,
         CountDownLatch successLatch,
@@ -543,18 +544,14 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
             threadPool
         );
         remoteStoreStatsTrackerFactory = new RemoteStoreStatsTrackerFactory(Settings.EMPTY);
-        RemoteStorePressureService remoteStorePressureService = new RemoteStorePressureService(
-            clusterService,
-            Settings.EMPTY,
-            remoteStoreStatsTrackerFactory
-        );
+        RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory = new RemoteStoreStatsTrackerFactory(Settings.EMPTY);
         when(shard.indexSettings()).thenReturn(indexShard.indexSettings());
         when(shard.shardId()).thenReturn(indexShard.shardId());
         remoteStoreStatsTrackerFactory.afterIndexShardCreated(shard);
-        RemoteSegmentTransferTracker tracker = remoteStorePressureService.getRemoteSegmentTransferTracker(indexShard.shardId());
+        RemoteSegmentTransferTracker tracker = remoteStoreStatsTrackerFactory.getRemoteSegmentTransferTracker(indexShard.shardId());
         RemoteStoreRefreshListener refreshListener = new RemoteStoreRefreshListener(shard, emptyCheckpointPublisher, tracker);
         refreshListener.afterRefresh(true);
-        return Tuple.tuple(refreshListener, remoteStorePressureService);
+        return Tuple.tuple(refreshListener, remoteStoreStatsTrackerFactory);
     }
 
     public static class TestFilterDirectory extends FilterDirectory {

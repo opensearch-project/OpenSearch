@@ -75,7 +75,7 @@ public class RemoteStorePressureServiceTests extends OpenSearchTestCase {
         pressureService = new RemoteStorePressureService(clusterService, Settings.EMPTY, remoteStoreStatsTrackerFactory);
         remoteStoreStatsTrackerFactory.afterIndexShardCreated(indexShard);
 
-        RemoteSegmentTransferTracker pressureTracker = pressureService.getRemoteSegmentTransferTracker(shardId);
+        RemoteSegmentTransferTracker pressureTracker = remoteStoreStatsTrackerFactory.getRemoteSegmentTransferTracker(shardId);
         pressureTracker.updateLocalRefreshSeqNo(6);
 
         // 1. time lag more than dynamic threshold

@@ -54,16 +54,6 @@ public class RemoteStorePressureService {
     }
 
     /**
-     * Get {@code RemoteSegmentTransferTracker} only if the underlying Index has remote segments integration enabled.
-     *
-     * @param shardId shard id
-     * @return the tracker if index is remote-backed, else null.
-     */
-    public RemoteSegmentTransferTracker getRemoteSegmentTransferTracker(ShardId shardId) {
-        return remoteStoreStatsTrackerFactory.getRemoteSegmentTransferTracker(shardId);
-    }
-
-    /**
      * Check if remote refresh segments backpressure is enabled. This is backed by a cluster level setting.
      *
      * @return true if enabled, else false.
