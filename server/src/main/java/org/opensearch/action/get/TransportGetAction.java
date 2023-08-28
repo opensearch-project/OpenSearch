@@ -104,7 +104,7 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
     /**
      * Returns true if GET request should be routed to primary shards, else false.
      */
-    protected static boolean shouldForcePrimaryRouting(ClusterState state, boolean realtime, String preference, String indexName) {
+    public static boolean shouldForcePrimaryRouting(ClusterState state, boolean realtime, String preference, String indexName) {
         return isSegmentReplicationEnabled(state, indexName) && realtime && preference == null;
     }
 

@@ -109,7 +109,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
     // TODO: change to String[]
     private Set<String> selectedFields;
 
-    private boolean realtime = true;
+    boolean realtime = true;
 
     private Map<String, String> perFieldAnalyzer;
 

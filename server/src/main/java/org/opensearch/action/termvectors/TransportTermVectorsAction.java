@@ -38,6 +38,7 @@ import org.opensearch.action.support.single.shard.TransportSingleShardAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.routing.GroupShardsIterator;
+import org.opensearch.cluster.routing.Preference;
 import org.opensearch.cluster.routing.ShardIterator;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
@@ -52,6 +53,8 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
+
+import static org.opensearch.action.get.TransportGetAction.shouldForcePrimaryRouting;
 
 /**
  * Performs the get operation.
@@ -87,15 +90,25 @@ public class TransportTermVectorsAction extends TransportSingleShardAction<TermV
 
     @Override
     protected ShardIterator shards(ClusterState state, InternalRequest request) {
+
+        final String preference;
+        // route realtime TermVector requests when segment replication is enabled to primary shards,
+        // iff there are no other preferences/routings enabled for routing to a specific shard
+        if (shouldForcePrimaryRouting(state, request.request().realtime, request.request().preference(), request.concreteIndex())) {
+            preference = Preference.PRIMARY.type();
+        } else {
+            preference = request.request().preference();
+        }
+
         if (request.request().doc() != null && request.request().routing() == null) {
             // artificial document without routing specified, ignore its "id" and use either random shard or according to preference
             GroupShardsIterator<ShardIterator> groupShardsIter = clusterService.operationRouting()
-                .searchShards(state, new String[] { request.concreteIndex() }, null, request.request().preference());
+                .searchShards(state, new String[] { request.concreteIndex() }, null, preference);
             return groupShardsIter.iterator().next();
         }
 
         return clusterService.operationRouting()
-            .getShards(state, request.concreteIndex(), request.request().id(), request.request().routing(), request.request().preference());
+            .getShards(state, request.concreteIndex(), request.request().id(), request.request().routing(), preference);
     }
 
     @Override
