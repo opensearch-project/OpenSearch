@@ -194,4 +194,9 @@ public class GeoTileGridAggregatorFactory extends ValuesSourceAggregatorFactory 
             true
         );
     }
+
+    @Override
+    protected boolean supportsConcurrentSegmentSearch() {
+        return true;
+    }
 }
