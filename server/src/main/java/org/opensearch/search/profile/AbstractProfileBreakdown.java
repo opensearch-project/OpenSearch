@@ -88,7 +88,7 @@ public abstract class AbstractProfileBreakdown<T extends Enum<T>> {
     /**
      * Fetch extra debugging information.
      */
-    protected Map<String, Object> toDebugMap() {
+    public Map<String, Object> toDebugMap() {
         return emptyMap();
     }
 
@@ -98,17 +98,5 @@ public abstract class AbstractProfileBreakdown<T extends Enum<T>> {
             total += timings[timingType.ordinal()].getApproximateTiming();
         }
         return total;
-    }
-
-    public Long getMaxSliceNodeTime() {
-        return null;
-    }
-
-    public Long getMinSliceNodeTime() {
-        return null;
-    }
-
-    public Long getAvgSliceNodeTime() {
-        return null;
     }
 }

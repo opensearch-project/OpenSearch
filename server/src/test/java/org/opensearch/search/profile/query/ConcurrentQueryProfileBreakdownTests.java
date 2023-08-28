@@ -33,7 +33,7 @@ public class ConcurrentQueryProfileBreakdownTests extends OpenSearchTestCase {
     private static final String MAX_END_TIME_SUFFIX = "_max_end_time";
     private static final String MIN_START_TIME_SUFFIX = "_min_start_time";
 
-    public void testBuildQueryProfileBreakdownMap() {
+    public void testBuildFinalBreakdownMap() {
         Map<String, Long> testMap = new HashMap<>();
         testMap.put(CREATE_WEIGHT, 370343L);
         testMap.put(CREATE_WEIGHT + COUNT_SUFFIX, 1L);
@@ -81,78 +81,13 @@ public class ConcurrentQueryProfileBreakdownTests extends OpenSearchTestCase {
         testMap.put(SET_MIN_COMPETITIVE_SCORE + MAX_END_TIME_SUFFIX, 0L);
         testMap.put(SET_MIN_COMPETITIVE_SCORE + MIN_START_TIME_SUFFIX, 0L);
         ConcurrentQueryProfileBreakdown profileBreakdown = new ConcurrentQueryProfileBreakdown();
-        Map<String, Long> breakdownMap = profileBreakdown.buildQueryProfileBreakdownMap(testMap);
-        assertEquals(18, breakdownMap.size());
+        Map<String, Map<String, Long>> sliceLevelBreakdown = new HashMap<>();
+        sliceLevelBreakdown.put("testCollector", testMap);
+        Map<String, Long> breakdownMap = profileBreakdown.buildFinalBreakdownMap(sliceLevelBreakdown);
+        assertEquals(66, breakdownMap.size());
         assertEquals(
-            "{set_min_competitive_score_count=0, match_count=0, shallow_advance_count=0, set_min_competitive_score=0, next_doc=188383, match=0, next_doc_count=5, score_count=5, compute_max_score_count=0, compute_max_score=0, advance=288755, advance_count=3, score=264243, build_scorer_count=6, create_weight=370343, shallow_advance=0, create_weight_count=1, build_scorer=1821422}",
+            "{max_match=0, set_min_competitive_score_count=0, match_count=0, avg_score_count=5, shallow_advance_count=0, next_doc=188383, min_build_scorer=0, score_count=5, compute_max_score_count=0, advance=288755, min_advance=0, min_set_min_competitive_score=0, score=264243, avg_set_min_competitive_score_count=0, min_match_count=0, avg_score=0, max_next_doc_count=5, avg_shallow_advance=0, max_compute_max_score_count=0, max_shallow_advance_count=0, set_min_competitive_score=0, min_build_scorer_count=6, next_doc_count=5, avg_next_doc=0, min_match=0, compute_max_score=0, max_build_scorer=0, min_set_min_competitive_score_count=0, avg_match_count=0, avg_advance=0, build_scorer_count=6, avg_build_scorer_count=6, min_next_doc_count=5, avg_match=0, max_score_count=5, min_shallow_advance_count=0, avg_compute_max_score=0, max_advance=0, avg_shallow_advance_count=0, avg_set_min_competitive_score=0, avg_compute_max_score_count=0, avg_build_scorer=0, max_set_min_competitive_score_count=0, advance_count=3, max_build_scorer_count=6, shallow_advance=0, max_match_count=0, min_compute_max_score=0, create_weight_count=1, build_scorer=1821422, max_compute_max_score=0, max_set_min_competitive_score=0, min_shallow_advance=0, match=0, min_next_doc=0, avg_advance_count=3, max_shallow_advance=0, max_advance_count=3, min_score=0, max_next_doc=0, create_weight=370343, avg_next_doc_count=5, max_score=0, min_compute_max_score_count=0, min_score_count=5, min_advance_count=3}",
             breakdownMap.toString()
-        );
-    }
-
-    public void testAddMaxEndTimeAndMinStartTime() {
-        Map<String, Long> map = new HashMap<>();
-        map.put(CREATE_WEIGHT, 201692L);
-        map.put(CREATE_WEIGHT + COUNT_SUFFIX, 1L);
-        map.put(CREATE_WEIGHT + START_TIME_SUFFIX, 1629732014278990L);
-        map.put(BUILD_SCORER, 0L);
-        map.put(BUILD_SCORER + COUNT_SUFFIX, 2L);
-        map.put(BUILD_SCORER + START_TIME_SUFFIX, 0L);
-        map.put(NEXT_DOC, 0L);
-        map.put(NEXT_DOC + COUNT_SUFFIX, 2L);
-        map.put(NEXT_DOC + START_TIME_SUFFIX, 0L);
-        map.put(ADVANCE, 0L);
-        map.put(ADVANCE + COUNT_SUFFIX, 1L);
-        map.put(ADVANCE + START_TIME_SUFFIX, 0L);
-        map.put(MATCH, 0L);
-        map.put(MATCH + COUNT_SUFFIX, 0L);
-        map.put(MATCH + START_TIME_SUFFIX, 0L);
-        map.put(SCORE, 0L);
-        map.put(SCORE + COUNT_SUFFIX, 2L);
-        map.put(SCORE + START_TIME_SUFFIX, 0L);
-        map.put(SHALLOW_ADVANCE, 0L);
-        map.put(SHALLOW_ADVANCE + COUNT_SUFFIX, 0L);
-        map.put(SHALLOW_ADVANCE + START_TIME_SUFFIX, 0L);
-        map.put(COMPUTE_MAX_SCORE, 0L);
-        map.put(COMPUTE_MAX_SCORE + COUNT_SUFFIX, 0L);
-        map.put(COMPUTE_MAX_SCORE + START_TIME_SUFFIX, 0L);
-        map.put(SET_MIN_COMPETITIVE_SCORE, 0L);
-        map.put(SET_MIN_COMPETITIVE_SCORE + COUNT_SUFFIX, 0L);
-        map.put(SET_MIN_COMPETITIVE_SCORE + START_TIME_SUFFIX, 0L);
-
-        Map<String, Long> breakdown = new HashMap<>();
-        breakdown.put(CREATE_WEIGHT, 0L);
-        breakdown.put(CREATE_WEIGHT + COUNT_SUFFIX, 0L);
-        breakdown.put(CREATE_WEIGHT + START_TIME_SUFFIX, 0L);
-        breakdown.put(BUILD_SCORER, 9649L);
-        breakdown.put(BUILD_SCORER + COUNT_SUFFIX, 2L);
-        breakdown.put(BUILD_SCORER + START_TIME_SUFFIX, 1629732030749745L);
-        breakdown.put(NEXT_DOC, 1150L);
-        breakdown.put(NEXT_DOC + COUNT_SUFFIX, 2L);
-        breakdown.put(NEXT_DOC + START_TIME_SUFFIX, 1629732030806446L);
-        breakdown.put(ADVANCE, 920L);
-        breakdown.put(ADVANCE + COUNT_SUFFIX, 1L);
-        breakdown.put(ADVANCE + START_TIME_SUFFIX, 1629732030776129L);
-        breakdown.put(MATCH, 0L);
-        breakdown.put(MATCH + COUNT_SUFFIX, 0L);
-        breakdown.put(MATCH + START_TIME_SUFFIX, 0L);
-        breakdown.put(SCORE, 1050L);
-        breakdown.put(SCORE + COUNT_SUFFIX, 2L);
-        breakdown.put(SCORE + START_TIME_SUFFIX, 1629732030778977L);
-        breakdown.put(SHALLOW_ADVANCE, 0L);
-        breakdown.put(SHALLOW_ADVANCE + COUNT_SUFFIX, 0L);
-        breakdown.put(SHALLOW_ADVANCE + START_TIME_SUFFIX, 0L);
-        breakdown.put(COMPUTE_MAX_SCORE, 0L);
-        breakdown.put(COMPUTE_MAX_SCORE + COUNT_SUFFIX, 0L);
-        breakdown.put(COMPUTE_MAX_SCORE + START_TIME_SUFFIX, 0L);
-        breakdown.put(SET_MIN_COMPETITIVE_SCORE, 0L);
-        breakdown.put(SET_MIN_COMPETITIVE_SCORE + COUNT_SUFFIX, 0L);
-        breakdown.put(SET_MIN_COMPETITIVE_SCORE + START_TIME_SUFFIX, 0L);
-        ConcurrentQueryProfileBreakdown profileBreakdown = new ConcurrentQueryProfileBreakdown();
-        profileBreakdown.addMaxEndTimeAndMinStartTime(map, breakdown);
-        assertEquals(45, map.size());
-        assertEquals(
-            "{set_min_competitive_score_count=0, match_count=0, score_start_time=0, shallow_advance_count=0, create_weight_start_time=1629732014278990, next_doc=0, compute_max_score_start_time=0, shallow_advance_min_start_time=0, score_count=2, compute_max_score_count=0, advance_start_time=0, advance=0, advance_count=1, compute_max_score_min_start_time=0, score=0, next_doc_max_end_time=1629732030807596, advance_max_end_time=1629732030777049, next_doc_start_time=0, shallow_advance=0, build_scorer_max_end_time=1629732030759394, create_weight_count=1, create_weight_max_end_time=1629732014480682, match_min_start_time=0, build_scorer=0, compute_max_score_max_end_time=0, next_doc_min_start_time=1629732030806446, set_min_competitive_score=0, set_min_competitive_score_start_time=0, match=0, set_min_competitive_score_max_end_time=0, match_start_time=0, shallow_advance_max_end_time=0, build_scorer_start_time=0, next_doc_count=2, shallow_advance_start_time=0, set_min_competitive_score_min_start_time=0, compute_max_score=0, create_weight_min_start_time=1629732014278990, build_scorer_count=2, create_weight=201692, score_min_start_time=1629732030778977, match_max_end_time=0, advance_min_start_time=1629732030776129, score_max_end_time=1629732030780027, build_scorer_min_start_time=1629732030749745}",
-            map.toString()
         );
     }
 }

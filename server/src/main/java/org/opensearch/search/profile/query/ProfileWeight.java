@@ -138,11 +138,7 @@ public final class ProfileWeight extends Weight {
         return false;
     }
 
-    public void associateLeafToCollector(LeafReaderContext leaf, Collector collector) {
-        profile.associateLeafToCollector(leaf, collector);
-    }
-
-    public void buildCollectorList(Collector collector) {
-        profile.buildCollectorList(collector);
+    public void associateCollectorToLeaves(LeafReaderContext leaf, Collector collector) {
+        profile.associateCollectorToLeaves(leaf, collector);
     }
 }

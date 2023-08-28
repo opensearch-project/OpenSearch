@@ -300,8 +300,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         try {
             cancellable.checkCancelled();
             if (weight instanceof ProfileWeight) {
-                ((ProfileWeight) weight).associateLeafToCollector(ctx, collector);
-                ((ProfileWeight) weight).buildCollectorList(collector);
+                ((ProfileWeight) weight).associateCollectorToLeaves(ctx, collector);
             }
             weight = wrapWeight(weight);
             // See please https://github.com/apache/lucene/pull/964
