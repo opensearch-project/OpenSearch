@@ -643,6 +643,33 @@ public class RoutingTableTests extends OpenSearchAllocationTestCase {
         assertEquals(unassignedShards, routingTable.index(TEST_INDEX_1).shardsWithState(UNASSIGNED).size());
     }
 
+    public void testAddAsRemoteStoreRestoreShardMismatch() {
+        int numberOfReplicas = randomIntBetween(0, 5);
+        final IndexMetadata indexMetadata = createIndexMetadata(TEST_INDEX_1).state(IndexMetadata.State.OPEN)
+            .numberOfReplicas(numberOfReplicas)
+            .build();
+        final RemoteStoreRecoverySource remoteStoreRecoverySource = new RemoteStoreRecoverySource(
+            "restore_uuid",
+            Version.CURRENT,
+            new IndexId(TEST_INDEX_1, "1")
+        );
+        Map<ShardId, IndexShardRoutingTable> indexShardRoutingTableMap = getIndexShardRoutingTableMap(
+            indexMetadata.getIndex(),
+            true,
+            numberOfReplicas
+        );
+        indexShardRoutingTableMap.remove(indexShardRoutingTableMap.keySet().iterator().next());
+        assertThrows(
+            IllegalStateException.class,
+            () -> new RoutingTable.Builder().addAsRemoteStoreRestore(
+                indexMetadata,
+                remoteStoreRecoverySource,
+                indexShardRoutingTableMap,
+                false
+            ).build()
+        );
+    }
+
     /** reverse engineer the in sync aid based on the given indexRoutingTable **/
     public static IndexMetadata updateActiveAllocations(IndexRoutingTable indexRoutingTable, IndexMetadata indexMetadata) {
         IndexMetadata.Builder imdBuilder = IndexMetadata.builder(indexMetadata);

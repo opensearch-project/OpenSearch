@@ -539,6 +539,8 @@ final class StoreRecovery {
 
             indexShard.syncTranslogFilesFromRemoteTranslog();
 
+            // On index creation, the only segment file that is created is segments_N. We can safely discard this file
+            // as there is no data associated with this shard as part of segments.
             if (store.directory().listAll().length <= 1) {
                 Path location = indexShard.shardPath().resolveTranslog();
                 Checkpoint checkpoint = Checkpoint.read(location.resolve(CHECKPOINT_FILE_NAME));
