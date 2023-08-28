@@ -93,6 +93,7 @@ import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.InvalidIndexNameException;
 import org.opensearch.indices.ShardLimitValidator;
 import org.opensearch.indices.SystemIndices;
+import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -932,15 +933,15 @@ public class MetadataCreateIndexService {
      * @param clusterSettings cluster level settings
      */
     private static void updateReplicationStrategy(Settings.Builder settingsBuilder, Settings requestSettings, Settings clusterSettings) {
-        if (CLUSTER_REPLICATION_TYPE_SETTING.exists(clusterSettings) && INDEX_REPLICATION_TYPE_SETTING.exists(requestSettings) == false) {
-            settingsBuilder.put(SETTING_REPLICATION_TYPE, CLUSTER_REPLICATION_TYPE_SETTING.get(clusterSettings));
-            return;
-        }
-        if (INDEX_REPLICATION_TYPE_SETTING.exists(requestSettings) == true) {
+        if (INDEX_REPLICATION_TYPE_SETTING.exists(requestSettings)) {
             settingsBuilder.put(SETTING_REPLICATION_TYPE, INDEX_REPLICATION_TYPE_SETTING.get(requestSettings));
-            return;
+        } else if (CLUSTER_REPLICATION_TYPE_SETTING.exists(clusterSettings)) {
+            settingsBuilder.put(SETTING_REPLICATION_TYPE, CLUSTER_REPLICATION_TYPE_SETTING.get(clusterSettings));
+        } else if (CLUSTER_REMOTE_STORE_ENABLED_SETTING.get(clusterSettings)) {
+            settingsBuilder.put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT);
+        } else {
+            settingsBuilder.put(SETTING_REPLICATION_TYPE, CLUSTER_REPLICATION_TYPE_SETTING.getDefault(clusterSettings));
         }
-        settingsBuilder.put(SETTING_REPLICATION_TYPE, CLUSTER_REPLICATION_TYPE_SETTING.getDefault(clusterSettings));
     }
 
     /**
