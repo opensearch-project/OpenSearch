@@ -599,7 +599,8 @@ public final class IndexModule {
         ValuesSourceRegistry valuesSourceRegistry,
         IndexStorePlugin.DirectoryFactory remoteDirectoryFactory,
         BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier,
-        Supplier<TimeValue> clusterDefaultRefreshIntervalSupplier
+        Supplier<TimeValue> clusterDefaultRefreshIntervalSupplier,
+        Supplier<TimeValue> clusterRemoteTranslogBufferIntervalSupplier
     ) throws IOException {
         final IndexEventListener eventListener = freeze();
         Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> readerWrapperFactory = indexReaderWrapper
@@ -656,7 +657,8 @@ public final class IndexModule {
                 valuesSourceRegistry,
                 recoveryStateFactory,
                 translogFactorySupplier,
-                clusterDefaultRefreshIntervalSupplier
+                clusterDefaultRefreshIntervalSupplier,
+                clusterRemoteTranslogBufferIntervalSupplier
             );
             success = true;
             return indexService;
