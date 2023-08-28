@@ -8,6 +8,7 @@
 
 package org.opensearch.index.translog;
 
+import org.opensearch.index.shard.IndexShard;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
 import org.opensearch.repositories.RepositoryMissingException;
@@ -15,7 +16,6 @@ import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.util.function.BooleanSupplier;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
@@ -54,7 +54,7 @@ public class RemoteBlobStoreInternalTranslogFactory implements TranslogFactory {
         LongSupplier globalCheckpointSupplier,
         LongSupplier primaryTermSupplier,
         LongConsumer persistedSequenceNumberConsumer,
-        BooleanSupplier primaryModeSupplier
+        IndexShard.IndexShardConfig indexShardConfig
     ) throws IOException {
 
         assert repository instanceof BlobStoreRepository : "repository should be instance of BlobStoreRepository";
@@ -68,7 +68,7 @@ public class RemoteBlobStoreInternalTranslogFactory implements TranslogFactory {
             persistedSequenceNumberConsumer,
             blobStoreRepository,
             threadPool,
-            primaryModeSupplier
+            indexShardConfig
         );
     }
 

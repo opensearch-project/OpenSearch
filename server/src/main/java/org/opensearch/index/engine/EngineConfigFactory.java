@@ -27,6 +27,7 @@ import org.opensearch.index.codec.CodecServiceConfig;
 import org.opensearch.index.codec.CodecServiceFactory;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.seqno.RetentionLeases;
+import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.TranslogConfig;
 import org.opensearch.index.translog.TranslogDeletionPolicyFactory;
@@ -40,7 +41,6 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
-import java.util.function.BooleanSupplier;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
@@ -152,7 +152,7 @@ public class EngineConfigFactory {
         LongSupplier primaryTermSupplier,
         EngineConfig.TombstoneDocSupplier tombstoneDocSupplier,
         boolean isReadOnlyReplica,
-        BooleanSupplier primaryModeSupplier,
+        IndexShard.IndexShardConfig indexShardConfig,
         TranslogFactory translogFactory,
         Comparator<LeafReader> leafSorter
     ) {
@@ -185,7 +185,7 @@ public class EngineConfigFactory {
             .primaryTermSupplier(primaryTermSupplier)
             .tombstoneDocSupplier(tombstoneDocSupplier)
             .readOnlyReplica(isReadOnlyReplica)
-            .primaryModeSupplier(primaryModeSupplier)
+            .indexShardConfig(indexShardConfig)
             .translogFactory(translogFactory)
             .leafSorter(leafSorter)
             .build();

@@ -292,7 +292,7 @@ public class InternalEngine extends Engine {
                     new CompositeTranslogEventListener(Arrays.asList(internalTranslogEventListener, translogEventListener), shardId),
                     this::ensureOpen,
                     engineConfig.getTranslogFactory(),
-                    engineConfig.getPrimaryModeSupplier()
+                    engineConfig.getIndexShardConfig()
                 );
                 this.translogManager = translogManagerRef;
                 this.softDeletesPolicy = newSoftDeletesPolicy();

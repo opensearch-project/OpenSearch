@@ -15,6 +15,8 @@ import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.tests.mockfile.FilterFileChannel;
 import org.apache.lucene.tests.util.LuceneTestCase;
+import org.junit.After;
+import org.junit.Before;
 import org.opensearch.OpenSearchException;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
@@ -43,6 +45,7 @@ import org.opensearch.index.engine.MissingHistoryOperationsException;
 import org.opensearch.index.seqno.LocalCheckpointTracker;
 import org.opensearch.index.seqno.LocalCheckpointTrackerTests;
 import org.opensearch.index.seqno.SequenceNumbers;
+import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.translog.transfer.BlobStoreTransferService;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.replication.common.ReplicationType;
@@ -53,8 +56,6 @@ import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
-import org.junit.After;
-import org.junit.Before;
 
 import java.io.Closeable;
 import java.io.EOFException;
@@ -89,14 +90,14 @@ import java.util.function.LongConsumer;
 import java.util.zip.CRC32;
 import java.util.zip.CheckedInputStream;
 
-import static org.opensearch.common.util.BigArrays.NON_RECYCLING_INSTANCE;
-import static org.opensearch.index.translog.RemoteFsTranslog.TRANSLOG;
-import static org.opensearch.index.translog.SnapshotMatchers.containsOperationsInAnyOrder;
-import static org.opensearch.index.translog.TranslogDeletionPolicies.createTranslogDeletionPolicy;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.opensearch.common.util.BigArrays.NON_RECYCLING_INSTANCE;
+import static org.opensearch.index.translog.RemoteFsTranslog.TRANSLOG;
+import static org.opensearch.index.translog.SnapshotMatchers.containsOperationsInAnyOrder;
+import static org.opensearch.index.translog.TranslogDeletionPolicies.createTranslogDeletionPolicy;
 
 @LuceneTestCase.SuppressFileSystems("ExtrasFS")
 
@@ -172,7 +173,7 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
             getPersistedSeqNoConsumer(),
             repository,
             threadPool,
-            primaryMode::get
+            new IndexShard.IndexShardConfig(primaryMode::get, () -> Boolean.FALSE)
         );
 
     }
@@ -1223,7 +1224,7 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
                 persistedSeqNos::add,
                 repository,
                 threadPool,
-                () -> Boolean.TRUE
+                new IndexShard.IndexShardConfig(() -> Boolean.TRUE, () -> Boolean.FALSE)
             ) {
                 @Override
                 ChannelFactory getChannelFactory() {
@@ -1329,7 +1330,7 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
                 persistedSeqNos::add,
                 repository,
                 threadPool,
-                () -> Boolean.TRUE
+                new IndexShard.IndexShardConfig(() -> Boolean.TRUE, () -> Boolean.FALSE)
             ) {
                 @Override
                 ChannelFactory getChannelFactory() {

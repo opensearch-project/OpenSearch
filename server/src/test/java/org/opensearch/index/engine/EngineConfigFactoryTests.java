@@ -16,6 +16,7 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.codec.CodecServiceFactory;
 import org.opensearch.index.seqno.RetentionLeases;
+import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.translog.InternalTranslogFactory;
 import org.opensearch.index.translog.TranslogDeletionPolicy;
 import org.opensearch.index.translog.TranslogDeletionPolicyFactory;
@@ -68,7 +69,7 @@ public class EngineConfigFactoryTests extends OpenSearchTestCase {
             null,
             null,
             false,
-            () -> Boolean.TRUE,
+            new IndexShard.IndexShardConfig(() -> Boolean.TRUE, () -> Boolean.FALSE),
             new InternalTranslogFactory(),
             null
         );
@@ -148,7 +149,7 @@ public class EngineConfigFactoryTests extends OpenSearchTestCase {
             null,
             null,
             false,
-            () -> Boolean.TRUE,
+            new IndexShard.IndexShardConfig(() -> Boolean.TRUE, () -> Boolean.FALSE),
             new InternalTranslogFactory(),
             null
         );

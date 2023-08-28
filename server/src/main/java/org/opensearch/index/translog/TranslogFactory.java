@@ -8,8 +8,9 @@
 
 package org.opensearch.index.translog;
 
+import org.opensearch.index.shard.IndexShard;
+
 import java.io.IOException;
-import java.util.function.BooleanSupplier;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 
@@ -29,6 +30,6 @@ public interface TranslogFactory {
         final LongSupplier globalCheckpointSupplier,
         final LongSupplier primaryTermSupplier,
         final LongConsumer persistedSequenceNumberConsumer,
-        final BooleanSupplier primaryModeSupplier
+        final IndexShard.IndexShardConfig indexShardConfig
     ) throws IOException;
 }

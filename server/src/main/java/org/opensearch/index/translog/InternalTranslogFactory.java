@@ -8,8 +8,9 @@
 
 package org.opensearch.index.translog;
 
+import org.opensearch.index.shard.IndexShard;
+
 import java.io.IOException;
-import java.util.function.BooleanSupplier;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 
@@ -22,13 +23,13 @@ public class InternalTranslogFactory implements TranslogFactory {
 
     @Override
     public Translog newTranslog(
-        TranslogConfig translogConfig,
-        String translogUUID,
-        TranslogDeletionPolicy translogDeletionPolicy,
-        LongSupplier globalCheckpointSupplier,
-        LongSupplier primaryTermSupplier,
-        LongConsumer persistedSequenceNumberConsumer,
-        BooleanSupplier primaryModeSupplier
+            TranslogConfig translogConfig,
+            String translogUUID,
+            TranslogDeletionPolicy translogDeletionPolicy,
+            LongSupplier globalCheckpointSupplier,
+            LongSupplier primaryTermSupplier,
+            LongConsumer persistedSequenceNumberConsumer,
+            IndexShard.IndexShardConfig indexShardConfig
     ) throws IOException {
 
         return new LocalTranslog(

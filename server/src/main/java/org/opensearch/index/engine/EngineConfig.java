@@ -53,6 +53,7 @@ import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.codec.CodecSettings;
 import org.opensearch.index.mapper.ParsedDocument;
 import org.opensearch.index.seqno.RetentionLeases;
+import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.InternalTranslogFactory;
 import org.opensearch.index.translog.TranslogConfig;
@@ -65,7 +66,6 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.BooleanSupplier;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
@@ -105,7 +105,7 @@ public final class EngineConfig {
     private final LongSupplier globalCheckpointSupplier;
     private final Supplier<RetentionLeases> retentionLeasesSupplier;
     private final boolean isReadOnlyReplica;
-    private final BooleanSupplier primaryModeSupplier;
+    private final IndexShard.IndexShardConfig indexShardConfig;
     private final Comparator<LeafReader> leafSorter;
 
     /**
@@ -266,7 +266,7 @@ public final class EngineConfig {
         this.primaryTermSupplier = builder.primaryTermSupplier;
         this.tombstoneDocSupplier = builder.tombstoneDocSupplier;
         this.isReadOnlyReplica = builder.isReadOnlyReplica;
-        this.primaryModeSupplier = builder.primaryModeSupplier;
+        this.indexShardConfig = builder.indexShardConfig;
         this.translogFactory = builder.translogFactory;
         this.leafSorter = builder.leafSorter;
     }
@@ -477,8 +477,8 @@ public final class EngineConfig {
      * Returns the underlying primaryModeSupplier.
      * @return the primary mode supplier.
      */
-    public BooleanSupplier getPrimaryModeSupplier() {
-        return primaryModeSupplier;
+    public IndexShard.IndexShardConfig getIndexShardConfig() {
+        return indexShardConfig;
     }
 
     /**
@@ -555,7 +555,7 @@ public final class EngineConfig {
         private TombstoneDocSupplier tombstoneDocSupplier;
         private TranslogDeletionPolicyFactory translogDeletionPolicyFactory;
         private boolean isReadOnlyReplica;
-        private BooleanSupplier primaryModeSupplier;
+        private IndexShard.IndexShardConfig indexShardConfig;
         private TranslogFactory translogFactory = new InternalTranslogFactory();
         Comparator<LeafReader> leafSorter;
 
@@ -679,8 +679,8 @@ public final class EngineConfig {
             return this;
         }
 
-        public Builder primaryModeSupplier(BooleanSupplier primaryModeSupplier) {
-            this.primaryModeSupplier = primaryModeSupplier;
+        public Builder indexShardConfig(IndexShard.IndexShardConfig indexShardConfig) {
+            this.indexShardConfig = indexShardConfig;
             return this;
         }
 

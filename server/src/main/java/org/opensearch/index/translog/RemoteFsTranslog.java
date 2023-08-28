@@ -17,6 +17,7 @@ import org.opensearch.common.util.concurrent.ReleasableLock;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.util.FileSystemUtils;
+import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.translog.transfer.BlobStoreTransferService;
 import org.opensearch.index.translog.transfer.FileTransferTracker;
 import org.opensearch.index.translog.transfer.TransferSnapshot;
@@ -55,6 +56,7 @@ public class RemoteFsTranslog extends Translog {
     private final TranslogTransferManager translogTransferManager;
     private final FileTransferTracker fileTransferTracker;
     private final BooleanSupplier primaryModeSupplier;
+    private final BooleanSupplier relocatingSupplier;
     private volatile long maxRemoteTranslogGenerationUploaded;
 
     private volatile long minSeqNoToKeep;
@@ -80,12 +82,13 @@ public class RemoteFsTranslog extends Translog {
         LongConsumer persistedSequenceNumberConsumer,
         BlobStoreRepository blobStoreRepository,
         ThreadPool threadPool,
-        BooleanSupplier primaryModeSupplier
+        IndexShard.IndexShardConfig indexShardConfig
     ) throws IOException {
         super(config, translogUUID, deletionPolicy, globalCheckpointSupplier, primaryTermSupplier, persistedSequenceNumberConsumer);
         logger = Loggers.getLogger(getClass(), shardId);
         this.blobStoreRepository = blobStoreRepository;
-        this.primaryModeSupplier = primaryModeSupplier;
+        this.primaryModeSupplier = indexShardConfig.getPrimaryModeSupplier();
+        this.relocatingSupplier = indexShardConfig.getRelocatingSupplier();
         fileTransferTracker = new FileTransferTracker(shardId);
         this.translogTransferManager = buildTranslogTransferManager(blobStoreRepository, threadPool, shardId, fileTransferTracker);
         try {
@@ -382,6 +385,10 @@ public class RemoteFsTranslog extends Translog {
         // Remote generations involves 2 async operations - 1) Delete translog generation files 2) Delete metadata files
         // We try to acquire 2 permits and if we can not, we return from here itself.
         if (remoteGenerationDeletionPermits.tryAcquire(REMOTE_DELETION_PERMITS) == false) {
+            return;
+        }
+
+        if(relocatingSupplier.getAsBoolean() == true) {
             return;
         }
 

@@ -12,10 +12,10 @@ import org.opensearch.common.util.concurrent.ReleasableLock;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.engine.LifecycleAware;
 import org.opensearch.index.seqno.LocalCheckpointTracker;
+import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.translog.listener.TranslogEventListener;
 
 import java.io.IOException;
-import java.util.function.BooleanSupplier;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
@@ -38,7 +38,7 @@ public class WriteOnlyTranslogManager extends InternalTranslogManager {
         TranslogEventListener translogEventListener,
         LifecycleAware engineLifecycleAware,
         TranslogFactory translogFactory,
-        BooleanSupplier primaryModeSupplier
+        IndexShard.IndexShardConfig indexShardConfig
     ) throws IOException {
         super(
             translogConfig,
@@ -52,7 +52,7 @@ public class WriteOnlyTranslogManager extends InternalTranslogManager {
             translogEventListener,
             engineLifecycleAware,
             translogFactory,
-            primaryModeSupplier
+            indexShardConfig
         );
     }
 

@@ -216,6 +216,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
@@ -336,6 +337,24 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final RemoteStorePressureService remoteStorePressureService;
 
     private final List<ReferenceManager.RefreshListener> internalRefreshListener = new ArrayList<>();
+
+    static public class IndexShardConfig {
+        BooleanSupplier primaryModeSupplier;
+        BooleanSupplier relocatingSupplier;
+
+        public IndexShardConfig(BooleanSupplier primaryModeSupplier, BooleanSupplier relocatingSupplier) {
+            this.primaryModeSupplier = primaryModeSupplier;
+            this.relocatingSupplier = relocatingSupplier;
+        }
+
+        public BooleanSupplier getPrimaryModeSupplier() {
+            return primaryModeSupplier;
+        }
+
+        public BooleanSupplier getRelocatingSupplier() {
+            return relocatingSupplier;
+        }
+    }
 
     public IndexShard(
         final ShardRouting shardRouting,
@@ -3733,7 +3752,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             () -> getOperationPrimaryTerm(),
             tombstoneDocSupplier(),
             isReadOnlyReplica,
-            replicationTracker::isPrimaryMode,
+            new IndexShardConfig(replicationTracker::isPrimaryMode, () -> shardRouting.relocating()),
             translogFactorySupplier.apply(indexSettings, shardRouting),
             isTimeSeriesDescSortOptimizationEnabled() ? DataStream.TIMESERIES_LEAF_SORTER : null // DESC @timestamp default order for
                                                                                                  // timeseries

@@ -118,7 +118,7 @@ public class NRTReplicationEngine extends Engine {
                 },
                 this,
                 engineConfig.getTranslogFactory(),
-                engineConfig.getPrimaryModeSupplier()
+                engineConfig.getIndexShardConfig()
             );
             this.translogManager = translogManagerRef;
         } catch (IOException e) {
