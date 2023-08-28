@@ -19,7 +19,6 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.RoutingTable;
-import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.UUIDs;
@@ -31,7 +30,6 @@ import org.opensearch.snapshots.RestoreInfo;
 import org.opensearch.snapshots.RestoreService;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -80,7 +78,6 @@ public class RemoteStoreRestoreService {
                     }
                     if (currentIndexMetadata.getSettings().getAsBoolean(SETTING_REMOTE_STORE_ENABLED, false)) {
                         IndexMetadata updatedIndexMetadata = currentIndexMetadata;
-                        Map<ShardId, ShardRouting> activeInitializingShards = new HashMap<>();
                         if (request.restoreAllShards()) {
                             if (currentIndexMetadata.getState() != IndexMetadata.State.CLOSE) {
                                 throw new IllegalStateException(
@@ -97,16 +94,14 @@ public class RemoteStoreRestoreService {
                                 .settingsVersion(1 + currentIndexMetadata.getSettingsVersion())
                                 .aliasesVersion(1 + currentIndexMetadata.getAliasesVersion())
                                 .build();
-                        } else {
-                            activeInitializingShards = currentState.routingTable()
-                                .index(index)
-                                .shards()
-                                .values()
-                                .stream()
-                                .map(IndexShardRoutingTable::primaryShard)
-                                .filter(shardRouting -> shardRouting.unassigned() == false)
-                                .collect(Collectors.toMap(ShardRouting::shardId, Function.identity()));
                         }
+
+                        Map<ShardId, IndexShardRoutingTable> indexShardRoutingTableMap = currentState.routingTable()
+                            .index(index)
+                            .shards()
+                            .values()
+                            .stream()
+                            .collect(Collectors.toMap(IndexShardRoutingTable::shardId, Function.identity()));
 
                         IndexId indexId = new IndexId(index, updatedIndexMetadata.getIndexUUID());
 
@@ -115,7 +110,12 @@ public class RemoteStoreRestoreService {
                             updatedIndexMetadata.getCreationVersion(),
                             indexId
                         );
-                        rtBuilder.addAsRemoteStoreRestore(updatedIndexMetadata, recoverySource, activeInitializingShards);
+                        rtBuilder.addAsRemoteStoreRestore(
+                            updatedIndexMetadata,
+                            recoverySource,
+                            indexShardRoutingTableMap,
+                            request.restoreAllShards()
+                        );
                         blocks.updateBlocks(updatedIndexMetadata);
                         mdBuilder.put(updatedIndexMetadata, true);
                         indicesToBeRestored.add(index);
