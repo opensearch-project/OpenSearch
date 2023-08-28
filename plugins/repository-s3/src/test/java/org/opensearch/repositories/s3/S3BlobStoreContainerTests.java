@@ -61,7 +61,6 @@ import software.amazon.awssdk.services.s3.model.UploadPartRequest;
 import software.amazon.awssdk.services.s3.model.UploadPartResponse;
 import software.amazon.awssdk.services.s3.paginators.ListObjectsV2Iterable;
 
-import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
@@ -880,19 +879,6 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
                 })
             );
         }
-    }
-
-    public void testAsyncBlobDownload() {
-        final S3BlobStore blobStore = mock(S3BlobStore.class);
-        final BlobPath blobPath = mock(BlobPath.class);
-        final String blobName = "test-blob";
-
-        final UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class, () -> {
-            final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
-            blobContainer.readBlobAsync(blobName, new PlainActionFuture<>());
-        });
-
-        assertEquals("S3 BlobContainer currently does not support async blob downloads", e.getMessage());
     }
 
     public void testListBlobsByPrefixInLexicographicOrderWithNegativeLimit() throws IOException {

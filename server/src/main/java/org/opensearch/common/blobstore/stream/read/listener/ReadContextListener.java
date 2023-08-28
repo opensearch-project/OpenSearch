@@ -15,7 +15,6 @@ import org.opensearch.common.blobstore.stream.read.ReadContext;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.threadpool.ThreadPool;
 
-import java.io.IOException;
 import java.nio.file.Path;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -46,20 +45,14 @@ public class ReadContextListener implements ActionListener<ReadContext> {
         FileCompletionListener fileCompletionListener = new FileCompletionListener(numParts, segmentName, segmentCompletionListener);
 
         for (int partNumber = 0; partNumber < numParts; partNumber++) {
-            try {
-                StreamCompletionListener streamCompletionListener = new StreamCompletionListener(
-                    partNumber,
-                    readContext.provideStream(partNumber),
-                    segmentFileLocation,
-                    anyStreamFailed,
-                    fileCompletionListener
-                );
-                new ThreadedActionListener<>(logger, threadPool, ThreadPool.Names.GENERIC, streamCompletionListener, false).onResponse(
-                    null
-                );
-            } catch (IOException e) {
-                fileCompletionListener.onFailure(e);
-            }
+            StreamCompletionListener streamCompletionListener = new StreamCompletionListener(
+                partNumber,
+                readContext.getPartStreams().get(partNumber),
+                segmentFileLocation,
+                anyStreamFailed,
+                fileCompletionListener
+            );
+            new ThreadedActionListener<>(logger, threadPool, ThreadPool.Names.GENERIC, streamCompletionListener, false).onResponse(null);
         }
     }
 

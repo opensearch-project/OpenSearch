@@ -63,7 +63,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.ExceptionsHelper;
-import org.opensearch.common.CheckedTriFunction;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.StreamContext;
@@ -96,7 +95,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -237,7 +235,7 @@ class S3BlobContainer extends AbstractBlobContainer implements VerifyingMultiStr
             final int numParts = blobMetadata.objectParts().totalPartsCount();
 
             final List<CompletableFuture<InputStreamContainer>> blobInputStreamsFuture = new ArrayList<>();
-            final Map<Integer, InputStreamContainer> blobInputStreams = new ConcurrentHashMap<>();
+            final List<InputStreamContainer> blobPartStreams = new ArrayList<>();
 
             for (int partNumber = 0; partNumber < numParts; partNumber++) {
                 int finalPartNumber = partNumber;
@@ -245,20 +243,15 @@ class S3BlobContainer extends AbstractBlobContainer implements VerifyingMultiStr
                     blobStore.getAsyncTransferManager()
                         .getPartInputStream(s3AsyncClient, bucketName, blobName, partNumber)
                         // TODO: Error handling
-                        .whenComplete((data, error) -> blobInputStreams.put(finalPartNumber, data))
+                        .whenComplete((data, error) -> blobPartStreams.add(finalPartNumber, data))
                 );
             }
-
-            CheckedTriFunction<Integer, Long, Long, InputStreamContainer, IOException> streamSupplier = ((
-                partNo,
-                size,
-                position) -> blobInputStreams.get(partNo));
 
             CompletableFuture.allOf(blobInputStreamsFuture.toArray(CompletableFuture[]::new)).whenComplete((data, error) -> {
                 if (error != null) {
                     listener.onFailure(new IOException(error));
                 } else {
-                    listener.onResponse(new ReadContext(streamSupplier, blobSize, -1, numParts, null));
+                    listener.onResponse(new ReadContext(blobSize, blobPartStreams, null));
                 }
             });
         }
