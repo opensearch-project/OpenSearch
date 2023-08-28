@@ -890,11 +890,15 @@ final class DefaultSearchContext extends SearchContext {
      * Evaluate if parsed request supports concurrent segment search
      */
     public void evaluateRequestShouldUseConcurrentSearch() {
-        if (aggregations() != null && aggregations().factories() != null) {
-            requestShouldUseConcurrentSearch.set(aggregations().factories().allFactoriesSupportConcurrentSearch());
-        } else {
-            requestShouldUseConcurrentSearch.set(true);
-        }
+        if (sort != null && sort.isSortOnTimeSeriesField()) {
+            requestShouldUseConcurrentSearch.set(false);
+        } else if (aggregations() != null
+            && aggregations().factories() != null
+            && !aggregations().factories().allFactoriesSupportConcurrentSearch()) {
+                requestShouldUseConcurrentSearch.set(false);
+            } else {
+                requestShouldUseConcurrentSearch.set(true);
+            }
     }
 
     public void setProfilers(Profilers profilers) {
@@ -956,5 +960,13 @@ final class DefaultSearchContext extends SearchContext {
         } else {
             return false;
         }
+    }
+
+    @Override
+    public boolean shouldUseTimeSeriesDescSortOptimization() {
+        return indexShard.isTimeSeriesDescSortOptimizationEnabled()
+            && sort != null
+            && sort.isSortOnTimeSeriesField()
+            && sort.sort.getSort()[0].getReverse() == false;
     }
 }

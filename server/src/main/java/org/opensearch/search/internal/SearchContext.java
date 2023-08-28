@@ -485,4 +485,6 @@ public abstract class SearchContext implements Releasable {
     public abstract void setBucketCollectorProcessor(BucketCollectorProcessor bucketCollectorProcessor);
 
     public abstract BucketCollectorProcessor bucketCollectorProcessor();
+
+    public abstract boolean shouldUseTimeSeriesDescSortOptimization();
 }
