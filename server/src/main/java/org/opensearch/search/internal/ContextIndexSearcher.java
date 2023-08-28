@@ -267,10 +267,11 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     @Override
     protected void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
-        if (shouldReverseLeafReaderContexts()) {
-            // reverse the segment search order if this flag is true.
-            // Certain queries can benefit if we reverse the segment read order,
-            // for example time series based queries if searched for desc sort order.
+        // Time series based workload by default traverses segments in desc order i.e. latest to the oldest order.
+        // This is actually beneficial for search queries to start search on latest segments first for time series workload.
+        // That can slow down ASC order queries on timestamp workload. So to avoid that slowdown, we will reverse leaf
+        // reader order here.
+        if (searchContext.shouldUseTimeSeriesDescSortOptimization()) {
             for (int i = leaves.size() - 1; i >= 0; i--) {
                 searchLeaf(leaves.get(i), weight, collector);
             }
@@ -514,16 +515,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             }
         }
         return true;
-    }
-
-    private boolean shouldReverseLeafReaderContexts() {
-        // Time series based workload by default traverses segments in desc order i.e. latest to the oldest order.
-        // This is actually beneficial for search queries to start search on latest segments first for time series workload.
-        // That can slow down ASC order queries on timestamp workload. So to avoid that slowdown, we will reverse leaf
-        // reader order here.
-        return searchContext.indexShard().isTimeSeriesDescSortOptimizationEnabled()
-            && searchContext.isSortOnTimeSeriesField()
-            && searchContext.sort().sort.getSort()[0].getReverse() == false;
     }
 
     // package-private for testing

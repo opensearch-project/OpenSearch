@@ -38,7 +38,6 @@ import org.apache.lucene.search.Query;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.action.search.SearchType;
-import org.opensearch.cluster.metadata.DataStream;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.core.index.shard.ShardId;
@@ -694,13 +693,12 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public boolean isSortOnTimeSeriesField() {
-        return sort != null
-            && sort.sort != null
-            && sort.sort.getSort() != null
-            && sort.sort.getSort().length > 0
-            && sort.sort.getSort()[0].getField() != null
-            && sort.sort.getSort()[0].getField().equals(DataStream.TIMESERIES_FIELDNAME);
+    public boolean shouldUseTimeSeriesDescSortOptimization() {
+        return indexShard != null
+            && indexShard.isTimeSeriesDescSortOptimizationEnabled()
+            && sort != null
+            && sort.isSortOnTimeSeriesField()
+            && sort.sort.getSort()[0].getReverse() == false;
     }
 
     /**

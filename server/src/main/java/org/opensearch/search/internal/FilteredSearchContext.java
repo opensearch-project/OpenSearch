@@ -571,7 +571,7 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public boolean isSortOnTimeSeriesField() {
-        return in.isSortOnTimeSeriesField();
+    public boolean shouldUseTimeSeriesDescSortOptimization() {
+        return in.shouldUseTimeSeriesDescSortOptimization();
     }
 }

@@ -488,8 +488,5 @@ public abstract class SearchContext implements Releasable {
 
     public abstract int getTargetMaxSliceCount();
 
-    /**
-     * @return true: if sort is on timestamp field, false: otherwise
-     */
-    public abstract boolean isSortOnTimeSeriesField();
+    public abstract boolean shouldUseTimeSeriesDescSortOptimization();
 }
