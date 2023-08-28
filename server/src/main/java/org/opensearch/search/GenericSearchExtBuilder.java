@@ -1,19 +1,9 @@
 /*
- * Copyright 2023 Aryn
- * Copyright OpenSearch Contributors
  * SPDX-License-Identifier: Apache-2.0
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
  */
 package org.opensearch.search;
 
@@ -21,11 +11,10 @@ import org.opensearch.core.ParseField;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParseException;
 import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -34,12 +23,10 @@ public final class GenericSearchExtBuilder extends SearchExtBuilder {
 
     public final static ParseField EXT_BUILDER_NAME = new ParseField("generic_ext");
 
-    private final Object simpleVal;
-    private final Map<String, Object> mapVal;
-    private final List<Object> arrayVal;
+    private final Object genericObj;
     private final ValueType valueType;
 
-    private enum ValueType {
+    enum ValueType {
         SIMPLE(0),
         MAP(1),
         LIST(2);
@@ -68,48 +55,22 @@ public final class GenericSearchExtBuilder extends SearchExtBuilder {
         }
     }
 
-    public GenericSearchExtBuilder(Object simpleVal) {
-        this.simpleVal = simpleVal;
-        this.mapVal = null;
-        this.arrayVal = null;
-        this.valueType = ValueType.SIMPLE;
-    }
-
-    public GenericSearchExtBuilder(Map<String, Object> mapVal) {
-        this.simpleVal = null;
-        this.mapVal = mapVal;
-        this.arrayVal = null;
-        this.valueType = ValueType.MAP;
-    }
-
-    public GenericSearchExtBuilder(List<Object> arrayVal) {
-        this.simpleVal = null;
-        this.mapVal = null;
-        this.arrayVal = arrayVal;
-        this.valueType = ValueType.LIST;
+    public GenericSearchExtBuilder(Object genericObj, ValueType valueType) {
+        this.genericObj = genericObj;
+        this.valueType = valueType;
     }
 
     public GenericSearchExtBuilder(StreamInput in) throws IOException {
         valueType = ValueType.fromInt(in.readInt());
         switch (valueType) {
             case SIMPLE:
-                simpleVal = in.readGenericValue();
-                mapVal = null;
-                arrayVal = null;
+                genericObj = in.readGenericValue();
                 break;
             case MAP:
-                mapVal = in.readMap();
-                simpleVal = null;
-                arrayVal = null;
+                genericObj = in.readMap();
                 break;
             case LIST:
-                simpleVal = null;
-                mapVal = null;
-                int size = in.readVInt();
-                arrayVal = new ArrayList<>();
-                for (int i = 0; i < size; i++) {
-                    arrayVal.add(in.readGenericValue());
-                }
+                genericObj = in.readList(r -> r.readGenericValue());
                 break;
             default:
                 throw new IllegalStateException("Unable to construct GenericSearchExtBuilder from incoming stream.");
@@ -121,18 +82,22 @@ public final class GenericSearchExtBuilder extends SearchExtBuilder {
         // If it's START_OBJECT, parse as map, if it's START_ARRAY, parse as list, else
         // parse as simpleVal
         XContentParser.Token token = parser.currentToken();
-        GenericSearchExtBuilder extBuilder;
+        ValueType valueType;
+        Object genericObj;
         if (token == XContentParser.Token.START_OBJECT) {
-            extBuilder = new GenericSearchExtBuilder(parser.map());
+            genericObj = parser.map();
+            valueType = ValueType.MAP;
         } else if (token == XContentParser.Token.START_ARRAY) {
-            extBuilder = new GenericSearchExtBuilder(parser.list());
+            genericObj = parser.list();
+            valueType = ValueType.LIST;
         } else if (token.isValue()) {
-            extBuilder = new GenericSearchExtBuilder(parser.objectText()); // .objectBytes() ??
+            genericObj = parser.objectText(); // .objectBytes() ??
+            valueType = ValueType.SIMPLE;
         } else {
-            extBuilder = new GenericSearchExtBuilder("unknown");
+            throw new XContentParseException("Unknown token: " + token);
         }
 
-        return extBuilder;
+        return new GenericSearchExtBuilder(genericObj, valueType);
     }
 
     @Override
@@ -145,17 +110,13 @@ public final class GenericSearchExtBuilder extends SearchExtBuilder {
         out.writeInt(valueType.getValue());
         switch (valueType) {
             case SIMPLE:
-                out.writeGenericValue(simpleVal);
+                out.writeGenericValue(genericObj);
                 break;
             case MAP:
-                out.writeMap(mapVal);
+                out.writeMap((Map<String, Object>) genericObj);
                 break;
             case LIST:
-                int size = arrayVal.size();
-                out.writeVInt(size);
-                for (int i = 0; i < size; i++) {
-                    out.writeGenericValue(arrayVal.get(i));
-                }
+                out.writeCollection((List<Object>) genericObj, StreamOutput::writeGenericValue);
                 break;
             default:
                 throw new IllegalStateException("Unknown valueType: " + valueType);
@@ -166,11 +127,11 @@ public final class GenericSearchExtBuilder extends SearchExtBuilder {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         switch (valueType) {
             case SIMPLE:
-                return builder.field(EXT_BUILDER_NAME.getPreferredName(), simpleVal);
+                return builder.field(EXT_BUILDER_NAME.getPreferredName(), genericObj);
             case MAP:
-                return builder.field(EXT_BUILDER_NAME.getPreferredName(), mapVal);
+                return builder.field(EXT_BUILDER_NAME.getPreferredName(), (Map<String, Object>) genericObj);
             case LIST:
-                return builder.field(EXT_BUILDER_NAME.getPreferredName(), arrayVal);
+                return builder.field(EXT_BUILDER_NAME.getPreferredName(), (List<Object>) genericObj);
             default:
                 return null;
         }
@@ -178,21 +139,12 @@ public final class GenericSearchExtBuilder extends SearchExtBuilder {
 
     // We need this for the equals method.
     Object getValue() {
-        switch (valueType) {
-            case SIMPLE:
-                return this.simpleVal;
-            case MAP:
-                return Collections.unmodifiableMap(this.mapVal);
-            case LIST:
-                return Collections.unmodifiableList(this.arrayVal);
-            default:
-                throw new IllegalStateException("Unknown valueType: " + valueType);
-        }
+        return genericObj;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(this.getClass(), this.simpleVal, this.mapVal, this.arrayVal);
+        return Objects.hash(this.genericObj);
     }
 
     @Override
