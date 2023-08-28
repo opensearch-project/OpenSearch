@@ -410,6 +410,12 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
 
     }
 
+    /**
+     * Utility to identify whether input index belongs to SEGMENT replication in established cluster state.
+     *
+     * @param indexName Index name
+     * @return true if index belong SEGMENT replication, false otherwise
+     */
     public boolean isSegmentReplicationEnabled(String indexName) {
         return Optional.ofNullable(this.getMetadata().index(indexName))
             .map(
