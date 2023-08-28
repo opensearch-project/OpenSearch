@@ -91,7 +91,10 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
 
     public static final String CONTENT_TYPE = "date";
     public static final String DATE_NANOS_CONTENT_TYPE = "date_nanos";
-    public static final DateFormatter DEFAULT_DATE_TIME_FORMATTER = DateFormatter.forPattern("strict_date_optional_time||epoch_millis");
+    public static final DateFormatter DEFAULT_DATE_TIME_FORMATTER = DateFormatter.forPattern(
+        "strict_date_time_no_millis||strict_date_optional_time||epoch_millis",
+        true
+    );
 
     /**
      * Resolution of the date time
@@ -259,7 +262,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
 
         private DateFormatter buildFormatter() {
             try {
-                return DateFormatter.forPattern(format.getValue()).withLocale(locale.getValue());
+                return DateFormatter.forPattern(format.getValue(), !format.isConfigured()).withLocale(locale.getValue());
             } catch (IllegalArgumentException e) {
                 throw new IllegalArgumentException("Error parsing [format] on field [" + name() + "]: " + e.getMessage(), e);
             }

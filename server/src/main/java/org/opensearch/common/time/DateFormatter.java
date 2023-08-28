@@ -147,7 +147,7 @@ public interface DateFormatter {
      */
     DateMathParser toDateMathParser();
 
-    static DateFormatter forPattern(String input) {
+    static DateFormatter forPattern(String input, Boolean canCacheFormatter) {
 
         if (Strings.hasLength(input) == false) {
             throw new IllegalArgumentException("No date pattern provided");
@@ -158,7 +158,11 @@ public interface DateFormatter {
         List<String> patterns = splitCombinedPatterns(format);
         List<DateFormatter> formatters = patterns.stream().map(DateFormatters::forPattern).collect(Collectors.toList());
 
-        return JavaDateFormatter.combined(input, formatters);
+        return JavaDateFormatter.combined(input, formatters, canCacheFormatter);
+    }
+
+    static DateFormatter forPattern(String input) {
+        return forPattern(input, false);
     }
 
     static String strip8Prefix(String input) {
