@@ -66,4 +66,8 @@ public class HdfsBlobStoreRepositoryTests extends OpenSearchBlobStoreRepositoryI
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singletonList(HdfsPlugin.class);
     }
+
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/9513")
+    @Override
+    public void testReadRange() {}
 }
