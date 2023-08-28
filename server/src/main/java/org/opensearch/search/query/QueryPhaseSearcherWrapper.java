@@ -58,9 +58,10 @@ public class QueryPhaseSearcherWrapper implements QueryPhaseSearcher {
         boolean hasTimeout
     ) throws IOException {
         if (searchContext.shouldUseConcurrentSearch()) {
-            LOGGER.info("Using concurrent search over segments (experimental)");
+            LOGGER.debug("Using concurrent search over segments (experimental) for request with context id {}", searchContext.id());
             return concurrentQueryPhaseSearcher.searchWith(searchContext, searcher, query, collectors, hasFilterCollector, hasTimeout);
         } else {
+            LOGGER.debug("Using non-concurrent search over segments for request with context id {}", searchContext.id());
             return defaultQueryPhaseSearcher.searchWith(searchContext, searcher, query, collectors, hasFilterCollector, hasTimeout);
         }
     }
@@ -73,9 +74,13 @@ public class QueryPhaseSearcherWrapper implements QueryPhaseSearcher {
     @Override
     public AggregationProcessor aggregationProcessor(SearchContext searchContext) {
         if (searchContext.shouldUseConcurrentSearch()) {
-            LOGGER.info("Using concurrent search over segments (experimental)");
+            LOGGER.debug(
+                "Using concurrent aggregation processor over segments (experimental) for request with context id {}",
+                searchContext.id()
+            );
             return concurrentQueryPhaseSearcher.aggregationProcessor(searchContext);
         } else {
+            LOGGER.debug("Using non-concurrent aggregation processor over segments for request with context id {}", searchContext.id());
             return defaultQueryPhaseSearcher.aggregationProcessor(searchContext);
         }
     }
