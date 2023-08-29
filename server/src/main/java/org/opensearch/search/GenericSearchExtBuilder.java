@@ -19,6 +19,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * This is a catch-all SearchExtBuilder implementation that is used when an appropriate SearchExtBuilder
+ * is not found during SearchResponse's fromXContent operation.
+ */
 public final class GenericSearchExtBuilder extends SearchExtBuilder {
 
     public final static ParseField EXT_BUILDER_NAME = new ParseField("generic_ext");
@@ -91,7 +95,7 @@ public final class GenericSearchExtBuilder extends SearchExtBuilder {
             genericObj = parser.list();
             valueType = ValueType.LIST;
         } else if (token.isValue()) {
-            genericObj = parser.objectText(); // .objectBytes() ??
+            genericObj = parser.objectText();
             valueType = ValueType.SIMPLE;
         } else {
             throw new XContentParseException("Unknown token: " + token);
