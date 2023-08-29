@@ -12,7 +12,6 @@ import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.ingest.ConfigurationUtils;
 import org.opensearch.search.SearchHit;
-import org.opensearch.search.SearchHits;
 import org.opensearch.search.pipeline.AbstractProcessor;
 import org.opensearch.search.pipeline.Processor;
 import org.opensearch.search.pipeline.SearchResponseProcessor;
@@ -50,13 +49,12 @@ public class TruncateHitsResponseProcessor extends AbstractProcessor implements 
 
     @Override
     public SearchResponse processResponse(SearchRequest request, SearchResponse response, Map<String, Object> requestContext) {
-
         int size;
-        if (targetSize < 0) {
+        if (targetSize < 0) { // No value specified in processor config. Use context value instead.
             String key = applyContextPrefix(contextPrefix, OversampleRequestProcessor.ORIGINAL_SIZE);
             Object o = requestContext.get(key);
             if (o == null) {
-                throw new IllegalStateException("Must specify target_size unless an earlier processor set " + key);
+                throw new IllegalStateException("Must specify " + TARGET_SIZE + " unless an earlier processor set " + key);
             }
             size = (int) o;
         } else {
@@ -65,21 +63,12 @@ public class TruncateHitsResponseProcessor extends AbstractProcessor implements 
         if (response.getHits() != null && response.getHits().getHits().length > size) {
             SearchHit[] newHits = new SearchHit[size];
             System.arraycopy(response.getHits().getHits(), 0, newHits, 0, size);
-            SearchHits searchHits = new SearchHits(
-                newHits,
-                response.getHits().getTotalHits(),
-                response.getHits().getMaxScore(),
-                response.getHits().getSortFields(),
-                response.getHits().getCollapseField(),
-                response.getHits().getCollapseValues()
-            );
-            return SearchResponseUtil.replaceHits(searchHits, response);
+            return SearchResponseUtil.replaceHits(newHits, response);
         }
         return response;
     }
 
     static class Factory implements Processor.Factory<SearchResponseProcessor> {
-
         @Override
         public TruncateHitsResponseProcessor create(
             Map<String, Processor.Factory<SearchResponseProcessor>> processorFactories,
@@ -89,10 +78,18 @@ public class TruncateHitsResponseProcessor extends AbstractProcessor implements 
             Map<String, Object> config,
             PipelineContext pipelineContext
         ) {
-            int targetSize = ConfigurationUtils.readIntProperty(TYPE, tag, config, TARGET_SIZE, -1);
+            Integer targetSize = ConfigurationUtils.readIntProperty(TYPE, tag, config, TARGET_SIZE, null);
+            if (targetSize == null) {
+                // Use -1 as an "unset" marker to avoid repeated unboxing of an Integer.
+                targetSize = -1;
+            } else {
+                // Explicitly set values must be >= 0.
+                if (targetSize < 0) {
+                    throw ConfigurationUtils.newConfigurationException(TYPE, tag, TARGET_SIZE, "Value must be >= 0");
+                }
+            }
             String contextPrefix = ConfigurationUtils.readOptionalStringProperty(TYPE, tag, config, ContextUtils.CONTEXT_PREFIX_PARAMETER);
             return new TruncateHitsResponseProcessor(tag, description, ignoreFailure, targetSize, contextPrefix);
         }
     }
-
 }

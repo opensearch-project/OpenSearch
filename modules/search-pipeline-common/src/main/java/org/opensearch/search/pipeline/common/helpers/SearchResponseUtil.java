@@ -9,6 +9,8 @@
 package org.opensearch.search.pipeline.common.helpers;
 
 import org.opensearch.action.search.SearchResponse;
+import org.opensearch.action.search.SearchResponseSections;
+import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
 import org.opensearch.search.aggregations.InternalAggregations;
 import org.opensearch.search.internal.InternalSearchResponse;
@@ -29,8 +31,9 @@ public final class SearchResponseUtil {
      * @return a new search response where the search hits have been replaced
      */
     public static SearchResponse replaceHits(SearchHits newHits, SearchResponse response) {
-        return new SearchResponse(
-            new InternalSearchResponse(
+        SearchResponseSections searchResponseSections;
+        if (response.getAggregations() instanceof InternalAggregations) {
+            searchResponseSections = new InternalSearchResponse(
                 newHits,
                 (InternalAggregations) response.getAggregations(),
                 response.getSuggest(),
@@ -38,7 +41,21 @@ public final class SearchResponseUtil {
                 response.isTimedOut(),
                 response.isTerminatedEarly(),
                 response.getNumReducePhases()
-            ),
+            );
+        } else {
+            searchResponseSections = new SearchResponseSections(
+                newHits,
+                response.getAggregations(),
+                response.getSuggest(),
+                response.isTimedOut(),
+                response.isTerminatedEarly(),
+                new SearchProfileShardResults(response.getProfileResults()),
+                response.getNumReducePhases()
+            );
+        }
+
+        return new SearchResponse(
+            searchResponseSections,
             response.getScrollId(),
             response.getTotalShards(),
             response.getSuccessfulShards(),
@@ -48,5 +65,20 @@ public final class SearchResponseUtil {
             response.getClusters(),
             response.pointInTimeId()
         );
+    }
+
+    public static SearchResponse replaceHits(SearchHit[] newHits, SearchResponse response) {
+        if (response.getHits() == null) {
+            throw new IllegalStateException("Response must have hits");
+        }
+        SearchHits searchHits = new SearchHits(
+            newHits,
+            response.getHits().getTotalHits(),
+            response.getHits().getMaxScore(),
+            response.getHits().getSortFields(),
+            response.getHits().getCollapseField(),
+            response.getHits().getCollapseValues()
+        );
+        return replaceHits(searchHits, response);
     }
 }
