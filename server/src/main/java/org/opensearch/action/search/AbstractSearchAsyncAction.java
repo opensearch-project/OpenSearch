@@ -50,6 +50,7 @@ import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.AtomicArray;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.ShardOperationFailedException;
+import org.opensearch.core.common.util.CollectionUtils;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.SearchShardTarget;
@@ -181,16 +182,16 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         this.indexRoutings = indexRoutings;
         this.results = resultConsumer;
         this.clusters = clusters;
-        if (searchListenersList != null && !(searchListenersList.isEmpty())) {
+        if (!CollectionUtils.isEmpty(searchListenersList)) {
             this.searchListenersList = searchListenersList;
             this.searchRequestOperationsListener = new SearchRequestOperationsListener.CompositeListener(this.searchListenersList, logger);
-            instantiateStartMap();
-            instantiateEndMap();
-            instantiateFailMap();
+            instantiateSearchPhaseStartMap();
+            instantiateSearchPhaseEndMap();
+            instantiateSearchPhaseFailMap();
         }
     }
 
-    private void instantiateStartMap() {
+    private void instantiateSearchPhaseStartMap() {
         Map<String, Runnable> searchPhaseStartTrackingMapModifiable = new HashMap<String, Runnable>();
         searchPhaseStartTrackingMapModifiable.put(
             SearchPhaseName.DFS_PRE_QUERY.getName(),
@@ -219,7 +220,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         searchPhaseStartTrackingMap = Collections.unmodifiableMap(searchPhaseStartTrackingMapModifiable);
     }
 
-    private void instantiateEndMap() {
+    private void instantiateSearchPhaseEndMap() {
         Map<String, Runnable> searchPhaseEndTrackingMapModifiable = new HashMap<String, Runnable>();
         searchPhaseEndTrackingMapModifiable.put(
             SearchPhaseName.DFS_PRE_QUERY.getName(),
@@ -266,7 +267,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         searchPhaseEndTrackingMap = Collections.unmodifiableMap(searchPhaseEndTrackingMapModifiable);
     }
 
-    private void instantiateFailMap() {
+    private void instantiateSearchPhaseFailMap() {
         Map<String, Runnable> searchPhaseFailureTrackingMapModifiable = new HashMap<String, Runnable>();
         searchPhaseFailureTrackingMapModifiable.put(
             SearchPhaseName.DFS_PRE_QUERY.getName(),
