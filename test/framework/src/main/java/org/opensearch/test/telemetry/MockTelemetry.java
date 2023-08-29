@@ -49,7 +49,7 @@ public class MockTelemetry implements Telemetry {
                 try {
                     threadPool.awaitTermination(10, TimeUnit.SECONDS);
                 } catch (final InterruptedException ex) {
-                    /* Do nothing here */
+                    Thread.currentThread().interrupt();
                 }
             }
         });
