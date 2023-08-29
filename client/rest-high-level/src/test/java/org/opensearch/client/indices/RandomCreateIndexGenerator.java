@@ -32,8 +32,8 @@
 
 package org.opensearch.client.indices;
 
-import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
 

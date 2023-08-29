@@ -53,11 +53,11 @@ import java.util.List;
 import java.util.Random;
 import java.util.Set;
 
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
 import static org.opensearch.geometry.utils.Geohash.PRECISION;
 import static org.opensearch.geometry.utils.Geohash.stringEncode;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResponse;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 @OpenSearchIntegTestCase.SuiteScopeTestCase
 public class GeoHashGridIT extends AbstractGeoBucketAggregationIntegTest {

@@ -31,8 +31,8 @@
 
 package org.opensearch.client.benchmark.ops.bulk;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.OpenSearchException;
 import org.opensearch.client.benchmark.BenchmarkTask;
 import org.opensearch.client.benchmark.metrics.Sample;

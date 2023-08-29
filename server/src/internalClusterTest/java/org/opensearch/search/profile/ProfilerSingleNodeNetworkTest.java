@@ -18,9 +18,9 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
+import static org.opensearch.search.profile.query.RandomQueryGenerator.randomQueryBuilder;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
-import static org.opensearch.search.profile.query.RandomQueryGenerator.randomQueryBuilder;
 
 public class ProfilerSingleNodeNetworkTest extends OpenSearchSingleNodeTestCase {
 

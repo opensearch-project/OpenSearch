@@ -8,8 +8,8 @@
 
 package org.opensearch.search.geo;
 
-import org.junit.Before;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.junit.Before;
 
 import java.io.IOException;
 

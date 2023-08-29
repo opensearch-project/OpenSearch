@@ -33,10 +33,10 @@
 package org.opensearch.search;
 
 import org.apache.lucene.util.BytesRef;
+import org.opensearch.common.lucene.Lucene;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.common.lucene.Lucene;
 
 import java.io.IOException;
 import java.math.BigInteger;

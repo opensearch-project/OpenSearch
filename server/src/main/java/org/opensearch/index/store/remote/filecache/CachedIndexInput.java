@@ -8,9 +8,9 @@
 
 package org.opensearch.index.store.remote.filecache;
 
-import java.io.IOException;
-
 import org.apache.lucene.store.IndexInput;
+
+import java.io.IOException;
 
 /**
  * Interface for an entry in the {@link FileCache} that can return an

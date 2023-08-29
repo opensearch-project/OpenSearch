@@ -41,9 +41,9 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.collect.CopyOnWriteHashMap;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.index.mapper.MapperService.MergeReason;
 
 import java.io.IOException;

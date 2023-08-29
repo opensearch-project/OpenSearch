@@ -31,15 +31,15 @@
 
 package org.opensearch.gradle;
 
+import org.opensearch.gradle.test.GradleUnitTestCase;
+import org.gradle.api.Project;
+import org.gradle.testfixtures.ProjectBuilder;
+
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.Arrays;
-
-import org.opensearch.gradle.test.GradleUnitTestCase;
-import org.gradle.api.Project;
-import org.gradle.testfixtures.ProjectBuilder;
 
 public class ConcatFilesTaskTests extends GradleUnitTestCase {
 

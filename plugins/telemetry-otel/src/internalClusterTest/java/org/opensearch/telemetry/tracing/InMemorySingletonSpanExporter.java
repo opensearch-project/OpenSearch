@@ -8,15 +8,16 @@
 
 package org.opensearch.telemetry.tracing;
 
-import io.opentelemetry.sdk.common.CompletableResultCode;
-import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter;
-import io.opentelemetry.sdk.trace.data.SpanData;
-import io.opentelemetry.sdk.trace.export.SpanExporter;
 import org.opensearch.test.telemetry.tracing.MockSpanData;
 
 import java.util.Collection;
 import java.util.List;
 import java.util.stream.Collectors;
+
+import io.opentelemetry.sdk.common.CompletableResultCode;
+import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter;
+import io.opentelemetry.sdk.trace.data.SpanData;
+import io.opentelemetry.sdk.trace.export.SpanExporter;
 
 public class InMemorySingletonSpanExporter implements SpanExporter {
 

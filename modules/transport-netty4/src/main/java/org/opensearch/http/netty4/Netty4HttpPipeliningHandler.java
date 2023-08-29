@@ -32,9 +32,6 @@
 
 package org.opensearch.http.netty4;
 
-import io.netty.channel.ChannelDuplexHandler;
-import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.ChannelPromise;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.http.HttpPipelinedRequest;
@@ -43,6 +40,10 @@ import org.opensearch.http.HttpPipeliningAggregator;
 
 import java.nio.channels.ClosedChannelException;
 import java.util.List;
+
+import io.netty.channel.ChannelDuplexHandler;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelPromise;
 
 /**
  * Implements HTTP pipelining ordering, ensuring that responses are completely served in the same order as their corresponding requests.

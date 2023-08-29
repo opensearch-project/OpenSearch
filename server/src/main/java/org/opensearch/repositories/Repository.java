@@ -33,7 +33,6 @@ package org.opensearch.repositories;
 
 import org.apache.lucene.index.IndexCommit;
 import org.opensearch.Version;
-import org.opensearch.core.action.ActionListener;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.SnapshotsInProgress;
@@ -43,8 +42,9 @@ import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.lifecycle.LifecycleComponent;
-import org.opensearch.index.mapper.MapperService;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
 import org.opensearch.index.snapshots.blobstore.RemoteStoreShardShallowCopySnapshot;
 import org.opensearch.index.store.Store;
@@ -197,6 +197,16 @@ public interface Repository extends LifecycleComponent {
      * Returns restore throttle time in nanoseconds
      */
     long getRestoreThrottleTimeInNanos();
+
+    /**
+     * Returns restore throttle time in nanoseconds
+     */
+    long getRemoteUploadThrottleTimeInNanos();
+
+    /**
+     * Returns restore throttle time in nanoseconds
+     */
+    long getRemoteDownloadThrottleTimeInNanos();
 
     /**
      * Returns stats on the repository usage

@@ -45,8 +45,13 @@ import org.opensearch.index.fielddata.ScriptDocValues;
 import org.opensearch.index.mapper.DateFieldMapper;
 
 import java.time.ZoneId;
+import java.time.ZonedDateTime;
 
 import static org.opensearch.common.util.BitMixer.mix32;
+import static org.opensearch.index.query.functionscore.TermFrequencyFunctionFactory.TermFrequencyFunctionName.SUM_TOTAL_TERM_FREQ;
+import static org.opensearch.index.query.functionscore.TermFrequencyFunctionFactory.TermFrequencyFunctionName.TERM_FREQ;
+import static org.opensearch.index.query.functionscore.TermFrequencyFunctionFactory.TermFrequencyFunctionName.TF;
+import static org.opensearch.index.query.functionscore.TermFrequencyFunctionFactory.TermFrequencyFunctionName.TOTAL_TERM_FREQ;
 
 /**
  * Utilities for scoring scripts
@@ -67,6 +72,90 @@ public final class ScoreScriptUtils {
      */
     public static double sigmoid(double value, double k, double a) {
         return Math.pow(value, a) / (Math.pow(k, a) + Math.pow(value, a));
+    }
+
+    /**
+     * Retrieves the term frequency within a field for a specific term.
+     *
+     * @opensearch.internal
+     */
+    public static final class TermFreq {
+        private final ScoreScript scoreScript;
+
+        public TermFreq(ScoreScript scoreScript) {
+            this.scoreScript = scoreScript;
+        }
+
+        public int termFreq(String field, String term) {
+            try {
+                return (int) scoreScript.getTermFrequency(TERM_FREQ, field, term);
+            } catch (Exception e) {
+                throw ExceptionsHelper.convertToOpenSearchException(e);
+            }
+        }
+    }
+
+    /**
+     * Calculates the term frequency-inverse document frequency (tf-idf) for a specific term within a field.
+     *
+     * @opensearch.internal
+     */
+    public static final class TF {
+        private final ScoreScript scoreScript;
+
+        public TF(ScoreScript scoreScript) {
+            this.scoreScript = scoreScript;
+        }
+
+        public float tf(String field, String term) {
+            try {
+                return (float) scoreScript.getTermFrequency(TF, field, term);
+            } catch (Exception e) {
+                throw ExceptionsHelper.convertToOpenSearchException(e);
+            }
+        }
+    }
+
+    /**
+     * Retrieves the total term frequency within a field for a specific term.
+     *
+     * @opensearch.internal
+     */
+    public static final class TotalTermFreq {
+        private final ScoreScript scoreScript;
+
+        public TotalTermFreq(ScoreScript scoreScript) {
+            this.scoreScript = scoreScript;
+        }
+
+        public long totalTermFreq(String field, String term) {
+            try {
+                return (long) scoreScript.getTermFrequency(TOTAL_TERM_FREQ, field, term);
+            } catch (Exception e) {
+                throw ExceptionsHelper.convertToOpenSearchException(e);
+            }
+        }
+    }
+
+    /**
+     * Retrieves the sum of total term frequencies within a field.
+     *
+     * @opensearch.internal
+     */
+    public static final class SumTotalTermFreq {
+        private final ScoreScript scoreScript;
+
+        public SumTotalTermFreq(ScoreScript scoreScript) {
+            this.scoreScript = scoreScript;
+        }
+
+        public long sumTotalTermFreq(String field) {
+            try {
+                return (long) scoreScript.getTermFrequency(SUM_TOTAL_TERM_FREQ, field, null);
+            } catch (Exception e) {
+                throw ExceptionsHelper.convertToOpenSearchException(e);
+            }
+        }
     }
 
     /**
@@ -301,7 +390,7 @@ public final class ScoreScriptUtils {
             this.scaling = scale / (1.0 - decay);
         }
 
-        public double decayDateLinear(JodaCompatibleZonedDateTime docValueDate) {
+        public double decayDateLinear(ZonedDateTime docValueDate) {
             long docValue = docValueDate.toInstant().toEpochMilli();
             // as java.lang.Math#abs(long) is a forbidden API, have to use this comparison instead
             long diff = (docValue >= origin) ? (docValue - origin) : (origin - docValue);
@@ -329,7 +418,7 @@ public final class ScoreScriptUtils {
             this.scaling = Math.log(decay) / scale;
         }
 
-        public double decayDateExp(JodaCompatibleZonedDateTime docValueDate) {
+        public double decayDateExp(ZonedDateTime docValueDate) {
             long docValue = docValueDate.toInstant().toEpochMilli();
             long diff = (docValue >= origin) ? (docValue - origin) : (origin - docValue);
             long distance = Math.max(0, diff - offset);
@@ -356,7 +445,7 @@ public final class ScoreScriptUtils {
             this.scaling = 0.5 * Math.pow(scale, 2.0) / Math.log(decay);
         }
 
-        public double decayDateGauss(JodaCompatibleZonedDateTime docValueDate) {
+        public double decayDateGauss(ZonedDateTime docValueDate) {
             long docValue = docValueDate.toInstant().toEpochMilli();
             long diff = (docValue >= origin) ? (docValue - origin) : (origin - docValue);
             long distance = Math.max(0, diff - offset);

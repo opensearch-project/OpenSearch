@@ -34,8 +34,8 @@ package org.opensearch.painless.phase;
 
 import org.opensearch.painless.AnalyzerCaster;
 import org.opensearch.painless.Operation;
-import org.opensearch.painless.ir.BinaryMathNode;
 import org.opensearch.painless.ir.BinaryImplNode;
+import org.opensearch.painless.ir.BinaryMathNode;
 import org.opensearch.painless.ir.BooleanNode;
 import org.opensearch.painless.ir.CastNode;
 import org.opensearch.painless.ir.ComparisonNode;

@@ -55,7 +55,7 @@ dependencies {
   api "io.netty:netty-resolver-dns:${versions.netty}"
   api "io.netty:netty-transport-native-unix-common:${versions.netty}"
   implementation project(':modules:transport-netty4')
-  api 'com.azure:azure-storage-blob:12.22.3'
+  api 'com.azure:azure-storage-blob:12.23.0'
   api 'org.reactivestreams:reactive-streams:1.0.4'
   api 'io.projectreactor:reactor-core:3.5.6'
   api 'io.projectreactor.netty:reactor-netty:1.1.8'
@@ -70,7 +70,7 @@ dependencies {
   api 'org.codehaus.woodstox:stax2-api:4.2.1'
   implementation "com.fasterxml.woodstox:woodstox-core:${versions.woodstox}"
   runtimeOnly "com.google.guava:guava:${versions.guava}"
-  api 'org.apache.commons:commons-lang3:3.12.0'
+  api 'org.apache.commons:commons-lang3:3.13.0'
   testImplementation project(':test:fixtures:azure-fixture')
 }
 

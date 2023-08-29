@@ -13,9 +13,9 @@ import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.document.DocumentField;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.geo.GeoModulePluginIntegTestCase;
 import org.opensearch.geo.search.aggregations.common.GeoBoundsHelper;
 import org.opensearch.geo.tests.common.RandomGeoGenerator;
@@ -32,10 +32,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.IntStream;
 
-import static org.hamcrest.Matchers.equalTo;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResponse;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
  * This is base class for all Geo Aggregations Integration Tests. This class is similar to what we have in the server
