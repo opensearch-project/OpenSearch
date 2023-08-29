@@ -564,4 +564,9 @@ public abstract class FilteredSearchContext extends SearchContext {
     public boolean shouldUseConcurrentSearch() {
         return in.shouldUseConcurrentSearch();
     }
+
+    @Override
+    public boolean shouldUseTimeSeriesDescSortOptimization() {
+        return in.shouldUseTimeSeriesDescSortOptimization();
+    }
 }

@@ -680,6 +680,15 @@ public class TestSearchContext extends SearchContext {
         return bucketCollectorProcessor;
     }
 
+    @Override
+    public boolean shouldUseTimeSeriesDescSortOptimization() {
+        return indexShard != null
+            && indexShard.isTimeSeriesDescSortOptimizationEnabled()
+            && sort != null
+            && sort.isSortOnTimeSeriesField()
+            && sort.sort.getSort()[0].getReverse() == false;
+    }
+
     /**
      * Clean the query results by consuming all of it
      */
