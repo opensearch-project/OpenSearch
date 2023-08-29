@@ -32,8 +32,8 @@
 
 package org.opensearch.painless.phase;
 
-import org.opensearch.painless.ir.BinaryMathNode;
 import org.opensearch.painless.ir.BinaryImplNode;
+import org.opensearch.painless.ir.BinaryMathNode;
 import org.opensearch.painless.ir.BlockNode;
 import org.opensearch.painless.ir.BooleanNode;
 import org.opensearch.painless.ir.BreakNode;

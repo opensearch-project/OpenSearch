@@ -23,6 +23,10 @@ class org.opensearch.script.ScoreScript @no_import {
 }
 
 static_import {
+    int termFreq(org.opensearch.script.ScoreScript, String, String) bound_to org.opensearch.script.ScoreScriptUtils$TermFreq
+    float tf(org.opensearch.script.ScoreScript, String, String) bound_to org.opensearch.script.ScoreScriptUtils$TF
+    long totalTermFreq(org.opensearch.script.ScoreScript, String, String) bound_to org.opensearch.script.ScoreScriptUtils$TotalTermFreq
+    long sumTotalTermFreq(org.opensearch.script.ScoreScript, String) bound_to org.opensearch.script.ScoreScriptUtils$SumTotalTermFreq
     double saturation(double, double) from_class org.opensearch.script.ScoreScriptUtils
     double sigmoid(double, double, double) from_class org.opensearch.script.ScoreScriptUtils
     double randomScore(org.opensearch.script.ScoreScript, int, String) bound_to org.opensearch.script.ScoreScriptUtils$RandomScoreField
@@ -33,8 +37,8 @@ static_import {
     double decayNumericLinear(double, double, double, double, double)bound_to org.opensearch.script.ScoreScriptUtils$DecayNumericLinear
     double decayNumericExp(double, double, double, double, double) bound_to org.opensearch.script.ScoreScriptUtils$DecayNumericExp
     double decayNumericGauss(double, double, double, double, double) bound_to org.opensearch.script.ScoreScriptUtils$DecayNumericGauss
-    double decayDateLinear(String, String, String, double, JodaCompatibleZonedDateTime) bound_to org.opensearch.script.ScoreScriptUtils$DecayDateLinear
-    double decayDateExp(String, String, String, double, JodaCompatibleZonedDateTime) bound_to org.opensearch.script.ScoreScriptUtils$DecayDateExp
-    double decayDateGauss(String, String, String, double, JodaCompatibleZonedDateTime) bound_to org.opensearch.script.ScoreScriptUtils$DecayDateGauss
+    double decayDateLinear(String, String, String, double, ZonedDateTime) bound_to org.opensearch.script.ScoreScriptUtils$DecayDateLinear
+    double decayDateExp(String, String, String, double, ZonedDateTime) bound_to org.opensearch.script.ScoreScriptUtils$DecayDateExp
+    double decayDateGauss(String, String, String, double, ZonedDateTime) bound_to org.opensearch.script.ScoreScriptUtils$DecayDateGauss
 }
 

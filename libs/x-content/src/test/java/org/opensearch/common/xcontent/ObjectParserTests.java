@@ -32,19 +32,19 @@
 package org.opensearch.common.xcontent;
 
 import org.opensearch.common.CheckedFunction;
+import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.ParseField;
+import org.opensearch.core.xcontent.ContextParser;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
-import org.opensearch.core.xcontent.XContentParserUtils;
+import org.opensearch.core.xcontent.NamedObjectNotFoundException;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.ObjectParser.NamedObjectParser;
 import org.opensearch.core.xcontent.ObjectParser.ValueType;
-import org.opensearch.common.xcontent.json.JsonXContent;
-import org.opensearch.core.xcontent.ContextParser;
-import org.opensearch.core.xcontent.NamedObjectNotFoundException;
-import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParseException;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParserUtils;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.ByteArrayOutputStream;

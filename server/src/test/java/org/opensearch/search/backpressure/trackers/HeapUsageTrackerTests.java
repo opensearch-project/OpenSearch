@@ -24,9 +24,9 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.util.List;
 import java.util.Optional;
 
+import static org.opensearch.search.backpressure.SearchBackpressureTestHelpers.createMockTaskWithResourceStats;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
-import static org.opensearch.search.backpressure.SearchBackpressureTestHelpers.createMockTaskWithResourceStats;
 
 public class HeapUsageTrackerTests extends OpenSearchTestCase {
     private static final long HEAP_BYTES_THRESHOLD_SEARCH_SHARD_TASK = 100;

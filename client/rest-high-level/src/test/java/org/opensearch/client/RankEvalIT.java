@@ -32,7 +32,6 @@
 
 package org.opensearch.client;
 
-import org.junit.Before;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.index.query.MatchAllQueryBuilder;
@@ -50,6 +49,7 @@ import org.opensearch.index.rankeval.RatedRequest;
 import org.opensearch.index.rankeval.RatedSearchHit;
 import org.opensearch.index.rankeval.RecallAtK;
 import org.opensearch.search.builder.SearchSourceBuilder;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;

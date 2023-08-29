@@ -8,21 +8,26 @@
 
 package org.opensearch.extensions.rest;
 
-import org.opensearch.core.rest.RestStatus;
 import org.opensearch.OpenSearchParseException;
+import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.BytesStreamInput;
-import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
+import org.opensearch.http.HttpRequest;
+import org.opensearch.identity.IdentityService;
+import org.opensearch.identity.Subject;
+import org.opensearch.identity.tokens.OnBehalfOfClaims;
+import org.opensearch.identity.tokens.TokenManager;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestRequest.Method;
-import org.opensearch.http.HttpRequest;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.nio.charset.StandardCharsets;
@@ -31,6 +36,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+
 import static java.util.Map.entry;
 
 public class ExtensionRestRequestTests extends OpenSearchTestCase {
@@ -45,10 +51,10 @@ public class ExtensionRestRequestTests extends OpenSearchTestCase {
     String extensionUniqueId1;
     Principal userPrincipal;
     HttpRequest.HttpVersion expectedHttpVersion;
-    // Will be replaced with ExtensionTokenProcessor and PrincipalIdentifierToken classes from feature/identity
     String extensionTokenProcessor;
     String expectedRequestIssuerIdentity;
     NamedWriteableRegistry registry;
+    private IdentityService identityService;
 
     public void setUp() throws Exception {
         super.setUp();
@@ -66,7 +72,13 @@ public class ExtensionRestRequestTests extends OpenSearchTestCase {
         userPrincipal = () -> "user1";
         expectedHttpVersion = HttpRequest.HttpVersion.HTTP_1_1;
         extensionTokenProcessor = "placeholder_extension_token_processor";
-        expectedRequestIssuerIdentity = "placeholder_request_issuer_identity";
+        identityService = new IdentityService(Settings.EMPTY, List.of());
+        TokenManager tokenManager = identityService.getTokenManager();
+        Subject subject = this.identityService.getSubject();
+        OnBehalfOfClaims claims = new OnBehalfOfClaims("testID", subject.getPrincipal().getName());
+        expectedRequestIssuerIdentity = identityService.getTokenManager()
+            .issueOnBehalfOfToken(identityService.getSubject(), claims)
+            .asAuthHeaderValue();
     }
 
     public void testExtensionRestRequest() throws Exception {

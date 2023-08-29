@@ -34,11 +34,11 @@ package org.opensearch.common.settings;
 
 import org.opensearch.common.inject.ModuleTestCase;
 import org.opensearch.common.settings.Setting.Property;
-import org.hamcrest.Matchers;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.search.SearchService;
 import org.opensearch.test.FeatureFlagSetter;
+import org.hamcrest.Matchers;
 
 import java.util.Arrays;
 

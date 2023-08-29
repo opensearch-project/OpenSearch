@@ -32,7 +32,14 @@
 
 package org.opensearch.join.aggregations;
 
-import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
+import org.opensearch.action.index.IndexRequestBuilder;
+import org.opensearch.action.search.SearchRequestBuilder;
+import org.opensearch.action.search.SearchResponse;
+import org.opensearch.client.Requests;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.join.query.ParentChildTestCase;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -41,9 +48,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import org.opensearch.action.index.IndexRequestBuilder;
-import org.opensearch.join.query.ParentChildTestCase;
-import org.junit.Before;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResponse;
 
 /**
  * Small base test-class which combines stuff used for Children and Parent aggregation tests
@@ -51,6 +57,10 @@ import org.junit.Before;
 public abstract class AbstractParentChildTestCase extends ParentChildTestCase {
     protected final Map<String, Control> categoryToControl = new HashMap<>();
     protected final Map<String, ParentControl> articleToControl = new HashMap<>();
+
+    public AbstractParentChildTestCase(Settings dynamicSettings) {
+        super(dynamicSettings);
+    }
 
     @Before
     public void setupCluster() throws Exception {
@@ -154,4 +164,38 @@ public abstract class AbstractParentChildTestCase extends ParentChildTestCase {
             this.category = category;
         }
     }
+
+    // Test when there is 1 child document and 1 parent document per segment.
+    public void testSparseSegments() throws InterruptedException {
+        assertAcked(
+            prepareCreate("sparse").setMapping(
+                addFieldMappings(
+                    buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "article", "comment"),
+                    "commenter",
+                    "keyword",
+                    "category",
+                    "keyword"
+                )
+            )
+                .setSettings(
+                    Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                )
+        );
+
+        List<IndexRequestBuilder> requests = new ArrayList<>();
+        requests.add(createIndexRequest("sparse", "article", "article-0", null, "category", List.of("0")));
+        indexRandom(true, false, requests);
+        client().admin().indices().refresh(Requests.refreshRequest("sparse")).actionGet();
+        requests = new ArrayList<>();
+        requests.add(createIndexRequest("sparse", "comment", "comment-0", "article-0", "commenter", "0"));
+        indexRandom(true, false, requests);
+
+        SearchResponse searchResponse = getSearchRequest().get();
+        assertSearchResponse(searchResponse);
+        validateSpareSegmentsSearchResponse(searchResponse);
+    }
+
+    abstract SearchRequestBuilder getSearchRequest();
+
+    abstract void validateSpareSegmentsSearchResponse(SearchResponse searchResponse);
 }

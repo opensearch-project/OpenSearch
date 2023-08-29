@@ -8,7 +8,6 @@
 
 package org.opensearch.bootstrap;
 
-import java.util.List;
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.identity.IdentityService;
@@ -16,6 +15,9 @@ import org.opensearch.identity.noop.NoopIdentityPlugin;
 import org.opensearch.identity.noop.NoopTokenManager;
 import org.opensearch.plugins.IdentityPlugin;
 import org.opensearch.test.OpenSearchTestCase;
+
+import java.util.List;
+
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 

@@ -114,4 +114,15 @@ public abstract class AggregatorFactory {
     public String getStatsSubtype() {
         return OTHER_SUBTYPE;
     }
+
+    /**
+     * Implementation should override this method and return true if the Aggregator created by the factory works with concurrent segment search execution model
+     */
+    protected boolean supportsConcurrentSegmentSearch() {
+        return false;
+    }
+
+    public boolean evaluateChildFactories() {
+        return factories.allFactoriesSupportConcurrentSearch();
+    }
 }

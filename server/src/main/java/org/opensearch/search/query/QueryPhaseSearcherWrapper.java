@@ -10,12 +10,12 @@ package org.opensearch.search.query;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.Query;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.search.aggregations.AggregationProcessor;
 import org.opensearch.search.internal.ContextIndexSearcher;
 import org.opensearch.search.internal.SearchContext;
-import org.apache.lucene.search.CollectorManager;
 
 import java.io.IOException;
 import java.util.LinkedList;
@@ -57,7 +57,7 @@ public class QueryPhaseSearcherWrapper implements QueryPhaseSearcher {
         boolean hasFilterCollector,
         boolean hasTimeout
     ) throws IOException {
-        if (searchContext.isConcurrentSegmentSearchEnabled()) {
+        if (searchContext.shouldUseConcurrentSearch()) {
             LOGGER.info("Using concurrent search over segments (experimental)");
             return concurrentQueryPhaseSearcher.searchWith(searchContext, searcher, query, collectors, hasFilterCollector, hasTimeout);
         } else {
@@ -72,7 +72,7 @@ public class QueryPhaseSearcherWrapper implements QueryPhaseSearcher {
      */
     @Override
     public AggregationProcessor aggregationProcessor(SearchContext searchContext) {
-        if (searchContext.isConcurrentSegmentSearchEnabled()) {
+        if (searchContext.shouldUseConcurrentSearch()) {
             LOGGER.info("Using concurrent search over segments (experimental)");
             return concurrentQueryPhaseSearcher.aggregationProcessor(searchContext);
         } else {

@@ -8,11 +8,11 @@
 
 package org.opensearch.identity.shiro;
 
-import java.security.Principal;
-import java.util.Objects;
-
 import org.opensearch.identity.Subject;
 import org.opensearch.identity.tokens.AuthToken;
+
+import java.security.Principal;
+import java.util.Objects;
 
 /**
  * Subject backed by Shiro

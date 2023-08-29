@@ -45,13 +45,13 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.common.CharArrays;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.Writeable.WriteableRegistry;
 import org.opensearch.core.common.io.stream.Writeable.Writer;
 import org.opensearch.core.common.settings.SecureString;
 import org.opensearch.core.common.text.Text;
-import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 
 import java.io.EOFException;
@@ -805,6 +805,23 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
+     * Returns the registered writer for the given class type.
+     */
+    @SuppressWarnings("unchecked")
+    public static <W extends Writer<?>> W getWriter(Class<?> type) {
+        Writer<Object> writer = WriteableRegistry.getWriter(type);
+        if (writer == null) {
+            // fallback to this local hashmap
+            // todo: move all writers to the registry
+            writer = WRITERS.get(type);
+        }
+        if (writer == null) {
+            throw new IllegalArgumentException("can not write type [" + type + "]");
+        }
+        return (W) writer;
+    }
+
+    /**
      * Notice: when serialization a map, the stream out map with the stream in map maybe have the
      * different key-value orders, they will maybe have different stream order.
      * If want to keep stream out map and stream in map have the same stream order when stream,
@@ -816,17 +833,8 @@ public abstract class StreamOutput extends OutputStream {
             return;
         }
         final Class<?> type = getGenericType(value);
-        Writer<Object> writer = WriteableRegistry.getWriter(type);
-        if (writer == null) {
-            // fallback to this local hashmap
-            // todo: move all writers to the registry
-            writer = WRITERS.get(type);
-        }
-        if (writer != null) {
-            writer.write(this, value);
-        } else {
-            throw new IllegalArgumentException("can not write type [" + type + "]");
-        }
+        final Writer<Object> writer = getWriter(type);
+        writer.write(this, value);
     }
 
     public static void checkWriteable(@Nullable Object value) throws IllegalArgumentException {

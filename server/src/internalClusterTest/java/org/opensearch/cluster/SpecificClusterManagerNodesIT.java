@@ -38,10 +38,10 @@ import org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusio
 import org.opensearch.common.settings.Settings;
 import org.opensearch.discovery.ClusterManagerNotDiscoveredException;
 import org.opensearch.index.query.QueryBuilders;
+import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.OpenSearchIntegTestCase.Scope;
-import org.opensearch.test.InternalTestCluster;
 
 import java.io.IOException;
 
