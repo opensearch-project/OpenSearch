@@ -35,13 +35,13 @@ public class IssueServiceAccountRequest extends TransportRequest {
      * @param in The stream passing the token
      */
     public IssueServiceAccountRequest(StreamInput in) throws IOException {
-        super(in);
         this.serviceAccountToken = in.readString();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+        out.writeString(serviceAccountToken);
     }
 
     public String getServiceAccountToken() {

@@ -46,6 +46,7 @@ import org.mockito.Mockito;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
@@ -158,6 +159,7 @@ public class RestInitializeExtensionActionTests extends OpenSearchTestCase {
 
         // optionally, you can stub out some methods:
         when(spy.getAdditionalSettings()).thenCallRealMethod();
+        doNothing().when(spy).issueServiceAccount(any());
         Mockito.doCallRealMethod().when(spy).loadExtension(any(ExtensionsSettings.Extension.class));
         Mockito.doNothing().when(spy).initialize();
         RestInitializeExtensionAction restInitializeExtensionAction = new RestInitializeExtensionAction(spy);
@@ -208,6 +210,7 @@ public class RestInitializeExtensionActionTests extends OpenSearchTestCase {
 
         // optionally, you can stub out some methods:
         when(spy.getAdditionalSettings()).thenCallRealMethod();
+        doNothing().when(spy).issueServiceAccount(any());
         Mockito.doCallRealMethod().when(spy).loadExtension(any(ExtensionsSettings.Extension.class));
         Mockito.doNothing().when(spy).initialize();
         RestInitializeExtensionAction restInitializeExtensionAction = new RestInitializeExtensionAction(spy);
