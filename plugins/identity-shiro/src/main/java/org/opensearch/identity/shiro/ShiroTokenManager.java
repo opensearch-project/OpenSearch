@@ -76,6 +76,19 @@ class ShiroTokenManager implements TokenManager {
     }
 
     @Override
+    public AuthToken issueServiceAccountToken(String audience) {
+
+        String password = generatePassword();
+        final byte[] rawEncoded = Base64.getEncoder().encode((audience + ":" + password).getBytes(UTF_8)); // Make a new
+        final String usernamePassword = new String(rawEncoded, UTF_8);
+        final String header = "Basic " + usernamePassword;
+
+        BasicAuthToken token = new BasicAuthToken(header);
+        shiroTokenPasswordMap.put(token, password);
+        return token;
+    }
+
+    @Override
     public Subject authenticateToken(AuthToken authToken) {
         return new NoopSubject();
     }
