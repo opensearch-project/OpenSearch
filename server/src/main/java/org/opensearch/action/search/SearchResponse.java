@@ -46,10 +46,12 @@ import org.opensearch.core.ParseField;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParseException;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.core.xcontent.XContentParser.Token;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.rest.action.RestActions;
+import org.opensearch.search.GenericSearchExtBuilder;
 import org.opensearch.search.SearchExtBuilder;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
@@ -67,6 +69,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
 
+import static org.opensearch.action.search.SearchResponseSections.EXT_FIELD;
 import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /**
@@ -322,14 +325,6 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         clusters.toXContent(builder, params);
         internalResponse.toXContent(builder, params);
 
-        if (!searchExtBuilders.isEmpty()) {
-            builder.startObject(EXT.getPreferredName());
-            for (SearchExtBuilder searchExtBuilder : searchExtBuilders) {
-                searchExtBuilder.toXContent(builder, params);
-            }
-            builder.endObject();
-        }
-
         return builder;
     }
 
@@ -357,6 +352,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         String searchContextId = null;
         List<ShardSearchFailure> failures = new ArrayList<>();
         Clusters clusters = Clusters.EMPTY;
+        List<SearchExtBuilder> extBuilders = new ArrayList<>();
         for (Token token = parser.nextToken(); token != Token.END_OBJECT; token = parser.nextToken()) {
             if (token == Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
@@ -435,6 +431,33 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
                         }
                     }
                     clusters = new Clusters(total, successful, skipped);
+                } else if (EXT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    String extSectionName = null;
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                        if (token == XContentParser.Token.FIELD_NAME) {
+                            extSectionName = parser.currentName();
+                        } else {
+                            SearchExtBuilder searchExtBuilder;
+                            try {
+                                searchExtBuilder = parser.namedObject(SearchExtBuilder.class, extSectionName, null);
+                                if (!searchExtBuilder.getWriteableName().equals(extSectionName)) {
+                                    throw new IllegalStateException(
+                                        "The parsed ["
+                                            + searchExtBuilder.getClass().getName()
+                                            + "] object has a "
+                                            + "different writeable name compared to the name of the section that it was parsed from: found ["
+                                            + searchExtBuilder.getWriteableName()
+                                            + "] expected ["
+                                            + extSectionName
+                                            + "]"
+                                    );
+                                }
+                            } catch (XContentParseException e) {
+                                searchExtBuilder = GenericSearchExtBuilder.fromXContent(parser);
+                            }
+                            extBuilders.add(searchExtBuilder);
+                        }
+                    }
                 } else {
                     parser.skipChildren();
                 }
@@ -447,7 +470,8 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
             timedOut,
             terminatedEarly,
             profile,
-            numReducePhases
+            numReducePhases,
+            extBuilders
         );
         return new SearchResponse(
             searchResponseSections,
