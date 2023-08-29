@@ -21,49 +21,57 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public class TraceableRunnableTests extends OpenSearchTestCase {
 
-    private final ThreadContextBasedTracerContextStorage contextStorage = new ThreadContextBasedTracerContextStorage(
+    private final ThreadContextSpanStorage spanContextStorage = new ThreadContextSpanStorage(
         new ThreadContext(Settings.EMPTY),
         new MockTracingTelemetry()
     );
 
+    private final ThreadContextSpanScopeStorage spanScopeContextStorage = new ThreadContextSpanScopeStorage(
+        new ThreadContext(Settings.EMPTY)
+    );
+
     public void testRunnableWithNullParent() throws Exception {
         String spanName = "testRunnable";
-        DefaultTracer defaultTracer = new DefaultTracer(new MockTracingTelemetry(), contextStorage);
+        final DefaultTracer defaultTracer = new DefaultTracer(new MockTracingTelemetry(), spanContextStorage, spanScopeContextStorage);
         final AtomicBoolean isRunnableCompleted = new AtomicBoolean(false);
-
+        final AtomicReference<String> spanNameCaptured = new AtomicReference<>();
+        final AtomicReference<String> attributeValue = new AtomicReference<>();
         TraceableRunnable traceableRunnable = new TraceableRunnable(
             defaultTracer,
             spanName,
             null,
             Attributes.create().addAttribute("name", "value"),
             () -> {
+                spanNameCaptured.set(defaultTracer.getCurrentSpan().getSpan().getSpanName());
+                attributeValue.set((String) ((MockSpan) defaultTracer.getCurrentSpan().getSpan()).getAttribute("name"));
                 isRunnableCompleted.set(true);
             }
         );
         traceableRunnable.run();
         assertTrue(isRunnableCompleted.get());
-        assertEquals(spanName, defaultTracer.getCurrentSpan().getSpan().getSpanName());
-        assertEquals(null, defaultTracer.getCurrentSpan().getSpan().getParentSpan());
-        assertEquals("value", ((MockSpan) defaultTracer.getCurrentSpan().getSpan()).getAttribute("name"));
-
+        assertEquals(spanName, spanNameCaptured.get());
+        assertEquals(null, defaultTracer.getCurrentSpan());
+        assertEquals(null, defaultTracer.getCurrentSpan());
+        assertEquals("value", attributeValue.get());
     }
 
     public void testRunnableWithParent() throws Exception {
         String spanName = "testRunnable";
         String parentSpanName = "parentSpan";
-        DefaultTracer defaultTracer = new DefaultTracer(new MockTracingTelemetry(), contextStorage);
-        defaultTracer.startSpan(parentSpanName);
-        SpanContext parentSpan = defaultTracer.getCurrentSpan();
+        DefaultTracer defaultTracer = new DefaultTracer(new MockTracingTelemetry(), spanContextStorage, spanScopeContextStorage);
+        ScopedSpan scopedSpan = defaultTracer.startScopedSpan(new SpanCreationContext(parentSpanName, Attributes.EMPTY));
+        SpanContext parentSpanContext = defaultTracer.getCurrentSpan();
         AtomicReference<SpanContext> currentSpan = new AtomicReference<>();
         final AtomicBoolean isRunnableCompleted = new AtomicBoolean(false);
-        TraceableRunnable traceableRunnable = new TraceableRunnable(defaultTracer, spanName, parentSpan, Attributes.EMPTY, () -> {
+        TraceableRunnable traceableRunnable = new TraceableRunnable(defaultTracer, spanName, parentSpanContext, Attributes.EMPTY, () -> {
             isRunnableCompleted.set(true);
             currentSpan.set(defaultTracer.getCurrentSpan());
         });
         traceableRunnable.run();
         assertTrue(isRunnableCompleted.get());
         assertEquals(spanName, currentSpan.get().getSpan().getSpanName());
-        assertEquals(parentSpan.getSpan(), currentSpan.get().getSpan().getParentSpan());
-        assertEquals(parentSpan.getSpan(), defaultTracer.getCurrentSpan().getSpan());
+        assertEquals(((DefaultScopedSpan) scopedSpan).getSpan(), currentSpan.get().getSpan().getParentSpan());
+        assertEquals(((DefaultScopedSpan) scopedSpan).getSpan(), defaultTracer.getCurrentSpan().getSpan());
+        scopedSpan.close();
     }
 }

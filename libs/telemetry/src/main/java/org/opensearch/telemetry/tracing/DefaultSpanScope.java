@@ -8,65 +8,37 @@
 
 package org.opensearch.telemetry.tracing;
 
+import java.util.Objects;
 import java.util.function.Consumer;
 
 /**
- * Default implementation of Scope
- *
- * @opensearch.internal
+ * Default implementation for {@link SpanScope}
  */
-final class DefaultSpanScope implements SpanScope {
-
+public class DefaultSpanScope implements SpanScope {
     private final Span span;
-
-    private final Consumer<Span> onCloseConsumer;
-
-    /**
-     * Creates Scope instance for the given span
-     *
-     * @param span underlying span
-     * @param onCloseConsumer consumer to execute on scope close
-     */
-    public DefaultSpanScope(Span span, Consumer<Span> onCloseConsumer) {
-        this.span = span;
-        this.onCloseConsumer = onCloseConsumer;
-    }
-
-    @Override
-    public void addSpanAttribute(String key, String value) {
-        span.addAttribute(key, value);
-    }
-
-    @Override
-    public void addSpanAttribute(String key, long value) {
-        span.addAttribute(key, value);
-    }
-
-    @Override
-    public void addSpanAttribute(String key, double value) {
-        span.addAttribute(key, value);
-    }
-
-    @Override
-    public void addSpanAttribute(String key, boolean value) {
-        span.addAttribute(key, value);
-    }
-
-    @Override
-    public void addSpanEvent(String event) {
-        span.addEvent(event);
-    }
-
-    @Override
-    public void setError(Exception exception) {
-        span.setError(exception);
-    }
+    private final SpanScope beforeAttachedSpanScope;
+    private final Consumer<SpanScope> onCloseConsumer;
 
     /**
-     * Executes the runnable to end the scope
+     * Constructor
+     * @param span span
+     * @param beforeAttachedSpanScope before attached span scope.
+     * @param onCloseConsumer close consumer
      */
+    public DefaultSpanScope(Span span, SpanScope beforeAttachedSpanScope, Consumer<SpanScope> onCloseConsumer) {
+        this.span = Objects.requireNonNull(span);
+        this.beforeAttachedSpanScope = beforeAttachedSpanScope;
+        this.onCloseConsumer = Objects.requireNonNull(onCloseConsumer);
+    }
+
     @Override
     public void close() {
-        onCloseConsumer.accept(span);
+        onCloseConsumer.accept(beforeAttachedSpanScope);
     }
+
+    @Override
+    public Span getSpan() {
+        return span;
+    }
+
 }
