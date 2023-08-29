@@ -449,6 +449,10 @@ public class ExtensionsManager {
         }
     }
 
+    /**
+     * A separate transport action handler used to issue service accounts to extensions during initialization
+     * @param extension The extension to be issued a service account
+     */
     public void issueServiceAccount(Extension extension) {
         DiscoveryExtensionNode discoveryExtensionNode = extensionIdMap.get(extension.getUniqueId());
         AuthToken serviceAccountToken = identityService.getTokenManager().issueServiceAccountToken(extension.getUniqueId());

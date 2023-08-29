@@ -15,16 +15,28 @@ import org.opensearch.core.transport.TransportResponse;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * This class represents a Transport Request for issuing a service account to an extension.
+ */
 public class IssueServiceAccountResponse extends TransportResponse {
 
     private String name;
     private String serviceAccountString;
 
+    /**
+     * This takes in a name for the extension and the service account token string
+     * @param name The name of the extension
+     * @param serviceAccountString A string encapsulating the service account token
+     */
     public IssueServiceAccountResponse(String name, String serviceAccountString) {
         this.name = name;
         this.serviceAccountString = serviceAccountString;
     }
 
+    /**
+     * This takes in a stream containing for the extension and the service account token
+     * @param in the stream containing the extension name and the service account token
+     */
     public IssueServiceAccountResponse(StreamInput in) throws IOException {
         this.name = in.readString();
         this.serviceAccountString = in.readString();
