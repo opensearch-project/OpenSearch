@@ -169,4 +169,13 @@ public class AuthTokenHandlerTests extends OpenSearchTestCase {
         assertTrue(token instanceof AuthToken);
     }
 
+    public void testShouldSucceedIssueServiceAccountToken() {
+
+
+    }
+
+    public void testShouldFailIssueServiceAccountToken() {
+
+    }
+
 }
