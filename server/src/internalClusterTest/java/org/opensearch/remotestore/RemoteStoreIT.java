@@ -15,10 +15,7 @@ import org.opensearch.action.admin.indices.recovery.RecoveryResponse;
 import org.opensearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.cluster.metadata.RepositoriesMetadata;
-import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.routing.RecoverySource;
-import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.BufferedAsyncIOProcessor;
@@ -66,6 +63,8 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
 
     private void testPeerRecovery(int numberOfIterations, boolean invokeFlush) throws Exception {
         internalCluster().startNodes(3);
+        ensureStableCluster(3);
+        assertRepositoryMetadataPresentInClusterState();
         createIndex(INDEX_NAME, remoteStoreIndexSettings(0));
         ensureYellowAndNoInitializingShards(INDEX_NAME);
         ensureGreen(INDEX_NAME);
@@ -127,6 +126,8 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
 
     public void verifyRemoteStoreCleanup() throws Exception {
         internalCluster().startNodes(3);
+        ensureStableCluster(3);
+        assertRepositoryMetadataPresentInClusterState();
         createIndex(INDEX_NAME, remoteStoreIndexSettings(1));
 
         indexData(5, randomBoolean(), INDEX_NAME);
@@ -135,7 +136,7 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
             .prepareGetSettings(INDEX_NAME)
             .get()
             .getSetting(INDEX_NAME, IndexMetadata.SETTING_INDEX_UUID);
-        Path indexPath = Path.of(String.valueOf(absolutePath), indexUUID);
+        Path indexPath = Path.of(String.valueOf(segmentRepoPath), indexUUID);
         assertTrue(getFileCount(indexPath) > 0);
         assertAcked(client().admin().indices().delete(new DeleteIndexRequest(INDEX_NAME)).get());
         // Delete is async. Give time for it
@@ -153,6 +154,8 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
 
     public void testStaleCommitDeletionWithInvokeFlush() throws Exception {
         internalCluster().startNode();
+        ensureStableCluster(1);
+        assertRepositoryMetadataPresentInClusterState();
         createIndex(INDEX_NAME, remoteStoreIndexSettings(1, 10000l, -1));
         int numberOfIterations = randomIntBetween(5, 15);
         indexData(numberOfIterations, true, INDEX_NAME);
@@ -161,7 +164,7 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
             .prepareGetSettings(INDEX_NAME)
             .get()
             .getSetting(INDEX_NAME, IndexMetadata.SETTING_INDEX_UUID);
-        Path indexPath = Path.of(String.valueOf(absolutePath), indexUUID, "/0/segments/metadata");
+        Path indexPath = Path.of(String.valueOf(segmentRepoPath), indexUUID, "/0/segments/metadata");
         // Delete is async.
         assertBusy(() -> {
             int actualFileCount = getFileCount(indexPath);
@@ -180,6 +183,8 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
 
     public void testStaleCommitDeletionWithoutInvokeFlush() throws Exception {
         internalCluster().startNode();
+        ensureStableCluster(1);
+        assertRepositoryMetadataPresentInClusterState();
         createIndex(INDEX_NAME, remoteStoreIndexSettings(1, 10000l, -1));
         int numberOfIterations = randomIntBetween(5, 15);
         indexData(numberOfIterations, false, INDEX_NAME);
@@ -188,7 +193,7 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
             .prepareGetSettings(INDEX_NAME)
             .get()
             .getSetting(INDEX_NAME, IndexMetadata.SETTING_INDEX_UUID);
-        Path indexPath = Path.of(String.valueOf(absolutePath), indexUUID, "/0/segments/metadata");
+        Path indexPath = Path.of(String.valueOf(segmentRepoPath), indexUUID, "/0/segments/metadata");
         int actualFileCount = getFileCount(indexPath);
         // We also allow (numberOfIterations + 1) as index creation also triggers refresh.
         MatcherAssert.assertThat(actualFileCount, is(oneOf(numberOfIterations - 1, numberOfIterations, numberOfIterations + 1)));

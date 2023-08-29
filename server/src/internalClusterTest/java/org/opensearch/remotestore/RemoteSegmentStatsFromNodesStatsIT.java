@@ -25,15 +25,15 @@ public class RemoteSegmentStatsFromNodesStatsIT extends RemoteStoreBaseIntegTest
     private static final int CLUSTER_MANAGER_NODE_COUNT = 3;
 
     @Before
-    public void setup() {
+    public void setup() throws Exception {
         setupCustomCluster();
-        setupRepo(false);
     }
 
-    private void setupCustomCluster() {
+    private void setupCustomCluster() throws Exception {
         internalCluster().startClusterManagerOnlyNodes(CLUSTER_MANAGER_NODE_COUNT);
         internalCluster().startDataOnlyNodes(DATA_NODE_COUNT);
         ensureStableCluster(DATA_NODE_COUNT + CLUSTER_MANAGER_NODE_COUNT);
+        assertRepositoryMetadataPresentInClusterState();
     }
 
     /**

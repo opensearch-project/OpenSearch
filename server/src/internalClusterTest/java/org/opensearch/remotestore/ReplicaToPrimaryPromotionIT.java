@@ -22,7 +22,6 @@ import org.opensearch.core.rest.RestStatus;
 import org.opensearch.test.BackgroundIndexer;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.junit.Before;
 
 import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
@@ -38,11 +37,6 @@ import static org.hamcrest.Matchers.is;
 public class ReplicaToPrimaryPromotionIT extends RemoteStoreBaseIntegTestCase {
     private int shard_count = 5;
 
-    @Before
-    public void setup() {
-        setupRepo();
-    }
-
     @Override
     public Settings indexSettings() {
         return Settings.builder().put(super.indexSettings()).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, shard_count).build();
@@ -51,6 +45,8 @@ public class ReplicaToPrimaryPromotionIT extends RemoteStoreBaseIntegTestCase {
     public void testPromoteReplicaToPrimary() throws Exception {
         internalCluster().startNode();
         internalCluster().startNode();
+        ensureStableCluster(2);
+        assertRepositoryMetadataPresentInClusterState();
         final String indexName = randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
         shard_count = scaledRandomIntBetween(1, 5);
         createIndex(indexName);
@@ -126,6 +122,8 @@ public class ReplicaToPrimaryPromotionIT extends RemoteStoreBaseIntegTestCase {
     public void testFailoverWhileIndexing() throws Exception {
         internalCluster().startNode();
         internalCluster().startNode();
+        ensureStableCluster(2);
+        assertRepositoryMetadataPresentInClusterState();
         final String indexName = randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
         shard_count = scaledRandomIntBetween(1, 5);
         createIndex(indexName);

@@ -35,13 +35,11 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
-
 public class PrimaryTermValidationIT extends RemoteStoreBaseIntegTestCase {
 
     private static final String INDEX_NAME = "remote-store-test-idx-1";
@@ -64,17 +62,11 @@ public class PrimaryTermValidationIT extends RemoteStoreBaseIntegTestCase {
             .put(remoteStoreClusterSettings(REPOSITORY_NAME, REPOSITORY_2_NAME, true))
             .build();
         internalCluster().startClusterManagerOnlyNode(clusterSettings);
-
-        // Create repository
-        absolutePath = randomRepoPath().toAbsolutePath();
-        assertAcked(
-            clusterAdmin().preparePutRepository(REPOSITORY_NAME).setType("fs").setSettings(Settings.builder().put("location", absolutePath))
-        );
-        absolutePath2 = randomRepoPath().toAbsolutePath();
-        putRepository(absolutePath2, REPOSITORY_2_NAME);
-
-        // Start data nodes and create index
         internalCluster().startDataOnlyNodes(2, clusterSettings);
+        ensureStableCluster(3);
+        assertRepositoryMetadataPresentInClusterState();
+
+        // Create index
         createIndex(INDEX_NAME, remoteStoreIndexSettings(1));
         ensureYellowAndNoInitializingShards(INDEX_NAME);
         ensureGreen(INDEX_NAME);

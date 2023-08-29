@@ -24,9 +24,9 @@ import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.indices.replication.common.ReplicationType;
+import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.junit.After;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.file.FileVisitResult;
@@ -61,8 +61,8 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
     protected static final String MAX_SEQ_NO_TOTAL = "max-seq-no-total";
     protected static final String MAX_SEQ_NO_REFRESHED_OR_FLUSHED = "max-seq-no-refreshed-or-flushed";
 
-    protected Path absolutePath;
-    protected Path absolutePath2;
+    protected Path segmentRepoPath;
+    protected Path translogRepoPath;
     protected Settings nodeAttributesSettings;
     private final List<String> documentKeys = List.of(
         randomAlphaOfLength(5),
@@ -120,7 +120,7 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
             .put(remoteStoreClusterSettings(REPOSITORY_NAME, REPOSITORY_2_NAME, true))
-            .put(remoteStoreNodeAttributes(REPOSITORY_NAME, REPOSITORY_2_NAME))
+            .put(remoteStoreNodeAttributes(REPOSITORY_NAME, FsRepository.TYPE, REPOSITORY_2_NAME, FsRepository.TYPE))
             .build();
     }
 
@@ -191,36 +191,51 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
         return settingsBuilder.build();
     }
 
-    public Settings remoteStoreNodeAttributes(String segmentRepoName, String translogRepoName) {
+    public Settings remoteStoreNodeAttributes(
+        String segmentRepoName,
+        String segmentRepoType,
+        String translogRepoName,
+        String translogRepoType
+    ) {
         if (nodeAttributesSettings != null) {
             return nodeAttributesSettings;
         }
-        absolutePath = randomRepoPath().toAbsolutePath();
-        absolutePath2 = randomRepoPath().toAbsolutePath();
+        segmentRepoPath = randomRepoPath().toAbsolutePath();
+        translogRepoPath = randomRepoPath().toAbsolutePath();
+        String segmentRepoKey = String.format(
+            Locale.getDefault(),
+            "node.attr." + REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT,
+            segmentRepoName
+        );
+        String translogRepoKey = String.format(
+            Locale.getDefault(),
+            "node.attr." + REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT,
+            translogRepoName
+        );
+        String segmentRepoSettingsPrefix = String.format(
+            Locale.getDefault(),
+            "node.attr." + REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX,
+            segmentRepoName
+        );
+        String translogRepoSettingsPrefix = String.format(
+            Locale.getDefault(),
+            "node.attr." + REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX,
+            translogRepoName
+        );
+
         if (segmentRepoName.equals(translogRepoName)) {
-            absolutePath2 = absolutePath;
+            segmentRepoPath = translogRepoPath;
+            segmentRepoKey = translogRepoKey;
+            segmentRepoSettingsPrefix = translogRepoSettingsPrefix;
         }
+
         nodeAttributesSettings = Settings.builder()
             .put("node.attr." + REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY, segmentRepoName)
-            .put(
-                String.format(Locale.getDefault(), "node.attr." + REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT, segmentRepoName),
-                "fs"
-            )
-            .put(
-                String.format(Locale.getDefault(), "node.attr." + REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX, segmentRepoName)
-                    + "location",
-                absolutePath.toString()
-            )
+            .put(segmentRepoKey, segmentRepoType)
+            .put(segmentRepoSettingsPrefix + "location", segmentRepoPath.toString())
             .put("node.attr." + REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY, translogRepoName)
-            .put(
-                String.format(Locale.getDefault(), "node.attr." + REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT, translogRepoName),
-                "fs"
-            )
-            .put(
-                String.format(Locale.getDefault(), "node.attr." + REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX, translogRepoName)
-                    + "location",
-                absolutePath2.toString()
-            )
+            .put(translogRepoKey, translogRepoType)
+            .put(translogRepoSettingsPrefix + "location", translogRepoPath.toString())
             .build();
         return nodeAttributesSettings;
     }
@@ -262,11 +277,6 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
 
     protected void putRepository(Path path, String repoName) {
         assertAcked(clusterAdmin().preparePutRepository(repoName).setType("fs").setSettings(Settings.builder().put("location", path)));
-    }
-
-    @Before
-    public void setup() throws Exception {
-        assertRepositoryMetadataPresentInClusterState();
     }
 
     @After

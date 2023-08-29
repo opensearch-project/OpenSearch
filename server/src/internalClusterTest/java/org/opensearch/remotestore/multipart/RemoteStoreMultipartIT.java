@@ -35,16 +35,17 @@ public class RemoteStoreMultipartIT extends RemoteStoreIT {
     }
 
     @Override
-    protected void putRepository(Path path) {
-        assertAcked(
-            clusterAdmin().preparePutRepository(REPOSITORY_NAME)
-                .setType(MockFsRepositoryPlugin.TYPE)
-                .setSettings(Settings.builder().put("location", path))
-        );
+    public Settings remoteStoreNodeAttributes(
+        String segmentRepoName,
+        String segmentRepoType,
+        String translogRepoName,
+        String translogRepoType
+    ) {
+        return super.remoteStoreNodeAttributes(segmentRepoName, MockFsRepositoryPlugin.TYPE, translogRepoName, MockFsRepositoryPlugin.TYPE);
     }
 
     public void testRateLimitedRemoteUploads() throws Exception {
-        internalCluster().startDataOnlyNodes(1);
+        internalCluster().startNode();
         Client client = client();
         logger.info("-->  updating repository");
         Path repositoryLocation = randomRepoPath();

@@ -21,7 +21,6 @@ import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.transport.MockTransportService;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -51,11 +50,6 @@ public class RemoteStoreRestoreIT extends RemoteStoreBaseIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(MockTransportService.TestPlugin.class);
-    }
-
-    @Before
-    public void setup() {
-        setupRepo();
     }
 
     private void restore(String... indices) {
@@ -93,7 +87,8 @@ public class RemoteStoreRestoreIT extends RemoteStoreBaseIntegTestCase {
         );
     }
 
-    private void prepareCluster(int numClusterManagerNodes, int numDataOnlyNodes, String indices, int replicaCount, int shardCount) {
+    private void prepareCluster(int numClusterManagerNodes, int numDataOnlyNodes, String indices, int replicaCount, int shardCount)
+        throws Exception {
         internalCluster().startClusterManagerOnlyNodes(numClusterManagerNodes);
         internalCluster().startDataOnlyNodes(numDataOnlyNodes);
         for (String index : indices.split(",")) {
@@ -101,6 +96,7 @@ public class RemoteStoreRestoreIT extends RemoteStoreBaseIntegTestCase {
             ensureYellowAndNoInitializingShards(index);
             ensureGreen(index);
         }
+        assertRepositoryMetadataPresentInClusterState();
     }
 
     /**
@@ -187,7 +183,7 @@ public class RemoteStoreRestoreIT extends RemoteStoreBaseIntegTestCase {
      * @throws IOException IO Exception.
      */
     private void testRestoreFlow(int numberOfIterations, boolean invokeFlush, int shardCount) throws Exception {
-        prepareCluster(0, 3, INDEX_NAME, 0, shardCount);
+        prepareCluster(1, 3, INDEX_NAME, 0, shardCount);
         Map<String, Long> indexStats = indexData(numberOfIterations, invokeFlush, INDEX_NAME);
         assertEquals(shardCount, getNumShards(INDEX_NAME).totalNumShards);
 
@@ -267,9 +263,9 @@ public class RemoteStoreRestoreIT extends RemoteStoreBaseIntegTestCase {
         }
     }
 
-    public void testRestoreFlowAllShardsNoRedIndex() throws InterruptedException {
+    public void testRestoreFlowAllShardsNoRedIndex() throws Exception {
         int shardCount = randomIntBetween(1, 5);
-        prepareCluster(0, 3, INDEX_NAME, 0, shardCount);
+        prepareCluster(1, 3, INDEX_NAME, 0, shardCount);
         indexData(randomIntBetween(2, 5), true, INDEX_NAME);
         assertEquals(shardCount, getNumShards(INDEX_NAME).totalNumShards);
 
@@ -285,7 +281,7 @@ public class RemoteStoreRestoreIT extends RemoteStoreBaseIntegTestCase {
 
     public void testRestoreFlowNoRedIndex() throws Exception {
         int shardCount = randomIntBetween(1, 5);
-        prepareCluster(0, 3, INDEX_NAME, 0, shardCount);
+        prepareCluster(1, 3, INDEX_NAME, 0, shardCount);
         Map<String, Long> indexStats = indexData(randomIntBetween(2, 5), true, INDEX_NAME);
         assertEquals(shardCount, getNumShards(INDEX_NAME).totalNumShards);
 
@@ -474,7 +470,7 @@ public class RemoteStoreRestoreIT extends RemoteStoreBaseIntegTestCase {
                 )
         );
         int shardCount = randomIntBetween(1, 3);
-        prepareCluster(0, 3, INDEX_NAME, 0, shardCount);
+        prepareCluster(1, 3, INDEX_NAME, 0, shardCount);
         Map<String, Long> indexStats = indexData(5, false, INDEX_NAME);
         assertEquals(shardCount, getNumShards(INDEX_NAME).totalNumShards);
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primaryNodeName(INDEX_NAME)));
