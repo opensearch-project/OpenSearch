@@ -1863,9 +1863,12 @@ public class InternalEngine extends Engine {
                         translogManager.rollTranslogGeneration();
                         logger.trace("starting commit for flush; commitTranslog=true");
                         // with Segment Replication we need to hold the latest commit before a new one is created and ensure it is released
-                        // only after the active reader is updated. This ensures that a flush does not wipe out a required commit point file while we are
+                        // only after the active reader is updated. This ensures that a flush does not wipe out a required commit point file
+                        // while we are
                         // in refresh listeners.
-                        final GatedCloseable<IndexCommit> latestCommit = engineConfig.getIndexSettings().isSegRepEnabled() ? acquireLastIndexCommit(false) : null;
+                        final GatedCloseable<IndexCommit> latestCommit = engineConfig.getIndexSettings().isSegRepEnabled()
+                            ? acquireLastIndexCommit(false)
+                            : null;
                         commitIndexWriter(indexWriter, translogManager.getTranslogUUID());
                         logger.trace("finished commit for flush");
 
