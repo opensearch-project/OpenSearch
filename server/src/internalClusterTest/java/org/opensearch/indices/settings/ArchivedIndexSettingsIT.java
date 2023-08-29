@@ -18,7 +18,9 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
+import static org.opensearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 import static org.hamcrest.Matchers.startsWith;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0, supportsDedicatedMasters = false)
@@ -48,12 +50,28 @@ public class ArchivedIndexSettingsIT extends OpenSearchIntegTestCase {
         internalCluster().restartNode(newClusterManagerNode);
 
         // Verify that archived settings exists.
-        assertTrue(
-            client().admin().indices().prepareGetSettings("test").get().getIndexToSettings().get("test").hasValue("archived.index.dummy")
-        );
-        assertTrue(
-            client().admin().indices().prepareGetSettings("test").get().getIndexToSettings().get("test").hasValue("archived.index.dummy2")
-        );
+        assertBusy(() -> {
+            // Verify that cluster state is in recovered state.
+            assertFalse(client().admin().cluster().prepareState().get().getState().blocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK));
+            assertTrue(
+                client().admin()
+                    .indices()
+                    .prepareGetSettings("test")
+                    .get()
+                    .getIndexToSettings()
+                    .get("test")
+                    .hasValue("archived.index.dummy")
+            );
+            assertTrue(
+                client().admin()
+                    .indices()
+                    .prepareGetSettings("test")
+                    .get()
+                    .getIndexToSettings()
+                    .get("test")
+                    .hasValue("archived.index.dummy2")
+            );
+        }, 30, TimeUnit.SECONDS);
 
         // Archived setting update should fail on open index.
         IllegalArgumentException exception = expectThrows(

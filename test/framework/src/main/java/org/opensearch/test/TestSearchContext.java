@@ -632,7 +632,7 @@ public class TestSearchContext extends SearchContext {
      * Returns concurrent segment search status for the search context
      */
     @Override
-    public boolean isConcurrentSegmentSearchEnabled() {
+    public boolean shouldUseConcurrentSearch() {
         return concurrentSegmentSearchEnabled;
     }
 
@@ -690,6 +690,15 @@ public class TestSearchContext extends SearchContext {
     public int getTargetMaxSliceCount() {
         assert concurrentSegmentSearchEnabled == true : "Please use concurrent search before fetching maxSliceCount";
         return maxSliceCount;
+    }
+
+    @Override
+    public boolean shouldUseTimeSeriesDescSortOptimization() {
+        return indexShard != null
+            && indexShard.isTimeSeriesDescSortOptimizationEnabled()
+            && sort != null
+            && sort.isSortOnTimeSeriesField()
+            && sort.sort.getSort()[0].getReverse() == false;
     }
 
     /**

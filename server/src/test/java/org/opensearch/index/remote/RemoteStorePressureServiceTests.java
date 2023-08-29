@@ -108,7 +108,7 @@ public class RemoteStorePressureServiceTests extends OpenSearchTestCase {
         pressureTracker.updateRemoteRefreshSeqNo(3);
         AtomicLong sum = new AtomicLong();
         IntStream.range(0, 20).forEach(i -> {
-            pressureTracker.addUploadTimeMs(i);
+            pressureTracker.addTimeForCompletedUploadSync(i);
             sum.addAndGet(i);
         });
         double avg = (double) sum.get() / 20;

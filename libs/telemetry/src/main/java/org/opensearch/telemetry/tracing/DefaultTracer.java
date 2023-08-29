@@ -12,6 +12,9 @@ import org.opensearch.telemetry.tracing.attributes.Attributes;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 /**
  *
@@ -44,7 +47,7 @@ class DefaultTracer implements Tracer {
 
     @Override
     public SpanScope startSpan(String spanName, Attributes attributes) {
-        return startSpan(spanName, null, attributes);
+        return startSpan(spanName, (SpanContext) null, attributes);
     }
 
     @Override
@@ -95,6 +98,12 @@ class DefaultTracer implements Tracer {
      */
     protected void addDefaultAttributes(Span span) {
         span.addAttribute(THREAD_NAME, Thread.currentThread().getName());
+    }
+
+    @Override
+    public SpanScope startSpan(String spanName, Map<String, List<String>> headers, Attributes attributes) {
+        Optional<Span> propagatedSpan = tracingTelemetry.getContextPropagator().extractFromHeaders(headers);
+        return startSpan(spanName, propagatedSpan.map(SpanContext::new).orElse(null), attributes);
     }
 
 }
