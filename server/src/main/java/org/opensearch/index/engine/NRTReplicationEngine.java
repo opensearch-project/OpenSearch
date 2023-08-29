@@ -39,6 +39,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiFunction;
 
 import static org.opensearch.index.seqno.SequenceNumbers.MAX_SEQ_NO;
@@ -57,6 +59,7 @@ public class NRTReplicationEngine extends Engine {
     private final CompletionStatsCache completionStatsCache;
     private final LocalCheckpointTracker localCheckpointTracker;
     private final WriteOnlyTranslogManager translogManager;
+    private final Lock flushLock = new ReentrantLock();
     protected final ReplicaFileTracker replicaFileTracker;
 
     private volatile long lastReceivedPrimaryGen = SequenceNumbers.NO_OPS_PERFORMED;
@@ -156,7 +159,7 @@ public class NRTReplicationEngine extends Engine {
             // a lower gen from a newly elected primary shard that is behind this shard's last commit gen.
             // In that case we still commit into the next local generation.
             if (incomingGeneration != this.lastReceivedPrimaryGen) {
-                commitSegmentInfos();
+                flush(false, true);
                 translogManager.getDeletionPolicy().setLocalCheckpointOfSafeCommit(maxSeqNo);
                 translogManager.rollTranslogGeneration();
             }
@@ -184,7 +187,7 @@ public class NRTReplicationEngine extends Engine {
         translogManager.syncTranslog();
     }
 
-    protected void commitSegmentInfos() throws IOException {
+    private void commitSegmentInfos() throws IOException {
         commitSegmentInfos(getLatestSegmentInfos());
     }
 
@@ -351,7 +354,27 @@ public class NRTReplicationEngine extends Engine {
     }
 
     @Override
-    public void flush(boolean force, boolean waitIfOngoing) throws EngineException {}
+    public void flush(boolean force, boolean waitIfOngoing) throws EngineException {
+        ensureOpen();
+        // readLock is held here to wait/block any concurrent close that acquires the writeLock.
+        try (final ReleasableLock lock = readLock.acquire()) {
+            ensureOpen();
+            if (flushLock.tryLock() == false) {
+                if (waitIfOngoing == false) {
+                    return;
+                }
+                flushLock.lock();
+            }
+            // we are now locked.
+            try {
+                commitSegmentInfos();
+            } catch (IOException e) {
+                throw new FlushFailedEngineException(shardId, e);
+            } finally {
+                flushLock.unlock();
+            }
+        }
+    }
 
     @Override
     public void forceMerge(
@@ -365,6 +388,9 @@ public class NRTReplicationEngine extends Engine {
 
     @Override
     public GatedCloseable<IndexCommit> acquireLastIndexCommit(boolean flushFirst) throws EngineException {
+        if (flushFirst) {
+            flush(false, true);
+        }
         try {
             final IndexCommit indexCommit = Lucene.getIndexCommit(lastCommittedSegmentInfos, store.directory());
             return new GatedCloseable<>(indexCommit, () -> {});
