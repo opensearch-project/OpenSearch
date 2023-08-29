@@ -237,6 +237,7 @@ public class SegmentReplicationPressureServiceTests extends OpenSearchIndexLevel
             shards.startAll();
             final IndexShard primaryShard = shards.getPrimary();
             SegmentReplicationPressureService service = buildPressureService(settings, primaryShard);
+            Mockito.reset(shardStateAction);
 
             // index docs in batches without refreshing
             indexInBatches(5, shards, primaryShard);
