@@ -15,10 +15,6 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 
-import java.util.concurrent.atomic.AtomicInteger;
-
-import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 
 public class RemoteStorePressureSettingsTests extends OpenSearchTestCase {
@@ -62,9 +58,6 @@ public class RemoteStorePressureSettingsTests extends OpenSearchTestCase {
 
         // Check minimum consecutive failures limit default value
         assertEquals(5, pressureSettings.getMinConsecutiveFailuresLimit());
-
-        // Check moving average window size default value
-        assertEquals(20, pressureSettings.getMovingAverageWindowSize());
     }
 
     public void testGetConfiguredSettings() {
@@ -73,10 +66,6 @@ public class RemoteStorePressureSettingsTests extends OpenSearchTestCase {
             .put(RemoteStorePressureSettings.BYTES_LAG_VARIANCE_FACTOR.getKey(), 50.0)
             .put(RemoteStorePressureSettings.UPLOAD_TIME_LAG_VARIANCE_FACTOR.getKey(), 60.0)
             .put(RemoteStorePressureSettings.MIN_CONSECUTIVE_FAILURES_LIMIT.getKey(), 121)
-            .put(
-                RemoteStorePressureSettings.MOVING_AVERAGE_WINDOW_SIZE.getKey(),
-                RemoteStorePressureSettings.Defaults.MOVING_AVERAGE_WINDOW_SIZE_MIN_VALUE
-            )
             .build();
         RemoteStorePressureSettings pressureSettings = new RemoteStorePressureSettings(
             clusterService,
@@ -95,26 +84,6 @@ public class RemoteStorePressureSettingsTests extends OpenSearchTestCase {
 
         // Check minimum consecutive failures limit configured value
         assertEquals(121, pressureSettings.getMinConsecutiveFailuresLimit());
-
-        // Check moving average window size configured value
-        assertEquals(
-            RemoteStorePressureSettings.Defaults.MOVING_AVERAGE_WINDOW_SIZE_MIN_VALUE,
-            pressureSettings.getMovingAverageWindowSize()
-        );
-    }
-
-    public void testInvalidMovingAverageWindowSize() {
-        Settings settings = Settings.builder()
-            .put(
-                RemoteStorePressureSettings.MOVING_AVERAGE_WINDOW_SIZE.getKey(),
-                RemoteStorePressureSettings.Defaults.MOVING_AVERAGE_WINDOW_SIZE_MIN_VALUE - 1
-            )
-            .build();
-        assertThrows(
-            "Failed to parse value",
-            IllegalArgumentException.class,
-            () -> new RemoteStorePressureSettings(clusterService, settings, mock(RemoteStorePressureService.class))
-        );
     }
 
     public void testUpdateAfterGetDefaultSettings() {
@@ -129,7 +98,6 @@ public class RemoteStorePressureSettingsTests extends OpenSearchTestCase {
             .put(RemoteStorePressureSettings.BYTES_LAG_VARIANCE_FACTOR.getKey(), 50.0)
             .put(RemoteStorePressureSettings.UPLOAD_TIME_LAG_VARIANCE_FACTOR.getKey(), 60.0)
             .put(RemoteStorePressureSettings.MIN_CONSECUTIVE_FAILURES_LIMIT.getKey(), 121)
-            .put(RemoteStorePressureSettings.MOVING_AVERAGE_WINDOW_SIZE.getKey(), 102)
             .build();
         clusterService.getClusterSettings().applySettings(newSettings);
 
@@ -144,9 +112,6 @@ public class RemoteStorePressureSettingsTests extends OpenSearchTestCase {
 
         // Check minimum consecutive failures limit updated
         assertEquals(121, pressureSettings.getMinConsecutiveFailuresLimit());
-
-        // Check moving average window size updated
-        assertEquals(102, pressureSettings.getMovingAverageWindowSize());
     }
 
     public void testUpdateAfterGetConfiguredSettings() {
@@ -155,7 +120,6 @@ public class RemoteStorePressureSettingsTests extends OpenSearchTestCase {
             .put(RemoteStorePressureSettings.BYTES_LAG_VARIANCE_FACTOR.getKey(), 50.0)
             .put(RemoteStorePressureSettings.UPLOAD_TIME_LAG_VARIANCE_FACTOR.getKey(), 60.0)
             .put(RemoteStorePressureSettings.MIN_CONSECUTIVE_FAILURES_LIMIT.getKey(), 121)
-            .put(RemoteStorePressureSettings.MOVING_AVERAGE_WINDOW_SIZE.getKey(), 102)
             .build();
         RemoteStorePressureSettings pressureSettings = new RemoteStorePressureSettings(
             clusterService,
@@ -167,7 +131,6 @@ public class RemoteStorePressureSettingsTests extends OpenSearchTestCase {
             .put(RemoteStorePressureSettings.BYTES_LAG_VARIANCE_FACTOR.getKey(), 40.0)
             .put(RemoteStorePressureSettings.UPLOAD_TIME_LAG_VARIANCE_FACTOR.getKey(), 50.0)
             .put(RemoteStorePressureSettings.MIN_CONSECUTIVE_FAILURES_LIMIT.getKey(), 111)
-            .put(RemoteStorePressureSettings.MOVING_AVERAGE_WINDOW_SIZE.getKey(), 112)
             .build();
 
         clusterService.getClusterSettings().applySettings(newSettings);
@@ -183,33 +146,5 @@ public class RemoteStorePressureSettingsTests extends OpenSearchTestCase {
 
         // Check minimum consecutive failures limit updated
         assertEquals(111, pressureSettings.getMinConsecutiveFailuresLimit());
-
-        // Check moving average window size updated
-        assertEquals(112, pressureSettings.getMovingAverageWindowSize());
-    }
-
-    public void testUpdateTriggeredInRemotePressureServiceOnUpdateSettings() {
-
-        int toUpdateVal1 = 1121;
-
-        AtomicInteger movingAverageWindowSize = new AtomicInteger();
-
-        RemoteStorePressureService pressureService = mock(RemoteStorePressureService.class);
-
-        // Upload bytes
-        doAnswer(invocation -> {
-            movingAverageWindowSize.set(invocation.getArgument(0));
-            return null;
-        }).when(pressureService).updateMovingAverageWindowSize(anyInt());
-
-        RemoteStorePressureSettings pressureSettings = new RemoteStorePressureSettings(clusterService, Settings.EMPTY, pressureService);
-        Settings newSettings = Settings.builder()
-            .put(RemoteStorePressureSettings.MOVING_AVERAGE_WINDOW_SIZE.getKey(), toUpdateVal1)
-            .build();
-        clusterService.getClusterSettings().applySettings(newSettings);
-
-        // Assertions
-        assertEquals(toUpdateVal1, pressureSettings.getMovingAverageWindowSize());
-        assertEquals(toUpdateVal1, movingAverageWindowSize.get());
     }
 }

@@ -83,13 +83,6 @@ public class RemoteStorePressureService {
         }
     }
 
-    void updateMovingAverageWindowSize(int updatedSize) {
-        remoteStoreStatsTrackerFactory.updateMovingAverageWindowSize(
-            RemoteSegmentTransferTracker::updateMovingAverageWindowSize,
-            updatedSize
-        );
-    }
-
     /**
      * Abstract class for validating if lag is acceptable or not.
      *

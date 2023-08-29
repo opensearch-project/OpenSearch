@@ -56,7 +56,7 @@ public class RemoteStorePressureServiceTests extends OpenSearchTestCase {
     }
 
     public void testIsSegmentsUploadBackpressureEnabled() {
-        remoteStoreStatsTrackerFactory = new RemoteStoreStatsTrackerFactory(Settings.EMPTY);
+        remoteStoreStatsTrackerFactory = new RemoteStoreStatsTrackerFactory(clusterService, Settings.EMPTY);
         pressureService = new RemoteStorePressureService(clusterService, Settings.EMPTY, remoteStoreStatsTrackerFactory);
         assertFalse(pressureService.isSegmentsUploadBackpressureEnabled());
 
@@ -71,7 +71,7 @@ public class RemoteStorePressureServiceTests extends OpenSearchTestCase {
     public void testValidateSegmentUploadLag() {
         // Create the pressure tracker
         IndexShard indexShard = createIndexShard(shardId, true);
-        remoteStoreStatsTrackerFactory = new RemoteStoreStatsTrackerFactory(Settings.EMPTY);
+        remoteStoreStatsTrackerFactory = new RemoteStoreStatsTrackerFactory(clusterService, Settings.EMPTY);
         pressureService = new RemoteStorePressureService(clusterService, Settings.EMPTY, remoteStoreStatsTrackerFactory);
         remoteStoreStatsTrackerFactory.afterIndexShardCreated(indexShard);
 

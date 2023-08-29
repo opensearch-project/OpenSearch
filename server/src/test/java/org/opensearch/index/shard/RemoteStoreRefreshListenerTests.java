@@ -86,7 +86,7 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             threadPool
         );
-        remoteStoreStatsTrackerFactory = new RemoteStoreStatsTrackerFactory(Settings.EMPTY);
+        remoteStoreStatsTrackerFactory = new RemoteStoreStatsTrackerFactory(clusterService, Settings.EMPTY);
         remoteStorePressureService = new RemoteStorePressureService(clusterService, Settings.EMPTY, remoteStoreStatsTrackerFactory);
         remoteStoreStatsTrackerFactory.afterIndexShardCreated(indexShard);
         RemoteSegmentTransferTracker tracker = remoteStoreStatsTrackerFactory.getRemoteSegmentTransferTracker(indexShard.shardId());
@@ -543,8 +543,8 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             threadPool
         );
-        remoteStoreStatsTrackerFactory = new RemoteStoreStatsTrackerFactory(Settings.EMPTY);
-        RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory = new RemoteStoreStatsTrackerFactory(Settings.EMPTY);
+        remoteStoreStatsTrackerFactory = new RemoteStoreStatsTrackerFactory(clusterService, Settings.EMPTY);
+        RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory = new RemoteStoreStatsTrackerFactory(clusterService, Settings.EMPTY);
         when(shard.indexSettings()).thenReturn(indexShard.indexSettings());
         when(shard.shardId()).thenReturn(indexShard.shardId());
         remoteStoreStatsTrackerFactory.afterIndexShardCreated(shard);

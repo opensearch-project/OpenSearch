@@ -26,8 +26,6 @@ public class RemoteStorePressureSettings {
         private static final double VARIANCE_FACTOR_MIN_VALUE = 1.0;
         private static final int MIN_CONSECUTIVE_FAILURES_LIMIT = 5;
         private static final int MIN_CONSECUTIVE_FAILURES_LIMIT_MIN_VALUE = 1;
-        static final int MOVING_AVERAGE_WINDOW_SIZE = 20;
-        static final int MOVING_AVERAGE_WINDOW_SIZE_MIN_VALUE = 5;
     }
 
     public static final Setting<Boolean> REMOTE_REFRESH_SEGMENT_PRESSURE_ENABLED = Setting.boolSetting(
@@ -57,14 +55,6 @@ public class RemoteStorePressureSettings {
         "remote_store.segment.pressure.consecutive_failures.limit",
         Defaults.MIN_CONSECUTIVE_FAILURES_LIMIT,
         Defaults.MIN_CONSECUTIVE_FAILURES_LIMIT_MIN_VALUE,
-        Setting.Property.Dynamic,
-        Setting.Property.NodeScope
-    );
-
-    public static final Setting<Integer> MOVING_AVERAGE_WINDOW_SIZE = Setting.intSetting(
-        "remote_store.pressure.moving_average_window_size",
-        Defaults.MOVING_AVERAGE_WINDOW_SIZE,
-        Defaults.MOVING_AVERAGE_WINDOW_SIZE_MIN_VALUE,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -99,10 +89,6 @@ public class RemoteStorePressureSettings {
 
         this.minConsecutiveFailuresLimit = MIN_CONSECUTIVE_FAILURES_LIMIT.get(settings);
         clusterSettings.addSettingsUpdateConsumer(MIN_CONSECUTIVE_FAILURES_LIMIT, this::setMinConsecutiveFailuresLimit);
-
-        this.movingAverageWindowSize = MOVING_AVERAGE_WINDOW_SIZE.get(settings);
-        clusterSettings.addSettingsUpdateConsumer(MOVING_AVERAGE_WINDOW_SIZE, remoteStorePressureService::updateMovingAverageWindowSize);
-        clusterSettings.addSettingsUpdateConsumer(MOVING_AVERAGE_WINDOW_SIZE, this::setMovingAverageWindowSize);
     }
 
     public boolean isRemoteRefreshSegmentPressureEnabled() {
@@ -143,10 +129,6 @@ public class RemoteStorePressureSettings {
 
     public void setMinConsecutiveFailuresLimit(int minConsecutiveFailuresLimit) {
         this.minConsecutiveFailuresLimit = minConsecutiveFailuresLimit;
-    }
-
-    public int getMovingAverageWindowSize() {
-        return movingAverageWindowSize;
     }
 
     public void setMovingAverageWindowSize(int movingAverageWindowSize) {

@@ -655,7 +655,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
 
                 remoteStore = createRemoteStore(remotePath, routing, indexMetadata);
 
-                remoteStoreStatsTrackerFactory = new RemoteStoreStatsTrackerFactory(indexSettings.getSettings());
+                remoteStoreStatsTrackerFactory = new RemoteStoreStatsTrackerFactory(clusterService, indexSettings.getSettings());
                 BlobStoreRepository repo = createRepository(remotePath);
                 when(mockRepoSvc.repository(any())).thenAnswer(invocationOnMock -> repo);
             }
