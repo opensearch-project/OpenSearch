@@ -1862,6 +1862,10 @@ public class InternalEngine extends Engine {
                     try {
                         translogManager.rollTranslogGeneration();
                         logger.trace("starting commit for flush; commitTranslog=true");
+                        // with Segment Replication we need to hold the latest commit before a new one is created and ensure it is released
+                        // only after the active reader is updated. This ensures that a flush does not wipe out a required commit point file while we are
+                        // in refresh listeners.
+                        final GatedCloseable<IndexCommit> latestCommit = engineConfig.getIndexSettings().isSegRepEnabled() ? acquireLastIndexCommit(false) : null;
                         commitIndexWriter(indexWriter, translogManager.getTranslogUUID());
                         logger.trace("finished commit for flush");
 
@@ -1875,6 +1879,11 @@ public class InternalEngine extends Engine {
 
                         // we need to refresh in order to clear older version values
                         refresh("version_table_flush", SearcherScope.INTERNAL, true);
+
+                        if (latestCommit != null) {
+                            latestCommit.close();
+                        }
+
                         translogManager.trimUnreferencedReaders();
                     } catch (AlreadyClosedException e) {
                         failOnTragicEvent(e);
@@ -2148,30 +2157,19 @@ public class InternalEngine extends Engine {
      */
     @Override
     public GatedCloseable<SegmentInfos> getSegmentInfosSnapshot() {
-        final SegmentInfos segmentInfos;
         final OpenSearchDirectoryReader reader;
-        final GatedCloseable<IndexCommit> lastIndexCommit = acquireLastIndexCommit(false);
         try {
             reader = internalReaderManager.acquire();
-            SegmentInfos readerInfos = ((StandardDirectoryReader) reader.getDelegate()).getSegmentInfos();
-            // if the latest index commit on disk has a higher gen than the reader load that instead.
-            // This ensures our commit file will exist throughout upload process.
-            if (lastIndexCommit.get().getGeneration() > readerInfos.getGeneration()) {
-                segmentInfos = SegmentInfos.readCommit(store.directory(), lastIndexCommit.get().getSegmentsFileName());
-            } else {
-                segmentInfos = readerInfos;
-            }
+            return new GatedCloseable<>(((StandardDirectoryReader) reader.getDelegate()).getSegmentInfos(), () -> {
+                try {
+                    internalReaderManager.release(reader);
+                } catch (AlreadyClosedException e) {
+                    logger.warn("Engine is already closed.", e);
+                }
+            });
         } catch (IOException e) {
             throw new EngineException(shardId, e.getMessage(), e);
         }
-        return new GatedCloseable<>(segmentInfos, () -> {
-            try {
-                internalReaderManager.release(reader);
-                lastIndexCommit.close();
-            } catch (AlreadyClosedException e) {
-                logger.warn("Engine is already closed.", e);
-            }
-        });
     }
 
     @Override
