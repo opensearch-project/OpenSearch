@@ -17,44 +17,44 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 
-public class NoOpCryptoProviderTests extends OpenSearchTestCase {
+public class NoOpCryptoHandlerTests extends OpenSearchTestCase {
 
     public void testInitEncryptionMetadata() {
-        NoOpCryptoProvider cryptoProvider = new NoOpCryptoProvider();
+        NoOpCryptoHandler cryptoProvider = new NoOpCryptoHandler();
         Object encryptionMetadata = cryptoProvider.initEncryptionMetadata();
         assertNotNull(encryptionMetadata);
     }
 
     public void testAdjustContentSizeForPartialEncryption() {
-        NoOpCryptoProvider cryptoProvider = new NoOpCryptoProvider();
+        NoOpCryptoHandler cryptoProvider = new NoOpCryptoHandler();
         long originalSize = 1000L;
         long adjustedSize = cryptoProvider.adjustContentSizeForPartialEncryption(new Object(), originalSize);
         assertEquals(originalSize, adjustedSize);
     }
 
     public void testEstimateEncryptedLengthOfEntireContent() {
-        NoOpCryptoProvider cryptoProvider = new NoOpCryptoProvider();
+        NoOpCryptoHandler cryptoProvider = new NoOpCryptoHandler();
         long originalSize = 2000L;
         long estimatedSize = cryptoProvider.estimateEncryptedLengthOfEntireContent(new Object(), originalSize);
         assertEquals(originalSize, estimatedSize);
     }
 
     public void testEstimateDecryptedLength() {
-        NoOpCryptoProvider cryptoProvider = new NoOpCryptoProvider();
+        NoOpCryptoHandler cryptoProvider = new NoOpCryptoHandler();
         long originalSize = 1500L;
         long estimatedSize = cryptoProvider.estimateDecryptedLength(new Object(), originalSize);
         assertEquals(originalSize, estimatedSize);
     }
 
     public void testCreateEncryptingStream() {
-        NoOpCryptoProvider cryptoProvider = new NoOpCryptoProvider();
+        NoOpCryptoHandler cryptoProvider = new NoOpCryptoHandler();
         InputStreamContainer inputStream = randomStream();
         InputStreamContainer encryptedStream = cryptoProvider.createEncryptingStream(new Object(), inputStream);
         assertEquals(inputStream, encryptedStream);
     }
 
     public void testCreateEncryptingStreamOfPart() {
-        NoOpCryptoProvider cryptoProvider = new NoOpCryptoProvider();
+        NoOpCryptoHandler cryptoProvider = new NoOpCryptoHandler();
         InputStreamContainer inputStream = randomStream();
         InputStreamContainer encryptedStream = cryptoProvider.createEncryptingStreamOfPart(new Object(), inputStream, 2, 1);
         assertEquals(inputStream, encryptedStream);
@@ -68,21 +68,21 @@ public class NoOpCryptoProviderTests extends OpenSearchTestCase {
     }
 
     public void testLoadEncryptionMetadata() throws IOException {
-        NoOpCryptoProvider cryptoProvider = new NoOpCryptoProvider();
+        NoOpCryptoHandler cryptoProvider = new NoOpCryptoHandler();
         EncryptedHeaderContentSupplier supplier = (start, length) -> { throw new UnsupportedOperationException("Not implemented"); };
         Object encryptionMetadata = cryptoProvider.loadEncryptionMetadata(supplier);
         assertNotNull(encryptionMetadata);
     }
 
     public void testCreateDecryptingStream() {
-        NoOpCryptoProvider cryptoProvider = new NoOpCryptoProvider();
+        NoOpCryptoHandler cryptoProvider = new NoOpCryptoHandler();
         InputStream encryptedStream = randomStream().getInputStream();
         InputStream decryptedStream = cryptoProvider.createDecryptingStream(encryptedStream);
         assertEquals(encryptedStream, decryptedStream);
     }
 
     public void testCreateDecryptingStreamOfRange() {
-        NoOpCryptoProvider cryptoProvider = new NoOpCryptoProvider();
+        NoOpCryptoHandler cryptoProvider = new NoOpCryptoHandler();
         Object cryptoContext = new Object();
         long startPos = 0L;
         long endPos = 100L;

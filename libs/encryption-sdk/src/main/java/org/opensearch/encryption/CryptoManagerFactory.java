@@ -8,7 +8,10 @@
 
 package org.opensearch.encryption;
 
-import org.opensearch.common.crypto.CryptoProvider;
+import com.amazonaws.encryptionsdk.CryptoAlgorithm;
+import com.amazonaws.encryptionsdk.caching.CachingCryptoMaterialsManager;
+import com.amazonaws.encryptionsdk.caching.LocalCryptoMaterialsCache;
+import org.opensearch.common.crypto.CryptoHandler;
 import org.opensearch.common.crypto.MasterKeyProvider;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRefCounted;
@@ -16,10 +19,6 @@ import org.opensearch.encryption.keyprovider.CryptoMasterKey;
 
 import java.security.SecureRandom;
 import java.util.concurrent.TimeUnit;
-
-import com.amazonaws.encryptionsdk.CryptoAlgorithm;
-import com.amazonaws.encryptionsdk.caching.CachingCryptoMaterialsManager;
-import com.amazonaws.encryptionsdk.caching.LocalCryptoMaterialsCache;
 
 public class CryptoManagerFactory {
 
@@ -50,7 +49,7 @@ public class CryptoManagerFactory {
         }
     }
 
-    public CryptoManager getOrCreateCryptoManager(
+    public CryptoManager<? , ?> getOrCreateCryptoManager(
         MasterKeyProvider keyProvider,
         String keyProviderName,
         String keyProviderType,
@@ -61,17 +60,17 @@ public class CryptoManagerFactory {
             keyProviderName,
             validateAndGetAlgorithmId(algorithm)
         );
-        CryptoProvider cryptoProvider = createCryptoProvider(algorithm, materialsManager, keyProvider);
-        return createCryptoManager(cryptoProvider, keyProviderType, keyProviderName, onClose);
+        CryptoHandler<? , ?> cryptoHandler = createCryptoProvider(algorithm, materialsManager, keyProvider);
+        return createCryptoManager(cryptoHandler, keyProviderType, keyProviderName, onClose);
     }
 
     // package private for tests
-    CryptoProvider createCryptoProvider(
+    CryptoHandler<? , ?> createCryptoProvider(
         String algorithm,
         CachingCryptoMaterialsManager materialsManager,
         MasterKeyProvider masterKeyProvider
     ) {
-        return new NoOpCryptoProvider();
+        return new NoOpCryptoHandler();
     }
 
     // Package private for tests
@@ -90,8 +89,8 @@ public class CryptoManagerFactory {
     }
 
     // package private for tests
-    CryptoManager createCryptoManager(CryptoProvider cryptoProvider, String keyProviderType, String keyProviderName, Runnable onClose) {
-        return new CryptoManagerImpl(keyProviderName, keyProviderType) {
+    <T, U> CryptoManager<?, ?> createCryptoManager(CryptoHandler<T, U> cryptoHandler, String keyProviderType, String keyProviderName, Runnable onClose) {
+        return new CryptoManagerImpl<T, U>(keyProviderName, keyProviderType) {
             @Override
             protected void closeInternal() {
                 onClose.run();
@@ -108,13 +107,13 @@ public class CryptoManagerFactory {
             }
 
             @Override
-            public CryptoProvider getCryptoProvider() {
-                return cryptoProvider;
+            public CryptoHandler<T, U> getCryptoProvider() {
+                return cryptoHandler;
             }
         };
     }
 
-    private static abstract class CryptoManagerImpl extends AbstractRefCounted implements CryptoManager {
+    private static abstract class CryptoManagerImpl<T, U> extends AbstractRefCounted implements CryptoManager<T, U> {
         public CryptoManagerImpl(String keyProviderName, String keyProviderType) {
             super(keyProviderName + "-" + keyProviderType);
         }

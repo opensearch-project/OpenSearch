@@ -8,7 +8,7 @@
 
 package org.opensearch.encryption;
 
-import org.opensearch.common.crypto.CryptoProvider;
+import org.opensearch.common.crypto.CryptoHandler;
 import org.opensearch.common.crypto.DecryptedRangedStreamProvider;
 import org.opensearch.common.crypto.EncryptedHeaderContentSupplier;
 import org.opensearch.common.io.InputStreamContainer;
@@ -16,7 +16,7 @@ import org.opensearch.common.io.InputStreamContainer;
 import java.io.IOException;
 import java.io.InputStream;
 
-public class NoOpCryptoProvider implements CryptoProvider {
+public class NoOpCryptoHandler implements CryptoHandler<Object, Object> {
 
     /**
      * No op - Initialises metadata store used in encryption.

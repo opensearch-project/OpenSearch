@@ -16,8 +16,11 @@ import java.io.InputStream;
 /**
  * Crypto provider abstractions for encryption and decryption of data. Allows registering multiple providers
  * for defining different ways of encrypting or decrypting data.
+ *
+ * T - Encryption Metadata
+ * U - Parsed Encryption Metadata
  */
-public interface CryptoProvider {
+public interface CryptoHandler<T, U> {
 
     /**
      * To initialise or create a new crypto metadata to be used in encryption. This is needed to set the context before
@@ -25,7 +28,7 @@ public interface CryptoProvider {
      *
      * @return crypto metadata instance
      */
-    Object initEncryptionMetadata();
+    T initEncryptionMetadata();
 
     /**
      * To load crypto metadata to be used in encryption from content header.
@@ -34,7 +37,7 @@ public interface CryptoProvider {
      *
      * @return crypto metadata instance used in decryption.
      */
-    Object loadEncryptionMetadata(EncryptedHeaderContentSupplier encryptedHeaderContentSupplier) throws IOException;
+    U loadEncryptionMetadata(EncryptedHeaderContentSupplier encryptedHeaderContentSupplier) throws IOException;
 
     /**
      * Few encryption algorithms have certain conditions on the unit of content to be encrypted. This requires the
@@ -46,7 +49,7 @@ public interface CryptoProvider {
      * @param contentSize Size of the raw content
      * @return Adjusted size of the content.
      */
-    long adjustContentSizeForPartialEncryption(Object cryptoContext, long contentSize);
+    long adjustContentSizeForPartialEncryption(T cryptoContext, long contentSize);
 
     /**
      * Estimate length of the encrypted content. It should only be used to determine length of entire content after
@@ -56,7 +59,7 @@ public interface CryptoProvider {
      * @param contentLength Size of the raw content
      * @return Calculated size of the encrypted content.
      */
-    long estimateEncryptedLengthOfEntireContent(Object cryptoContext, long contentLength);
+    long estimateEncryptedLengthOfEntireContent(T cryptoContext, long contentLength);
 
     /**
      * For given encrypted content length, estimate the length of the decrypted content.
@@ -64,7 +67,7 @@ public interface CryptoProvider {
      * @param contentLength Size of the encrypted content
      * @return Calculated size of the decrypted content.
      */
-    long estimateDecryptedLength(Object cryptoContext, long contentLength);
+    long estimateDecryptedLength(U cryptoContext, long contentLength);
 
     /**
      * Wraps a raw InputStream with encrypting stream
@@ -73,7 +76,7 @@ public interface CryptoProvider {
      * @param stream Raw InputStream to encrypt
      * @return encrypting stream wrapped around raw InputStream.
      */
-    InputStreamContainer createEncryptingStream(Object encryptionMetadata, InputStreamContainer stream);
+    InputStreamContainer createEncryptingStream(T encryptionMetadata, InputStreamContainer stream);
 
     /**
      * Provides encrypted stream for a raw stream emitted for a part of content.
@@ -84,7 +87,7 @@ public interface CryptoProvider {
      * @param streamIdx Index of the current stream.
      * @return Encrypted stream for the provided raw stream.
      */
-    InputStreamContainer createEncryptingStreamOfPart(Object cryptoContext, InputStreamContainer stream, int totalStreams, int streamIdx);
+    InputStreamContainer createEncryptingStreamOfPart(T cryptoContext, InputStreamContainer stream, int totalStreams, int streamIdx);
 
     /**
      * This method accepts an encrypted stream and provides a decrypting wrapper.
@@ -107,5 +110,5 @@ public interface CryptoProvider {
      * @param startPosOfRawContent starting position in the raw/decrypted content
      * @param endPosOfRawContent ending position in the raw/decrypted content
      */
-    DecryptedRangedStreamProvider createDecryptingStreamOfRange(Object cryptoContext, long startPosOfRawContent, long endPosOfRawContent);
+    DecryptedRangedStreamProvider createDecryptingStreamOfRange(U cryptoContext, long startPosOfRawContent, long endPosOfRawContent);
 }

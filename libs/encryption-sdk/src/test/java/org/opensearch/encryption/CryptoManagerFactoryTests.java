@@ -8,15 +8,14 @@
 
 package org.opensearch.encryption;
 
-import org.opensearch.common.crypto.CryptoProvider;
+import com.amazonaws.encryptionsdk.caching.CachingCryptoMaterialsManager;
+import org.junit.Before;
+import org.opensearch.common.crypto.CryptoHandler;
 import org.opensearch.common.crypto.MasterKeyProvider;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.test.OpenSearchTestCase;
-import org.junit.Before;
 
 import java.util.Collections;
-
-import com.amazonaws.encryptionsdk.caching.CachingCryptoMaterialsManager;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -38,7 +37,7 @@ public class CryptoManagerFactoryTests extends OpenSearchTestCase {
         MasterKeyProvider mockKeyProvider = mock(MasterKeyProvider.class);
         when(mockKeyProvider.getEncryptionContext()).thenReturn(Collections.emptyMap());
 
-        CryptoManager cryptoManager = cryptoManagerFactory.getOrCreateCryptoManager(
+        CryptoManager<? , ?> cryptoManager = cryptoManagerFactory.getOrCreateCryptoManager(
             mockKeyProvider,
             "keyProviderName",
             "keyProviderType",
@@ -53,13 +52,13 @@ public class CryptoManagerFactoryTests extends OpenSearchTestCase {
         MasterKeyProvider mockKeyProvider = mock(MasterKeyProvider.class);
         when(mockKeyProvider.getEncryptionContext()).thenReturn(Collections.emptyMap());
 
-        CryptoProvider cryptoProvider = cryptoManagerFactory.createCryptoProvider(
+        CryptoHandler<? , ?> cryptoHandler = cryptoManagerFactory.createCryptoProvider(
             "ALG_AES_256_GCM_HKDF_SHA512_COMMIT_KEY_ECDSA_P384",
             mockMaterialsManager,
             mockKeyProvider
         );
 
-        assertNotNull(cryptoProvider);
+        assertNotNull(cryptoHandler);
     }
 
     public void testCreateMaterialsManager() {
@@ -76,9 +75,9 @@ public class CryptoManagerFactoryTests extends OpenSearchTestCase {
     }
 
     public void testCreateCryptoManager() {
-        CryptoProvider mockCryptoProvider = mock(CryptoProvider.class);
-        CryptoManager cryptoManager = cryptoManagerFactory.createCryptoManager(
-            mockCryptoProvider,
+        CryptoHandler<? , ?> mockCryptoHandler = mock(CryptoHandler.class);
+        CryptoManager<? , ?> cryptoManager = cryptoManagerFactory.createCryptoManager(
+            mockCryptoHandler,
             "keyProviderName",
             "keyProviderType",
             null
