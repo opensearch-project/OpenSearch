@@ -57,7 +57,6 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.TestCustomMetadata;
 
@@ -115,39 +114,6 @@ public class ClusterStateTests extends OpenSearchTestCase {
             withClusterManager1a.supersedes(withClusterManager1b),
             equalTo(withClusterManager1a.version() > withClusterManager1b.version())
         );
-    }
-
-    public void testIsSegmentReplicationEnabled() {
-        final String indexName = "test";
-        ClusterState clusterState = ClusterState.builder(CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).build();
-        Settings.Builder builder = settings(Version.CURRENT).put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT);
-        IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexName)
-            .settings(builder)
-            .numberOfShards(1)
-            .numberOfReplicas(1);
-        Metadata.Builder metadataBuilder = Metadata.builder().put(indexMetadataBuilder);
-        RoutingTable.Builder routingTableBuilder = RoutingTable.builder().addAsNew(indexMetadataBuilder.build());
-        clusterState = ClusterState.builder(clusterState)
-            .metadata(metadataBuilder.build())
-            .routingTable(routingTableBuilder.build())
-            .build();
-        assertTrue(clusterState.isSegmentReplicationEnabled(indexName));
-    }
-
-    public void testIsSegmentReplicationDisabled() {
-        final String indexName = "test";
-        ClusterState clusterState = ClusterState.builder(CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).build();
-        IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexName)
-            .settings(settings(Version.CURRENT))
-            .numberOfShards(1)
-            .numberOfReplicas(1);
-        Metadata.Builder metadataBuilder = Metadata.builder().put(indexMetadataBuilder);
-        RoutingTable.Builder routingTableBuilder = RoutingTable.builder().addAsNew(indexMetadataBuilder.build());
-        clusterState = ClusterState.builder(clusterState)
-            .metadata(metadataBuilder.build())
-            .routingTable(routingTableBuilder.build())
-            .build();
-        assertFalse(clusterState.isSegmentReplicationEnabled(indexName));
     }
 
     public void testBuilderRejectsNullCustom() {

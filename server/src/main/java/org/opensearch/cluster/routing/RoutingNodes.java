@@ -66,8 +66,6 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.opensearch.action.get.TransportGetAction.isSegmentReplicationEnabled;
-
 /**
  * {@link RoutingNodes} represents a copy the routing information contained in the {@link ClusterState cluster state}.
  * It can be either initialized as mutable or immutable (see {@link #RoutingNodes(ClusterState, boolean)}), allowing
@@ -84,7 +82,7 @@ import static org.opensearch.action.get.TransportGetAction.isSegmentReplicationE
  * @opensearch.internal
  */
 public class RoutingNodes implements Iterable<RoutingNode> {
-    private final ClusterState clusterState;
+    private final Metadata metadata;
 
     private final Map<String, RoutingNode> nodesToShards = new HashMap<>();
 
@@ -110,7 +108,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
     }
 
     public RoutingNodes(ClusterState clusterState, boolean readOnly) {
-        this.clusterState = clusterState;
+        this.metadata = clusterState.getMetadata();
         this.readOnly = readOnly;
         final RoutingTable routingTable = clusterState.routingTable();
         this.nodesPerAttributeNames = Collections.synchronizedMap(new HashMap<>());
@@ -387,7 +385,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         Stream<ShardRouting> candidateShards = assignedShards(shardId).stream()
             .filter(shr -> !shr.primary() && shr.active())
             .filter(shr -> node(shr.currentNodeId()) != null);
-        if (isSegmentReplicationEnabled(clusterState, shardId.getIndexName())) {
+        if (metadata.isSegmentReplicationEnabled(shardId.getIndexName())) {
             return candidateShards.min(
                 Comparator.comparing(
                     shr -> node(shr.currentNodeId()).node(),
