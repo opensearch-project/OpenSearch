@@ -55,7 +55,6 @@ import org.opensearch.common.UUIDs;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.action.support.DefaultShardOperationFailedException;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -122,11 +121,6 @@ public class IndexStatsIT extends OpenSearchIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singleton(InternalSettingsPlugin.class);
-    }
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.ZSTD_COMPRESSION, "true").build();
     }
 
     @Override

@@ -15,7 +15,6 @@ import org.opensearch.action.admin.indices.segments.IndicesSegmentsRequest;
 import org.opensearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.engine.Segment;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
@@ -40,11 +39,6 @@ import static org.hamcrest.Matchers.is;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST)
 public class MultiCodecMergeIT extends OpenSearchIntegTestCase {
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.ZSTD_COMPRESSION, "true").build();
-    }
 
     public void testForceMergeMultipleCodecs() throws ExecutionException, InterruptedException {
 

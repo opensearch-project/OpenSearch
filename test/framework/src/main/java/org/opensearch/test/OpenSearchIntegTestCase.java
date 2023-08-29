@@ -787,6 +787,8 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         }
         // Enabling Telemetry setting by default
         featureSettings.put(FeatureFlags.TELEMETRY_SETTING.getKey(), true);
+        // ZSTD is one of the randomly selected codeces, so the feature flag must be enabled
+        featureSettings.put(FeatureFlags.ZSTD_COMPRESSION, true);
         return featureSettings.build();
     }
 

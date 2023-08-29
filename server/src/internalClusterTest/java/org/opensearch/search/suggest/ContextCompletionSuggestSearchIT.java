@@ -40,7 +40,6 @@ import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.Fuzziness;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -74,11 +73,6 @@ public class ContextCompletionSuggestSearchIT extends OpenSearchIntegTestCase {
 
     private final String INDEX = RandomStrings.randomAsciiOfLength(random(), 10).toLowerCase(Locale.ROOT);
     private final String FIELD = RandomStrings.randomAsciiOfLength(random(), 10).toLowerCase(Locale.ROOT);
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.ZSTD_COMPRESSION, "true").build();
-    }
 
     @Override
     protected int numberOfReplicas() {
