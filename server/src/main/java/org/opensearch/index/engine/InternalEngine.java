@@ -2151,9 +2151,8 @@ public class InternalEngine extends Engine {
     }
 
     /**
-     * Fetch the latest {@link SegmentInfos} object via {@link #getLatestSegmentInfos()}
-     * but also increment the ref-count to ensure that these segment files are retained
-     * until the reference is closed. On close, the ref-count is decremented.
+     * Fetch the latest {@link SegmentInfos} from the current ReaderManager's active DirectoryReader.
+     * This method will hold the reader reference until the returned {@link GatedCloseable} is closed.
      */
     @Override
     public GatedCloseable<SegmentInfos> getSegmentInfosSnapshot() {
