@@ -91,4 +91,8 @@ public class AdjacencyMatrixAggregatorFactory extends AggregatorFactory {
         return new AdjacencyMatrixAggregator(name, factories, separator, keys, weights, searchContext, parent, metadata);
     }
 
+    @Override
+    protected boolean supportsConcurrentSegmentSearch() {
+        return true;
+    }
 }

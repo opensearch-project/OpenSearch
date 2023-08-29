@@ -89,7 +89,6 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
     private long primaryTerm;
     private volatile Iterator<TimeValue> backoffDelayIterator;
     private final SegmentReplicationCheckpointPublisher checkpointPublisher;
-    private final UploadListener statsListener;
 
     public RemoteStoreRefreshListener(
         IndexShard indexShard,
@@ -117,26 +116,6 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
         this.segmentTracker = segmentTracker;
         resetBackOffDelayIterator();
         this.checkpointPublisher = checkpointPublisher;
-        this.statsListener = new UploadListener() {
-            @Override
-            public void beforeUpload(String file) {
-                // Start tracking the upload bytes started
-                segmentTracker.addUploadBytesStarted(segmentTracker.getLatestLocalFileNameLengthMap().get(file));
-            }
-
-            @Override
-            public void onSuccess(String file) {
-                // Track upload success
-                segmentTracker.addUploadBytesSucceeded(segmentTracker.getLatestLocalFileNameLengthMap().get(file));
-                segmentTracker.addToLatestUploadedFiles(file);
-            }
-
-            @Override
-            public void onFailure(String file) {
-                // Track upload failure
-                segmentTracker.addUploadBytesFailed(segmentTracker.getLatestLocalFileNameLengthMap().get(file));
-            }
-        };
     }
 
     @Override
@@ -194,6 +173,14 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
                 indexShard.getReplicationTracker().isPrimaryMode(),
                 indexShard.state()
             );
+            // Following check is required to enable retry and make sure that we do not lose this refresh event
+            // When primary shard is restored from remote store, the recovery happens first followed by changing
+            // primaryMode to true. Due to this, the refresh that is triggered post replay of translog will not go through
+            // if following condition does not exist. The segments created as part of translog replay will not be present
+            // in the remote store.
+            if (indexShard.state() == IndexShardState.STARTED && indexShard.getEngine() instanceof InternalEngine) {
+                return false;
+            }
             return true;
         }
         ReplicationCheckpoint checkpoint = indexShard.getLatestReplicationCheckpoint();
@@ -373,6 +360,8 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
         GroupedActionListener<Void> batchUploadListener = new GroupedActionListener<>(mappedListener, filteredFiles.size());
 
         for (String src : filteredFiles) {
+            // Initializing listener here to ensure that the stats increment operations are thread-safe
+            UploadListener statsListener = createUploadListener();
             ActionListener<Void> aggregatedListener = ActionListener.wrap(resp -> {
                 statsListener.onSuccess(src);
                 batchUploadListener.onResponse(resp);
@@ -443,10 +432,41 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
             segmentTracker.incrementTotalUploadsSucceeded();
             segmentTracker.addUploadBytes(bytesUploaded);
             segmentTracker.addUploadBytesPerSec((bytesUploaded * 1_000L) / Math.max(1, timeTakenInMS));
-            segmentTracker.addUploadTimeMs(timeTakenInMS);
+            segmentTracker.addTimeForCompletedUploadSync(timeTakenInMS);
         } else {
             segmentTracker.incrementTotalUploadsFailed();
         }
+    }
+
+    /**
+     * Creates an {@link UploadListener} containing the stats population logic which would be triggered before and after segment upload events
+     */
+    private UploadListener createUploadListener() {
+        return new UploadListener() {
+            private long uploadStartTime = 0;
+
+            @Override
+            public void beforeUpload(String file) {
+                // Start tracking the upload bytes started
+                segmentTracker.addUploadBytesStarted(segmentTracker.getLatestLocalFileNameLengthMap().get(file));
+                uploadStartTime = System.currentTimeMillis();
+            }
+
+            @Override
+            public void onSuccess(String file) {
+                // Track upload success
+                segmentTracker.addUploadBytesSucceeded(segmentTracker.getLatestLocalFileNameLengthMap().get(file));
+                segmentTracker.addToLatestUploadedFiles(file);
+                segmentTracker.addTotalUploadTimeInMs(Math.max(1, System.currentTimeMillis() - uploadStartTime));
+            }
+
+            @Override
+            public void onFailure(String file) {
+                // Track upload failure
+                segmentTracker.addUploadBytesFailed(segmentTracker.getLatestLocalFileNameLengthMap().get(file));
+                segmentTracker.addTotalUploadTimeInMs(Math.max(1, System.currentTimeMillis() - uploadStartTime));
+            }
+        };
     }
 
     @Override

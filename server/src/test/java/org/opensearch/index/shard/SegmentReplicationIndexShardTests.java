@@ -34,6 +34,7 @@ import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.InternalEngineFactory;
 import org.opensearch.index.engine.NRTReplicationEngine;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
+import org.opensearch.index.engine.ReadOnlyEngine;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.replication.OpenSearchIndexLevelReplicationTestCase;
 import org.opensearch.index.replication.TestReplicationSource;
@@ -71,6 +72,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
 import static org.opensearch.index.engine.EngineTestCase.assertAtMostOneLuceneDocumentPerSequenceNumber;
@@ -770,6 +772,35 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             if (shard != null) {
                 closeShard(shard, false);
             }
+        }
+    }
+
+    public void testQueryDuringEngineResetShowsDocs() throws Exception {
+        final NRTReplicationEngineFactory engineFactory = new NRTReplicationEngineFactory();
+        final NRTReplicationEngineFactory spy = spy(engineFactory);
+        try (ReplicationGroup shards = createGroup(1, settings, indexMapping, spy, createTempDir())) {
+            final IndexShard primaryShard = shards.getPrimary();
+            final IndexShard replicaShard = shards.getReplicas().get(0);
+            shards.startAll();
+            shards.indexDocs(10);
+            shards.refresh("test");
+            replicateSegments(primaryShard, shards.getReplicas());
+            shards.assertAllEqual(10);
+
+            final AtomicReference<Throwable> failed = new AtomicReference<>();
+            doAnswer(ans -> {
+                try {
+                    final Engine engineOrNull = replicaShard.getEngineOrNull();
+                    assertNotNull(engineOrNull);
+                    assertTrue(engineOrNull instanceof ReadOnlyEngine);
+                    shards.assertAllEqual(10);
+                } catch (Throwable e) {
+                    failed.set(e);
+                }
+                return ans.callRealMethod();
+            }).when(spy).newReadWriteEngine(any());
+            shards.promoteReplicaToPrimary(replicaShard).get();
+            assertNull("Expected correct doc count during engine reset", failed.get());
         }
     }
 

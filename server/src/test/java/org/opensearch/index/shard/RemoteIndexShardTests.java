@@ -236,7 +236,7 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
             MatcherAssert.assertThat(
                 "Replica commits infos bytes referencing latest refresh point",
                 latestReplicaCommit.files(true),
-                containsInAnyOrder("_0.cfe", "_0.si", "_0.cfs", "segments_5")
+                containsInAnyOrder("_0.cfe", "_0.si", "_0.cfs", "segments_6")
             );
             MatcherAssert.assertThat(
                 "Segments are referenced in memory",
@@ -294,20 +294,20 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
             replicateSegments(primary, shards.getReplicas());
             assertDocCount(primary, 1);
             assertDocCount(replica, 1);
-            assertEquals("segments_4", replica.store().readLastCommittedSegmentsInfo().getSegmentsFileName());
-            assertSingleSegmentFile(replica, "segments_4");
+            assertEquals("segments_5", replica.store().readLastCommittedSegmentsInfo().getSegmentsFileName());
+            assertSingleSegmentFile(replica, "segments_5");
 
             shards.indexDocs(1);
             primary.refresh("test");
             replicateSegments(primary, shards.getReplicas());
             assertDocCount(replica, 2);
-            assertSingleSegmentFile(replica, "segments_4");
+            assertSingleSegmentFile(replica, "segments_5");
 
             shards.indexDocs(1);
             flushShard(primary);
             replicateSegments(primary, shards.getReplicas());
             assertDocCount(replica, 3);
-            assertSingleSegmentFile(replica, "segments_5");
+            assertSingleSegmentFile(replica, "segments_6");
 
             final Store.RecoveryDiff diff = Store.segmentReplicationDiff(primary.getSegmentMetadataMap(), replica.getSegmentMetadataMap());
             assertTrue(diff.missing.isEmpty());

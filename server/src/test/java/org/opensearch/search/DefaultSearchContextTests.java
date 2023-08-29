@@ -40,16 +40,21 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.opensearch.Version;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.search.SearchType;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.UUIDs;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.MockBigArrays;
 import org.opensearch.common.util.MockPageCacheRecycler;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
@@ -75,6 +80,7 @@ import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.rescore.RescoreContext;
 import org.opensearch.search.slice.SliceBuilder;
 import org.opensearch.search.sort.SortAndFormats;
+import org.opensearch.test.FeatureFlagSetter;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
@@ -543,6 +549,159 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
             assertThat(context.searcher().hasCancellations(), is(false));
 
         } finally {
+            threadPool.shutdown();
+        }
+    }
+
+    public void testSearchPathEvaluationUsingSortField() throws Exception {
+        // enable the concurrent set FeatureFlag
+        FeatureFlagSetter.set(FeatureFlags.CONCURRENT_SEGMENT_SEARCH);
+        ShardSearchRequest shardSearchRequest = mock(ShardSearchRequest.class);
+        when(shardSearchRequest.searchType()).thenReturn(SearchType.DEFAULT);
+        ShardId shardId = new ShardId("index", UUID.randomUUID().toString(), 1);
+        when(shardSearchRequest.shardId()).thenReturn(shardId);
+
+        ThreadPool threadPool = new TestThreadPool(this.getClass().getName());
+        IndexShard indexShard = mock(IndexShard.class);
+        QueryCachingPolicy queryCachingPolicy = mock(QueryCachingPolicy.class);
+        when(indexShard.getQueryCachingPolicy()).thenReturn(queryCachingPolicy);
+        when(indexShard.getThreadPool()).thenReturn(threadPool);
+
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
+            .build();
+
+        IndexService indexService = mock(IndexService.class);
+        QueryShardContext queryShardContext = mock(QueryShardContext.class);
+        when(indexService.newQueryShardContext(eq(shardId.id()), any(), any(), nullable(String.class), anyBoolean())).thenReturn(
+            queryShardContext
+        );
+
+        IndexMetadata indexMetadata = IndexMetadata.builder("index").settings(settings).build();
+        IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
+        when(indexService.getIndexSettings()).thenReturn(indexSettings);
+
+        BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
+
+        try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
+
+            final Supplier<Engine.SearcherSupplier> searcherSupplier = () -> new Engine.SearcherSupplier(Function.identity()) {
+                @Override
+                protected void doClose() {}
+
+                @Override
+                protected Engine.Searcher acquireSearcherInternal(String source) {
+                    try {
+                        IndexReader reader = w.getReader();
+                        return new Engine.Searcher(
+                            "test",
+                            reader,
+                            IndexSearcher.getDefaultSimilarity(),
+                            IndexSearcher.getDefaultQueryCache(),
+                            IndexSearcher.getDefaultQueryCachingPolicy(),
+                            reader
+                        );
+                    } catch (IOException exc) {
+                        throw new AssertionError(exc);
+                    }
+                }
+            };
+
+            SearchShardTarget target = new SearchShardTarget("node", shardId, null, OriginalIndices.NONE);
+            ReaderContext readerContext = new ReaderContext(
+                newContextId(),
+                indexService,
+                indexShard,
+                searcherSupplier.get(),
+                randomNonNegativeLong(),
+                false
+            );
+
+            final ClusterService clusterService = mock(ClusterService.class);
+            final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+            clusterSettings.registerSetting(SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING);
+            clusterSettings.applySettings(
+                Settings.builder().put(SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build()
+            );
+            when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+            DefaultSearchContext context = new DefaultSearchContext(
+                readerContext,
+                shardSearchRequest,
+                target,
+                null,
+                bigArrays,
+                null,
+                null,
+                null,
+                false,
+                Version.CURRENT,
+                false,
+                executor,
+                null
+            );
+
+            // Case1: if sort is on timestamp field, non-concurrent path is used
+            context.sort(
+                new SortAndFormats(new Sort(new SortField("@timestamp", SortField.Type.INT)), new DocValueFormat[] { DocValueFormat.RAW })
+            );
+            context.evaluateRequestShouldUseConcurrentSearch();
+            assertFalse(context.shouldUseConcurrentSearch());
+            assertThrows(SetOnce.AlreadySetException.class, context::evaluateRequestShouldUseConcurrentSearch);
+
+            // Case2: if sort is on other field, concurrent path is used
+            context = new DefaultSearchContext(
+                readerContext,
+                shardSearchRequest,
+                target,
+                clusterService,
+                bigArrays,
+                null,
+                null,
+                null,
+                false,
+                Version.CURRENT,
+                false,
+                executor,
+                null
+            );
+            context.sort(
+                new SortAndFormats(new Sort(new SortField("test2", SortField.Type.INT)), new DocValueFormat[] { DocValueFormat.RAW })
+            );
+            context.evaluateRequestShouldUseConcurrentSearch();
+            if (executor == null) {
+                assertFalse(context.shouldUseConcurrentSearch());
+            } else {
+                assertTrue(context.shouldUseConcurrentSearch());
+            }
+            assertThrows(SetOnce.AlreadySetException.class, context::evaluateRequestShouldUseConcurrentSearch);
+
+            // Case 3: With no sort, concurrent path is used
+            context = new DefaultSearchContext(
+                readerContext,
+                shardSearchRequest,
+                target,
+                clusterService,
+                bigArrays,
+                null,
+                null,
+                null,
+                false,
+                Version.CURRENT,
+                false,
+                executor,
+                null
+            );
+            context.evaluateRequestShouldUseConcurrentSearch();
+            if (executor == null) {
+                assertFalse(context.shouldUseConcurrentSearch());
+            } else {
+                assertTrue(context.shouldUseConcurrentSearch());
+            }
+            assertThrows(SetOnce.AlreadySetException.class, context::evaluateRequestShouldUseConcurrentSearch);
+
+            // shutdown the threadpool
             threadPool.shutdown();
         }
     }
