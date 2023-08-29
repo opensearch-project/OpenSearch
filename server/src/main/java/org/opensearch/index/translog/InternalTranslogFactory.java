@@ -23,13 +23,13 @@ public class InternalTranslogFactory implements TranslogFactory {
 
     @Override
     public Translog newTranslog(
-            TranslogConfig translogConfig,
-            String translogUUID,
-            TranslogDeletionPolicy translogDeletionPolicy,
-            LongSupplier globalCheckpointSupplier,
-            LongSupplier primaryTermSupplier,
-            LongConsumer persistedSequenceNumberConsumer,
-            IndexShard.IndexShardConfig indexShardConfig
+        TranslogConfig translogConfig,
+        String translogUUID,
+        TranslogDeletionPolicy translogDeletionPolicy,
+        LongSupplier globalCheckpointSupplier,
+        LongSupplier primaryTermSupplier,
+        LongConsumer persistedSequenceNumberConsumer,
+        IndexShard.IndexShardConfigSupplier indexShardConfigSupplier
     ) throws IOException {
 
         return new LocalTranslog(

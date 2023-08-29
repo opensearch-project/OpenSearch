@@ -30,6 +30,6 @@ public interface TranslogFactory {
         final LongSupplier globalCheckpointSupplier,
         final LongSupplier primaryTermSupplier,
         final LongConsumer persistedSequenceNumberConsumer,
-        final IndexShard.IndexShardConfig indexShardConfig
+        final IndexShard.IndexShardConfigSupplier indexShardConfigSupplier
     ) throws IOException;
 }

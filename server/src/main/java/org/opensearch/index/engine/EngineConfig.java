@@ -105,7 +105,7 @@ public final class EngineConfig {
     private final LongSupplier globalCheckpointSupplier;
     private final Supplier<RetentionLeases> retentionLeasesSupplier;
     private final boolean isReadOnlyReplica;
-    private final IndexShard.IndexShardConfig indexShardConfig;
+    private final IndexShard.IndexShardConfigSupplier indexShardConfigSupplier;
     private final Comparator<LeafReader> leafSorter;
 
     /**
@@ -266,7 +266,7 @@ public final class EngineConfig {
         this.primaryTermSupplier = builder.primaryTermSupplier;
         this.tombstoneDocSupplier = builder.tombstoneDocSupplier;
         this.isReadOnlyReplica = builder.isReadOnlyReplica;
-        this.indexShardConfig = builder.indexShardConfig;
+        this.indexShardConfigSupplier = builder.indexShardConfigSupplier;
         this.translogFactory = builder.translogFactory;
         this.leafSorter = builder.leafSorter;
     }
@@ -477,8 +477,8 @@ public final class EngineConfig {
      * Returns the underlying primaryModeSupplier.
      * @return the primary mode supplier.
      */
-    public IndexShard.IndexShardConfig getIndexShardConfig() {
-        return indexShardConfig;
+    public IndexShard.IndexShardConfigSupplier getIndexShardConfigSupplier() {
+        return indexShardConfigSupplier;
     }
 
     /**
@@ -555,7 +555,7 @@ public final class EngineConfig {
         private TombstoneDocSupplier tombstoneDocSupplier;
         private TranslogDeletionPolicyFactory translogDeletionPolicyFactory;
         private boolean isReadOnlyReplica;
-        private IndexShard.IndexShardConfig indexShardConfig;
+        private IndexShard.IndexShardConfigSupplier indexShardConfigSupplier;
         private TranslogFactory translogFactory = new InternalTranslogFactory();
         Comparator<LeafReader> leafSorter;
 
@@ -679,8 +679,8 @@ public final class EngineConfig {
             return this;
         }
 
-        public Builder indexShardConfig(IndexShard.IndexShardConfig indexShardConfig) {
-            this.indexShardConfig = indexShardConfig;
+        public Builder indexShardConfig(IndexShard.IndexShardConfigSupplier indexShardConfigSupplier) {
+            this.indexShardConfigSupplier = indexShardConfigSupplier;
             return this;
         }
 

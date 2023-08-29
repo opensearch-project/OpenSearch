@@ -69,7 +69,7 @@ public class EngineConfigFactoryTests extends OpenSearchTestCase {
             null,
             null,
             false,
-            new IndexShard.IndexShardConfig(() -> Boolean.TRUE, () -> Boolean.FALSE),
+            new IndexShard.IndexShardConfigSupplier(() -> Boolean.TRUE, () -> Boolean.FALSE),
             new InternalTranslogFactory(),
             null
         );
@@ -149,7 +149,7 @@ public class EngineConfigFactoryTests extends OpenSearchTestCase {
             null,
             null,
             false,
-            new IndexShard.IndexShardConfig(() -> Boolean.TRUE, () -> Boolean.FALSE),
+            new IndexShard.IndexShardConfigSupplier(() -> Boolean.TRUE, () -> Boolean.FALSE),
             new InternalTranslogFactory(),
             null
         );

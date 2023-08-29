@@ -54,7 +54,7 @@ public class RemoteBlobStoreInternalTranslogFactory implements TranslogFactory {
         LongSupplier globalCheckpointSupplier,
         LongSupplier primaryTermSupplier,
         LongConsumer persistedSequenceNumberConsumer,
-        IndexShard.IndexShardConfig indexShardConfig
+        IndexShard.IndexShardConfigSupplier indexShardConfigSupplier
     ) throws IOException {
 
         assert repository instanceof BlobStoreRepository : "repository should be instance of BlobStoreRepository";
@@ -68,7 +68,7 @@ public class RemoteBlobStoreInternalTranslogFactory implements TranslogFactory {
             persistedSequenceNumberConsumer,
             blobStoreRepository,
             threadPool,
-            indexShardConfig
+            indexShardConfigSupplier
         );
     }
 

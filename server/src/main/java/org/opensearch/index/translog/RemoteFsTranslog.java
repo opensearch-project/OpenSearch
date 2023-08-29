@@ -82,13 +82,13 @@ public class RemoteFsTranslog extends Translog {
         LongConsumer persistedSequenceNumberConsumer,
         BlobStoreRepository blobStoreRepository,
         ThreadPool threadPool,
-        IndexShard.IndexShardConfig indexShardConfig
+        IndexShard.IndexShardConfigSupplier indexShardConfigSupplier
     ) throws IOException {
         super(config, translogUUID, deletionPolicy, globalCheckpointSupplier, primaryTermSupplier, persistedSequenceNumberConsumer);
         logger = Loggers.getLogger(getClass(), shardId);
         this.blobStoreRepository = blobStoreRepository;
-        this.primaryModeSupplier = indexShardConfig.getPrimaryModeSupplier();
-        this.relocatingSupplier = indexShardConfig.getRelocatingSupplier();
+        this.primaryModeSupplier = indexShardConfigSupplier.getPrimaryModeSupplier();
+        this.relocatingSupplier = indexShardConfigSupplier.getRelocatingSupplier();
         fileTransferTracker = new FileTransferTracker(shardId);
         this.translogTransferManager = buildTranslogTransferManager(blobStoreRepository, threadPool, shardId, fileTransferTracker);
         try {
@@ -388,7 +388,7 @@ public class RemoteFsTranslog extends Translog {
             return;
         }
 
-        if(relocatingSupplier.getAsBoolean() == true) {
+        if (relocatingSupplier.getAsBoolean() == true) {
             return;
         }
 

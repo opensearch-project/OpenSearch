@@ -38,7 +38,7 @@ public class WriteOnlyTranslogManager extends InternalTranslogManager {
         TranslogEventListener translogEventListener,
         LifecycleAware engineLifecycleAware,
         TranslogFactory translogFactory,
-        IndexShard.IndexShardConfig indexShardConfig
+        IndexShard.IndexShardConfigSupplier indexShardConfigSupplier
     ) throws IOException {
         super(
             translogConfig,
@@ -52,7 +52,7 @@ public class WriteOnlyTranslogManager extends InternalTranslogManager {
             translogEventListener,
             engineLifecycleAware,
             translogFactory,
-            indexShardConfig
+            indexShardConfigSupplier
         );
     }
 

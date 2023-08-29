@@ -63,7 +63,7 @@ public class RemoteIndexPrimaryRelocationIT extends IndexPrimaryRelocationIT {
             .put(FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL, "true")
             .build();
     }
-    
+
     public void testPrimaryRelocationWhileIndexing() throws Exception {
         super.testPrimaryRelocationWhileIndexing();
     }

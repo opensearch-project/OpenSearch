@@ -24,9 +24,9 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
-import static org.hamcrest.Matchers.equalTo;
 import static org.opensearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
 import static org.opensearch.index.translog.TranslogDeletionPolicies.createTranslogDeletionPolicy;
+import static org.hamcrest.Matchers.equalTo;
 
 public class InternalTranslogManagerTests extends TranslogManagerTestCase {
 
@@ -50,7 +50,7 @@ public class InternalTranslogManagerTests extends TranslogManagerTestCase {
                 TranslogEventListener.NOOP_TRANSLOG_EVENT_LISTENER,
                 () -> {},
                 new InternalTranslogFactory(),
-                new IndexShard.IndexShardConfig(() -> Boolean.TRUE, () -> Boolean.FALSE)
+                new IndexShard.IndexShardConfigSupplier(() -> Boolean.TRUE, () -> Boolean.FALSE)
             );
             final int docs = randomIntBetween(1, 100);
             for (int i = 0; i < docs; i++) {
@@ -90,7 +90,7 @@ public class InternalTranslogManagerTests extends TranslogManagerTestCase {
                 },
                 () -> {},
                 new InternalTranslogFactory(),
-                new IndexShard.IndexShardConfig(() -> Boolean.TRUE, () -> Boolean.FALSE)
+                new IndexShard.IndexShardConfigSupplier(() -> Boolean.TRUE, () -> Boolean.FALSE)
             );
             AtomicInteger opsRecovered = new AtomicInteger();
             int opsRecoveredFromTranslog = translogManager.recoverFromTranslog((snapshot) -> {
@@ -129,7 +129,7 @@ public class InternalTranslogManagerTests extends TranslogManagerTestCase {
                 TranslogEventListener.NOOP_TRANSLOG_EVENT_LISTENER,
                 () -> {},
                 new InternalTranslogFactory(),
-                new IndexShard.IndexShardConfig(() -> Boolean.TRUE, () -> Boolean.FALSE)
+                new IndexShard.IndexShardConfigSupplier(() -> Boolean.TRUE, () -> Boolean.FALSE)
             );
             final int docs = randomIntBetween(1, 100);
             for (int i = 0; i < docs; i++) {
@@ -159,7 +159,7 @@ public class InternalTranslogManagerTests extends TranslogManagerTestCase {
                 TranslogEventListener.NOOP_TRANSLOG_EVENT_LISTENER,
                 () -> {},
                 new InternalTranslogFactory(),
-                new IndexShard.IndexShardConfig(() -> Boolean.TRUE, () -> Boolean.FALSE)
+                new IndexShard.IndexShardConfigSupplier(() -> Boolean.TRUE, () -> Boolean.FALSE)
             );
             AtomicInteger opsRecovered = new AtomicInteger();
             int opsRecoveredFromTranslog = translogManager.recoverFromTranslog((snapshot) -> {
@@ -194,7 +194,7 @@ public class InternalTranslogManagerTests extends TranslogManagerTestCase {
                 TranslogEventListener.NOOP_TRANSLOG_EVENT_LISTENER,
                 () -> {},
                 new InternalTranslogFactory(),
-                new IndexShard.IndexShardConfig(() -> Boolean.TRUE, () -> Boolean.FALSE)
+                new IndexShard.IndexShardConfigSupplier(() -> Boolean.TRUE, () -> Boolean.FALSE)
             );
             final int docs = randomIntBetween(1, 100);
             for (int i = 0; i < docs; i++) {
@@ -226,7 +226,7 @@ public class InternalTranslogManagerTests extends TranslogManagerTestCase {
                 TranslogEventListener.NOOP_TRANSLOG_EVENT_LISTENER,
                 () -> {},
                 new InternalTranslogFactory(),
-                new IndexShard.IndexShardConfig(() -> Boolean.TRUE, () -> Boolean.FALSE)
+                new IndexShard.IndexShardConfigSupplier(() -> Boolean.TRUE, () -> Boolean.FALSE)
             );
             AtomicInteger opsRecovered = new AtomicInteger();
             int opsRecoveredFromTranslog = translogManager.recoverFromTranslog((snapshot) -> {
@@ -275,7 +275,7 @@ public class InternalTranslogManagerTests extends TranslogManagerTestCase {
                 },
                 () -> {},
                 new InternalTranslogFactory(),
-                new IndexShard.IndexShardConfig(() -> Boolean.TRUE, () -> Boolean.FALSE)
+                new IndexShard.IndexShardConfigSupplier(() -> Boolean.TRUE, () -> Boolean.FALSE)
             );
             translogManagerAtomicReference.set(translogManager);
             Engine.Index index = indexForDoc(doc);

@@ -278,7 +278,7 @@ public class ReadOnlyEngine extends Engine {
                     config.getGlobalCheckpointSupplier(),
                     config.getPrimaryTermSupplier(),
                     seqNo -> {},
-                    config.getIndexShardConfig()
+                    config.getIndexShardConfigSupplier()
                 )
         ) {
             return translog.stats();

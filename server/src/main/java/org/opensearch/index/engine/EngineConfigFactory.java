@@ -152,7 +152,7 @@ public class EngineConfigFactory {
         LongSupplier primaryTermSupplier,
         EngineConfig.TombstoneDocSupplier tombstoneDocSupplier,
         boolean isReadOnlyReplica,
-        IndexShard.IndexShardConfig indexShardConfig,
+        IndexShard.IndexShardConfigSupplier indexShardConfigSupplier,
         TranslogFactory translogFactory,
         Comparator<LeafReader> leafSorter
     ) {
@@ -185,7 +185,7 @@ public class EngineConfigFactory {
             .primaryTermSupplier(primaryTermSupplier)
             .tombstoneDocSupplier(tombstoneDocSupplier)
             .readOnlyReplica(isReadOnlyReplica)
-            .indexShardConfig(indexShardConfig)
+            .indexShardConfig(indexShardConfigSupplier)
             .translogFactory(translogFactory)
             .leafSorter(leafSorter)
             .build();

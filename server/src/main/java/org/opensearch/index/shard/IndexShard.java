@@ -338,11 +338,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private final List<ReferenceManager.RefreshListener> internalRefreshListener = new ArrayList<>();
 
-    static public class IndexShardConfig {
+    /**
+     * An OpenSearch index shard config supplier
+     *
+     * @opensearch.internal
+     */
+    static public class IndexShardConfigSupplier {
         BooleanSupplier primaryModeSupplier;
         BooleanSupplier relocatingSupplier;
 
-        public IndexShardConfig(BooleanSupplier primaryModeSupplier, BooleanSupplier relocatingSupplier) {
+        public IndexShardConfigSupplier(BooleanSupplier primaryModeSupplier, BooleanSupplier relocatingSupplier) {
             this.primaryModeSupplier = primaryModeSupplier;
             this.relocatingSupplier = relocatingSupplier;
         }
@@ -3752,7 +3757,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             () -> getOperationPrimaryTerm(),
             tombstoneDocSupplier(),
             isReadOnlyReplica,
-            new IndexShardConfig(replicationTracker::isPrimaryMode, () -> shardRouting.relocating()),
+            new IndexShardConfigSupplier(replicationTracker::isPrimaryMode, () -> shardRouting.relocating()),
             translogFactorySupplier.apply(indexSettings, shardRouting),
             isTimeSeriesDescSortOptimizationEnabled() ? DataStream.TIMESERIES_LEAF_SORTER : null // DESC @timestamp default order for
                                                                                                  // timeseries
