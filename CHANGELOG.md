@@ -55,6 +55,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `aws-actions/configure-aws-credentials` from 1 to 2 ([#9302](https://github.com/opensearch-project/OpenSearch/pull/9302))
 - Bump `com.github.luben:zstd-jni` from 1.5.5-3 to 1.5.5-5 ([#9431](https://github.com/opensearch-project/OpenSearch/pull/9431)
 - Bump `netty` from 4.1.96.Final to 4.1.97.Final ([#9553](https://github.com/opensearch-project/OpenSearch/pull/9553))
+- Bump `io.grpc:grpc-api` from 1.57.1 to 1.57.2 ([#9578](https://github.com/opensearch-project/OpenSearch/pull/9578))
 
 ### Changed
 - Default to mmapfs within hybridfs ([#8508](https://github.com/opensearch-project/OpenSearch/pull/8508))
