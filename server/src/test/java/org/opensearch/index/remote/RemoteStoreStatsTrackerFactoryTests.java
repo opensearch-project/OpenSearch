@@ -18,9 +18,6 @@ import static org.opensearch.index.remote.RemoteStoreTestsHelper.createIndexShar
 public class RemoteStoreStatsTrackerFactoryTests extends OpenSearchTestCase {
     private ShardId shardId;
     private IndexShard indexShard;
-
-    private ShardId shardId2;
-    private IndexShard indexShard2;
     private RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory;
 
     @Override
@@ -29,8 +26,6 @@ public class RemoteStoreStatsTrackerFactoryTests extends OpenSearchTestCase {
         shardId = new ShardId("index", "uuid", 0);
         indexShard = createIndexShard(shardId, true);
         remoteStoreStatsTrackerFactory = new RemoteStoreStatsTrackerFactory(Settings.EMPTY);
-        shardId2 = null;
-        indexShard2 = null;
     }
 
     public void testAfterIndexShardCreatedForRemoteBackedIndex() {
@@ -51,54 +46,8 @@ public class RemoteStoreStatsTrackerFactoryTests extends OpenSearchTestCase {
         assertNull(remoteStoreStatsTrackerFactory.getRemoteSegmentTransferTracker(shardId));
     }
 
-    public void testUpdateMovingAverageWindowSizeZero() {
-        remoteStoreStatsTrackerFactory.afterIndexShardCreated(indexShard);
-        createSecondShard();
-
-        int defaultSize = RemoteStorePressureSettings.Defaults.MOVING_AVERAGE_WINDOW_SIZE;
-        assertDefaultSize(defaultSize);
-
-        int updatedSize = 0;
-        assertThrows(
-            IllegalArgumentException.class,
-            () -> remoteStoreStatsTrackerFactory.updateMovingAverageWindowSize(
-                RemoteSegmentTransferTracker::updateMovingAverageWindowSize,
-                updatedSize
-            )
-        );
-        assertEquals(defaultSize, remoteStoreStatsTrackerFactory.getMovingAverageWindowSize());
-    }
-
-    public void testUpdateMovingAverageWindowSizeLessThanMinAllowed() {
-        remoteStoreStatsTrackerFactory.afterIndexShardCreated(indexShard);
-        createSecondShard();
-
-        int defaultSize = RemoteStorePressureSettings.Defaults.MOVING_AVERAGE_WINDOW_SIZE;
-        assertDefaultSize(defaultSize);
-
-        int updatedSize = RemoteStorePressureSettings.Defaults.MOVING_AVERAGE_WINDOW_SIZE_MIN_VALUE - 1;
-        // TODO: The following exception isn't thrown currently
-        // assertThrows(
-        // IllegalArgumentException.class,
-        // () -> remoteStoreStatsTrackerFactory.updateMovingAverageWindowSize(
-        // RemoteSegmentTransferTracker::updateMovingAverageWindowSize,
-        // updatedSize
-        // )
-        // );
-        // assertEquals(defaultSize, remoteStoreStatsTrackerFactory.getMovingAverageWindowSize());
-        remoteStoreStatsTrackerFactory.updateMovingAverageWindowSize(
-            RemoteSegmentTransferTracker::updateMovingAverageWindowSize,
-            updatedSize
-        );
-        assertEquals(updatedSize, remoteStoreStatsTrackerFactory.getMovingAverageWindowSize());
-    }
-
     public void testUpdateMovingAverageWindowSizeMinAllowed() {
         remoteStoreStatsTrackerFactory.afterIndexShardCreated(indexShard);
-        createSecondShard();
-
-        int defaultSize = RemoteStorePressureSettings.Defaults.MOVING_AVERAGE_WINDOW_SIZE;
-        assertDefaultSize(defaultSize);
 
         int updatedSize = RemoteStorePressureSettings.Defaults.MOVING_AVERAGE_WINDOW_SIZE_MIN_VALUE;
         remoteStoreStatsTrackerFactory.updateMovingAverageWindowSize(
@@ -106,23 +55,5 @@ public class RemoteStoreStatsTrackerFactoryTests extends OpenSearchTestCase {
             updatedSize
         );
         assertEquals(updatedSize, remoteStoreStatsTrackerFactory.getMovingAverageWindowSize());
-    }
-
-    private void assertDefaultSize(int defaultSize) {
-        assertEquals(defaultSize, remoteStoreStatsTrackerFactory.getMovingAverageWindowSize());
-        assertFalse(remoteStoreStatsTrackerFactory.getRemoteSegmentTransferTracker(shardId).isUploadBytesAverageReady());
-        assertFalse(remoteStoreStatsTrackerFactory.getRemoteSegmentTransferTracker(shardId).isUploadBytesPerSecAverageReady());
-        assertFalse(remoteStoreStatsTrackerFactory.getRemoteSegmentTransferTracker(shardId).isUploadTimeMsAverageReady());
-        if (shardId2 != null) {
-            assertFalse(remoteStoreStatsTrackerFactory.getRemoteSegmentTransferTracker(shardId2).isUploadBytesAverageReady());
-            assertFalse(remoteStoreStatsTrackerFactory.getRemoteSegmentTransferTracker(shardId2).isUploadBytesPerSecAverageReady());
-            assertFalse(remoteStoreStatsTrackerFactory.getRemoteSegmentTransferTracker(shardId2).isUploadTimeMsAverageReady());
-        }
-    }
-
-    private void createSecondShard() {
-        shardId2 = new ShardId("index", "uuid", 1);
-        indexShard2 = createIndexShard(shardId2, true);
-        remoteStoreStatsTrackerFactory.afterIndexShardCreated(indexShard2);
     }
 }

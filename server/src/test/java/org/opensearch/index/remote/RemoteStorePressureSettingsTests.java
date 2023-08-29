@@ -73,7 +73,10 @@ public class RemoteStorePressureSettingsTests extends OpenSearchTestCase {
             .put(RemoteStorePressureSettings.BYTES_LAG_VARIANCE_FACTOR.getKey(), 50.0)
             .put(RemoteStorePressureSettings.UPLOAD_TIME_LAG_VARIANCE_FACTOR.getKey(), 60.0)
             .put(RemoteStorePressureSettings.MIN_CONSECUTIVE_FAILURES_LIMIT.getKey(), 121)
-            .put(RemoteStorePressureSettings.MOVING_AVERAGE_WINDOW_SIZE.getKey(), 102)
+            .put(
+                RemoteStorePressureSettings.MOVING_AVERAGE_WINDOW_SIZE.getKey(),
+                RemoteStorePressureSettings.Defaults.MOVING_AVERAGE_WINDOW_SIZE_MIN_VALUE
+            )
             .build();
         RemoteStorePressureSettings pressureSettings = new RemoteStorePressureSettings(
             clusterService,
@@ -94,7 +97,24 @@ public class RemoteStorePressureSettingsTests extends OpenSearchTestCase {
         assertEquals(121, pressureSettings.getMinConsecutiveFailuresLimit());
 
         // Check moving average window size configured value
-        assertEquals(102, pressureSettings.getMovingAverageWindowSize());
+        assertEquals(
+            RemoteStorePressureSettings.Defaults.MOVING_AVERAGE_WINDOW_SIZE_MIN_VALUE,
+            pressureSettings.getMovingAverageWindowSize()
+        );
+    }
+
+    public void testInvalidMovingAverageWindowSize() {
+        Settings settings = Settings.builder()
+            .put(
+                RemoteStorePressureSettings.MOVING_AVERAGE_WINDOW_SIZE.getKey(),
+                RemoteStorePressureSettings.Defaults.MOVING_AVERAGE_WINDOW_SIZE_MIN_VALUE - 1
+            )
+            .build();
+        assertThrows(
+            "Failed to parse value",
+            IllegalArgumentException.class,
+            () -> new RemoteStorePressureSettings(clusterService, settings, mock(RemoteStorePressureService.class))
+        );
     }
 
     public void testUpdateAfterGetDefaultSettings() {

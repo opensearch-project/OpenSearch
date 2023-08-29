@@ -68,6 +68,8 @@ public class RemoteStoreStatsTrackerFactory implements IndexEventListener {
 
     void updateMovingAverageWindowSize(BiConsumer<RemoteSegmentTransferTracker, Integer> biConsumer, int updatedSize) {
         remoteSegmentTrackerMap.values().forEach(tracker -> biConsumer.accept(tracker, updatedSize));
+
+        // Update movingAverageWindowSize only if the trackers were successfully updated
         movingAverageWindowSize = updatedSize;
     }
 
