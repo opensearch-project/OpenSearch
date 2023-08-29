@@ -26,7 +26,7 @@ import java.util.stream.Collectors;
 import static org.opensearch.action.admin.cluster.remotestore.RemoteStoreNode.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX;
 import static org.opensearch.action.admin.cluster.remotestore.RemoteStoreNode.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT;
 
-@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE, numDataNodes = 0)
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class RemoteStoreRepositoryRegistrationIT extends RemoteStoreBaseIntegTestCase {
 
     @Override
@@ -51,7 +51,7 @@ public class RemoteStoreRepositoryRegistrationIT extends RemoteStoreBaseIntegTes
         return new RepositoryMetadata(name, type, settings.build());
     }
 
-    private void assertRemoteStoreRepositoryOnAllNodes() {
+    private void assertRemoteStoreRepositoryOnAllNodes() throws Exception {
         RepositoriesMetadata repositories = internalCluster().getInstance(ClusterService.class, internalCluster().getNodeNames()[0])
             .state()
             .metadata()
@@ -69,34 +69,19 @@ public class RemoteStoreRepositoryRegistrationIT extends RemoteStoreBaseIntegTes
         }
     }
 
-    public void testSingleNodeClusterRepositoryRegistration() {
-        internalCluster().startClusterManagerOnlyNode(remoteStoreNodeAttributes(REPOSITORY_NAME, REPOSITORY_2_NAME));
-        ensureStableCluster(1);
-
+    public void testSingleNodeClusterRepositoryRegistration() throws Exception {
+        internalCluster().startNode();
         assertRemoteStoreRepositoryOnAllNodes();
     }
 
-    public void testMultiNodeClusterRepositoryRegistration() {
-        Settings clusterSettings = remoteStoreNodeAttributes(REPOSITORY_NAME, REPOSITORY_2_NAME);
-        internalCluster().startClusterManagerOnlyNode(clusterSettings);
-        internalCluster().startNodes(3, clusterSettings);
-        ensureStableCluster(4);
-
+    public void testMultiNodeClusterRepositoryRegistration() throws Exception {
+        internalCluster().startNodes(3);
         assertRemoteStoreRepositoryOnAllNodes();
     }
 
-    public void testMultiNodeClusterOnlyDataRepositoryRegistration() {
-        Settings clusterSettings = remoteStoreNodeAttributes(REPOSITORY_NAME, REPOSITORY_2_NAME);
-        internalCluster().startNodes(3, clusterSettings);
-        ensureStableCluster(3);
-
-        assertRemoteStoreRepositoryOnAllNodes();
-    }
-
-    public void testMultiNodeClusterRepositoryRegistrationWithMultipleMasters() {
+    public void testMultiNodeClusterRepositoryRegistrationWithMultipleMasters() throws Exception {
         internalCluster().startClusterManagerOnlyNodes(3);
         internalCluster().startNodes(3);
-        ensureStableCluster(6);
 
         assertRemoteStoreRepositoryOnAllNodes();
     }

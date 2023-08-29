@@ -35,10 +35,10 @@ public class RemoteStoreService {
     private static final Logger logger = LogManager.getLogger(RemoteStoreService.class);
     private final Supplier<RepositoriesService> repositoriesService;
     private final ThreadPool threadPool;
-    public static final Setting<String> REMOTE_STORE_COMPATIBILITY_MODE_SETTING = Setting.simpleString(
+    public static final Setting<CompatibilityMode> REMOTE_STORE_COMPATIBILITY_MODE_SETTING = new Setting<>(
         "remote_store.compatibility_mode",
-        CompatibilityMode.STRICT.value,
-        CompatibilityMode::validate,
+        CompatibilityMode.STRICT.name(),
+        CompatibilityMode::parseString,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -52,7 +52,13 @@ public class RemoteStoreService {
         STRICT("strict"),
         ALLOW_MIX("allow_mix");
 
-        public static CompatibilityMode validate(String compatibilityMode) {
+        public final String mode;
+
+        CompatibilityMode(String mode) {
+            this.mode = mode;
+        }
+
+        public static CompatibilityMode parseString(String compatibilityMode) {
             try {
                 return CompatibilityMode.valueOf(compatibilityMode.toUpperCase(Locale.ROOT));
             } catch (IllegalArgumentException e) {
@@ -65,12 +71,6 @@ public class RemoteStoreService {
                         + "]"
                 );
             }
-        }
-
-        public final String value;
-
-        CompatibilityMode(String value) {
-            this.value = value;
         }
     }
 

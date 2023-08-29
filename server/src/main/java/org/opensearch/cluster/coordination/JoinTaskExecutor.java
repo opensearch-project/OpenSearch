@@ -61,6 +61,7 @@ import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
+import static org.opensearch.action.admin.cluster.remotestore.RemoteStoreService.CompatibilityMode;
 import static org.opensearch.action.admin.cluster.remotestore.RemoteStoreService.CompatibilityMode.STRICT;
 import static org.opensearch.action.admin.cluster.remotestore.RemoteStoreService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING;
 import static org.opensearch.cluster.decommission.DecommissionHelper.nodeCommissioned;
@@ -186,8 +187,11 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
             final DiscoveryNode node = joinTask.node();
             if (joinTask.isBecomeClusterManagerTask() || joinTask.isFinishElectionTask()) {
                 // noop
-            } else if (currentNodes.nodeExistsWithSameRoles(node)) {
-                logger.debug("received a join request for an existing node [{}]", node);
+            } else if (currentNodes.nodeExists(node)) {
+                if (currentNodes.nodeExistsWithSameRoles(node)) {
+                    logger.debug("received a join request for an existing node [{}]", node);
+                }
+
                 if (node.isRemoteStoreNode()) {
                     /** cluster state is updated here as elect leader task can have same node present in join task as
                      *  well as current node. We want the repositories to be added in cluster state during first node
@@ -477,8 +481,8 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
 
         // TODO: The below check is valid till we support migration, once we start supporting migration a remote
         // store node will be able to join a non remote store cluster and vice versa. #7986
-        String remoteStoreCompatibilityMode = REMOTE_STORE_COMPATIBILITY_MODE_SETTING.get(currentState.metadata().settings());
-        if (STRICT.value.equals(remoteStoreCompatibilityMode)) {
+        CompatibilityMode remoteStoreCompatibilityMode = REMOTE_STORE_COMPATIBILITY_MODE_SETTING.get(currentState.metadata().settings());
+        if (STRICT.equals(remoteStoreCompatibilityMode)) {
             DiscoveryNode existingNode = existingNodes.get(0);
             if (joiningNode.isRemoteStoreNode()) {
                 if (existingNode.isRemoteStoreNode()) {

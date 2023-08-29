@@ -16,6 +16,7 @@ import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.support.WriteRequest;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.RepositoriesMetadata;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
@@ -25,6 +26,7 @@ import org.opensearch.index.mapper.MapperService;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.file.FileVisitResult;
@@ -36,6 +38,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.opensearch.action.admin.cluster.remotestore.RemoteStoreNode.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX;
@@ -114,13 +117,10 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        if (nodeAttributesSettings == null) {
-            nodeAttributesSettings = remoteStoreNodeAttributes(REPOSITORY_NAME, REPOSITORY_2_NAME);
-        }
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
             .put(remoteStoreClusterSettings(REPOSITORY_NAME, REPOSITORY_2_NAME, true))
-            .put(nodeAttributesSettings)
+            .put(remoteStoreNodeAttributes(REPOSITORY_NAME, REPOSITORY_2_NAME))
             .build();
     }
 
@@ -192,12 +192,15 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
     }
 
     public Settings remoteStoreNodeAttributes(String segmentRepoName, String translogRepoName) {
+        if (nodeAttributesSettings != null) {
+            return nodeAttributesSettings;
+        }
         absolutePath = randomRepoPath().toAbsolutePath();
         absolutePath2 = randomRepoPath().toAbsolutePath();
         if (segmentRepoName.equals(translogRepoName)) {
             absolutePath2 = absolutePath;
         }
-        return Settings.builder()
+        nodeAttributesSettings = Settings.builder()
             .put("node.attr." + REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY, segmentRepoName)
             .put(
                 String.format(Locale.getDefault(), "node.attr." + REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT, segmentRepoName),
@@ -219,6 +222,7 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
                 absolutePath2.toString()
             )
             .build();
+        return nodeAttributesSettings;
     }
 
     private Settings defaultIndexSettings() {
@@ -260,18 +264,9 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
         assertAcked(clusterAdmin().preparePutRepository(repoName).setType("fs").setSettings(Settings.builder().put("location", path)));
     }
 
-    protected void setupRepo() {
-        setupRepo(true);
-    }
-
-    protected void setupRepo(boolean startDedicatedClusterManager) {
-        if (startDedicatedClusterManager) {
-            internalCluster().startClusterManagerOnlyNode();
-        }
-        absolutePath = randomRepoPath().toAbsolutePath();
-        putRepository(absolutePath);
-        absolutePath2 = randomRepoPath().toAbsolutePath();
-        putRepository(absolutePath2, REPOSITORY_2_NAME);
+    @Before
+    public void setup() throws Exception {
+        assertRepositoryMetadataPresentInClusterState();
     }
 
     @After
@@ -299,4 +294,16 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
         return filesExisting.get();
     }
 
+    void assertRepositoryMetadataPresentInClusterState() throws Exception {
+        assertBusy(() -> {
+            RepositoriesMetadata repositoriesMetadata = client().admin()
+                .cluster()
+                .prepareState()
+                .get()
+                .getState()
+                .metadata()
+                .custom(RepositoriesMetadata.TYPE);
+            assertTrue(repositoriesMetadata != null && !repositoriesMetadata.repositories().isEmpty());
+        }, 30, TimeUnit.SECONDS);
+    }
 }
