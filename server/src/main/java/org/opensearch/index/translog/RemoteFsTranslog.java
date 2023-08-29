@@ -381,14 +381,15 @@ public class RemoteFsTranslog extends Translog {
         // clean up local translog files and updates readers
         super.trimUnreferencedReaders();
 
-        // Since remote generation deletion is async, this ensures that only one generation deletion happens at a time.
-        // Remote generations involves 2 async operations - 1) Delete translog generation files 2) Delete metadata files
-        // We try to acquire 2 permits and if we can not, we return from here itself.
-        if (remoteGenerationDeletionPermits.tryAcquire(REMOTE_DELETION_PERMITS) == false) {
+        if (relocatingSupplier.getAsBoolean() == true) {
             return;
         }
 
-        if (relocatingSupplier.getAsBoolean() == true) {
+        // Since remote generation deletion is async, this ensures that only one generation deletion happens at a time.
+        // Remote generations involves 2 async operations - 1) Delete translog generation files 2) Delete metadata files
+        // We try to acquire 2 permits and if we can not, we return from here itself.
+        // Make sure we release permits if return prematurely after acquiring permits
+        if (remoteGenerationDeletionPermits.tryAcquire(REMOTE_DELETION_PERMITS) == false) {
             return;
         }
 

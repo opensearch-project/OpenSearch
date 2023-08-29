@@ -86,6 +86,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BooleanSupplier;
 import java.util.function.LongConsumer;
 import java.util.zip.CRC32;
 import java.util.zip.CheckedInputStream;
@@ -111,6 +112,8 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
     // A default primary term is used by translog instances created in this test.
     private final AtomicLong primaryTerm = new AtomicLong();
     private final AtomicBoolean primaryMode = new AtomicBoolean(true);
+
+    private BooleanSupplier relocatingMode = () -> false;
     private final AtomicReference<LongConsumer> persistedSeqNoConsumer = new AtomicReference<>();
     private ThreadPool threadPool;
     private final static String METADATA_DIR = "metadata";
@@ -157,6 +160,31 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
         return create(path, createRepository(), translogUUID);
     }
 
+    private RemoteFsTranslog create(Path path, ThreadPool threadPool) throws IOException {
+        final String translogUUID = Translog.createEmptyTranslog(path, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
+        return create(path, createRepository(), translogUUID, threadPool);
+    }
+
+    private RemoteFsTranslog create(Path path, BlobStoreRepository repository, String translogUUID, ThreadPool threadPool)
+        throws IOException {
+        this.repository = repository;
+        globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+        final TranslogConfig translogConfig = getTranslogConfig(path);
+        final TranslogDeletionPolicy deletionPolicy = createTranslogDeletionPolicy(translogConfig.getIndexSettings());
+        blobStoreTransferService = new BlobStoreTransferService(repository.blobStore(), threadPool);
+        return new RemoteFsTranslog(
+            translogConfig,
+            translogUUID,
+            deletionPolicy,
+            () -> globalCheckpoint.get(),
+            primaryTerm::get,
+            getPersistedSeqNoConsumer(),
+            repository,
+            threadPool,
+            new IndexShard.IndexShardConfigSupplier(primaryMode::get, relocatingMode)
+        );
+    }
+
     private RemoteFsTranslog create(Path path, BlobStoreRepository repository, String translogUUID) throws IOException {
         this.repository = repository;
         globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
@@ -173,7 +201,7 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
             getPersistedSeqNoConsumer(),
             repository,
             threadPool,
-            new IndexShard.IndexShardConfigSupplier(primaryMode::get, () -> Boolean.FALSE)
+            new IndexShard.IndexShardConfigSupplier(primaryMode::get, relocatingMode)
         );
 
     }
@@ -370,6 +398,45 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
             // Ignoring this exception for now. Once the download flow populates FileTracker,
             // we can remove this try-catch block
         }
+    }
+
+    public void testDeletionWithRelocation() throws IOException {
+        relocatingMode = () -> true;
+
+        // Creating RemoteFsTranslog with the same location
+        translogDir = createTempDir();
+        RemoteFsTranslog translog = create(translogDir, this.threadPool);
+
+        ArrayList<Translog.Operation> ops = new ArrayList<>();
+        addToTranslogAndListAndUpload(translog, ops, new Translog.Index("1", 0, primaryTerm.get(), new byte[] { 1 }));
+        addToTranslogAndListAndUpload(translog, ops, new Translog.Index("1", 1, primaryTerm.get(), new byte[] { 1 }));
+
+        assertEquals(6, translog.allUploaded().size());
+
+        translog.setMinSeqNoToKeep(1);
+        addToTranslogAndListAndUpload(translog, ops, new Translog.Index("1", 2, primaryTerm.get(), new byte[] { 1 }));
+
+        // cleans up local
+        translog.trimUnreferencedReaders();
+
+        addToTranslogAndListAndUpload(translog, ops, new Translog.Index("1", 3, primaryTerm.get(), new byte[] { 1 }));
+        // cleans up remote files only if relocating mode is false
+        translog.trimUnreferencedReaders();
+
+        assertEquals(
+            10,
+            blobStoreTransferService.listAll(getTranslogDirectory().add(DATA_DIR).add(String.valueOf(primaryTerm.get()))).size()
+        );
+
+        try {
+            translog.close();
+        } catch (Exception e) {
+            // Ignoring this exception for now. Once the download flow populates FileTracker,
+            // we can remove this try-catch block
+        }
+
+        // resetting to false for other tests
+        relocatingMode = () -> false;
     }
 
     public void testSnapshotWithNewTranslog() throws IOException {
