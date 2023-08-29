@@ -57,6 +57,7 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.TestCustomMetadata;
 
@@ -73,6 +74,7 @@ import java.util.Map;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singletonMap;
+import static org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -84,7 +86,7 @@ public class ClusterStateTests extends OpenSearchTestCase {
         final DiscoveryNode node1 = new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), version);
         final DiscoveryNode node2 = new DiscoveryNode("node2", buildNewFakeTransportAddress(), emptyMap(), emptySet(), version);
         final DiscoveryNodes nodes = DiscoveryNodes.builder().add(node1).add(node2).build();
-        ClusterName name = ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY);
+        ClusterName name = CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY);
         ClusterState noClusterManager1 = ClusterState.builder(name).version(randomInt(5)).nodes(nodes).build();
         ClusterState noClusterManager2 = ClusterState.builder(name).version(randomInt(5)).nodes(nodes).build();
         ClusterState withClusterManager1a = ClusterState.builder(name)
@@ -113,6 +115,39 @@ public class ClusterStateTests extends OpenSearchTestCase {
             withClusterManager1a.supersedes(withClusterManager1b),
             equalTo(withClusterManager1a.version() > withClusterManager1b.version())
         );
+    }
+
+    public void testIsSegmentReplicationEnabled() {
+        final String indexName = "test";
+        ClusterState clusterState = ClusterState.builder(CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).build();
+        Settings.Builder builder = settings(Version.CURRENT).put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT);
+        IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexName)
+            .settings(builder)
+            .numberOfShards(1)
+            .numberOfReplicas(1);
+        Metadata.Builder metadataBuilder = Metadata.builder().put(indexMetadataBuilder);
+        RoutingTable.Builder routingTableBuilder = RoutingTable.builder().addAsNew(indexMetadataBuilder.build());
+        clusterState = ClusterState.builder(clusterState)
+            .metadata(metadataBuilder.build())
+            .routingTable(routingTableBuilder.build())
+            .build();
+        assertTrue(clusterState.isSegmentReplicationEnabled(indexName));
+    }
+
+    public void testIsSegmentReplicationDisabled() {
+        final String indexName = "test";
+        ClusterState clusterState = ClusterState.builder(CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).build();
+        IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexName)
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(1);
+        Metadata.Builder metadataBuilder = Metadata.builder().put(indexMetadataBuilder);
+        RoutingTable.Builder routingTableBuilder = RoutingTable.builder().addAsNew(indexMetadataBuilder.build());
+        clusterState = ClusterState.builder(clusterState)
+            .metadata(metadataBuilder.build())
+            .routingTable(routingTableBuilder.build())
+            .build();
+        assertFalse(clusterState.isSegmentReplicationEnabled(indexName));
     }
 
     public void testBuilderRejectsNullCustom() {
