@@ -167,6 +167,9 @@ public class AuthTokenHandlerTests extends OpenSearchTestCase {
         Subject subject = new NoopSubject();
         AuthToken token = tokenManager.issueOnBehalfOfToken(subject, claims);
         assertTrue(token instanceof AuthToken);
+        AuthToken serviceAccountToken = tokenManager.issueServiceAccountToken("test");
+        assertTrue(serviceAccountToken instanceof AuthToken);
+        assertEquals(serviceAccountToken.asAuthHeaderValue(), "noopToken");
     }
 
     public void testShouldSucceedIssueServiceAccountToken() {

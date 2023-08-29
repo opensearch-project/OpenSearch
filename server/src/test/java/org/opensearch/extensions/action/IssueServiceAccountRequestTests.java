@@ -27,5 +27,11 @@ public class IssueServiceAccountRequestTests extends OpenSearchTestCase {
         request = new IssueServiceAccountRequest(in);
 
         assertEquals(serviceAccountToken, request.getServiceAccountToken());
+
+        IssueServiceAccountRequest request2 = new IssueServiceAccountRequest(serviceAccountToken);
+
+        assertEquals(request, request2);
+        assertEquals(request.hashCode(), request2.hashCode());
+        assertEquals(request.toString(), "IssueServiceAccountRequest {" + "serviceAccountToken=" + serviceAccountToken + "}");
     }
 }

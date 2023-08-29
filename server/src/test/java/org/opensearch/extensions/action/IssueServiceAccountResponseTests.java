@@ -29,5 +29,14 @@ public class IssueServiceAccountResponseTests extends OpenSearchTestCase {
         response = new IssueServiceAccountResponse(in);
         assertEquals(extensionName, response.getName());
         assertEquals(serviceAccountToken, response.getServiceAccountString());
+
+        IssueServiceAccountResponse response2 = new IssueServiceAccountResponse(extensionName, serviceAccountToken);
+
+        assertEquals(response, response2);
+        assertEquals(response.hashCode(), response2.hashCode());
+        assertEquals(
+            response.toString(),
+            "InitializeExtensionResponse{" + "name = " + extensionName + " , " + "received service account = " + serviceAccountToken + "}"
+        );
     }
 }
