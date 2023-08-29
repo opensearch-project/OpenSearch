@@ -532,10 +532,9 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             threadPool
         );
-        RemoteStorePressureService remoteStorePressureService = new RemoteStorePressureService(clusterService, Settings.EMPTY);
+        RemoteStorePressureService remoteStorePressureService = indexShard.getRemoteStorePressureService();
         when(shard.indexSettings()).thenReturn(indexShard.indexSettings());
         when(shard.shardId()).thenReturn(indexShard.shardId());
-        remoteStorePressureService.afterIndexShardCreated(shard);
         RemoteSegmentTransferTracker tracker = remoteStorePressureService.getRemoteRefreshSegmentTracker(indexShard.shardId());
         RemoteStoreRefreshListener refreshListener = new RemoteStoreRefreshListener(shard, emptyCheckpointPublisher, tracker);
         refreshListener.afterRefresh(true);
