@@ -622,17 +622,6 @@ public class GatewayMetaState implements Closeable {
 
         @Override
         public ClusterState getLastAcceptedState() {
-            if (lastAcceptedMarker != null) {
-                assert lastAcceptedState != null : "Last accepted state is not set";
-                assert lastAcceptedState.metadata().indices().size() == lastAcceptedMarker.getIndices().size()
-                    : "Number of indices in last accepted state and marker are different";
-                lastAcceptedMarker.getIndices().stream().forEach(md -> {
-                    assert lastAcceptedState.metadata().indices().containsKey(md.getIndexName())
-                        : "Last accepted state and marker are not in sync";
-                    assert lastAcceptedState.metadata().indices().get(md.getIndexName()).getIndexUUID().equals(md.getIndexUUID())
-                        : "Last accepted state and marker are not in sync";
-                });
-            }
             return lastAcceptedState;
         }
 
@@ -657,11 +646,26 @@ public class GatewayMetaState implements Closeable {
                 } else {
                     marker = remoteClusterStateService.writeIncrementalMetadata(lastAcceptedState, clusterState, lastAcceptedMarker);
                 }
+                assert verifyMarkerAndClusterState(marker, clusterState) == true : "Marker and ClusterState are not in sync";
                 lastAcceptedMarker = marker;
                 lastAcceptedState = clusterState;
             } catch (Exception e) {
                 handleExceptionOnWrite(e);
             }
+        }
+
+        private boolean verifyMarkerAndClusterState(ClusterMetadataMarker marker, ClusterState clusterState) {
+            assert marker != null: "ClusterMetadataMarker is null";
+            assert clusterState != null : "ClusterState is null";
+            assert clusterState.metadata().indices().size() == marker.getIndices().size()
+                : "Number of indices in last accepted state and marker are different";
+            marker.getIndices().stream().forEach(md -> {
+                assert clusterState.metadata().indices().containsKey(md.getIndexName())
+                    : "Last accepted state and marker are not in sync";
+                assert clusterState.metadata().indices().get(md.getIndexName()).getIndexUUID().equals(md.getIndexUUID())
+                    : "Last accepted state and marker are not in sync";
+            });
+            return true;
         }
 
         private boolean shouldWriteFullClusterState(ClusterState clusterState) {
