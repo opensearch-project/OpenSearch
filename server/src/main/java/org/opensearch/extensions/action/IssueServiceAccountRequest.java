@@ -35,6 +35,7 @@ public class IssueServiceAccountRequest extends TransportRequest {
      * @param in The stream passing the token
      */
     public IssueServiceAccountRequest(StreamInput in) throws IOException {
+        super(in);
         this.serviceAccountToken = in.readString();
     }
 
