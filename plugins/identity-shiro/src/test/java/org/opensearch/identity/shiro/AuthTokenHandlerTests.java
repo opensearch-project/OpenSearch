@@ -170,12 +170,12 @@ public class AuthTokenHandlerTests extends OpenSearchTestCase {
     }
 
     public void testShouldSucceedIssueServiceAccountToken() {
-
-
+        String audience = "testExtensionName";
+        BasicAuthToken authToken = (BasicAuthToken) shiroAuthTokenHandler.issueServiceAccountToken(audience);
+        assertTrue(authToken instanceof BasicAuthToken);
+        UsernamePasswordToken translatedToken = (UsernamePasswordToken) shiroAuthTokenHandler.translateAuthToken(authToken).get();
+        assertEquals(authToken.getPassword(), new String(translatedToken.getPassword()));
+        assertTrue(shiroAuthTokenHandler.getShiroTokenPasswordMap().containsKey(authToken));
+        assertEquals(shiroAuthTokenHandler.getShiroTokenPasswordMap().get(authToken), new String(translatedToken.getPassword()));
     }
-
-    public void testShouldFailIssueServiceAccountToken() {
-
-    }
-
 }

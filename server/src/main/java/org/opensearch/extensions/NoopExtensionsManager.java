@@ -8,7 +8,6 @@
 
 package org.opensearch.extensions;
 
-import java.util.List;
 import org.opensearch.action.ActionModule;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.service.ClusterService;
@@ -21,6 +20,7 @@ import org.opensearch.identity.IdentityService;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
