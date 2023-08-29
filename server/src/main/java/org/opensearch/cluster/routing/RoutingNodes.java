@@ -366,40 +366,37 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         return null;
     }
 
-    /**
-     * Returns one active replica shard for the given shard id or <code>null</code> if
-     * no active replica is found.
-     *
-     * Since replicas could possibly be on nodes with an older version of OpenSearch than
-     * the primary is, this will return replicas on the highest version of OpenSearch when
-     * document replication strategy is in use, and will return replicas on oldest version
-     * of OpenSearch when segment replication is enabled.
-     *
-     */
-    public ShardRouting activeReplicaBasedOnReplicationStrategy(ShardId shardId) {
+    public ShardRouting activeReplicaWithHighestVersion(ShardId shardId) {
         // It's possible for replicaNodeVersion to be null, when disassociating dead nodes
         // that have been removed, the shards are failed, and part of the shard failing
         // calls this method with an out-of-date RoutingNodes, where the version might not
         // be accessible. Therefore, we need to protect against the version being null
         // (meaning the node will be going away).
-        Stream<ShardRouting> candidateShards = assignedShards(shardId).stream()
+        return assignedShards(shardId).stream()
             .filter(shr -> !shr.primary() && shr.active())
-            .filter(shr -> node(shr.currentNodeId()) != null);
-        if (metadata.isSegmentReplicationEnabled(shardId.getIndexName())) {
-            return candidateShards.min(
+            .filter(shr -> node(shr.currentNodeId()) != null)
+            .max(
                 Comparator.comparing(
                     shr -> node(shr.currentNodeId()).node(),
                     Comparator.nullsFirst(Comparator.comparing(DiscoveryNode::getVersion))
                 )
-            ).orElse(null);
-
-        }
-        return candidateShards.max(
-            Comparator.comparing(
-                shr -> node(shr.currentNodeId()).node(),
-                Comparator.nullsFirst(Comparator.comparing(DiscoveryNode::getVersion))
             )
-        ).orElse(null);
+            .orElse(null);
+    }
+
+    public ShardRouting activeReplicaWithOldestVersion(ShardId shardId) {
+        // It's possible for replicaNodeVersion to be null. Therefore, we need to protect against the version being null
+        // (meaning the node will be going away).
+        return assignedShards(shardId).stream()
+            .filter(shr -> !shr.primary() && shr.active())
+            .filter(shr -> node(shr.currentNodeId()) != null)
+            .min(
+                Comparator.comparing(
+                    shr -> node(shr.currentNodeId()).node(),
+                    Comparator.nullsFirst(Comparator.comparing(DiscoveryNode::getVersion))
+                )
+            )
+            .orElse(null);
     }
 
     /**
@@ -736,7 +733,12 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         RoutingChangesObserver routingChangesObserver
     ) {
         assert failedShard.primary();
-        ShardRouting activeReplica = activeReplicaBasedOnReplicationStrategy(failedShard.shardId());
+        ShardRouting activeReplica;
+        if (metadata.isSegmentReplicationEnabled(failedShard.getIndexName())) {
+            activeReplica = activeReplicaWithOldestVersion(failedShard.shardId());
+        } else {
+            activeReplica = activeReplicaWithHighestVersion(failedShard.shardId());
+        }
         if (activeReplica == null) {
             moveToUnassigned(failedShard, unassignedInfo);
         } else {
