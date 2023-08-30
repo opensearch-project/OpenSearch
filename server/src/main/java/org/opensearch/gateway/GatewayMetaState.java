@@ -648,6 +648,8 @@ public class GatewayMetaState implements Closeable {
                 if (shouldWriteFullClusterState(clusterState)) {
                     marker = remoteClusterStateService.writeFullMetadata(clusterState);
                 } else {
+                    assert verifyMarkerAndClusterState(lastAcceptedMarker, lastAcceptedState) == true
+                        : "Previous Marker and previous ClusterState are not in sync";
                     marker = remoteClusterStateService.writeIncrementalMetadata(lastAcceptedState, clusterState, lastAcceptedMarker);
                 }
                 assert verifyMarkerAndClusterState(marker, clusterState) == true : "Marker and ClusterState are not in sync";
