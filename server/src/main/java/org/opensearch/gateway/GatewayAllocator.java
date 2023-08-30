@@ -116,6 +116,14 @@ public class GatewayAllocator implements ExistingShardsAllocator {
     @Override
     public int getNumberOfInFlightFetches() {
         int count = 0;
+        // If fetching is done in non batched-mode then maps to maintain batches will be empty and vice versa for batch-mode
+        for (ShardsBatch batch : batchIdToStartedShardBatch.values()) {
+            count += (batch.getNumberOfInFlightFetches() * batch.getBatchedShards().size());
+        }
+        for (ShardsBatch batch : batchIdToStoreShardBatch.values()) {
+            count += (batch.getNumberOfInFlightFetches() * batch.getBatchedShards().size());
+        }
+
         for (AsyncShardFetch<TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> fetch : asyncFetchStarted.values()) {
             count += fetch.getNumberOfInFlightFetches();
         }
