@@ -47,7 +47,6 @@ import org.apache.lucene.store.RateLimiter;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.Version;
-import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.StepListener;
 import org.opensearch.action.support.GroupedActionListener;
@@ -74,12 +73,13 @@ import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.blobstore.DeleteResult;
 import org.opensearch.common.blobstore.fs.FsBlobContainer;
+import org.opensearch.common.blobstore.transfer.stream.OffsetRangeInputStream;
+import org.opensearch.common.blobstore.transfer.stream.RateLimitingOffsetRangeInputStream;
 import org.opensearch.common.collect.Tuple;
-import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
-import org.opensearch.core.common.compress.Compressor;
-import org.opensearch.common.compress.CompressorFactory;
-import org.opensearch.common.compress.CompressorType;
+import org.opensearch.common.compress.DeflateCompressor;
 import org.opensearch.common.io.Streams;
+import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.store.InputStreamIndexInput;
 import org.opensearch.common.metrics.CounterMetric;
@@ -90,13 +90,15 @@ import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.lease.Releasable;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.core.common.compress.NotXContentException;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.core.compress.Compressor;
+import org.opensearch.core.compress.CompressorRegistry;
+import org.opensearch.core.compress.NotXContentException;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.index.snapshots.IndexShardSnapshotFailedException;
 import org.opensearch.core.util.BytesRefUtils;
@@ -107,10 +109,10 @@ import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.snapshots.IndexShardRestoreFailedException;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
 import org.opensearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
-import org.opensearch.index.snapshots.blobstore.RemoteStoreShardShallowCopySnapshot;
 import org.opensearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshots;
 import org.opensearch.index.snapshots.blobstore.IndexShardSnapshot;
 import org.opensearch.index.snapshots.blobstore.RateLimitingInputStream;
+import org.opensearch.index.snapshots.blobstore.RemoteStoreShardShallowCopySnapshot;
 import org.opensearch.index.snapshots.blobstore.SlicedInputStream;
 import org.opensearch.index.snapshots.blobstore.SnapshotFiles;
 import org.opensearch.index.store.Store;
@@ -265,10 +267,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     public static final Setting<Boolean> COMPRESS_SETTING = Setting.boolSetting("compress", false, Setting.Property.NodeScope);
 
-    public static final Setting<CompressorType> COMPRESSION_TYPE_SETTING = new Setting<>(
+    public static final Setting<Compressor> COMPRESSION_TYPE_SETTING = new Setting<>(
         "compression_type",
-        CompressorType.DEFLATE.name().toLowerCase(Locale.ROOT),
-        s -> CompressorType.valueOf(s.toUpperCase(Locale.ROOT)),
+        DeflateCompressor.NAME.toLowerCase(Locale.ROOT),
+        s -> CompressorRegistry.getCompressor(s.toUpperCase(Locale.ROOT)),
         Setting.Property.NodeScope
     );
 
@@ -295,9 +297,17 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private final RateLimiter restoreRateLimiter;
 
+    private final RateLimiter remoteUploadRateLimiter;
+
+    private final RateLimiter remoteDownloadRateLimiter;
+
     private final CounterMetric snapshotRateLimitingTimeInNanos = new CounterMetric();
 
     private final CounterMetric restoreRateLimitingTimeInNanos = new CounterMetric();
+
+    private final CounterMetric remoteDownloadRateLimitingTimeInNanos = new CounterMetric();
+
+    private final CounterMetric remoteUploadRateLimitingTimeInNanos = new CounterMetric();
 
     public static final ChecksumBlobStoreFormat<Metadata> GLOBAL_METADATA_FORMAT = new ChecksumBlobStoreFormat<>(
         "metadata",
@@ -401,11 +411,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         this.supportURLRepo = SUPPORT_URL_REPO.get(metadata.settings());
         snapshotRateLimiter = getRateLimiter(metadata.settings(), "max_snapshot_bytes_per_sec", new ByteSizeValue(40, ByteSizeUnit.MB));
         restoreRateLimiter = getRateLimiter(metadata.settings(), "max_restore_bytes_per_sec", ByteSizeValue.ZERO);
+        remoteUploadRateLimiter = getRateLimiter(metadata.settings(), "max_remote_upload_bytes_per_sec", ByteSizeValue.ZERO);
+        remoteDownloadRateLimiter = getRateLimiter(metadata.settings(), "max_remote_download_bytes_per_sec", ByteSizeValue.ZERO);
         readOnly = READONLY_SETTING.get(metadata.settings());
         cacheRepositoryData = CACHE_REPOSITORY_DATA.get(metadata.settings());
         bufferSize = Math.toIntExact(BUFFER_SIZE_SETTING.get(metadata.settings()).getBytes());
         maxShardBlobDeleteBatch = MAX_SNAPSHOT_SHARD_BLOB_DELETE_BATCH_SIZE.get(metadata.settings());
-        this.compressor = compress ? COMPRESSION_TYPE_SETTING.get(metadata.settings()).compressor() : CompressorFactory.NONE_COMPRESSOR;
+        this.compressor = compress ? COMPRESSION_TYPE_SETTING.get(metadata.settings()) : CompressorRegistry.none();
     }
 
     @Override
@@ -774,7 +786,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * @return true if compression is needed
      */
     protected final boolean isCompress() {
-        return compressor != CompressorFactory.NONE_COMPRESSOR;
+        return compressor != CompressorRegistry.none();
     }
 
     /**
@@ -1831,6 +1843,16 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         return restoreRateLimitingTimeInNanos.count();
     }
 
+    @Override
+    public long getRemoteUploadThrottleTimeInNanos() {
+        return remoteUploadRateLimitingTimeInNanos.count();
+    }
+
+    @Override
+    public long getRemoteDownloadThrottleTimeInNanos() {
+        return remoteDownloadRateLimitingTimeInNanos.count();
+    }
+
     protected void assertSnapshotOrGenericThread() {
         assert Thread.currentThread().getName().contains('[' + ThreadPool.Names.SNAPSHOT + ']')
             || Thread.currentThread().getName().contains('[' + ThreadPool.Names.GENERIC + ']') : "Expected current thread ["
@@ -2002,7 +2024,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         if (cacheRepositoryData && bestEffortConsistency == false) {
             final BytesReference serialized;
             try {
-                serialized = CompressorFactory.defaultCompressor().compress(updated);
+                serialized = CompressorRegistry.defaultCompressor().compress(updated);
                 final int len = serialized.length();
                 if (len > ByteSizeUnit.KB.toBytes(500)) {
                     logger.debug(
@@ -2038,7 +2060,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     private RepositoryData repositoryDataFromCachedEntry(Tuple<Long, BytesReference> cacheEntry) throws IOException {
-        try (InputStream input = CompressorFactory.defaultCompressor().threadLocalInputStream(cacheEntry.v2().streamInput())) {
+        try (InputStream input = CompressorRegistry.defaultCompressor().threadLocalInputStream(cacheEntry.v2().streamInput())) {
             return RepositoryData.snapshotsFromXContent(
                 MediaTypeRegistry.JSON.xContent().createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, input),
                 cacheEntry.v1(),
@@ -3110,20 +3132,75 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         });
     }
 
-    private static InputStream maybeRateLimit(InputStream stream, Supplier<RateLimiter> rateLimiterSupplier, CounterMetric metric) {
-        return new RateLimitingInputStream(stream, rateLimiterSupplier, metric::inc);
+    private static void mayBeLogRateLimits(BlobStoreTransferContext context, RateLimiter rateLimiter, long time) {
+        logger.debug(
+            () -> new ParameterizedMessage(
+                "Rate limited blob store transfer, context [{}], for duration [{} ms] for configured rate [{} MBps]",
+                context,
+                TimeValue.timeValueNanos(time).millis(),
+                rateLimiter.getMBPerSec()
+            )
+        );
+    }
+
+    private static InputStream maybeRateLimit(
+        InputStream stream,
+        Supplier<RateLimiter> rateLimiterSupplier,
+        CounterMetric metric,
+        BlobStoreTransferContext context
+    ) {
+        return new RateLimitingInputStream(stream, rateLimiterSupplier, (t) -> {
+            mayBeLogRateLimits(context, rateLimiterSupplier.get(), t);
+            metric.inc(t);
+        });
+    }
+
+    private static OffsetRangeInputStream maybeRateLimitRemoteTransfers(
+        OffsetRangeInputStream offsetRangeInputStream,
+        Supplier<RateLimiter> rateLimiterSupplier,
+        CounterMetric metric,
+        BlobStoreTransferContext context
+    ) {
+        return new RateLimitingOffsetRangeInputStream(offsetRangeInputStream, rateLimiterSupplier, (t) -> {
+            mayBeLogRateLimits(context, rateLimiterSupplier.get(), t);
+            metric.inc(t);
+        });
     }
 
     public InputStream maybeRateLimitRestores(InputStream stream) {
         return maybeRateLimit(
-            maybeRateLimit(stream, () -> restoreRateLimiter, restoreRateLimitingTimeInNanos),
+            maybeRateLimit(stream, () -> restoreRateLimiter, restoreRateLimitingTimeInNanos, BlobStoreTransferContext.SNAPSHOT_RESTORE),
             recoverySettings::rateLimiter,
-            restoreRateLimitingTimeInNanos
+            restoreRateLimitingTimeInNanos,
+            BlobStoreTransferContext.SNAPSHOT_RESTORE
+        );
+    }
+
+    public OffsetRangeInputStream maybeRateLimitRemoteUploadTransfers(OffsetRangeInputStream offsetRangeInputStream) {
+        return maybeRateLimitRemoteTransfers(
+            offsetRangeInputStream,
+            () -> remoteUploadRateLimiter,
+            remoteUploadRateLimitingTimeInNanos,
+            BlobStoreTransferContext.REMOTE_UPLOAD
+        );
+    }
+
+    public InputStream maybeRateLimitRemoteDownloadTransfers(InputStream inputStream) {
+        return maybeRateLimit(
+            maybeRateLimit(
+                inputStream,
+                () -> remoteDownloadRateLimiter,
+                remoteDownloadRateLimitingTimeInNanos,
+                BlobStoreTransferContext.REMOTE_DOWNLOAD
+            ),
+            recoverySettings::rateLimiter,
+            remoteDownloadRateLimitingTimeInNanos,
+            BlobStoreTransferContext.REMOTE_DOWNLOAD
         );
     }
 
     public InputStream maybeRateLimitSnapshots(InputStream stream) {
-        return maybeRateLimit(stream, () -> snapshotRateLimiter, snapshotRateLimitingTimeInNanos);
+        return maybeRateLimit(stream, () -> snapshotRateLimiter, snapshotRateLimitingTimeInNanos, BlobStoreTransferContext.SNAPSHOT);
     }
 
     @Override
@@ -3484,6 +3561,24 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             this.shardId = shardId;
             this.newGeneration = newGeneration;
             this.blobsToDelete = blobsToDelete;
+        }
+    }
+
+    enum BlobStoreTransferContext {
+        REMOTE_UPLOAD("remote_upload"),
+        REMOTE_DOWNLOAD("remote_download"),
+        SNAPSHOT("snapshot"),
+        SNAPSHOT_RESTORE("snapshot_restore");
+
+        private final String name;
+
+        BlobStoreTransferContext(String name) {
+            this.name = name;
+        }
+
+        @Override
+        public String toString() {
+            return name;
         }
     }
 }

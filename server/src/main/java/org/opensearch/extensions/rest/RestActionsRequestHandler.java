@@ -9,11 +9,11 @@
 package org.opensearch.extensions.rest;
 
 import org.opensearch.action.ActionModule.DynamicActionRegistry;
+import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.extensions.AcknowledgedResponse;
 import org.opensearch.extensions.DiscoveryExtensionNode;
 import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestHandler;
-import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.transport.TransportService;
 
 import java.util.Map;

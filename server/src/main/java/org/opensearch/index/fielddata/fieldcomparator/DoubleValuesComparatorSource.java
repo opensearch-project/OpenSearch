@@ -95,7 +95,7 @@ public class DoubleValuesComparatorSource extends IndexFieldData.XFieldComparato
         }
     }
 
-    protected void setScorer(Scorable scorer) {}
+    protected void setScorer(Scorable scorer, LeafReaderContext context) {}
 
     @Override
     public FieldComparator<?> newComparator(String fieldname, int numHits, boolean enableSkipping, boolean reversed) {
@@ -115,7 +115,7 @@ public class DoubleValuesComparatorSource extends IndexFieldData.XFieldComparato
 
                     @Override
                     public void setScorer(Scorable scorer) {
-                        DoubleValuesComparatorSource.this.setScorer(scorer);
+                        DoubleValuesComparatorSource.this.setScorer(scorer, context);
                     }
                 };
             }

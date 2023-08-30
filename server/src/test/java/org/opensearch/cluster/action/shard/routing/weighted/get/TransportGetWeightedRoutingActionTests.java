@@ -8,8 +8,6 @@
 
 package org.opensearch.cluster.action.shard.routing.weighted.get;
 
-import org.junit.After;
-import org.junit.Before;
 import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.shards.routing.weighted.get.ClusterGetWeightedRoutingAction;
 import org.opensearch.action.admin.cluster.shards.routing.weighted.get.ClusterGetWeightedRoutingRequestBuilder;
@@ -38,6 +36,8 @@ import org.opensearch.test.transport.MockTransport;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
+import org.junit.After;
+import org.junit.Before;
 
 import java.util.Collections;
 import java.util.HashSet;

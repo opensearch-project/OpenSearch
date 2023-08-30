@@ -52,11 +52,11 @@ import org.opensearch.transport.TransportService;
 import java.util.Collections;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.opensearch.action.main.TransportMainAction.OVERRIDE_MAIN_RESPONSE_VERSION_KEY;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-import static org.opensearch.action.main.TransportMainAction.OVERRIDE_MAIN_RESPONSE_VERSION_KEY;
 
 public class MainActionTests extends OpenSearchTestCase {
 

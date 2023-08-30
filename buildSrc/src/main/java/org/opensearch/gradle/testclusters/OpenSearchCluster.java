@@ -241,6 +241,11 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
     }
 
     @Override
+    public void setSecure(boolean secure) {
+        nodes.all(each -> each.setSecure(secure));
+    }
+
+    @Override
     public void cliSetup(String binTool, CharSequence... args) {
         nodes.all(each -> each.cliSetup(binTool, args));
     }
@@ -529,12 +534,25 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
     private void addWaitForClusterHealth() {
         waitConditions.put("cluster health yellow", (node) -> {
             try {
-                WaitForHttpResource wait = new WaitForHttpResource("http", getFirstNode().getHttpSocketURI(), nodes.size());
-
-                List<Map<String, String>> credentials = getFirstNode().getCredentials();
-                if (getFirstNode().getCredentials().isEmpty() == false) {
-                    wait.setUsername(credentials.get(0).get("useradd"));
-                    wait.setPassword(credentials.get(0).get("-p"));
+                WaitForHttpResource wait;
+                if (!getFirstNode().isSecure()) {
+                    wait = new WaitForHttpResource("http", getFirstNode().getHttpSocketURI(), nodes.size());
+                    List<Map<String, String>> credentials = getFirstNode().getCredentials();
+                    if (getFirstNode().getCredentials().isEmpty() == false) {
+                        wait.setUsername(credentials.get(0).get("useradd"));
+                        wait.setPassword(credentials.get(0).get("-p"));
+                    }
+                } else {
+                    wait = new WaitForHttpResource(
+                        "https",
+                        getFirstNode().getHttpSocketURI(),
+                        getFirstNode().getCredentials().get(0).get("username"),
+                        getFirstNode().getCredentials().get(0).get("password"),
+                        nodes.size()
+                    );
+                    wait.setUsername(getFirstNode().getCredentials().get(0).get("username"));
+                    wait.setPassword(getFirstNode().getCredentials().get(0).get("password"));
+                    wait.setCertificateAuthorities(getFirstNode().getExtraConfigFilesMap().get("root-ca.pem"));
                 }
                 return wait.wait(500);
             } catch (IOException e) {

@@ -49,18 +49,19 @@ import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.UUIDs;
-import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.VersionedNamedWriteable;
-import org.opensearch.common.settings.Settings;
-import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.discovery.Discovery;
+import org.opensearch.indices.replication.common.ReplicationType;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -407,6 +408,21 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             && this.nodes().getClusterManagerNodeId().equals(other.nodes().getClusterManagerNodeId())
             && this.version() > other.version();
 
+    }
+
+    /**
+     * Utility to identify whether input index belongs to SEGMENT replication in established cluster state.
+     *
+     * @param indexName Index name
+     * @return true if index belong SEGMENT replication, false otherwise
+     */
+    public boolean isSegmentReplicationEnabled(String indexName) {
+        return Optional.ofNullable(this.getMetadata().index(indexName))
+            .map(
+                indexMetadata -> ReplicationType.parseString(indexMetadata.getSettings().get(IndexMetadata.SETTING_REPLICATION_TYPE))
+                    .equals(ReplicationType.SEGMENT)
+            )
+            .orElse(false);
     }
 
     /**

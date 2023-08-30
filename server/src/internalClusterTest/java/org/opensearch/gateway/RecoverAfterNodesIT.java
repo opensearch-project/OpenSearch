@@ -43,8 +43,8 @@ import org.opensearch.test.OpenSearchIntegTestCase.Scope;
 
 import java.util.Set;
 
-import static org.opensearch.test.NodeRoles.dataOnlyNode;
 import static org.opensearch.test.NodeRoles.clusterManagerOnlyNode;
+import static org.opensearch.test.NodeRoles.dataOnlyNode;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 

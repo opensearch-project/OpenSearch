@@ -11,15 +11,15 @@ package org.opensearch.action.admin.cluster.remotestore.stats;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.TestShardRouting;
-import org.opensearch.index.remote.RemoteSegmentTransferTracker;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.remote.RemoteSegmentTransferTracker;
 import org.opensearch.index.store.DirectoryFileTransferTracker;
 
 import java.util.Map;
 
-import static org.junit.Assert.assertTrue;
 import static org.opensearch.test.OpenSearchTestCase.assertEquals;
 import static org.opensearch.test.OpenSearchTestCase.randomAlphaOfLength;
+import static org.junit.Assert.assertTrue;
 
 /**
  * Helper utilities for Remote Store stats tests
@@ -46,6 +46,7 @@ public class RemoteStoreStatsTestHelper {
             0,
             0,
             0,
+            10,
             createZeroDirectoryFileTransferStats()
         );
     }
@@ -53,6 +54,7 @@ public class RemoteStoreStatsTestHelper {
     static RemoteSegmentTransferTracker.Stats createStatsForNewReplica(ShardId shardId) {
         return new RemoteSegmentTransferTracker.Stats(
             shardId,
+            0,
             0,
             0,
             0,
@@ -96,16 +98,17 @@ public class RemoteStoreStatsTestHelper {
             0,
             0,
             100,
+            10,
             createSampleDirectoryFileTransferStats()
         );
     }
 
     static DirectoryFileTransferTracker.Stats createSampleDirectoryFileTransferStats() {
-        return new DirectoryFileTransferTracker.Stats(10, 0, 10, 12345, 5, 5, 5);
+        return new DirectoryFileTransferTracker.Stats(10, 0, 10, 12345, 5, 5, 5, 10);
     }
 
     static DirectoryFileTransferTracker.Stats createZeroDirectoryFileTransferStats() {
-        return new DirectoryFileTransferTracker.Stats(0, 0, 0, 0, 0, 0, 0);
+        return new DirectoryFileTransferTracker.Stats(0, 0, 0, 0, 0, 0, 0, 0);
     }
 
     static ShardRouting createShardRouting(ShardId shardId, boolean isPrimary) {

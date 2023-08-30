@@ -32,9 +32,9 @@
 
 package org.opensearch.common.rounding;
 
-import org.joda.time.DateTimeZone;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.test.OpenSearchTestCase;
+import org.joda.time.DateTimeZone;
 
 import java.time.ZoneOffset;
 

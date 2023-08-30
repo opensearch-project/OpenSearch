@@ -260,4 +260,12 @@ public final class Numbers {
         // want to replace that with 1 in the shifted value for correct rounding.
         return (double) ((value >>> 1) | (value & 1)) * 2.0;
     }
+
+    /**
+     * Return the strictly greater next power of two for the given value.
+     * For zero and negative numbers, it returns 1.
+     */
+    public static long nextPowerOfTwo(long value) {
+        return 1L << (Long.SIZE - Long.numberOfLeadingZeros(value));
+    }
 }

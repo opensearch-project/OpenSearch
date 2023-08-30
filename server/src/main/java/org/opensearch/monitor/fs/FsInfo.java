@@ -33,8 +33,8 @@
 package org.opensearch.monitor.fs;
 
 import org.opensearch.LegacyESVersion;
-import org.opensearch.cluster.DiskUsage;
 import org.opensearch.Version;
+import org.opensearch.cluster.DiskUsage;
 import org.opensearch.common.Nullable;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;

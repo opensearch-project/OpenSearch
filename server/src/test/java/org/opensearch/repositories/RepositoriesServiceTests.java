@@ -34,7 +34,6 @@ package org.opensearch.repositories;
 
 import org.apache.lucene.index.IndexCommit;
 import org.opensearch.Version;
-import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterName;
@@ -53,6 +52,7 @@ import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.lifecycle.Lifecycle;
 import org.opensearch.common.lifecycle.LifecycleListener;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
@@ -283,6 +283,16 @@ public class RepositoriesServiceTests extends OpenSearchTestCase {
 
         @Override
         public long getRestoreThrottleTimeInNanos() {
+            return 0;
+        }
+
+        @Override
+        public long getRemoteUploadThrottleTimeInNanos() {
+            return 0;
+        }
+
+        @Override
+        public long getRemoteDownloadThrottleTimeInNanos() {
             return 0;
         }
 

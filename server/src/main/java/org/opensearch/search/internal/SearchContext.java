@@ -39,10 +39,10 @@ import org.apache.lucene.util.ArrayUtil;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.action.search.SearchType;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.BigArrays;
 import org.opensearch.index.cache.bitset.BitsetFilterCache;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
@@ -399,7 +399,7 @@ public abstract class SearchContext implements Releasable {
     /**
      * Returns concurrent segment search status for the search context
      */
-    public boolean isConcurrentSegmentSearchEnabled() {
+    public boolean shouldUseConcurrentSearch() {
         return false;
     }
 
@@ -407,7 +407,7 @@ public abstract class SearchContext implements Releasable {
      * Returns local bucket count thresholds based on concurrent segment search status
      */
     public LocalBucketCountThresholds asLocalBucketCountThresholds(TermsAggregator.BucketCountThresholds bucketCountThresholds) {
-        if (isConcurrentSegmentSearchEnabled()) {
+        if (shouldUseConcurrentSearch()) {
             return new LocalBucketCountThresholds(0, ArrayUtil.MAX_ARRAY_LENGTH - 1);
         } else {
             return new LocalBucketCountThresholds(bucketCountThresholds.getShardMinDocCount(), bucketCountThresholds.getShardSize());
@@ -485,4 +485,6 @@ public abstract class SearchContext implements Releasable {
     public abstract void setBucketCollectorProcessor(BucketCollectorProcessor bucketCollectorProcessor);
 
     public abstract BucketCollectorProcessor bucketCollectorProcessor();
+
+    public abstract boolean shouldUseTimeSeriesDescSortOptimization();
 }

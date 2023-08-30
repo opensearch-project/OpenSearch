@@ -32,10 +32,6 @@
 
 package org.opensearch.common.settings;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.Arrays;
-
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 import org.opensearch.cli.ExitCodes;
@@ -44,6 +40,10 @@ import org.opensearch.cli.Terminal;
 import org.opensearch.cli.UserException;
 import org.opensearch.core.common.settings.SecureString;
 import org.opensearch.env.Environment;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Arrays;
 
 /**
  * A sub-command for the keystore cli to create a new keystore.

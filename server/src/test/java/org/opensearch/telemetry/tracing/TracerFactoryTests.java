@@ -8,7 +8,6 @@
 
 package org.opensearch.telemetry.tracing;
 
-import org.junit.After;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
@@ -16,8 +15,9 @@ import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.telemetry.Telemetry;
 import org.opensearch.telemetry.TelemetrySettings;
-import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
+import org.opensearch.test.OpenSearchTestCase;
+import org.junit.After;
 
 import java.util.HashSet;
 import java.util.List;

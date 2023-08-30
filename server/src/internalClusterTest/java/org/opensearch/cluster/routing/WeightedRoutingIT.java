@@ -15,18 +15,18 @@ import org.opensearch.action.admin.cluster.shards.routing.weighted.get.ClusterGe
 import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingResponse;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.discovery.ClusterManagerNotDiscoveredException;
 import org.opensearch.core.rest.RestStatus;
+import org.opensearch.discovery.ClusterManagerNotDiscoveredException;
+import org.opensearch.plugins.Plugin;
 import org.opensearch.snapshots.mockstore.MockRepository;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.disruption.NetworkDisruption;
-import org.opensearch.plugins.Plugin;
 import org.opensearch.test.transport.MockTransportService;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;

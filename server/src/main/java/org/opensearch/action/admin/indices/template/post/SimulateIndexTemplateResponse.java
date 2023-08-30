@@ -32,10 +32,10 @@
 
 package org.opensearch.action.admin.indices.template.post;
 
-import org.opensearch.core.action.ActionResponse;
 import org.opensearch.cluster.metadata.Template;
 import org.opensearch.common.Nullable;
 import org.opensearch.core.ParseField;
+import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.ToXContentObject;

@@ -416,6 +416,9 @@ gradle.projectsEvaluated {
         if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_17) {
           task.jvmArgs += ["-Djava.security.manager=allow"]
         }
+        if (BuildParams.runtimeJavaVersion >= JavaVersion.VERSION_20) {
+          task.jvmArgs += ["--add-modules=jdk.incubator.vector"]
+        }
       }
     }
 
@@ -490,6 +493,7 @@ subprojects {
         includeClasses.add("org.opensearch.index.reindex.DeleteByQueryBasicTests")
         includeClasses.add("org.opensearch.index.reindex.UpdateByQueryBasicTests")
         includeClasses.add("org.opensearch.index.shard.IndexShardIT")
+        includeClasses.add("org.opensearch.index.shard.RemoteIndexShardTests")
         includeClasses.add("org.opensearch.index.shard.RemoteStoreRefreshListenerTests")
         includeClasses.add("org.opensearch.index.translog.RemoteFSTranslogTests")
         includeClasses.add("org.opensearch.indices.DateMathIndexExpressionsIntegrationIT")
