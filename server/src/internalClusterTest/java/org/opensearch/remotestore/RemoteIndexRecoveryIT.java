@@ -11,6 +11,8 @@ package org.opensearch.remotestore;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
+import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.indices.recovery.IndexRecoveryIT;
@@ -170,5 +172,26 @@ public class RemoteIndexRecoveryIT extends IndexRecoveryIT {
     @Override
     public void testReplicaRecovery() {
 
+    }
+
+    /**
+     * Slowing down recoveries for remote backed indices requires to limit download bytes for remote repository
+     */
+    @Override
+    public void slowDownRecovery(ByteSizeValue shardSize) {
+        long chunkSize = Math.max(1, shardSize.getBytes() / 10);
+        assertAcked(
+            client().admin()
+                .cluster()
+                .preparePutRepository(REPOSITORY_NAME)
+                .setType("fs")
+                .setSettings(
+                    Settings.builder()
+                        .put("location", absolutePath)
+                        .put("max_remote_download_bytes_per_sec", chunkSize, ByteSizeUnit.BYTES)
+                        .put("chunk_size", chunkSize, ByteSizeUnit.BYTES)
+
+                )
+        );
     }
 }

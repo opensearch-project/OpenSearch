@@ -252,7 +252,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
         assertThat(state.getStage(), not(equalTo(Stage.DONE)));
     }
 
-    private void slowDownRecovery(ByteSizeValue shardSize) {
+    public void slowDownRecovery(ByteSizeValue shardSize) {
         long chunkSize = Math.max(1, shardSize.getBytes() / 10);
         assertTrue(
             client().admin()
