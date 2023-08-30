@@ -25,10 +25,6 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 @ThreadLeakScope(ThreadLeakScope.Scope.NONE)
 public class ShardMovementStrategyTests extends OpenSearchIntegTestCase {
 
-    protected boolean addMockTelemetryPlugin() {
-        return false;
-    }
-
     protected String startDataOnlyNode(final String zone) {
         final Settings settings = Settings.builder().put("node.attr.zone", zone).build();
         return internalCluster().startDataOnlyNode(settings);

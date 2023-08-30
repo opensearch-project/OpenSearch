@@ -66,8 +66,11 @@ public class TracerFactory implements Closeable {
     }
 
     private Tracer createDefaultTracer(TracingTelemetry tracingTelemetry, ThreadContext threadContext) {
-        TracerContextStorage<String, Span> tracerContextSpanStorage = new ThreadContextSpanStorage(threadContext, tracingTelemetry);
-        return new DefaultTracer(tracingTelemetry, tracerContextSpanStorage);
+        TracerContextStorage<String, Span> tracerContextStorage = new ThreadContextBasedTracerContextStorage(
+            threadContext,
+            tracingTelemetry
+        );
+        return new DefaultTracer(tracingTelemetry, tracerContextStorage);
     }
 
     private Tracer createWrappedTracer(Tracer defaultTracer) {

@@ -22,11 +22,6 @@ public interface TracerContextStorage<K, V> {
     String CURRENT_SPAN = "current_span";
 
     /**
-     * Key for storing the current span.
-     */
-    String CURRENT_SPAN_SCOPE = "current_span_scope";
-
-    /**
      * Fetches value corresponding to key
      * @param key of the tracing context
      * @return value for key

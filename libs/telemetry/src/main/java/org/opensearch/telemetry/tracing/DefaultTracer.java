@@ -27,18 +27,18 @@ class DefaultTracer implements Tracer {
     static final String THREAD_NAME = "th_name";
 
     private final TracingTelemetry tracingTelemetry;
-    private final TracerContextStorage<String, Span> spanTracerContextStorage;
+    private final TracerContextStorage<String, Span> tracerContextStorage;
     private final ThreadLocal<SpanScope> spanScopeThreadLocal = new ThreadLocal<>();
 
     /**
      * Creates DefaultTracer instance
      *
      * @param tracingTelemetry tracing telemetry instance
-     * @param spanTracerContextStorage storage used for storing current span context
+     * @param tracerContextStorage storage used for storing current span context
      */
-    public DefaultTracer(TracingTelemetry tracingTelemetry, TracerContextStorage<String, Span> spanTracerContextStorage) {
+    public DefaultTracer(TracingTelemetry tracingTelemetry, TracerContextStorage<String, Span> tracerContextStorage) {
         this.tracingTelemetry = tracingTelemetry;
-        this.spanTracerContextStorage = spanTracerContextStorage;
+        this.tracerContextStorage = tracerContextStorage;
     }
 
     @Override
@@ -75,11 +75,11 @@ class DefaultTracer implements Tracer {
     }
 
     private Span getCurrentSpanInternal() {
-        return spanTracerContextStorage.get(TracerContextStorage.CURRENT_SPAN);
+        return tracerContextStorage.get(TracerContextStorage.CURRENT_SPAN);
     }
 
     public SpanContext getCurrentSpan() {
-        final Span currentSpan = spanTracerContextStorage.get(TracerContextStorage.CURRENT_SPAN);
+        final Span currentSpan = tracerContextStorage.get(TracerContextStorage.CURRENT_SPAN);
         return (currentSpan == null) ? null : new SpanContext(currentSpan);
     }
 
@@ -146,7 +146,7 @@ class DefaultTracer implements Tracer {
     }
 
     private void setCurrentSpanInContext(Span span) {
-        spanTracerContextStorage.put(TracerContextStorage.CURRENT_SPAN, span);
+        tracerContextStorage.put(TracerContextStorage.CURRENT_SPAN, span);
     }
 
     /**

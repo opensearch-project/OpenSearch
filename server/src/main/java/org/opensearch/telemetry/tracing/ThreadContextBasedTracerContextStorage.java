@@ -21,13 +21,13 @@ import java.util.Optional;
  *
  * @opensearch.internal
  */
-public class ThreadContextSpanStorage implements TracerContextStorage<String, Span>, ThreadContextStatePropagator {
+public class ThreadContextBasedTracerContextStorage implements TracerContextStorage<String, Span>, ThreadContextStatePropagator {
 
     private final ThreadContext threadContext;
 
     private final TracingTelemetry tracingTelemetry;
 
-    public ThreadContextSpanStorage(ThreadContext threadContext, TracingTelemetry tracingTelemetry) {
+    public ThreadContextBasedTracerContextStorage(ThreadContext threadContext, TracingTelemetry tracingTelemetry) {
         this.threadContext = Objects.requireNonNull(threadContext);
         this.tracingTelemetry = Objects.requireNonNull(tracingTelemetry);
         this.threadContext.registerThreadContextStatePropagator(this);
