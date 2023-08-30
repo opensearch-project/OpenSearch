@@ -28,7 +28,7 @@ class DefaultTracer implements Tracer {
 
     private final TracingTelemetry tracingTelemetry;
     private final TracerContextStorage<String, Span> spanTracerContextStorage;
-    private final TracerContextStorage<String, SpanScope> spanScopeTracerContextStorage;
+    private final ThreadLocal<SpanScope> spanScopeThreadLocal = new ThreadLocal<>();
 
     /**
      * Creates DefaultTracer instance
@@ -36,14 +36,9 @@ class DefaultTracer implements Tracer {
      * @param tracingTelemetry tracing telemetry instance
      * @param spanTracerContextStorage storage used for storing current span context
      */
-    public DefaultTracer(
-        TracingTelemetry tracingTelemetry,
-        TracerContextStorage<String, Span> spanTracerContextStorage,
-        TracerContextStorage<String, SpanScope> spanScopeTracerContextStorage
-    ) {
+    public DefaultTracer(TracingTelemetry tracingTelemetry, TracerContextStorage<String, Span> spanTracerContextStorage) {
         this.tracingTelemetry = tracingTelemetry;
         this.spanTracerContextStorage = spanTracerContextStorage;
-        this.spanScopeTracerContextStorage = spanScopeTracerContextStorage;
     }
 
     @Override
@@ -88,8 +83,8 @@ class DefaultTracer implements Tracer {
         return (currentSpan == null) ? null : new SpanContext(currentSpan);
     }
 
-    private SpanScope getCurrentSpanScope() {
-        return spanScopeTracerContextStorage.get(TracerContextStorage.CURRENT_SPAN_SCOPE);
+    SpanScope getCurrentSpanScope() {
+        return spanScopeThreadLocal.get();
     }
 
     @Override
@@ -131,7 +126,7 @@ class DefaultTracer implements Tracer {
     }
 
     private void setCurrentSpanScopeInContext(SpanScope spanScope) {
-        spanScopeTracerContextStorage.put(TracerContextStorage.CURRENT_SPAN_SCOPE, spanScope);
+        spanScopeThreadLocal.set(spanScope);
     }
 
     private void endScopedSpan(Span span, SpanScope spanScope) {

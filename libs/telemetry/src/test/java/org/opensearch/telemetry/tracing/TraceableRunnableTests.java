@@ -26,13 +26,9 @@ public class TraceableRunnableTests extends OpenSearchTestCase {
         new MockTracingTelemetry()
     );
 
-    private final ThreadContextSpanScopeStorage spanScopeContextStorage = new ThreadContextSpanScopeStorage(
-        new ThreadContext(Settings.EMPTY)
-    );
-
     public void testRunnableWithNullParent() throws Exception {
         String spanName = "testRunnable";
-        final DefaultTracer defaultTracer = new DefaultTracer(new MockTracingTelemetry(), spanContextStorage, spanScopeContextStorage);
+        final DefaultTracer defaultTracer = new DefaultTracer(new MockTracingTelemetry(), spanContextStorage);
         final AtomicBoolean isRunnableCompleted = new AtomicBoolean(false);
         final AtomicReference<String> spanNameCaptured = new AtomicReference<>();
         final AtomicReference<String> attributeValue = new AtomicReference<>();
@@ -58,7 +54,7 @@ public class TraceableRunnableTests extends OpenSearchTestCase {
     public void testRunnableWithParent() throws Exception {
         String spanName = "testRunnable";
         String parentSpanName = "parentSpan";
-        DefaultTracer defaultTracer = new DefaultTracer(new MockTracingTelemetry(), spanContextStorage, spanScopeContextStorage);
+        DefaultTracer defaultTracer = new DefaultTracer(new MockTracingTelemetry(), spanContextStorage);
         ScopedSpan scopedSpan = defaultTracer.startScopedSpan(new SpanCreationContext(parentSpanName, Attributes.EMPTY));
         SpanContext parentSpanContext = defaultTracer.getCurrentSpan();
         AtomicReference<SpanContext> currentSpan = new AtomicReference<>();
