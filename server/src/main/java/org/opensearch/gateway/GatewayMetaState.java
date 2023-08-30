@@ -64,6 +64,7 @@ import org.opensearch.gateway.remote.ClusterMetadataMarker;
 import org.opensearch.gateway.remote.RemoteClusterStateService;
 import org.opensearch.node.Node;
 import org.opensearch.plugins.MetadataUpgrader;
+import org.opensearch.repositories.RepositoryMissingException;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -607,6 +608,8 @@ public class GatewayMetaState implements Closeable {
      */
     public static class RemotePersistedState implements PersistedState {
 
+        private static final Logger logger = LogManager.getLogger(RemotePersistedState.class);
+
         private ClusterState lastAcceptedState;
         private ClusterMetadataMarker lastAcceptedMarker;
         private final RemoteClusterStateService remoteClusterStateService;
@@ -637,6 +640,7 @@ public class GatewayMetaState implements Closeable {
             try {
                 if (lastAcceptedState == null || lastAcceptedState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
                     // On the initial bootstrap, repository will not be available. So we do not persist the cluster state and bail out.
+                    logger.trace("Cluster is not yet ready to publish state to remote store");
                     lastAcceptedState = clusterState;
                     return;
                 }
@@ -648,6 +652,9 @@ public class GatewayMetaState implements Closeable {
                 }
                 assert verifyMarkerAndClusterState(marker, clusterState) == true : "Marker and ClusterState are not in sync";
                 lastAcceptedMarker = marker;
+                lastAcceptedState = clusterState;
+            } catch (RepositoryMissingException e) {
+                logger.error("Remote repository is not yet registered");
                 lastAcceptedState = clusterState;
             } catch (Exception e) {
                 handleExceptionOnWrite(e);
@@ -685,6 +692,7 @@ public class GatewayMetaState implements Closeable {
                     || lastAcceptedMarker == null
                     || lastAcceptedState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
                     // On the initial bootstrap, repository will not be available. So we do not persist the cluster state and bail out.
+                    logger.trace("Cluster is not yet ready to publish state to remote store");
                     return;
                 }
                 final ClusterMetadataMarker committedMarker = remoteClusterStateService.markLastStateAsCommitted(
