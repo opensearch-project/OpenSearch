@@ -640,7 +640,7 @@ public class GatewayMetaState implements Closeable {
             try {
                 if (lastAcceptedState == null || lastAcceptedState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
                     // On the initial bootstrap, repository will not be available. So we do not persist the cluster state and bail out.
-                    logger.trace("Cluster is not yet ready to publish state to remote store");
+                    logger.info("Cluster is not yet ready to publish state to remote store");
                     lastAcceptedState = clusterState;
                     return;
                 }
@@ -656,6 +656,9 @@ public class GatewayMetaState implements Closeable {
                 lastAcceptedMarker = marker;
                 lastAcceptedState = clusterState;
             } catch (RepositoryMissingException e) {
+                // TODO This logic needs to be modified once PR for repo registration during bootstrap is pushed
+                // https://github.com/opensearch-project/OpenSearch/pull/9105/
+                // After the above PR is pushed, we can remove this silent failure and throw the exception instead.
                 logger.error("Remote repository is not yet registered");
                 lastAcceptedState = clusterState;
             } catch (Exception e) {
@@ -669,9 +672,10 @@ public class GatewayMetaState implements Closeable {
             assert clusterState.metadata().indices().size() == marker.getIndices().size()
                 : "Number of indices in last accepted state and marker are different";
             marker.getIndices().stream().forEach(md -> {
-                assert clusterState.metadata().indices().containsKey(md.getIndexName()) : "Last accepted state and marker are not in sync";
+                assert clusterState.metadata().indices().containsKey(md.getIndexName())
+                    : "Last accepted state does not contain the index : " + md.getIndexName();
                 assert clusterState.metadata().indices().get(md.getIndexName()).getIndexUUID().equals(md.getIndexUUID())
-                    : "Last accepted state and marker are not in sync";
+                    : "Last accepted state and marker do not have same UUID for index : " + md.getIndexName();
             });
             return true;
         }

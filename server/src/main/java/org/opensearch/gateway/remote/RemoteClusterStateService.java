@@ -66,8 +66,10 @@ public class RemoteClusterStateService implements Closeable {
         ClusterMetadataMarker::fromXContent
     );
     /**
-     * Used to specify if cluster state metadata should be publish to remote store
+     * Used to specify if cluster state metadata should be published to remote store
      */
+    // TODO The remote state enabled and repository settings should be read from node attributes.
+    // Dependent on https://github.com/opensearch-project/OpenSearch/pull/9105/
     public static final Setting<Boolean> REMOTE_CLUSTER_STATE_ENABLED_SETTING = Setting.boolSetting(
         "cluster.remote_store.state.enabled",
         false,
@@ -101,6 +103,7 @@ public class RemoteClusterStateService implements Closeable {
         ClusterSettings clusterSettings,
         LongSupplier relativeTimeMillisSupplier
     ) {
+        assert REMOTE_CLUSTER_STATE_ENABLED_SETTING.get(settings) == true : "Remote cluster state is not enabled";
         this.nodeId = nodeId;
         this.repositoriesService = repositoriesService;
         this.settings = settings;
@@ -122,7 +125,6 @@ public class RemoteClusterStateService implements Closeable {
             logger.error("Local node is not elected cluster manager. Exiting");
             return null;
         }
-        assert REMOTE_CLUSTER_STATE_ENABLED_SETTING.get(settings) == true : "Remote cluster state is not enabled";
         ensureRepositorySet();
 
         final List<ClusterMetadataMarker.UploadedIndexMetadata> allUploadedIndexMetadata = new ArrayList<>();
@@ -240,8 +242,7 @@ public class RemoteClusterStateService implements Closeable {
                 numIndicesUnchanged
             );
         } else {
-            // todo change to debug
-            logger.info(
+            logger.trace(
                 "writing cluster state took [{}ms]; " + "wrote metadata for [{}] indices and skipped [{}] unchanged indices",
                 durationMillis,
                 numIndicesUpdated,
