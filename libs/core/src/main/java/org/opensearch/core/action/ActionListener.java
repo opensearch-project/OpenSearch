@@ -37,6 +37,7 @@ import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.CheckedRunnable;
 import org.opensearch.common.CheckedSupplier;
+import org.opensearch.common.annotation.PublicApi;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -48,6 +49,7 @@ import java.util.function.Consumer;
  *
  * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public interface ActionListener<Response> {
     /**
      * Handle action response. This response may constitute a failure or a

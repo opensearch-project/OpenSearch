@@ -173,6 +173,14 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
                 indexShard.getReplicationTracker().isPrimaryMode(),
                 indexShard.state()
             );
+            // Following check is required to enable retry and make sure that we do not lose this refresh event
+            // When primary shard is restored from remote store, the recovery happens first followed by changing
+            // primaryMode to true. Due to this, the refresh that is triggered post replay of translog will not go through
+            // if following condition does not exist. The segments created as part of translog replay will not be present
+            // in the remote store.
+            if (indexShard.state() == IndexShardState.STARTED && indexShard.getEngine() instanceof InternalEngine) {
+                return false;
+            }
             return true;
         }
         ReplicationCheckpoint checkpoint = indexShard.getLatestReplicationCheckpoint();

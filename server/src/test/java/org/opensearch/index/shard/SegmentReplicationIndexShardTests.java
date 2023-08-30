@@ -34,6 +34,7 @@ import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.InternalEngineFactory;
 import org.opensearch.index.engine.NRTReplicationEngine;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
+import org.opensearch.index.engine.ReadOnlyEngine;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.replication.OpenSearchIndexLevelReplicationTestCase;
 import org.opensearch.index.replication.TestReplicationSource;
@@ -62,6 +63,7 @@ import org.opensearch.transport.TransportService;
 import org.junit.Assert;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -71,6 +73,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
 import static org.opensearch.index.engine.EngineTestCase.assertAtMostOneLuceneDocumentPerSequenceNumber;
@@ -773,6 +776,35 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         }
     }
 
+    public void testQueryDuringEngineResetShowsDocs() throws Exception {
+        final NRTReplicationEngineFactory engineFactory = new NRTReplicationEngineFactory();
+        final NRTReplicationEngineFactory spy = spy(engineFactory);
+        try (ReplicationGroup shards = createGroup(1, settings, indexMapping, spy, createTempDir())) {
+            final IndexShard primaryShard = shards.getPrimary();
+            final IndexShard replicaShard = shards.getReplicas().get(0);
+            shards.startAll();
+            shards.indexDocs(10);
+            shards.refresh("test");
+            replicateSegments(primaryShard, shards.getReplicas());
+            shards.assertAllEqual(10);
+
+            final AtomicReference<Throwable> failed = new AtomicReference<>();
+            doAnswer(ans -> {
+                try {
+                    final Engine engineOrNull = replicaShard.getEngineOrNull();
+                    assertNotNull(engineOrNull);
+                    assertTrue(engineOrNull instanceof ReadOnlyEngine);
+                    shards.assertAllEqual(10);
+                } catch (Throwable e) {
+                    failed.set(e);
+                }
+                return ans.callRealMethod();
+            }).when(spy).newReadWriteEngine(any());
+            shards.promoteReplicaToPrimary(replicaShard).get();
+            assertNull("Expected correct doc count during engine reset", failed.get());
+        }
+    }
+
     /**
      * Assert persisted and searchable doc counts.  This method should not be used while docs are concurrently indexed because
      * it asserts point in time seqNos are relative to the doc counts.
@@ -786,17 +818,24 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
     }
 
     protected void resolveCheckpointInfoResponseListener(ActionListener<CheckpointInfoResponse> listener, IndexShard primary) {
+        final CopyState copyState;
         try {
-            final CopyState copyState = new CopyState(
+            copyState = new CopyState(
                 ReplicationCheckpoint.empty(primary.shardId, primary.getLatestReplicationCheckpoint().getCodec()),
                 primary
-            );
-            listener.onResponse(
-                new CheckpointInfoResponse(copyState.getCheckpoint(), copyState.getMetadataMap(), copyState.getInfosBytes())
             );
         } catch (IOException e) {
             logger.error("Unexpected error computing CopyState", e);
             Assert.fail("Failed to compute copyState");
+            throw new UncheckedIOException(e);
+        }
+
+        try {
+            listener.onResponse(
+                new CheckpointInfoResponse(copyState.getCheckpoint(), copyState.getMetadataMap(), copyState.getInfosBytes())
+            );
+        } finally {
+            copyState.decRef();
         }
     }
 

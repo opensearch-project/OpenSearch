@@ -1245,6 +1245,38 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         );
     }
 
+    public void testRemoteStoreImplicitOverrideReplicationTypeToSegmentForRemoteStore() {
+        Settings settings = Settings.builder()
+            .put(CLUSTER_REMOTE_STORE_ENABLED_SETTING.getKey(), true)
+            .put(CLUSTER_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING.getKey(), "my-segment-repo-1")
+            .put(CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING.getKey(), "my-translog-repo-1")
+            .build();
+        FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
+
+        request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
+        final Settings.Builder requestSettings = Settings.builder();
+        request.settings(requestSettings.build());
+        Settings indexSettings = aggregateIndexSettings(
+            ClusterState.EMPTY_STATE,
+            request,
+            Settings.EMPTY,
+            null,
+            settings,
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            randomShardLimitService(),
+            Collections.emptySet(),
+            clusterSettings
+        );
+        verifyRemoteStoreIndexSettings(
+            indexSettings,
+            "true",
+            "my-segment-repo-1",
+            "my-translog-repo-1",
+            ReplicationType.SEGMENT.toString(),
+            IndexSettings.DEFAULT_REMOTE_TRANSLOG_BUFFER_INTERVAL
+        );
+    }
+
     public void testRemoteStoreNoUserOverrideIndexSettings() {
         Settings settings = Settings.builder()
             .put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT)
