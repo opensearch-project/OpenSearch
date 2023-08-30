@@ -62,16 +62,4 @@ public class SegmentReplicationUsingRemoteStoreIT extends SegmentReplicationIT {
     public void teardown() {
         assertAcked(clusterAdmin().prepareDeleteRepository(REPOSITORY_NAME));
     }
-
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/7592")
-    @Override
-    public void testPressureServiceStats() throws Exception {
-        super.testPressureServiceStats();
-    }
-
-    @Override
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/8059")
-    public void testDropPrimaryDuringReplication() throws Exception {
-        super.testDropPrimaryDuringReplication();
-    }
 }
