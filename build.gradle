@@ -501,6 +501,7 @@ subprojects {
         includeClasses.add("org.opensearch.index.reindex.DeleteByQueryBasicTests")
         includeClasses.add("org.opensearch.index.reindex.UpdateByQueryBasicTests")
         includeClasses.add("org.opensearch.index.shard.IndexShardIT")
+        includeClasses.add("org.opensearch.index.shard.RemoteIndexShardTests")
         includeClasses.add("org.opensearch.index.shard.RemoteStoreRefreshListenerTests")
         includeClasses.add("org.opensearch.index.translog.RemoteFSTranslogTests")
         includeClasses.add("org.opensearch.indices.DateMathIndexExpressionsIntegrationIT")
