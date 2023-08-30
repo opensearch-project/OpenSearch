@@ -57,6 +57,7 @@ import org.opensearch.index.VersionType;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.indices.replication.SegmentReplicationBaseIT;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.disruption.NetworkDisruption;
@@ -315,6 +316,9 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
         assertThat(indexResponse.getVersion(), equalTo(1L));
 
         logger.info("Verifying if document exists via node[{}]", notIsolatedNode);
+        // with SegRep our replica may still be catching up here on the Get request.
+        // SR will usually fwd all GET requests to the primary shard, but _local is honored as our preference.
+        SegmentReplicationBaseIT.waitForCurrentReplicas("test", List.of(notIsolatedNode));
         GetResponse getResponse = internalCluster().client(notIsolatedNode)
             .prepareGet("test", indexResponse.getId())
             .setPreference("_local")
@@ -544,6 +548,8 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
         ClusterState clusterState = internalCluster().clusterService().state();
         for (ShardRouting shardRouting : clusterState.routingTable().allShards(index)) {
             String nodeName = clusterState.nodes().get(shardRouting.currentNodeId()).getName();
+            // with SegRep our replica may still be catching up here before we fetch all docUids, wait for that to complete.
+            SegmentReplicationBaseIT.waitForCurrentReplicas(index, List.of(nodeName));
             IndicesService indicesService = internalCluster().getInstance(IndicesService.class, nodeName);
             IndexShard shard = indicesService.getShardOrNull(shardRouting.shardId());
             Set<String> docs = IndexShardTestCase.getShardDocUIDs(shard);

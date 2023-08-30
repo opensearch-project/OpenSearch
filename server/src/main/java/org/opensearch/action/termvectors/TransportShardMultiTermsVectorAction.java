@@ -38,6 +38,7 @@ import org.opensearch.action.support.TransportActions;
 import org.opensearch.action.support.single.shard.TransportSingleShardAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.routing.Preference;
 import org.opensearch.cluster.routing.ShardIterator;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
@@ -103,7 +104,7 @@ public class TransportShardMultiTermsVectorAction extends TransportSingleShardAc
     @Override
     protected ShardIterator shards(ClusterState state, InternalRequest request) {
         return clusterService.operationRouting()
-            .getShards(state, request.concreteIndex(), request.request().shardId(), request.request().preference());
+            .getShards(state, request.concreteIndex(), request.request().shardId(), Preference.PRIMARY.type());
     }
 
     @Override

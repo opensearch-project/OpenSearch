@@ -43,8 +43,10 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 
 import static org.opensearch.index.seqno.SequenceNumbers.MAX_SEQ_NO;
+import static org.opensearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
 
 /**
  * This is an {@link Engine} implementation intended for replica shards when Segment Replication
@@ -62,6 +64,7 @@ public class NRTReplicationEngine extends Engine {
     private final WriteOnlyTranslogManager translogManager;
     private final Lock flushLock = new ReentrantLock();
     protected final ReplicaFileTracker replicaFileTracker;
+    protected volatile Long latestReceivedCheckpoint = NO_OPS_PERFORMED;
 
     private volatile long lastReceivedPrimaryGen = SequenceNumbers.NO_OPS_PERFORMED;
 
@@ -162,6 +165,7 @@ public class NRTReplicationEngine extends Engine {
             // Update the current infos reference on the Engine's reader.
             ensureOpen();
             final long maxSeqNo = Long.parseLong(infos.userData.get(MAX_SEQ_NO));
+            final String uuid = infos.userData.get(FORCE_MERGE_UUID_KEY);
             final long incomingGeneration = infos.getGeneration();
             readerManager.updateSegments(infos);
             // Ensure that we commit and clear the local translog if a new commit has been made on the primary.
@@ -175,7 +179,15 @@ public class NRTReplicationEngine extends Engine {
             }
             this.lastReceivedPrimaryGen = incomingGeneration;
             localCheckpointTracker.fastForwardProcessedSeqNo(maxSeqNo);
+            assert localCheckpointTracker.getMaxSeqNo() >= localCheckpointTracker.getProcessedCheckpoint();
         }
+    }
+
+    /**
+     * @return true if this engine is behind the primary.
+     */
+    public boolean hasRefreshPending() {
+        return localCheckpointTracker.getProcessedCheckpoint() != localCheckpointTracker.getMaxSeqNo();
     }
 
     /**
@@ -235,6 +247,8 @@ public class NRTReplicationEngine extends Engine {
         indexResult.setTook(System.nanoTime() - index.startTime());
         indexResult.freeze();
         localCheckpointTracker.advanceMaxSeqNo(index.seqNo());
+        // logger.info("PROCESSED {}", index.seqNo());
+        // logger.info("ADVANCED MAX TO {}", localCheckpointTracker.getMaxSeqNo());
         return indexResult;
     }
 
@@ -259,6 +273,7 @@ public class NRTReplicationEngine extends Engine {
         noOpResult.setTook(System.nanoTime() - noOp.startTime());
         noOpResult.freeze();
         localCheckpointTracker.advanceMaxSeqNo(noOp.seqNo());
+        // logger.info("ADVANCED MAX TO {}", localCheckpointTracker.getMaxSeqNo());
         return noOpResult;
     }
 
@@ -511,5 +526,13 @@ public class NRTReplicationEngine extends Engine {
     private DirectoryReader getDirectoryReader() throws IOException {
         // for segment replication: replicas should create the reader from store, we don't want an open IW on replicas.
         return new SoftDeletesDirectoryReaderWrapper(DirectoryReader.open(store.directory()), Lucene.SOFT_DELETES_FIELD);
+    }
+
+    public void updateLatestReceivedCheckpoint(Long cp) {
+        this.latestReceivedCheckpoint = cp;
+    }
+
+    public void awaitCurrent(Consumer<Boolean> listener) {
+        listener.accept(false);
     }
 }

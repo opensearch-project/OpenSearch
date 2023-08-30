@@ -87,6 +87,11 @@ public class NoClusterManagerNodeIT extends OpenSearchIntegTestCase {
         return Collections.singletonList(MockTransportService.TestPlugin.class);
     }
 
+    @Override
+    protected boolean addMockNRTReplicationEngine() {
+        return false;
+    }
+
     public void testNoClusterManagerActions() throws Exception {
         Settings settings = Settings.builder()
             .put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), true)
@@ -300,7 +305,6 @@ public class NoClusterManagerNodeIT extends OpenSearchIntegTestCase {
             .get();
         assertHitCount(countResponse, 1L);
 
-        logger.info("--> here 3");
         SearchResponse searchResponse = clientToClusterManagerlessNode.prepareSearch("test1").setAllowPartialSearchResults(true).get();
         assertHitCount(searchResponse, 1L);
 

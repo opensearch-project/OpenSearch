@@ -8,6 +8,8 @@
 
 package org.opensearch.indices.replication;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -36,6 +38,7 @@ import org.opensearch.transport.TransportService;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -62,6 +65,11 @@ public class SegmentReplicationBaseIT extends OpenSearchIntegTestCase {
 
     @Override
     protected boolean addMockInternalEngine() {
+        return false;
+    }
+
+    @Override
+    protected boolean addMockNRTReplicationEngine() {
         return false;
     }
 
@@ -114,8 +122,21 @@ public class SegmentReplicationBaseIT extends OpenSearchIntegTestCase {
         waitForSearchableDocs(INDEX_NAME, docCount, nodes);
     }
 
+    public static void waitForCurrentReplicas(String index, List<String> nodes) throws Exception {
+        assertBusy(() -> {
+            for (String node : nodes) {
+                final IndexShard indexShard = getIndexShard(node, index);
+                indexShard.getReplicationEngine().ifPresent((engine) -> {
+                    assertFalse(engine.hasRefreshPending());
+                });
+            }
+        });
+    }
+
+    protected static final Logger logger = LogManager.getLogger(SegmentReplicationBaseIT.class);
+
     public static void waitForSearchableDocs(String indexName, long docCount, List<String> nodes) throws Exception {
-        // wait until the replica has the latest segment generation.
+        waitForCurrentReplicas(indexName, nodes);
         assertBusy(() -> {
             for (String node : nodes) {
                 final SearchResponse response = client(node).prepareSearch(indexName).setSize(0).setPreference("_only_local").get();
@@ -124,7 +145,7 @@ public class SegmentReplicationBaseIT extends OpenSearchIntegTestCase {
                     fail("Expected search hits on node: " + node + " to be at least " + docCount + " but was: " + hits);
                 }
             }
-        }, 1, TimeUnit.MINUTES);
+        });
     }
 
     protected void waitForSearchableDocs(long docCount, String... nodes) throws Exception {
@@ -183,7 +204,7 @@ public class SegmentReplicationBaseIT extends OpenSearchIntegTestCase {
     /**
      * Fetch IndexShard by shardId, multiple shards per node allowed.
      */
-    protected IndexShard getIndexShard(String node, ShardId shardId, String indexName) {
+    protected static IndexShard getIndexShard(String node, ShardId shardId, String indexName) {
         final Index index = resolveIndex(indexName);
         IndicesService indicesService = internalCluster().getInstance(IndicesService.class, node);
         IndexService indexService = indicesService.indexServiceSafe(index);
@@ -191,13 +212,30 @@ public class SegmentReplicationBaseIT extends OpenSearchIntegTestCase {
         return indexService.getShard(id.get());
     }
 
+    protected static Collection<IndexShard> getReplicaShards(String... node) {
+        final Set<IndexShard> shards = new HashSet<>();
+        for (String n : node) {
+            IndicesService indicesService = internalCluster().getInstance(IndicesService.class, n);
+            for (IndexService indexService : indicesService) {
+                if (indexService.getIndexSettings().isSegRepEnabled()) {
+                    for (IndexShard indexShard : indexService) {
+                        if (indexShard.routingEntry().primary() == false) {
+                            shards.add(indexShard);
+                        }
+                    }
+                }
+            }
+        }
+        return shards;
+    }
+
     /**
      * Fetch IndexShard, assumes only a single shard per node.
      */
-    protected IndexShard getIndexShard(String node, String indexName) {
+    protected static IndexShard getIndexShard(String node, String indexName) {
         final Index index = resolveIndex(indexName);
         IndicesService indicesService = internalCluster().getInstance(IndicesService.class, node);
-        IndexService indexService = indicesService.indexServiceSafe(index);
+        IndexService indexService = indicesService.indexService(index);
         final Optional<Integer> shardId = indexService.shardIds().stream().findFirst();
         return indexService.getShard(shardId.get());
     }

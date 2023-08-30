@@ -54,7 +54,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class ForceMergeIT extends OpenSearchIntegTestCase {
 
-    public void testForceMergeUUIDConsistent() throws IOException {
+    public void testForceMergeUUIDConsistent() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(2);
         final String index = "test-index";
         createIndex(

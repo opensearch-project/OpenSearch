@@ -398,7 +398,10 @@ public class RareClusterStateIT extends OpenSearchIntegTestCase {
         // and not just because it takes time to replicate the indexing request to the replica
         Thread.sleep(100);
         assertFalse(putMappingResponse.isDone());
-        assertFalse(docIndexResponse.isDone());
+        // with SR the index op is never performed on replica, so it can be completed here.
+        if (isSegRepEnabled(index.getName()) == false) {
+            assertFalse(docIndexResponse.isDone());
+        }
 
         // Now make sure the indexing request finishes successfully
         disruption.stopDisrupting();

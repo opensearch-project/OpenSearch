@@ -68,6 +68,11 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
     }
 
     @Override
+    protected boolean addMockNRTReplicationEngine() {
+        return false;
+    }
+
+    @Override
     protected Settings.Builder randomRepositorySettings() {
         final Settings.Builder settings = Settings.builder();
         settings.put("location", randomRepoPath()).put("compress", randomBoolean());

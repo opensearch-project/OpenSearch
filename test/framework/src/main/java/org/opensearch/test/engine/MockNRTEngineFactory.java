@@ -35,13 +35,11 @@ import org.apache.lucene.index.FilterDirectoryReader;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.EngineFactory;
+import org.opensearch.index.engine.InternalEngine;
 
-public final class MockEngineFactory implements EngineFactory {
+public final class MockNRTEngineFactory implements EngineFactory {
 
-    private final Class<? extends FilterDirectoryReader> wrapper;
-
-    public MockEngineFactory(Class<? extends FilterDirectoryReader> wrapper) {
-        this.wrapper = wrapper;
+    public MockNRTEngineFactory(Class<? extends FilterDirectoryReader> wrapper) {
     }
 
     @Override
@@ -49,6 +47,6 @@ public final class MockEngineFactory implements EngineFactory {
         if (config.isReadOnlyReplica()) {
             return new MockNRTReplicationEngine(config);
         }
-        return new MockInternalEngine(config, wrapper);
+        return new InternalEngine(config);
     }
 }

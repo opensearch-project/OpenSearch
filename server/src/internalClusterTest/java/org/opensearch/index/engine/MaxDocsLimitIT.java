@@ -82,6 +82,11 @@ public class MaxDocsLimitIT extends OpenSearchIntegTestCase {
     }
 
     @Override
+    protected boolean addMockNRTReplicationEngine() {
+        return false;
+    }
+
+    @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
         plugins.add(TestEnginePlugin.class);
