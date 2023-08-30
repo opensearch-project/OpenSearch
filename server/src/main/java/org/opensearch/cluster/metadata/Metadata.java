@@ -110,6 +110,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
 
     /**
      * Utility to identify whether input index uses SEGMENT replication strategy in established cluster state metadata.
+     * Note: Method intended for use by other plugins as well.
      *
      * @param indexName Index name
      * @return true if index uses SEGMENT replication, false otherwise

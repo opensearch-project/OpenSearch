@@ -366,6 +366,14 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         return null;
     }
 
+    /**
+     * Returns one active replica shard for the given shard id or <code>null</code> if
+     * no active replica is found.
+     *
+     * Since replicas could possibly be on nodes with an older version of OpenSearch than
+     * the primary is, this will return replicas on the highest version of OpenSearch when document
+     * replication is enabled.
+     */
     public ShardRouting activeReplicaWithHighestVersion(ShardId shardId) {
         // It's possible for replicaNodeVersion to be null, when disassociating dead nodes
         // that have been removed, the shards are failed, and part of the shard failing
@@ -384,6 +392,15 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             .orElse(null);
     }
 
+    /**
+     * Returns one active replica shard for the given shard id or <code>null</code> if
+     * no active replica is found.
+     *
+     * Since replicas could possibly be on nodes with a higher version of OpenSearch than
+     * the primary is, this will return replicas on the oldest version of OpenSearch when segment
+     * replication is enabled to allow for replica to read segments from primary.
+     *
+     */
     public ShardRouting activeReplicaWithOldestVersion(ShardId shardId) {
         // It's possible for replicaNodeVersion to be null. Therefore, we need to protect against the version being null
         // (meaning the node will be going away).
