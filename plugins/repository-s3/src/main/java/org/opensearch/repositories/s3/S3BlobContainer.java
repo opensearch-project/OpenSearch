@@ -44,6 +44,7 @@ import software.amazon.awssdk.services.s3.model.CreateMultipartUploadRequest;
 import software.amazon.awssdk.services.s3.model.Delete;
 import software.amazon.awssdk.services.s3.model.DeleteObjectsRequest;
 import software.amazon.awssdk.services.s3.model.DeleteObjectsResponse;
+import software.amazon.awssdk.services.s3.model.GetObjectAttributesResponse;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
@@ -63,6 +64,7 @@ import org.opensearch.ExceptionsHelper;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.StreamContext;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.blobstore.AsyncMultiStreamBlobContainer;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
@@ -75,10 +77,12 @@ import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.blobstore.support.AbstractBlobContainer;
 import org.opensearch.common.blobstore.support.PlainBlobMetadata;
 import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.io.InputStreamContainer;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.repositories.s3.async.AsyncTransferManager;
 import org.opensearch.repositories.s3.async.UploadRequest;
 
 import java.io.ByteArrayInputStream;
@@ -212,9 +216,50 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
         }
     }
 
+    @ExperimentalApi
     @Override
     public void readBlobAsync(String blobName, ActionListener<ReadContext> listener) {
-        throw new UnsupportedOperationException();
+        try (AmazonAsyncS3Reference amazonS3Reference = SocketAccess.doPrivileged(blobStore::asyncClientReference)) {
+            final S3AsyncClient s3AsyncClient = amazonS3Reference.get().client();
+            final String bucketName = blobStore.bucket();
+            final AsyncTransferManager transferManager = blobStore.getAsyncTransferManager();
+
+            final GetObjectAttributesResponse blobMetadata = transferManager.getBlobMetadata(s3AsyncClient, bucketName, blobName).get();
+
+            final long blobSize = blobMetadata.objectSize();
+            final int numberOfParts = blobMetadata.objectParts().totalPartsCount();
+            final String blobChecksum = blobMetadata.checksum().checksumCRC32();
+
+            final List<InputStreamContainer> blobPartStreams = new ArrayList<>();
+            final List<CompletableFuture<InputStreamContainer>> blobPartInputStreamFutures = new ArrayList<>();
+            // S3 multipart files use 1 to n indexing
+            for (int partNumber = 1; partNumber <= numberOfParts; partNumber++) {
+                int finalPartNumber = partNumber - 1;
+                CompletableFuture<InputStreamContainer> partInputStreamFuture = transferManager.getBlobPartInputStreamContainer(
+                    s3AsyncClient,
+                    bucketName,
+                    blobName,
+                    partNumber
+                ).whenComplete((inputStreamContainer, error) -> {
+                    if (error == null) {
+                        blobPartStreams.add(finalPartNumber, inputStreamContainer);
+                    }
+                });
+
+                blobPartInputStreamFutures.add(partInputStreamFuture);
+            }
+
+            CompletableFuture.allOf(blobPartInputStreamFutures.toArray(CompletableFuture[]::new)).whenComplete((unused, throwable) -> {
+                if (throwable == null) {
+                    listener.onResponse(new ReadContext(blobSize, blobPartStreams, blobChecksum));
+                } else {
+                    Exception ex = throwable instanceof Error ? new Exception(throwable) : (Exception) throwable;
+                    listener.onFailure(ex);
+                }
+            });
+        } catch (Exception ex) {
+            listener.onFailure(SdkException.create("Error occurred while fetching blob parts from the repository", ex));
+        }
     }
 
     public boolean remoteIntegrityCheckSupported() {

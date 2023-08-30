@@ -8,8 +8,11 @@
 
 package org.opensearch.repositories.s3.async;
 
+import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.core.async.AsyncRequestBody;
+import software.amazon.awssdk.core.async.AsyncResponseTransformer;
 import software.amazon.awssdk.core.exception.SdkClientException;
+import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.http.HttpStatusCode;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.model.ChecksumAlgorithm;
@@ -20,6 +23,11 @@ import software.amazon.awssdk.services.s3.model.CompletedPart;
 import software.amazon.awssdk.services.s3.model.CreateMultipartUploadRequest;
 import software.amazon.awssdk.services.s3.model.CreateMultipartUploadResponse;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectAttributesRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectAttributesResponse;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectResponse;
+import software.amazon.awssdk.services.s3.model.ObjectAttributes;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.utils.CompletableFutureUtils;
@@ -29,13 +37,16 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.common.StreamContext;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.blobstore.exception.CorruptFileException;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.InputStreamContainer;
 import org.opensearch.common.util.ByteUtils;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.repositories.s3.SocketAccess;
 import org.opensearch.repositories.s3.io.CheckedContainer;
+import org.opensearch.repositories.s3.utils.HttpRangeUtils;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -352,5 +363,68 @@ public final class AsyncTransferManager {
             log.error(() -> new ParameterizedMessage("Failed to delete uploaded object of key {}", uploadRequest.getKey()), throwable);
             return null;
         });
+    }
+
+    /**
+     * Fetches a part of the blob from the S3 bucket and transforms it to an {@link InputStreamContainer}, which holds
+     * the stream and its related metadata.
+     * @param s3AsyncClient Async client to be utilized to fetch the object part
+     * @param bucketName Name of the S3 bucket
+     * @param blobName Identifier of the blob for which the parts will be fetched
+     * @param partNumber Part number for the blob to be retrieved
+     * @return A future of {@link InputStreamContainer} containing the stream and stream metadata.
+     */
+    @ExperimentalApi
+    public CompletableFuture<InputStreamContainer> getBlobPartInputStreamContainer(
+        S3AsyncClient s3AsyncClient,
+        String bucketName,
+        String blobName,
+        int partNumber
+    ) {
+        final GetObjectRequest.Builder getObjectRequestBuilder = GetObjectRequest.builder()
+            .bucket(bucketName)
+            .key(blobName)
+            .partNumber(partNumber);
+
+        return SocketAccess.doPrivileged(
+            () -> s3AsyncClient.getObject(getObjectRequestBuilder.build(), AsyncResponseTransformer.toBlockingInputStream())
+                .thenApply(this::transformResponseToInputStreamContainer)
+        );
+    }
+
+    /**
+     * Transforms the stream response object from S3 into an {@link InputStreamContainer}
+     * @param streamResponse Response stream object from S3
+     * @return {@link InputStreamContainer} containing the stream and stream metadata
+     */
+    // Package-Private for testing.
+    InputStreamContainer transformResponseToInputStreamContainer(ResponseInputStream<GetObjectResponse> streamResponse) {
+        final GetObjectResponse getObjectResponse = streamResponse.response();
+        final String contentRange = getObjectResponse.contentRange();
+        final Long contentLength = getObjectResponse.contentLength();
+        if (contentRange == null || contentLength == null) {
+            throw SdkException.builder().message("Failed to fetch required metadata for blob part").build();
+        }
+        final Tuple<Long, Long> s3ResponseRange = HttpRangeUtils.fromHttpRangeHeader(getObjectResponse.contentRange());
+        return new InputStreamContainer(streamResponse, getObjectResponse.contentLength(), s3ResponseRange.v1());
+    }
+
+    /**
+     * Retrieves the metadata like checksum, object size and parts for the provided blob within the S3 bucket.
+     * @param s3AsyncClient Async client to be utilized to fetch the metadata
+     * @param bucketName Name of the S3 bucket
+     * @param blobName Identifier of the blob for which the metadata will be fetched
+     * @return A future containing the metadata within {@link GetObjectAttributesResponse}
+     */
+    @ExperimentalApi
+    public CompletableFuture<GetObjectAttributesResponse> getBlobMetadata(S3AsyncClient s3AsyncClient, String bucketName, String blobName) {
+        // Fetch blob metadata - part info, size, checksum
+        final GetObjectAttributesRequest getObjectAttributesRequest = GetObjectAttributesRequest.builder()
+            .bucket(bucketName)
+            .key(blobName)
+            .objectAttributes(ObjectAttributes.CHECKSUM, ObjectAttributes.OBJECT_SIZE, ObjectAttributes.OBJECT_PARTS)
+            .build();
+
+        return SocketAccess.doPrivileged(() -> s3AsyncClient.getObjectAttributes(getObjectAttributesRequest));
     }
 }
