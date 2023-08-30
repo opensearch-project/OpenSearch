@@ -32,6 +32,7 @@
 
 package org.opensearch.core.rest;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.action.ShardOperationFailedException;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -47,6 +48,7 @@ import static java.util.Collections.unmodifiableMap;
  *
  * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public enum RestStatus {
     /**
      * The client SHOULD continue with its request. This interim response is used to inform the client that the
