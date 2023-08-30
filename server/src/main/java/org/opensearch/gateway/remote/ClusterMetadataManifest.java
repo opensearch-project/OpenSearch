@@ -27,11 +27,11 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Marker file which contains the details of the uploaded entity metadata
+ * Manifest file which contains the details of the uploaded entity metadata
  *
  * @opensearch.internal
  */
-public class ClusterMetadataMarker implements Writeable, ToXContentFragment {
+public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
 
     private static final ParseField CLUSTER_TERM_FIELD = new ParseField("cluster_term");
     private static final ParseField STATE_VERSION_FIELD = new ParseField("state_version");
@@ -74,9 +74,9 @@ public class ClusterMetadataMarker implements Writeable, ToXContentFragment {
         return (List<UploadedIndexMetadata>) fields[7];
     }
 
-    private static final ConstructingObjectParser<ClusterMetadataMarker, Void> PARSER = new ConstructingObjectParser<>(
-        "cluster_metadata_marker",
-        fields -> new ClusterMetadataMarker(
+    private static final ConstructingObjectParser<ClusterMetadataManifest, Void> PARSER = new ConstructingObjectParser<>(
+        "cluster_metadata_manifest",
+        fields -> new ClusterMetadataManifest(
             term(fields),
             version(fields),
             clusterUUID(fields),
@@ -144,7 +144,7 @@ public class ClusterMetadataMarker implements Writeable, ToXContentFragment {
         return committed;
     }
 
-    public ClusterMetadataMarker(
+    public ClusterMetadataManifest(
         long clusterTerm,
         long version,
         String clusterUUID,
@@ -164,7 +164,7 @@ public class ClusterMetadataMarker implements Writeable, ToXContentFragment {
         this.indices = Collections.unmodifiableList(indices);
     }
 
-    public ClusterMetadataMarker(StreamInput in) throws IOException {
+    public ClusterMetadataManifest(StreamInput in) throws IOException {
         this.clusterTerm = in.readVLong();
         this.stateVersion = in.readVLong();
         this.clusterUUID = in.readString();
@@ -179,8 +179,8 @@ public class ClusterMetadataMarker implements Writeable, ToXContentFragment {
         return new Builder();
     }
 
-    public static Builder builder(ClusterMetadataMarker marker) {
-        return new Builder(marker);
+    public static Builder builder(ClusterMetadataManifest manifest) {
+        return new Builder(manifest);
     }
 
     @Override
@@ -222,7 +222,7 @@ public class ClusterMetadataMarker implements Writeable, ToXContentFragment {
         if (o == null || getClass() != o.getClass()) {
             return false;
         }
-        final ClusterMetadataMarker that = (ClusterMetadataMarker) o;
+        final ClusterMetadataManifest that = (ClusterMetadataManifest) o;
         return Objects.equals(indices, that.indices)
             && clusterTerm == that.clusterTerm
             && stateVersion == that.stateVersion
@@ -243,12 +243,12 @@ public class ClusterMetadataMarker implements Writeable, ToXContentFragment {
         return Strings.toString(MediaTypeRegistry.JSON, this);
     }
 
-    public static ClusterMetadataMarker fromXContent(XContentParser parser) throws IOException {
+    public static ClusterMetadataManifest fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
 
     /**
-     * Builder for ClusterMetadataMarker
+     * Builder for ClusterMetadataManifest
      *
      * @opensearch.internal
      */
@@ -311,19 +311,19 @@ public class ClusterMetadataMarker implements Writeable, ToXContentFragment {
             indices = new ArrayList<>();
         }
 
-        public Builder(ClusterMetadataMarker marker) {
-            this.clusterTerm = marker.clusterTerm;
-            this.stateVersion = marker.stateVersion;
-            this.clusterUUID = marker.clusterUUID;
-            this.stateUUID = marker.stateUUID;
-            this.opensearchVersion = marker.opensearchVersion;
-            this.nodeId = marker.nodeId;
-            this.committed = marker.committed;
-            this.indices = new ArrayList<>(marker.indices);
+        public Builder(ClusterMetadataManifest manifest) {
+            this.clusterTerm = manifest.clusterTerm;
+            this.stateVersion = manifest.stateVersion;
+            this.clusterUUID = manifest.clusterUUID;
+            this.stateUUID = manifest.stateUUID;
+            this.opensearchVersion = manifest.opensearchVersion;
+            this.nodeId = manifest.nodeId;
+            this.committed = manifest.committed;
+            this.indices = new ArrayList<>(manifest.indices);
         }
 
-        public ClusterMetadataMarker build() {
-            return new ClusterMetadataMarker(
+        public ClusterMetadataManifest build() {
+            return new ClusterMetadataManifest(
                 clusterTerm,
                 stateVersion,
                 clusterUUID,

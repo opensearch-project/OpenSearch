@@ -61,7 +61,7 @@ import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.env.TestEnvironment;
 import org.opensearch.gateway.GatewayMetaState.RemotePersistedState;
-import org.opensearch.gateway.remote.ClusterMetadataMarker;
+import org.opensearch.gateway.remote.ClusterMetadataManifest;
 import org.opensearch.gateway.remote.RemoteClusterStateService;
 import org.opensearch.node.Node;
 import org.opensearch.test.OpenSearchTestCase;
@@ -657,10 +657,10 @@ public class GatewayMetaStatePersistedStateTests extends OpenSearchTestCase {
 
     public void testRemotePersistedState() throws IOException {
         final RemoteClusterStateService remoteClusterStateService = Mockito.mock(RemoteClusterStateService.class);
-        final ClusterMetadataMarker marker = ClusterMetadataMarker.builder().clusterTerm(1L).stateVersion(5L).build();
-        Mockito.when(remoteClusterStateService.writeFullMetadata(Mockito.any())).thenReturn(marker);
+        final ClusterMetadataManifest manifest = ClusterMetadataManifest.builder().clusterTerm(1L).stateVersion(5L).build();
+        Mockito.when(remoteClusterStateService.writeFullMetadata(Mockito.any())).thenReturn(manifest);
 
-        Mockito.when(remoteClusterStateService.writeIncrementalMetadata(Mockito.any(), Mockito.any(), Mockito.any())).thenReturn(marker);
+        Mockito.when(remoteClusterStateService.writeIncrementalMetadata(Mockito.any(), Mockito.any(), Mockito.any())).thenReturn(manifest);
         CoordinationState.PersistedState remotePersistedState = new RemotePersistedState(remoteClusterStateService);
 
         assertThat(remotePersistedState.getLastAcceptedState(), nullValue());

@@ -21,7 +21,7 @@ import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.io.IOUtils;
-import org.opensearch.gateway.remote.ClusterMetadataMarker.UploadedIndexMetadata;
+import org.opensearch.gateway.remote.ClusterMetadataManifest.UploadedIndexMetadata;
 import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
@@ -52,7 +52,7 @@ public class RemoteClusterStateService implements Closeable {
 
     public static final String METADATA_NAME_FORMAT = "%s.dat";
 
-    public static final String METADATA_MARKER_NAME_FORMAT = "%s";
+    public static final String METADATA_MANIFEST_NAME_FORMAT = "%s";
 
     public static final ChecksumBlobStoreFormat<IndexMetadata> INDEX_METADATA_FORMAT = new ChecksumBlobStoreFormat<>(
         "index-metadata",
@@ -60,10 +60,10 @@ public class RemoteClusterStateService implements Closeable {
         IndexMetadata::fromXContent
     );
 
-    public static final ChecksumBlobStoreFormat<ClusterMetadataMarker> CLUSTER_METADATA_MARKER_FORMAT = new ChecksumBlobStoreFormat<>(
-        "cluster-metadata-marker",
-        METADATA_MARKER_NAME_FORMAT,
-        ClusterMetadataMarker::fromXContent
+    public static final ChecksumBlobStoreFormat<ClusterMetadataManifest> CLUSTER_METADATA_MANIFEST_FORMAT = new ChecksumBlobStoreFormat<>(
+        "cluster-metadata-manifest",
+        METADATA_MANIFEST_NAME_FORMAT,
+        ClusterMetadataManifest::fromXContent
     );
     /**
      * Used to specify if cluster state metadata should be published to remote store
@@ -116,10 +116,10 @@ public class RemoteClusterStateService implements Closeable {
      * This method uploads entire cluster state metadata to the configured blob store. For now only index metadata upload is supported. This method should be
      * invoked by the elected cluster manager when the remote cluster state is enabled.
      *
-     * @return A metadata/marker object which contains the details of uploaded entity metadata.
+     * @return A manifest object which contains the details of uploaded entity metadata.
      */
     @Nullable
-    public ClusterMetadataMarker writeFullMetadata(ClusterState clusterState) throws IOException {
+    public ClusterMetadataManifest writeFullMetadata(ClusterState clusterState) throws IOException {
         final long startTimeMillis = relativeTimeMillisSupplier.getAsLong();
         if (clusterState.nodes().isLocalNodeElectedClusterManager() == false) {
             logger.error("Local node is not elected cluster manager. Exiting");
@@ -127,7 +127,7 @@ public class RemoteClusterStateService implements Closeable {
         }
         ensureRepositorySet();
 
-        final List<ClusterMetadataMarker.UploadedIndexMetadata> allUploadedIndexMetadata = new ArrayList<>();
+        final List<ClusterMetadataManifest.UploadedIndexMetadata> allUploadedIndexMetadata = new ArrayList<>();
         // todo parallel upload
         // any validations before/after upload ?
         for (IndexMetadata indexMetadata : clusterState.metadata().indices().values()) {
@@ -145,7 +145,7 @@ public class RemoteClusterStateService implements Closeable {
             );
             allUploadedIndexMetadata.add(uploadedIndexMetadata);
         }
-        final ClusterMetadataMarker marker = uploadMarker(clusterState, allUploadedIndexMetadata, false);
+        final ClusterMetadataManifest manifest = uploadManifest(clusterState, allUploadedIndexMetadata, false);
         final long durationMillis = relativeTimeMillisSupplier.getAsLong() - startTimeMillis;
         if (durationMillis >= slowWriteLoggingThreshold.getMillis()) {
             logger.warn(
@@ -162,21 +162,21 @@ public class RemoteClusterStateService implements Closeable {
                 allUploadedIndexMetadata.size()
             );
         }
-        return marker;
+        return manifest;
     }
 
     /**
-     * This method uploads the diff between the previous cluster state and the current cluster state. The previous marker file is needed to create the new
-     * marker. The new marker file is created by using the unchanged metadata from the previous marker and the new metadata changes from the current cluster
+     * This method uploads the diff between the previous cluster state and the current cluster state. The previous manifest file is needed to create the new
+     * manifest. The new manifest file is created by using the unchanged metadata from the previous manifest and the new metadata changes from the current cluster
      * state.
      *
-     * @return The uploaded ClusterMetadataMarker file
+     * @return The uploaded ClusterMetadataManifest file
      */
     @Nullable
-    public ClusterMetadataMarker writeIncrementalMetadata(
+    public ClusterMetadataManifest writeIncrementalMetadata(
         ClusterState previousClusterState,
         ClusterState clusterState,
-        ClusterMetadataMarker previousMarker
+        ClusterMetadataManifest previousManifest
     ) throws IOException {
         final long startTimeMillis = relativeTimeMillisSupplier.getAsLong();
         if (clusterState.nodes().isLocalNodeElectedClusterManager() == false) {
@@ -192,7 +192,7 @@ public class RemoteClusterStateService implements Closeable {
 
         int numIndicesUpdated = 0;
         int numIndicesUnchanged = 0;
-        final Map<String, ClusterMetadataMarker.UploadedIndexMetadata> allUploadedIndexMetadata = previousMarker.getIndices()
+        final Map<String, ClusterMetadataManifest.UploadedIndexMetadata> allUploadedIndexMetadata = previousManifest.getIndices()
             .stream()
             .collect(Collectors.toMap(UploadedIndexMetadata::getIndexName, Function.identity()));
         for (final IndexMetadata indexMetadata : clusterState.metadata().indices().values()) {
@@ -226,7 +226,7 @@ public class RemoteClusterStateService implements Closeable {
         for (String removedIndexName : previousStateIndexMetadataVersionByName.keySet()) {
             allUploadedIndexMetadata.remove(removedIndexName);
         }
-        final ClusterMetadataMarker marker = uploadMarker(
+        final ClusterMetadataManifest manifest = uploadManifest(
             clusterState,
             allUploadedIndexMetadata.values().stream().collect(Collectors.toList()),
             false
@@ -249,20 +249,20 @@ public class RemoteClusterStateService implements Closeable {
                 numIndicesUnchanged
             );
         }
-        return marker;
+        return manifest;
     }
 
     @Nullable
-    public ClusterMetadataMarker markLastStateAsCommitted(ClusterState clusterState, ClusterMetadataMarker previousMarker)
+    public ClusterMetadataManifest markLastStateAsCommitted(ClusterState clusterState, ClusterMetadataManifest previousManifest)
         throws IOException {
         if (clusterState.nodes().isLocalNodeElectedClusterManager() == false) {
             logger.error("Local node is not elected cluster manager. Exiting");
             return null;
         }
         assert clusterState != null : "Last accepted cluster state is not set";
-        assert previousMarker != null : "Last cluster metadata marker is not set";
+        assert previousManifest != null : "Last cluster metadata manifest is not set";
         assert REMOTE_CLUSTER_STATE_ENABLED_SETTING.get(settings) == true : "Remote cluster state is not enabled";
-        return uploadMarker(clusterState, previousMarker.getIndices(), true);
+        return uploadManifest(clusterState, previousManifest.getIndices(), true);
     }
 
     public ClusterState getLatestClusterState(String clusterUUID) {
@@ -289,14 +289,14 @@ public class RemoteClusterStateService implements Closeable {
         blobStoreRepository = (BlobStoreRepository) repository;
     }
 
-    private ClusterMetadataMarker uploadMarker(
+    private ClusterMetadataManifest uploadManifest(
         ClusterState clusterState,
         List<UploadedIndexMetadata> uploadedIndexMetadata,
         boolean committed
     ) throws IOException {
         synchronized (this) {
-            final String markerFileName = getMarkerFileName(clusterState.term(), clusterState.version());
-            final ClusterMetadataMarker marker = new ClusterMetadataMarker(
+            final String manifestFileName = getManifestFileName(clusterState.term(), clusterState.version());
+            final ClusterMetadataManifest manifest = new ClusterMetadataManifest(
                 clusterState.term(),
                 clusterState.getVersion(),
                 clusterState.metadata().clusterUUID(),
@@ -306,8 +306,8 @@ public class RemoteClusterStateService implements Closeable {
                 committed,
                 uploadedIndexMetadata
             );
-            writeMetadataMarker(clusterState.getClusterName().value(), clusterState.metadata().clusterUUID(), marker, markerFileName);
-            return marker;
+            writeMetadataManifest(clusterState.getClusterName().value(), clusterState.metadata().clusterUUID(), manifest, manifestFileName);
+            return manifest;
         }
     }
 
@@ -319,10 +319,10 @@ public class RemoteClusterStateService implements Closeable {
         return indexMetadataContainer.path().buildAsString() + fileName;
     }
 
-    private void writeMetadataMarker(String clusterName, String clusterUUID, ClusterMetadataMarker uploadMarker, String fileName)
+    private void writeMetadataManifest(String clusterName, String clusterUUID, ClusterMetadataManifest uploadManifest, String fileName)
         throws IOException {
-        final BlobContainer metadataMarkerContainer = markerContainer(clusterName, clusterUUID);
-        CLUSTER_METADATA_MARKER_FORMAT.write(uploadMarker, metadataMarkerContainer, fileName, blobStoreRepository.getCompressor());
+        final BlobContainer metadataManifestContainer = manifestContainer(clusterName, clusterUUID);
+        CLUSTER_METADATA_MANIFEST_FORMAT.write(uploadManifest, metadataManifestContainer, fileName, blobStoreRepository.getCompressor());
     }
 
     private BlobContainer indexMetadataContainer(String clusterName, String clusterUUID, String indexUUID) {
@@ -338,15 +338,15 @@ public class RemoteClusterStateService implements Closeable {
             );
     }
 
-    private BlobContainer markerContainer(String clusterName, String clusterUUID) {
-        // 123456789012_test-cluster/cluster-state/dsgYj10Nkso7/marker
+    private BlobContainer manifestContainer(String clusterName, String clusterUUID) {
+        // 123456789012_test-cluster/cluster-state/dsgYj10Nkso7/manifest
         return blobStoreRepository.blobStore()
             .blobContainer(
                 blobStoreRepository.basePath()
                     .add(Base64.getUrlEncoder().withoutPadding().encodeToString(clusterName.getBytes(StandardCharsets.UTF_8)))
                     .add("cluster-state")
                     .add(clusterUUID)
-                    .add("marker")
+                    .add("manifest")
             );
     }
 
@@ -354,11 +354,11 @@ public class RemoteClusterStateService implements Closeable {
         this.slowWriteLoggingThreshold = slowWriteLoggingThreshold;
     }
 
-    private static String getMarkerFileName(long term, long version) {
-        // 123456789012_test-cluster/cluster-state/dsgYj10Nkso7/marker/marker_2147483642_2147483637_456536447
+    private static String getManifestFileName(long term, long version) {
+        // 123456789012_test-cluster/cluster-state/dsgYj10Nkso7/manifest/manifest_2147483642_2147483637_456536447
         return String.join(
             DELIMITER,
-            "marker",
+            "manifest",
             RemoteStoreUtils.invertLong(term),
             RemoteStoreUtils.invertLong(version),
             RemoteStoreUtils.invertLong(System.currentTimeMillis())

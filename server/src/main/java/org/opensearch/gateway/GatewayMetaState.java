@@ -60,7 +60,7 @@ import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.concurrent.OpenSearchThreadPoolExecutor;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.env.NodeMetadata;
-import org.opensearch.gateway.remote.ClusterMetadataMarker;
+import org.opensearch.gateway.remote.ClusterMetadataManifest;
 import org.opensearch.gateway.remote.RemoteClusterStateService;
 import org.opensearch.node.Node;
 import org.opensearch.plugins.MetadataUpgrader;
@@ -611,7 +611,7 @@ public class GatewayMetaState implements Closeable {
         private static final Logger logger = LogManager.getLogger(RemotePersistedState.class);
 
         private ClusterState lastAcceptedState;
-        private ClusterMetadataMarker lastAcceptedMarker;
+        private ClusterMetadataManifest lastAcceptedManifest;
         private final RemoteClusterStateService remoteClusterStateService;
 
         public RemotePersistedState(final RemoteClusterStateService remoteClusterStateService) {
@@ -644,16 +644,16 @@ public class GatewayMetaState implements Closeable {
                     lastAcceptedState = clusterState;
                     return;
                 }
-                final ClusterMetadataMarker marker;
+                final ClusterMetadataManifest manifest;
                 if (shouldWriteFullClusterState(clusterState)) {
-                    marker = remoteClusterStateService.writeFullMetadata(clusterState);
+                    manifest = remoteClusterStateService.writeFullMetadata(clusterState);
                 } else {
-                    assert verifyMarkerAndClusterState(lastAcceptedMarker, lastAcceptedState) == true
-                        : "Previous Marker and previous ClusterState are not in sync";
-                    marker = remoteClusterStateService.writeIncrementalMetadata(lastAcceptedState, clusterState, lastAcceptedMarker);
+                    assert verifyManifestAndClusterState(lastAcceptedManifest, lastAcceptedState) == true
+                        : "Previous manifest and previous ClusterState are not in sync";
+                    manifest = remoteClusterStateService.writeIncrementalMetadata(lastAcceptedState, clusterState, lastAcceptedManifest);
                 }
-                assert verifyMarkerAndClusterState(marker, clusterState) == true : "Marker and ClusterState are not in sync";
-                lastAcceptedMarker = marker;
+                assert verifyManifestAndClusterState(manifest, clusterState) == true : "Manifest and ClusterState are not in sync";
+                lastAcceptedManifest = manifest;
                 lastAcceptedState = clusterState;
             } catch (RepositoryMissingException e) {
                 // TODO This logic needs to be modified once PR for repo registration during bootstrap is pushed
@@ -666,25 +666,25 @@ public class GatewayMetaState implements Closeable {
             }
         }
 
-        private boolean verifyMarkerAndClusterState(ClusterMetadataMarker marker, ClusterState clusterState) {
-            assert marker != null : "ClusterMetadataMarker is null";
+        private boolean verifyManifestAndClusterState(ClusterMetadataManifest manifest, ClusterState clusterState) {
+            assert manifest != null : "ClusterMetadataManifest is null";
             assert clusterState != null : "ClusterState is null";
-            assert clusterState.metadata().indices().size() == marker.getIndices().size()
-                : "Number of indices in last accepted state and marker are different";
-            marker.getIndices().stream().forEach(md -> {
+            assert clusterState.metadata().indices().size() == manifest.getIndices().size()
+                : "Number of indices in last accepted state and manifest are different";
+            manifest.getIndices().stream().forEach(md -> {
                 assert clusterState.metadata().indices().containsKey(md.getIndexName())
                     : "Last accepted state does not contain the index : " + md.getIndexName();
                 assert clusterState.metadata().indices().get(md.getIndexName()).getIndexUUID().equals(md.getIndexUUID())
-                    : "Last accepted state and marker do not have same UUID for index : " + md.getIndexName();
+                    : "Last accepted state and manifest do not have same UUID for index : " + md.getIndexName();
             });
             return true;
         }
 
         private boolean shouldWriteFullClusterState(ClusterState clusterState) {
             if (lastAcceptedState == null
-                || lastAcceptedMarker == null
+                || lastAcceptedManifest == null
                 || lastAcceptedState.term() != clusterState.term()
-                || lastAcceptedMarker.getOpensearchVersion() != Version.CURRENT) {
+                || lastAcceptedManifest.getOpensearchVersion() != Version.CURRENT) {
                 return true;
             }
             return false;
@@ -694,17 +694,17 @@ public class GatewayMetaState implements Closeable {
         public void markLastAcceptedStateAsCommitted() {
             try {
                 if (lastAcceptedState == null
-                    || lastAcceptedMarker == null
+                    || lastAcceptedManifest == null
                     || lastAcceptedState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
                     // On the initial bootstrap, repository will not be available. So we do not persist the cluster state and bail out.
                     logger.trace("Cluster is not yet ready to publish state to remote store");
                     return;
                 }
-                final ClusterMetadataMarker committedMarker = remoteClusterStateService.markLastStateAsCommitted(
+                final ClusterMetadataManifest committedManifest = remoteClusterStateService.markLastStateAsCommitted(
                     lastAcceptedState,
-                    lastAcceptedMarker
+                    lastAcceptedManifest
                 );
-                lastAcceptedMarker = committedMarker;
+                lastAcceptedManifest = committedManifest;
             } catch (Exception e) {
                 handleExceptionOnWrite(e);
             }

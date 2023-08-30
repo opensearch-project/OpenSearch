@@ -15,7 +15,7 @@ import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.gateway.remote.ClusterMetadataMarker.UploadedIndexMetadata;
+import org.opensearch.gateway.remote.ClusterMetadataManifest.UploadedIndexMetadata;
 import org.opensearch.test.EqualsHashCodeTestUtils;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
@@ -25,11 +25,11 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-public class ClusterMetadataMarkerTests extends OpenSearchTestCase {
+public class ClusterMetadataManifestTests extends OpenSearchTestCase {
 
-    public void testClusterMetadataMarkerXContent() throws IOException {
+    public void testClusterMetadataManifestXContent() throws IOException {
         UploadedIndexMetadata uploadedIndexMetadata = new UploadedIndexMetadata("test-index", "test-uuid", "/test/upload/path");
-        ClusterMetadataMarker originalMarker = new ClusterMetadataMarker(
+        ClusterMetadataManifest originalManifest = new ClusterMetadataManifest(
             1L,
             1L,
             "test-cluster-uuid",
@@ -41,17 +41,17 @@ public class ClusterMetadataMarkerTests extends OpenSearchTestCase {
         );
         final XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
-        originalMarker.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        originalManifest.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
-            final ClusterMetadataMarker fromXContentMarker = ClusterMetadataMarker.fromXContent(parser);
-            assertEquals(originalMarker, fromXContentMarker);
+            final ClusterMetadataManifest fromXContentManifest = ClusterMetadataManifest.fromXContent(parser);
+            assertEquals(originalManifest, fromXContentManifest);
         }
     }
 
-    public void testClusterMetadataMarkerSerializationEqualsHashCode() {
-        ClusterMetadataMarker initialMarker = new ClusterMetadataMarker(
+    public void testClusterMetadataManifestSerializationEqualsHashCode() {
+        ClusterMetadataManifest initialManifest = new ClusterMetadataManifest(
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomAlphaOfLength(10),
@@ -62,10 +62,14 @@ public class ClusterMetadataMarkerTests extends OpenSearchTestCase {
             randomUploadedIndexMetadataList()
         );
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(
-            initialMarker,
-            orig -> OpenSearchTestCase.copyWriteable(orig, new NamedWriteableRegistry(Collections.emptyList()), ClusterMetadataMarker::new),
-            marker -> {
-                ClusterMetadataMarker.Builder builder = ClusterMetadataMarker.builder(marker);
+            initialManifest,
+            orig -> OpenSearchTestCase.copyWriteable(
+                orig,
+                new NamedWriteableRegistry(Collections.emptyList()),
+                ClusterMetadataManifest::new
+            ),
+            manifest -> {
+                ClusterMetadataManifest.Builder builder = ClusterMetadataManifest.builder(manifest);
                 switch (randomInt(7)) {
                     case 0:
                         builder.clusterTerm(randomNonNegativeLong());
