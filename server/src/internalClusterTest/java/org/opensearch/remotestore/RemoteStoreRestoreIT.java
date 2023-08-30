@@ -34,7 +34,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.greaterThan;
 
-@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE, numDataNodes = 0)
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class RemoteStoreRestoreIT extends RemoteStoreBaseIntegTestCase {
     private static final String INDEX_NAME = "remote-store-test-idx-1";
     private static final String INDEX_NAMES = "test-remote-store-1,test-remote-store-2,remote-store-test-index-1,remote-store-test-index-2";
@@ -91,12 +91,12 @@ public class RemoteStoreRestoreIT extends RemoteStoreBaseIntegTestCase {
         throws Exception {
         internalCluster().startClusterManagerOnlyNodes(numClusterManagerNodes);
         internalCluster().startDataOnlyNodes(numDataOnlyNodes);
+        assertRepositoryMetadataPresentInClusterState();
         for (String index : indices.split(",")) {
             createIndex(index, remoteStoreIndexSettings(replicaCount, shardCount));
             ensureYellowAndNoInitializingShards(index);
             ensureGreen(index);
         }
-        assertRepositoryMetadataPresentInClusterState();
     }
 
     /**

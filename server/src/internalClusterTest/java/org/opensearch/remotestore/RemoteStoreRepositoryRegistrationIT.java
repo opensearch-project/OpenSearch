@@ -14,6 +14,8 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.repositories.blobstore.BlobStoreRepository;
+import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.transport.MockTransportService;
 
@@ -47,6 +49,7 @@ public class RemoteStoreRepositoryRegistrationIT extends RemoteStoreBaseIntegTes
 
         Settings.Builder settings = Settings.builder();
         settingsMap.entrySet().forEach(entry -> settings.put(entry.getKey(), entry.getValue()));
+        settings.put(BlobStoreRepository.SYSTEM_REPOSITORY_SETTING.getKey(), true);
 
         return new RepositoryMetadata(name, type, settings.build());
     }
@@ -86,6 +89,13 @@ public class RemoteStoreRepositoryRegistrationIT extends RemoteStoreBaseIntegTes
         internalCluster().startClusterManagerOnlyNodes(3);
         internalCluster().startNodes(3);
         ensureStableCluster(6);
+        assertRemoteStoreRepositoryOnAllNodes();
+    }
+
+    public void testMultiNodeClusterRepositoryRegistrationDifferent() throws Exception {
+        internalCluster().startNodes(3);
+        internalCluster().startNode(remoteStoreNodeAttributes(REPOSITORY_NAME, FsRepository.TYPE, REPOSITORY_NAME, FsRepository.TYPE));
+        ensureStableCluster(3);
         assertRemoteStoreRepositoryOnAllNodes();
     }
 }

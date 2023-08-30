@@ -271,16 +271,8 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
             .build();
     }
 
-    protected void putRepository(Path path) {
-        putRepository(path, REPOSITORY_NAME);
-    }
-
-    protected void putRepository(Path path, String repoName) {
-        assertAcked(clusterAdmin().preparePutRepository(repoName).setType("fs").setSettings(Settings.builder().put("location", path)));
-    }
-
     @After
-    public void teardown() {
+    public void teardown() throws Exception {
         nodeAttributesSettings = null;
         assertAcked(clusterAdmin().prepareDeleteRepository(REPOSITORY_NAME));
         assertAcked(clusterAdmin().prepareDeleteRepository(REPOSITORY_2_NAME));
@@ -304,7 +296,7 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
         return filesExisting.get();
     }
 
-    void assertRepositoryMetadataPresentInClusterState() throws Exception {
+    public void assertRepositoryMetadataPresentInClusterState() throws Exception {
         assertBusy(() -> {
             RepositoriesMetadata repositoriesMetadata = client().admin()
                 .cluster()

@@ -16,9 +16,7 @@ import org.opensearch.plugins.Plugin;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.transport.MockTransportService;
-import org.junit.Before;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -29,7 +27,7 @@ import java.util.Map;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 
-@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE, numDataNodes = 3)
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class RemoteStoreForceMergeIT extends RemoteStoreBaseIntegTestCase {
 
     private static final String INDEX_NAME = "remote-store-test-idx-1";
@@ -39,11 +37,6 @@ public class RemoteStoreForceMergeIT extends RemoteStoreBaseIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(MockTransportService.TestPlugin.class);
-    }
-
-    @Before
-    public void setup() {
-        setupRepo();
     }
 
     @Override
@@ -96,7 +89,10 @@ public class RemoteStoreForceMergeIT extends RemoteStoreBaseIntegTestCase {
     }
 
     private void testRestoreWithMergeFlow(int numberOfIterations, boolean invokeFlush, boolean flushAfterMerge, long deletedDocs)
-        throws IOException {
+        throws Exception {
+        internalCluster().startNodes(3);
+        ensureStableCluster(3);
+        assertRepositoryMetadataPresentInClusterState();
         createIndex(INDEX_NAME, remoteStoreIndexSettings(0));
         ensureYellowAndNoInitializingShards(INDEX_NAME);
         ensureGreen(INDEX_NAME);
@@ -128,19 +124,19 @@ public class RemoteStoreForceMergeIT extends RemoteStoreBaseIntegTestCase {
     // values for each of the flags, number of integ tests become 16 in comparison to current 2.
     // We have run all the 16 tests on local and they run fine.
     @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/9294")
-    public void testRestoreForceMergeSingleIteration() throws IOException {
+    public void testRestoreForceMergeSingleIteration() throws Exception {
         boolean invokeFLush = randomBoolean();
         boolean flushAfterMerge = randomBoolean();
         testRestoreWithMergeFlow(1, invokeFLush, flushAfterMerge, randomIntBetween(0, 10));
     }
 
-    public void testRestoreForceMergeMultipleIterations() throws IOException {
+    public void testRestoreForceMergeMultipleIterations() throws Exception {
         boolean invokeFLush = randomBoolean();
         boolean flushAfterMerge = randomBoolean();
         testRestoreWithMergeFlow(randomIntBetween(2, 5), invokeFLush, flushAfterMerge, randomIntBetween(0, 10));
     }
 
-    public void testRestoreForceMergeMultipleIterationsDeleteAll() throws IOException {
+    public void testRestoreForceMergeMultipleIterationsDeleteAll() throws Exception {
         boolean invokeFLush = randomBoolean();
         boolean flushAfterMerge = randomBoolean();
         testRestoreWithMergeFlow(randomIntBetween(2, 3), invokeFLush, flushAfterMerge, -1);
