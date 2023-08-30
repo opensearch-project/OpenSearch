@@ -850,9 +850,11 @@ public class PrimaryShardAllocatorTests extends OpenSearchAllocationTestCase {
             ShardRouting shard,
             RoutingAllocation allocation
         ) {
-            return new AsyncShardFetch.FetchResult<>( data, new HashMap<>(){{
-                put(shardId, Collections.<String>emptySet());
-            }});
+            return new AsyncShardFetch.FetchResult<>(data, new HashMap<>() {
+                {
+                    put(shardId, Collections.<String>emptySet());
+                }
+            });
         }
     }
 }

@@ -83,7 +83,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
     protected final Logger logger;
     protected final String type;
 
-    protected final Map<ShardId,String> shardToCustomDataPath;
+    protected final Map<ShardId, String> shardToCustomDataPath;
     private final Lister<BaseNodesResponse<T>, T> action;
     private final Map<String, NodeEntry<T>> cache = new HashMap<>();
     private final AtomicLong round = new AtomicLong();
@@ -103,7 +103,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
     ) {
         this.logger = logger;
         this.type = type;
-        shardToCustomDataPath =new HashMap<>();
+        shardToCustomDataPath = new HashMap<>();
         shardToCustomDataPath.put(shardId, customDataPath);
         this.action = (Lister<BaseNodesResponse<T>, T>) action;
         this.logKey = "ShardId=[" + shardId.toString() + "]";
@@ -122,10 +122,9 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
         this.type = type;
         this.shardToCustomDataPath = shardToCustomDataPath;
         this.action = (Lister<BaseNodesResponse<T>, T>) action;
-        this.logKey = "BatchID=[" + batchId+ "]";
+        this.logKey = "BatchID=[" + batchId + "]";
         enableBatchMode = true;
     }
-
 
     @Override
     public synchronized void close() {
@@ -157,11 +156,12 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
             throw new IllegalStateException(logKey + ": can't fetch data on closed async fetch");
         }
 
-        if(enableBatchMode == false){
+        if (enableBatchMode == false) {
             // we will do assertions here on ignoreNodes
-            assert ignoreNodes.size() <=1 : "Can only have at-most one shard";
-            if(ignoreNodes.size() == 1) {
-                assert shardToCustomDataPath.containsKey(ignoreNodes.keySet().iterator().next()) : "ShardId should be same as initialised in fetcher";
+            assert ignoreNodes.size() <= 1 : "Can only have at-most one shard";
+            if (ignoreNodes.size() == 1) {
+                assert shardToCustomDataPath.containsKey(ignoreNodes.keySet().iterator().next())
+                    : "ShardId should be same as initialised in fetcher";
             }
         }
 
@@ -221,9 +221,16 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
             shardToIgnoreNodes.clear();
             // if at least one node failed, make sure to have a protective reroute
             // here, just case this round won't find anything, and we need to retry fetching data
-            if (failedNodes.isEmpty() == false || allIgnoreNodesMap.values().stream().anyMatch(ignoreNodeSet -> ignoreNodeSet.isEmpty() == false)) {
-                reroute(logKey, "nodes failed [" + failedNodes.size() + "], ignored ["
-                    + allIgnoreNodesMap.values().stream().mapToInt(Set::size).sum() + "]");
+            if (failedNodes.isEmpty() == false
+                || allIgnoreNodesMap.values().stream().anyMatch(ignoreNodeSet -> ignoreNodeSet.isEmpty() == false)) {
+                reroute(
+                    logKey,
+                    "nodes failed ["
+                        + failedNodes.size()
+                        + "], ignored ["
+                        + allIgnoreNodesMap.values().stream().mapToInt(Set::size).sum()
+                        + "]"
+                );
             }
 
             return new FetchResult<>(fetchData, allIgnoreNodesMap);
@@ -398,13 +405,13 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
      */
     public static class FetchResult<T extends BaseNodeResponse> {
 
-    private final Map<DiscoveryNode, T> data;
-    private final Map<ShardId, Set<String>> ignoredShardToNodes;
+        private final Map<DiscoveryNode, T> data;
+        private final Map<ShardId, Set<String>> ignoredShardToNodes;
 
-    public FetchResult(Map<DiscoveryNode, T> data, Map<ShardId, Set<String>> ignoreNodes) {
-        this.data = data;
-        this.ignoredShardToNodes = ignoreNodes;
-    }
+        public FetchResult(Map<DiscoveryNode, T> data, Map<ShardId, Set<String>> ignoreNodes) {
+            this.data = data;
+            this.ignoredShardToNodes = ignoreNodes;
+        }
 
         /**
          * Does the result actually contain data? If not, then there are on going fetch
@@ -423,20 +430,20 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
             return this.data;
         }
 
-    /**
-     * Process any changes needed to the allocation based on this fetch result.
-     */
-    public void processAllocation(RoutingAllocation allocation) {
-        for(Map.Entry<ShardId, Set<String>> entry : ignoredShardToNodes.entrySet()) {
-            ShardId shardId = entry.getKey();
-            Set<String> ignoreNodes = entry.getValue();
-            if (ignoreNodes.isEmpty() == false) {
-                ignoreNodes.forEach(nodeId -> allocation.addIgnoreShardForNode(shardId, nodeId));
+        /**
+         * Process any changes needed to the allocation based on this fetch result.
+         */
+        public void processAllocation(RoutingAllocation allocation) {
+            for (Map.Entry<ShardId, Set<String>> entry : ignoredShardToNodes.entrySet()) {
+                ShardId shardId = entry.getKey();
+                Set<String> ignoreNodes = entry.getValue();
+                if (ignoreNodes.isEmpty() == false) {
+                    ignoreNodes.forEach(nodeId -> allocation.addIgnoreShardForNode(shardId, nodeId));
+                }
             }
-        }
 
+        }
     }
-}
 
     /**
      * A node entry, holding the state of the fetched data for a specific shard

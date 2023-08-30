@@ -270,6 +270,7 @@ public class GatewayAllocator implements ExistingShardsAllocator {
             );
         }
     }
+
     class InternalPrimaryShardAllocator extends PrimaryShardAllocator {
 
         private final TransportNodesListGatewayStartedShards startedAction;
@@ -295,9 +296,11 @@ public class GatewayAllocator implements ExistingShardsAllocator {
             );
             AsyncShardFetch.FetchResult<TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> shardState = fetch.fetchData(
                 allocation.nodes(),
-                new HashMap<>() {{
-                    put(shard.shardId(), allocation.getIgnoreNodes(shard.shardId()));
-                }}
+                new HashMap<>() {
+                    {
+                        put(shard.shardId(), allocation.getIgnoreNodes(shard.shardId()));
+                    }
+                }
             );
 
             if (shardState.hasData()) {
@@ -332,9 +335,11 @@ public class GatewayAllocator implements ExistingShardsAllocator {
             );
             AsyncShardFetch.FetchResult<TransportNodesListShardStoreMetadata.NodeStoreFilesMetadata> shardStores = fetch.fetchData(
                 allocation.nodes(),
-                new HashMap<>() {{
-                    put(shard.shardId(), allocation.getIgnoreNodes(shard.shardId()));
-                }}
+                new HashMap<>() {
+                    {
+                        put(shard.shardId(), allocation.getIgnoreNodes(shard.shardId()));
+                    }
+                }
             );
             if (shardStores.hasData()) {
                 shardStores.processAllocation(allocation);

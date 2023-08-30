@@ -37,7 +37,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
-import static java.util.Collections.emptySet;
 import static java.util.Collections.unmodifiableSet;
 
 public abstract class AsyncBatchShardFetch<T extends BaseNodeResponse> implements Releasable {
@@ -46,13 +45,13 @@ public abstract class AsyncBatchShardFetch<T extends BaseNodeResponse> implement
      * An action that lists the relevant shard data that needs to be fetched.
      */
     public interface Lister<NodesResponse extends BaseNodesResponse<NodeResponse>, NodeResponse extends BaseNodeResponse> {
-        void list(DiscoveryNode[] nodes,Map<ShardId, String> shardIdsWithCustomDataPath, ActionListener<NodesResponse> listener);
+        void list(DiscoveryNode[] nodes, Map<ShardId, String> shardIdsWithCustomDataPath, ActionListener<NodesResponse> listener);
     }
 
     protected final Logger logger;
     protected final String type;
     private final String batchUUID;
-    protected Map<ShardId,String> shardsToCustomDataPathMap;
+    protected Map<ShardId, String> shardsToCustomDataPathMap;
     private Map<ShardId, Set<String>> ignoredShardToNodes = new HashMap<>();
     private final AsyncBatchShardFetch.Lister<BaseNodesResponse<T>, T> action;
     private final Map<String, AsyncBatchShardFetch.NodeEntry<T>> cache = new HashMap<>();
@@ -362,7 +361,7 @@ public abstract class AsyncBatchShardFetch<T extends BaseNodeResponse> implement
          * Process any changes needed to the allocation based on this fetch result.
          */
         public void processAllocation(RoutingAllocation allocation) {
-            for(Map.Entry<ShardId, Set<String>> entry : ignoredShardToNodes.entrySet()) {
+            for (Map.Entry<ShardId, Set<String>> entry : ignoredShardToNodes.entrySet()) {
                 ShardId shardId = entry.getKey();
                 Set<String> ignoreNodes = entry.getValue();
                 if (ignoreNodes.isEmpty() == false) {
