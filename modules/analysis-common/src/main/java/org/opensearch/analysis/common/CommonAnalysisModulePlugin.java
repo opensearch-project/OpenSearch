@@ -266,7 +266,7 @@ public class CommonAnalysisModulePlugin extends Plugin implements AnalysisPlugin
         );
         filters.put("decimal_digit", DecimalDigitFilterFactory::new);
         filters.put("delimited_payload", DelimitedPayloadTokenFilterFactory::new);
-        filters.put("delimited_termfreq", DelimitedTermFrequencyTokenFilterFactory::new);
+        filters.put("delimited_term_freq", DelimitedTermFrequencyTokenFilterFactory::new);
         filters.put("dictionary_decompounder", requiresAnalysisSettings(DictionaryCompoundWordTokenFilterFactory::new));
         filters.put("dutch_stem", DutchStemTokenFilterFactory::new);
         filters.put("edge_ngram", EdgeNGramTokenFilterFactory::new);
@@ -504,7 +504,7 @@ public class CommonAnalysisModulePlugin extends Plugin implements AnalysisPlugin
         );
         filters.add(
             PreConfiguredTokenFilter.singleton(
-                "delimited_termfreq",
+                "delimited_term_freq",
                 false,
                 input -> new DelimitedTermFrequencyTokenFilter(input, DelimitedTermFrequencyTokenFilterFactory.DEFAULT_DELIMITER)
             )

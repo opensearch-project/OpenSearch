@@ -28,7 +28,7 @@ public class DelimitedTermFrequencyTokenFilterFactoryTests extends OpenSearchTok
         OpenSearchTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(
             Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                .put("index.analysis.filter.my_delimited_termfreq.type", "delimited_termfreq")
+                .put("index.analysis.filter.my_delimited_term_freq.type", "delimited_term_freq")
                 .build(),
             new CommonAnalysisModulePlugin()
         );
@@ -39,8 +39,8 @@ public class DelimitedTermFrequencyTokenFilterFactoryTests extends OpenSearchTok
         OpenSearchTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(
             Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                .put("index.analysis.filter.my_delimited_termfreq.type", "delimited_termfreq")
-                .put("index.analysis.filter.my_delimited_termfreq.delimiter", ":")
+                .put("index.analysis.filter.my_delimited_term_freq.type", "delimited_term_freq")
+                .put("index.analysis.filter.my_delimited_term_freq.delimiter", ":")
                 .build(),
             new CommonAnalysisModulePlugin()
         );
@@ -53,8 +53,8 @@ public class DelimitedTermFrequencyTokenFilterFactoryTests extends OpenSearchTok
             () -> AnalysisTestsHelper.createTestAnalysisFromSettings(
                 Settings.builder()
                     .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                    .put("index.analysis.filter.my_delimited_termfreq.type", "delimited_termfreq")
-                    .put("index.analysis.filter.my_delimited_termfreq.delimiter", "^^")
+                    .put("index.analysis.filter.my_delimited_term_freq.type", "delimited_term_freq")
+                    .put("index.analysis.filter.my_delimited_term_freq.delimiter", "^^")
                     .build(),
                 new CommonAnalysisModulePlugin()
             )
@@ -64,7 +64,7 @@ public class DelimitedTermFrequencyTokenFilterFactoryTests extends OpenSearchTok
     }
 
     private void doTest(OpenSearchTestCase.TestAnalysis analysis, String source) throws Exception {
-        TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_delimited_termfreq");
+        TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_delimited_term_freq");
         Tokenizer tokenizer = new WhitespaceTokenizer();
         tokenizer.setReader(new StringReader(source));
 
