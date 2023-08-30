@@ -44,7 +44,7 @@ public class MockTracingContextPropagator implements TracingContextPropagator {
             String[] values = value.split(SEPARATOR);
             String traceId = values[0];
             String spanId = values[1];
-            return Optional.of(new MockSpan(null, null, traceId, spanId, spanProcessor, Attributes.EMPTY));
+            return Optional.of(new MockSpan(null, null, traceId, spanId, spanProcessor, Attributes.EMPTY, (a) -> {}));
         } else {
             return Optional.empty();
         }

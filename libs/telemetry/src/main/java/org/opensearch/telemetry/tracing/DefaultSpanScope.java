@@ -9,36 +9,49 @@
 package org.opensearch.telemetry.tracing;
 
 import java.util.Objects;
-import java.util.function.Consumer;
 
 /**
  * Default implementation for {@link SpanScope}
  */
 public class DefaultSpanScope implements SpanScope {
     private final Span span;
-    private final SpanScope beforeAttachedSpanScope;
-    private final Consumer<SpanScope> onCloseConsumer;
+    private final SpanScope previousSpanScope;
+    private static final ThreadLocal<SpanScope> spanScopeThreadLocal = new ThreadLocal<>();
 
     /**
      * Constructor
      * @param span span
-     * @param beforeAttachedSpanScope before attached span scope.
-     * @param onCloseConsumer close consumer
+     * @param previousSpanScope before attached span scope.
      */
-    public DefaultSpanScope(Span span, SpanScope beforeAttachedSpanScope, Consumer<SpanScope> onCloseConsumer) {
+    private DefaultSpanScope(Span span, SpanScope previousSpanScope) {
         this.span = Objects.requireNonNull(span);
-        this.beforeAttachedSpanScope = beforeAttachedSpanScope;
-        this.onCloseConsumer = Objects.requireNonNull(onCloseConsumer);
+        this.previousSpanScope = previousSpanScope;
+    }
+
+    /**
+     * Creates the SpanScope object.
+     * @param span span.
+     * @return SpanScope spanScope
+     */
+    public static SpanScope create(Span span) {
+        final SpanScope beforeSpanScope = spanScopeThreadLocal.get();
+        SpanScope newSpanScope = new DefaultSpanScope(span, beforeSpanScope);
+        spanScopeThreadLocal.set(newSpanScope);
+        return newSpanScope;
     }
 
     @Override
     public void close() {
-        onCloseConsumer.accept(beforeAttachedSpanScope);
+        spanScopeThreadLocal.set(previousSpanScope);
     }
 
     @Override
     public Span getSpan() {
         return span;
+    }
+
+    static SpanScope getCurrentSpanScope() {
+        return spanScopeThreadLocal.get();
     }
 
 }

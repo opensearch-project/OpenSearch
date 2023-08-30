@@ -35,7 +35,7 @@ public class OTelTracingContextPropagatorTests extends OpenSearchTestCase {
     public void testAddTracerContextToHeader() {
         Span mockSpan = mock(Span.class);
         when(mockSpan.getSpanContext()).thenReturn(SpanContext.create(TRACE_ID, SPAN_ID, TraceFlags.getDefault(), TraceState.getDefault()));
-        OTelSpan span = new OTelSpan("spanName", mockSpan, null);
+        OTelSpan span = new OTelSpan("spanName", mockSpan, null, a -> {});
         Map<String, String> requestHeaders = new HashMap<>();
         OpenTelemetry mockOpenTelemetry = mock(OpenTelemetry.class);
         when(mockOpenTelemetry.getPropagators()).thenReturn(ContextPropagators.create(W3CTraceContextPropagator.getInstance()));

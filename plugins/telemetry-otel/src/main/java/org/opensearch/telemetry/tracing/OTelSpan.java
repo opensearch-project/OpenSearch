@@ -8,6 +8,9 @@
 
 package org.opensearch.telemetry.tracing;
 
+import java.util.Objects;
+import java.util.function.Consumer;
+
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.StatusCode;
 
@@ -18,15 +21,30 @@ import io.opentelemetry.api.trace.StatusCode;
 class OTelSpan extends AbstractSpan {
 
     private final Span delegateSpan;
+    private final Consumer<org.opensearch.telemetry.tracing.Span> onSpanEndConsumer;
 
-    public OTelSpan(String spanName, Span span, org.opensearch.telemetry.tracing.Span parentSpan) {
+    /**
+     * Constructor
+     * @param spanName
+     * @param span
+     * @param parentSpan
+     * @param onSpanEndConsumer
+     */
+    public OTelSpan(
+        String spanName,
+        Span span,
+        org.opensearch.telemetry.tracing.Span parentSpan,
+        Consumer<org.opensearch.telemetry.tracing.Span> onSpanEndConsumer
+    ) {
         super(spanName, parentSpan);
         this.delegateSpan = span;
+        this.onSpanEndConsumer = Objects.requireNonNull(onSpanEndConsumer);
     }
 
     @Override
     public void endSpan() {
         delegateSpan.end();
+        onSpanEndConsumer.accept(this);
     }
 
     @Override

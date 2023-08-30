@@ -28,7 +28,6 @@ class DefaultTracer implements Tracer {
 
     private final TracingTelemetry tracingTelemetry;
     private final TracerContextStorage<String, Span> tracerContextStorage;
-    private final ThreadLocal<SpanScope> spanScopeThreadLocal = new ThreadLocal<>();
 
     /**
      * Creates DefaultTracer instance
@@ -83,10 +82,6 @@ class DefaultTracer implements Tracer {
         return (currentSpan == null) ? null : new SpanContext(currentSpan);
     }
 
-    SpanScope getCurrentSpanScope() {
-        return spanScopeThreadLocal.get();
-    }
-
     @Override
     public ScopedSpan startScopedSpan(SpanCreationContext spanCreationContext) {
         Span span = startSpan(spanCreationContext);
@@ -111,38 +106,27 @@ class DefaultTracer implements Tracer {
 
     @Override
     public SpanScope createSpanScope(Span span) {
-        SpanScope defaultSpanScope = new DefaultSpanScope(span, getCurrentSpanScope(), (spanScope) -> closeSpanScope(spanScope));
-        setCurrentSpanScopeInContext(defaultSpanScope);
-        return defaultSpanScope;
-    }
-
-    private void closeSpanScope(SpanScope beforeAttachedSpanScope) {
-        setCurrentSpanScopeInContext(beforeAttachedSpanScope);
-        if (beforeAttachedSpanScope != null) {
-            setCurrentSpanInContext(beforeAttachedSpanScope.getSpan());
-        } else {
-            setCurrentSpanInContext(null);
-        }
-    }
-
-    private void setCurrentSpanScopeInContext(SpanScope spanScope) {
-        spanScopeThreadLocal.set(spanScope);
+        return DefaultSpanScope.create(span);
     }
 
     private void endScopedSpan(Span span, SpanScope spanScope) {
-        endSpan(span);
+        span.endSpan();
         spanScope.close();
     }
 
-    private void endSpan(Span span) {
-        if (span != null) {
-            span.endSpan();
-            setCurrentSpanInContext(span.getParentSpan());
-        }
+    private Span createSpan(String spanName, Span parentSpan, Attributes attributes) {
+        return tracingTelemetry.createSpan(spanName, parentSpan, attributes, span -> onSpanEnd(span, parentSpan));
     }
 
-    private Span createSpan(String spanName, Span parentSpan, Attributes attributes) {
-        return tracingTelemetry.createSpan(spanName, parentSpan, attributes);
+    private void onSpanEnd(Span span, Span parentSpan) {
+        if (parentSpan != null) {
+            setCurrentSpanInContext(parentSpan);
+        } else if (span.getParentSpan() == null) {
+            setCurrentSpanInContext(null);
+        } else {
+            // Most likely this scenario is where parent is coming from a calling thread
+            // and need not be updated. stashContext upstream would take care of this.
+        }
     }
 
     private void setCurrentSpanInContext(Span span) {
