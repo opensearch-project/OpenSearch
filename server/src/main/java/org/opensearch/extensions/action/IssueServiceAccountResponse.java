@@ -21,16 +21,16 @@ import java.util.Objects;
 public class IssueServiceAccountResponse extends TransportResponse {
 
     private String name;
-    private String serviceAccountString;
+    private String serviceAccountToken;
 
     /**
      * This takes in a name for the extension and the service account token string
      * @param name The name of the extension
-     * @param serviceAccountString A string encapsulating the service account token
+     * @param serviceAccountToken A string encapsulating the service account token
      */
-    public IssueServiceAccountResponse(String name, String serviceAccountString) {
+    public IssueServiceAccountResponse(String name, String serviceAccountToken) {
         this.name = name;
-        this.serviceAccountString = serviceAccountString;
+        this.serviceAccountToken = serviceAccountToken;
     }
 
     /**
@@ -39,13 +39,13 @@ public class IssueServiceAccountResponse extends TransportResponse {
      */
     public IssueServiceAccountResponse(StreamInput in) throws IOException {
         this.name = in.readString();
-        this.serviceAccountString = in.readString();
+        this.serviceAccountToken = in.readString();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
-        out.writeString(serviceAccountString);
+        out.writeString(serviceAccountToken);
     }
 
     /**
@@ -57,12 +57,12 @@ public class IssueServiceAccountResponse extends TransportResponse {
     }
 
     public String getServiceAccountString() {
-        return this.serviceAccountString;
+        return this.serviceAccountToken;
     }
 
     @Override
     public String toString() {
-        return "IssueServiceAccountResponse{" + "name = " + name + " , " + "received service account = " + serviceAccountString + "}";
+        return "IssueServiceAccountResponse{" + "name = " + name + " , " + "received service account = " + serviceAccountToken + "}";
     }
 
     @Override
@@ -70,12 +70,12 @@ public class IssueServiceAccountResponse extends TransportResponse {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         IssueServiceAccountResponse that = (IssueServiceAccountResponse) o;
-        return Objects.equals(name, that.name) && Objects.equals(serviceAccountString, that.serviceAccountString);
+        return Objects.equals(name, that.name) && Objects.equals(serviceAccountToken, that.serviceAccountToken);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, serviceAccountString);
+        return Objects.hash(name, serviceAccountToken);
     }
 
 }
