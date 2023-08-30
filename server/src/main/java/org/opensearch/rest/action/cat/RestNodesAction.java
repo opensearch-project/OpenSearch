@@ -303,6 +303,18 @@ public class RestNodesAction extends AbstractCatAction {
         table.addCell("search.query_current", "alias:sqc,searchQueryCurrent;default:false;text-align:right;desc:current query phase ops");
         table.addCell("search.query_time", "alias:sqti,searchQueryTime;default:false;text-align:right;desc:time spent in query phase");
         table.addCell("search.query_total", "alias:sqto,searchQueryTotal;default:false;text-align:right;desc:total query phase ops");
+        table.addCell(
+            "search.concurrent_query_current",
+            "alias:scqc,searchConcurrentQueryCurrent;default:false;text-align:right;desc:current concurrent query phase ops"
+        );
+        table.addCell(
+            "search.concurrent_query_time",
+            "alias:scqti,searchConcurrentQueryTime;default:false;text-align:right;desc:time spent in concurrent query phase"
+        );
+        table.addCell(
+            "search.concurrent_query_total",
+            "alias:scqto,searchConcurrentQueryTotal;default:false;text-align:right;desc:total concurrent query phase ops"
+        );
         table.addCell("search.scroll_current", "alias:scc,searchScrollCurrent;default:false;text-align:right;desc:open scroll contexts");
         table.addCell(
             "search.scroll_time",
@@ -529,6 +541,9 @@ public class RestNodesAction extends AbstractCatAction {
             table.addCell(searchStats == null ? null : searchStats.getTotal().getQueryCurrent());
             table.addCell(searchStats == null ? null : searchStats.getTotal().getQueryTime());
             table.addCell(searchStats == null ? null : searchStats.getTotal().getQueryCount());
+            table.addCell(searchStats == null ? null : searchStats.getTotal().getConcurrentQueryCurrent());
+            table.addCell(searchStats == null ? null : searchStats.getTotal().getConcurrentQueryTime());
+            table.addCell(searchStats == null ? null : searchStats.getTotal().getConcurrentQueryCount());
             table.addCell(searchStats == null ? null : searchStats.getTotal().getScrollCurrent());
             table.addCell(searchStats == null ? null : searchStats.getTotal().getScrollTime());
             table.addCell(searchStats == null ? null : searchStats.getTotal().getScrollCount());
