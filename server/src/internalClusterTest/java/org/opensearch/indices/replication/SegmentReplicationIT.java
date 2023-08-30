@@ -159,7 +159,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         // start another node, index another doc and replicate.
         String nodeC = internalCluster().startDataOnlyNode();
         ensureGreen(INDEX_NAME);
-        client().prepareIndex(INDEX_NAME).setId("4").setSource("baz", "baz").get();
+        client().prepareIndex(INDEX_NAME).setId("4").setSource("baz", "baz").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
         refresh(INDEX_NAME);
         waitForSearchableDocs(4, nodeC, replica);
         verifyStoreContent();
@@ -348,7 +348,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
             assertTrue(pendingSearchResponse.stream().allMatch(ActionFuture::isDone));
         }, 1, TimeUnit.MINUTES);
         verifyStoreContent();
-        waitForSearchableDocs(INDEX_NAME, 2 * searchCount, List.of(primary, replica));
+        waitForSearchableDocs(2 * searchCount, List.of(primary, replica));
     }
 
     public void testMultipleShards() throws Exception {

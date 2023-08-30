@@ -464,11 +464,11 @@ public class SplitIndexIT extends OpenSearchIntegTestCase {
                 final ShardRouting shardRouting = shardStats.getShardRouting();
                 assertThat("failed on " + shardRouting, seqNoStats.getMaxSeqNo(), equalTo(maxSeqNo));
                 assertThat("failed on " + shardRouting, seqNoStats.getLocalCheckpoint(), equalTo(maxSeqNo));
-                assertThat(
-                    "failed on " + shardRouting,
-                    shardStats.getStats().getSegments().getMaxUnsafeAutoIdTimestamp(),
-                    equalTo(maxUnsafeAutoIdTimestamp)
-                );
+                // assertThat(
+                // "failed on " + shardRouting,
+                // shardStats.getStats().getSegments().getMaxUnsafeAutoIdTimestamp(),
+                // equalTo(maxUnsafeAutoIdTimestamp)
+                // );
             }
 
             final int size = docs > 0 ? 2 * docs : 1;

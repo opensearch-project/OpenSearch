@@ -2833,7 +2833,15 @@ public class InternalEngine extends Engine {
             // This shouldn't be required ideally, but we're also invoking this method from refresh as of now.
             // This change is added as safety check to ensure that our checkpoint values are consistent at all times.
             pendingCheckpoint.updateAndGet(curr -> Math.max(curr, checkpoint));
-
+            // TODO: compute and store latest copyState separately from reader infos.
+            try {
+                final SegmentInfos segmentInfos = getLatestSegmentInfos();
+                final Map<String, String> userData = segmentInfos.getUserData();
+                userData.put(MAX_SEQ_NO, String.valueOf(pendingCheckpoint.get()));
+                userData.put(LOCAL_CHECKPOINT_KEY, String.valueOf(pendingCheckpoint.get()));
+            } catch (Exception e) {
+                logger.error("Unable to update infos", e);
+            }
         }
     }
 

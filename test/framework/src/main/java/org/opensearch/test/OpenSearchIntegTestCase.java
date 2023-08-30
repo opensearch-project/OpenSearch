@@ -42,6 +42,7 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.tests.util.LuceneTestCase;
+import org.junit.Assert;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.DocWriteResponse;
@@ -129,18 +130,23 @@ import org.opensearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
 import org.opensearch.http.HttpInfo;
 import org.opensearch.index.IndexModule;
+import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.MergePolicyConfig;
 import org.opensearch.index.MergeSchedulerConfig;
 import org.opensearch.index.MockEngineFactoryPlugin;
+import org.opensearch.index.MockNRTEngineFactoryPlugin;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.engine.Segment;
 import org.opensearch.index.mapper.CompletionFieldMapper;
 import org.opensearch.index.mapper.MockFieldFilterPlugin;
+import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.IndicesQueryCache;
 import org.opensearch.indices.IndicesRequestCache;
+import org.opensearch.indices.IndicesService;
+import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.indices.store.IndicesStore;
 import org.opensearch.monitor.os.OsInfo;
 import org.opensearch.node.NodeMocksPlugin;
@@ -202,19 +208,16 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.opensearch.cluster.metadata.IndexMetadata.*;
 import static org.opensearch.common.unit.TimeValue.timeValueMillis;
 import static org.opensearch.core.common.util.CollectionUtils.eagerPartition;
 import static org.opensearch.discovery.DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING;
 import static org.opensearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
 import static org.opensearch.index.IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
+import static org.opensearch.indices.IndicesService.CLUSTER_REPLICATION_TYPE_SETTING;
 import static org.opensearch.test.XContentTestUtils.convertToMap;
 import static org.opensearch.test.XContentTestUtils.differenceBetweenMapsIgnoringArrayOrder;
-import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
-import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures;
-import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoTimeout;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
@@ -222,6 +225,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.startsWith;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.*;
 
 /**
  * {@link OpenSearchIntegTestCase} is an abstract base class to run integration
@@ -1656,7 +1660,42 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             assertNoFailures(
                 client().admin().indices().prepareRefresh(indicesArray).setIndicesOptions(IndicesOptions.lenientExpandOpen()).get()
             );
+            try {
+                logger.info("WAITING FOR REPLICAS TO CATCH UP");
+                waitForCurrentReplicas();
+            } catch (Exception e) {
+                Assert.fail();
+            }
         }
+    }
+
+    public static void waitForCurrentReplicas() throws Exception {
+        waitForCurrentReplicas(getReplicaShards(internalCluster().getNodeNames()));
+    }
+
+    protected static Collection<IndexShard> getReplicaShards(String... node) {
+        final Set<IndexShard> shards = new HashSet<>();
+        for (String n : node) {
+            IndicesService indicesService = internalCluster().getInstance(IndicesService.class, n);
+            for (IndexService indexService : indicesService) {
+                if (indexService.getIndexSettings().isSegRepEnabled()) {
+                    for (IndexShard indexShard : indexService) {
+                        if (indexShard.routingEntry().primary() == false) {
+                            shards.add(indexShard);
+                        }
+                    }
+                }
+            }
+        }
+        return shards;
+    }
+
+    public static void waitForCurrentReplicas(Collection<IndexShard> shards) throws Exception {
+        assertBusy(() -> {
+            for (IndexShard indexShard : shards) {
+                indexShard.getReplicationEngine().ifPresent((engine) -> assertFalse(engine.hasRefreshPending()));
+            }
+        });
     }
 
     private final AtomicInteger dummmyDocIdGenerator = new AtomicInteger();
@@ -1935,7 +1974,15 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             // when tests are run with concurrent segment search enabled
             builder.put(SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_KEY, 2);
         }
+//        if (FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL_SETTING.get(featureFlagSettings)) {
+        if (useSegmentReplication()) {
+            builder.put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT);
+        }
         return builder.build();
+    }
+
+    public boolean isSegRepEnabled(String index) {
+        return client().admin().indices().prepareGetSettings().get().getSetting(index, SETTING_REPLICATION_TYPE).equals(ReplicationType.SEGMENT.name());
     }
 
     protected Path nodeConfigPath(int nodeOrdinal) {
@@ -2039,6 +2086,10 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         );
     }
 
+    protected boolean useSegmentReplication() {
+        return true;
+    }
+
     private NodeConfigurationSource getNodeConfigSource() {
         Settings.Builder initialNodeSettings = Settings.builder();
         if (addMockTransportService()) {
@@ -2083,6 +2134,14 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
      */
     protected boolean addMockInternalEngine() {
         return true;
+    }
+
+    /**
+     * Returns {@code true} if this test cluster can use a mock internal engine. Defaults to true.
+     */
+    protected boolean addMockNRTReplicationEngine() {
+        // some tests wire in MockEngineFactory directly, which will support SR internally.
+        return useSegmentReplication() && nodePlugins().contains(MockEngineFactoryPlugin.class) == false;
     }
 
     /** Returns {@code true} iff this test cluster should use a dummy geo_shape field mapper */
@@ -2130,6 +2189,9 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             if (randomBoolean()) {
                 mocks.add(MockFieldFilterPlugin.class);
             }
+        }
+        if (addMockNRTReplicationEngine() && mocks.contains(MockEngineFactoryPlugin.class) == false) {
+            mocks.add(MockNRTEngineFactoryPlugin.class);
         }
         if (addMockTransportService()) {
             mocks.add(getTestTransportPlugin());

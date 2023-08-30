@@ -84,6 +84,11 @@ public class RandomExceptionCircuitBreakerIT extends OpenSearchIntegTestCase {
         return false;
     }
 
+    @Override
+    protected boolean addMockNRTReplicationEngine() {
+        return false;
+    }
+
     public void testBreakerWithRandomExceptions() throws IOException, InterruptedException, ExecutionException {
         for (NodeStats node : client().admin()
             .cluster()

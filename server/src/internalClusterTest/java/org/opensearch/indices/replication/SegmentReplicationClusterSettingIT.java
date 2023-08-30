@@ -45,6 +45,11 @@ public class SegmentReplicationClusterSettingIT extends OpenSearchIntegTestCase 
     }
 
     @Override
+    protected boolean addMockNRTReplicationEngine() {
+        return false;
+    }
+
+    @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))

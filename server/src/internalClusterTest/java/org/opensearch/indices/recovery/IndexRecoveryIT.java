@@ -195,6 +195,11 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
     }
 
     @Override
+    protected boolean addMockNRTReplicationEngine() {
+        return false;
+    }
+
+    @Override
     protected void beforeIndexDeletion() throws Exception {
         super.beforeIndexDeletion();
         internalCluster().assertConsistentHistoryBetweenTranslogAndLuceneIndex();

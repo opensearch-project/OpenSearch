@@ -29,26 +29,35 @@
  * GitHub history for details.
  */
 
-package org.opensearch.test.engine;
+package org.opensearch.index;
 
 import org.apache.lucene.index.FilterDirectoryReader;
-import org.opensearch.index.engine.Engine;
-import org.opensearch.index.engine.EngineConfig;
+import org.apache.lucene.tests.index.AssertingDirectoryReader;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.index.engine.EngineFactory;
+import org.opensearch.plugins.EnginePlugin;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.test.engine.MockEngineFactory;
+import org.opensearch.test.engine.MockEngineSupport;
+import org.opensearch.test.engine.MockNRTEngineFactory;
 
-public final class MockEngineFactory implements EngineFactory {
+import java.util.Arrays;
+import java.util.List;
+import java.util.Optional;
 
-    private final Class<? extends FilterDirectoryReader> wrapper;
-
-    public MockEngineFactory(Class<? extends FilterDirectoryReader> wrapper) {
-        this.wrapper = wrapper;
-    }
+/**
+ * A plugin to use {@link MockEngineFactory}.
+ *
+ * Subclasses may override the reader wrapper used.
+ */
+public class MockNRTEngineFactoryPlugin extends Plugin implements EnginePlugin {
 
     @Override
-    public Engine newReadWriteEngine(EngineConfig config) {
-        if (config.isReadOnlyReplica()) {
-            return new MockNRTReplicationEngine(config);
-        }
-        return new MockInternalEngine(config, wrapper);
+    public Optional<EngineFactory> getEngineFactory(final IndexSettings indexSettings) {
+        return Optional.of(new MockNRTEngineFactory(getReaderWrapperClass()));
+    }
+
+    protected Class<? extends FilterDirectoryReader> getReaderWrapperClass() {
+        return AssertingDirectoryReader.class;
     }
 }

@@ -74,6 +74,7 @@ import org.opensearch.index.search.MatchQuery;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.TermsLookup;
 import org.opensearch.indices.analysis.AnalysisModule.AnalysisProvider;
+import org.opensearch.indices.replication.SegmentReplicationBaseIT;
 import org.opensearch.plugins.AnalysisPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.search.SearchHit;
@@ -1209,6 +1210,8 @@ public class SearchQueryIT extends ParameterizedOpenSearchIntegTestCase {
             client().prepareIndex("test").setId("3").setSource("term", "3"),
             client().prepareIndex("test").setId("4").setSource("term", "4")
         );
+
+        SegmentReplicationBaseIT.waitForCurrentReplicas();
 
         SearchResponse searchResponse = client().prepareSearch("test")
             .setQuery(termsLookupQuery("term", new TermsLookup("lookup", "1", "terms")))

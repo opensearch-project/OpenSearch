@@ -4473,7 +4473,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 listener.accept(true);
             });
         } else {
-            listener.accept(false);
+            getReplicationEngine().ifPresentOrElse((engine) -> { engine.awaitCurrent(listener); }, () -> listener.accept(false));
         }
     }
 
@@ -4497,8 +4497,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             }
         }
         // NRT Replicas will not accept refresh listeners.
-        if (readAllowed && isSegmentReplicationAllowed() == false) {
-            refreshListeners.addOrNotify(location, listener);
+        if (readAllowed) {
+            if (isSegmentReplicationAllowed() == false) {
+                refreshListeners.addOrNotify(location, listener);
+            } else {
+                getReplicationEngine().ifPresent(engine -> { engine.awaitCurrent(listener); });
+            }
         } else {
             // we're not yet ready fo ready for reads, just ignore refresh cycles
             listener.accept(false);
