@@ -9,11 +9,15 @@
 package org.opensearch.indices.replication;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexInput;
 import org.opensearch.OpenSearchCorruptionException;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.StepListener;
@@ -33,8 +37,15 @@ import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
 import org.opensearch.indices.replication.common.ReplicationTarget;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+import static org.opensearch.index.shard.RemoteStoreRefreshListener.EXCLUDE_FILES;
 
 /**
  * Represents the target of a replication event.
@@ -177,14 +188,53 @@ public class SegmentReplicationTarget extends ReplicationTarget {
     private List<StoreFileMetadata> getFiles(CheckpointInfoResponse checkpointInfo) throws IOException {
         cancellableThreads.checkForCancel();
         state.setStage(SegmentReplicationState.Stage.FILE_DIFF);
-        final Store.RecoveryDiff diff = Store.segmentReplicationDiff(checkpointInfo.getMetadataMap(), indexShard.getSegmentMetadataMap());
-        logger.trace(() -> new ParameterizedMessage("Replication diff for checkpoint {} {}", checkpointInfo.getCheckpoint(), diff));
+        Map<String, StoreFileMetadata> activeReaderMetadataMap = indexShard.getSegmentMetadataMap();
+        Map<String, StoreFileMetadata> primaryMetadataMap = checkpointInfo.getMetadataMap();
+
+        Store.RecoveryDiff diff = Store.segmentReplicationDiff(primaryMetadataMap, activeReaderMetadataMap);
+        List<String> unreferencedDiskFiles = Arrays.asList(indexShard.store().directory().listAll())
+            .stream()
+            .filter(
+                name -> !activeReaderMetadataMap.containsKey(name)
+                    && !EXCLUDE_FILES.contains(name)
+                    && !name.startsWith(IndexFileNames.SEGMENTS)
+            )
+            .collect(Collectors.toList());
+
+        Set<String> unreferencedFilesWithSameChecksum = new HashSet<>();
+        Set<String> unreferencedFilesWithChecksumMismatch = new HashSet<>();
+        for (String file : unreferencedDiskFiles) {
+            // If primary does not contain file, ignore it.
+            if (primaryMetadataMap.containsKey(file) == false) {
+                continue;
+            }
+            try (IndexInput indexInput = indexShard.store().directory().openInput(file, IOContext.DEFAULT)) {
+                String checksum = Store.digestToString(CodecUtil.retrieveChecksum(indexInput));
+                if (primaryMetadataMap.get(file).checksum().equals(checksum)) {
+                    unreferencedFilesWithSameChecksum.add(file);
+                } else {
+                    unreferencedFilesWithChecksumMismatch.add(file);
+                }
+            }
+        }
+        final List<StoreFileMetadata> missingFiles = diff.missing.stream()
+            .filter(md -> unreferencedFilesWithSameChecksum.contains(md.name()) == false)
+            .collect(Collectors.toList());
+
+        logger.trace(
+            () -> new ParameterizedMessage(
+                "Replication diff for checkpoint {} {} {}",
+                checkpointInfo.getCheckpoint(),
+                missingFiles,
+                diff.different
+            )
+        );
         /*
          * Segments are immutable. So if the replica has any segments with the same name that differ from the one in the incoming
          * snapshot from source that means the local copy of the segment has been corrupted/changed in some way and we throw an
          * IllegalStateException to fail the shard
          */
-        if (diff.different.isEmpty() == false) {
+        if (diff.different.isEmpty() == false || unreferencedFilesWithChecksumMismatch.isEmpty() == false) {
             throw new OpenSearchCorruptionException(
                 new ParameterizedMessage(
                     "Shard {} has local copies of segments that differ from the primary {}",
@@ -194,10 +244,10 @@ public class SegmentReplicationTarget extends ReplicationTarget {
             );
         }
 
-        for (StoreFileMetadata file : diff.missing) {
+        for (StoreFileMetadata file : missingFiles) {
             state.getIndex().addFileDetail(file.name(), file.length(), false);
         }
-        return diff.missing;
+        return missingFiles;
     }
 
     private void finalizeReplication(CheckpointInfoResponse checkpointInfoResponse) throws OpenSearchCorruptionException {
