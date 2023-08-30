@@ -33,6 +33,7 @@
 package org.opensearch.script;
 
 import org.opensearch.OpenSearchParseException;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
@@ -96,8 +97,9 @@ import java.util.function.BiConsumer;
  * </ul>
  * </ul>
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class Script implements ToXContentObject, Writeable {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(Script.class);
