@@ -53,6 +53,7 @@ public class DefaultTracerTests extends OpenSearchTestCase {
         assertEquals("span_name", defaultTracer.getCurrentSpan().getSpan().getSpanName());
     }
 
+    @SuppressWarnings("unchecked")
     public void testCreateSpanWithAttributesWithMock() {
         DefaultTracer defaultTracer = new DefaultTracer(mockTracingTelemetry, mockTracerContextStorage);
         Attributes attributes = Attributes.create().addAttribute("name", "value");
@@ -63,6 +64,7 @@ public class DefaultTracerTests extends OpenSearchTestCase {
         verify(mockTracingTelemetry).createSpan(eq("span_name"), eq(mockParentSpan), eq(attributes), any(Consumer.class));
     }
 
+    @SuppressWarnings("unchecked")
     public void testCreateSpanWithAttributesWithParentMock() {
         DefaultTracer defaultTracer = new DefaultTracer(mockTracingTelemetry, mockTracerContextStorage);
         Attributes attributes = Attributes.create().addAttribute("name", "value");
@@ -111,6 +113,7 @@ public class DefaultTracerTests extends OpenSearchTestCase {
         assertEquals(parentSpan.getSpan(), defaultTracer.getCurrentSpan().getSpan().getParentSpan());
     }
 
+    @SuppressWarnings("unchecked")
     public void testCreateSpanWithContext() {
         DefaultTracer defaultTracer = new DefaultTracer(mockTracingTelemetry, mockTracerContextStorage);
         Attributes attributes = Attributes.create().addAttribute("name", "value");
