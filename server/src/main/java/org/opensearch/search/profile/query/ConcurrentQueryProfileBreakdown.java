@@ -14,6 +14,7 @@ import org.opensearch.search.profile.AbstractProfileBreakdown;
 import org.opensearch.search.profile.ContextualProfileBreakdown;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -227,5 +228,14 @@ public final class ConcurrentQueryProfileBreakdown extends ContextualProfileBrea
             leaves.add(leaf);
             collectorToLeaves.put(collectorManager, leaves);
         }
+    }
+
+    @Override
+    public void associateCollectorToLeaves(Map<String, List<LeafReaderContext>> collectorToLeaves) {
+        this.collectorToLeaves.putAll(collectorToLeaves);
+    }
+
+    Map<String, List<LeafReaderContext>> getCollectorToLeaves() {
+        return Collections.unmodifiableMap(collectorToLeaves);
     }
 }
