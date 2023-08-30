@@ -34,9 +34,9 @@ package org.opensearch.index;
 
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
-import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.hamcrest.OpenSearchAssertions;
@@ -54,11 +54,11 @@ public class IndexRequestBuilderIT extends OpenSearchIntegTestCase {
         map.put("test_field", "foobar");
         IndexRequestBuilder[] builders = new IndexRequestBuilder[] {
             client().prepareIndex("test").setSource("test_field", "foobar"),
-            client().prepareIndex("test").setSource("{\"test_field\" : \"foobar\"}", XContentType.JSON),
-            client().prepareIndex("test").setSource(new BytesArray("{\"test_field\" : \"foobar\"}"), XContentType.JSON),
-            client().prepareIndex("test").setSource(new BytesArray("{\"test_field\" : \"foobar\"}"), XContentType.JSON),
+            client().prepareIndex("test").setSource("{\"test_field\" : \"foobar\"}", MediaTypeRegistry.JSON),
+            client().prepareIndex("test").setSource(new BytesArray("{\"test_field\" : \"foobar\"}"), MediaTypeRegistry.JSON),
+            client().prepareIndex("test").setSource(new BytesArray("{\"test_field\" : \"foobar\"}"), MediaTypeRegistry.JSON),
             client().prepareIndex("test")
-                .setSource(BytesReference.toBytes(new BytesArray("{\"test_field\" : \"foobar\"}")), XContentType.JSON),
+                .setSource(BytesReference.toBytes(new BytesArray("{\"test_field\" : \"foobar\"}")), MediaTypeRegistry.JSON),
             client().prepareIndex("test").setSource(map) };
         indexRandom(true, builders);
         SearchResponse searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.termQuery("test_field", "foobar")).get();

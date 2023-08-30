@@ -31,25 +31,23 @@
 
 package org.opensearch.repositories.azure;
 
+import com.sun.net.httpserver.Headers;
+import com.sun.net.httpserver.HttpExchange;
+import com.sun.net.httpserver.HttpHandler;
+
 import com.azure.storage.blob.models.ParallelTransferOptions;
 import com.azure.storage.common.implementation.Constants;
 import com.azure.storage.common.policy.RequestRetryOptions;
 import com.azure.storage.common.policy.RetryPolicyType;
-import com.sun.net.httpserver.Headers;
-import com.sun.net.httpserver.HttpExchange;
-import com.sun.net.httpserver.HttpHandler;
-import fixture.azure.AzureHttpHandler;
-import reactor.core.scheduler.Schedulers;
-
-import org.junit.AfterClass;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.unit.ByteSizeUnit;
+import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.blobstore.OpenSearchMockAPIBasedRepositoryIntegTestCase;
-import org.opensearch.rest.RestStatus;
+import org.junit.AfterClass;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -58,6 +56,9 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.regex.Pattern;
+
+import fixture.azure.AzureHttpHandler;
+import reactor.core.scheduler.Schedulers;
 
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate an Azure endpoint")
 public class AzureBlobStoreRepositoryTests extends OpenSearchMockAPIBasedRepositoryIntegTestCase {

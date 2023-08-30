@@ -37,15 +37,16 @@ import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
-import org.mockito.Mockito;
-import org.mockito.stubbing.Answer;
 
 import java.util.Arrays;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.mockito.Mockito.mock;
+import org.mockito.Mockito;
+import org.mockito.stubbing.Answer;
+
 import static org.hamcrest.Matchers.is;
+import static org.mockito.Mockito.mock;
 
 public class ConsistentSettingsServiceTests extends OpenSearchTestCase {
 

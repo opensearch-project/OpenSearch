@@ -42,12 +42,12 @@ import org.apache.lucene.search.join.JoinUtil;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.search.similarities.Similarity;
 import org.opensearch.OpenSearchException;
-import org.opensearch.core.ParseField;
-import org.opensearch.common.ParsingException;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.lucene.search.Queries;
+import org.opensearch.core.ParseField;
+import org.opensearch.core.common.ParsingException;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.fielddata.IndexOrdinalsFieldData;
@@ -416,11 +416,12 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
         }
 
         @Override
-        public Query rewrite(IndexReader reader) throws IOException {
-            Query rewritten = super.rewrite(reader);
+        public Query rewrite(IndexSearcher searcher) throws IOException {
+            Query rewritten = super.rewrite(searcher);
             if (rewritten != this) {
                 return rewritten;
             }
+            IndexReader reader = searcher.getIndexReader();
             if (reader instanceof DirectoryReader) {
                 IndexSearcher indexSearcher = new IndexSearcher(reader);
                 indexSearcher.setQueryCache(null);

@@ -36,14 +36,14 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TopDocs;
 import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.common.Strings;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.core.index.Index;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.shard.IndexShard;
@@ -51,8 +51,8 @@ import org.opensearch.index.shard.IndexShardTestCase;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.test.InternalSettingsPlugin;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -79,7 +79,7 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
         XContentBuilder builder = XContentFactory.jsonBuilder();
         filterBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.close();
-        return new CompressedXContent(Strings.toString(builder));
+        return new CompressedXContent(builder.toString());
     }
 
     public void testBaseAsyncTask() throws Exception {
@@ -300,7 +300,7 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
         assertEquals(1000, refreshTask.getInterval().millis());
         assertTrue(indexService.getRefreshTask().mustReschedule());
         IndexShard shard = indexService.getShard(0);
-        client().prepareIndex("test").setId("0").setSource("{\"foo\": \"bar\"}", XContentType.JSON).get();
+        client().prepareIndex("test").setId("0").setSource("{\"foo\": \"bar\"}", MediaTypeRegistry.JSON).get();
         // now disable the refresh
         client().admin()
             .indices()
@@ -321,7 +321,7 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
         });
         assertFalse(refreshTask.isClosed());
         // refresh every millisecond
-        client().prepareIndex("test").setId("1").setSource("{\"foo\": \"bar\"}", XContentType.JSON).get();
+        client().prepareIndex("test").setId("1").setSource("{\"foo\": \"bar\"}", MediaTypeRegistry.JSON).get();
         client().admin()
             .indices()
             .prepareUpdateSettings("test")
@@ -335,7 +335,7 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
                 assertEquals(2, search.totalHits.value);
             }
         });
-        client().prepareIndex("test").setId("2").setSource("{\"foo\": \"bar\"}", XContentType.JSON).get();
+        client().prepareIndex("test").setId("2").setSource("{\"foo\": \"bar\"}", MediaTypeRegistry.JSON).get();
         assertBusy(() -> {
             // this one becomes visible due to the scheduled refresh
             try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
@@ -353,7 +353,7 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
         IndexService indexService = createIndex("test", settings);
         ensureGreen("test");
         assertTrue(indexService.getRefreshTask().mustReschedule());
-        client().prepareIndex("test").setId("1").setSource("{\"foo\": \"bar\"}", XContentType.JSON).get();
+        client().prepareIndex("test").setId("1").setSource("{\"foo\": \"bar\"}", MediaTypeRegistry.JSON).get();
         IndexShard shard = indexService.getShard(0);
         assertBusy(() -> assertFalse(shard.isSyncNeeded()));
     }
@@ -375,7 +375,7 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
 
         assertNotNull(indexService.getFsyncTask());
         assertTrue(indexService.getFsyncTask().mustReschedule());
-        client().prepareIndex("test").setId("1").setSource("{\"foo\": \"bar\"}", XContentType.JSON).get();
+        client().prepareIndex("test").setId("1").setSource("{\"foo\": \"bar\"}", MediaTypeRegistry.JSON).get();
         assertNotNull(indexService.getFsyncTask());
         final IndexShard shard = indexService.getShard(0);
         assertBusy(() -> assertFalse(shard.isSyncNeeded()));
@@ -402,7 +402,7 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
         IndexService indexService = createIndex("test", settings);
         ensureGreen("test");
         assertTrue(indexService.getTrimTranslogTask().mustReschedule());
-        client().prepareIndex("test").setId("1").setSource("{\"foo\": \"bar\"}", XContentType.JSON).get();
+        client().prepareIndex("test").setId("1").setSource("{\"foo\": \"bar\"}", MediaTypeRegistry.JSON).get();
         client().admin().indices().prepareFlush("test").get();
         client().admin()
             .indices()
@@ -429,7 +429,11 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
         int translogOps = 0;
         final int numDocs = scaledRandomIntBetween(10, 100);
         for (int i = 0; i < numDocs; i++) {
-            client().prepareIndex().setIndex(indexName).setId(String.valueOf(i)).setSource("{\"foo\": \"bar\"}", XContentType.JSON).get();
+            client().prepareIndex()
+                .setIndex(indexName)
+                .setId(String.valueOf(i))
+                .setSource("{\"foo\": \"bar\"}", MediaTypeRegistry.JSON)
+                .get();
             translogOps++;
             if (randomBoolean()) {
                 client().admin().indices().prepareFlush(indexName).get();
@@ -501,5 +505,25 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
             .get();
         indexMetadata = client().admin().cluster().prepareState().execute().actionGet().getState().metadata().index("test");
         assertEquals("20s", indexMetadata.getSettings().get(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey()));
+    }
+
+    public void testUpdateRemoteTranslogBufferIntervalDynamically() {
+        Settings settings = Settings.builder().put(IndexSettings.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.getKey(), "10s").build();
+        IndexService indexService = createIndex("test", settings);
+        ensureGreen("test");
+
+        Settings.Builder builder = Settings.builder().put(IndexSettings.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.getKey(), "5s");
+        client().admin().indices().prepareUpdateSettings("test").setSettings(builder).get();
+        IndexMetadata indexMetadata = client().admin().cluster().prepareState().execute().actionGet().getState().metadata().index("test");
+        assertEquals("5s", indexMetadata.getSettings().get(IndexSettings.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.getKey()));
+
+        client().admin().indices().prepareClose("test").get();
+        client().admin()
+            .indices()
+            .prepareUpdateSettings("test")
+            .setSettings(Settings.builder().put(IndexSettings.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.getKey(), "20s"))
+            .get();
+        indexMetadata = client().admin().cluster().prepareState().execute().actionGet().getState().metadata().index("test");
+        assertEquals("20s", indexMetadata.getSettings().get(IndexSettings.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.getKey()));
     }
 }

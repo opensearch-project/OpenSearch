@@ -32,18 +32,18 @@
 
 package org.opensearch.action.admin.cluster.snapshots.status;
 
-import org.opensearch.common.Strings;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentParserUtils;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.XContentParserUtils;
 
 import java.io.IOException;
 
@@ -357,7 +357,7 @@ public class SnapshotStats implements Writeable, ToXContentObject {
             time = endTime - startTime;
         }
         assert time >= 0 : "Update with ["
-            + Strings.toString(XContentType.JSON, stats)
+            + Strings.toString(MediaTypeRegistry.JSON, stats)
             + "]["
             + updateTimestamps
             + "] resulted in negative total time ["

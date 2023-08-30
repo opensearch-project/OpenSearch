@@ -32,14 +32,14 @@
 
 package org.opensearch.painless;
 
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.painless.spi.Allowlist;
 import org.opensearch.script.ScriptContext;
 import org.opensearch.script.ScriptException;
 import org.opensearch.script.ScriptFactory;
 import org.opensearch.script.TemplateScript;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -358,6 +358,14 @@ public class FactoryTests extends ScriptTestCase {
             () -> getEngine().compile("void_return_test", "1 + 1", VoidReturnTestScript.CONTEXT, Collections.emptyMap())
         );
         assertEquals(iae.getMessage(), "not a statement: result not used from addition operation [+]");
+    }
+
+    public void testDefToVoidReturnThrowsException() {
+        ClassCastException exception = expectScriptThrows(
+            ClassCastException.class,
+            () -> getEngine().compile("def_return_in_void", "def x=1;return x;", VoidReturnTestScript.CONTEXT, Collections.emptyMap())
+        );
+        assertEquals(exception.getMessage(), "Cannot cast from [def] to [void].");
     }
 
     public abstract static class FactoryTestConverterScript {

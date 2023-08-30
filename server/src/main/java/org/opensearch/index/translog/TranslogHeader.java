@@ -40,12 +40,13 @@ import org.apache.lucene.store.InputStreamDataInput;
 import org.apache.lucene.store.OutputStreamDataOutput;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.io.Channels;
-import org.opensearch.common.io.stream.InputStreamStreamInput;
-import org.opensearch.common.io.stream.OutputStreamStreamOutput;
-import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.InputStreamStreamInput;
+import org.opensearch.core.common.io.stream.OutputStreamStreamOutput;
+import org.opensearch.core.common.io.stream.StreamInput;
 
 import java.io.EOFException;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.channels.FileChannel;
 import java.nio.file.Path;
 
@@ -56,7 +57,7 @@ import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM
  *
  * @opensearch.internal
  */
-final class TranslogHeader {
+public final class TranslogHeader {
     public static final String TRANSLOG_CODEC = "translog";
 
     public static final int VERSION_CHECKSUMS = 1; // pre-2.0 - unsupported
@@ -136,9 +137,26 @@ final class TranslogHeader {
     }
 
     /**
-     * Read a translog header from the given path and file channel
+     * Read a translog header from the given path and file channel and compare the given UUID
      */
     static TranslogHeader read(final String translogUUID, final Path path, final FileChannel channel) throws IOException {
+        TranslogHeader translogHeader = read(path, channel);
+        // verify UUID only after checksum, to ensure that UUID is not corrupted
+        final BytesRef expectedUUID = new BytesRef(translogUUID);
+        final BytesRef actualUUID = new BytesRef(translogHeader.translogUUID);
+        if (actualUUID.bytesEquals(expectedUUID) == false) {
+            throw new TranslogCorruptedException(
+                path.toString(),
+                "expected shard UUID " + expectedUUID + " but got: " + actualUUID + " this translog file belongs to a different translog"
+            );
+        }
+        return translogHeader;
+    }
+
+    /**
+     * Read a translog header from the given path and file channel and compare the given UUID
+     */
+    public static TranslogHeader read(final Path path, final FileChannel channel) throws IOException {
         try {
             // This input is intentionally not closed because closing it will close the FileChannel.
             final BufferedChecksumStreamInput in = new BufferedChecksumStreamInput(
@@ -178,16 +196,7 @@ final class TranslogHeader {
                 + channel.position()
                 + "]";
 
-            // verify UUID only after checksum, to ensure that UUID is not corrupted
-            final BytesRef expectedUUID = new BytesRef(translogUUID);
-            if (uuid.bytesEquals(expectedUUID) == false) {
-                throw new TranslogCorruptedException(
-                    path.toString(),
-                    "expected shard UUID " + expectedUUID + " but got: " + uuid + " this translog file belongs to a different translog"
-                );
-            }
-
-            return new TranslogHeader(translogUUID, primaryTerm, headerSizeInBytes);
+            return new TranslogHeader(uuid.utf8ToString(), primaryTerm, headerSizeInBytes);
         } catch (EOFException e) {
             throw new TranslogCorruptedException(path.toString(), "translog header truncated", e);
         }
@@ -213,12 +222,10 @@ final class TranslogHeader {
     /**
      * Writes this header with the latest format into the file channel
      */
-    void write(final FileChannel channel) throws IOException {
+    void write(final OutputStream outputStream) throws IOException {
         // This output is intentionally not closed because closing it will close the FileChannel.
         @SuppressWarnings({ "IOResourceOpenedButNotSafelyClosed", "resource" })
-        final BufferedChecksumStreamOutput out = new BufferedChecksumStreamOutput(
-            new OutputStreamStreamOutput(java.nio.channels.Channels.newOutputStream(channel))
-        );
+        final BufferedChecksumStreamOutput out = new BufferedChecksumStreamOutput(new OutputStreamStreamOutput(outputStream));
         CodecUtil.writeHeader(new OutputStreamDataOutput(out), TRANSLOG_CODEC, CURRENT_VERSION);
         // Write uuid
         final BytesRef uuid = new BytesRef(translogUUID);
@@ -229,7 +236,14 @@ final class TranslogHeader {
         // Checksum header
         out.writeInt((int) out.getChecksum());
         out.flush();
-        channel.force(true);
+    }
+
+    void write(final FileChannel channel, boolean fsync) throws IOException {
+        OutputStream outputStream = java.nio.channels.Channels.newOutputStream(channel);
+        write(outputStream);
+        if (fsync == true) {
+            channel.force(true);
+        }
         assert channel.position() == headerSizeInBytes : "Header is not fully written; header size ["
             + headerSizeInBytes
             + "], channel position ["

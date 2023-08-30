@@ -46,12 +46,12 @@ import org.opensearch.client.RestClient;
 import org.opensearch.client.RestClientBuilder;
 import org.opensearch.client.WarningsHandler;
 import org.opensearch.client.sniff.OpenSearchNodesSniffer;
-import org.opensearch.common.Strings;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.PathUtils;
-import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.test.rest.OpenSearchRestTestCase;
 import org.opensearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
 import org.opensearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
@@ -300,7 +300,7 @@ public abstract class OpenSearchClientYamlSuiteTestCase extends OpenSearchRestTe
 
     private static String[] resolvePathsProperty(String propertyName, String defaultValue) {
         String property = System.getProperty(propertyName);
-        if (!org.opensearch.core.common.Strings.hasLength(property)) {
+        if (!Strings.hasLength(property)) {
             return defaultValue == null ? Strings.EMPTY_ARRAY : new String[] { defaultValue };
         } else {
             return property.split(PATHS_SEPARATOR);
@@ -451,7 +451,7 @@ public abstract class OpenSearchClientYamlSuiteTestCase extends OpenSearchRestTe
             // Dump the stash on failure. Instead of dumping it in true json we escape `\n`s so stack traces are easier to read
             logger.info(
                 "Stash dump on test failure [{}]",
-                Strings.toString(XContentType.JSON, restTestExecutionContext.stash(), true, true)
+                Strings.toString(MediaTypeRegistry.JSON, restTestExecutionContext.stash(), true, true)
                     .replace("\\n", "\n")
                     .replace("\\r", "\r")
                     .replace("\\t", "\t")

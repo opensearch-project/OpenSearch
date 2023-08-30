@@ -34,20 +34,20 @@ package org.opensearch.action.admin.cluster.repositories.put;
 
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.master.AcknowledgedRequest;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Map;
 
 import static org.opensearch.action.ValidateActions.addValidationError;
+import static org.opensearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 import static org.opensearch.common.settings.Settings.readSettingsFromStream;
 import static org.opensearch.common.settings.Settings.writeSettingsToStream;
-import static org.opensearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 
 /**
  * Register repository request.
@@ -164,11 +164,11 @@ public class PutRepositoryRequest extends AcknowledgedRequest<PutRepositoryReque
      * Sets the repository settings.
      *
      * @param source repository settings in json or yaml format
-     * @param xContentType the content type of the source
+     * @param mediaType the content type of the source
      * @return this request
      */
-    public PutRepositoryRequest settings(String source, XContentType xContentType) {
-        this.settings = Settings.builder().loadFromSource(source, xContentType).build();
+    public PutRepositoryRequest settings(String source, final MediaType mediaType) {
+        this.settings = Settings.builder().loadFromSource(source, mediaType).build();
         return this;
     }
 

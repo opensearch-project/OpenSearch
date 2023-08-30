@@ -37,12 +37,11 @@ import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
-import org.opensearch.common.Strings;
 import org.opensearch.common.geo.builders.ShapeBuilder;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.geometry.Circle;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.mapper.LegacyGeoShapeFieldMapper;
@@ -65,34 +64,32 @@ public class LegacyGeoShapeIntegrationIT extends OpenSearchIntegTestCase {
      */
     public void testOrientationPersistence() throws Exception {
         String idxName = "orientation";
-        String mapping = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("properties")
-                .startObject("location")
-                .field("type", "geo_shape")
-                .field("tree", "quadtree")
-                .field("orientation", "left")
-                .endObject()
-                .endObject()
-                .endObject()
-        );
+        String mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("location")
+            .field("type", "geo_shape")
+            .field("tree", "quadtree")
+            .field("orientation", "left")
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
 
         // create index
         assertAcked(prepareCreate(idxName).setMapping(mapping));
 
-        mapping = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("properties")
-                .startObject("location")
-                .field("type", "geo_shape")
-                .field("tree", "quadtree")
-                .field("orientation", "right")
-                .endObject()
-                .endObject()
-                .endObject()
-        );
+        mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("location")
+            .field("type", "geo_shape")
+            .field("tree", "quadtree")
+            .field("orientation", "right")
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
 
         assertAcked(prepareCreate(idxName + "2").setMapping(mapping));
         ensureGreen(idxName, idxName + "2");
@@ -136,44 +133,43 @@ public class LegacyGeoShapeIntegrationIT extends OpenSearchIntegTestCase {
         ensureGreen();
 
         // test self crossing ccw poly not crossing dateline
-        String polygonGeoJson = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .field("type", "Polygon")
-                .startArray("coordinates")
-                .startArray()
-                .startArray()
-                .value(176.0)
-                .value(15.0)
-                .endArray()
-                .startArray()
-                .value(-177.0)
-                .value(10.0)
-                .endArray()
-                .startArray()
-                .value(-177.0)
-                .value(-10.0)
-                .endArray()
-                .startArray()
-                .value(176.0)
-                .value(-15.0)
-                .endArray()
-                .startArray()
-                .value(-177.0)
-                .value(15.0)
-                .endArray()
-                .startArray()
-                .value(172.0)
-                .value(0.0)
-                .endArray()
-                .startArray()
-                .value(176.0)
-                .value(15.0)
-                .endArray()
-                .endArray()
-                .endArray()
-                .endObject()
-        );
+        String polygonGeoJson = XContentFactory.jsonBuilder()
+            .startObject()
+            .field("type", "Polygon")
+            .startArray("coordinates")
+            .startArray()
+            .startArray()
+            .value(176.0)
+            .value(15.0)
+            .endArray()
+            .startArray()
+            .value(-177.0)
+            .value(10.0)
+            .endArray()
+            .startArray()
+            .value(-177.0)
+            .value(-10.0)
+            .endArray()
+            .startArray()
+            .value(176.0)
+            .value(-15.0)
+            .endArray()
+            .startArray()
+            .value(-177.0)
+            .value(15.0)
+            .endArray()
+            .startArray()
+            .value(172.0)
+            .value(0.0)
+            .endArray()
+            .startArray()
+            .value(176.0)
+            .value(15.0)
+            .endArray()
+            .endArray()
+            .endArray()
+            .endObject()
+            .toString();
 
         indexRandom(true, client().prepareIndex("test").setId("0").setSource("shape", polygonGeoJson));
         SearchResponse searchResponse = client().prepareSearch("test").setQuery(matchAllQuery()).get();
@@ -207,7 +203,7 @@ public class LegacyGeoShapeIntegrationIT extends OpenSearchIntegTestCase {
             + "    }\n"
             + "}";
 
-        indexRandom(true, client().prepareIndex("test").setId("0").setSource(source, XContentType.JSON).setRouting("ABC"));
+        indexRandom(true, client().prepareIndex("test").setId("0").setSource(source, MediaTypeRegistry.JSON).setRouting("ABC"));
 
         SearchResponse searchResponse = client().prepareSearch("test")
             .setQuery(geoShapeQuery("shape", "0").indexedShapeIndex("test").indexedShapeRouting("ABC"))

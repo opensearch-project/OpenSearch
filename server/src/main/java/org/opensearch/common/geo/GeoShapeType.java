@@ -31,7 +31,6 @@
 
 package org.opensearch.common.geo;
 
-import org.locationtech.jts.geom.Coordinate;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.geo.builders.CircleBuilder;
 import org.opensearch.common.geo.builders.CoordinatesBuilder;
@@ -46,14 +45,16 @@ import org.opensearch.common.geo.builders.PolygonBuilder;
 import org.opensearch.common.geo.builders.ShapeBuilder;
 import org.opensearch.common.geo.builders.ShapeBuilder.Orientation;
 import org.opensearch.common.geo.parsers.CoordinateNode;
-import org.opensearch.common.io.stream.NamedWriteableRegistry.Entry;
 import org.opensearch.common.unit.DistanceUnit;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry.Entry;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+
+import org.locationtech.jts.geom.Coordinate;
 
 /**
  * Enumeration that lists all {@link GeoShapeType}s that can be parsed and indexed

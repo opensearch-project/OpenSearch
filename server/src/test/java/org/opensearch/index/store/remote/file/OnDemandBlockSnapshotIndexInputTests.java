@@ -8,6 +8,8 @@
 
 package org.opensearch.index.store.remote.file;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
@@ -17,23 +19,26 @@ import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.SimpleFSLockFactory;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.Version;
-import org.junit.Before;
-import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.common.lucene.store.ByteArrayIndexInput;
+import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.index.store.remote.utils.BlobFetchRequest;
 import org.opensearch.index.store.remote.utils.TransferManager;
 import org.opensearch.test.OpenSearchTestCase;
+import org.junit.Before;
 
 import java.io.EOFException;
 import java.io.IOException;
 import java.nio.file.Path;
 
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
-
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @ThreadLeakFilters(filters = CleanerDaemonThreadLeakFilter.class)
 public class OnDemandBlockSnapshotIndexInputTests extends OpenSearchTestCase {
@@ -43,7 +48,6 @@ public class OnDemandBlockSnapshotIndexInputTests extends OpenSearchTestCase {
     private static final String FILE_NAME = "File_Name";
     private static final String BLOCK_FILE_PREFIX = FILE_NAME;
     private static final boolean IS_CLONE = false;
-    private static final ByteSizeValue BYTE_SIZE_VALUE = new ByteSizeValue(1L);
     private static final int FILE_SIZE = 29360128;
     private TransferManager transferManager;
     private LockFactory lockFactory;
@@ -74,7 +78,38 @@ public class OnDemandBlockSnapshotIndexInputTests extends OpenSearchTestCase {
         runAllTestsFor(22);
     }
 
-    public void runAllTestsFor(int blockSizeShift) throws Exception {
+    public void testChunkedRepository() throws IOException {
+        final long blockSize = new ByteSizeValue(1, ByteSizeUnit.KB).getBytes();
+        final long repositoryChunkSize = new ByteSizeValue(2, ByteSizeUnit.KB).getBytes();
+        final long fileSize = new ByteSizeValue(3, ByteSizeUnit.KB).getBytes();
+
+        when(transferManager.fetchBlob(any())).thenReturn(new ByteArrayIndexInput("test", new byte[(int) blockSize]));
+        try (
+            FSDirectory directory = new MMapDirectory(path, lockFactory);
+            IndexInput indexInput = new OnDemandBlockSnapshotIndexInput(
+                OnDemandBlockIndexInput.builder()
+                    .resourceDescription(RESOURCE_DESCRIPTION)
+                    .offset(BLOCK_SNAPSHOT_FILE_OFFSET)
+                    .length(FILE_SIZE)
+                    .blockSizeShift((int) (Math.log(blockSize) / Math.log(2)))
+                    .isClone(IS_CLONE),
+                new BlobStoreIndexShardSnapshot.FileInfo(
+                    FILE_NAME,
+                    new StoreFileMetadata(FILE_NAME, fileSize, "", Version.LATEST),
+                    new ByteSizeValue(repositoryChunkSize)
+                ),
+                directory,
+                transferManager
+            )
+        ) {
+            // Seek to the position past the first repository chunk
+            indexInput.seek(repositoryChunkSize);
+        }
+        // Verify the second chunk is requested (i.e. ".part1")
+        verify(transferManager).fetchBlob(argThat(request -> request.getBlobName().equals("File_Name.part1")));
+    }
+
+    private void runAllTestsFor(int blockSizeShift) throws Exception {
         final OnDemandBlockSnapshotIndexInput blockedSnapshotFile = createOnDemandBlockSnapshotIndexInput(blockSizeShift);
         final int blockSize = 1 << blockSizeShift;
         TestGroup.testGetBlock(blockedSnapshotFile, blockSize, FILE_SIZE);
@@ -106,7 +141,7 @@ public class OnDemandBlockSnapshotIndexInputTests extends OpenSearchTestCase {
         fileInfo = new BlobStoreIndexShardSnapshot.FileInfo(
             FILE_NAME,
             new StoreFileMetadata(FILE_NAME, FILE_SIZE, "", Version.LATEST),
-            BYTE_SIZE_VALUE
+            null
         );
 
         int blockSize = 1 << blockSizeShift;
@@ -182,7 +217,7 @@ public class OnDemandBlockSnapshotIndexInputTests extends OpenSearchTestCase {
 
     }
 
-    public static class TestGroup {
+    private static class TestGroup {
 
         public static void testGetBlock(OnDemandBlockSnapshotIndexInput blockedSnapshotFile, int blockSize, int fileSize) {
             // block 0

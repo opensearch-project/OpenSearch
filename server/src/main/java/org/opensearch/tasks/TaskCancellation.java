@@ -9,7 +9,7 @@
 package org.opensearch.tasks;
 
 import org.opensearch.ExceptionsHelper;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 
 import java.util.ArrayList;
 import java.util.List;

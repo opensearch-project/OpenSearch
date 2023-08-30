@@ -46,7 +46,9 @@ publishing {
   }
 }
 
-archivesBaseName = 'opensearch'
+base {
+  archivesBaseName = 'opensearch'
+}
 
 sourceSets {
   main {
@@ -99,9 +101,12 @@ dependencies {
 
   api project(':libs:opensearch-common')
   api project(':libs:opensearch-core')
+  api project(":libs:opensearch-compress")
   api project(':libs:opensearch-secure-sm')
   api project(':libs:opensearch-x-content')
   api project(":libs:opensearch-geo")
+  api project(":libs:opensearch-telemetry")
+
 
   compileOnly project(':libs:opensearch-plugin-classloader')
   testRuntimeOnly project(':libs:opensearch-plugin-classloader')
@@ -124,7 +129,6 @@ dependencies {
 
   // utilities
   api project(":libs:opensearch-cli")
-  api 'com.carrotsearch:hppc:0.8.1'
 
   // time handling, remove with java 8 time
   api "joda-time:joda-time:${versions.joda}"
@@ -142,6 +146,7 @@ dependencies {
   api "org.apache.logging.log4j:log4j-api:${versions.log4j}"
   api "org.apache.logging.log4j:log4j-jul:${versions.log4j}"
   api "org.apache.logging.log4j:log4j-core:${versions.log4j}", optional
+  annotationProcessor "org.apache.logging.log4j:log4j-core:${versions.log4j}"
 
   // jna
   api "net.java.dev.jna:jna:${versions.jna}"
@@ -152,9 +157,6 @@ dependencies {
   // protobuf
   api "com.google.protobuf:protobuf-java:${versions.protobuf}"
   api "jakarta.annotation:jakarta.annotation-api:${versions.jakarta_annotation}"
-
-  //zstd
-  api "com.github.luben:zstd-jni:${versions.zstd}"
 
   testImplementation(project(":test:framework")) {
     // tests use the locally compiled version of server
@@ -169,6 +171,10 @@ tasks.withType(JavaCompile).configureEach {
   options.compilerArgs -= '-Xlint:cast'
   options.compilerArgs -= '-Xlint:rawtypes'
   options.compilerArgs -= '-Xlint:unchecked'
+}
+
+compileJava {
+  options.compilerArgs += ['-processor', 'org.apache.logging.log4j.core.config.plugins.processor.PluginProcessor']
 }
 
 tasks.named("internalClusterTest").configure {

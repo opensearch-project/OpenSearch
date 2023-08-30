@@ -34,9 +34,10 @@ package org.opensearch.cluster.routing;
 
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.common.Nullable;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -257,9 +258,11 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
         private final IndexId index;
         private final Version version;
         private final boolean isSearchableSnapshot;
+        private final boolean remoteStoreIndexShallowCopy;
+        private final String sourceRemoteStoreRepository;
 
         public SnapshotRecoverySource(String restoreUUID, Snapshot snapshot, Version version, IndexId indexId) {
-            this(restoreUUID, snapshot, version, indexId, false);
+            this(restoreUUID, snapshot, version, indexId, false, false, null);
         }
 
         public SnapshotRecoverySource(
@@ -267,13 +270,17 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
             Snapshot snapshot,
             Version version,
             IndexId indexId,
-            boolean isSearchableSnapshot
+            boolean isSearchableSnapshot,
+            boolean remoteStoreIndexShallowCopy,
+            @Nullable String sourceRemoteStoreRepository
         ) {
             this.restoreUUID = restoreUUID;
             this.snapshot = Objects.requireNonNull(snapshot);
             this.version = Objects.requireNonNull(version);
             this.index = Objects.requireNonNull(indexId);
             this.isSearchableSnapshot = isSearchableSnapshot;
+            this.remoteStoreIndexShallowCopy = remoteStoreIndexShallowCopy;
+            this.sourceRemoteStoreRepository = sourceRemoteStoreRepository;
         }
 
         SnapshotRecoverySource(StreamInput in) throws IOException {
@@ -285,6 +292,13 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
                 isSearchableSnapshot = in.readBoolean();
             } else {
                 isSearchableSnapshot = false;
+            }
+            if (in.getVersion().onOrAfter(Version.V_2_9_0)) {
+                remoteStoreIndexShallowCopy = in.readBoolean();
+                sourceRemoteStoreRepository = in.readOptionalString();
+            } else {
+                remoteStoreIndexShallowCopy = false;
+                sourceRemoteStoreRepository = null;
             }
         }
 
@@ -314,6 +328,14 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
             return isSearchableSnapshot;
         }
 
+        public String sourceRemoteStoreRepository() {
+            return sourceRemoteStoreRepository;
+        }
+
+        public boolean remoteStoreIndexShallowCopy() {
+            return remoteStoreIndexShallowCopy;
+        }
+
         @Override
         protected void writeAdditionalFields(StreamOutput out) throws IOException {
             out.writeString(restoreUUID);
@@ -322,6 +344,10 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
             index.writeTo(out);
             if (out.getVersion().onOrAfter(Version.V_2_7_0)) {
                 out.writeBoolean(isSearchableSnapshot);
+            }
+            if (out.getVersion().onOrAfter(Version.V_2_9_0)) {
+                out.writeBoolean(remoteStoreIndexShallowCopy);
+                out.writeOptionalString(sourceRemoteStoreRepository);
             }
         }
 
@@ -337,7 +363,9 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
                 .field("version", version.toString())
                 .field("index", index.getName())
                 .field("restoreUUID", restoreUUID)
-                .field("isSearchableSnapshot", isSearchableSnapshot);
+                .field("isSearchableSnapshot", isSearchableSnapshot)
+                .field("remoteStoreIndexShallowCopy", remoteStoreIndexShallowCopy)
+                .field("sourceRemoteStoreRepository", sourceRemoteStoreRepository);
         }
 
         @Override
@@ -359,12 +387,24 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
                 && snapshot.equals(that.snapshot)
                 && index.equals(that.index)
                 && version.equals(that.version)
-                && isSearchableSnapshot == that.isSearchableSnapshot;
+                && isSearchableSnapshot == that.isSearchableSnapshot
+                && remoteStoreIndexShallowCopy == that.remoteStoreIndexShallowCopy
+                && sourceRemoteStoreRepository != null
+                    ? sourceRemoteStoreRepository.equals(that.sourceRemoteStoreRepository)
+                    : that.sourceRemoteStoreRepository == null;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(restoreUUID, snapshot, index, version, isSearchableSnapshot);
+            return Objects.hash(
+                restoreUUID,
+                snapshot,
+                index,
+                version,
+                isSearchableSnapshot,
+                remoteStoreIndexShallowCopy,
+                sourceRemoteStoreRepository
+            );
         }
 
     }
@@ -450,6 +490,13 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
             return Objects.hash(restoreUUID, index, version);
         }
 
+        // TODO: This override should be removed/be updated to return "true",
+        // i.e. we expect no retention leases, once the following issue is fixed:
+        // https://github.com/opensearch-project/OpenSearch/issues/8795
+        @Override
+        public boolean expectEmptyRetentionLeases() {
+            return false;
+        }
     }
 
     /**

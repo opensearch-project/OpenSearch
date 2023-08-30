@@ -12,16 +12,17 @@ import org.opensearch.action.bulk.BulkResponse;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.UUIDs;
+import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardState;
 import org.opensearch.indices.replication.SegmentReplicationBaseIT;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.rest.RestStatus;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.transport.MockTransportService;
 
@@ -30,6 +31,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -173,10 +175,10 @@ public class SegmentReplicationPressureIT extends SegmentReplicationBaseIT {
                     .prepareUpdateSettings(INDEX_NAME)
                     .setSettings(Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, 2))
             );
-            ensureGreen(INDEX_NAME);
             replicaNodes.add(replica_2);
-            waitForSearchableDocs(totalDocs.get(), replica_2);
         }
+        ensureGreen(INDEX_NAME);
+        waitForSearchableDocs(totalDocs.get(), replicaNodes);
         refresh(INDEX_NAME);
         // wait for the replicas to catch up after block is released.
         assertReplicaCheckpointUpdated(primaryShard);
@@ -260,7 +262,7 @@ public class SegmentReplicationPressureIT extends SegmentReplicationBaseIT {
     public void testWithDocumentReplicationEnabledIndex() throws Exception {
         assumeTrue(
             "Can't create DocRep index with remote store enabled. Skipping.",
-            indexSettings().getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, false) == false
+            Objects.equals(featureFlagSettings().get(FeatureFlags.REMOTE_STORE, "false"), "false")
         );
         Settings settings = Settings.builder().put(MAX_REPLICATION_TIME_SETTING.getKey(), TimeValue.timeValueMillis(500)).build();
         // Starts a primary and replica node.
@@ -344,7 +346,7 @@ public class SegmentReplicationPressureIT extends SegmentReplicationBaseIT {
     private int indexUntilCheckpointCount() {
         int total = 0;
         for (int i = 0; i < MAX_CHECKPOINTS_BEHIND; i++) {
-            final int numDocs = randomIntBetween(1, 100);
+            final int numDocs = randomIntBetween(1, 5);
             for (int j = 0; j < numDocs; ++j) {
                 indexDoc();
             }

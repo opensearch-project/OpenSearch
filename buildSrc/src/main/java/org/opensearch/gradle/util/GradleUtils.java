@@ -40,7 +40,7 @@ import org.gradle.api.UnknownTaskException;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.Dependency;
 import org.gradle.api.plugins.JavaBasePlugin;
-import org.gradle.api.plugins.JavaPluginConvention;
+import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.services.BuildService;
 import org.gradle.api.services.BuildServiceRegistration;
@@ -68,7 +68,7 @@ public abstract class GradleUtils {
     }
 
     public static SourceSetContainer getJavaSourceSets(Project project) {
-        return project.getConvention().getPlugin(JavaPluginConvention.class).getSourceSets();
+        return project.getExtensions().getByType(JavaPluginExtension.class).getSourceSets();
     }
 
     public static <T extends Task> TaskProvider<T> maybeRegister(TaskContainer tasks, String name, Class<T> clazz, Action<T> action) {

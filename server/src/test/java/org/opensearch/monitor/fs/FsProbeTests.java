@@ -33,12 +33,12 @@
 package org.opensearch.monitor.fs;
 
 import org.apache.lucene.util.Constants;
-import org.opensearch.common.breaker.CircuitBreaker;
-import org.opensearch.common.breaker.NoopCircuitBreaker;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.unit.ByteSizeUnit;
-import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.core.common.breaker.CircuitBreaker;
+import org.opensearch.core.common.breaker.NoopCircuitBreaker;
+import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.env.NodeEnvironment.NodePath;
 import org.opensearch.index.store.remote.filecache.FileCache;

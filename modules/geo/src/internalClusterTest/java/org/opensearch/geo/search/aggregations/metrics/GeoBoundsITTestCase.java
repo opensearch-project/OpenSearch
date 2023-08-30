@@ -32,18 +32,23 @@
 
 package org.opensearch.geo.search.aggregations.metrics;
 
-import org.hamcrest.MatcherAssert;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.geo.GeoPoint;
-import org.opensearch.common.util.BigArray;
+import org.opensearch.core.common.util.BigArray;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.bucket.global.Global;
 import org.opensearch.search.aggregations.bucket.terms.Terms;
 import org.opensearch.search.aggregations.bucket.terms.Terms.Bucket;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.hamcrest.MatcherAssert;
 
 import java.util.List;
 
+import static org.opensearch.geo.tests.common.AggregationBuilders.geoBounds;
+import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
+import static org.opensearch.search.aggregations.AggregationBuilders.global;
+import static org.opensearch.search.aggregations.AggregationBuilders.terms;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
@@ -51,11 +56,6 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
-import static org.opensearch.geo.tests.common.AggregationBuilders.geoBounds;
-import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
-import static org.opensearch.search.aggregations.AggregationBuilders.global;
-import static org.opensearch.search.aggregations.AggregationBuilders.terms;
-import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResponse;
 
 @OpenSearchIntegTestCase.SuiteScopeTestCase
 public class GeoBoundsITTestCase extends AbstractGeoAggregatorModulePluginTestCase {

@@ -38,12 +38,12 @@ import org.opensearch.plugins.Plugin;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
 import org.opensearch.search.aggregations.AggregationTestScriptsPlugin;
+import org.opensearch.search.aggregations.BucketOrder;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.bucket.filter.Filter;
 import org.opensearch.search.aggregations.bucket.global.Global;
 import org.opensearch.search.aggregations.bucket.histogram.Histogram;
 import org.opensearch.search.aggregations.bucket.terms.Terms;
-import org.opensearch.search.aggregations.BucketOrder;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -53,7 +53,7 @@ import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
-import static org.opensearch.common.util.CollectionUtils.iterableAsArrayList;
+import static org.opensearch.core.common.util.CollectionUtils.iterableAsArrayList;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
 import static org.opensearch.index.query.QueryBuilders.termQuery;
 import static org.opensearch.search.aggregations.AggregationBuilders.filter;

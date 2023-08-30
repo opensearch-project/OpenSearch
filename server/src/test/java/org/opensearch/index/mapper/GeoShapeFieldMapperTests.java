@@ -32,9 +32,9 @@
 package org.opensearch.index.mapper;
 
 import org.opensearch.common.Explicit;
-import org.opensearch.common.Strings;
 import org.opensearch.common.geo.builders.ShapeBuilder;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.plugins.Plugin;
@@ -229,7 +229,7 @@ public class GeoShapeFieldMapperTests extends FieldMapperTestCase2<GeoShapeField
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         assertThat(
             Strings.toString(
-                XContentType.JSON,
+                MediaTypeRegistry.JSON,
                 mapper.mappers().getMapper("field"),
                 new ToXContent.MapParams(Collections.singletonMap("include_defaults", "true"))
             ),

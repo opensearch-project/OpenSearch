@@ -31,7 +31,7 @@
 
 package org.opensearch.search.fetch.subphase.highlight;
 
-import org.opensearch.common.text.Text;
+import org.opensearch.core.common.text.Text;
 import org.opensearch.index.mapper.MappedFieldType;
 
 import java.util.ArrayList;

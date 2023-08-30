@@ -34,20 +34,21 @@ package org.opensearch.search.aggregations;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.Version;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.common.io.stream.NamedWriteableAwareStreamInput;
-import org.opensearch.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.SearchModule;
 import org.opensearch.search.aggregations.bucket.histogram.InternalDateHistogramTests;
 import org.opensearch.search.aggregations.bucket.terms.StringTerms;
 import org.opensearch.search.aggregations.bucket.terms.StringTermsTests;
+import org.opensearch.search.aggregations.bucket.terms.TermsAggregator;
 import org.opensearch.search.aggregations.pipeline.InternalSimpleValueTests;
 import org.opensearch.search.aggregations.pipeline.MaxBucketPipelineAggregationBuilder;
 import org.opensearch.search.aggregations.pipeline.PipelineAggregator;
-import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.InternalAggregationTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -76,15 +77,14 @@ public class InternalAggregationsTests extends OpenSearchTestCase {
             "name",
             BucketOrder.key(true),
             BucketOrder.key(true),
-            10,
-            1,
             Collections.emptyMap(),
             DocValueFormat.RAW,
             25,
             false,
             10,
             Collections.emptyList(),
-            0
+            0,
+            new TermsAggregator.BucketCountThresholds(1, 0, 10, 25)
         );
         List<InternalAggregations> aggs = singletonList(InternalAggregations.from(Collections.singletonList(terms)));
         InternalAggregations reducedAggs = InternalAggregations.topLevelReduce(aggs, maxBucketReduceContext().forPartialReduction());
@@ -96,15 +96,14 @@ public class InternalAggregationsTests extends OpenSearchTestCase {
             "name",
             BucketOrder.key(true),
             BucketOrder.key(true),
-            10,
-            1,
             Collections.emptyMap(),
             DocValueFormat.RAW,
             25,
             false,
             10,
             Collections.emptyList(),
-            0
+            0,
+            new TermsAggregator.BucketCountThresholds(1, 0, 10, 25)
         );
 
         InternalAggregations aggs = InternalAggregations.from(Collections.singletonList(terms));

@@ -34,18 +34,20 @@ package org.opensearch.common.xcontent;
 
 import org.opensearch.common.CheckedBiConsumer;
 import org.opensearch.common.CheckedConsumer;
-import org.opensearch.core.ParseField;
-import org.opensearch.common.ParsingException;
 import org.opensearch.common.SetOnce;
-import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.ParseField;
+import org.opensearch.core.common.ParsingException;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.DeprecationHandler;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedObjectNotFoundException;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParserUtils;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -54,10 +56,10 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 
-import static org.opensearch.common.xcontent.XContentHelper.toXContent;
-import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
-import static org.opensearch.common.xcontent.XContentParserUtils.ensureFieldName;
-import static org.opensearch.common.xcontent.XContentParserUtils.parseTypedKeysObject;
+import static org.opensearch.core.xcontent.XContentHelper.toXContent;
+import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.opensearch.core.xcontent.XContentParserUtils.ensureFieldName;
+import static org.opensearch.core.xcontent.XContentParserUtils.parseTypedKeysObject;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.instanceOf;
@@ -112,7 +114,7 @@ public class XContentParserUtilsTests extends OpenSearchTestCase {
     public void testStoredFieldsValueBinary() throws IOException {
         final byte[] value = randomUnicodeOfLength(scaledRandomIntBetween(10, 1000)).getBytes("UTF-8");
         assertParseFieldsSimpleValue(value, (xcontentType, result) -> {
-            if (xcontentType == XContentType.JSON) {
+            if (xcontentType == MediaTypeRegistry.JSON) {
                 // binary values will be parsed back and returned as base64 strings when reading from json
                 assertArrayEquals(value, Base64.getDecoder().decode((String) result));
             } else {

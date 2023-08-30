@@ -44,13 +44,13 @@ import org.opensearch.common.util.concurrent.ReleasableLock;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.DocsStats;
 import org.opensearch.index.store.Store;
-import org.opensearch.index.translog.Translog;
-import org.opensearch.index.translog.TranslogManager;
-import org.opensearch.index.translog.TranslogConfig;
-import org.opensearch.index.translog.TranslogException;
-import org.opensearch.index.translog.NoOpTranslogManager;
 import org.opensearch.index.translog.DefaultTranslogDeletionPolicy;
+import org.opensearch.index.translog.NoOpTranslogManager;
+import org.opensearch.index.translog.Translog;
+import org.opensearch.index.translog.TranslogConfig;
 import org.opensearch.index.translog.TranslogDeletionPolicy;
+import org.opensearch.index.translog.TranslogException;
+import org.opensearch.index.translog.TranslogManager;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -209,11 +209,15 @@ public final class NoOpEngine extends ReadOnlyEngine {
                                 translog.trimUnreferencedReaders();
                                 // refresh the translog stats
                                 translogStats = translog.stats();
-                                assert translog.currentFileGeneration() == translog.getMinFileGeneration() : "translog was not trimmed "
-                                    + " current gen "
-                                    + translog.currentFileGeneration()
-                                    + " != min gen "
-                                    + translog.getMinFileGeneration();
+                                // When remote translog is enabled, the min file generation is dependent on the (N-1)
+                                // lastRefreshedCheckpoint SeqNo - refer RemoteStoreRefreshListener. This leads to older generations not
+                                // being trimmed and leading to current generation being higher than the min file generation.
+                                assert engineConfig.getIndexSettings().isRemoteTranslogStoreEnabled()
+                                    || translog.currentFileGeneration() == translog.getMinFileGeneration() : "translog was not trimmed "
+                                        + " current gen "
+                                        + translog.currentFileGeneration()
+                                        + " != min gen "
+                                        + translog.getMinFileGeneration();
                             }
                         }
                     } catch (final Exception e) {

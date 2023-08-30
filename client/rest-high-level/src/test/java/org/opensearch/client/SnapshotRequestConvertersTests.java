@@ -48,7 +48,7 @@ import org.opensearch.action.admin.cluster.snapshots.status.SnapshotsStatusReque
 import org.opensearch.action.support.master.AcknowledgedRequest;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.unit.ByteSizeUnit;
+import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.test.OpenSearchTestCase;
 

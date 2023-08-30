@@ -8,15 +8,15 @@
 
 package org.opensearch.search.aggregations.bucket.terms;
 
-import org.junit.After;
-import org.junit.Before;
 import org.opensearch.action.index.IndexRequestBuilder;
-import org.opensearch.common.Strings;
+import org.opensearch.core.common.Strings;
 import org.opensearch.index.fielddata.ScriptDocValues;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.search.aggregations.AggregationTestScriptsPlugin;
 import org.opensearch.search.aggregations.bucket.AbstractTermsTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;

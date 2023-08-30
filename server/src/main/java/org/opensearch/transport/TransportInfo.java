@@ -33,14 +33,14 @@
 package org.opensearch.transport;
 
 import org.opensearch.common.Nullable;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.network.InetAddresses;
-import org.opensearch.common.transport.BoundTransportAddress;
-import org.opensearch.common.transport.TransportAddress;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.transport.BoundTransportAddress;
+import org.opensearch.core.common.transport.TransportAddress;
+import org.opensearch.core.service.ReportingService;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.node.ReportingService;
 
 import java.io.IOException;
 import java.util.HashMap;

@@ -34,15 +34,16 @@ package org.opensearch.index.reindex;
 
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.Nullable;
-import org.opensearch.core.ParseField;
-import org.opensearch.common.Strings;
 import org.opensearch.common.collect.Tuple;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.ParseField;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.tasks.TaskId;
 import org.opensearch.core.xcontent.ConstructingObjectParser;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -51,7 +52,6 @@ import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.core.xcontent.XContentParser.Token;
 import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.Task;
-import org.opensearch.tasks.TaskId;
 import org.opensearch.tasks.TaskInfo;
 
 import java.io.IOException;
@@ -68,8 +68,8 @@ import java.util.concurrent.TimeUnit;
 import static java.lang.Math.min;
 import static java.util.Collections.emptyList;
 import static org.opensearch.common.unit.TimeValue.timeValueNanos;
-import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.opensearch.core.xcontent.ConstructingObjectParser.constructorArg;
+import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /**
  * Task storing information about a currently running BulkByScroll request.
@@ -1048,9 +1048,9 @@ public class BulkByScrollTask extends CancellableTask {
         @Override
         public String toString() {
             if (exception != null) {
-                return "BulkByScrollTask{error=" + Strings.toString(XContentType.JSON, this) + "}";
+                return "BulkByScrollTask{error=" + Strings.toString(MediaTypeRegistry.JSON, this) + "}";
             } else {
-                return "BulkByScrollTask{status=" + Strings.toString(XContentType.JSON, this) + "}";
+                return "BulkByScrollTask{status=" + Strings.toString(MediaTypeRegistry.JSON, this) + "}";
             }
         }
 

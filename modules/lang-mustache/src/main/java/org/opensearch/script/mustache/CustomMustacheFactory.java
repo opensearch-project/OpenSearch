@@ -33,6 +33,7 @@
 package org.opensearch.script.mustache;
 
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
+
 import com.github.mustachejava.Code;
 import com.github.mustachejava.DefaultMustacheFactory;
 import com.github.mustachejava.DefaultMustacheVisitor;
@@ -44,9 +45,8 @@ import com.github.mustachejava.codes.DefaultMustache;
 import com.github.mustachejava.codes.IterableCode;
 import com.github.mustachejava.codes.WriteCode;
 
-import org.opensearch.common.Strings;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.StringWriter;
@@ -215,7 +215,7 @@ public class CustomMustacheFactory extends DefaultMustacheFactory {
                 if (resolved == null) {
                     return null;
                 }
-                try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
+                try (XContentBuilder builder = MediaTypeRegistry.JSON.contentBuilder()) {
                     if (resolved instanceof Iterable) {
                         builder.startArray();
                         for (Object o : (Iterable<?>) resolved) {
@@ -228,7 +228,7 @@ public class CustomMustacheFactory extends DefaultMustacheFactory {
                         // Do not handle as JSON
                         return oh.stringify(resolved);
                     }
-                    return Strings.toString(builder);
+                    return builder.toString();
                 } catch (IOException e) {
                     throw new MustacheException("Failed to convert object to JSON", e);
                 }

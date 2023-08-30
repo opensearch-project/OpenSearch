@@ -34,10 +34,10 @@ package org.opensearch.index.query.functionscore;
 
 import org.apache.lucene.search.Query;
 import org.opensearch.OpenSearchException;
-import org.opensearch.core.ParseField;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.lucene.search.function.ScriptScoreQuery;
+import org.opensearch.core.ParseField;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.ConstructingObjectParser;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
@@ -187,7 +187,7 @@ public class ScriptScoreQueryBuilder extends AbstractQueryBuilder<ScriptScoreQue
             );
         }
         ScoreScript.Factory factory = context.compile(script, ScoreScript.CONTEXT);
-        ScoreScript.LeafFactory scoreScriptFactory = factory.newFactory(script.getParams(), context.lookup());
+        ScoreScript.LeafFactory scoreScriptFactory = factory.newFactory(script.getParams(), context.lookup(), context.searcher());
         final QueryBuilder queryBuilder = this.query;
         Query query = queryBuilder.toQuery(context);
         return new ScriptScoreQuery(

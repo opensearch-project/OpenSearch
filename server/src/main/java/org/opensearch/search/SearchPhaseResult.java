@@ -33,13 +33,13 @@
 package org.opensearch.search;
 
 import org.opensearch.common.Nullable;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.search.fetch.FetchSearchResult;
 import org.opensearch.search.internal.ShardSearchContextId;
 import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.query.QuerySearchResult;
-import org.opensearch.transport.TransportResponse;
 
 import java.io.IOException;
 

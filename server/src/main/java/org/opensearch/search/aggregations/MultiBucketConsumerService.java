@@ -32,16 +32,18 @@
 package org.opensearch.search.aggregations;
 
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.breaker.CircuitBreaker;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.breaker.CircuitBreaker;
+import org.opensearch.core.common.breaker.CircuitBreakingException;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.rest.RestStatus;
 import org.opensearch.search.aggregations.bucket.BucketsAggregator;
 
 import java.io.IOException;
+import java.util.concurrent.atomic.LongAdder;
 import java.util.function.IntConsumer;
 
 /**
@@ -127,13 +129,36 @@ public class MultiBucketConsumerService {
         private final int limit;
         private final CircuitBreaker breaker;
 
-        // aggregations execute in a single thread so no atomic here
+        // aggregations execute in a single thread for both sequential
+        // and concurrent search, so no atomic here
         private int count;
-        private int callCount = 0;
+
+        // will be updated by multiple threads in concurrent search
+        // hence making it as LongAdder
+        private final LongAdder callCount;
+        private volatile boolean circuitBreakerTripped;
+        private final int availProcessors;
 
         public MultiBucketConsumer(int limit, CircuitBreaker breaker) {
             this.limit = limit;
             this.breaker = breaker;
+            callCount = new LongAdder();
+            availProcessors = Runtime.getRuntime().availableProcessors();
+        }
+
+        // only visible for testing
+        protected MultiBucketConsumer(
+            int limit,
+            CircuitBreaker breaker,
+            LongAdder callCount,
+            boolean circuitBreakerTripped,
+            int availProcessors
+        ) {
+            this.limit = limit;
+            this.breaker = breaker;
+            this.callCount = callCount;
+            this.circuitBreakerTripped = circuitBreakerTripped;
+            this.availProcessors = availProcessors;
         }
 
         @Override
@@ -153,10 +178,27 @@ public class MultiBucketConsumerService {
                     );
                 }
             }
-            // check parent circuit breaker every 1024 calls
-            callCount++;
-            if ((callCount & 0x3FF) == 0) {
-                breaker.addEstimateBytesAndMaybeBreak(0, "allocated_buckets");
+            callCount.increment();
+            // tripping the circuit breaker for other threads in case of concurrent search
+            // if the circuit breaker has tripped for one of the threads already, more info
+            // can be found on: https://github.com/opensearch-project/OpenSearch/issues/7785
+            if (circuitBreakerTripped) {
+                throw new CircuitBreakingException(
+                    "Circuit breaker for this consumer has already been tripped by previous invocations. "
+                        + "This can happen in case of concurrent segment search when multiple threads are "
+                        + "executing the request and one of the thread has already tripped the circuit breaker",
+                    breaker.getDurability()
+                );
+            }
+            // check parent circuit breaker every 1024 to (1024 + available processors) calls
+            long sum = callCount.sum();
+            if ((sum >= 1024) && (sum & 0x3FF) <= availProcessors) {
+                try {
+                    breaker.addEstimateBytesAndMaybeBreak(0, "allocated_buckets");
+                } catch (CircuitBreakingException e) {
+                    circuitBreakerTripped = true;
+                    throw e;
+                }
             }
         }
 

@@ -8,12 +8,13 @@
 
 package org.opensearch.common.settings;
 
+import org.opensearch.common.settings.Setting.Property;
+import org.opensearch.common.util.FeatureFlags;
+
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
-import org.opensearch.common.settings.Setting.Property;
-import org.opensearch.common.util.FeatureFlags;
 
 /**
  * Encapsulates all valid feature flag level settings.
@@ -38,8 +39,8 @@ public class FeatureFlagSettings extends AbstractScopedSettings {
                 FeatureFlags.REMOTE_STORE_SETTING,
                 FeatureFlags.EXTENSIONS_SETTING,
                 FeatureFlags.IDENTITY_SETTING,
-                FeatureFlags.SEARCH_PIPELINE_SETTING,
-                FeatureFlags.CONCURRENT_SEGMENT_SEARCH_SETTING
+                FeatureFlags.CONCURRENT_SEGMENT_SEARCH_SETTING,
+                FeatureFlags.TELEMETRY_SETTING
             )
         )
     );

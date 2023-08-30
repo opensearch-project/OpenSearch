@@ -8,13 +8,14 @@
 
 package org.opensearch.action.admin.cluster.remotestore.stats;
 
-import org.opensearch.action.support.DefaultShardOperationFailedException;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.core.action.support.DefaultShardOperationFailedException;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.index.remote.RemoteRefreshSegmentTracker;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.index.remote.RemoteSegmentTransferTracker;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
@@ -23,7 +24,10 @@ import java.util.ArrayList;
 import java.util.Map;
 
 import static org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStatsTestHelper.compareStatsResponse;
-import static org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStatsTestHelper.createPressureTrackerStats;
+import static org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStatsTestHelper.createShardRouting;
+import static org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStatsTestHelper.createStatsForNewPrimary;
+import static org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStatsTestHelper.createStatsForNewReplica;
+import static org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStatsTestHelper.createStatsForRemoteStoreRestoredPrimary;
 import static org.opensearch.core.xcontent.ToXContent.EMPTY_PARAMS;
 
 public class RemoteStoreStatsResponseTests extends OpenSearchTestCase {
@@ -43,11 +47,12 @@ public class RemoteStoreStatsResponseTests extends OpenSearchTestCase {
         threadPool.shutdownNow();
     }
 
-    public void testSerialization() throws Exception {
-        RemoteRefreshSegmentTracker.Stats pressureTrackerStats = createPressureTrackerStats(shardId);
-        RemoteStoreStats stats = new RemoteStoreStats(pressureTrackerStats);
+    public void testSerializationForPrimary() throws Exception {
+        RemoteSegmentTransferTracker.Stats mockPrimaryTrackerStats = createStatsForNewPrimary(shardId);
+        ShardRouting primaryShardRouting = createShardRouting(shardId, true);
+        RemoteStoreStats primaryShardStats = new RemoteStoreStats(mockPrimaryTrackerStats, primaryShardRouting);
         RemoteStoreStatsResponse statsResponse = new RemoteStoreStatsResponse(
-            new RemoteStoreStats[] { stats },
+            new RemoteStoreStats[] { primaryShardStats },
             1,
             1,
             0,
@@ -58,15 +63,96 @@ public class RemoteStoreStatsResponseTests extends OpenSearchTestCase {
         statsResponse.toXContent(builder, EMPTY_PARAMS);
         Map<String, Object> jsonResponseObject = XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType())
             .v2();
+        Map<String, Object> metadataShardsObject = (Map<String, Object>) jsonResponseObject.get("_shards");
+        assertEquals(metadataShardsObject.get("total"), 1);
+        assertEquals(metadataShardsObject.get("successful"), 1);
+        assertEquals(metadataShardsObject.get("failed"), 0);
+        Map<String, Object> indicesObject = (Map<String, Object>) jsonResponseObject.get("indices");
+        assertTrue(indicesObject.containsKey("index"));
+        Map<String, Object> shardsObject = (Map) ((Map) indicesObject.get("index")).get("shards");
+        ArrayList<Map<String, Object>> perShardNumberObject = (ArrayList<Map<String, Object>>) shardsObject.get("0");
+        assertEquals(perShardNumberObject.size(), 1);
+        Map<String, Object> perShardCopyObject = perShardNumberObject.get(0);
+        compareStatsResponse(perShardCopyObject, mockPrimaryTrackerStats, primaryShardRouting);
+    }
 
-        ArrayList<Map<String, Object>> statsObjectArray = (ArrayList<Map<String, Object>>) jsonResponseObject.get("stats");
-        assertEquals(statsObjectArray.size(), 1);
-        Map<String, Object> statsObject = statsObjectArray.get(0);
-        Map<String, Object> shardsObject = (Map<String, Object>) jsonResponseObject.get("_shards");
+    public void testSerializationForBothPrimaryAndReplica() throws Exception {
+        RemoteSegmentTransferTracker.Stats mockPrimaryTrackerStats = createStatsForNewPrimary(shardId);
+        RemoteSegmentTransferTracker.Stats mockReplicaTrackerStats = createStatsForNewReplica(shardId);
+        ShardRouting primaryShardRouting = createShardRouting(shardId, true);
+        ShardRouting replicaShardRouting = createShardRouting(shardId, false);
+        RemoteStoreStats primaryShardStats = new RemoteStoreStats(mockPrimaryTrackerStats, primaryShardRouting);
+        RemoteStoreStats replicaShardStats = new RemoteStoreStats(mockReplicaTrackerStats, replicaShardRouting);
+        RemoteStoreStatsResponse statsResponse = new RemoteStoreStatsResponse(
+            new RemoteStoreStats[] { primaryShardStats, replicaShardStats },
+            2,
+            2,
+            0,
+            new ArrayList<DefaultShardOperationFailedException>()
+        );
 
-        assertEquals(shardsObject.get("total"), 1);
-        assertEquals(shardsObject.get("successful"), 1);
-        assertEquals(shardsObject.get("failed"), 0);
-        compareStatsResponse(statsObject, pressureTrackerStats);
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        statsResponse.toXContent(builder, EMPTY_PARAMS);
+        Map<String, Object> jsonResponseObject = XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType())
+            .v2();
+        Map<String, Object> metadataShardsObject = (Map<String, Object>) jsonResponseObject.get("_shards");
+        assertEquals(2, metadataShardsObject.get("total"));
+        assertEquals(2, metadataShardsObject.get("successful"));
+        assertEquals(0, metadataShardsObject.get("failed"));
+        Map<String, Object> indicesObject = (Map<String, Object>) jsonResponseObject.get("indices");
+        assertTrue(indicesObject.containsKey("index"));
+        Map<String, Object> shardsObject = (Map) ((Map) indicesObject.get("index")).get("shards");
+        ArrayList<Map<String, Object>> perShardNumberObject = (ArrayList<Map<String, Object>>) shardsObject.get("0");
+        assertEquals(2, perShardNumberObject.size());
+        perShardNumberObject.forEach(shardObject -> {
+            boolean isPrimary = (boolean) ((Map) shardObject.get(RemoteStoreStats.Fields.ROUTING)).get(
+                RemoteStoreStats.RoutingFields.PRIMARY
+            );
+            if (isPrimary) {
+                compareStatsResponse(shardObject, mockPrimaryTrackerStats, primaryShardRouting);
+            } else {
+                compareStatsResponse(shardObject, mockReplicaTrackerStats, replicaShardRouting);
+            }
+        });
+    }
+
+    public void testSerializationForBothRemoteStoreRestoredPrimaryAndReplica() throws Exception {
+        RemoteSegmentTransferTracker.Stats mockPrimaryTrackerStats = createStatsForRemoteStoreRestoredPrimary(shardId);
+        RemoteSegmentTransferTracker.Stats mockReplicaTrackerStats = createStatsForNewReplica(shardId);
+        ShardRouting primaryShardRouting = createShardRouting(shardId, true);
+        ShardRouting replicaShardRouting = createShardRouting(shardId, false);
+        RemoteStoreStats primaryShardStats = new RemoteStoreStats(mockPrimaryTrackerStats, primaryShardRouting);
+        RemoteStoreStats replicaShardStats = new RemoteStoreStats(mockReplicaTrackerStats, replicaShardRouting);
+        RemoteStoreStatsResponse statsResponse = new RemoteStoreStatsResponse(
+            new RemoteStoreStats[] { primaryShardStats, replicaShardStats },
+            2,
+            2,
+            0,
+            new ArrayList<DefaultShardOperationFailedException>()
+        );
+
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        statsResponse.toXContent(builder, EMPTY_PARAMS);
+        Map<String, Object> jsonResponseObject = XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType())
+            .v2();
+        Map<String, Object> metadataShardsObject = (Map<String, Object>) jsonResponseObject.get("_shards");
+        assertEquals(2, metadataShardsObject.get("total"));
+        assertEquals(2, metadataShardsObject.get("successful"));
+        assertEquals(0, metadataShardsObject.get("failed"));
+        Map<String, Object> indicesObject = (Map<String, Object>) jsonResponseObject.get("indices");
+        assertTrue(indicesObject.containsKey("index"));
+        Map<String, Object> shardsObject = (Map) ((Map) indicesObject.get("index")).get("shards");
+        ArrayList<Map<String, Object>> perShardNumberObject = (ArrayList<Map<String, Object>>) shardsObject.get("0");
+        assertEquals(2, perShardNumberObject.size());
+        perShardNumberObject.forEach(shardObject -> {
+            boolean isPrimary = (boolean) ((Map) shardObject.get(RemoteStoreStats.Fields.ROUTING)).get(
+                RemoteStoreStats.RoutingFields.PRIMARY
+            );
+            if (isPrimary) {
+                compareStatsResponse(shardObject, mockPrimaryTrackerStats, primaryShardRouting);
+            } else {
+                compareStatsResponse(shardObject, mockReplicaTrackerStats, replicaShardRouting);
+            }
+        });
     }
 }

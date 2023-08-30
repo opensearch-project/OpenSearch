@@ -33,17 +33,19 @@ package org.opensearch.index.shard;
 
 import org.apache.lucene.index.IndexCommit;
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.common.component.AbstractLifecycleComponent;
+import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
 import org.opensearch.index.store.Store;
+import org.opensearch.index.store.lockmanager.RemoteStoreLockManagerFactory;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.IndexMetaDataGenerations;
 import org.opensearch.repositories.Repository;
@@ -149,6 +151,16 @@ public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent i
     }
 
     @Override
+    public long getRemoteUploadThrottleTimeInNanos() {
+        return 0;
+    }
+
+    @Override
+    public long getRemoteDownloadThrottleTimeInNanos() {
+        return 0;
+    }
+
+    @Override
     public String startVerification() {
         return null;
     }
@@ -201,6 +213,18 @@ public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent i
         SnapshotId target,
         RepositoryShardId repositoryShardId,
         String shardGeneration,
+        ActionListener<String> listener
+    ) {
+        throw new UnsupportedOperationException("Unsupported for restore-only repository");
+    }
+
+    @Override
+    public void cloneRemoteStoreIndexShardSnapshot(
+        SnapshotId source,
+        SnapshotId target,
+        RepositoryShardId shardId,
+        String shardGeneration,
+        RemoteStoreLockManagerFactory remoteStoreLockManagerFactory,
         ActionListener<String> listener
     ) {
         throw new UnsupportedOperationException("Unsupported for restore-only repository");

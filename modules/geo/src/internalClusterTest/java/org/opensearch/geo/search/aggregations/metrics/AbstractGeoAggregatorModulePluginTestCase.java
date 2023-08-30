@@ -8,19 +8,14 @@
 
 package org.opensearch.geo.search.aggregations.metrics;
 
-import com.carrotsearch.hppc.ObjectIntHashMap;
-import com.carrotsearch.hppc.ObjectIntMap;
-import com.carrotsearch.hppc.ObjectObjectHashMap;
-import com.carrotsearch.hppc.ObjectObjectMap;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
-import org.opensearch.common.Strings;
 import org.opensearch.common.document.DocumentField;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.geo.GeoModulePluginIntegTestCase;
 import org.opensearch.geo.search.aggregations.common.GeoBoundsHelper;
 import org.opensearch.geo.tests.common.RandomGeoGenerator;
@@ -32,13 +27,15 @@ import org.opensearch.search.sort.SortBuilders;
 import org.opensearch.search.sort.SortOrder;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.IntStream;
 
-import static org.hamcrest.Matchers.equalTo;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResponse;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
  * This is base class for all Geo Aggregations Integration Tests. This class is similar to what we have in the server
@@ -65,8 +62,8 @@ public abstract class AbstractGeoAggregatorModulePluginTestCase extends GeoModul
     protected static Geometry[] geoShapesValues;
     protected static GeoPoint singleTopLeft, singleBottomRight, multiTopLeft, multiBottomRight, singleCentroid, multiCentroid,
         unmappedCentroid, geoShapeTopLeft, geoShapeBottomRight;
-    protected static ObjectIntMap<String> expectedDocCountsForGeoHash = null;
-    protected static ObjectObjectMap<String, GeoPoint> expectedCentroidsForGeoHash = null;
+    protected static Map<String, Integer> expectedDocCountsForGeoHash = null;
+    protected static Map<String, GeoPoint> expectedCentroidsForGeoHash = null;
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
@@ -98,8 +95,8 @@ public abstract class AbstractGeoAggregatorModulePluginTestCase extends GeoModul
 
         numDocs = randomIntBetween(6, 20);
         numUniqueGeoPoints = randomIntBetween(1, numDocs);
-        expectedDocCountsForGeoHash = new ObjectIntHashMap<>(numDocs * 2);
-        expectedCentroidsForGeoHash = new ObjectObjectHashMap<>(numDocs * 2);
+        expectedDocCountsForGeoHash = new HashMap<>(numDocs * 2);
+        expectedCentroidsForGeoHash = new HashMap<>(numDocs * 2);
 
         singleValues = new GeoPoint[numUniqueGeoPoints];
         for (int i = 0; i < singleValues.length; i++) {
@@ -258,7 +255,7 @@ public abstract class AbstractGeoAggregatorModulePluginTestCase extends GeoModul
         long totalHits = response.getHits().getTotalHits().value;
         XContentBuilder builder = XContentFactory.jsonBuilder();
         response.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        logger.info("Full high_card_idx Response Content:\n{ {} }", Strings.toString(builder));
+        logger.info("Full high_card_idx Response Content:\n{ {} }", builder.toString());
         for (int i = 0; i < totalHits; i++) {
             SearchHit searchHit = response.getHits().getAt(i);
             assertThat("Hit " + i + " with id: " + searchHit.getId(), searchHit.getIndex(), equalTo("high_card_idx"));

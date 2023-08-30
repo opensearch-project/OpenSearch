@@ -35,7 +35,6 @@ package org.opensearch.discovery.gce;
 import com.google.api.services.compute.model.AccessConfig;
 import com.google.api.services.compute.model.Instance;
 import com.google.api.services.compute.model.NetworkInterface;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -46,9 +45,9 @@ import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.discovery.SeedHostsProvider;
 import org.opensearch.transport.TransportService;
 

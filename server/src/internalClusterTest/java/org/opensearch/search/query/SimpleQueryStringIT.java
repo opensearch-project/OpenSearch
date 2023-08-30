@@ -35,17 +35,15 @@ package org.opensearch.search.query;
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
-
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.SearchResponse;
-import org.opensearch.common.Strings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.analysis.PreConfiguredTokenFilter;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.query.BoolQueryBuilder;
@@ -60,7 +58,6 @@ import org.opensearch.search.SearchHits;
 import org.opensearch.search.SearchModule;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.test.OpenSearchIntegTestCase;
-
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -373,17 +370,16 @@ public class SimpleQueryStringIT extends OpenSearchIntegTestCase {
     }
 
     public void testSimpleQueryStringAnalyzeWildcard() throws ExecutionException, InterruptedException, IOException {
-        String mapping = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("properties")
-                .startObject("location")
-                .field("type", "text")
-                .field("analyzer", "standard")
-                .endObject()
-                .endObject()
-                .endObject()
-        );
+        String mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("location")
+            .field("type", "text")
+            .field("analyzer", "standard")
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
 
         CreateIndexRequestBuilder mappingRequest = client().admin().indices().prepareCreate("test1").setMapping(mapping);
         mappingRequest.get();
@@ -420,17 +416,16 @@ public class SimpleQueryStringIT extends OpenSearchIntegTestCase {
 
     public void testEmptySimpleQueryStringWithAnalysis() throws Exception {
         // https://github.com/elastic/elasticsearch/issues/18202
-        String mapping = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("properties")
-                .startObject("body")
-                .field("type", "text")
-                .field("analyzer", "stop")
-                .endObject()
-                .endObject()
-                .endObject()
-        );
+        String mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("body")
+            .field("type", "text")
+            .field("analyzer", "stop")
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
 
         CreateIndexRequestBuilder mappingRequest = client().admin().indices().prepareCreate("test1").setMapping(mapping);
         mappingRequest.get();
@@ -444,7 +439,7 @@ public class SimpleQueryStringIT extends OpenSearchIntegTestCase {
 
     public void testBasicAllQuery() throws Exception {
         String indexBody = copyToStringFromClasspath("/org/opensearch/search/query/all-query-index.json");
-        prepareCreate("test").setSource(indexBody, XContentType.JSON).get();
+        prepareCreate("test").setSource(indexBody, MediaTypeRegistry.JSON).get();
         ensureGreen("test");
 
         List<IndexRequestBuilder> reqs = new ArrayList<>();
@@ -468,7 +463,7 @@ public class SimpleQueryStringIT extends OpenSearchIntegTestCase {
 
     public void testWithDate() throws Exception {
         String indexBody = copyToStringFromClasspath("/org/opensearch/search/query/all-query-index.json");
-        prepareCreate("test").setSource(indexBody, XContentType.JSON).get();
+        prepareCreate("test").setSource(indexBody, MediaTypeRegistry.JSON).get();
         ensureGreen("test");
 
         List<IndexRequestBuilder> reqs = new ArrayList<>();
@@ -495,7 +490,7 @@ public class SimpleQueryStringIT extends OpenSearchIntegTestCase {
 
     public void testWithLotsOfTypes() throws Exception {
         String indexBody = copyToStringFromClasspath("/org/opensearch/search/query/all-query-index.json");
-        prepareCreate("test").setSource(indexBody, XContentType.JSON).get();
+        prepareCreate("test").setSource(indexBody, MediaTypeRegistry.JSON).get();
         ensureGreen("test");
 
         List<IndexRequestBuilder> reqs = new ArrayList<>();
@@ -526,12 +521,12 @@ public class SimpleQueryStringIT extends OpenSearchIntegTestCase {
 
     public void testDocWithAllTypes() throws Exception {
         String indexBody = copyToStringFromClasspath("/org/opensearch/search/query/all-query-index.json");
-        prepareCreate("test").setSource(indexBody, XContentType.JSON).get();
+        prepareCreate("test").setSource(indexBody, MediaTypeRegistry.JSON).get();
         ensureGreen("test");
 
         List<IndexRequestBuilder> reqs = new ArrayList<>();
         String docBody = copyToStringFromClasspath("/org/opensearch/search/query/all-example-document.json");
-        reqs.add(client().prepareIndex("test").setId("1").setSource(docBody, XContentType.JSON));
+        reqs.add(client().prepareIndex("test").setId("1").setSource(docBody, MediaTypeRegistry.JSON));
         indexRandom(true, false, reqs);
 
         SearchResponse resp = client().prepareSearch("test").setQuery(simpleQueryStringQuery("foo")).get();
@@ -571,7 +566,7 @@ public class SimpleQueryStringIT extends OpenSearchIntegTestCase {
 
     public void testKeywordWithWhitespace() throws Exception {
         String indexBody = copyToStringFromClasspath("/org/opensearch/search/query/all-query-index.json");
-        prepareCreate("test").setSource(indexBody, XContentType.JSON).get();
+        prepareCreate("test").setSource(indexBody, MediaTypeRegistry.JSON).get();
         ensureGreen("test");
 
         List<IndexRequestBuilder> reqs = new ArrayList<>();
@@ -591,7 +586,7 @@ public class SimpleQueryStringIT extends OpenSearchIntegTestCase {
 
     public void testAllFieldsWithSpecifiedLeniency() throws IOException {
         String indexBody = copyToStringFromClasspath("/org/opensearch/search/query/all-query-index.json");
-        prepareCreate("test").setSource(indexBody, XContentType.JSON).get();
+        prepareCreate("test").setSource(indexBody, MediaTypeRegistry.JSON).get();
         ensureGreen("test");
 
         SearchPhaseExecutionException e = expectThrows(
@@ -638,7 +633,7 @@ public class SimpleQueryStringIT extends OpenSearchIntegTestCase {
 
     public void testFieldAlias() throws Exception {
         String indexBody = copyToStringFromClasspath("/org/opensearch/search/query/all-query-index.json");
-        assertAcked(prepareCreate("test").setSource(indexBody, XContentType.JSON));
+        assertAcked(prepareCreate("test").setSource(indexBody, MediaTypeRegistry.JSON));
         ensureGreen("test");
 
         List<IndexRequestBuilder> indexRequests = new ArrayList<>();
@@ -656,7 +651,7 @@ public class SimpleQueryStringIT extends OpenSearchIntegTestCase {
 
     public void testFieldAliasWithWildcardField() throws Exception {
         String indexBody = copyToStringFromClasspath("/org/opensearch/search/query/all-query-index.json");
-        assertAcked(prepareCreate("test").setSource(indexBody, XContentType.JSON));
+        assertAcked(prepareCreate("test").setSource(indexBody, MediaTypeRegistry.JSON));
         ensureGreen("test");
 
         List<IndexRequestBuilder> indexRequests = new ArrayList<>();
@@ -674,7 +669,7 @@ public class SimpleQueryStringIT extends OpenSearchIntegTestCase {
 
     public void testFieldAliasOnDisallowedFieldType() throws Exception {
         String indexBody = copyToStringFromClasspath("/org/opensearch/search/query/all-query-index.json");
-        assertAcked(prepareCreate("test").setSource(indexBody, XContentType.JSON));
+        assertAcked(prepareCreate("test").setSource(indexBody, MediaTypeRegistry.JSON));
         ensureGreen("test");
 
         List<IndexRequestBuilder> indexRequests = new ArrayList<>();

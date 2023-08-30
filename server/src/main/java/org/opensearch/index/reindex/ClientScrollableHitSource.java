@@ -35,7 +35,6 @@ package org.opensearch.index.reindex;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.ExceptionsHelper;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.bulk.BackoffPolicy;
 import org.opensearch.action.search.ClearScrollRequest;
 import org.opensearch.action.search.ClearScrollResponse;
@@ -45,12 +44,13 @@ import org.opensearch.action.search.SearchScrollRequest;
 import org.opensearch.action.search.ShardSearchFailure;
 import org.opensearch.client.Client;
 import org.opensearch.client.ParentTaskAssigningClient;
-import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.document.DocumentField;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
-import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.mapper.RoutingFieldMapper;
 import org.opensearch.search.SearchHit;
 import org.opensearch.threadpool.ThreadPool;
@@ -62,7 +62,7 @@ import java.util.function.Consumer;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableList;
 import static org.opensearch.common.unit.TimeValue.timeValueNanos;
-import static org.opensearch.common.util.CollectionUtils.isEmpty;
+import static org.opensearch.core.common.util.CollectionUtils.isEmpty;
 
 /**
  * A scrollable source of hits from a {@linkplain Client} instance.
@@ -209,8 +209,8 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
         }
 
         @Override
-        public XContentType getXContentType() {
-            return XContentHelper.xContentType(source);
+        public MediaType getMediaType() {
+            return MediaTypeRegistry.xContentType(source);
         }
 
         @Override

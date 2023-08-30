@@ -34,7 +34,7 @@ package org.opensearch.action.admin.indices.mapping.put;
 
 import org.opensearch.action.RequestValidators;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
-import org.opensearch.index.Index;
+import org.opensearch.core.index.Index;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;

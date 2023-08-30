@@ -38,6 +38,7 @@ dependencies {
   api project(':libs:opensearch-nio')
   api project(":server")
   api project(":libs:opensearch-cli")
+  api project(":test:telemetry")
   api "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   api "junit:junit:${versions.junit}"
   api "org.hamcrest:hamcrest:${versions.hamcrest}"
@@ -48,11 +49,14 @@ dependencies {
   api "org.mockito:mockito-core:${versions.mockito}"
   api "net.bytebuddy:byte-buddy:${versions.bytebuddy}"
   api "org.objenesis:objenesis:${versions.objenesis}"
+
+  annotationProcessor "org.apache.logging.log4j:log4j-core:${versions.log4j}"
 }
 
 compileJava.options.compilerArgs -= '-Xlint:cast'
 compileJava.options.compilerArgs -= '-Xlint:rawtypes'
 compileJava.options.compilerArgs -= '-Xlint:unchecked'
+compileJava.options.compilerArgs += ['-processor', 'org.apache.logging.log4j.core.config.plugins.processor.PluginProcessor']
 compileTestJava.options.compilerArgs -= '-Xlint:rawtypes'
 
 // the main files are actually test files, so use the appropriate forbidden api sigs

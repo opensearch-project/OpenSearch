@@ -31,14 +31,13 @@
 
 package org.opensearch.client;
 
-import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContent;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -59,7 +58,7 @@ public abstract class AbstractResponseTestCase<S extends ToXContent, C> extends 
         final S serverTestInstance = createServerTestInstance(xContentType);
         final BytesReference bytes = toShuffledXContent(serverTestInstance, xContentType, getParams(), randomBoolean());
 
-        final XContent xContent = XContentFactory.xContent(xContentType);
+        final XContent xContent = xContentType.xContent();
         final XContentParser parser = xContent.createParser(
             NamedXContentRegistry.EMPTY,
             LoggingDeprecationHandler.INSTANCE,

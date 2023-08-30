@@ -32,7 +32,6 @@
 
 package org.opensearch.cluster.routing;
 
-import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import org.opensearch.action.DocWriteResponse;
 import org.opensearch.action.admin.cluster.reroute.ClusterRerouteRequestBuilder;
 import org.opensearch.action.admin.indices.shards.IndicesShardStoresResponse;
@@ -47,23 +46,22 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.allocation.command.AllocateEmptyPrimaryAllocationCommand;
 import org.opensearch.cluster.routing.allocation.command.AllocateStalePrimaryAllocationCommand;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.Strings;
-import org.opensearch.common.collect.ImmutableOpenIntMap;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.set.Sets;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.gateway.GatewayAllocator;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineTestCase;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
-import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.test.InternalTestCluster;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.disruption.NetworkDisruption;
 import org.opensearch.test.disruption.NetworkDisruption.TwoPartitions;
 import org.opensearch.test.transport.MockTransportService;
@@ -74,6 +72,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -137,7 +136,7 @@ public class PrimaryAllocationIT extends OpenSearchIntegTestCase {
         assertThat(bulkResponse.hasFailures(), equalTo(false));
         assertThat(bulkResponse.getItems().length, equalTo(2));
 
-        logger.info(Strings.toString(XContentType.JSON, bulkResponse, true, true));
+        logger.info(Strings.toString(MediaTypeRegistry.JSON, bulkResponse, true, true));
 
         internalCluster().assertSeqNos();
 
@@ -316,16 +315,16 @@ public class PrimaryAllocationIT extends OpenSearchIntegTestCase {
         boolean useStaleReplica = randomBoolean(); // if true, use stale replica, otherwise a completely empty copy
         logger.info("--> explicitly promote old primary shard");
         final String idxName = "test";
-        ImmutableOpenIntMap<List<IndicesShardStoresResponse.StoreStatus>> storeStatuses = client().admin()
+        final Map<Integer, List<IndicesShardStoresResponse.StoreStatus>> storeStatuses = client().admin()
             .indices()
             .prepareShardStores(idxName)
             .get()
             .getStoreStatuses()
             .get(idxName);
         ClusterRerouteRequestBuilder rerouteBuilder = client().admin().cluster().prepareReroute();
-        for (IntObjectCursor<List<IndicesShardStoresResponse.StoreStatus>> shardStoreStatuses : storeStatuses) {
-            int shardId = shardStoreStatuses.key;
-            IndicesShardStoresResponse.StoreStatus storeStatus = randomFrom(shardStoreStatuses.value);
+        for (var shardStoreStatuses : storeStatuses.entrySet()) {
+            int shardId = shardStoreStatuses.getKey();
+            IndicesShardStoresResponse.StoreStatus storeStatus = randomFrom(shardStoreStatuses.getValue());
             logger.info("--> adding allocation command for shard {}", shardId);
             // force allocation based on node id
             if (useStaleReplica) {

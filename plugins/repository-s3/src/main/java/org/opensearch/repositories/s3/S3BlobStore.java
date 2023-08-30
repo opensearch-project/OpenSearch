@@ -32,6 +32,9 @@
 
 package org.opensearch.repositories.s3;
 
+import software.amazon.awssdk.services.s3.model.ObjectCannedACL;
+import software.amazon.awssdk.services.s3.model.StorageClass;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
@@ -39,9 +42,9 @@ import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.blobstore.BlobStoreException;
-import org.opensearch.common.unit.ByteSizeValue;
-import software.amazon.awssdk.services.s3.model.ObjectCannedACL;
-import software.amazon.awssdk.services.s3.model.StorageClass;
+import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.repositories.s3.async.AsyncExecutorContainer;
+import org.opensearch.repositories.s3.async.AsyncTransferManager;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -52,6 +55,8 @@ class S3BlobStore implements BlobStore {
     private static final Logger logger = LogManager.getLogger(S3BlobStore.class);
 
     private final S3Service service;
+
+    private final S3AsyncService s3AsyncService;
 
     private final String bucket;
 
@@ -67,22 +72,41 @@ class S3BlobStore implements BlobStore {
 
     private final StatsMetricPublisher statsMetricPublisher = new StatsMetricPublisher();
 
+    private final AsyncTransferManager asyncTransferManager;
+    private final AsyncExecutorContainer priorityExecutorBuilder;
+    private final AsyncExecutorContainer normalExecutorBuilder;
+    private final boolean multipartUploadEnabled;
+
     S3BlobStore(
         S3Service service,
+        S3AsyncService s3AsyncService,
+        boolean multipartUploadEnabled,
         String bucket,
         boolean serverSideEncryption,
         ByteSizeValue bufferSize,
         String cannedACL,
         String storageClass,
-        RepositoryMetadata repositoryMetadata
+        RepositoryMetadata repositoryMetadata,
+        AsyncTransferManager asyncTransferManager,
+        AsyncExecutorContainer priorityExecutorBuilder,
+        AsyncExecutorContainer normalExecutorBuilder
     ) {
         this.service = service;
+        this.s3AsyncService = s3AsyncService;
+        this.multipartUploadEnabled = multipartUploadEnabled;
         this.bucket = bucket;
         this.serverSideEncryption = serverSideEncryption;
         this.bufferSize = bufferSize;
         this.cannedACL = initCannedACL(cannedACL);
         this.storageClass = initStorageClass(storageClass);
         this.repositoryMetadata = repositoryMetadata;
+        this.asyncTransferManager = asyncTransferManager;
+        this.normalExecutorBuilder = normalExecutorBuilder;
+        this.priorityExecutorBuilder = priorityExecutorBuilder;
+    }
+
+    public boolean isMultipartUploadEnabled() {
+        return multipartUploadEnabled;
     }
 
     @Override
@@ -92,6 +116,10 @@ class S3BlobStore implements BlobStore {
 
     public AmazonS3Reference clientReference() {
         return service.client(repositoryMetadata);
+    }
+
+    public AmazonAsyncS3Reference asyncClientReference() {
+        return s3AsyncService.client(repositoryMetadata, priorityExecutorBuilder, normalExecutorBuilder);
     }
 
     int getMaxRetries() {
@@ -117,7 +145,12 @@ class S3BlobStore implements BlobStore {
 
     @Override
     public void close() throws IOException {
-        this.service.close();
+        if (service != null) {
+            this.service.close();
+        }
+        if (s3AsyncService != null) {
+            this.s3AsyncService.close();
+        }
     }
 
     @Override
@@ -169,5 +202,9 @@ class S3BlobStore implements BlobStore {
         }
 
         throw new BlobStoreException("cannedACL is not valid: [" + cannedACL + "]");
+    }
+
+    public AsyncTransferManager getAsyncTransferManager() {
+        return asyncTransferManager;
     }
 }

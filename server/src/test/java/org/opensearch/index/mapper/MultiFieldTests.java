@@ -35,14 +35,13 @@ package org.opensearch.index.mapper;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
-import org.opensearch.common.Strings;
-import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressedXContent;
-import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.support.XContentMapValues;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.mapper.ParseContext.Document;
 import org.opensearch.index.mapper.TextFieldMapper.TextFieldType;
@@ -76,7 +75,7 @@ public class MultiFieldTests extends OpenSearchSingleNodeTestCase {
             .merge(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
 
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/opensearch/index/mapper/multifield/test-data.json"));
-        Document doc = mapperService.documentMapper().parse(new SourceToParse("test", "1", json, XContentType.JSON)).rootDoc();
+        Document doc = mapperService.documentMapper().parse(new SourceToParse("test", "1", json, MediaTypeRegistry.JSON)).rootDoc();
 
         IndexableField f = doc.getField("name");
         assertThat(f.name(), equalTo("name"));
@@ -155,7 +154,7 @@ public class MultiFieldTests extends OpenSearchSingleNodeTestCase {
             .parse(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(builtMapping));
 
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/opensearch/index/mapper/multifield/test-data.json"));
-        Document doc = docMapper.parse(new SourceToParse("test", "1", json, XContentType.JSON)).rootDoc();
+        Document doc = docMapper.parse(new SourceToParse("test", "1", json, MediaTypeRegistry.JSON)).rootDoc();
 
         IndexableField f = doc.getField("name");
         assertThat(f.name(), equalTo("name"));
@@ -196,7 +195,7 @@ public class MultiFieldTests extends OpenSearchSingleNodeTestCase {
             builder = builder.startObject(multiFieldName).field("type", "text").endObject();
         }
         builder = builder.endObject().endObject().endObject().endObject().endObject();
-        String mapping = Strings.toString(builder);
+        String mapping = builder.toString();
         DocumentMapper docMapper = createIndex("test").mapperService()
             .documentMapperParser()
             .parse("type", new CompressedXContent(mapping));
@@ -222,22 +221,21 @@ public class MultiFieldTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testObjectFieldNotAllowed() throws Exception {
-        String mapping = Strings.toString(
-            jsonBuilder().startObject()
-                .startObject("type")
-                .startObject("properties")
-                .startObject("my_field")
-                .field("type", "text")
-                .startObject("fields")
-                .startObject("multi")
-                .field("type", "object")
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
+        String mapping = jsonBuilder().startObject()
+            .startObject("type")
+            .startObject("properties")
+            .startObject("my_field")
+            .field("type", "text")
+            .startObject("fields")
+            .startObject("multi")
+            .field("type", "object")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
         final DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
         try {
             parser.parse("type", new CompressedXContent(mapping));
@@ -248,22 +246,21 @@ public class MultiFieldTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testNestedFieldNotAllowed() throws Exception {
-        String mapping = Strings.toString(
-            jsonBuilder().startObject()
-                .startObject("type")
-                .startObject("properties")
-                .startObject("my_field")
-                .field("type", "text")
-                .startObject("fields")
-                .startObject("multi")
-                .field("type", "nested")
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
+        String mapping = jsonBuilder().startObject()
+            .startObject("type")
+            .startObject("properties")
+            .startObject("my_field")
+            .field("type", "text")
+            .startObject("fields")
+            .startObject("multi")
+            .field("type", "nested")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
         final DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
         try {
             parser.parse("type", new CompressedXContent(mapping));
@@ -293,7 +290,7 @@ public class MultiFieldTests extends OpenSearchSingleNodeTestCase {
 
         MapperService mapperService = createIndex("test").mapperService();
         try {
-            mapperService.documentMapperParser().parse("my_type", new CompressedXContent(Strings.toString(mapping)));
+            mapperService.documentMapperParser().parse("my_type", new CompressedXContent(mapping.toString()));
             fail("this should throw an exception because one field contains a dot");
         } catch (MapperParsingException e) {
             assertThat(e.getMessage(), equalTo("Field name [raw.foo] which is a multi field of [city] cannot contain '.'"));

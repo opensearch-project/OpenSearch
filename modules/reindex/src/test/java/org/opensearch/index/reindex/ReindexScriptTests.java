@@ -35,9 +35,10 @@ package org.opensearch.index.reindex;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.script.ScriptService;
-import org.mockito.Mockito;
 
 import java.util.Map;
+
+import org.mockito.Mockito;
 
 import static org.hamcrest.Matchers.containsString;
 

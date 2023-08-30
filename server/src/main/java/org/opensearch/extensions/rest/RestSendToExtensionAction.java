@@ -12,36 +12,39 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionModule.DynamicActionRegistry;
 import org.opensearch.client.node.NodeClient;
-import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.rest.RestStatus;
+import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.extensions.DiscoveryExtensionNode;
 import org.opensearch.extensions.ExtensionsManager;
+import org.opensearch.http.HttpRequest;
+import org.opensearch.identity.IdentityService;
+import org.opensearch.identity.Subject;
+import org.opensearch.identity.tokens.OnBehalfOfClaims;
+import org.opensearch.identity.tokens.TokenManager;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.NamedRoute;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestRequest.Method;
-import org.opensearch.rest.RestStatus;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
-import org.opensearch.http.HttpRequest;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.security.Principal;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Collectors;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -54,19 +57,13 @@ public class RestSendToExtensionAction extends BaseRestHandler {
 
     private static final String SEND_TO_EXTENSION_ACTION = "send_to_extension_action";
     private static final Logger logger = LogManager.getLogger(RestSendToExtensionAction.class);
-    // To replace with user identity see https://github.com/opensearch-project/OpenSearch/pull/4247
-    private static final Principal DEFAULT_PRINCIPAL = new Principal() {
-        @Override
-        public String getName() {
-            return "OpenSearchUser";
-        }
-    };
 
     private final List<Route> routes;
     private final List<DeprecatedRoute> deprecatedRoutes;
     private final String pathPrefix;
     private final DiscoveryExtensionNode discoveryExtensionNode;
     private final TransportService transportService;
+    private final IdentityService identityService;
 
     private static final Set<String> allowList = Set.of("Content-Type");
     private static final Set<String> denyList = Set.of("Authorization", "Proxy-Authorization");
@@ -82,7 +79,8 @@ public class RestSendToExtensionAction extends BaseRestHandler {
         RegisterRestActionsRequest restActionsRequest,
         DiscoveryExtensionNode discoveryExtensionNode,
         TransportService transportService,
-        DynamicActionRegistry dynamicActionRegistry
+        DynamicActionRegistry dynamicActionRegistry,
+        IdentityService identityService
     ) {
         this.pathPrefix = "/_extensions/_" + restActionsRequest.getUniqueId();
         RestRequest.Method method;
@@ -90,33 +88,43 @@ public class RestSendToExtensionAction extends BaseRestHandler {
 
         List<Route> restActionsAsRoutes = new ArrayList<>();
         for (String restAction : restActionsRequest.getRestActions()) {
-            Optional<String> name = Optional.empty();
+
+            // TODO Find a better way to parse these to avoid code-smells
+
+            String name;
+            Set<String> actionNames = new HashSet<>();
             String[] parts = restAction.split(" ");
-            if (parts.length < 2) {
-                throw new IllegalArgumentException("REST action must contain at least a REST method and route");
+            if (parts.length < 3) {
+                throw new IllegalArgumentException("REST action must contain at least a REST method, a route and a unique name");
             }
             try {
                 method = RestRequest.Method.valueOf(parts[0].trim());
                 path = pathPrefix + parts[1].trim();
-                if (parts.length > 2) {
-                    name = Optional.of(parts[2].trim());
+                name = parts[2].trim();
+
+                // comma-separated action names
+                if (parts.length > 3) {
+                    String[] actions = parts[3].split(",");
+                    for (String action : actions) {
+                        String trimmed = action.trim();
+                        if (!trimmed.isEmpty()) {
+                            actionNames.add(trimmed);
+                        }
+                    }
                 }
             } catch (IndexOutOfBoundsException | IllegalArgumentException e) {
                 throw new IllegalArgumentException(restAction + " does not begin with a valid REST method");
             }
-            logger.info("Registering: " + method + " " + path);
-            if (name.isPresent()) {
-                NamedRoute nr = new NamedRoute(method, path, name.get());
-                restActionsAsRoutes.add(nr);
-                dynamicActionRegistry.registerDynamicRoute(nr, this);
-            } else {
-                Route r = new Route(method, path);
-                restActionsAsRoutes.add(r);
-                dynamicActionRegistry.registerDynamicRoute(r, this);
-            }
+            logger.info("Registering: " + method + " " + path + " " + name);
+
+            // All extension routes being registered must have a unique name associated with them
+            NamedRoute nr = new NamedRoute.Builder().method(method).path(path).uniqueName(name).legacyActionNames(actionNames).build();
+            restActionsAsRoutes.add(nr);
+            dynamicActionRegistry.registerDynamicRoute(nr, this);
         }
         this.routes = unmodifiableList(restActionsAsRoutes);
 
+        // TODO: Modify {@link NamedRoute} to support deprecated route registration
         List<DeprecatedRoute> restActionsAsDeprecatedRoutes = new ArrayList<>();
         // Iterate in pairs of route / deprecation message
         List<String> deprecatedActions = restActionsRequest.getDeprecatedRestActions();
@@ -137,6 +145,7 @@ public class RestSendToExtensionAction extends BaseRestHandler {
 
         this.discoveryExtensionNode = discoveryExtensionNode;
         this.transportService = transportService;
+        this.identityService = identityService;
     }
 
     @Override
@@ -171,7 +180,7 @@ public class RestSendToExtensionAction extends BaseRestHandler {
         String uri = httpRequest.uri();
         Map<String, String> params = request.params();
         Map<String, List<String>> headers = request.getHeaders();
-        XContentType contentType = request.getXContentType();
+        MediaType contentType = request.getMediaType();
         BytesReference content = request.content();
         HttpRequest.HttpVersion httpVersion = httpRequest.protocolVersion();
 
@@ -230,11 +239,14 @@ public class RestSendToExtensionAction extends BaseRestHandler {
         };
 
         try {
+
             // Will be replaced with ExtensionTokenProcessor and PrincipalIdentifierToken classes from feature/identity
-            final String extensionTokenProcessor = "placeholder_token_processor";
-            final String requestIssuerIdentity = "placeholder_request_issuer_identity";
 
             Map<String, List<String>> filteredHeaders = filterHeaders(headers, allowList, denyList);
+
+            TokenManager tokenManager = identityService.getTokenManager();
+            Subject subject = this.identityService.getSubject();
+            OnBehalfOfClaims claims = new OnBehalfOfClaims(discoveryExtensionNode.getId(), subject.getPrincipal().getName());
 
             transportService.sendRequest(
                 discoveryExtensionNode,
@@ -249,7 +261,7 @@ public class RestSendToExtensionAction extends BaseRestHandler {
                     filteredHeaders,
                     contentType,
                     content,
-                    requestIssuerIdentity,
+                    tokenManager.issueOnBehalfOfToken(subject, claims).asAuthHeaderValue(),
                     httpVersion
                 ),
                 restExecuteOnExtensionResponseHandler

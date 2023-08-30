@@ -33,7 +33,6 @@
 package org.opensearch.action.get;
 
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.RoutingMissingException;
 import org.opensearch.action.support.ActionFilters;
@@ -47,18 +46,19 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.OperationRouting;
 import org.opensearch.cluster.routing.ShardIterator;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.AtomicArray;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.index.Index;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.index.Index;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.tasks.TaskId;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.tasks.Task;
-import org.opensearch.tasks.TaskId;
 import org.opensearch.tasks.TaskManager;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
@@ -139,7 +139,7 @@ public class TransportMultiGetActionTests extends OpenSearchTestCase {
                                         .endObject()
                                 ),
                                 true,
-                                XContentType.JSON
+                                MediaTypeRegistry.JSON
                             )
                         )
                 )
@@ -164,7 +164,7 @@ public class TransportMultiGetActionTests extends OpenSearchTestCase {
                                             .endObject()
                                     ),
                                     true,
-                                    XContentType.JSON
+                                    MediaTypeRegistry.JSON
                                 )
                             )
                     )

@@ -12,23 +12,23 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.RateLimiter;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ChannelActionListener;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.common.util.concurrent.AbstractRefCounted;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.IndexShard;
-import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.recovery.FileChunkRequest;
 import org.opensearch.indices.recovery.RecoveryTransportRequest;
 import org.opensearch.transport.TransportChannel;
-import org.opensearch.transport.TransportResponse;
 
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -173,6 +173,7 @@ public abstract class ReplicationTarget extends AbstractRefCounted {
     public void fail(ReplicationFailedException e, boolean sendShardFailure) {
         if (finished.compareAndSet(false, true)) {
             try {
+                logger.debug("marking target " + description() + " as failed", e);
                 notifyListener(e, sendShardFailure);
             } finally {
                 try {

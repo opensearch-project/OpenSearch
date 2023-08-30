@@ -34,16 +34,17 @@ package org.opensearch.action.support.replication;
 
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.support.replication.ReplicationResponse.ShardInfo;
-import org.opensearch.common.Strings;
-import org.opensearch.common.breaker.CircuitBreaker;
-import org.opensearch.common.breaker.CircuitBreakingException;
-import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.breaker.CircuitBreaker;
+import org.opensearch.core.common.breaker.CircuitBreakingException;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.rest.RestStatus;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.index.shard.ShardId;
-import org.opensearch.rest.RestStatus;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.RandomObjects;
 
@@ -51,7 +52,7 @@ import java.io.IOException;
 import java.util.Locale;
 
 import static org.opensearch.OpenSearchExceptionTests.assertDeepEquals;
-import static org.opensearch.common.xcontent.XContentHelper.toXContent;
+import static org.opensearch.core.xcontent.XContentHelper.toXContent;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertToXContentEquivalent;
 
 public class ReplicationResponseTests extends OpenSearchTestCase {
@@ -66,7 +67,7 @@ public class ReplicationResponseTests extends OpenSearchTestCase {
     public void testShardInfoToXContent() throws IOException {
         {
             ShardInfo shardInfo = new ShardInfo(5, 3);
-            String output = Strings.toString(XContentType.JSON, shardInfo);
+            String output = Strings.toString(MediaTypeRegistry.JSON, shardInfo);
             assertEquals("{\"total\":5,\"successful\":3,\"failed\":0}", output);
         }
         {
@@ -88,7 +89,7 @@ public class ReplicationResponseTests extends OpenSearchTestCase {
                     true
                 )
             );
-            String output = Strings.toString(XContentType.JSON, shardInfo);
+            String output = Strings.toString(MediaTypeRegistry.JSON, shardInfo);
             assertEquals(
                 "{\"total\":6,\"successful\":4,\"failed\":2,\"failures\":[{\"_index\":\"index\",\"_shard\":3,"
                     + "\"_node\":\"_node_id\",\"reason\":{\"type\":\"illegal_argument_exception\",\"reason\":\"Wrong\"},"

@@ -38,8 +38,8 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.env.NodeMetadata;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.InternalTestCluster;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.VersionUtils;
 
 import java.nio.file.Path;

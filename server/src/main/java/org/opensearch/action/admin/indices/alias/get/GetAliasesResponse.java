@@ -32,10 +32,10 @@
 
 package org.opensearch.action.admin.indices.alias.get;
 
-import org.opensearch.action.ActionResponse;
 import org.opensearch.cluster.metadata.AliasMetadata;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.action.ActionResponse;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 import java.util.Collections;

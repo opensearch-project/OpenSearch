@@ -32,6 +32,7 @@
 package org.opensearch.ingest;
 
 import org.opensearch.OpenSearchException;
+import org.opensearch.common.metrics.OperationStats;
 import org.opensearch.script.ScriptService;
 import org.opensearch.script.TemplateScript;
 import org.opensearch.test.OpenSearchTestCase;
@@ -192,29 +193,29 @@ public class PipelineProcessorTests extends OpenSearchTestCase {
         assertNotNull(ingestDocument.getSourceAndMetadata().get(key1));
 
         // check the stats
-        IngestStats.Stats pipeline1Stats = pipeline1.getMetrics().createStats();
-        IngestStats.Stats pipeline2Stats = pipeline2.getMetrics().createStats();
-        IngestStats.Stats pipeline3Stats = pipeline3.getMetrics().createStats();
+        OperationStats pipeline1Stats = pipeline1.getMetrics().createStats();
+        OperationStats pipeline2Stats = pipeline2.getMetrics().createStats();
+        OperationStats pipeline3Stats = pipeline3.getMetrics().createStats();
 
         // current
-        assertThat(pipeline1Stats.getIngestCurrent(), equalTo(0L));
-        assertThat(pipeline2Stats.getIngestCurrent(), equalTo(0L));
-        assertThat(pipeline3Stats.getIngestCurrent(), equalTo(0L));
+        assertThat(pipeline1Stats.getCurrent(), equalTo(0L));
+        assertThat(pipeline2Stats.getCurrent(), equalTo(0L));
+        assertThat(pipeline3Stats.getCurrent(), equalTo(0L));
 
         // count
-        assertThat(pipeline1Stats.getIngestCount(), equalTo(1L));
-        assertThat(pipeline2Stats.getIngestCount(), equalTo(1L));
-        assertThat(pipeline3Stats.getIngestCount(), equalTo(1L));
+        assertThat(pipeline1Stats.getCount(), equalTo(1L));
+        assertThat(pipeline2Stats.getCount(), equalTo(1L));
+        assertThat(pipeline3Stats.getCount(), equalTo(1L));
 
         // time
-        assertThat(pipeline1Stats.getIngestTimeInMillis(), equalTo(0L));
-        assertThat(pipeline2Stats.getIngestTimeInMillis(), equalTo(3L));
-        assertThat(pipeline3Stats.getIngestTimeInMillis(), equalTo(2L));
+        assertThat(pipeline1Stats.getTotalTimeInMillis(), equalTo(0L));
+        assertThat(pipeline2Stats.getTotalTimeInMillis(), equalTo(3L));
+        assertThat(pipeline3Stats.getTotalTimeInMillis(), equalTo(2L));
 
         // failure
-        assertThat(pipeline1Stats.getIngestFailedCount(), equalTo(0L));
-        assertThat(pipeline2Stats.getIngestFailedCount(), equalTo(0L));
-        assertThat(pipeline3Stats.getIngestFailedCount(), equalTo(1L));
+        assertThat(pipeline1Stats.getFailedCount(), equalTo(0L));
+        assertThat(pipeline2Stats.getFailedCount(), equalTo(0L));
+        assertThat(pipeline3Stats.getFailedCount(), equalTo(1L));
     }
 
     public void testIngestPipelineMetadata() {

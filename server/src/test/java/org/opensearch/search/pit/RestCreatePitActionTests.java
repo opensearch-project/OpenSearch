@@ -8,11 +8,11 @@
 
 package org.opensearch.search.pit;
 
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.search.CreatePitRequest;
 import org.opensearch.action.search.CreatePitResponse;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.SetOnce;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.search.RestCreatePitAction;
 import org.opensearch.test.OpenSearchTestCase;

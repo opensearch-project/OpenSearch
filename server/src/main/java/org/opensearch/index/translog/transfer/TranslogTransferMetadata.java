@@ -9,9 +9,9 @@
 package org.opensearch.index.translog.transfer;
 
 import org.opensearch.common.SetOnce;
+import org.opensearch.index.remote.RemoteStoreUtils;
 
 import java.util.Arrays;
-import java.util.Comparator;
 import java.util.Map;
 import java.util.Objects;
 
@@ -36,19 +36,22 @@ public class TranslogTransferMetadata {
 
     public static final String METADATA_SEPARATOR = "__";
 
+    public static final String METADATA_PREFIX = "metadata";
+
     static final int BUFFER_SIZE = 4096;
 
     static final int CURRENT_VERSION = 1;
 
     static final String METADATA_CODEC = "md";
 
-    public static final Comparator<String> METADATA_FILENAME_COMPARATOR = new MetadataFilenameComparator();
+    private final long createdAt;
 
     public TranslogTransferMetadata(long primaryTerm, long generation, long minTranslogGeneration, int count) {
         this.primaryTerm = primaryTerm;
         this.generation = generation;
         this.minTranslogGeneration = minTranslogGeneration;
         this.count = count;
+        this.createdAt = System.currentTimeMillis();
     }
 
     public long getPrimaryTerm() {
@@ -75,8 +78,20 @@ public class TranslogTransferMetadata {
         return generationToPrimaryTermMapper.get();
     }
 
-    public static String getFileName(long primaryTerm, long generation) {
-        return String.join(METADATA_SEPARATOR, Arrays.asList(String.valueOf(primaryTerm), String.valueOf(generation)));
+    /*
+    This should be used only at the time of creation.
+     */
+    public String getFileName() {
+        return String.join(
+            METADATA_SEPARATOR,
+            Arrays.asList(
+                METADATA_PREFIX,
+                RemoteStoreUtils.invertLong(primaryTerm),
+                RemoteStoreUtils.invertLong(generation),
+                RemoteStoreUtils.invertLong(createdAt),
+                String.valueOf(CURRENT_VERSION)
+            )
+        );
     }
 
     @Override
@@ -90,23 +105,5 @@ public class TranslogTransferMetadata {
         if (o == null || getClass() != o.getClass()) return false;
         TranslogTransferMetadata other = (TranslogTransferMetadata) o;
         return Objects.equals(this.primaryTerm, other.primaryTerm) && Objects.equals(this.generation, other.generation);
-    }
-
-    private static class MetadataFilenameComparator implements Comparator<String> {
-        @Override
-        public int compare(String first, String second) {
-            // Format of metadata filename is <Primary Term>__<Generation>
-            String[] filenameTokens1 = first.split(METADATA_SEPARATOR);
-            String[] filenameTokens2 = second.split(METADATA_SEPARATOR);
-            // Here, we are comparing only primary term and generation.
-            for (int i = 0; i < filenameTokens1.length; i++) {
-                if (filenameTokens1[i].equals(filenameTokens2[i]) == false) {
-                    return Long.compare(Long.parseLong(filenameTokens1[i]), Long.parseLong(filenameTokens2[i]));
-                }
-            }
-            throw new IllegalArgumentException(
-                "TranslogTransferMetadata files " + first + " and " + second + " have same primary term and generation"
-            );
-        }
     }
 }

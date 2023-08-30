@@ -30,7 +30,9 @@
 
 apply plugin: 'opensearch.build'
 
-archivesBaseName = 'opensearch-plugin-cli'
+base {
+  archivesBaseName = 'opensearch-plugin-cli'
+}
 
 dependencies {
   compileOnly project(":server")
@@ -38,8 +40,10 @@ dependencies {
   api "org.bouncycastle:bcpg-fips:1.0.7.1"
   api "org.bouncycastle:bc-fips:1.0.2.3"
   testImplementation project(":test:framework")
-  testImplementation 'com.google.jimfs:jimfs:1.2'
-  testRuntimeOnly 'com.google.guava:guava:32.0.1-jre'
+  testImplementation 'com.google.jimfs:jimfs:1.3.0'
+  testRuntimeOnly("com.google.guava:guava:${versions.guava}") {
+    transitive = false
+  }
 
   implementation 'org.apache.commons:commons-compress:1.23.0'
 }

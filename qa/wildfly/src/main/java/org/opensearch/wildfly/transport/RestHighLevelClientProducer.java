@@ -38,10 +38,10 @@ import org.opensearch.client.RestHighLevelClient;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.io.PathUtils;
 
-import javax.enterprise.inject.Produces;
-
 import java.net.URISyntaxException;
 import java.nio.file.Path;
+
+import jakarta.enterprise.inject.Produces;
 
 @SuppressWarnings("unused")
 public final class RestHighLevelClientProducer {

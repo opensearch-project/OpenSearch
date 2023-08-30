@@ -34,11 +34,11 @@ package org.opensearch.test;
 
 import com.carrotsearch.randomizedtesting.RandomizedContext;
 
-import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 
 import java.util.Map;
 
@@ -59,14 +59,14 @@ public class AbstractXContentTestCaseTests extends OpenSearchTestCase {
                 1,
                 () -> AbstractXContentTestCase.insertRandomFieldsAndShuffle(
                     BytesReference.bytes(builder),
-                    XContentType.JSON,
+                    MediaTypeRegistry.JSON,
                     true,
                     new String[] {},
                     null,
                     this::createParser
                 )
             );
-        try (XContentParser parser = createParser(XContentType.JSON.xContent(), insertRandomFieldsAndShuffle)) {
+        try (XContentParser parser = createParser(MediaTypeRegistry.JSON.xContent(), insertRandomFieldsAndShuffle)) {
             Map<String, Object> mapOrdered = parser.mapOrdered();
             assertThat(mapOrdered.size(), equalTo(2));
             assertThat(mapOrdered.keySet().iterator().next(), not(equalTo("field")));

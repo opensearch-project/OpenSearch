@@ -31,7 +31,6 @@
 
 package org.opensearch.action.search;
 
-import com.carrotsearch.hppc.IntArrayList;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.search.ScoreDoc;
@@ -92,7 +91,7 @@ final class FetchSearchPhase extends SearchPhase {
         SearchPhaseContext context,
         BiFunction<InternalSearchResponse, AtomicArray<SearchPhaseResult>, SearchPhase> nextPhaseFactory
     ) {
-        super("fetch");
+        super(SearchPhaseName.FETCH.getName());
         if (context.getNumShards() != resultConsumer.getNumShards()) {
             throw new IllegalStateException(
                 "number of shards must match the length of the query results but doesn't:"
@@ -151,7 +150,7 @@ final class FetchSearchPhase extends SearchPhase {
             finishPhase.run();
         } else {
             ScoreDoc[] scoreDocs = reducedQueryPhase.sortedTopDocs.scoreDocs;
-            final IntArrayList[] docIdsToLoad = searchPhaseController.fillDocIdsToLoad(numShards, scoreDocs);
+            final List<Integer>[] docIdsToLoad = searchPhaseController.fillDocIdsToLoad(numShards, scoreDocs);
             // no docs to fetch -- sidestep everything and return
             if (scoreDocs.length == 0) {
                 // we have to release contexts here to free up resources
@@ -168,7 +167,7 @@ final class FetchSearchPhase extends SearchPhase {
                     context
                 );
                 for (int i = 0; i < docIdsToLoad.length; i++) {
-                    IntArrayList entry = docIdsToLoad[i];
+                    List<Integer> entry = docIdsToLoad[i];
                     SearchPhaseResult queryResult = queryResults.get(i);
                     if (entry == null) { // no results for this shard ID
                         if (queryResult != null) {
@@ -205,7 +204,7 @@ final class FetchSearchPhase extends SearchPhase {
     protected ShardFetchSearchRequest createFetchRequest(
         ShardSearchContextId contextId,
         int index,
-        IntArrayList entry,
+        List<Integer> entry,
         ScoreDoc[] lastEmittedDocPerShard,
         OriginalIndices originalIndices,
         ShardSearchRequest shardSearchRequest,

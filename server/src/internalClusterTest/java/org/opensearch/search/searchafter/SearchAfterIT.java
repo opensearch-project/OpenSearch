@@ -32,7 +32,6 @@
 
 package org.opensearch.search.searchafter;
 
-import org.opensearch.action.ActionFuture;
 import org.opensearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.CreatePitAction;
@@ -43,6 +42,7 @@ import org.opensearch.action.search.SearchRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.ShardSearchFailure;
 import org.opensearch.common.UUIDs;
+import org.opensearch.common.action.ActionFuture;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.search.SearchHit;
@@ -51,15 +51,15 @@ import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.hamcrest.Matchers;
 
-import java.util.List;
 import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.Collections;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
 
-import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 

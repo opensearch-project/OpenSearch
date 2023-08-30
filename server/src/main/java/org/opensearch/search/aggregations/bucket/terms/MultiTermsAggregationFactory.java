@@ -157,6 +157,11 @@ public class MultiTermsAggregationFactory extends AggregatorFactory {
         );
     }
 
+    @Override
+    protected boolean supportsConcurrentSegmentSearch() {
+        return true;
+    }
+
     /**
      * Supplier for internal values source
      *

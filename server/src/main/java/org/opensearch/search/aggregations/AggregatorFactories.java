@@ -32,13 +32,13 @@
 package org.opensearch.search.aggregations;
 
 import org.opensearch.action.ActionRequestValidationException;
-import org.opensearch.common.ParsingException;
-import org.opensearch.common.Strings;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.xcontent.SuggestingErrorOnUnknown;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.ParsingException;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedObjectNotFoundException;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -235,7 +235,7 @@ public class AggregatorFactories {
             }
         }
 
-        return factories;
+        return factories.count() > 0 ? factories : null;
     }
 
     public static final AggregatorFactories EMPTY = new AggregatorFactories(new AggregatorFactory[0]);
@@ -255,6 +255,15 @@ public class AggregatorFactories {
 
     private AggregatorFactories(AggregatorFactory[] factories) {
         this.factories = factories;
+    }
+
+    public boolean allFactoriesSupportConcurrentSearch() {
+        for (AggregatorFactory factory : factories) {
+            if (factory.supportsConcurrentSegmentSearch() == false || factory.evaluateChildFactories() == false) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
@@ -591,7 +600,7 @@ public class AggregatorFactories {
 
         @Override
         public String toString() {
-            return Strings.toString(XContentType.JSON, this, true, true);
+            return Strings.toString(MediaTypeRegistry.JSON, this, true, true);
         }
 
         @Override

@@ -33,16 +33,16 @@
 package org.opensearch.action.index;
 
 import org.opensearch.action.DocWriteResponse;
-import org.opensearch.common.Strings;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.rest.RestStatus;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.index.shard.ShardId;
-import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
 
-import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /**
  * A response of an index operation,
@@ -90,7 +90,7 @@ public class IndexResponse extends DocWriteResponse {
         builder.append(",result=").append(getResult().getLowercase());
         builder.append(",seqNo=").append(getSeqNo());
         builder.append(",primaryTerm=").append(getPrimaryTerm());
-        builder.append(",shards=").append(Strings.toString(XContentType.JSON, getShardInfo()));
+        builder.append(",shards=").append(Strings.toString(MediaTypeRegistry.JSON, getShardInfo()));
         return builder.append("]").toString();
     }
 

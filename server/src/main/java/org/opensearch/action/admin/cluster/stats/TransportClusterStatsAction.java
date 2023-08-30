@@ -46,8 +46,8 @@ import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.cluster.health.ClusterStateHealth;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.engine.CommitStats;
 import org.opensearch.index.seqno.RetentionLeaseStats;
@@ -159,6 +159,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
             false,
             false,
             true,
+            false,
             false,
             false,
             false,

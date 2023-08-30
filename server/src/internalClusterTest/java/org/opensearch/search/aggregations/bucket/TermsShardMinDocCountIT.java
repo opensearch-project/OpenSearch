@@ -34,7 +34,7 @@ package org.opensearch.search.aggregations.bucket;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.search.aggregations.BucketOrder;
 import org.opensearch.search.aggregations.bucket.filter.InternalFilter;
@@ -124,10 +124,10 @@ public class TermsShardMinDocCountIT extends OpenSearchIntegTestCase {
         String sourceClass = "{\"text\": \"" + term + "\", \"class\":" + "true" + "}";
         String sourceNotClass = "{\"text\": \"" + term + "\", \"class\":" + "false" + "}";
         for (int i = 0; i < numInClass; i++) {
-            builders.add(client().prepareIndex(index).setSource(sourceClass, XContentType.JSON));
+            builders.add(client().prepareIndex(index).setSource(sourceClass, MediaTypeRegistry.JSON));
         }
         for (int i = 0; i < numNotInClass; i++) {
-            builders.add(client().prepareIndex(index).setSource(sourceNotClass, XContentType.JSON));
+            builders.add(client().prepareIndex(index).setSource(sourceNotClass, MediaTypeRegistry.JSON));
         }
     }
 
@@ -188,7 +188,7 @@ public class TermsShardMinDocCountIT extends OpenSearchIntegTestCase {
     private static void addTermsDocs(String term, int numDocs, List<IndexRequestBuilder> builders) {
         String sourceClass = "{\"text\": \"" + term + "\"}";
         for (int i = 0; i < numDocs; i++) {
-            builders.add(client().prepareIndex(index).setSource(sourceClass, XContentType.JSON));
+            builders.add(client().prepareIndex(index).setSource(sourceClass, MediaTypeRegistry.JSON));
         }
     }
 }

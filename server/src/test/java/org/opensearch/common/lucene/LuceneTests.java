@@ -31,29 +31,28 @@
 
 package org.opensearch.common.lucene;
 
-import org.apache.lucene.document.LatLonPoint;
-import org.apache.lucene.index.IndexCommit;
-import org.apache.lucene.index.IndexFormatTooOldException;
-import org.apache.lucene.index.StandardDirectoryReader;
-import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Field.Store;
 import org.apache.lucene.document.LatLonDocValuesField;
+import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoDeletionPolicy;
 import org.apache.lucene.index.NoMergePolicy;
-import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SoftDeletesRetentionMergePolicy;
+import org.apache.lucene.index.StandardDirectoryReader;
+import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
@@ -74,6 +73,8 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MMapDirectory;
+import org.apache.lucene.tests.analysis.MockAnalyzer;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.store.MockDirectoryWrapper;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.Bits;
@@ -81,8 +82,8 @@ import org.apache.lucene.util.BytesRef;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.common.collect.Tuple;
-import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.opensearch.index.fielddata.fieldcomparator.DoubleValuesComparatorSource;
@@ -565,12 +566,13 @@ public class LuceneTests extends OpenSearchTestCase {
         }
         try (DirectoryReader unwrapped = DirectoryReader.open(writer)) {
             DirectoryReader reader = Lucene.wrapAllDocsLive(unwrapped);
+            StoredFields storedFields = reader.storedFields();
             assertThat(reader.numDocs(), equalTo(liveDocs.size()));
             IndexSearcher searcher = new IndexSearcher(reader);
             Set<String> actualDocs = new HashSet<>();
             TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), Integer.MAX_VALUE);
             for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
-                actualDocs.add(reader.document(scoreDoc.doc).get("id"));
+                actualDocs.add(storedFields.document(scoreDoc.doc).get("id"));
             }
             assertThat(actualDocs, equalTo(liveDocs));
         }
@@ -609,13 +611,14 @@ public class LuceneTests extends OpenSearchTestCase {
         }
         try (DirectoryReader unwrapped = DirectoryReader.open(writer)) {
             DirectoryReader reader = Lucene.wrapAllDocsLive(unwrapped);
+            StoredFields storedFields = reader.storedFields();
             assertThat(reader.maxDoc(), equalTo(numDocs + abortedDocs));
             assertThat(reader.numDocs(), equalTo(liveDocs.size()));
             IndexSearcher searcher = new IndexSearcher(reader);
             List<String> actualDocs = new ArrayList<>();
             TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), Integer.MAX_VALUE);
             for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
-                actualDocs.add(reader.document(scoreDoc.doc).get("id"));
+                actualDocs.add(storedFields.document(scoreDoc.doc).get("id"));
             }
             assertThat(actualDocs, equalTo(liveDocs));
         }

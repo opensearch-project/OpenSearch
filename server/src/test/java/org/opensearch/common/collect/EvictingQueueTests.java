@@ -29,7 +29,7 @@
 
 package org.opensearch.common.collect;
 
-import org.opensearch.common.util.CollectionUtils;
+import org.opensearch.core.common.util.CollectionUtils;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Collections;

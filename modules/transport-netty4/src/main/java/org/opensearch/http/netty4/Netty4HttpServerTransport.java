@@ -32,6 +32,36 @@
 
 package org.opensearch.http.netty4;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.opensearch.ExceptionsHelper;
+import org.opensearch.common.network.NetworkService;
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Setting.Property;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.BigArrays;
+import org.opensearch.common.util.concurrent.OpenSearchExecutors;
+import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.common.util.net.NetUtils;
+import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.http.AbstractHttpServerTransport;
+import org.opensearch.http.HttpChannel;
+import org.opensearch.http.HttpHandlingSettings;
+import org.opensearch.http.HttpReadTimeoutException;
+import org.opensearch.http.HttpServerChannel;
+import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.NettyAllocator;
+import org.opensearch.transport.NettyByteBufSizer;
+import org.opensearch.transport.SharedGroupFactory;
+import org.opensearch.transport.netty4.Netty4Utils;
+
+import java.net.InetSocketAddress;
+import java.net.SocketOption;
+import java.util.concurrent.TimeUnit;
+
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
@@ -69,36 +99,6 @@ import io.netty.handler.timeout.ReadTimeoutHandler;
 import io.netty.util.AsciiString;
 import io.netty.util.AttributeKey;
 import io.netty.util.ReferenceCountUtil;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.opensearch.ExceptionsHelper;
-import org.opensearch.common.network.NetworkService;
-import org.opensearch.common.settings.ClusterSettings;
-import org.opensearch.common.settings.Setting;
-import org.opensearch.common.settings.Setting.Property;
-import org.opensearch.common.settings.Settings;
-import org.opensearch.common.unit.ByteSizeUnit;
-import org.opensearch.common.unit.ByteSizeValue;
-import org.opensearch.common.util.BigArrays;
-import org.opensearch.common.util.concurrent.OpenSearchExecutors;
-import org.opensearch.core.xcontent.NamedXContentRegistry;
-import org.opensearch.common.util.io.IOUtils;
-import org.opensearch.common.util.net.NetUtils;
-import org.opensearch.http.AbstractHttpServerTransport;
-import org.opensearch.http.HttpChannel;
-import org.opensearch.http.HttpHandlingSettings;
-import org.opensearch.http.HttpReadTimeoutException;
-import org.opensearch.http.HttpServerChannel;
-import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.transport.NettyAllocator;
-import org.opensearch.transport.NettyByteBufSizer;
-import org.opensearch.transport.SharedGroupFactory;
-import org.opensearch.transport.netty4.Netty4Utils;
-
-import java.net.InetSocketAddress;
-import java.net.SocketOption;
-import java.util.concurrent.TimeUnit;
 
 import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_MAX_CHUNK_SIZE;
 import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_MAX_CONTENT_LENGTH;

@@ -32,6 +32,7 @@
 package org.opensearch.index.mapper;
 
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
+
 import com.ibm.icu.text.Collator;
 import com.ibm.icu.text.RawCollationKey;
 import com.ibm.icu.util.ULocale;

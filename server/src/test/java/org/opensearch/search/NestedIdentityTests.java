@@ -32,15 +32,14 @@
 
 package org.opensearch.search;
 
-import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.core.xcontent.ToXContent;
-import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.search.SearchHit.NestedIdentity;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -66,7 +65,7 @@ public class NestedIdentityTests extends OpenSearchTestCase {
     public void testFromXContent() throws IOException {
         NestedIdentity nestedIdentity = createTestItem(randomInt(3));
         XContentType xcontentType = randomFrom(XContentType.values());
-        XContentBuilder builder = XContentFactory.contentBuilder(xcontentType);
+        XContentBuilder builder = MediaTypeRegistry.contentBuilder(xcontentType);
         if (randomBoolean()) {
             builder.prettyPrint();
         }
@@ -87,7 +86,7 @@ public class NestedIdentityTests extends OpenSearchTestCase {
         builder.endObject();
         assertEquals(
             "{\n" + "  \"_nested\" : {\n" + "    \"field\" : \"foo\",\n" + "    \"offset\" : 5\n" + "  }\n" + "}",
-            Strings.toString(builder)
+            builder.toString()
         );
 
         nestedIdentity = new NestedIdentity("foo", 5, new NestedIdentity("bar", 3, null));
@@ -107,7 +106,7 @@ public class NestedIdentityTests extends OpenSearchTestCase {
                 + "    }\n"
                 + "  }\n"
                 + "}",
-            Strings.toString(builder)
+            builder.toString()
         );
     }
 

@@ -33,9 +33,7 @@
 package org.opensearch.cluster;
 
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRequest;
-import org.opensearch.action.ActionResponse;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.opensearch.action.admin.indices.stats.IndicesStatsRequest;
@@ -47,12 +45,14 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterApplier;
 import org.opensearch.cluster.service.ClusterApplierService;
+import org.opensearch.cluster.service.ClusterManagerService;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.cluster.service.FakeThreadPoolClusterManagerService;
-import org.opensearch.cluster.service.ClusterManagerService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.PrioritizedOpenSearchThreadPoolExecutor;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.action.ActionResponse;
 import org.opensearch.node.Node;
 import org.opensearch.test.ClusterServiceUtils;
 import org.opensearch.test.OpenSearchTestCase;

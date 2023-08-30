@@ -32,34 +32,34 @@
 
 package org.opensearch.tasks;
 
-import com.carrotsearch.hppc.ObjectIntHashMap;
-import com.carrotsearch.hppc.ObjectIntMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.opensearch.core.Assertions;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.OpenSearchTimeoutException;
-import org.opensearch.action.ActionListener;
-import org.opensearch.action.ActionResponse;
-import org.opensearch.action.NotifyOnceListener;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterStateApplier;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.SetOnce;
+import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.util.concurrent.ConcurrentMapLong;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.common.lease.Releasable;
-import org.opensearch.common.lease.Releasables;
+import org.opensearch.core.Assertions;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.action.ActionResponse;
+import org.opensearch.core.action.NotifyOnceListener;
+import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.core.tasks.TaskCancelledException;
+import org.opensearch.core.tasks.TaskId;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TcpChannel;
 
@@ -80,7 +80,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 import static org.opensearch.common.unit.TimeValue.timeValueMillis;
 import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_MAX_HEADER_SIZE;
@@ -367,7 +366,7 @@ public class TaskManager implements ClusterStateApplier {
         }
         final TaskResult taskResult;
         try {
-            taskResult = task.result(localNode, error);
+            taskResult = task.result(localNode.getId(), error);
         } catch (IOException ex) {
             logger.warn(() -> new ParameterizedMessage("couldn't store error {}", ExceptionsHelper.detailedMessage(error)), ex);
             listener.onFailure(ex);
@@ -400,7 +399,7 @@ public class TaskManager implements ClusterStateApplier {
         }
         final TaskResult taskResult;
         try {
-            taskResult = task.result(localNode, response);
+            taskResult = task.result(localNode.getId(), response);
         } catch (IOException ex) {
             logger.warn(() -> new ParameterizedMessage("couldn't store response {}", response), ex);
             listener.onFailure(ex);
@@ -584,7 +583,7 @@ public class TaskManager implements ClusterStateApplier {
         private final CancellableTask task;
         private boolean finished = false;
         private List<Runnable> cancellationListeners = null;
-        private ObjectIntMap<DiscoveryNode> childTasksPerNode = null;
+        private Map<DiscoveryNode, Integer> childTasksPerNode = null;
         private boolean banChildren = false;
         private List<Runnable> childTaskCompletedListeners = null;
 
@@ -666,15 +665,15 @@ public class TaskManager implements ClusterStateApplier {
                 throw new TaskCancelledException("The parent task was cancelled, shouldn't start any child tasks");
             }
             if (childTasksPerNode == null) {
-                childTasksPerNode = new ObjectIntHashMap<>();
+                childTasksPerNode = new HashMap<>();
             }
-            childTasksPerNode.addTo(node, 1);
+            childTasksPerNode.merge(node, 1, Integer::sum);
         }
 
         void unregisterChildNode(DiscoveryNode node) {
             final List<Runnable> listeners;
             synchronized (this) {
-                if (childTasksPerNode.addTo(node, -1) == 0) {
+                if (childTasksPerNode.merge(node, -1, Integer::sum) == 0) {
                     childTasksPerNode.remove(node);
                 }
                 if (childTasksPerNode.isEmpty() && this.childTaskCompletedListeners != null) {
@@ -695,9 +694,7 @@ public class TaskManager implements ClusterStateApplier {
                 if (childTasksPerNode == null) {
                     pendingChildNodes = Collections.emptySet();
                 } else {
-                    pendingChildNodes = StreamSupport.stream(childTasksPerNode.spliterator(), false)
-                        .map(e -> e.key)
-                        .collect(Collectors.toSet());
+                    pendingChildNodes = Set.copyOf(childTasksPerNode.keySet());
                 }
                 if (pendingChildNodes.isEmpty()) {
                     assert childTaskCompletedListeners == null;

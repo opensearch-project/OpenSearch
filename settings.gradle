@@ -10,7 +10,7 @@
  */
 
 plugins {
-  id "com.gradle.enterprise" version "3.11.1"
+  id "com.gradle.enterprise" version "3.14.1"
 }
 
 buildCache {
@@ -53,6 +53,7 @@ List projects = [
   'distribution:archives:no-jdk-linux-ppc64le-tar',
   'distribution:archives:linux-tar',
   'distribution:archives:no-jdk-linux-tar',
+  'distribution:archives:jre-linux-tar',
   'distribution:docker',
   'distribution:docker:docker-arm64-build-context',
   'distribution:docker:docker-arm64-export',
@@ -87,7 +88,8 @@ List projects = [
   'test:fixtures:minio-fixture',
   'test:fixtures:old-elasticsearch',
   'test:fixtures:s3-fixture',
-  'test:logger-usage'
+  'test:logger-usage',
+  'test:telemetry'
 ]
 
 /**

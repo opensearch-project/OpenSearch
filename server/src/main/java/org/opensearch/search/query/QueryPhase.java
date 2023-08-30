@@ -51,6 +51,7 @@ import org.opensearch.common.Booleans;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
 import org.opensearch.common.util.concurrent.EWMATrackingThreadPoolExecutor;
+import org.opensearch.core.tasks.TaskCancelledException;
 import org.opensearch.lucene.queries.SearchAfterSortedDocQuery;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.SearchContextSourcePrinter;
@@ -67,7 +68,6 @@ import org.opensearch.search.profile.query.InternalProfileCollector;
 import org.opensearch.search.rescore.RescoreProcessor;
 import org.opensearch.search.sort.SortAndFormats;
 import org.opensearch.search.suggest.SuggestProcessor;
-import org.opensearch.tasks.TaskCancelledException;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -354,10 +354,10 @@ public class QueryPhase {
             searcher.search(query, queryCollector);
         } catch (EarlyTerminatingCollector.EarlyTerminationException e) {
             queryResult.terminatedEarly(true);
-        } catch (TimeExceededException e) {
+        }
+        if (searchContext.isSearchTimedOut()) {
             assert timeoutSet : "TimeExceededException thrown even though timeout wasn't set";
             if (searchContext.request().allowPartialSearchResults() == false) {
-                // Can't rethrow TimeExceededException because not serializable
                 throw new QueryPhaseExecutionException(searchContext.shardTarget(), "Time exceeded");
             }
             queryResult.searchTimedOut(true);

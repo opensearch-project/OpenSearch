@@ -34,14 +34,13 @@ package org.opensearch.indices.mapping;
 
 import org.opensearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
 import org.opensearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetadata;
-import org.opensearch.common.Strings;
-import org.opensearch.core.xcontent.ToXContent;
-import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.InternalSettingsPlugin;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -187,22 +186,22 @@ public class SimpleGetFieldMappingsIT extends OpenSearchIntegTestCase {
             .get();
         XContentBuilder responseBuilder = XContentFactory.jsonBuilder().prettyPrint();
         response.toXContent(responseBuilder, new ToXContent.MapParams(params));
-        String responseStrings = Strings.toString(responseBuilder);
+        String responseStrings = responseBuilder.toString();
 
         XContentBuilder prettyJsonBuilder = XContentFactory.jsonBuilder().prettyPrint();
         prettyJsonBuilder.copyCurrentStructure(createParser(JsonXContent.jsonXContent, responseStrings));
-        assertThat(responseStrings, equalTo(Strings.toString(prettyJsonBuilder)));
+        assertThat(responseStrings, equalTo(prettyJsonBuilder.toString()));
 
         params.put("pretty", "false");
 
         response = client().admin().indices().prepareGetFieldMappings("index").setFields("field1", "obj.subfield").get();
         responseBuilder = XContentFactory.jsonBuilder().prettyPrint().lfAtEnd();
         response.toXContent(responseBuilder, new ToXContent.MapParams(params));
-        responseStrings = Strings.toString(responseBuilder);
+        responseStrings = responseBuilder.toString();
 
         prettyJsonBuilder = XContentFactory.jsonBuilder().prettyPrint();
         prettyJsonBuilder.copyCurrentStructure(createParser(JsonXContent.jsonXContent, responseStrings));
-        assertThat(responseStrings, not(equalTo(Strings.toString(prettyJsonBuilder))));
+        assertThat(responseStrings, not(equalTo(prettyJsonBuilder).toString()));
 
     }
 

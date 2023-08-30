@@ -32,6 +32,7 @@
 package org.opensearch.search.sort;
 
 import org.apache.lucene.search.Sort;
+import org.opensearch.cluster.metadata.DataStream;
 import org.opensearch.search.DocValueFormat;
 
 /**
@@ -50,6 +51,15 @@ public final class SortAndFormats {
         }
         this.sort = sort;
         this.formats = formats;
+    }
+
+    /**
+     * @return true: if sort is on timestamp field, false: otherwise
+     */
+    public boolean isSortOnTimeSeriesField() {
+        return sort.getSort().length > 0
+            && sort.getSort()[0].getField() != null
+            && sort.getSort()[0].getField().equals(DataStream.TIMESERIES_FIELDNAME);
     }
 
 }

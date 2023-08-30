@@ -34,7 +34,7 @@ package org.opensearch.index.fielddata;
 import org.apache.lucene.index.FilteredTermsEnum;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
-import org.opensearch.common.breaker.CircuitBreaker;
+import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.index.fielddata.plain.AbstractIndexOrdinalsFieldData;
 
 import java.io.IOException;

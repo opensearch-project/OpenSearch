@@ -37,11 +37,12 @@ import org.gradle.api.Action;
 import org.gradle.api.GradleException;
 import org.gradle.api.Project;
 import org.gradle.api.file.FileTree;
-import org.gradle.api.plugins.JavaPluginConvention;
+import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.util.PatternFilterable;
 
 import javax.annotation.Nullable;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -149,7 +150,7 @@ public class Util {
      * @return An Optional that contains the Java test SourceSet if it exists.
      */
     public static Optional<SourceSet> getJavaTestSourceSet(Project project) {
-        return project.getConvention().findPlugin(JavaPluginConvention.class) == null
+        return project.getExtensions().findByType(JavaPluginExtension.class) == null
             ? Optional.empty()
             : Optional.ofNullable(GradleUtils.getJavaSourceSets(project).findByName(SourceSet.TEST_SOURCE_SET_NAME));
     }
@@ -159,7 +160,7 @@ public class Util {
      * @return An Optional that contains the Java main SourceSet if it exists.
      */
     public static Optional<SourceSet> getJavaMainSourceSet(Project project) {
-        return project.getConvention().findPlugin(JavaPluginConvention.class) == null
+        return project.getExtensions().findByType(JavaPluginExtension.class) == null
             ? Optional.empty()
             : Optional.ofNullable(GradleUtils.getJavaSourceSets(project).findByName(SourceSet.MAIN_SOURCE_SET_NAME));
     }

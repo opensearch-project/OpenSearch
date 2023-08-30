@@ -8,19 +8,7 @@
 
 package org.opensearch.search.pipeline;
 
-import org.opensearch.client.Client;
-import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.core.xcontent.NamedXContentRegistry;
-import org.opensearch.env.Environment;
-import org.opensearch.index.analysis.AnalysisRegistry;
-import org.opensearch.plugins.SearchPipelinePlugin;
-import org.opensearch.script.ScriptService;
-import org.opensearch.threadpool.Scheduler;
-
 import java.util.Map;
-import java.util.function.BiFunction;
-import java.util.function.Consumer;
-import java.util.function.LongSupplier;
 
 /**
  * A processor implementation may modify the request or response from a search call.
@@ -33,6 +21,12 @@ import java.util.function.LongSupplier;
  * @opensearch.internal
  */
 public interface Processor {
+    /**
+     * Processor configuration key to let the factory know the context for pipeline creation.
+     * <p>
+     * See {@link PipelineSource}.
+     */
+    String PIPELINE_SOURCE = "pipeline_source";
 
     /**
      * Gets the type of processor
@@ -50,6 +44,11 @@ public interface Processor {
     String getDescription();
 
     /**
+     * Gets the setting of ignoreFailure of a processor.
+     */
+    boolean isIgnoreFailure();
+
+    /**
      * A factory that knows how to construct a processor based on a map of maps.
      */
     interface Factory<T extends Processor> {
@@ -61,81 +60,46 @@ public interface Processor {
          * @param tag                The tag for the processor
          * @param description        A short description of what this processor does
          * @param config             The configuration for the processor
-         *
          *                           <b>Note:</b> Implementations are responsible for removing the used configuration
          *                           keys, so that after creation the config map should be empty.
+         * @param pipelineContext    Contextual information about the enclosing pipeline.
          */
-        T create(Map<String, Factory<T>> processorFactories, String tag, String description, Map<String, Object> config) throws Exception;
+        T create(
+            Map<String, Factory<T>> processorFactories,
+            String tag,
+            String description,
+            boolean ignoreFailure,
+            Map<String, Object> config,
+            PipelineContext pipelineContext
+        ) throws Exception;
     }
 
     /**
-     * Infrastructure class that holds services that can be used by processor factories to create processor instances
-     * and that gets passed around to all {@link SearchPipelinePlugin}s.
+     * Contextual information about the enclosing pipeline. A processor factory may change processor initialization behavior or
+     * pass this information to the created processor instance.
      */
-    class Parameters {
+    class PipelineContext {
+        private final PipelineSource pipelineSource;
 
-        /**
-         * Useful to provide access to the node's environment like config directory to processor factories.
-         */
-        public final Environment env;
-
-        /**
-         * Provides processors script support.
-         */
-        public final ScriptService scriptService;
-
-        /**
-         * Provide analyzer support
-         */
-        public final AnalysisRegistry analysisRegistry;
-
-        /**
-         * Allows processors to read headers set by {@link org.opensearch.action.support.ActionFilter}
-         * instances that have run while handling the current search.
-         */
-        public final ThreadContext threadContext;
-
-        public final LongSupplier relativeTimeSupplier;
-
-        public final SearchPipelineService searchPipelineService;
-
-        public final Consumer<Runnable> genericExecutor;
-
-        public final NamedXContentRegistry namedXContentRegistry;
-
-        /**
-         * Provides scheduler support
-         */
-        public final BiFunction<Long, Runnable, Scheduler.ScheduledCancellable> scheduler;
-
-        /**
-         * Provides access to the node's cluster client
-         */
-        public final Client client;
-
-        public Parameters(
-            Environment env,
-            ScriptService scriptService,
-            AnalysisRegistry analysisRegistry,
-            ThreadContext threadContext,
-            LongSupplier relativeTimeSupplier,
-            BiFunction<Long, Runnable, Scheduler.ScheduledCancellable> scheduler,
-            SearchPipelineService searchPipelineService,
-            Client client,
-            Consumer<Runnable> genericExecutor,
-            NamedXContentRegistry namedXContentRegistry
-        ) {
-            this.env = env;
-            this.scriptService = scriptService;
-            this.threadContext = threadContext;
-            this.analysisRegistry = analysisRegistry;
-            this.relativeTimeSupplier = relativeTimeSupplier;
-            this.scheduler = scheduler;
-            this.searchPipelineService = searchPipelineService;
-            this.client = client;
-            this.genericExecutor = genericExecutor;
-            this.namedXContentRegistry = namedXContentRegistry;
+        public PipelineContext(PipelineSource pipelineSource) {
+            this.pipelineSource = pipelineSource;
         }
 
+        public PipelineSource getPipelineSource() {
+            return pipelineSource;
+        }
+    }
+
+    /**
+     * A processor factory may change the processor initialization behavior based on the creation context (e.g. avoiding
+     * creating expensive resources during validation or in a request-scoped pipeline.)
+     */
+    enum PipelineSource {
+        // A named pipeline is being created or updated
+        UPDATE_PIPELINE,
+        // Pipeline is defined within a search request
+        SEARCH_REQUEST,
+        // A named pipeline is being validated before being written to cluster state
+        VALIDATE_PIPELINE
     }
 }

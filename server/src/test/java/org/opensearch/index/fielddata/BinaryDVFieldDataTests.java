@@ -34,12 +34,11 @@ package org.opensearch.index.fielddata;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
-import org.opensearch.common.Strings;
-import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressedXContent;
-import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.ParsedDocument;
 import org.opensearch.index.mapper.SourceToParse;
@@ -54,19 +53,18 @@ public class BinaryDVFieldDataTests extends AbstractFieldDataTestCase {
     }
 
     public void testDocValue() throws Exception {
-        String mapping = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("test")
-                .startObject("properties")
-                .startObject("field")
-                .field("type", "binary")
-                .field("doc_values", true)
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
+        String mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("test")
+            .startObject("properties")
+            .startObject("field")
+            .field("type", "binary")
+            .field("doc_values", true)
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
 
         final DocumentMapper mapper = mapperService.documentMapperParser().parse("test", new CompressedXContent(mapping));
 
@@ -81,16 +79,16 @@ public class BinaryDVFieldDataTests extends AbstractFieldDataTestCase {
             doc.endArray();
         }
         doc.endObject();
-        ParsedDocument d = mapper.parse(new SourceToParse("test", "1", BytesReference.bytes(doc), XContentType.JSON));
+        ParsedDocument d = mapper.parse(new SourceToParse("test", "1", BytesReference.bytes(doc), MediaTypeRegistry.JSON));
         writer.addDocument(d.rootDoc());
 
         BytesRef bytes1 = randomBytes();
         doc = XContentFactory.jsonBuilder().startObject().field("field", bytes1.bytes, bytes1.offset, bytes1.length).endObject();
-        d = mapper.parse(new SourceToParse("test", "2", BytesReference.bytes(doc), XContentType.JSON));
+        d = mapper.parse(new SourceToParse("test", "2", BytesReference.bytes(doc), MediaTypeRegistry.JSON));
         writer.addDocument(d.rootDoc());
 
         doc = XContentFactory.jsonBuilder().startObject().endObject();
-        d = mapper.parse(new SourceToParse("test", "3", BytesReference.bytes(doc), XContentType.JSON));
+        d = mapper.parse(new SourceToParse("test", "3", BytesReference.bytes(doc), MediaTypeRegistry.JSON));
         writer.addDocument(d.rootDoc());
 
         // test remove duplicate value
@@ -106,7 +104,7 @@ public class BinaryDVFieldDataTests extends AbstractFieldDataTestCase {
             doc.endArray();
         }
         doc.endObject();
-        d = mapper.parse(new SourceToParse("test", "4", BytesReference.bytes(doc), XContentType.JSON));
+        d = mapper.parse(new SourceToParse("test", "4", BytesReference.bytes(doc), MediaTypeRegistry.JSON));
         writer.addDocument(d.rootDoc());
 
         IndexFieldData<?> indexFieldData = getForField("field");

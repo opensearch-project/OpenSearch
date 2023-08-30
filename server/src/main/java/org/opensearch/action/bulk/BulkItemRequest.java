@@ -36,12 +36,12 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.opensearch.action.DocWriteRequest;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.Strings;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -114,7 +114,7 @@ public class BulkItemRequest implements Writeable, Accountable {
             setPrimaryResponse(new BulkItemResponse(id, request.opType(), failure));
         } else {
             assert primaryResponse.isFailed() && primaryResponse.getFailure().isAborted() : "response ["
-                + Strings.toString(XContentType.JSON, primaryResponse)
+                + Strings.toString(MediaTypeRegistry.JSON, primaryResponse)
                 + "]; cause ["
                 + cause
                 + "]";

@@ -35,7 +35,6 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
@@ -61,20 +60,22 @@ import org.opensearch.common.Booleans;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
 import org.opensearch.common.SetOnce;
-import org.opensearch.common.Strings;
-import org.opensearch.common.component.AbstractLifecycleComponent;
-import org.opensearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.concurrent.ListenableFuture;
+import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
-import org.opensearch.common.lease.Releasable;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.transport.TransportAddress;
+import org.opensearch.core.transport.TransportResponse.Empty;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.discovery.Discovery;
 import org.opensearch.discovery.DiscoveryModule;
 import org.opensearch.discovery.DiscoveryStats;
@@ -86,7 +87,6 @@ import org.opensearch.monitor.NodeHealthService;
 import org.opensearch.monitor.StatusInfo;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool.Names;
-import org.opensearch.transport.TransportResponse.Empty;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
@@ -1320,20 +1320,24 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     // deserialized from the resulting JSON
     private boolean assertPreviousStateConsistency(ClusterChangedEvent event) {
         assert event.previousState() == coordinationState.get().getLastAcceptedState()
-            || XContentHelper.convertToMap(JsonXContent.jsonXContent, Strings.toString(XContentType.JSON, event.previousState()), false)
+            || XContentHelper.convertToMap(
+                JsonXContent.jsonXContent,
+                Strings.toString(MediaTypeRegistry.JSON, event.previousState()),
+                false
+            )
                 .equals(
                     XContentHelper.convertToMap(
                         JsonXContent.jsonXContent,
                         Strings.toString(
-                            XContentType.JSON,
+                            MediaTypeRegistry.JSON,
                             clusterStateWithNoClusterManagerBlock(coordinationState.get().getLastAcceptedState())
                         ),
                         false
                     )
-                ) : Strings.toString(XContentType.JSON, event.previousState())
+                ) : Strings.toString(MediaTypeRegistry.JSON, event.previousState())
                     + " vs "
                     + Strings.toString(
-                        XContentType.JSON,
+                        MediaTypeRegistry.JSON,
                         clusterStateWithNoClusterManagerBlock(coordinationState.get().getLastAcceptedState())
                     );
         return true;

@@ -33,8 +33,6 @@
 package org.opensearch.rest.action.cat;
 
 import org.opensearch.OpenSearchParseException;
-import org.opensearch.action.ActionListener;
-import org.opensearch.action.ActionResponse;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.cluster.state.ClusterStateRequest;
@@ -56,6 +54,8 @@ import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.Strings;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.rest.RestRequest;

@@ -38,26 +38,27 @@ import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.SetOnce;
-import org.opensearch.common.Strings;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.logging.LogConfigurator;
-import org.opensearch.common.unit.ByteSizeUnit;
-import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.MemorySizeValue;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
-import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentParserUtils;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.settings.SecureString;
+import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.core.xcontent.XContentParserUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -87,8 +88,9 @@ import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.opensearch.common.unit.ByteSizeValue.parseBytesSizeValue;
+import static org.opensearch.common.settings.AbstractScopedSettings.ARCHIVED_SETTINGS_PREFIX;
 import static org.opensearch.common.unit.TimeValue.parseTimeValue;
+import static org.opensearch.core.common.unit.ByteSizeValue.parseBytesSizeValue;
 
 /**
  * An immutable settings implementation.
@@ -425,7 +427,7 @@ public final class Settings implements ToXContentFragment {
             if (valueFromPrefix instanceof List) {
                 return Collections.unmodifiableList((List<String>) valueFromPrefix);
             } else if (commaDelimited) {
-                String[] strings = org.opensearch.core.common.Strings.splitStringByCommaToArray(get(key));
+                String[] strings = Strings.splitStringByCommaToArray(get(key));
                 if (strings.length > 0) {
                     for (String string : strings) {
                         result.add(string.trim());
@@ -453,7 +455,7 @@ public final class Settings implements ToXContentFragment {
      * Returns group settings for the given setting prefix.
      */
     public Map<String, Settings> getGroups(String settingPrefix, boolean ignoreNonGrouped) throws SettingsException {
-        if (!org.opensearch.core.common.Strings.hasLength(settingPrefix)) {
+        if (!Strings.hasLength(settingPrefix)) {
             throw new IllegalArgumentException("illegal setting prefix " + settingPrefix);
         }
         if (settingPrefix.charAt(settingPrefix.length() - 1) != '.') {
@@ -1080,9 +1082,9 @@ public final class Settings implements ToXContentFragment {
          */
         public Builder loadFromMap(Map<String, ?> map) {
             // TODO: do this without a serialization round-trip
-            try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
+            try (XContentBuilder builder = MediaTypeRegistry.contentBuilder(MediaTypeRegistry.JSON)) {
                 builder.map(map);
-                return loadFromSource(Strings.toString(builder), builder.contentType());
+                return loadFromSource(builder.toString(), builder.contentType());
             } catch (IOException e) {
                 throw new OpenSearchGenerationException("Failed to generate [" + map + "]", e);
             }
@@ -1091,9 +1093,9 @@ public final class Settings implements ToXContentFragment {
         /**
          * Loads settings from the actual string content that represents them using {@link #fromXContent(XContentParser)}
          */
-        public Builder loadFromSource(String source, MediaType xContentType) {
+        public Builder loadFromSource(String source, MediaType mediaType) {
             try (
-                XContentParser parser = XContentFactory.xContent(xContentType)
+                XContentParser parser = mediaType.xContent()
                     .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, source)
             ) {
                 this.put(fromXContent(parser, true, true));
@@ -1116,17 +1118,17 @@ public final class Settings implements ToXContentFragment {
          * Loads settings from a stream that represents them using {@link #fromXContent(XContentParser)}
          */
         public Builder loadFromStream(String resourceName, InputStream is, boolean acceptNullValues) throws IOException {
-            final XContentType xContentType;
+            final MediaType mediaType;
             if (resourceName.endsWith(".json")) {
-                xContentType = XContentType.JSON;
+                mediaType = MediaTypeRegistry.JSON;
             } else if (resourceName.endsWith(".yml") || resourceName.endsWith(".yaml")) {
-                xContentType = XContentType.YAML;
+                mediaType = XContentType.YAML;
             } else {
                 throw new IllegalArgumentException("unable to detect content type from resource name [" + resourceName + "]");
             }
             // fromXContent doesn't use named xcontent or deprecation.
             try (
-                XContentParser parser = XContentFactory.xContent(xContentType)
+                XContentParser parser = mediaType.xContent()
                     .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, is)
             ) {
                 if (parser.currentToken() == null) {
@@ -1206,7 +1208,7 @@ public final class Settings implements ToXContentFragment {
                 String value = propertyPlaceholder.replacePlaceholders(Settings.toString(entry.getValue()), placeholderResolver);
                 // if the values exists and has length, we should maintain it in the map
                 // otherwise, the replace process resolved into removing it
-                if (org.opensearch.core.common.Strings.hasLength(value)) {
+                if (Strings.hasLength(value)) {
                     entry.setValue(value);
                 } else {
                     entryItr.remove();
@@ -1216,7 +1218,7 @@ public final class Settings implements ToXContentFragment {
         }
 
         /**
-         * Checks that all settings in the builder start with the specified prefix.
+         * Checks that all settings(except archived settings and wildcards) in the builder start with the specified prefix.
          *
          * If a setting doesn't start with the prefix, the builder appends the prefix to such setting.
          */
@@ -1226,7 +1228,7 @@ public final class Settings implements ToXContentFragment {
             while (iterator.hasNext()) {
                 Map.Entry<String, Object> entry = iterator.next();
                 String key = entry.getKey();
-                if (key.startsWith(prefix) == false && key.endsWith("*") == false) {
+                if (key.startsWith(prefix) == false && key.endsWith("*") == false && key.startsWith(ARCHIVED_SETTINGS_PREFIX) == false) {
                     replacements.put(prefix + key, entry.getValue());
                     iterator.remove();
                 }
@@ -1426,11 +1428,11 @@ public final class Settings implements ToXContentFragment {
 
     @Override
     public String toString() {
-        try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
+        try (XContentBuilder builder = MediaTypeRegistry.JSON.contentBuilder()) {
             builder.startObject();
             toXContent(builder, new MapParams(Collections.singletonMap("flat_settings", "true")));
             builder.endObject();
-            return Strings.toString(builder);
+            return builder.toString();
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

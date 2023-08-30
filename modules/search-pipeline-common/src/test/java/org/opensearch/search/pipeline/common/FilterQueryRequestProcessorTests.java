@@ -16,13 +16,14 @@ import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.test.AbstractBuilderTestCase;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 
 public class FilterQueryRequestProcessorTests extends AbstractBuilderTestCase {
 
     public void testFilterQuery() throws Exception {
         QueryBuilder filterQuery = new TermQueryBuilder("field", "value");
-        FilterQueryRequestProcessor filterQueryRequestProcessor = new FilterQueryRequestProcessor(null, null, filterQuery);
+        FilterQueryRequestProcessor filterQueryRequestProcessor = new FilterQueryRequestProcessor(null, null, false, filterQuery);
         QueryBuilder incomingQuery = new TermQueryBuilder("text", "foo");
         SearchSourceBuilder source = new SearchSourceBuilder().query(incomingQuery);
         SearchRequest request = new SearchRequest().source(source);
@@ -37,15 +38,14 @@ public class FilterQueryRequestProcessorTests extends AbstractBuilderTestCase {
 
     public void testFactory() throws Exception {
         FilterQueryRequestProcessor.Factory factory = new FilterQueryRequestProcessor.Factory(this.xContentRegistry());
-        FilterQueryRequestProcessor processor = factory.create(
-            Collections.emptyMap(),
-            null,
-            null,
-            Map.of("query", Map.of("term", Map.of("field", "value")))
-        );
+        Map<String, Object> configMap = new HashMap<>(Map.of("query", Map.of("term", Map.of("field", "value"))));
+        FilterQueryRequestProcessor processor = factory.create(Collections.emptyMap(), null, null, false, configMap, null);
         assertEquals(new TermQueryBuilder("field", "value"), processor.filterQuery);
 
         // Missing "query" parameter:
-        expectThrows(IllegalArgumentException.class, () -> factory.create(Collections.emptyMap(), null, null, Collections.emptyMap()));
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> factory.create(Collections.emptyMap(), null, null, false, Collections.emptyMap(), null)
+        );
     }
 }

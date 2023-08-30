@@ -32,7 +32,6 @@
 
 package org.opensearch.action.admin.indices.get;
 
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.replication.ClusterStateCreationUtils;
@@ -44,7 +43,8 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.common.settings.SettingsModule;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.index.Index;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.index.Index;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.test.transport.CapturingTransport;

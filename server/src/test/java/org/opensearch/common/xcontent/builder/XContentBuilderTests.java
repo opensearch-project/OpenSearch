@@ -33,19 +33,18 @@
 package org.opensearch.common.xcontent.builder;
 
 import org.apache.lucene.util.BytesRef;
-import org.opensearch.common.Strings;
-import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentOpenSearchExtension;
-import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.core.xcontent.XContentGenerator;
-import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentGenerator;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.ByteArrayOutputStream;
@@ -68,7 +67,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class XContentBuilderTests extends OpenSearchTestCase {
     public void testPrettyWithLfAtEnd() throws Exception {
         ByteArrayOutputStream os = new ByteArrayOutputStream();
-        XContentGenerator generator = XContentFactory.xContent(XContentType.JSON).createGenerator(os);
+        XContentGenerator generator = MediaTypeRegistry.JSON.xContent().createGenerator(os);
         generator.usePrettyPrint();
         generator.usePrintLineFeedAtEnd();
 
@@ -87,7 +86,7 @@ public class XContentBuilderTests extends OpenSearchTestCase {
 
     public void testReuseJsonGenerator() throws Exception {
         ByteArrayOutputStream os = new ByteArrayOutputStream();
-        XContentGenerator generator = XContentFactory.xContent(XContentType.JSON).createGenerator(os);
+        XContentGenerator generator = MediaTypeRegistry.JSON.xContent().createGenerator(os);
         generator.writeStartObject();
         generator.writeStringField("test", "value");
         generator.writeEndObject();
@@ -107,42 +106,39 @@ public class XContentBuilderTests extends OpenSearchTestCase {
 
     public void testRaw() throws IOException {
         {
-            XContentBuilder xContentBuilder = XContentFactory.contentBuilder(XContentType.JSON);
+            XContentBuilder xContentBuilder = MediaTypeRegistry.contentBuilder(MediaTypeRegistry.JSON);
             xContentBuilder.startObject();
             xContentBuilder.rawField("foo", new BytesArray("{\"test\":\"value\"}").streamInput());
             xContentBuilder.endObject();
-            assertThat(Strings.toString(xContentBuilder), equalTo("{\"foo\":{\"test\":\"value\"}}"));
+            assertThat(xContentBuilder.toString(), equalTo("{\"foo\":{\"test\":\"value\"}}"));
         }
         {
-            XContentBuilder xContentBuilder = XContentFactory.contentBuilder(XContentType.JSON);
+            XContentBuilder xContentBuilder = MediaTypeRegistry.contentBuilder(MediaTypeRegistry.JSON);
             xContentBuilder.startObject();
             xContentBuilder.rawField("foo", new BytesArray("{\"test\":\"value\"}").streamInput());
             xContentBuilder.rawField("foo1", new BytesArray("{\"test\":\"value\"}").streamInput());
             xContentBuilder.endObject();
-            assertThat(Strings.toString(xContentBuilder), equalTo("{\"foo\":{\"test\":\"value\"},\"foo1\":{\"test\":\"value\"}}"));
+            assertThat(xContentBuilder.toString(), equalTo("{\"foo\":{\"test\":\"value\"},\"foo1\":{\"test\":\"value\"}}"));
         }
         {
-            XContentBuilder xContentBuilder = XContentFactory.contentBuilder(XContentType.JSON);
+            XContentBuilder xContentBuilder = MediaTypeRegistry.contentBuilder(MediaTypeRegistry.JSON);
             xContentBuilder.startObject();
             xContentBuilder.field("test", "value");
             xContentBuilder.rawField("foo", new BytesArray("{\"test\":\"value\"}").streamInput());
             xContentBuilder.endObject();
-            assertThat(Strings.toString(xContentBuilder), equalTo("{\"test\":\"value\",\"foo\":{\"test\":\"value\"}}"));
+            assertThat(xContentBuilder.toString(), equalTo("{\"test\":\"value\",\"foo\":{\"test\":\"value\"}}"));
         }
         {
-            XContentBuilder xContentBuilder = XContentFactory.contentBuilder(XContentType.JSON);
+            XContentBuilder xContentBuilder = MediaTypeRegistry.contentBuilder(MediaTypeRegistry.JSON);
             xContentBuilder.startObject();
             xContentBuilder.field("test", "value");
             xContentBuilder.rawField("foo", new BytesArray("{\"test\":\"value\"}").streamInput());
             xContentBuilder.field("test1", "value1");
             xContentBuilder.endObject();
-            assertThat(
-                Strings.toString(xContentBuilder),
-                equalTo("{\"test\":\"value\",\"foo\":{\"test\":\"value\"},\"test1\":\"value1\"}")
-            );
+            assertThat(xContentBuilder.toString(), equalTo("{\"test\":\"value\",\"foo\":{\"test\":\"value\"},\"test1\":\"value1\"}"));
         }
         {
-            XContentBuilder xContentBuilder = XContentFactory.contentBuilder(XContentType.JSON);
+            XContentBuilder xContentBuilder = MediaTypeRegistry.contentBuilder(MediaTypeRegistry.JSON);
             xContentBuilder.startObject();
             xContentBuilder.field("test", "value");
             xContentBuilder.rawField("foo", new BytesArray("{\"test\":\"value\"}").streamInput());
@@ -150,32 +146,32 @@ public class XContentBuilderTests extends OpenSearchTestCase {
             xContentBuilder.field("test1", "value1");
             xContentBuilder.endObject();
             assertThat(
-                Strings.toString(xContentBuilder),
+                xContentBuilder.toString(),
                 equalTo("{\"test\":\"value\",\"foo\":{\"test\":\"value\"},\"foo1\":{\"test\":\"value\"},\"test1\":\"value1\"}")
             );
         }
     }
 
     public void testSimpleGenerator() throws Exception {
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        XContentBuilder builder = MediaTypeRegistry.contentBuilder(MediaTypeRegistry.JSON);
         builder.startObject().field("test", "value").endObject();
-        assertThat(Strings.toString(builder), equalTo("{\"test\":\"value\"}"));
+        assertThat(builder.toString(), equalTo("{\"test\":\"value\"}"));
 
-        builder = XContentFactory.contentBuilder(XContentType.JSON);
+        builder = MediaTypeRegistry.contentBuilder(MediaTypeRegistry.JSON);
         builder.startObject().field("test", "value").endObject();
-        assertThat(Strings.toString(builder), equalTo("{\"test\":\"value\"}"));
+        assertThat(builder.toString(), equalTo("{\"test\":\"value\"}"));
     }
 
     public void testOverloadedList() throws Exception {
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        XContentBuilder builder = MediaTypeRegistry.contentBuilder(MediaTypeRegistry.JSON);
         builder.startObject().field("test", Arrays.asList("1", "2")).endObject();
-        assertThat(Strings.toString(builder), equalTo("{\"test\":[\"1\",\"2\"]}"));
+        assertThat(builder.toString(), equalTo("{\"test\":[\"1\",\"2\"]}"));
     }
 
     public void testWritingBinaryToStream() throws Exception {
         BytesStreamOutput bos = new BytesStreamOutput();
 
-        XContentGenerator gen = XContentFactory.xContent(XContentType.JSON).createGenerator(bos);
+        XContentGenerator gen = MediaTypeRegistry.JSON.xContent().createGenerator(bos);
         gen.writeStartObject();
         gen.writeStringField("name", "something");
         gen.flush();
@@ -189,39 +185,39 @@ public class XContentBuilderTests extends OpenSearchTestCase {
     }
 
     public void testByteConversion() throws Exception {
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        XContentBuilder builder = MediaTypeRegistry.contentBuilder(MediaTypeRegistry.JSON);
         builder.startObject().field("test_name", (Byte) (byte) 120).endObject();
         assertThat(BytesReference.bytes(builder).utf8ToString(), equalTo("{\"test_name\":120}"));
     }
 
     public void testDateTypesConversion() throws Exception {
         Date date = new Date();
-        String expectedDate = XContentOpenSearchExtension.DEFAULT_DATE_PRINTER.print(date.getTime());
+        String expectedDate = XContentOpenSearchExtension.DEFAULT_FORMATTER.format(date.toInstant());
         Calendar calendar = new GregorianCalendar(TimeZone.getTimeZone("UTC"), Locale.ROOT);
-        String expectedCalendar = XContentOpenSearchExtension.DEFAULT_DATE_PRINTER.print(calendar.getTimeInMillis());
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        String expectedCalendar = XContentOpenSearchExtension.DEFAULT_FORMATTER.format(calendar.toInstant());
+        XContentBuilder builder = MediaTypeRegistry.contentBuilder(MediaTypeRegistry.JSON);
         builder.startObject().timeField("date", date).endObject();
-        assertThat(Strings.toString(builder), equalTo("{\"date\":\"" + expectedDate + "\"}"));
+        assertThat(builder.toString(), equalTo("{\"date\":\"" + expectedDate + "\"}"));
 
-        builder = XContentFactory.contentBuilder(XContentType.JSON);
+        builder = MediaTypeRegistry.contentBuilder(MediaTypeRegistry.JSON);
         builder.startObject().field("calendar", calendar).endObject();
-        assertThat(Strings.toString(builder), equalTo("{\"calendar\":\"" + expectedCalendar + "\"}"));
+        assertThat(builder.toString(), equalTo("{\"calendar\":\"" + expectedCalendar + "\"}"));
 
-        builder = XContentFactory.contentBuilder(XContentType.JSON);
+        builder = MediaTypeRegistry.contentBuilder(MediaTypeRegistry.JSON);
         Map<String, Object> map = new HashMap<>();
         map.put("date", date);
         builder.map(map);
-        assertThat(Strings.toString(builder), equalTo("{\"date\":\"" + expectedDate + "\"}"));
+        assertThat(builder.toString(), equalTo("{\"date\":\"" + expectedDate + "\"}"));
 
-        builder = XContentFactory.contentBuilder(XContentType.JSON);
+        builder = MediaTypeRegistry.contentBuilder(MediaTypeRegistry.JSON);
         map = new HashMap<>();
         map.put("calendar", calendar);
         builder.map(map);
-        assertThat(Strings.toString(builder), equalTo("{\"calendar\":\"" + expectedCalendar + "\"}"));
+        assertThat(builder.toString(), equalTo("{\"calendar\":\"" + expectedCalendar + "\"}"));
     }
 
     public void testCopyCurrentStructure() throws Exception {
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        XContentBuilder builder = MediaTypeRegistry.contentBuilder(MediaTypeRegistry.JSON);
         builder.startObject().field("test", "test field").startObject("filter").startObject("terms");
 
         // up to 20k random terms
@@ -248,7 +244,7 @@ public class XContentBuilderTests extends OpenSearchTestCase {
                     }
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     if ("filter".equals(currentFieldName)) {
-                        filterBuilder = XContentFactory.contentBuilder(parser.contentType());
+                        filterBuilder = MediaTypeRegistry.contentBuilder(parser.contentType());
                         filterBuilder.copyCurrentStructure(parser);
                     }
                 }
@@ -288,61 +284,61 @@ public class XContentBuilderTests extends OpenSearchTestCase {
     }
 
     private void checkPathSerialization(Path path) throws IOException {
-        XContentBuilder pathBuilder = XContentFactory.contentBuilder(XContentType.JSON);
+        XContentBuilder pathBuilder = MediaTypeRegistry.contentBuilder(MediaTypeRegistry.JSON);
         pathBuilder.startObject().field("file", path).endObject();
 
-        XContentBuilder stringBuilder = XContentFactory.contentBuilder(XContentType.JSON);
+        XContentBuilder stringBuilder = MediaTypeRegistry.contentBuilder(MediaTypeRegistry.JSON);
         stringBuilder.startObject().field("file", path.toString()).endObject();
 
-        assertThat(Strings.toString(pathBuilder), equalTo(Strings.toString(stringBuilder)));
+        assertThat(pathBuilder.toString(), equalTo(stringBuilder.toString()));
     }
 
     public void testHandlingOfPath_StringName() throws IOException {
         Path path = PathUtils.get("path");
         String name = new String("file");
 
-        XContentBuilder pathBuilder = XContentFactory.contentBuilder(XContentType.JSON);
+        XContentBuilder pathBuilder = MediaTypeRegistry.contentBuilder(MediaTypeRegistry.JSON);
         pathBuilder.startObject().field(name, path).endObject();
 
-        XContentBuilder stringBuilder = XContentFactory.contentBuilder(XContentType.JSON);
+        XContentBuilder stringBuilder = MediaTypeRegistry.contentBuilder(MediaTypeRegistry.JSON);
         stringBuilder.startObject().field(name, path.toString()).endObject();
 
-        assertThat(Strings.toString(pathBuilder), equalTo(Strings.toString(stringBuilder)));
+        assertThat(pathBuilder.toString(), equalTo(stringBuilder.toString()));
     }
 
     public void testHandlingOfCollectionOfPaths() throws IOException {
         Path path = PathUtils.get("path");
 
-        XContentBuilder pathBuilder = XContentFactory.contentBuilder(XContentType.JSON);
+        XContentBuilder pathBuilder = MediaTypeRegistry.contentBuilder(MediaTypeRegistry.JSON);
         pathBuilder.startObject().field("file", Arrays.asList(path)).endObject();
 
-        XContentBuilder stringBuilder = XContentFactory.contentBuilder(XContentType.JSON);
+        XContentBuilder stringBuilder = MediaTypeRegistry.contentBuilder(MediaTypeRegistry.JSON);
         stringBuilder.startObject().field("file", Arrays.asList(path.toString())).endObject();
 
-        assertThat(Strings.toString(pathBuilder), equalTo(Strings.toString(stringBuilder)));
+        assertThat(pathBuilder.toString(), equalTo(stringBuilder.toString()));
     }
 
     public void testIndentIsPlatformIndependent() throws IOException {
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON).prettyPrint();
+        XContentBuilder builder = MediaTypeRegistry.contentBuilder(MediaTypeRegistry.JSON).prettyPrint();
         builder.startObject().field("test", "foo").startObject("foo").field("foobar", "boom").endObject().endObject();
-        String string = Strings.toString(builder);
+        String string = builder.toString();
         assertEquals("{\n" + "  \"test\" : \"foo\",\n" + "  \"foo\" : {\n" + "    \"foobar\" : \"boom\"\n" + "  }\n" + "}", string);
 
-        builder = XContentFactory.contentBuilder(XContentType.YAML).prettyPrint();
+        builder = MediaTypeRegistry.contentBuilder(XContentType.YAML).prettyPrint();
         builder.startObject().field("test", "foo").startObject("foo").field("foobar", "boom").endObject().endObject();
-        string = Strings.toString(builder);
+        string = builder.toString();
         assertEquals("---\n" + "test: \"foo\"\n" + "foo:\n" + "  foobar: \"boom\"\n", string);
     }
 
     public void testRenderGeoPoint() throws IOException {
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON).prettyPrint();
+        XContentBuilder builder = MediaTypeRegistry.contentBuilder(MediaTypeRegistry.JSON).prettyPrint();
         builder.startObject().field("foo").value(new GeoPoint(1, 2)).endObject();
-        String string = Strings.toString(builder);
+        String string = builder.toString();
         assertEquals("{\n" + "  \"foo\" : {\n" + "    \"lat\" : 1.0,\n" + "    \"lon\" : 2.0\n" + "  }\n" + "}", string.trim());
     }
 
     public void testWriteMapWithNullKeys() throws IOException {
-        XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
+        XContentBuilder builder = MediaTypeRegistry.contentBuilder(randomFrom(XContentType.values()));
         try {
             builder.map(Collections.singletonMap(null, "test"));
             fail("write map should have failed");
@@ -352,7 +348,7 @@ public class XContentBuilderTests extends OpenSearchTestCase {
     }
 
     public void testWriteMapValueWithNullKeys() throws IOException {
-        XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
+        XContentBuilder builder = MediaTypeRegistry.contentBuilder(randomFrom(XContentType.values()));
         try {
             builder.map(Collections.singletonMap(null, "test"));
             fail("write map should have failed");
@@ -362,7 +358,7 @@ public class XContentBuilderTests extends OpenSearchTestCase {
     }
 
     public void testWriteFieldMapWithNullKeys() throws IOException {
-        XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
+        XContentBuilder builder = MediaTypeRegistry.contentBuilder(randomFrom(XContentType.values()));
         try {
             builder.startObject();
             builder.field("map", Collections.singletonMap(null, "test"));
@@ -374,7 +370,7 @@ public class XContentBuilderTests extends OpenSearchTestCase {
 
     public void testMissingEndObject() throws IOException {
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> {
-            try (XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()))) {
+            try (XContentBuilder builder = MediaTypeRegistry.contentBuilder(randomFrom(XContentType.values()))) {
                 builder.startObject();
                 builder.field("foo", true);
             }
@@ -385,7 +381,7 @@ public class XContentBuilderTests extends OpenSearchTestCase {
 
     public void testMissingEndArray() throws IOException {
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> {
-            try (XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()))) {
+            try (XContentBuilder builder = MediaTypeRegistry.contentBuilder(randomFrom(XContentType.values()))) {
                 builder.startObject();
                 builder.startArray("foo");
                 builder.value(0);

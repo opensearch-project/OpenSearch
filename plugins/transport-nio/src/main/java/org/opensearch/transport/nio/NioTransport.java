@@ -34,17 +34,16 @@ package org.opensearch.transport.nio;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.PageCacheRecycler;
-import org.opensearch.indices.breaker.CircuitBreakerService;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.nio.BytesChannelContext;
 import org.opensearch.nio.ChannelFactory;
 import org.opensearch.nio.Config;

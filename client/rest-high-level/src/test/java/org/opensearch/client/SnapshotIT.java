@@ -54,9 +54,9 @@ import org.opensearch.action.admin.cluster.snapshots.status.SnapshotsStatusRespo
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.rest.RestStatus;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.repositories.fs.FsRepository;
-import org.opensearch.rest.RestStatus;
 import org.opensearch.snapshots.RestoreInfo;
 import org.opensearch.snapshots.SnapshotInfo;
 
@@ -76,7 +76,7 @@ public class SnapshotIT extends OpenSearchRestHighLevelClientTestCase {
 
     private AcknowledgedResponse createTestRepository(String repository, String type, String settings) throws IOException {
         PutRepositoryRequest request = new PutRepositoryRequest(repository);
-        request.settings(settings, XContentType.JSON);
+        request.settings(settings, MediaTypeRegistry.JSON);
         request.type(type);
         return execute(request, highLevelClient().snapshot()::createRepository, highLevelClient().snapshot()::createRepositoryAsync);
     }

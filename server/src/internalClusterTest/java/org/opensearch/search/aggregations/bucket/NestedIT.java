@@ -32,16 +32,15 @@
 package org.opensearch.search.aggregations.bucket;
 
 import org.apache.lucene.search.join.ScoreMode;
-
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.SearchRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.rest.RestStatus;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.query.InnerHitBuilder;
-import org.opensearch.rest.RestStatus;
 import org.opensearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.bucket.filter.Filter;
@@ -55,7 +54,6 @@ import org.opensearch.search.aggregations.metrics.Max;
 import org.opensearch.search.aggregations.metrics.Stats;
 import org.opensearch.search.aggregations.metrics.Sum;
 import org.opensearch.test.OpenSearchIntegTestCase;
-
 import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
@@ -461,7 +459,7 @@ public class NestedIT extends OpenSearchIntegTestCase {
                     "{\"dates\": {\"month\": {\"label\": \"2014-11\", \"end\": \"2014-11-30\", \"start\": \"2014-11-01\"}, "
                         + "\"day\": \"2014-11-30\"}, \"comments\": [{\"cid\": 3,\"identifier\": \"29111\"}, {\"cid\": 4,\"tags\": ["
                         + "{\"tid\" :44,\"name\": \"Roles\"}], \"identifier\": \"29101\"}]}",
-                    XContentType.JSON
+                    MediaTypeRegistry.JSON
                 )
         );
         indexRequests.add(
@@ -471,7 +469,7 @@ public class NestedIT extends OpenSearchIntegTestCase {
                     "{\"dates\": {\"month\": {\"label\": \"2014-12\", \"end\": \"2014-12-31\", \"start\": \"2014-12-01\"}, "
                         + "\"day\": \"2014-12-03\"}, \"comments\": [{\"cid\": 1, \"identifier\": \"29111\"}, {\"cid\": 2,\"tags\": ["
                         + "{\"tid\" : 22, \"name\": \"DataChannels\"}], \"identifier\": \"29101\"}]}",
-                    XContentType.JSON
+                    MediaTypeRegistry.JSON
                 )
         );
         indexRandom(true, indexRequests);

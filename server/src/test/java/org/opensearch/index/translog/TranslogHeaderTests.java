@@ -36,7 +36,7 @@ import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.OutputStreamDataOutput;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.UUIDs;
-import org.opensearch.common.io.stream.OutputStreamStreamOutput;
+import org.opensearch.core.common.io.stream.OutputStreamStreamOutput;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -63,7 +63,7 @@ public class TranslogHeaderTests extends OpenSearchTestCase {
         final long generation = randomNonNegativeLong();
         final Path translogFile = createTempDir().resolve(Translog.getFilename(generation));
         try (FileChannel channel = FileChannel.open(translogFile, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)) {
-            outHeader.write(channel);
+            outHeader.write(channel, true);
             assertThat(outHeader.sizeInBytes(), equalTo((int) channel.position()));
         }
         try (FileChannel channel = FileChannel.open(translogFile, StandardOpenOption.READ)) {
@@ -132,6 +132,49 @@ public class TranslogHeaderTests extends OpenSearchTestCase {
         });
     }
 
+    public void testCurrentHeaderVersionWithoutUUIDComparison() throws Exception {
+        final String translogUUID = UUIDs.randomBase64UUID();
+        final TranslogHeader outHeader = new TranslogHeader(translogUUID, randomNonNegativeLong());
+        final long generation = randomNonNegativeLong();
+        final Path translogFile = createTempDir().resolve(Translog.getFilename(generation));
+        try (FileChannel channel = FileChannel.open(translogFile, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)) {
+            outHeader.write(channel, true);
+            assertThat(outHeader.sizeInBytes(), equalTo((int) channel.position()));
+        }
+        try (FileChannel channel = FileChannel.open(translogFile, StandardOpenOption.READ)) {
+            final TranslogHeader inHeader = TranslogHeader.read(translogFile, channel);
+            assertThat(inHeader.getTranslogUUID(), equalTo(translogUUID));
+            assertThat(inHeader.getPrimaryTerm(), equalTo(outHeader.getPrimaryTerm()));
+            assertThat(inHeader.sizeInBytes(), equalTo((int) channel.position()));
+        }
+
+        TestTranslog.corruptFile(logger, random(), translogFile, false);
+        final TranslogCorruptedException corruption = expectThrows(TranslogCorruptedException.class, () -> {
+            try (FileChannel channel = FileChannel.open(translogFile, StandardOpenOption.READ)) {
+                final TranslogHeader translogHeader = TranslogHeader.read(translogFile, channel);
+                assertThat(
+                    "version " + TranslogHeader.VERSION_CHECKPOINTS + " translog",
+                    translogHeader.getPrimaryTerm(),
+                    equalTo(SequenceNumbers.UNASSIGNED_PRIMARY_TERM)
+                );
+                throw new TranslogCorruptedException(translogFile.toString(), "adjusted translog version");
+            } catch (IllegalStateException e) {
+                // corruption corrupted the version byte making this look like a v2, v1 or v0 translog
+                assertThat(
+                    "version " + TranslogHeader.VERSION_CHECKPOINTS + "-or-earlier translog",
+                    e.getMessage(),
+                    anyOf(
+                        containsString("pre-2.0 translog found"),
+                        containsString("pre-1.4 translog found"),
+                        containsString("pre-6.3 translog found")
+                    )
+                );
+                throw new TranslogCorruptedException(translogFile.toString(), "adjusted translog version", e);
+            }
+        });
+        assertThat(corruption.getMessage(), not(containsString("this translog file belongs to a different translog")));
+    }
+
     static void writeHeaderWithoutTerm(FileChannel channel, String translogUUID) throws IOException {
         final OutputStreamStreamOutput out = new OutputStreamStreamOutput(Channels.newOutputStream(channel));
         CodecUtil.writeHeader(new OutputStreamDataOutput(out), TranslogHeader.TRANSLOG_CODEC, TranslogHeader.VERSION_CHECKPOINTS);
@@ -165,7 +208,7 @@ public class TranslogHeaderTests extends OpenSearchTestCase {
         final Path translogLocation = createTempDir();
         final Path translogFile = translogLocation.resolve(Translog.getFilename(generation));
         try (FileChannel channel = FileChannel.open(translogFile, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)) {
-            outHeader.write(channel);
+            outHeader.write(channel, true);
             assertThat(outHeader.sizeInBytes(), equalTo((int) channel.position()));
         }
         TestTranslog.corruptFile(logger, random(), translogFile, false);

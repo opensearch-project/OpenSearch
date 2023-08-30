@@ -31,12 +31,12 @@
 
 package org.opensearch.test.transport;
 
-import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.common.transport.TransportAddress;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.transport.ConnectTransportException;
-import org.opensearch.transport.ConnectionProfile;
 import org.opensearch.transport.ConnectionManager;
+import org.opensearch.transport.ConnectionProfile;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportConnectionListener;
 

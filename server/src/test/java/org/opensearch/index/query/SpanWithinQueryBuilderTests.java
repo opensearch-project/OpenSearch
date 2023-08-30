@@ -34,7 +34,7 @@ package org.opensearch.index.query;
 
 import org.apache.lucene.queries.spans.SpanWithinQuery;
 import org.apache.lucene.search.Query;
-import org.opensearch.common.ParsingException;
+import org.opensearch.core.common.ParsingException;
 import org.opensearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;

@@ -36,7 +36,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.indices.settings.put.UpdateSettingsClusterStateUpdateRequest;
 import org.opensearch.action.admin.indices.upgrade.post.UpgradeSettingsClusterStateUpdateRequest;
 import org.opensearch.cluster.AckedClusterStateUpdateTask;
@@ -58,7 +57,8 @@ import org.opensearch.common.regex.Regex;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.index.Index;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.ShardLimitValidator;
@@ -73,6 +73,7 @@ import java.util.Optional;
 import java.util.Set;
 
 import static org.opensearch.action.support.ContextPreservingActionListener.wrapPreservingContext;
+import static org.opensearch.common.settings.AbstractScopedSettings.ARCHIVED_SETTINGS_PREFIX;
 import static org.opensearch.index.IndexSettings.same;
 
 /**
@@ -125,6 +126,9 @@ public class MetadataUpdateSettingsService {
             .put(request.settings())
             .normalizePrefix(IndexMetadata.INDEX_SETTING_PREFIX)
             .build();
+
+        MetadataCreateIndexService.validateRefreshIntervalSettings(normalizedSettings, clusterService.getClusterSettings());
+
         Settings.Builder settingsForClosedIndices = Settings.builder();
         Settings.Builder settingsForOpenIndices = Settings.builder();
         final Set<String> skippedSettings = new HashSet<>();
@@ -132,12 +136,16 @@ public class MetadataUpdateSettingsService {
         indexScopedSettings.validate(
             normalizedSettings.filter(s -> Regex.isSimpleMatchPattern(s) == false), // don't validate wildcards
             false, // don't validate dependencies here we check it below never allow to change the number of shards
+            false,
+            true, // Ignore archived setting.
             true
         ); // validate internal or private index settings
         for (String key : normalizedSettings.keySet()) {
             Setting setting = indexScopedSettings.get(key);
             boolean isWildcard = setting == null && Regex.isSimpleMatchPattern(key);
+            boolean isArchived = key.startsWith(ARCHIVED_SETTINGS_PREFIX);
             assert setting != null // we already validated the normalized settings
+                || isArchived
                 || (isWildcard && normalizedSettings.hasValue(key) == false) : "unknown setting: "
                     + key
                     + " isWildcard: "
@@ -145,7 +153,8 @@ public class MetadataUpdateSettingsService {
                     + " hasValue: "
                     + normalizedSettings.hasValue(key);
             settingsForClosedIndices.copy(key, normalizedSettings);
-            if (isWildcard || setting.isDynamic()) {
+            // Only allow dynamic settings and wildcards for open indices. Skip archived settings.
+            if (isArchived == false && (isWildcard || setting.isDynamic())) {
                 settingsForOpenIndices.copy(key, normalizedSettings);
             } else {
                 skippedSettings.add(key);
@@ -305,6 +314,8 @@ public class MetadataUpdateSettingsService {
                                 Settings finalSettings = indexSettings.build();
                                 indexScopedSettings.validate(
                                     finalSettings.filter(k -> indexScopedSettings.isPrivateSetting(k) == false),
+                                    true,
+                                    false,
                                     true
                                 );
                                 metadataBuilder.put(IndexMetadata.builder(indexMetadata).settings(finalSettings));

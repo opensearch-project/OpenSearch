@@ -34,7 +34,6 @@ package org.opensearch.persistent;
 
 import org.opensearch.ResourceNotFoundException;
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
@@ -49,6 +48,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.persistent.PersistentTasksCustomMetadata.Assignment;
 import org.opensearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.opensearch.persistent.TestPersistentTasksPlugin.TestParams;
