@@ -242,7 +242,7 @@ public class RemoteClusterStateService implements Closeable {
         } else {
             // todo change to debug
             logger.info(
-                "writing cluster state took [{}ms]; " + "wrote and metadata for [{}] indices and skipped [{}] unchanged indices",
+                "writing cluster state took [{}ms]; " + "wrote metadata for [{}] indices and skipped [{}] unchanged indices",
                 durationMillis,
                 numIndicesUpdated,
                 numIndicesUnchanged
@@ -354,7 +354,7 @@ public class RemoteClusterStateService implements Closeable {
     }
 
     private static String getMarkerFileName(long term, long version) {
-        // 123456789012_test-cluster/cluster-state/dsgYj10Nkso7/marker/2147483642_2147483637_456536447_marker
+        // 123456789012_test-cluster/cluster-state/dsgYj10Nkso7/marker/marker_2147483642_2147483637_456536447
         return String.join(
             DELIMITER,
             "marker",
