@@ -33,6 +33,7 @@
 package org.opensearch;
 
 import org.opensearch.common.SuppressForbidden;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 
@@ -50,6 +51,7 @@ import java.util.Objects;
  *
  * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class Version implements Comparable<Version>, ToXContentFragment {
     /*
      * The logic for ID is: XXYYZZAA, where XX is major version, YY is minor version, ZZ is revision, and AA is alpha/beta/rc indicator AA

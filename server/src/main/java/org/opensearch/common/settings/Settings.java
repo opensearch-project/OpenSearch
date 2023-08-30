@@ -38,6 +38,7 @@ import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.SetOnce;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.logging.LogConfigurator;
 import org.opensearch.common.unit.MemorySizeValue;
@@ -95,8 +96,9 @@ import static org.opensearch.core.common.unit.ByteSizeValue.parseBytesSizeValue;
 /**
  * An immutable settings implementation.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class Settings implements ToXContentFragment {
 
     public static final Settings EMPTY = new Builder().build();
@@ -750,8 +752,9 @@ public final class Settings implements ToXContentFragment {
      * settings implementation. Use {@link Settings#builder()} in order to
      * construct it.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class Builder {
 
         public static final Settings EMPTY_SETTINGS = new Builder().build();
