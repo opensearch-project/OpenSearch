@@ -752,10 +752,12 @@ public class RepositoriesServiceTests extends OpenSearchTestCase {
         }
 
         @Override
-        public void verifyLocally(DiscoveryNode localNode) {}
+        public boolean isReadOnly() {
+            return false;
+        }
 
         @Override
-        public boolean isReadOnly() {
+        public boolean isSystemRepository() {
             return false;
         }
 

@@ -242,17 +242,17 @@ public interface Repository extends LifecycleComponent {
     void verify(String verificationToken, DiscoveryNode localNode);
 
     /**
-     * Verifies repository settings on local node by reading and writing files onto blobstore without the
-     * cluster-manager.
-     * @param localNode         the local node information
-     */
-    void verifyLocally(DiscoveryNode localNode);
-
-    /**
      * Returns true if the repository supports only read operations
      * @return true if the repository is read/only
      */
     boolean isReadOnly();
+
+    /**
+     * Returns true if the repository is managed by the system directly and doesn't allow managing the lifetime of the
+     * repository through external APIs
+     * @return true if the repository is system managed
+     */
+    boolean isSystemRepository();
 
     /**
      * Creates a snapshot of the shard based on the index commit point.

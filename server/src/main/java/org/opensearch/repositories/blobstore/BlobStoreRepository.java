@@ -286,6 +286,15 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      */
     public static final Setting<Boolean> READONLY_SETTING = Setting.boolSetting("readonly", false, Setting.Property.NodeScope);
 
+    /***
+     * Setting to set repository as system repository
+     */
+    public static final Setting<Boolean> SYSTEM_REPOSITORY_SETTING = Setting.boolSetting(
+        "system_repository",
+        false,
+        Setting.Property.NodeScope
+    );
+
     protected final boolean supportURLRepo;
 
     private final int maxShardBlobDeleteBatch;
@@ -346,6 +355,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     );
 
     private final boolean readOnly;
+
+    private final boolean isSystemRepository;
 
     private final Object lock = new Object();
 
@@ -412,6 +423,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         remoteUploadRateLimiter = getRateLimiter(metadata.settings(), "max_remote_upload_bytes_per_sec", ByteSizeValue.ZERO);
         remoteDownloadRateLimiter = getRateLimiter(metadata.settings(), "max_remote_download_bytes_per_sec", ByteSizeValue.ZERO);
         readOnly = READONLY_SETTING.get(metadata.settings());
+        isSystemRepository = SYSTEM_REPOSITORY_SETTING.get(metadata.settings());
         cacheRepositoryData = CACHE_REPOSITORY_DATA.get(metadata.settings());
         bufferSize = Math.toIntExact(BUFFER_SIZE_SETTING.get(metadata.settings()).getBytes());
         maxShardBlobDeleteBatch = MAX_SNAPSHOT_SHARD_BLOB_DELETE_BATCH_SIZE.get(metadata.settings());
@@ -1831,8 +1843,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 byte[] testBytes = Strings.toUTF8Bytes(seed);
                 BlobContainer testContainer = blobStore().blobContainer(basePath().add(testBlobPrefix(seed)));
                 BytesArray bytes = new BytesArray(testBytes);
-                try (InputStream stream = bytes.streamInput()) {
-                    testContainer.writeBlobAtomic("master.dat", stream, bytes.length(), true);
+                if (isSystemRepository == false) {
+                    try (InputStream stream = bytes.streamInput()) {
+                        testContainer.writeBlobAtomic("master.dat", stream, bytes.length(), true);
+                    }
                 }
                 return seed;
             }
@@ -2139,6 +2153,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     @Override
     public boolean isReadOnly() {
         return readOnly;
+    }
+
+    @Override
+    public boolean isSystemRepository() {
+        return isSystemRepository;
     }
 
     /**
@@ -3156,99 +3175,33 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     exp
                 );
             }
-            try (InputStream masterDat = testBlobContainer.readBlob("master.dat")) {
-                final String seedRead = Streams.readFully(masterDat).utf8ToString();
-                if (seedRead.equals(seed) == false) {
+
+            if (isSystemRepository == false) {
+                try (InputStream masterDat = testBlobContainer.readBlob("master.dat")) {
+                    final String seedRead = Streams.readFully(masterDat).utf8ToString();
+                    if (seedRead.equals(seed) == false) {
+                        throw new RepositoryVerificationException(
+                            metadata.name(),
+                            "Seed read from master.dat was [" + seedRead + "] but expected seed [" + seed + "]"
+                        );
+                    }
+                } catch (NoSuchFileException e) {
                     throw new RepositoryVerificationException(
                         metadata.name(),
-                        "Seed read from master.dat was [" + seedRead + "] but expected seed [" + seed + "]"
+                        "a file written by cluster-manager to the store ["
+                            + blobStore()
+                            + "] cannot be accessed on the node ["
+                            + localNode
+                            + "]. "
+                            + "This might indicate that the store ["
+                            + blobStore()
+                            + "] is not shared between this node and the cluster-manager node or "
+                            + "that permissions on the store don't allow reading files written by the cluster-manager node",
+                        e
                     );
+                } catch (Exception e) {
+                    throw new RepositoryVerificationException(metadata.name(), "Failed to verify repository", e);
                 }
-            } catch (NoSuchFileException e) {
-                throw new RepositoryVerificationException(
-                    metadata.name(),
-                    "a file written by cluster-manager to the store ["
-                        + blobStore()
-                        + "] cannot be accessed on the node ["
-                        + localNode
-                        + "]. "
-                        + "This might indicate that the store ["
-                        + blobStore()
-                        + "] is not shared between this node and the cluster-manager node or "
-                        + "that permissions on the store don't allow reading files written by the cluster-manager node",
-                    e
-                );
-            } catch (Exception e) {
-                throw new RepositoryVerificationException(metadata.name(), "Failed to verify repository", e);
-            }
-        }
-    }
-
-    @Override
-    public void verifyLocally(DiscoveryNode localNode) {
-        String seed = UUIDs.randomBase64UUID();
-        if (isReadOnly()) {
-            try {
-                latestIndexBlobId();
-            } catch (Exception e) {
-                throw new RepositoryVerificationException(
-                    metadata.name(),
-                    "path " + basePath() + " is not accessible on node " + localNode,
-                    e
-                );
-            }
-        } else {
-            BlobContainer testBlobContainer = blobStore().blobContainer(basePath().add(testBlobPrefix(seed)));
-            String blobName = "data-" + localNode.getId() + ".dat";
-
-            // Writing test data to the repository
-            try {
-                BytesArray bytes = new BytesArray(seed);
-                try (InputStream stream = bytes.streamInput()) {
-                    testBlobContainer.writeBlob(blobName, stream, bytes.length(), true);
-                }
-            } catch (Exception exp) {
-                throw new RepositoryVerificationException(
-                    metadata.name(),
-                    "store location [" + blobStore() + "] is not accessible on the node [" + localNode + "]",
-                    exp
-                );
-            }
-
-            // Reading test data from the repository
-            try (InputStream localNodeDat = testBlobContainer.readBlob(blobName)) {
-                final String seedRead = Streams.readFully(localNodeDat).utf8ToString();
-                if (seedRead.equals(seed) == false) {
-                    throw new RepositoryVerificationException(
-                        metadata.name(),
-                        "Seed read was [" + seedRead + "] but expected seed [" + seed + "]"
-                    );
-                }
-            } catch (NoSuchFileException e) {
-                throw new RepositoryVerificationException(
-                    metadata.name(),
-                    "a file written to the store ["
-                        + blobStore()
-                        + "] cannot be accessed on the node ["
-                        + localNode
-                        + "]. "
-                        + "This might indicate that the store ["
-                        + blobStore()
-                        + "] permissions don't allow reading files",
-                    e
-                );
-            } catch (Exception e) {
-                throw new RepositoryVerificationException(metadata.name(), "Failed to verify repository", e);
-            }
-
-            // Trying to delete the repository once the write and read verification completes. We wont fail the
-            // verification if the detete fails.
-            // TODO: See if there is a better way to handle this deletion failure.
-            try {
-                final String testPrefix = testBlobPrefix(seed);
-                blobStore().blobContainer(basePath().add(testPrefix)).delete();
-            } catch (Exception exp) {
-                logger.warn(() -> new ParameterizedMessage("[{}] cannot delete test data at {} {}", metadata.name(), basePath(), exp));
             }
         }
     }

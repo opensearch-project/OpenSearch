@@ -87,7 +87,9 @@ public class RemoteStoreService {
     public void verifyRepositoriesLocally(List<Repository> repositories, DiscoveryNode localNode) {
         for (Repository repository : repositories) {
             String repositoryName = repository.getMetadata().name();
-            repository.verifyLocally(localNode);
+            String verificationToken = repository.startVerification();
+            repository.verify(verificationToken, localNode);
+            repository.endVerification(verificationToken);
             logger.info(() -> new ParameterizedMessage("successfully verified [{}] repository", repositoryName));
         }
     }

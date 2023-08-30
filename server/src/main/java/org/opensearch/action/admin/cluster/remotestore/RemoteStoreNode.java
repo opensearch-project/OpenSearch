@@ -12,6 +12,7 @@ import org.opensearch.cluster.metadata.RepositoriesMetadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.repositories.blobstore.BlobStoreRepository;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -81,6 +82,9 @@ public class RemoteStoreNode {
 
         Settings.Builder settings = Settings.builder();
         settingsMap.forEach(settings::put);
+
+        // Repository metadata built here will always be for a system repository.
+        settings.put(BlobStoreRepository.SYSTEM_REPOSITORY_SETTING.getKey(), true);
 
         return new RepositoryMetadata(name, type, settings.build());
     }
