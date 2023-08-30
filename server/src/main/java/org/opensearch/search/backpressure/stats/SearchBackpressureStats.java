@@ -26,7 +26,6 @@ import java.util.Objects;
 public class SearchBackpressureStats implements ToXContentFragment, Writeable {
     private final SearchShardTaskStats searchShardTaskStats;
     private final SearchBackpressureMode mode;
-    private Boolean isNodeUnderDuress;
     @Nullable
     private final SearchTaskStats searchTaskStats;
 
@@ -39,7 +38,6 @@ public class SearchBackpressureStats implements ToXContentFragment, Writeable {
         this.searchShardTaskStats = searchShardTaskStats;
         this.mode = mode;
         this.searchTaskStats = searchTaskStats;
-        this.isNodeUnderDuress = isNodeUnderDuress;
     }
 
     public SearchBackpressureStats(StreamInput in) throws IOException {
@@ -49,12 +47,6 @@ public class SearchBackpressureStats implements ToXContentFragment, Writeable {
             searchTaskStats = in.readOptionalWriteable(SearchTaskStats::new);
         } else {
             searchTaskStats = null;
-        }
-
-        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
-            isNodeUnderDuress = in.readOptionalBoolean();
-        } else {
-            isNodeUnderDuress = null;
         }
     }
 
@@ -66,9 +58,6 @@ public class SearchBackpressureStats implements ToXContentFragment, Writeable {
         }
         builder.field("search_shard_task", searchShardTaskStats);
         builder.field("mode", mode.getName());
-        if (isNodeUnderDuress != null) {
-            builder.field("is_node_under_duress", isNodeUnderDuress);
-        }
         return builder.endObject();
     }
 
@@ -79,10 +68,6 @@ public class SearchBackpressureStats implements ToXContentFragment, Writeable {
         if (out.getVersion().onOrAfter(Version.V_2_6_0)) {
             out.writeOptionalWriteable(searchTaskStats);
         }
-
-        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
-            out.writeOptionalBoolean(isNodeUnderDuress);
-        }
     }
 
     @Override
@@ -91,13 +76,12 @@ public class SearchBackpressureStats implements ToXContentFragment, Writeable {
         if (o == null || getClass() != o.getClass()) return false;
         SearchBackpressureStats that = (SearchBackpressureStats) o;
         return mode == that.mode
-            && Objects.equals(isNodeUnderDuress, that.isNodeUnderDuress)
             && Objects.equals(searchTaskStats, that.searchTaskStats)
             && Objects.equals(searchShardTaskStats, that.searchShardTaskStats);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(searchTaskStats, searchShardTaskStats, mode, isNodeUnderDuress);
+        return Objects.hash(searchTaskStats, searchShardTaskStats, mode);
     }
 }

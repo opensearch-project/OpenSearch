@@ -242,7 +242,7 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
     /**
      * Returns true if the node is in duress consecutively for the past 'n' observations.
      */
-    boolean isNodeInDuress() {
+    public boolean isNodeInDuress() {
         boolean isNodeInDuress = false;
         int numSuccessiveBreaches = getSettings().getNodeDuressSettings().getNumSuccessiveBreaches();
 

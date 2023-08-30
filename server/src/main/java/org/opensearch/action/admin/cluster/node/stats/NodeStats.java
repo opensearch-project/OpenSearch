@@ -142,6 +142,9 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
     @Nullable
     private SearchPipelineStats searchPipelineStats;
 
+    @Nullable
+    private Boolean isNodeUnderDuress;
+
     public NodeStats(StreamInput in) throws IOException {
         super(in);
         timestamp = in.readVLong();
@@ -198,6 +201,11 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         } else {
             searchPipelineStats = null;
         }
+        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+            isNodeUnderDuress = in.readOptionalBoolean();
+        } else {
+            isNodeUnderDuress = null;
+        }
     }
 
     public NodeStats(
@@ -224,7 +232,8 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         @Nullable WeightedRoutingStats weightedRoutingStats,
         @Nullable FileCacheStats fileCacheStats,
         @Nullable TaskCancellationStats taskCancellationStats,
-        @Nullable SearchPipelineStats searchPipelineStats
+        @Nullable SearchPipelineStats searchPipelineStats,
+        @Nullable Boolean isNodeUnderDuress
     ) {
         super(node);
         this.timestamp = timestamp;
@@ -250,6 +259,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         this.fileCacheStats = fileCacheStats;
         this.taskCancellationStats = taskCancellationStats;
         this.searchPipelineStats = searchPipelineStats;
+        this.isNodeUnderDuress = isNodeUnderDuress;
     }
 
     public long getTimestamp() {
@@ -387,6 +397,11 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         return searchPipelineStats;
     }
 
+    @Nullable
+    public Boolean getIsNodeUnderDuress() {
+        return isNodeUnderDuress;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -429,6 +444,9 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         }
         if (out.getVersion().onOrAfter(Version.V_2_9_0)) {
             out.writeOptionalWriteable(searchPipelineStats);
+        }
+        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+            out.writeOptionalBoolean(isNodeUnderDuress);
         }
     }
 
@@ -519,6 +537,10 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         }
         if (getSearchPipelineStats() != null) {
             getSearchPipelineStats().toXContent(builder, params);
+        }
+
+        if (isNodeUnderDuress != null) {
+            builder.field("is_node_under_duress", isNodeUnderDuress);
         }
 
         return builder;
