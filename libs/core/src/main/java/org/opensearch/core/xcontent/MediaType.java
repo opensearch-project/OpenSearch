@@ -46,7 +46,7 @@ import java.util.Locale;
  *
  * @opensearch.api
  */
-@PublicApi(since = "1.0.0")
+@PublicApi(since = "2.1.0")
 public interface MediaType extends Writeable {
     /**
      * Returns a type part of a MediaType
