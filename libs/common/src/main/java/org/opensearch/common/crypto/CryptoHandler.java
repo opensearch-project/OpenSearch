@@ -17,8 +17,8 @@ import java.io.InputStream;
  * Crypto provider abstractions for encryption and decryption of data. Allows registering multiple providers
  * for defining different ways of encrypting or decrypting data.
  *
- * T - Encryption Metadata
- * U - Parsed Encryption Metadata
+ * T - Encryption Metadata / CryptoContext
+ * U - Parsed Encryption Metadata / CryptoContext
  */
 public interface CryptoHandler<T, U> {
 
