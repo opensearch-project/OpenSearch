@@ -11,6 +11,8 @@ package org.opensearch.telemetry.tracing;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.telemetry.tracing.exporter.OTelSpanExporterFactory;
 
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.concurrent.TimeUnit;
 
 import io.opentelemetry.api.OpenTelemetry;
@@ -41,11 +43,13 @@ public final class OTelResourceProvider {
      * @return OpenTelemetry instance
      */
     public static OpenTelemetry get(Settings settings) {
-        return get(
-            settings,
-            OTelSpanExporterFactory.create(settings),
-            ContextPropagators.create(W3CTraceContextPropagator.getInstance()),
-            Sampler.alwaysOn()
+        return AccessController.doPrivileged(
+            (PrivilegedAction<OpenTelemetry>) () -> get(
+                settings,
+                OTelSpanExporterFactory.create(settings),
+                ContextPropagators.create(W3CTraceContextPropagator.getInstance()),
+                Sampler.alwaysOn()
+            )
         );
     }
 
