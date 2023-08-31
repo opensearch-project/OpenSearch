@@ -143,8 +143,9 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         final ShardRouting replicaShardRouting = getShardRoutingForNodeName(replica);
         assertNotNull(replicaShardRouting);
         assertTrue(replicaShardRouting + " should be promoted as a primary", replicaShardRouting.primary());
-        refresh(INDEX_NAME);
-        assertHitCount(client(replica).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), 2);
+        final SearchResponse response = client(replica).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get();
+        // new primary should have at least the doc count from the first set of segments.
+        assertTrue(response.getHits().getTotalHits().value >= 1);
 
         // assert we can index into the new primary.
         client().prepareIndex(INDEX_NAME).setId("3").setSource("bar", "baz").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();

@@ -535,11 +535,13 @@ final class StoreRecovery {
         remoteStore.incRef();
         try {
             // Download segments from remote segment store
-            indexShard.syncSegmentsFromRemoteSegmentStore(true, true);
+            indexShard.syncSegmentsFromRemoteSegmentStore(true);
 
             indexShard.syncTranslogFilesFromRemoteTranslog();
 
-            if (store.directory().listAll().length == 0) {
+            // On index creation, the only segment file that is created is segments_N. We can safely discard this file
+            // as there is no data associated with this shard as part of segments.
+            if (store.directory().listAll().length <= 1) {
                 Path location = indexShard.shardPath().resolveTranslog();
                 Checkpoint checkpoint = Checkpoint.read(location.resolve(CHECKPOINT_FILE_NAME));
                 final Path translogFile = location.resolve(Translog.getFilename(checkpoint.getGeneration()));
