@@ -33,6 +33,7 @@ public class DefaultSpanScope implements SpanScope {
     /**
      * Creates the SpanScope object.
      * @param span span.
+     * @param tracerContextStorage tracer context storage.
      * @return SpanScope spanScope
      */
     public static SpanScope create(Span span, TracerContextStorage<String, Span> tracerContextStorage) {
