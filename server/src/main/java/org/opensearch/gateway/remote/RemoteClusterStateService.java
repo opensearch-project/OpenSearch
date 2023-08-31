@@ -379,14 +379,29 @@ public class RemoteClusterStateService implements Closeable {
         Map<String, IndexMetadata> remoteIndexMetadata = new HashMap<>();
         ClusterMetadataManifest ClusterMetadataManifest = getLatestClusterMetadataManifest(clusterUUID, clusterName);
         for (UploadedIndexMetadata uploadedIndexMetadata : ClusterMetadataManifest.getIndices()) {
-            IndexMetadata indexMetadata = INDEX_METADATA_FORMAT.read(
+            IndexMetadata indexMetadata = getIndexMetadata(clusterUUID, clusterName, uploadedIndexMetadata);
+            remoteIndexMetadata.put(uploadedIndexMetadata.getIndexUUID(), indexMetadata);
+        }
+        return remoteIndexMetadata;
+    }
+
+    private IndexMetadata getIndexMetadata(String clusterUUID, String clusterName, UploadedIndexMetadata uploadedIndexMetadata)
+        throws IOException {
+        try {
+            return INDEX_METADATA_FORMAT.read(
                 indexMetadataContainer(clusterName, clusterUUID, uploadedIndexMetadata.getIndexUUID()),
                 uploadedIndexMetadata.getUploadedFilename(),
                 blobStoreRepository.getNamedXContentRegistry()
             );
-            remoteIndexMetadata.put(uploadedIndexMetadata.getIndexUUID(), indexMetadata);
+        } catch (IOException e) {
+            String errorMsg = String.format(
+                Locale.ROOT,
+                "Error while downloading IndexMetadata - %s",
+                uploadedIndexMetadata.getUploadedFilename()
+            );
+            logger.error(errorMsg, e);
+            throw new IllegalStateException(errorMsg);
         }
-        return remoteIndexMetadata;
     }
 
     /**

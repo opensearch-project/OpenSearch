@@ -37,6 +37,7 @@ import org.junit.Assert;
 import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -77,6 +78,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         blobStore = mock(BlobStore.class);
         when(blobStoreRepository.blobStore()).thenReturn(blobStore);
         when(repositoriesService.repository("remote_store_repository")).thenReturn(blobStoreRepository);
+        when(blobStoreRepository.getNamedXContentRegistry()).thenReturn(new NamedXContentRegistry(new ArrayList<>()));
         remoteClusterStateService = new RemoteClusterStateService(
             "test-node-id",
             repositoriesServiceSupplier,
@@ -199,6 +201,129 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         assertThat(manifest.getStateUUID(), is(expectedManifest.getStateUUID()));
     }
 
+    public void testReadLatestMetadataMarkerFailedIOException() throws IOException {
+        final ClusterState clusterState = generateClusterStateWithOneIndex().nodes(nodesWithLocalNodeClusterManager()).build();
+
+        BlobContainer blobContainer = mockBlobStoreObjects();
+        when(
+            blobContainer.listBlobsByPrefixInSortedOrder(
+                "manifest" + RemoteClusterStateService.DELIMITER,
+                1,
+                BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC
+            )
+        ).thenThrow(IOException.class);
+
+        remoteClusterStateService.ensureRepositorySet();
+        Exception e = assertThrows(
+            IllegalStateException.class,
+            () -> remoteClusterStateService.getLatestClusterMetadataManifest(
+                clusterState.metadata().clusterUUID(),
+                clusterState.getClusterName().value()
+            )
+        );
+        assertEquals(e.getMessage(), "Error while fetching latest manifest file for remote cluster state");
+    }
+
+    public void testReadLatestMetadataMarkerFailedNoMarkerFileInRemote() throws IOException {
+        final ClusterState clusterState = generateClusterStateWithOneIndex().nodes(nodesWithLocalNodeClusterManager()).build();
+
+        BlobContainer blobContainer = mockBlobStoreObjects();
+        when(
+            blobContainer.listBlobsByPrefixInSortedOrder(
+                "manifest" + RemoteClusterStateService.DELIMITER,
+                1,
+                BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC
+            )
+        ).thenReturn(List.of());
+
+        remoteClusterStateService.ensureRepositorySet();
+        Exception e = assertThrows(
+            IllegalStateException.class,
+            () -> remoteClusterStateService.getLatestClusterMetadataManifest(
+                clusterState.metadata().clusterUUID(),
+                clusterState.getClusterName().value()
+            )
+        );
+        assertEquals(e.getMessage(), "Remote Cluster State not found");
+    }
+
+    public void testReadLatestMetadataMarkerFailedMarkerFileRemoveAfterFetchInRemote() throws IOException {
+        final ClusterState clusterState = generateClusterStateWithOneIndex().nodes(nodesWithLocalNodeClusterManager()).build();
+
+        BlobContainer blobContainer = mockBlobStoreObjects();
+        BlobMetadata blobMetadata = new PlainBlobMetadata("manifestFileName", 1);
+        when(
+            blobContainer.listBlobsByPrefixInSortedOrder(
+                "manifest" + RemoteClusterStateService.DELIMITER,
+                1,
+                BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC
+            )
+        ).thenReturn(Arrays.asList(blobMetadata));
+        when(blobContainer.readBlob("manifestFileName")).thenThrow(FileNotFoundException.class);
+
+        remoteClusterStateService.ensureRepositorySet();
+        Exception e = assertThrows(
+            IllegalStateException.class,
+            () -> remoteClusterStateService.getLatestClusterMetadataManifest(
+                clusterState.metadata().clusterUUID(),
+                clusterState.getClusterName().value()
+            )
+        );
+        assertEquals(e.getMessage(), "Error while downloading ClusterMetadataManifest - manifestFileName");
+    }
+
+    public void testReadLatestMetadataMarkerSuccessButNoIndexMetadata() throws IOException {
+        final ClusterState clusterState = generateClusterStateWithOneIndex().nodes(nodesWithLocalNodeClusterManager()).build();
+        final ClusterMetadataManifest expectedManifest = ClusterMetadataManifest.builder()
+            .indices(List.of())
+            .clusterTerm(1L)
+            .stateVersion(1L)
+            .stateUUID("state-uuid")
+            .clusterUUID("cluster-uuid")
+            .nodeId("nodeA")
+            .opensearchVersion(VersionUtils.randomOpenSearchVersion(random()))
+            .build();
+
+        BlobContainer blobContainer = mockBlobStoreObjects();
+        mockBlobContainer(blobContainer, expectedManifest, Map.of());
+
+        remoteClusterStateService.ensureRepositorySet();
+        assertEquals(
+            remoteClusterStateService.getLatestIndexMetadata(clusterState.metadata().clusterUUID(), clusterState.getClusterName().value())
+                .size(),
+            0
+        );
+    }
+
+    public void testReadLatestMetadataMarkerSuccessButIndexMetadataFetchIOException() throws IOException {
+        final ClusterState clusterState = generateClusterStateWithOneIndex().nodes(nodesWithLocalNodeClusterManager()).build();
+        final UploadedIndexMetadata uploadedIndexMetadata = new UploadedIndexMetadata("test-index", "index-uuid", "metadata-filename");
+        final List<UploadedIndexMetadata> indices = List.of(uploadedIndexMetadata);
+        final ClusterMetadataManifest expectedManifest = ClusterMetadataManifest.builder()
+            .indices(indices)
+            .clusterTerm(1L)
+            .stateVersion(1L)
+            .stateUUID("state-uuid")
+            .clusterUUID("cluster-uuid")
+            .nodeId("nodeA")
+            .opensearchVersion(VersionUtils.randomOpenSearchVersion(random()))
+            .build();
+
+        BlobContainer blobContainer = mockBlobStoreObjects();
+        mockBlobContainer(blobContainer, expectedManifest, Map.of());
+        when(blobContainer.readBlob(uploadedIndexMetadata.getUploadedFilename() + ".dat")).thenThrow(FileNotFoundException.class);
+
+        remoteClusterStateService.ensureRepositorySet();
+        Exception e = assertThrows(
+            IllegalStateException.class,
+            () -> remoteClusterStateService.getLatestIndexMetadata(
+                clusterState.metadata().clusterUUID(),
+                clusterState.getClusterName().value()
+            )
+        );
+        assertEquals(e.getMessage(), "Error while downloading IndexMetadata - " + uploadedIndexMetadata.getUploadedFilename());
+    }
+
     public void testReadLatestMetadataMarkerSuccess() throws IOException {
         final ClusterState clusterState = generateClusterStateWithOneIndex().nodes(nodesWithLocalNodeClusterManager()).build();
         final UploadedIndexMetadata uploadedIndexMetadata = new UploadedIndexMetadata("test-index", "index-uuid", "metadata-filename");
@@ -312,24 +437,42 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         return blobContainer;
     }
 
-    private void mockBlobContainer(BlobContainer blobContainer, ClusterMetadataManifest clusterMetadataManifest, Map<String, IndexMetadata> indexMetadataList) throws IOException {
-        when(blobStoreRepository.getNamedXContentRegistry()).thenReturn(new NamedXContentRegistry(new ArrayList<>()));
+    private void mockBlobContainer(
+        BlobContainer blobContainer,
+        ClusterMetadataManifest clusterMetadataManifest,
+        Map<String, IndexMetadata> indexMetadataMap
+    ) throws IOException {
         BlobMetadata blobMetadata = new PlainBlobMetadata("manifestFileName", 1);
-        when(blobContainer.listBlobsByPrefixInSortedOrder("manifest" + RemoteClusterStateService.DELIMITER, 1, BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC)).thenReturn(Arrays.asList(blobMetadata));
+        when(
+            blobContainer.listBlobsByPrefixInSortedOrder(
+                "manifest" + RemoteClusterStateService.DELIMITER,
+                1,
+                BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC
+            )
+        ).thenReturn(Arrays.asList(blobMetadata));
 
-        BytesReference bytes = RemoteClusterStateService.CLUSTER_METADATA_MANIFEST_FORMAT.serialize(clusterMetadataManifest, "manifestFileName", blobStoreRepository.getCompressor());
+        BytesReference bytes = RemoteClusterStateService.CLUSTER_METADATA_MANIFEST_FORMAT.serialize(
+            clusterMetadataManifest,
+            "manifestFileName",
+            blobStoreRepository.getCompressor()
+        );
         when(blobContainer.readBlob("manifestFileName")).thenReturn(new ByteArrayInputStream(bytes.streamInput().readAllBytes()));
-
 
         clusterMetadataManifest.getIndices().forEach(uploadedIndexMetadata -> {
             try {
-                IndexMetadata indexMetadata = indexMetadataList.get(uploadedIndexMetadata.getIndexUUID());
+                IndexMetadata indexMetadata = indexMetadataMap.get(uploadedIndexMetadata.getIndexUUID());
                 if (indexMetadata == null) {
                     return;
                 }
                 String fileName = uploadedIndexMetadata.getUploadedFilename();
-                BytesReference bytesIndexMetadata = RemoteClusterStateService.INDEX_METADATA_FORMAT.serialize(indexMetadata, fileName, blobStoreRepository.getCompressor());
-                when(blobContainer.readBlob(fileName + ".dat")).thenReturn(new ByteArrayInputStream(bytesIndexMetadata.streamInput().readAllBytes()));
+                BytesReference bytesIndexMetadata = RemoteClusterStateService.INDEX_METADATA_FORMAT.serialize(
+                    indexMetadata,
+                    fileName,
+                    blobStoreRepository.getCompressor()
+                );
+                when(blobContainer.readBlob(fileName + ".dat")).thenReturn(
+                    new ByteArrayInputStream(bytesIndexMetadata.streamInput().readAllBytes())
+                );
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
