@@ -28,18 +28,18 @@ import java.util.concurrent.ConcurrentHashMap;
  * @opensearch.internal
  */
 public final class ConcurrentQueryProfileBreakdown extends ContextualProfileBreakdown<QueryTimingType> {
-    private static final String SLICE_END_TIME_SUFFIX = "_slice_end_time";
-    private static final String SLICE_START_TIME_SUFFIX = "_slice_start_time";
-    private static final String MAX_PREFIX = "max_";
-    private static final String MIN_PREFIX = "min_";
-    private static final String AVG_PREFIX = "avg_";
+    static final String SLICE_END_TIME_SUFFIX = "_slice_end_time";
+    static final String SLICE_START_TIME_SUFFIX = "_slice_start_time";
+    static final String MAX_PREFIX = "max_";
+    static final String MIN_PREFIX = "min_";
+    static final String AVG_PREFIX = "avg_";
     private long queryNodeTime = Long.MIN_VALUE;
     private long maxSliceNodeTime = Long.MIN_VALUE;
     private long minSliceNodeTime = Long.MAX_VALUE;
     private long avgSliceNodeTime = 0L;
 
-    // keep track of all breakdown timings per segment
-    private final Map<Object, AbstractProfileBreakdown<QueryTimingType>> contexts = new ConcurrentHashMap<>();
+    // keep track of all breakdown timings per segment. package-private for testing
+    final Map<Object, AbstractProfileBreakdown<QueryTimingType>> contexts = new ConcurrentHashMap<>();
 
     // represents slice to leaves mapping as for each slice a unique collector instance is created
     private final Map<Collector, List<LeafReaderContext>> sliceCollectorToLeaves = new HashMap<>();
@@ -127,7 +127,7 @@ public final class ConcurrentQueryProfileBreakdown extends ContextualProfileBrea
      * @param createWeightStartTime start time when createWeight is called
      * @return map of collector (or slice) to breakdown map
      */
-    private Map<Collector, Map<String, Long>> buildSliceLevelBreakdown(long createWeightStartTime) {
+    Map<Collector, Map<String, Long>> buildSliceLevelBreakdown(long createWeightStartTime) {
         final Map<Collector, Map<String, Long>> sliceLevelBreakdowns = new HashMap<>();
         long totalSliceNodeTime = 0;
         for (Map.Entry<Collector, List<LeafReaderContext>> slice : sliceCollectorToLeaves.entrySet()) {
@@ -215,8 +215,8 @@ public final class ConcurrentQueryProfileBreakdown extends ContextualProfileBrea
     public Map<String, Long> buildQueryBreakdownMap(
         Map<Collector, Map<String, Long>> sliceLevelBreakdowns,
         long createWeightTime,
-        long createWeightStartTime)
-    {
+        long createWeightStartTime
+    ) {
         final Map<String, Long> queryBreakdownMap = new HashMap<>();
         long queryEndTime = Long.MIN_VALUE;
         for (QueryTimingType queryTimingType : QueryTimingType.values()) {
