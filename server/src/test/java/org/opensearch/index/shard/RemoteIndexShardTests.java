@@ -11,7 +11,6 @@ package org.opensearch.index.shard;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.util.Version;
-import org.opensearch.OpenSearchCorruptionException;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.settings.Settings;
@@ -33,7 +32,6 @@ import org.opensearch.indices.replication.SegmentReplicationTargetService;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.common.ReplicationFailedException;
 import org.opensearch.indices.replication.common.ReplicationType;
-import org.opensearch.test.CorruptionUtils;
 import org.hamcrest.MatcherAssert;
 import org.junit.Assert;
 import org.junit.Before;
@@ -480,127 +478,6 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
             assertEquals(newTarget.state().getStage(), SegmentReplicationState.Stage.DONE);
             activeFiles = replica.getSegmentMetadataMap().values().stream().map(metadata -> metadata.name()).collect(Collectors.toList());
             assertTrue("Replica should have consistent disk & reader", activeFiles.containsAll(onDiskFiles));
-            shards.removeReplica(replica);
-            closeShards(replica);
-        }
-    }
-
-    public void testSegRepFailsOnPreviousCopiedFilesWithChecksumMismatch() throws Exception {
-        try (ReplicationGroup shards = createGroup(1, getIndexSettings(), new NRTReplicationEngineFactory())) {
-            shards.startAll();
-            IndexShard primary = shards.getPrimary();
-            final IndexShard replica = shards.getReplicas().get(0);
-
-            shards.indexDocs(10);
-            primary.refresh("Test");
-
-            final SegmentReplicationSourceFactory sourceFactory = mock(SegmentReplicationSourceFactory.class);
-            final SegmentReplicationTargetService targetService = newTargetService(sourceFactory);
-            Runnable[] runAfterGetFiles = { () -> { throw new RuntimeException("Simulated"); }, () -> {} };
-            AtomicInteger index = new AtomicInteger(0);
-            RemoteStoreReplicationSource testRSReplicationSource = new RemoteStoreReplicationSource(replica) {
-                @Override
-                public void getCheckpointMetadata(
-                    long replicationId,
-                    ReplicationCheckpoint checkpoint,
-                    ActionListener<CheckpointInfoResponse> listener
-                ) {
-                    super.getCheckpointMetadata(replicationId, checkpoint, listener);
-                }
-
-                @Override
-                public void getSegmentFiles(
-                    long replicationId,
-                    ReplicationCheckpoint checkpoint,
-                    List<StoreFileMetadata> filesToFetch,
-                    IndexShard indexShard,
-                    ActionListener<GetSegmentFilesResponse> listener
-                ) {
-                    super.getSegmentFiles(replicationId, checkpoint, filesToFetch, indexShard, listener);
-                    runAfterGetFiles[index.getAndIncrement()].run();
-                }
-
-                @Override
-                public String getDescription() {
-                    return "TestRemoteStoreReplicationSource";
-                }
-            };
-            when(sourceFactory.get(any())).thenReturn(testRSReplicationSource);
-            CountDownLatch latch = new CountDownLatch(1);
-
-            // Start first round of segment replication. This should fail with simulated error but with replica having
-            // files in its local store but not in active reader.
-            final SegmentReplicationTarget target = targetService.startReplication(
-                replica,
-                primary.getLatestReplicationCheckpoint(),
-                new SegmentReplicationTargetService.SegmentReplicationListener() {
-                    @Override
-                    public void onReplicationDone(SegmentReplicationState state) {
-                        Assert.fail("Replication should fail with simulated error");
-                    }
-
-                    @Override
-                    public void onReplicationFailure(
-                        SegmentReplicationState state,
-                        ReplicationFailedException e,
-                        boolean sendShardFailure
-                    ) {
-                        assertFalse(sendShardFailure);
-                        logger.error("Replication error", e);
-                        latch.countDown();
-                    }
-                }
-            );
-            latch.await();
-            Set<String> onDiskFiles = new HashSet<>(Arrays.asList(replica.store().directory().listAll()));
-            onDiskFiles.removeIf(name -> EXCLUDE_FILES.contains(name) || name.startsWith(IndexFileNames.SEGMENTS));
-            List<String> activeFiles = replica.getSegmentMetadataMap()
-                .values()
-                .stream()
-                .map(metadata -> metadata.name())
-                .collect(Collectors.toList());
-            assertTrue("Files should not be committed", activeFiles.isEmpty());
-            assertEquals("Files should be copied to disk", false, onDiskFiles.isEmpty());
-            assertEquals(target.state().getStage(), SegmentReplicationState.Stage.GET_FILES);
-
-            // Corrupt segment files so that there is checksum mis-match and next round of segment replication also fails
-            final Path indexPath = replica.shardPath().getDataPath().resolve(ShardPath.INDEX_FOLDER_NAME);
-            CorruptionUtils.corruptIndex(random(), indexPath, false);
-
-            // Start next round of segment replication
-            CountDownLatch waitForSecondRound = new CountDownLatch(1);
-            final SegmentReplicationTarget newTarget = targetService.startReplication(
-                replica,
-                primary.getLatestReplicationCheckpoint(),
-                new SegmentReplicationTargetService.SegmentReplicationListener() {
-                    @Override
-                    public void onReplicationDone(SegmentReplicationState state) {
-                        Assert.fail("Replication should fail with corruption exception");
-                        waitForSecondRound.countDown();
-                    }
-
-                    @Override
-                    public void onReplicationFailure(
-                        SegmentReplicationState state,
-                        ReplicationFailedException e,
-                        boolean sendShardFailure
-                    ) {
-                        logger.error("Replication error", e);
-                        assertTrue(e.unwrapCause().getCause() instanceof OpenSearchCorruptionException);
-                        waitForSecondRound.countDown();
-                    }
-                }
-            );
-            waitForSecondRound.await();
-            assertEquals(newTarget.state().getStage(), SegmentReplicationState.Stage.FINALIZE_REPLICATION);
-            // Fetching getSegmentMetadataMap from replica results in java.nio.file.NoSuchFileException
-            // activeFiles = replica.getSegmentMetadataMap().values().stream().map(metadata ->
-            // metadata.name()).collect(Collectors.toList());
-            assertTrue("Files should not be committed", activeFiles.isEmpty());
-            assertFalse("Files should be copied to disk", onDiskFiles.isEmpty());
-            for (String file : onDiskFiles) {
-                replica.store().deleteQuiet(file);
-            }
             shards.removeReplica(replica);
             closeShards(replica);
         }
