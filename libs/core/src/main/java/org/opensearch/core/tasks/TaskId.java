@@ -35,13 +35,16 @@ package org.opensearch.core.tasks;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.io.stream.ProtobufWriteable;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.ContextParser;
 import org.opensearch.core.xcontent.XContentParser;
-
 import java.io.IOException;
+import java.io.OutputStream;
+
+import org.opensearch.core.tasks.proto.TaskIdProto;
 
 /**
  * Task id that consists of node id and id of the task on the node
@@ -49,9 +52,11 @@ import java.io.IOException;
  * @opensearch.api
  */
 @PublicApi(since = "1.0.0")
-public final class TaskId implements Writeable {
+public final class TaskId implements Writeable, ProtobufWriteable {
 
     public static final TaskId EMPTY_TASK_ID = new TaskId();
+
+    private final TaskIdProto.TaskId taskIdProto;
 
     private final String nodeId;
     private final long id;
@@ -62,6 +67,7 @@ public final class TaskId implements Writeable {
         }
         this.nodeId = nodeId;
         this.id = id;
+        this.taskIdProto = TaskIdProto.TaskId.newBuilder().setNodeId(nodeId).setId(id).build();;
     }
 
     /**
@@ -70,6 +76,7 @@ public final class TaskId implements Writeable {
     private TaskId() {
         nodeId = "";
         id = -1;
+        taskIdProto = TaskIdProto.TaskId.newBuilder().setNodeId(nodeId).setId(id).build();;
     }
 
     public TaskId(String taskId) {
@@ -84,9 +91,11 @@ public final class TaskId implements Writeable {
             } catch (NumberFormatException ex) {
                 throw new IllegalArgumentException("malformed task id " + taskId, ex);
             }
+            taskIdProto = TaskIdProto.TaskId.newBuilder().setNodeId(nodeId).setId(id).build();
         } else {
             nodeId = "";
             id = -1L;
+            taskIdProto = TaskIdProto.TaskId.newBuilder().setNodeId(nodeId).setId(id).build();
         }
     }
 
@@ -106,6 +115,16 @@ public final class TaskId implements Writeable {
         return new TaskId(nodeId, in.readLong());
     }
 
+    /**
+     * Read a {@linkplain TaskId} from a byte array. {@linkplain TaskId} has this rather than the usual constructor that takes a
+    * {@linkplain byte[]} so we can return the {@link #EMPTY_TASK_ID} without allocating.
+    */
+    public TaskId(byte[] in) throws IOException {
+        this.taskIdProto = TaskIdProto.TaskId.parseFrom(in);
+        this.nodeId = taskIdProto.getNodeId();
+        this.id = taskIdProto.getId();
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(nodeId);
@@ -114,6 +133,11 @@ public final class TaskId implements Writeable {
             return;
         }
         out.writeLong(id);
+    }
+
+    @Override
+    public void writeTo(OutputStream out) throws IOException {
+        out.write(this.taskIdProto.toByteArray());
     }
 
     public static ContextParser<Void, TaskId> parser() {

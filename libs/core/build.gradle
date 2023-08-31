@@ -30,10 +30,21 @@
 
 import org.opensearch.gradle.info.BuildParams
 
-apply plugin: 'opensearch.publish'
+plugins {
+  id('com.google.protobuf') version 'latest.release'
+  id('opensearch.publish')
+}
 
 base {
   archivesBaseName = 'opensearch-core'
+}
+
+sourceSets {
+  main {
+    java {
+      srcDir "${buildDir}/generated/source/proto/main/java"
+    }
+  }
 }
 
 // we want to keep the JDKs in our IDEs set to JDK 8 until minimum JDK is bumped to 11 so we do not include this source set in our IDEs
@@ -127,4 +138,32 @@ tasks.named("thirdPartyAudit").configure {
 tasks.named("dependencyLicenses").configure {
   mapping from: /jackson-.*/, to: 'jackson'
   mapping from: /lucene-.*/, to: 'lucene'
+}
+
+tasks.named("licenseHeaders").configure {
+    dependsOn("generateProto")
+    // Ignore for protobuf generated code
+    excludes << 'org/opensearch/core/tasks/proto/*'
+}
+
+tasks.named("compileJava").configure {
+    dependsOn("generateProto")
+    // Ignore for protobuf generated code
+    excludes << 'org/opensearch/core/tasks/proto/*'
+}
+
+protobuf {
+  protoc {
+    artifact = "com.google.protobuf:protoc:${versions.protobuf}"
+  }
+
+  generateProtoTasks {
+    all().each { task ->
+      task.builtins {
+        java {
+          option "annotate_code"
+        }
+      }
+    }
+  }
 }

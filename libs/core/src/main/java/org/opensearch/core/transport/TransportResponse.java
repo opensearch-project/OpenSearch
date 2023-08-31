@@ -36,6 +36,7 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.io.OutputStream;
 
 /**
  * Response over the transport interface
@@ -59,6 +60,21 @@ public abstract class TransportResponse extends TransportMessage {
     }
 
     /**
+     * Constructs a new transport response with the data from the {@link byte[]}. This is
+    * currently a no-op. However, this exists to allow extenders to call <code>super(in)</code>
+    * so that reading can mirror writing where we often call <code>super.writeTo(out)</code>.
+    */
+    public TransportResponse(byte[] in) throws IOException {
+        super(in);
+    }
+
+    /**
+     * Putting an empty implementation here so that not all classes that extend TransportResponse have to implement this method.
+     */
+    @Override
+    public void writeTo(OutputStream out) throws IOException {}
+
+    /**
      * Empty transport response
      *
      * @opensearch.internal
@@ -73,5 +89,8 @@ public abstract class TransportResponse extends TransportMessage {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {}
+
+        @Override
+        public void writeTo(OutputStream out) throws IOException {}
     }
 }

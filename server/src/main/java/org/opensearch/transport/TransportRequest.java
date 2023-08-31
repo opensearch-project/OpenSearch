@@ -39,6 +39,7 @@ import org.opensearch.core.transport.TransportMessage;
 import org.opensearch.tasks.TaskAwareRequest;
 
 import java.io.IOException;
+import java.io.OutputStream;
 
 /**
  * A transport request
@@ -59,6 +60,10 @@ public abstract class TransportRequest extends TransportMessage implements TaskA
         public Empty(StreamInput in) throws IOException {
             super(in);
         }
+
+        public Empty(byte[] in) throws IOException {
+            super(in);
+        }
     }
 
     /**
@@ -70,6 +75,10 @@ public abstract class TransportRequest extends TransportMessage implements TaskA
 
     public TransportRequest(StreamInput in) throws IOException {
         parentTaskId = TaskId.readFromStream(in);
+    }
+
+    public TransportRequest(byte[] in) throws IOException{
+        parentTaskId = new TaskId(in);
     }
 
     /**
@@ -90,6 +99,11 @@ public abstract class TransportRequest extends TransportMessage implements TaskA
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        parentTaskId.writeTo(out);
+    }
+
+    @Override
+    public void writeTo(OutputStream out) throws IOException {
         parentTaskId.writeTo(out);
     }
 }
