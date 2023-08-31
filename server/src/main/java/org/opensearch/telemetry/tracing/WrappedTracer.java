@@ -69,8 +69,8 @@ final class WrappedTracer implements Tracer {
     }
 
     @Override
-    public SpanScope createSpanScope(Span span) {
-        return getDelegateTracer().createSpanScope(span);
+    public SpanScope withSpanInScope(Span span) {
+        return getDelegateTracer().withSpanInScope(span);
     }
 
     @Override

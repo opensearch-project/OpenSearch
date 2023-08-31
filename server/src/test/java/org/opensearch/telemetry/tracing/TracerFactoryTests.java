@@ -51,7 +51,7 @@ public class TracerFactoryTests extends OpenSearchTestCase {
         assertTrue(tracer.startSpan("foo") == NoopSpan.INSTANCE);
         assertTrue(tracer.startScopedSpan(new SpanCreationContext("foo", Attributes.EMPTY)) == ScopedSpan.NO_OP);
         assertTrue(tracer.startScopedSpan(new SpanCreationContext("foo", Attributes.EMPTY)) == ScopedSpan.NO_OP);
-        assertTrue(tracer.createSpanScope(tracer.startSpan("foo")) == SpanScope.NO_OP);
+        assertTrue(tracer.withSpanInScope(tracer.startSpan("foo")) == SpanScope.NO_OP);
     }
 
     public void testGetTracerWithUnavailableTracingTelemetry() {

@@ -84,34 +84,19 @@ class DefaultTracer implements Tracer {
 
     @Override
     public ScopedSpan startScopedSpan(SpanCreationContext spanCreationContext) {
-        Span span = startSpan(spanCreationContext);
-        SpanScope spanScope = createSpanScope(span);
-        return new DefaultScopedSpan(
-            span,
-            spanScope,
-            (spanToBeClosed, scopeSpanToBeClosed) -> endScopedSpan(spanToBeClosed, scopeSpanToBeClosed)
-        );
+        return startScopedSpan(spanCreationContext, null);
     }
 
     @Override
     public ScopedSpan startScopedSpan(SpanCreationContext spanCreationContext, SpanContext parentSpan) {
         Span span = startSpan(spanCreationContext.getSpanName(), parentSpan, spanCreationContext.getAttributes());
-        SpanScope spanScope = createSpanScope(span);
-        return new DefaultScopedSpan(
-            span,
-            spanScope,
-            (spanToBeClosed, scopeSpanToBeClosed) -> endScopedSpan(spanToBeClosed, scopeSpanToBeClosed)
-        );
+        SpanScope spanScope = withSpanInScope(span);
+        return new DefaultScopedSpan(span, spanScope);
     }
 
     @Override
-    public SpanScope createSpanScope(Span span) {
+    public SpanScope withSpanInScope(Span span) {
         return DefaultSpanScope.create(span);
-    }
-
-    private void endScopedSpan(Span span, SpanScope spanScope) {
-        span.endSpan();
-        spanScope.close();
     }
 
     private Span createSpan(String spanName, Span parentSpan, Attributes attributes) {
@@ -119,7 +104,7 @@ class DefaultTracer implements Tracer {
     }
 
     private void onSpanEnd(Span span, Span parentSpan) {
-        if (parentSpan != null) {
+        if (getCurrentSpanInternal() == span && parentSpan != null) {
             setCurrentSpanInContext(parentSpan);
         } else if (span.getParentSpan() == null) {
             setCurrentSpanInContext(null);

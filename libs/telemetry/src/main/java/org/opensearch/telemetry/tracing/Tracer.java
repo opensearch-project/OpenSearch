@@ -85,6 +85,6 @@ public interface Tracer extends HttpTracer, Closeable {
      * @param span span to be scoped
      * @return ScopedSpan
      */
-    SpanScope createSpanScope(Span span);
+    SpanScope withSpanInScope(Span span);
 
 }

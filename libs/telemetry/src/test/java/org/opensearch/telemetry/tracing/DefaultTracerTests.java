@@ -201,7 +201,7 @@ public class DefaultTracerTests extends OpenSearchTestCase {
         );
         DefaultTracer defaultTracer = new DefaultTracer(tracingTelemetry, spanTracerStorage);
         Span span = defaultTracer.startSpan(new SpanCreationContext("span_name", Attributes.EMPTY));
-        SpanScope spanScope = defaultTracer.createSpanScope(span);
+        SpanScope spanScope = defaultTracer.withSpanInScope(span);
         assertEquals("span_name", defaultTracer.getCurrentSpan().getSpan().getSpanName());
         assertEquals(spanScope, DefaultSpanScope.getCurrentSpanScope());
 
@@ -222,8 +222,8 @@ public class DefaultTracerTests extends OpenSearchTestCase {
         DefaultTracer defaultTracer = new DefaultTracer(tracingTelemetry, spanTracerStorage);
         Span span = defaultTracer.startSpan(new SpanCreationContext("span_name", Attributes.EMPTY));
         Span span1 = defaultTracer.startSpan(new SpanCreationContext("span_name_1", Attributes.EMPTY));
-        SpanScope spanScope = defaultTracer.createSpanScope(span);
-        SpanScope spanScope1 = defaultTracer.createSpanScope(span1);
+        SpanScope spanScope = defaultTracer.withSpanInScope(span);
+        SpanScope spanScope1 = defaultTracer.withSpanInScope(span1);
         assertEquals("span_name_1", defaultTracer.getCurrentSpan().getSpan().getSpanName());
         assertEquals(spanScope1, DefaultSpanScope.getCurrentSpanScope());
 
@@ -270,12 +270,12 @@ public class DefaultTracerTests extends OpenSearchTestCase {
         executorService.execute(() -> {
             // create a span
             Span span = defaultTracer.startSpan(new SpanCreationContext("span_name_t_1", Attributes.EMPTY));
-            SpanScope spanScope = defaultTracer.createSpanScope(span);
+            SpanScope spanScope = defaultTracer.withSpanInScope(span);
             spanRef.set(span);
 
             executorService.execute(() -> {
                 Span spanT2 = defaultTracer.startSpan(new SpanCreationContext("span_name_t_2", Attributes.EMPTY));
-                SpanScope spanScopeT2 = defaultTracer.createSpanScope(spanT2);
+                SpanScope spanScopeT2 = defaultTracer.withSpanInScope(spanT2);
                 spanT2Ref.set(spanT2);
 
                 currentSpanRefThread2.set(defaultTracer.getCurrentSpan().getSpan());
@@ -321,20 +321,20 @@ public class DefaultTracerTests extends OpenSearchTestCase {
         executorService.execute(() -> {
             // create a parent span
             Span parentSpan = defaultTracer.startSpan(new SpanCreationContext("p_span_name", Attributes.EMPTY));
-            SpanScope parentSpanScope = defaultTracer.createSpanScope(parentSpan);
+            SpanScope parentSpanScope = defaultTracer.withSpanInScope(parentSpan);
             parentSpanRef.set(parentSpan);
             // create a span
             Span span = defaultTracer.startSpan(new SpanCreationContext("span_name_t_1", Attributes.EMPTY));
-            SpanScope spanScope = defaultTracer.createSpanScope(span);
+            SpanScope spanScope = defaultTracer.withSpanInScope(span);
             spanRef.set(span);
 
             executorService.execute(() -> {
                 Span spanT2 = defaultTracer.startSpan(new SpanCreationContext("span_name_t_2", Attributes.EMPTY));
-                SpanScope spanScopeT2 = defaultTracer.createSpanScope(spanT2);
+                SpanScope spanScopeT2 = defaultTracer.withSpanInScope(spanT2);
                 spanT2Ref.set(spanT2);
 
                 Span spanT21 = defaultTracer.startSpan(new SpanCreationContext("span_name_t_2", Attributes.EMPTY));
-                SpanScope spanScopeT21 = defaultTracer.createSpanScope(spanT2);
+                SpanScope spanScopeT21 = defaultTracer.withSpanInScope(spanT2);
 
                 currentSpanRefThread2.set(defaultTracer.getCurrentSpan().getSpan());
 

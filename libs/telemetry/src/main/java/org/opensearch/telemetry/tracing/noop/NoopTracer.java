@@ -69,7 +69,7 @@ public class NoopTracer implements Tracer {
     }
 
     @Override
-    public SpanScope createSpanScope(Span span) {
+    public SpanScope withSpanInScope(Span span) {
         return SpanScope.NO_OP;
     }
 

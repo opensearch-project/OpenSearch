@@ -26,7 +26,7 @@ public interface ScopedSpan extends AutoCloseable {
      * @param key   attribute key
      * @param value attribute value
      */
-    void addSpanAttribute(String key, String value);
+    void addAttribute(String key, String value);
 
     /**
      * Adds long attribute to the {@link Span}.
@@ -34,7 +34,7 @@ public interface ScopedSpan extends AutoCloseable {
      * @param key   attribute key
      * @param value attribute value
      */
-    void addSpanAttribute(String key, long value);
+    void addAttribute(String key, long value);
 
     /**
      * Adds double attribute to the {@link Span}.
@@ -42,7 +42,7 @@ public interface ScopedSpan extends AutoCloseable {
      * @param key   attribute key
      * @param value attribute value
      */
-    void addSpanAttribute(String key, double value);
+    void addAttribute(String key, double value);
 
     /**
      * Adds boolean attribute to the {@link Span}.
@@ -50,14 +50,14 @@ public interface ScopedSpan extends AutoCloseable {
      * @param key   attribute key
      * @param value attribute value
      */
-    void addSpanAttribute(String key, boolean value);
+    void addAttribute(String key, boolean value);
 
     /**
      * Adds an event to the {@link Span}.
      *
      * @param event event name
      */
-    void addSpanEvent(String event);
+    void addEvent(String event);
 
     /**
      * Records error in the span

@@ -23,27 +23,27 @@ public final class NoopScopedSpan implements ScopedSpan {
     public NoopScopedSpan() {}
 
     @Override
-    public void addSpanAttribute(String key, String value) {
+    public void addAttribute(String key, String value) {
 
     }
 
     @Override
-    public void addSpanAttribute(String key, long value) {
+    public void addAttribute(String key, long value) {
 
     }
 
     @Override
-    public void addSpanAttribute(String key, double value) {
+    public void addAttribute(String key, double value) {
 
     }
 
     @Override
-    public void addSpanAttribute(String key, boolean value) {
+    public void addAttribute(String key, boolean value) {
 
     }
 
     @Override
-    public void addSpanEvent(String event) {
+    public void addEvent(String event) {
 
     }
 

@@ -9,7 +9,6 @@
 package org.opensearch.telemetry.tracing;
 
 import java.util.Objects;
-import java.util.function.BiConsumer;
 
 /**
  * Default implementation of Scope
@@ -22,42 +21,39 @@ final class DefaultScopedSpan implements ScopedSpan {
 
     private final SpanScope spanScope;
 
-    private final BiConsumer<Span, SpanScope> onCloseConsumer;
-
     /**
      * Creates Scope instance for the given span
      *
      * @param span underlying span
-     * @param onCloseConsumer consumer to execute on scope close
+     * @param spanScope span scope.
      */
-    public DefaultScopedSpan(Span span, SpanScope spanScope, BiConsumer<Span, SpanScope> onCloseConsumer) {
+    public DefaultScopedSpan(Span span, SpanScope spanScope) {
         this.span = Objects.requireNonNull(span);
         this.spanScope = Objects.requireNonNull(spanScope);
-        this.onCloseConsumer = Objects.requireNonNull(onCloseConsumer);
     }
 
     @Override
-    public void addSpanAttribute(String key, String value) {
+    public void addAttribute(String key, String value) {
         span.addAttribute(key, value);
     }
 
     @Override
-    public void addSpanAttribute(String key, long value) {
+    public void addAttribute(String key, long value) {
         span.addAttribute(key, value);
     }
 
     @Override
-    public void addSpanAttribute(String key, double value) {
+    public void addAttribute(String key, double value) {
         span.addAttribute(key, value);
     }
 
     @Override
-    public void addSpanAttribute(String key, boolean value) {
+    public void addAttribute(String key, boolean value) {
         span.addAttribute(key, value);
     }
 
     @Override
-    public void addSpanEvent(String event) {
+    public void addEvent(String event) {
         span.addEvent(event);
     }
 
@@ -71,7 +67,8 @@ final class DefaultScopedSpan implements ScopedSpan {
      */
     @Override
     public void close() {
-        onCloseConsumer.accept(span, spanScope);
+        span.endSpan();
+        spanScope.close();
     }
 
     /**
