@@ -133,15 +133,15 @@ public final class EngineConfig {
             case "lz4":
             case "best_compression":
             case "zlib":
-            case "zstd":
-            case "zstd_no_dict":
             case "lucene_default":
                 return s;
             default:
+                if (("zstd".equals(s) || "zstd_no_dict".equals(s)) && Codec.availableCodecs().contains("Lucene95CustomCodec")) {
+                    return s;
+                }
                 if (Codec.availableCodecs().contains(s) == false) { // we don't error message the not officially supported ones
                     throw new IllegalArgumentException(
-                        "unknown value for [index.codec] must be one of [default, lz4, best_compression, zlib, zstd, zstd_no_dict] but was: "
-                            + s
+                        "unknown value for [index.codec] must be one of [default, lz4, best_compression, zlib] but was: " + s
                     );
                 }
                 return s;
@@ -181,9 +181,6 @@ public final class EngineConfig {
 
     private static void doValidateCodecSettings(final String codec) {
         switch (codec) {
-            case "zstd":
-            case "zstd_no_dict":
-                return;
             case "best_compression":
             case "zlib":
             case "lucene_default":
@@ -191,6 +188,9 @@ public final class EngineConfig {
             case "lz4":
                 break;
             default:
+                if (("zstd".equals(codec) || "zstd_no_dict".equals(codec)) && Codec.availableCodecs().contains("Lucene95CustomCodec")) {
+                    return;
+                }
                 if (Codec.availableCodecs().contains(codec)) {
                     Codec luceneCodec = Codec.forName(codec);
                     if (luceneCodec instanceof CodecSettings

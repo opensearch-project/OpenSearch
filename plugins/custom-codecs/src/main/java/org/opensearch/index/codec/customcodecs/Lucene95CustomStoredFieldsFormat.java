@@ -125,6 +125,9 @@ public class Lucene95CustomStoredFieldsFormat extends StoredFieldsFormat {
         return mode;
     }
 
+    /**
+     * Returns the compression level.
+     */
     public int getCompressionLevel() {
         return compressionLevel;
     }

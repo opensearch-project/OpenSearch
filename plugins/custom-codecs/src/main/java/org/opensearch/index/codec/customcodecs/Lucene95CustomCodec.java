@@ -23,11 +23,15 @@ import org.opensearch.index.mapper.MapperService;
  * @opensearch.internal
  */
 public abstract class Lucene95CustomCodec extends FilterCodec {
+
+    /** Default compression level used for compression */
     public static final int DEFAULT_COMPRESSION_LEVEL = 3;
 
     /** Each mode represents a compression algorithm. */
     public enum Mode {
+        /** ZStandard mode with dictionary*/
         ZSTD,
+        /** ZStandard mode without dictionary*/
         ZSTD_NO_DICT
     }
 
@@ -55,6 +59,16 @@ public abstract class Lucene95CustomCodec extends FilterCodec {
         this.storedFieldsFormat = new Lucene95CustomStoredFieldsFormat(mode, compressionLevel);
     }
 
+    /**
+     * Creates a new compression codec with the given compression level. We use
+     * lowercase letters when registering the codec so that we remain consistent with
+     * the other compression codecs: default, lucene_default, and best_compression.
+     *
+     * @param mode The compression codec (ZSTD or ZSTDNODICT).
+     * @param compressionLevel The compression level.
+     * @param mapperService The mapper service.
+     * @param logger The logger.
+     */
     public Lucene95CustomCodec(Mode mode, int compressionLevel, MapperService mapperService, Logger logger) {
         super("Lucene95CustomCodec", new PerFieldMappingPostingFormatCodec(Lucene95Codec.Mode.BEST_SPEED, mapperService, logger));
         this.storedFieldsFormat = new Lucene95CustomStoredFieldsFormat(mode, compressionLevel);

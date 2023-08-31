@@ -15,28 +15,35 @@ import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.mapper.MapperService;
 
 /**
- * ZstdCodec provides ZSTD compressor using the <a href="https://github.com/luben/zstd-jni">zstd-jni</a> library.
+ * ZstdNoDictCodec provides ZSTD compressor without a dictionary support.
  */
-public class ZstdCodec extends Lucene95CustomCodec implements CodecSettings {
+public class ZstdNoDictCodec extends Lucene95CustomCodec implements CodecSettings {
 
     /**
-     * Creates a new ZstdCodec instance with the default compression level.
+     * Creates a new ZstdNoDictCodec instance with the default compression level.
      */
-    public ZstdCodec() {
+    public ZstdNoDictCodec() {
         this(DEFAULT_COMPRESSION_LEVEL);
     }
 
     /**
-     * Creates a new ZstdCodec instance.
+     * Creates a new ZstdNoDictCodec instance.
      *
      * @param compressionLevel The compression level.
      */
-    public ZstdCodec(int compressionLevel) {
-        super(Mode.ZSTD, compressionLevel);
+    public ZstdNoDictCodec(int compressionLevel) {
+        super(Mode.ZSTD_NO_DICT, compressionLevel);
     }
 
-    public ZstdCodec(MapperService mapperService, Logger logger, int compressionLevel) {
-        super(Mode.ZSTD, compressionLevel, mapperService, logger);
+    /**
+     * Creates a new ZstdNoDictCodec instance.
+     *
+     * @param mapperService The mapper service.
+     * @param logger The logger.
+     * @param compressionLevel The compression level.
+     */
+    public ZstdNoDictCodec(MapperService mapperService, Logger logger, int compressionLevel) {
+        super(Mode.ZSTD_NO_DICT, compressionLevel, mapperService, logger);
     }
 
     /** The name for this codec. */
