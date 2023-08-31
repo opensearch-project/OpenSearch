@@ -28,19 +28,22 @@ import java.util.concurrent.ConcurrentHashMap;
  * @opensearch.internal
  */
 public final class ConcurrentQueryProfileBreakdown extends ContextualProfileBreakdown<QueryTimingType> {
-    public static final String MAX_END_TIME_SUFFIX = "_max_end_time";
-    public static final String MIN_START_TIME_SUFFIX = "_min_start_time";
+    private static final String SLICE_END_TIME_SUFFIX = "_slice_end_time";
+    private static final String SLICE_START_TIME_SUFFIX = "_slice_start_time";
     private static final String MAX_PREFIX = "max_";
     private static final String MIN_PREFIX = "min_";
     private static final String AVG_PREFIX = "avg_";
-    private long breakdownMaxEndTime = Long.MIN_VALUE;
-    private long breakdownMinStartTime = Long.MAX_VALUE;
+    private long queryEndTime = Long.MIN_VALUE;
+    private long queryStartTime = Long.MAX_VALUE;
     private long maxSliceNodeTime = Long.MIN_VALUE;
     private long minSliceNodeTime = Long.MAX_VALUE;
     private long avgSliceNodeTime = 0L;
-    private long nodeTimeSum = 0L;
+
+    // keep track of all breakdown timings per segment
     private final Map<Object, AbstractProfileBreakdown<QueryTimingType>> contexts = new ConcurrentHashMap<>();
-    private Map<String, List<LeafReaderContext>> collectorToLeaves = new HashMap<>();
+
+    // represents slice to leaves mapping as for each slice a unique collector instance is created
+    private final Map<Collector, List<LeafReaderContext>> sliceCollectorToLeaves = new HashMap<>();
 
     /** Sole constructor. */
     public ConcurrentQueryProfileBreakdown() {
@@ -61,181 +64,201 @@ public final class ConcurrentQueryProfileBreakdown extends ContextualProfileBrea
 
     @Override
     public Map<String, Long> toBreakdownMap() {
-        Map<String, Map<String, Long>> sliceLevelBreakdown = new HashMap<>();
-        if (collectorToLeaves == null || collectorToLeaves.isEmpty() || contexts.isEmpty()) {
-            return new HashMap<>(super.toBreakdownMap());
+        if (sliceCollectorToLeaves.isEmpty()) {
+            return super.toBreakdownMap();
         }
-        for (Map.Entry<String, List<LeafReaderContext>> slice : collectorToLeaves.entrySet()) {
-            String sliceCollector = slice.getKey();
-            List<LeafReaderContext> leaves = slice.getValue();
-            long lastLeafEndTime = 0L;
-            for (LeafReaderContext leaf : leaves) {
-                long currentLeafEndTime = 0L;
-                Map<String, Long> currentLeafBreakdownMap = contexts.get(leaf).toBreakdownMap();
-                for (Map.Entry<String, Long> breakDownEntry : currentLeafBreakdownMap.entrySet()) {
-                    Map<String, Long> currentSliceBreakdown = sliceLevelBreakdown.getOrDefault(
-                        sliceCollector,
-                        new HashMap<>(super.toBreakdownMap())
-                    );
-                    String breakdownType = breakDownEntry.getKey();
-                    Long breakdownValue = breakDownEntry.getValue();
-                    // Adding breakdown type count
-                    if (breakdownType.contains(TIMING_TYPE_COUNT_SUFFIX)) {
-                        currentSliceBreakdown.merge(breakdownType, breakdownValue, Long::sum);
-                    }
-                    if (breakdownType.contains(TIMING_TYPE_START_TIME_SUFFIX)) {
-                        // Finding the earliest start time and the last end time for each breakdown types within the current slice to
-                        // compute the total breakdown time
-                        String method = breakdownType.split(TIMING_TYPE_START_TIME_SUFFIX)[0];
-                        String maxEndTimeKey = method + MAX_END_TIME_SUFFIX;
-                        String minStartTimeKey = method + MIN_START_TIME_SUFFIX;
-                        long maxEndTime = Math.max(
-                            currentSliceBreakdown.getOrDefault(maxEndTimeKey, Long.MIN_VALUE),
-                            breakdownValue + currentLeafBreakdownMap.get(method)
-                        );
-                        long minStartTime = Math.min(currentSliceBreakdown.getOrDefault(minStartTimeKey, Long.MAX_VALUE), breakdownValue);
-                        currentSliceBreakdown.put(maxEndTimeKey, maxEndTime);
-                        currentSliceBreakdown.put(minStartTimeKey, minStartTime);
-                        // Finding the current leaf end time to compute the last leaf end time
-                        currentLeafEndTime = Math.max(currentLeafEndTime, maxEndTime);
-                    }
-                    sliceLevelBreakdown.put(sliceCollector, currentSliceBreakdown);
-                }
-                lastLeafEndTime = Math.max(lastLeafEndTime, currentLeafEndTime);
-            }
-            // Computing breakdown type total time
-            for (QueryTimingType queryTimingType : QueryTimingType.values()) {
-                String timingType = queryTimingType.toString();
-                if (queryTimingType != QueryTimingType.CREATE_WEIGHT) {
-                    long currentSliceMaxEndTime = sliceLevelBreakdown.get(sliceCollector).get(timingType + MAX_END_TIME_SUFFIX);
-                    long currentSliceMinStartTime = sliceLevelBreakdown.get(sliceCollector).get(timingType + MIN_START_TIME_SUFFIX);
-                    sliceLevelBreakdown.get(sliceCollector).put(timingType, currentSliceMaxEndTime - currentSliceMinStartTime);
-                }
-            }
-            // Computing slice level node time and stats
-            long createWeightStartTime = sliceLevelBreakdown.get(sliceCollector)
-                .get(QueryTimingType.CREATE_WEIGHT + AbstractProfileBreakdown.TIMING_TYPE_START_TIME_SUFFIX);
-            breakdownMaxEndTime = Math.max(breakdownMaxEndTime, lastLeafEndTime);
-            breakdownMinStartTime = createWeightStartTime;
-            long currentSliceNodeTime = lastLeafEndTime - createWeightStartTime;
-            maxSliceNodeTime = Math.max(maxSliceNodeTime, currentSliceNodeTime);
-            minSliceNodeTime = Math.min(minSliceNodeTime, currentSliceNodeTime);
-            nodeTimeSum += currentSliceNodeTime;
-        }
-        // Computing avg slice node time
-        avgSliceNodeTime = nodeTimeSum / collectorToLeaves.size();
-        return buildFinalBreakdownMap(sliceLevelBreakdown);
+
+        final Map<String, Long> topLevelBreakdownMapWithWeightTime = super.toBreakdownMap();
+        final long createWeightStartTime = topLevelBreakdownMapWithWeightTime.get(
+            QueryTimingType.CREATE_WEIGHT + TIMING_TYPE_START_TIME_SUFFIX
+        );
+        queryStartTime = createWeightStartTime;
+        // first create the slice level breakdowns
+        final Map<Collector, Map<String, Long>> sliceLevelBreakdowns = buildSliceLevelBreakdown(createWeightStartTime);
+        return buildQueryBreakdownMap(sliceLevelBreakdowns, createWeightStartTime);
     }
 
     /**
-     * This method is used to construct the final query profile breakdown map for return.
-     *
-     * @param  sliceLevelBreakdown a timing count breakdown map with the max end time and min start time information
+     * Computes the slice level breakdownMap. It uses sliceCollectorToLeaves to figure out all the leaves or segments part of a slice.
+     * Then use the breakdown timing stats for each of these leaves to calculate the breakdown stats at slice level.
+     * @param createWeightStartTime start time when createWeight is called
+     * @return map of collector (or slice) to breakdown map
      */
-    Map<String, Long> buildFinalBreakdownMap(Map<String, Map<String, Long>> sliceLevelBreakdown) {
-        final Map<String, Long> breakdownMap = new HashMap<>();
-        final Map<String, Long> totalTimeMap = new HashMap<>();
-        int sliceCount = sliceLevelBreakdown.size();
-        for (Map.Entry<String, Map<String, Long>> slice : sliceLevelBreakdown.entrySet()) {
-            for (QueryTimingType queryTimingType : QueryTimingType.values()) {
-                String timingType = queryTimingType.toString();
-                // Computing the time/count stats for each breakdown across all slices
-                if (queryTimingType != QueryTimingType.CREATE_WEIGHT) {
-                    String maxBreakdownTypeTime = MAX_PREFIX + timingType;
-                    String minBreakdownTypeTime = MIN_PREFIX + timingType;
-                    String avgBreakdownTypeTime = AVG_PREFIX + timingType;
-                    String maxBreakdownTypeCount = maxBreakdownTypeTime + TIMING_TYPE_COUNT_SUFFIX;
-                    String minBreakdownTypeCount = minBreakdownTypeTime + TIMING_TYPE_COUNT_SUFFIX;
-                    String avgBreakdownTypeCount = avgBreakdownTypeTime + TIMING_TYPE_COUNT_SUFFIX;
-                    Long breakdownTime = slice.getValue().get(timingType);
-                    Long breakdownCount = slice.getValue().get(timingType + TIMING_TYPE_COUNT_SUFFIX);
-                    breakdownMap.put(
-                        maxBreakdownTypeTime,
-                        Math.max(breakdownMap.getOrDefault(maxBreakdownTypeTime, Long.MIN_VALUE), breakdownTime)
-                    );
-                    breakdownMap.put(
-                        minBreakdownTypeTime,
-                        Math.min(breakdownMap.getOrDefault(minBreakdownTypeTime, Long.MAX_VALUE), breakdownTime)
-                    );
-                    breakdownMap.put(avgBreakdownTypeTime, breakdownMap.getOrDefault(avgBreakdownTypeTime, 0L) + breakdownTime);
-                    breakdownMap.put(
-                        maxBreakdownTypeCount,
-                        Math.max(breakdownMap.getOrDefault(maxBreakdownTypeCount, Long.MIN_VALUE), breakdownCount)
-                    );
-                    breakdownMap.put(
-                        minBreakdownTypeCount,
-                        Math.min(breakdownMap.getOrDefault(minBreakdownTypeCount, Long.MAX_VALUE), breakdownCount)
-                    );
-                    breakdownMap.put(avgBreakdownTypeCount, breakdownMap.getOrDefault(avgBreakdownTypeCount, 0L) + breakdownCount);
+    private Map<Collector, Map<String, Long>> buildSliceLevelBreakdown(long createWeightStartTime) {
+        final Map<Collector, Map<String, Long>> sliceLevelBreakdowns = new HashMap<>();
+        long totalSliceNodeTime = 0;
+        for (Map.Entry<Collector, List<LeafReaderContext>> slice : sliceCollectorToLeaves.entrySet()) {
+            final Collector sliceCollector = slice.getKey();
+            // initialize each slice level breakdown
+            final Map<String, Long> currentSliceBreakdown = sliceLevelBreakdowns.computeIfAbsent(sliceCollector, k -> new HashMap<>());
+            // max slice end time across all timing types
+            long sliceMaxEndTime = Long.MIN_VALUE;
+            for (QueryTimingType timingType : QueryTimingType.values()) {
+                if (timingType.equals(QueryTimingType.CREATE_WEIGHT)) {
+                    // do nothing for create weight as that is query level time and not slice level
+                    continue;
                 }
-                // Finding the max slice end time and min slice start time to compute total time
-                String maxEndTime = timingType + MAX_END_TIME_SUFFIX;
-                String minStartTime = timingType + MIN_START_TIME_SUFFIX;
-                Long maxEndTimeValue = slice.getValue().get(timingType + MAX_END_TIME_SUFFIX);
-                Long minStartTimeValue = slice.getValue().get(timingType + MIN_START_TIME_SUFFIX);
-                totalTimeMap.put(maxEndTime, Math.max(totalTimeMap.getOrDefault(maxEndTime, Long.MIN_VALUE), maxEndTimeValue));
-                totalTimeMap.put(minStartTime, Math.min(totalTimeMap.getOrDefault(minStartTime, Long.MAX_VALUE), minStartTimeValue));
-                // Computing the total count for each breakdown across all slices
-                String breakdownCount = timingType + TIMING_TYPE_COUNT_SUFFIX;
-                Long breakdownCountValue = slice.getValue().get(breakdownCount);
-                if (queryTimingType != QueryTimingType.CREATE_WEIGHT) {
-                    breakdownMap.put(breakdownCount, breakdownMap.getOrDefault(breakdownCount, 0L) + breakdownCountValue);
-                } else {
-                    breakdownMap.put(breakdownCount, 1L);
-                    breakdownMap.put(timingType, slice.getValue().get(timingType));
+
+                // for each timing type compute maxSliceEndTime and minSliceStartTime. Also add the counts of timing type to
+                // compute total count at slice level
+                final String timingTypeCountKey = timingType + TIMING_TYPE_COUNT_SUFFIX;
+                final String timingTypeStartKey = timingType + TIMING_TYPE_START_TIME_SUFFIX;
+                final String timingTypeSliceStartTimeKey = timingType + SLICE_START_TIME_SUFFIX;
+                final String timingTypeSliceEndTimeKey = timingType + SLICE_END_TIME_SUFFIX;
+
+                for (LeafReaderContext sliceLeaf : slice.getValue()) {
+                    final Map<String, Long> currentSliceLeafBreakdownMap = contexts.get(sliceLeaf).toBreakdownMap();
+                    // get the count for current leaf timing type
+                    currentSliceBreakdown.compute(
+                        timingTypeCountKey,
+                        (key, value) -> (value == null) ? 0 : value + currentSliceLeafBreakdownMap.get(timingTypeCountKey)
+                    );
+
+                    // compute the sliceEndTime for timingType using max of endTime across slice leaves
+                    final long sliceLeafTimingTypeEndTime = currentSliceLeafBreakdownMap.get(timingTypeStartKey)
+                        + currentSliceLeafBreakdownMap.get(timingType.toString());
+                    currentSliceBreakdown.compute(
+                        timingTypeSliceEndTimeKey,
+                        (key, value) -> (value == null) ? sliceLeafTimingTypeEndTime : Math.max(value, sliceLeafTimingTypeEndTime)
+                    );
+
+                    // compute the sliceStartTime for timingType using min of startTime across slice leaves
+                    final long sliceLeafTimingTypeStartTime = currentSliceLeafBreakdownMap.get(timingTypeStartKey);
+                    currentSliceBreakdown.compute(
+                        timingTypeSliceStartTimeKey,
+                        (key, value) -> (value == null) ? sliceLeafTimingTypeStartTime : Math.min(value, sliceLeafTimingTypeStartTime)
+                    );
                 }
+                // compute sliceMaxEndTime as max of sliceEndTime across all timing types
+                sliceMaxEndTime = Math.max(sliceMaxEndTime, currentSliceBreakdown.get(timingTypeSliceEndTimeKey));
+                // compute total time for each timing type at slice level using sliceEndTime and sliceStartTime
+                currentSliceBreakdown.put(
+                    timingType.toString(),
+                    currentSliceBreakdown.get(timingTypeSliceEndTimeKey) - currentSliceBreakdown.get(timingTypeSliceStartTimeKey)
+                );
             }
+            // currentSliceNodeTime includes the create weight time as well which will be same for all the slices
+            long currentSliceNodeTime = sliceMaxEndTime - createWeightStartTime;
+            // compute max/min slice times
+            maxSliceNodeTime = Math.max(maxSliceNodeTime, currentSliceNodeTime);
+            minSliceNodeTime = Math.min(minSliceNodeTime, currentSliceNodeTime);
+            // total time at query level
+            totalSliceNodeTime += currentSliceNodeTime;
         }
+        avgSliceNodeTime = totalSliceNodeTime / sliceCollectorToLeaves.size();
+        return sliceLevelBreakdowns;
+    }
+
+    /**
+     * Computes the query level breakdownMap using the breakdown maps of all the slices. In query level breakdown map, it has the
+     * time/count stats for each breakdown type. Total time per breakdown type at query level is computed by subtracting the max of slice
+     * end time with min of slice start time for that type. Count for each breakdown type at query level is sum of count of that type
+     * across slices. Other than these, there are max/min/avg stats across slices for each breakdown type
+     * @param sliceLevelBreakdowns breakdown map for all the slices
+     * @param createWeightStartTime start time of create weight
+     * @return breakdown map for entire query
+     */
+    private Map<String, Long> buildQueryBreakdownMap(Map<Collector, Map<String, Long>> sliceLevelBreakdowns, long createWeightStartTime) {
+        final Map<String, Long> queryBreakdownMap = new HashMap<>();
         for (QueryTimingType queryTimingType : QueryTimingType.values()) {
-            String timingType = queryTimingType.toString();
-            if (queryTimingType != QueryTimingType.CREATE_WEIGHT) {
-                // Computing avg time/count stats
-                String avgBreakdownTypeTime = AVG_PREFIX + timingType;
-                String avgBreakdownTypeCount = avgBreakdownTypeTime + TIMING_TYPE_COUNT_SUFFIX;
-                breakdownMap.put(avgBreakdownTypeTime, breakdownMap.get(avgBreakdownTypeTime) / sliceCount);
-                breakdownMap.put(avgBreakdownTypeCount, breakdownMap.get(avgBreakdownTypeCount) / sliceCount);
-                // Computing total time for each breakdown including any wait time
-                Long maxSliceEndTime = totalTimeMap.get(timingType + MAX_END_TIME_SUFFIX);
-                Long mingSliceStartTime = totalTimeMap.get(timingType + MIN_START_TIME_SUFFIX);
-                breakdownMap.put(timingType, maxSliceEndTime - mingSliceStartTime);
+            final String timingTypeKey = queryTimingType.toString();
+            final String timingTypeCountKey = timingTypeKey + TIMING_TYPE_COUNT_SUFFIX;
+            final String sliceEndTimeForTimingType = timingTypeKey + SLICE_END_TIME_SUFFIX;
+            final String sliceStartTimeForTimingType = timingTypeKey + SLICE_START_TIME_SUFFIX;
+
+            final String maxBreakdownTypeTime = MAX_PREFIX + timingTypeKey;
+            final String minBreakdownTypeTime = MIN_PREFIX + timingTypeKey;
+            final String avgBreakdownTypeTime = AVG_PREFIX + timingTypeKey;
+            final String maxBreakdownTypeCount = maxBreakdownTypeTime + TIMING_TYPE_COUNT_SUFFIX;
+            final String minBreakdownTypeCount = minBreakdownTypeTime + TIMING_TYPE_COUNT_SUFFIX;
+            final String avgBreakdownTypeCount = avgBreakdownTypeTime + TIMING_TYPE_COUNT_SUFFIX;
+
+            long queryTimingTypeEndTime = Long.MIN_VALUE;
+            long queryTimingTypeStartTime = Long.MAX_VALUE;
+            long queryTimingTypeCount = 0L;
+
+            // the create weight time is computed at the query level and is called only once per query
+            if (queryTimingType == QueryTimingType.CREATE_WEIGHT) {
+                queryBreakdownMap.put(timingTypeCountKey, 1L);
+                queryBreakdownMap.put(timingTypeKey, createWeightStartTime);
+                continue;
             }
+
+            // for all other timing types, we will compute min/max/avg/total across slices
+            for (Map.Entry<Collector, Map<String, Long>> sliceBreakdown : sliceLevelBreakdowns.entrySet()) {
+                Long sliceBreakdownTypeTime = sliceBreakdown.getValue().get(timingTypeKey);
+                Long sliceBreakdownTypeCount = sliceBreakdown.getValue().get(timingTypeCountKey);
+                // compute max/min/avg TimingType time across slices
+                queryBreakdownMap.compute(
+                    maxBreakdownTypeTime,
+                    (key, value) -> (value == null) ? sliceBreakdownTypeTime : Math.max(sliceBreakdownTypeTime, value)
+                );
+                queryBreakdownMap.compute(
+                    minBreakdownTypeTime,
+                    (key, value) -> (value == null) ? sliceBreakdownTypeTime : Math.min(sliceBreakdownTypeTime, value)
+                );
+                queryBreakdownMap.compute(
+                    avgBreakdownTypeTime,
+                    (key, value) -> (value == null) ? sliceBreakdownTypeTime : sliceBreakdownTypeTime + value
+                );
+
+                // compute max/min/avg TimingType count across slices
+                queryBreakdownMap.compute(
+                    maxBreakdownTypeCount,
+                    (key, value) -> (value == null) ? sliceBreakdownTypeCount : Math.max(sliceBreakdownTypeCount, value)
+                );
+                queryBreakdownMap.compute(
+                    minBreakdownTypeCount,
+                    (key, value) -> (value == null) ? sliceBreakdownTypeCount : Math.min(sliceBreakdownTypeCount, value)
+                );
+                queryBreakdownMap.compute(
+                    avgBreakdownTypeCount,
+                    (key, value) -> (value == null) ? sliceBreakdownTypeCount : sliceBreakdownTypeCount + value
+                );
+
+                // query start/end time for a TimingType is min/max of start/end time across slices for that TimingType
+                queryTimingTypeEndTime = Math.max(queryTimingTypeEndTime, sliceBreakdown.getValue().get(sliceEndTimeForTimingType));
+                queryTimingTypeStartTime = Math.min(queryTimingTypeStartTime, sliceBreakdown.getValue().get(sliceStartTimeForTimingType));
+                queryTimingTypeCount += sliceBreakdownTypeCount;
+            }
+            queryBreakdownMap.put(timingTypeKey, queryTimingTypeEndTime - queryTimingTypeStartTime);
+            queryBreakdownMap.put(timingTypeCountKey, queryTimingTypeCount);
+            queryBreakdownMap.compute(avgBreakdownTypeTime, (key, value) -> (value == null) ? 0 : value / sliceLevelBreakdowns.size());
+            queryBreakdownMap.compute(avgBreakdownTypeCount, (key, value) -> (value == null) ? 0 : value / sliceLevelBreakdowns.size());
+            // compute query end time using max of query end time across all timing types
+            queryEndTime = Math.max(queryEndTime, queryTimingTypeEndTime);
         }
-        return breakdownMap;
+        return queryBreakdownMap;
     }
 
     @Override
     public long toNodeTime() {
-        return breakdownMaxEndTime - breakdownMinStartTime;
+        return queryEndTime - queryStartTime;
     }
 
-    public Long getMaxSliceNodeTime() {
+    @Override
+    public void associateCollectorToLeaves(Collector collector, LeafReaderContext leaf) {
+        sliceCollectorToLeaves.computeIfAbsent(collector, k -> new ArrayList<>()).add(leaf);
+    }
+
+    @Override
+    public void associateCollectorToLeaves(Map<Collector, List<LeafReaderContext>> collectorToLeaves) {
+        this.sliceCollectorToLeaves.putAll(collectorToLeaves);
+    }
+
+    Map<Collector, List<LeafReaderContext>> getSliceCollectorToLeaves() {
+        return Collections.unmodifiableMap(sliceCollectorToLeaves);
+    }
+
+    Long getMaxSliceNodeTime() {
         return maxSliceNodeTime;
     }
 
-    public Long getMinSliceNodeTime() {
+    Long getMinSliceNodeTime() {
         return minSliceNodeTime;
     }
 
-    public Long getAvgSliceNodeTime() {
+    Long getAvgSliceNodeTime() {
         return avgSliceNodeTime;
-    }
-
-    @Override
-    public void associateCollectorToLeaves(LeafReaderContext leaf, Collector collector) {
-        if (collector != null) {
-            String collectorManager = collector.toString();
-            List<LeafReaderContext> leaves = collectorToLeaves.getOrDefault(collectorManager, new ArrayList<>());
-            leaves.add(leaf);
-            collectorToLeaves.put(collectorManager, leaves);
-        }
-    }
-
-    @Override
-    public void associateCollectorToLeaves(Map<String, List<LeafReaderContext>> collectorToLeaves) {
-        this.collectorToLeaves.putAll(collectorToLeaves);
-    }
-
-    Map<String, List<LeafReaderContext>> getCollectorToLeaves() {
-        return Collections.unmodifiableMap(collectorToLeaves);
     }
 }

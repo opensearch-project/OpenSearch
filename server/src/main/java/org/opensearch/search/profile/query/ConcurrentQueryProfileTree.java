@@ -9,6 +9,7 @@
 package org.opensearch.search.profile.query;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.Collector;
 import org.opensearch.search.profile.ContextualProfileBreakdown;
 import org.opensearch.search.profile.ProfileResult;
 
@@ -63,8 +64,8 @@ public class ConcurrentQueryProfileTree extends AbstractQueryProfileTree {
         for (Integer root : roots) {
             final ContextualProfileBreakdown<QueryTimingType> parentBreakdown = breakdowns.get(root);
             assert parentBreakdown instanceof ConcurrentQueryProfileBreakdown;
-            final Map<String, List<LeafReaderContext>> parentCollectorToLeaves = ((ConcurrentQueryProfileBreakdown) parentBreakdown)
-                .getCollectorToLeaves();
+            final Map<Collector, List<LeafReaderContext>> parentCollectorToLeaves = ((ConcurrentQueryProfileBreakdown) parentBreakdown)
+                .getSliceCollectorToLeaves();
             // update all the children with the parent collectorToLeaves association
             updateCollectorToLeavesForChildBreakdowns(root, parentCollectorToLeaves);
         }
@@ -77,7 +78,7 @@ public class ConcurrentQueryProfileTree extends AbstractQueryProfileTree {
      * @param parentToken parent token number in the tree
      * @param collectorToLeaves collector to leaves mapping recorded by parent
      */
-    private void updateCollectorToLeavesForChildBreakdowns(Integer parentToken, Map<String, List<LeafReaderContext>> collectorToLeaves) {
+    private void updateCollectorToLeavesForChildBreakdowns(Integer parentToken, Map<Collector, List<LeafReaderContext>> collectorToLeaves) {
         final List<Integer> children = tree.get(parentToken);
         if (children != null) {
             for (Integer currentChild : children) {

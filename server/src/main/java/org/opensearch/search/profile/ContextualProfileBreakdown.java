@@ -32,7 +32,7 @@ public abstract class ContextualProfileBreakdown<T extends Enum<T>> extends Abst
      */
     public abstract AbstractProfileBreakdown<T> context(Object context);
 
-    public void associateCollectorToLeaves(LeafReaderContext leaf, Collector collector) {}
+    public void associateCollectorToLeaves(Collector collector, LeafReaderContext leaf) {}
 
-    public void associateCollectorToLeaves(Map<String, List<LeafReaderContext>> collectorToLeaves) {}
+    public void associateCollectorToLeaves(Map<Collector, List<LeafReaderContext>> collectorToLeaves) {}
 }
