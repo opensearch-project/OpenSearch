@@ -31,7 +31,7 @@ import java.util.Objects;
 public class SearchShardTaskStats implements ToXContentObject, Writeable {
     private final long cancellationCount;
     private final long limitReachedCount;
-    private final long completionCount;
+    private Long completionCount;
     private final Map<TaskResourceUsageTrackerType, TaskResourceUsageTracker.Stats> resourceUsageTrackerStats;
 
     public SearchShardTaskStats(
@@ -50,9 +50,7 @@ public class SearchShardTaskStats implements ToXContentObject, Writeable {
         this.cancellationCount = in.readVLong();
         this.limitReachedCount = in.readVLong();
         if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
-            this.completionCount = in.readVLong();
-        } else {
-            this.completionCount = -1;
+            this.completionCount = in.readOptionalVLong();
         }
 
         MapBuilder<TaskResourceUsageTrackerType, TaskResourceUsageTracker.Stats> builder = new MapBuilder<>();
@@ -71,7 +69,7 @@ public class SearchShardTaskStats implements ToXContentObject, Writeable {
             builder.field(entry.getKey().getName(), entry.getValue());
         }
         builder.endObject();
-        if (completionCount != -1) {
+        if (completionCount != null) {
             builder.field("completion_count", completionCount);
         }
 
@@ -88,7 +86,7 @@ public class SearchShardTaskStats implements ToXContentObject, Writeable {
         out.writeVLong(cancellationCount);
         out.writeVLong(limitReachedCount);
         if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
-            out.writeVLong(completionCount);
+            out.writeOptionalVLong(completionCount);
         }
 
         out.writeOptionalWriteable(resourceUsageTrackerStats.get(TaskResourceUsageTrackerType.CPU_USAGE_TRACKER));
@@ -101,13 +99,9 @@ public class SearchShardTaskStats implements ToXContentObject, Writeable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         SearchShardTaskStats that = (SearchShardTaskStats) o;
-        boolean isCompletionCountEqual = false;
-        if (that.completionCount != -1) {
-            isCompletionCountEqual = completionCount == that.completionCount;
-        }
         return cancellationCount == that.cancellationCount
             && limitReachedCount == that.limitReachedCount
-            && isCompletionCountEqual
+            && Objects.equals(completionCount, that.completionCount)
             && resourceUsageTrackerStats.equals(that.resourceUsageTrackerStats);
     }
 
