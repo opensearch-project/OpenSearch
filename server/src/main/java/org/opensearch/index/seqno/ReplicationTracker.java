@@ -1235,10 +1235,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                 if (cps.inSync
                     && replicationGroup.getUnavailableInSyncShards().contains(allocationId) == false
                     && latestReplicationCheckpoint.isAheadOf(cps.visibleReplicationCheckpoint)) {
-                    cps.checkpointTimers.computeIfAbsent(latestReplicationCheckpoint, ignored -> {
-                        final SegmentReplicationLagTimer replicationTimer = new SegmentReplicationLagTimer();
-                        return replicationTimer;
-                    });
+                    cps.checkpointTimers.computeIfAbsent(latestReplicationCheckpoint, ignored -> new SegmentReplicationLagTimer());
                     logger.trace(
                         () -> new ParameterizedMessage(
                             "updated last published checkpoint for {} at visible cp {} to {} - timers [{}]",

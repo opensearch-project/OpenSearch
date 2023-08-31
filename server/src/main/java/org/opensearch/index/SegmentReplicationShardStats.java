@@ -29,8 +29,11 @@ public class SegmentReplicationShardStats implements Writeable, ToXContentFragme
     private final String allocationId;
     private final long checkpointsBehindCount;
     private final long bytesBehindCount;
-    private final long currentReplicationTimeMillis;
+    // Total Replication lag observed.
     private final long currentReplicationLagMillis;
+    // Total time taken for replicas to catch up. Similar to replication lag except this
+    // doesn't include time taken by primary to upload data to remote store.
+    private final long currentReplicationTimeMillis;
     private final long lastCompletedReplicationTimeMillis;
 
     @Nullable

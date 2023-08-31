@@ -20,6 +20,8 @@ import java.io.IOException;
  * 1. Replication Lag: Total time taken by replica to sync after primary refreshed.
  * 2. Replication event time: Total time taken by replica to sync after primary published the checkpoint
  *                     (excludes the time spent by primary for uploading the segments to remote store).
+ *
+ * @opensearch.internal
  */
 public class SegmentReplicationLagTimer extends ReplicationTimer {
     private long creationTime;

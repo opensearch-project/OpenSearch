@@ -66,6 +66,7 @@ public class SegmentReplicationPressureService implements Closeable {
         Setting.Property.NodeScope
     );
 
+    // Time limit on max allowed replica staleness after which backpressure kicks in on primary.
     public static final Setting<TimeValue> MAX_REPLICATION_TIME_BACKPRESSURE_SETTING = Setting.positiveTimeSetting(
         "segrep.pressure.time.limit",
         TimeValue.timeValueMinutes(5),
@@ -73,9 +74,11 @@ public class SegmentReplicationPressureService implements Closeable {
         Setting.Property.NodeScope
     );
 
+    // Time limit on max allowed replica staleness after which we start failing the replica shard.
+    // Defaults to 0(disabled)
     public static final Setting<TimeValue> MAX_REPLICATION_LIMIT_STALE_REPLICA_SETTING = Setting.positiveTimeSetting(
         "segrep.replication.time.limit",
-        TimeValue.timeValueMinutes(15),
+        TimeValue.timeValueMinutes(0),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
