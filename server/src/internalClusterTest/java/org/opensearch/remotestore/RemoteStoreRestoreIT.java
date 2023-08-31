@@ -87,11 +87,9 @@ public class RemoteStoreRestoreIT extends RemoteStoreBaseIntegTestCase {
         );
     }
 
-    private void prepareCluster(int numClusterManagerNodes, int numDataOnlyNodes, String indices, int replicaCount, int shardCount)
-        throws Exception {
+    private void prepareCluster(int numClusterManagerNodes, int numDataOnlyNodes, String indices, int replicaCount, int shardCount) {
         internalCluster().startClusterManagerOnlyNodes(numClusterManagerNodes);
         internalCluster().startDataOnlyNodes(numDataOnlyNodes);
-        assertRepositoryMetadataPresentInClusterState();
         for (String index : indices.split(",")) {
             createIndex(index, remoteStoreIndexSettings(replicaCount, shardCount));
             ensureYellowAndNoInitializingShards(index);
@@ -263,7 +261,7 @@ public class RemoteStoreRestoreIT extends RemoteStoreBaseIntegTestCase {
         }
     }
 
-    public void testRestoreFlowAllShardsNoRedIndex() throws Exception {
+    public void testRestoreFlowAllShardsNoRedIndex() throws InterruptedException {
         int shardCount = randomIntBetween(1, 5);
         prepareCluster(1, 3, INDEX_NAME, 0, shardCount);
         indexData(randomIntBetween(2, 5), true, INDEX_NAME);

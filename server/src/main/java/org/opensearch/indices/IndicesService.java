@@ -244,47 +244,6 @@ public class IndicesService extends AbstractLifecycleComponent
     );
 
     /**
-     * Used to specify if all indexes are to create with remote store enabled by default
-     */
-    public static final Setting<Boolean> CLUSTER_REMOTE_STORE_ENABLED_SETTING = Setting.boolSetting(
-        "cluster.remote_store.enabled",
-        false,
-        Property.NodeScope,
-        Property.Final
-    );
-
-    /**
-     * Used to specify default repo to use for segment upload for remote store backed indices
-     */
-    public static final Setting<String> CLUSTER_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING = Setting.simpleString(
-        "cluster.remote_store.segment.repository",
-        "",
-        Property.NodeScope,
-        Property.Final
-    );
-
-    /**
-     * Used to specify default repo to use for translog upload for remote store backed indices
-     */
-    public static final Setting<String> CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING = Setting.simpleString(
-        "cluster.remote_store.translog.repository",
-        "",
-        Property.NodeScope,
-        Property.Final
-    );
-
-    /**
-     * Used to specify the default translog buffer interval for remote store backed indexes.
-     */
-    public static final Setting<TimeValue> CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING = Setting.timeSetting(
-        "cluster.remote_store.translog.buffer_interval",
-        IndexSettings.DEFAULT_REMOTE_TRANSLOG_BUFFER_INTERVAL,
-        IndexSettings.MINIMUM_REMOTE_TRANSLOG_BUFFER_INTERVAL,
-        Property.NodeScope,
-        Property.Dynamic
-    );
-
-    /**
      * This setting is used to set the refresh interval when the {@code index.refresh_interval} index setting is not
      * provided during index creation or when the existing {@code index.refresh_interval} index setting is set as null.
      * This comes handy when the user wants to set a default refresh interval across all indexes created in a cluster

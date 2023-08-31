@@ -33,7 +33,7 @@ package org.opensearch.common.settings;
 
 import org.apache.logging.log4j.LogManager;
 import org.opensearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
-import org.opensearch.action.admin.cluster.remotestore.RemoteStoreService;
+import org.opensearch.action.admin.cluster.remotestore.RemoteStoreNodeService;
 import org.opensearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.opensearch.action.search.CreatePitController;
 import org.opensearch.action.search.TransportSearchAction;
@@ -671,7 +671,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 // Remote cluster state settings
                 RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING,
                 RemoteClusterStateService.REMOTE_CLUSTER_STATE_REPOSITORY_SETTING,
-                RemoteStoreService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING
+                RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING
             )
         )
     );
@@ -684,13 +684,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
      * setting should be moved to {@link #BUILT_IN_CLUSTER_SETTINGS}.
      */
     public static final Map<List<String>, List<Setting>> FEATURE_FLAGGED_CLUSTER_SETTINGS = Map.of(
-        List.of(FeatureFlags.REMOTE_STORE),
-        List.of(
-            IndicesService.CLUSTER_REMOTE_STORE_ENABLED_SETTING,
-            IndicesService.CLUSTER_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING,
-            IndicesService.CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING,
-            IndicesService.CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING
-        ),
         List.of(FeatureFlags.CONCURRENT_SEGMENT_SEARCH),
         List.of(
             SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING,

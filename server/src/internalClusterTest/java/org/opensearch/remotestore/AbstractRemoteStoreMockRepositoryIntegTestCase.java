@@ -26,10 +26,15 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Locale;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.opensearch.remotestore.RemoteStoreBaseIntegTestCase.remoteStoreClusterSettings;
+import static org.opensearch.action.admin.cluster.remotestore.RemoteStoreNode.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX;
+import static org.opensearch.action.admin.cluster.remotestore.RemoteStoreNode.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT;
+import static org.opensearch.action.admin.cluster.remotestore.RemoteStoreNode.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY;
+import static org.opensearch.action.admin.cluster.remotestore.RemoteStoreNode.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY;
+import static org.opensearch.indices.IndicesService.CLUSTER_REPLICATION_TYPE_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 public abstract class AbstractRemoteStoreMockRepositoryIntegTestCase extends AbstractSnapshotIntegTestCase {
@@ -47,7 +52,6 @@ public abstract class AbstractRemoteStoreMockRepositoryIntegTestCase extends Abs
     public void setup() {
         FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
         FeatureFlagSetter.set(FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL);
-        internalCluster().startClusterManagerOnlyNode(remoteStoreClusterSettings(REPOSITORY_NAME, TRANSLOG_REPOSITORY_NAME));
     }
 
     @Override
@@ -66,6 +70,43 @@ public abstract class AbstractRemoteStoreMockRepositoryIntegTestCase extends Abs
             .build();
     }
 
+    public Settings buildRemoteStoreNodeAttributes(Path repoLocation, double ioFailureRate, String skipExceptionBlobList, long maxFailure) {
+        String segmentRepoTypeAttributeKey = String.format(
+            Locale.getDefault(),
+            "node.attr." + REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT,
+            REPOSITORY_NAME
+        );
+        String translogRepoTypeAttributeKey = String.format(
+            Locale.getDefault(),
+            "node.attr." + REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT,
+            TRANSLOG_REPOSITORY_NAME
+        );
+        String segmentRepoSettingsAttributeKeyPrefix = String.format(
+            Locale.getDefault(),
+            "node.attr." + REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX,
+            REPOSITORY_NAME
+        );
+        String translogRepoSettingsAttributeKeyPrefix = String.format(
+            Locale.getDefault(),
+            "node.attr." + REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX,
+            TRANSLOG_REPOSITORY_NAME
+        );
+
+        return Settings.builder()
+            .put("node.attr." + REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY, REPOSITORY_NAME)
+            .put(segmentRepoTypeAttributeKey, "mock")
+            .put(segmentRepoSettingsAttributeKeyPrefix + "location", repoLocation)
+            .put(segmentRepoSettingsAttributeKeyPrefix + "random_control_io_exception_rate", ioFailureRate)
+            .put(segmentRepoSettingsAttributeKeyPrefix + "skip_exception_on_verification_file", true)
+            .put(segmentRepoSettingsAttributeKeyPrefix + "skip_exception_on_list_blobs", true)
+            .put(segmentRepoSettingsAttributeKeyPrefix + "skip_exception_on_blobs", skipExceptionBlobList)
+            .put(segmentRepoSettingsAttributeKeyPrefix + "max_failure_number", maxFailure)
+            .put("node.attr." + REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY, TRANSLOG_REPOSITORY_NAME)
+            .put(translogRepoTypeAttributeKey, "mock")
+            .put(translogRepoSettingsAttributeKeyPrefix + "location", repoLocation)
+            .build();
+    }
+
     protected void deleteRepo() {
         logger.info("--> Deleting the repository={}", REPOSITORY_NAME);
         assertAcked(clusterAdmin().prepareDeleteRepository(REPOSITORY_NAME));
@@ -73,27 +114,20 @@ public abstract class AbstractRemoteStoreMockRepositoryIntegTestCase extends Abs
         assertAcked(clusterAdmin().prepareDeleteRepository(TRANSLOG_REPOSITORY_NAME));
     }
 
-    protected String setup(Path repoLocation, double ioFailureRate, String skipExceptionBlobList, long maxFailure) {
+    protected String setup(Path repoLocation, double ioFailureRate, String skipExceptionBlobList, long maxFailure) throws Exception {
         logger.info("--> Creating repository={} at the path={}", REPOSITORY_NAME, repoLocation);
+        logger.info("--> Creating repository={} at the path={}", TRANSLOG_REPOSITORY_NAME, repoLocation);
         // The random_control_io_exception_rate setting ensures that 10-25% of all operations to remote store results in
         /// IOException. skip_exception_on_verification_file & skip_exception_on_list_blobs settings ensures that the
         // repository creation can happen without failure.
-        createRepository(
-            REPOSITORY_NAME,
-            "mock",
-            Settings.builder()
-                .put("location", repoLocation)
-                .put("random_control_io_exception_rate", ioFailureRate)
-                .put("skip_exception_on_verification_file", true)
-                .put("skip_exception_on_list_blobs", true)
-                // Skipping is required for metadata as it is part of recovery
-                .put("skip_exception_on_blobs", skipExceptionBlobList)
-                .put("max_failure_number", maxFailure)
-        );
-        logger.info("--> Creating repository={} at the path={}", TRANSLOG_REPOSITORY_NAME, repoLocation);
-        createRepository(TRANSLOG_REPOSITORY_NAME, "mock", Settings.builder().put("location", repoLocation));
+        Settings settings = Settings.builder()
+            .put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), randomBoolean() ? ReplicationType.SEGMENT : ReplicationType.DOCUMENT)
+            .put(buildRemoteStoreNodeAttributes(repoLocation, ioFailureRate, skipExceptionBlobList, maxFailure))
+            .build();
 
-        String dataNodeName = internalCluster().startDataOnlyNodes(1).get(0);
+        internalCluster().startClusterManagerOnlyNode(settings);
+        String dataNodeName = internalCluster().startDataOnlyNode(settings);
+        // assertRepositoryMetadataPresentInClusterState();
         createIndex(INDEX_NAME);
         logger.info("--> Created index={}", INDEX_NAME);
         ensureYellowAndNoInitializingShards(INDEX_NAME);

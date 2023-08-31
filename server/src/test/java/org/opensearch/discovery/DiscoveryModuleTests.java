@@ -32,7 +32,7 @@
 package org.opensearch.discovery;
 
 import org.opensearch.Version;
-import org.opensearch.action.admin.cluster.remotestore.RemoteStoreService;
+import org.opensearch.action.admin.cluster.remotestore.RemoteStoreNodeService;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.coordination.Coordinator;
 import org.opensearch.cluster.coordination.PersistedStateRegistry;
@@ -78,7 +78,7 @@ public class DiscoveryModuleTests extends OpenSearchTestCase {
     private ClusterSettings clusterSettings;
     private GatewayMetaState gatewayMetaState;
 
-    private RemoteStoreService remoteStoreService;
+    private RemoteStoreNodeService remoteStoreService;
 
     public interface DummyHostsProviderPlugin extends DiscoveryPlugin {
         Map<String, Supplier<SeedHostsProvider>> impl();
@@ -102,7 +102,7 @@ public class DiscoveryModuleTests extends OpenSearchTestCase {
         clusterApplier = mock(ClusterApplier.class);
         clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         gatewayMetaState = mock(GatewayMetaState.class);
-        remoteStoreService = mock(RemoteStoreService.class);
+        remoteStoreService = mock(RemoteStoreNodeService.class);
     }
 
     @After

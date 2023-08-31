@@ -34,7 +34,7 @@ package org.opensearch.cluster.coordination;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.remotestore.RemoteStoreNode;
-import org.opensearch.action.admin.cluster.remotestore.RemoteStoreService;
+import org.opensearch.action.admin.cluster.remotestore.RemoteStoreNodeService;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateTaskExecutor;
 import org.opensearch.cluster.NotClusterManagerException;
@@ -61,9 +61,9 @@ import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
-import static org.opensearch.action.admin.cluster.remotestore.RemoteStoreService.CompatibilityMode;
-import static org.opensearch.action.admin.cluster.remotestore.RemoteStoreService.CompatibilityMode.STRICT;
-import static org.opensearch.action.admin.cluster.remotestore.RemoteStoreService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING;
+import static org.opensearch.action.admin.cluster.remotestore.RemoteStoreNodeService.CompatibilityMode;
+import static org.opensearch.action.admin.cluster.remotestore.RemoteStoreNodeService.CompatibilityMode.STRICT;
+import static org.opensearch.action.admin.cluster.remotestore.RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING;
 import static org.opensearch.cluster.decommission.DecommissionHelper.nodeCommissioned;
 import static org.opensearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 
@@ -79,7 +79,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
     private final Logger logger;
     private final RerouteService rerouteService;
 
-    private final RemoteStoreService remoteStoreService;
+    private final RemoteStoreNodeService remoteStoreService;
 
     /**
      * Task for the join task executor.
@@ -137,7 +137,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         AllocationService allocationService,
         Logger logger,
         RerouteService rerouteService,
-        RemoteStoreService remoteStoreService
+        RemoteStoreNodeService remoteStoreService
     ) {
         this.allocationService = allocationService;
         this.logger = logger;
@@ -187,11 +187,11 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
             final DiscoveryNode node = joinTask.node();
             if (joinTask.isBecomeClusterManagerTask() || joinTask.isFinishElectionTask()) {
                 // noop
-            } else if (currentNodes.nodeExists(node)) {
-                if (currentNodes.nodeExistsWithSameRoles(node)) {
-                    logger.debug("received a join request for an existing node [{}]", node);
-                }
+            } else if (currentNodes.nodeExistsWithSameRoles(node)) {
+                logger.debug("received a join request for an existing node [{}]", node);
 
+                // TODO: Fix this by moving it out of this if condition, Had to add this code back here as this was
+                // leading to failure of JoinTaskExecutorTests::testUpdatesNodeWithNewRoles test.
                 if (node.isRemoteStoreNode()) {
                     /** cluster state is updated here as elect leader task can have same node present in join task as
                      *  well as current node. We want the repositories to be added in cluster state during first node

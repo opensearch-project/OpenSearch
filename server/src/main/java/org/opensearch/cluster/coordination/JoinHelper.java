@@ -37,7 +37,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListenerResponseHandler;
-import org.opensearch.action.admin.cluster.remotestore.RemoteStoreService;
+import org.opensearch.action.admin.cluster.remotestore.RemoteStoreNodeService;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateTaskConfig;
 import org.opensearch.cluster.ClusterStateTaskListener;
@@ -136,7 +136,7 @@ public class JoinHelper {
         AllocationService allocationService,
         ClusterManagerService clusterManagerService,
         TransportService transportService,
-        RemoteStoreService remoteStoreService,
+        RemoteStoreNodeService remoteStoreService,
         LongSupplier currentTermSupplier,
         Supplier<ClusterState> currentStateSupplier,
         BiConsumer<JoinRequest, JoinCallback> joinHandler,

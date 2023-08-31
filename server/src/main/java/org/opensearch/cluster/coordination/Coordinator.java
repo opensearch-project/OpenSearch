@@ -35,7 +35,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.opensearch.action.admin.cluster.remotestore.RemoteStoreService;
+import org.opensearch.action.admin.cluster.remotestore.RemoteStoreNodeService;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
@@ -183,7 +183,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     private Optional<CoordinatorPublication> currentPublication = Optional.empty();
     private final NodeHealthService nodeHealthService;
     private final PersistedStateRegistry persistedStateRegistry;
-    private final RemoteStoreService remoteStoreService;
+    private final RemoteStoreNodeService remoteStoreService;
 
     /**
      * @param nodeName The name of the node, used to name the {@link java.util.concurrent.ExecutorService} of the {@link SeedHostsResolver}.
@@ -206,7 +206,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         ElectionStrategy electionStrategy,
         NodeHealthService nodeHealthService,
         PersistedStateRegistry persistedStateRegistry,
-        RemoteStoreService remoteStoreService
+        RemoteStoreNodeService remoteStoreService
     ) {
         this.settings = settings;
         this.transportService = transportService;

@@ -43,8 +43,7 @@ import org.opensearch.Version;
 import org.opensearch.action.ActionModule;
 import org.opensearch.action.ActionModule.DynamicActionRegistry;
 import org.opensearch.action.ActionType;
-import org.opensearch.action.admin.cluster.remotestore.RemoteStoreNode;
-import org.opensearch.action.admin.cluster.remotestore.RemoteStoreService;
+import org.opensearch.action.admin.cluster.remotestore.RemoteStoreNodeService;
 import org.opensearch.action.admin.cluster.snapshots.status.TransportNodesSnapshotsStatus;
 import org.opensearch.action.search.SearchExecutionStatsCollector;
 import org.opensearch.action.search.SearchPhaseController;
@@ -268,6 +267,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toList;
+import static org.opensearch.action.admin.cluster.remotestore.RemoteStoreNode.REMOTE_STORE_NODE_ATTRIBUTE_KEY_PREFIX;
 import static org.opensearch.common.util.FeatureFlags.TELEMETRY;
 import static org.opensearch.env.NodeEnvironment.collectFileCacheDataPath;
 import static org.opensearch.index.ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENABLED_ATTRIBUTE_KEY;
@@ -531,7 +531,7 @@ public class Node implements Closeable {
             final ThreadPool threadPool = new ThreadPool(settings, runnableTaskListener, executorBuilders.toArray(new ExecutorBuilder[0]));
 
             final SetOnce<RepositoriesService> repositoriesServiceReference = new SetOnce<>();
-            final RemoteStoreService remoteStoreService = new RemoteStoreService(repositoriesServiceReference::get, threadPool);
+            final RemoteStoreNodeService remoteStoreService = new RemoteStoreNodeService(repositoriesServiceReference::get, threadPool);
             localNodeFactory = new LocalNodeFactory(settings, nodeEnvironment.nodeId(), remoteStoreService);
             resourcesToClose.add(() -> ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS));
             final ResourceWatcherService resourceWatcherService = new ResourceWatcherService(settings, threadPool);
@@ -1744,9 +1744,9 @@ public class Node implements Closeable {
         private final SetOnce<DiscoveryNode> localNode = new SetOnce<>();
         private final String persistentNodeId;
         private final Settings settings;
-        private final RemoteStoreService remoteStoreService;
+        private final RemoteStoreNodeService remoteStoreService;
 
-        private LocalNodeFactory(Settings settings, String persistentNodeId, RemoteStoreService remoteStoreService) {
+        private LocalNodeFactory(Settings settings, String persistentNodeId, RemoteStoreNodeService remoteStoreService) {
             this.persistentNodeId = persistentNodeId;
             this.settings = settings;
             this.remoteStoreService = remoteStoreService;
@@ -1757,9 +1757,14 @@ public class Node implements Closeable {
             if (Node.NODE_ATTRIBUTES.getAsMap(settings)
                 .keySet()
                 .stream()
-                .anyMatch(key -> key.startsWith(RemoteStoreNode.REMOTE_STORE_NODE_ATTRIBUTE_KEY_PREFIX))) {
+                .anyMatch(key -> key.startsWith(REMOTE_STORE_NODE_ATTRIBUTE_KEY_PREFIX))) {
                 localNode.set(
-                    DiscoveryNode.createLocal(settings, boundTransportAddress.publishAddress(), persistentNodeId, remoteStoreService)
+                    DiscoveryNode.createRemoteNodeLocal(
+                        settings,
+                        boundTransportAddress.publishAddress(),
+                        persistentNodeId,
+                        remoteStoreService
+                    )
                 );
             } else {
                 localNode.set(DiscoveryNode.createLocal(settings, boundTransportAddress.publishAddress(), persistentNodeId));

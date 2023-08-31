@@ -40,7 +40,9 @@ import org.opensearch.cluster.SnapshotsInProgress;
 import org.opensearch.common.action.ActionFuture;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.threadpool.ThreadPool;
+import org.junit.Before;
 
 import java.nio.file.Path;
 
@@ -49,7 +51,16 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST)
 public class RemoteIndexSnapshotStatusApiIT extends AbstractSnapshotIntegTestCase {
+
+    protected Path absolutePath;
+    final String remoteStoreRepoName = "remote-store-repo-name";
+
+    @Before
+    public void setup() {
+        absolutePath = randomRepoPath().toAbsolutePath();
+    }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
@@ -58,7 +69,7 @@ public class RemoteIndexSnapshotStatusApiIT extends AbstractSnapshotIntegTestCas
             .put(ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING.getKey(), 0) // We have tests that check by-timestamp order
             .put(FeatureFlags.REMOTE_STORE, "true")
             .put(FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL, "true")
-            .put(remoteStoreClusterSettings("remote-store-repo-name"))
+            .put(remoteStoreClusterSettings(remoteStoreRepoName, absolutePath))
             .build();
     }
 
@@ -69,10 +80,6 @@ public class RemoteIndexSnapshotStatusApiIT extends AbstractSnapshotIntegTestCas
 
         final String snapshotRepoName = "snapshot-repo-name";
         createRepository(snapshotRepoName, "fs", snapshotRepoSettingsForShallowCopy());
-
-        final Path remoteStoreRepoPath = randomRepoPath();
-        final String remoteStoreRepoName = "remote-store-repo-name";
-        createRepository(remoteStoreRepoName, "fs", remoteStoreRepoPath);
 
         final String remoteStoreEnabledIndexName = "remote-index-1";
         final Settings remoteStoreEnabledIndexSettings = getRemoteStoreBackedIndexSettings();
@@ -108,10 +115,6 @@ public class RemoteIndexSnapshotStatusApiIT extends AbstractSnapshotIntegTestCas
 
         final String snapshotRepoName = "snapshot-repo-name";
         createRepository(snapshotRepoName, "fs", snapshotRepoSettingsForShallowCopy());
-
-        final Path remoteStoreRepoPath = randomRepoPath();
-        final String remoteStoreRepoName = "remote-store-repo-name";
-        createRepository(remoteStoreRepoName, "fs", remoteStoreRepoPath);
 
         final String remoteStoreEnabledIndexName = "remote-index-1";
         final Settings remoteStoreEnabledIndexSettings = getRemoteStoreBackedIndexSettings();
@@ -156,10 +159,6 @@ public class RemoteIndexSnapshotStatusApiIT extends AbstractSnapshotIntegTestCas
 
         final String snapshotRepoName = "snapshot-repo-name";
         createRepository(snapshotRepoName, "mock", snapshotRepoSettingsForShallowCopy().put("block_on_data", true));
-
-        final Path remoteStoreRepoPath = randomRepoPath();
-        final String remoteStoreRepoName = "remote-store-repo-name";
-        createRepository(remoteStoreRepoName, "mock", remoteStoreRepoPath);
 
         final String remoteStoreEnabledIndexName = "remote-index-1";
         final Settings remoteStoreEnabledIndexSettings = getRemoteStoreBackedIndexSettings();

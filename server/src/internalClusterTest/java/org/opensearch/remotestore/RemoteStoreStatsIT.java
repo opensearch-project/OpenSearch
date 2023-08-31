@@ -48,10 +48,9 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
     public void setup() throws Exception {
         internalCluster().startNodes(3);
         ensureStableCluster(3);
-        assertRepositoryMetadataPresentInClusterState();
     }
 
-    public void testStatsResponseFromAllNodes() throws Exception {
+    public void testStatsResponseFromAllNodes() {
 
         // Step 1 - We create cluster, create an index, and then index documents into. We also do multiple refreshes/flushes
         // during this time frame. This ensures that the segment upload has started.
@@ -119,7 +118,7 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
         }
     }
 
-    public void testStatsResponseAllShards() throws Exception {
+    public void testStatsResponseAllShards() {
 
         // Step 1 - We create cluster, create an index, and then index documents into. We also do multiple refreshes/flushes
         // during this time frame. This ensures that the segment upload has started.
@@ -176,7 +175,7 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
 
     }
 
-    public void testStatsResponseFromLocalNode() throws Exception {
+    public void testStatsResponseFromLocalNode() {
 
         // Step 1 - We create cluster, create an index, and then index documents into. We also do multiple refreshes/flushes
         // during this time frame. This ensures that the segment upload has started.

@@ -114,6 +114,8 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonList;
+import static org.opensearch.action.admin.cluster.remotestore.RemoteStoreNode.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY;
+import static org.opensearch.action.admin.cluster.remotestore.RemoteStoreNode.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_READ_ONLY_BLOCK;
@@ -136,11 +138,9 @@ import static org.opensearch.index.IndexSettings.INDEX_REMOTE_TRANSLOG_BUFFER_IN
 import static org.opensearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
 import static org.opensearch.indices.IndicesService.CLUSTER_DEFAULT_INDEX_REFRESH_INTERVAL_SETTING;
 import static org.opensearch.indices.IndicesService.CLUSTER_MINIMUM_INDEX_REFRESH_INTERVAL_SETTING;
-import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING;
-import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_STORE_ENABLED_SETTING;
-import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING;
 import static org.opensearch.indices.IndicesService.CLUSTER_REPLICATION_TYPE_SETTING;
 import static org.opensearch.indices.ShardLimitValidatorTests.createTestShardLimitService;
+import static org.opensearch.node.Node.NODE_ATTRIBUTES;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
@@ -158,6 +158,10 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
     private CreateIndexClusterStateUpdateRequest request;
     private QueryShardContext queryShardContext;
     private ClusterSettings clusterSettings;
+    private static final String segmentRepositoryNameAttributeKey = NODE_ATTRIBUTES.getKey()
+        + REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY;
+    private static final String translogRepositoryNameAttributeKey = NODE_ATTRIBUTES.getKey()
+        + REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY;
 
     @Before
     public void setup() throws Exception {
@@ -1214,9 +1218,8 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
     public void testRemoteStoreNoUserOverrideExceptReplicationTypeSegmentIndexSettings() {
         Settings settings = Settings.builder()
             .put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.DOCUMENT)
-            .put(CLUSTER_REMOTE_STORE_ENABLED_SETTING.getKey(), true)
-            .put(CLUSTER_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING.getKey(), "my-segment-repo-1")
-            .put(CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING.getKey(), "my-translog-repo-1")
+            .put(segmentRepositoryNameAttributeKey, "my-segment-repo-1")
+            .put(translogRepositoryNameAttributeKey, "my-translog-repo-1")
             .build();
         FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
 
@@ -1247,9 +1250,8 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
 
     public void testRemoteStoreImplicitOverrideReplicationTypeToSegmentForRemoteStore() {
         Settings settings = Settings.builder()
-            .put(CLUSTER_REMOTE_STORE_ENABLED_SETTING.getKey(), true)
-            .put(CLUSTER_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING.getKey(), "my-segment-repo-1")
-            .put(CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING.getKey(), "my-translog-repo-1")
+            .put(segmentRepositoryNameAttributeKey, "my-segment-repo-1")
+            .put(translogRepositoryNameAttributeKey, "my-translog-repo-1")
             .build();
         FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
 
@@ -1280,9 +1282,8 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
     public void testRemoteStoreNoUserOverrideIndexSettings() {
         Settings settings = Settings.builder()
             .put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT)
-            .put(CLUSTER_REMOTE_STORE_ENABLED_SETTING.getKey(), true)
-            .put(CLUSTER_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING.getKey(), "my-segment-repo-1")
-            .put(CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING.getKey(), "my-translog-repo-1")
+            .put(segmentRepositoryNameAttributeKey, "my-segment-repo-1")
+            .put(translogRepositoryNameAttributeKey, "my-translog-repo-1")
             .build();
         FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
 

@@ -15,7 +15,6 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
-import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.transport.MockTransportService;
 
@@ -55,7 +54,6 @@ public class RemoteStoreRepositoryRegistrationIT extends RemoteStoreBaseIntegTes
     }
 
     private void assertRemoteStoreRepositoryOnAllNodes() throws Exception {
-        assertRepositoryMetadataPresentInClusterState();
         RepositoriesMetadata repositories = internalCluster().getInstance(ClusterService.class, internalCluster().getNodeNames()[0])
             .state()
             .metadata()
@@ -75,27 +73,17 @@ public class RemoteStoreRepositoryRegistrationIT extends RemoteStoreBaseIntegTes
 
     public void testSingleNodeClusterRepositoryRegistration() throws Exception {
         internalCluster().startNode();
-        ensureStableCluster(1);
         assertRemoteStoreRepositoryOnAllNodes();
     }
 
     public void testMultiNodeClusterRepositoryRegistration() throws Exception {
         internalCluster().startNodes(3);
-        ensureStableCluster(3);
         assertRemoteStoreRepositoryOnAllNodes();
     }
 
     public void testMultiNodeClusterRepositoryRegistrationWithMultipleMasters() throws Exception {
         internalCluster().startClusterManagerOnlyNodes(3);
         internalCluster().startNodes(3);
-        ensureStableCluster(6);
-        assertRemoteStoreRepositoryOnAllNodes();
-    }
-
-    public void testMultiNodeClusterRepositoryRegistrationDifferent() throws Exception {
-        internalCluster().startNodes(3);
-        internalCluster().startNode(remoteStoreNodeAttributes(REPOSITORY_NAME, FsRepository.TYPE, REPOSITORY_NAME, FsRepository.TYPE));
-        ensureStableCluster(3);
         assertRemoteStoreRepositoryOnAllNodes();
     }
 }

@@ -18,7 +18,6 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 import java.nio.file.Path;
 
 import static org.opensearch.remotestore.RemoteStoreBaseIntegTestCase.remoteStoreClusterSettings;
-import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST)
 public class RemoteIndexPrimaryRelocationIT extends IndexPrimaryRelocationIT {
@@ -29,15 +28,12 @@ public class RemoteIndexPrimaryRelocationIT extends IndexPrimaryRelocationIT {
 
     public void setup() {
         absolutePath = randomRepoPath().toAbsolutePath();
-        assertAcked(
-            clusterAdmin().preparePutRepository(REPOSITORY_NAME).setType("fs").setSettings(Settings.builder().put("location", absolutePath))
-        );
     }
 
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
-            .put(remoteStoreClusterSettings(REPOSITORY_NAME, REPOSITORY_NAME, false))
+            .put(remoteStoreClusterSettings(REPOSITORY_NAME, absolutePath))
             .build();
     }
 

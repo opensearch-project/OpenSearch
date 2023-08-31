@@ -30,9 +30,9 @@ import java.util.function.Supplier;
 /**
  * Contains all the method needed for a remote store backed node lifecycle.
  */
-public class RemoteStoreService {
+public class RemoteStoreNodeService {
 
-    private static final Logger logger = LogManager.getLogger(RemoteStoreService.class);
+    private static final Logger logger = LogManager.getLogger(RemoteStoreNodeService.class);
     private final Supplier<RepositoriesService> repositoriesService;
     private final ThreadPool threadPool;
     public static final Setting<CompatibilityMode> REMOTE_STORE_COMPATIBILITY_MODE_SETTING = new Setting<>(
@@ -74,39 +74,37 @@ public class RemoteStoreService {
         }
     }
 
-    public RemoteStoreService(Supplier<RepositoriesService> repositoriesService, ThreadPool threadPool) {
+    public RemoteStoreNodeService(Supplier<RepositoriesService> repositoriesService, ThreadPool threadPool) {
         this.repositoriesService = repositoriesService;
         this.threadPool = threadPool;
     }
 
     /**
-     * Performs repository verification during node startup post its creation by invoking verify method against
-     * repository mentioned. This verification will happen on a local node to validate if the node is able to connect
-     * to the repository.
+     * Creates a repository during a node startup and performs verification by invoking verify method against
+     * mentioned repository. This verification will happen on a local node to validate if the node is able to connect
+     * to the repository with appropriate permissions.
      */
-    public void verifyRepositoriesLocally(List<Repository> repositories, DiscoveryNode localNode) {
-        for (Repository repository : repositories) {
-            String repositoryName = repository.getMetadata().name();
-            String verificationToken = repository.startVerification();
-            repository.verify(verificationToken, localNode);
-            repository.endVerification(verificationToken);
-            logger.info(() -> new ParameterizedMessage("successfully verified [{}] repository", repositoryName));
-        }
-    }
-
-    /**
-     * Creates a repository during a node startup.
-     */
-    public List<Repository> createRepositories(RemoteStoreNode node) {
+    public List<Repository> createAndVerifyRepositories(DiscoveryNode localNode) {
+        RemoteStoreNode node = new RemoteStoreNode(localNode);
         List<Repository> repositories = new ArrayList<>();
         for (RepositoryMetadata repositoryMetadata : node.getRepositoriesMetadata().repositories()) {
-            RepositoriesService.validate(repositoryMetadata.name());
+            String repositoryName = repositoryMetadata.name();
+
+            // Create Repository
+            RepositoriesService.validate(repositoryName);
             Repository repository = repositoriesService.get().createRepository(repositoryMetadata);
             logger.info(
                 "remote backed storage repository with name {} and type {} created.",
                 repository.getMetadata().name(),
                 repository.getMetadata().type()
             );
+
+            // Verify Repository
+            String verificationToken = repository.startVerification();
+            repository.verify(verificationToken, localNode);
+            repository.endVerification(verificationToken);
+            logger.info(() -> new ParameterizedMessage("successfully verified [{}] repository", repositoryName));
+
             repositories.add(repository);
         }
         return repositories;

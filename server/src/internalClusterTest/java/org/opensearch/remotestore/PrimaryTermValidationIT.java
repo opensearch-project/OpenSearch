@@ -27,7 +27,9 @@ import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.disruption.NetworkDisruption;
 import org.opensearch.test.transport.MockTransportService;
+import org.junit.Before;
 
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
@@ -43,10 +45,18 @@ import static org.hamcrest.Matchers.equalTo;
 public class PrimaryTermValidationIT extends RemoteStoreBaseIntegTestCase {
 
     private static final String INDEX_NAME = "remote-store-test-idx-1";
+    protected Path absolutePath;
+    protected Path absolutePath2;
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(MockTransportService.TestPlugin.class);
+    }
+
+    @Before
+    public void setup() {
+        absolutePath = randomRepoPath().toAbsolutePath();
+        absolutePath2 = randomRepoPath().toAbsolutePath();
     }
 
     public void testPrimaryTermValidation() throws Exception {
@@ -59,12 +69,10 @@ public class PrimaryTermValidationIT extends RemoteStoreBaseIntegTestCase {
             .put(FollowersChecker.FOLLOWER_CHECK_TIMEOUT_SETTING.getKey(), "1s")
             .put(FollowersChecker.FOLLOWER_CHECK_INTERVAL_SETTING.getKey(), "1s")
             .put(FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING.getKey(), 1)
-            .put(remoteStoreClusterSettings(REPOSITORY_NAME, REPOSITORY_2_NAME, true))
+            .put(remoteStoreClusterSettings(REPOSITORY_NAME, absolutePath, REPOSITORY_2_NAME, absolutePath2))
             .build();
         internalCluster().startClusterManagerOnlyNode(clusterSettings);
         internalCluster().startDataOnlyNodes(2, clusterSettings);
-        ensureStableCluster(3);
-        assertRepositoryMetadataPresentInClusterState();
 
         // Create index
         createIndex(INDEX_NAME, remoteStoreIndexSettings(1));

@@ -45,8 +45,6 @@ public class ReplicaToPrimaryPromotionIT extends RemoteStoreBaseIntegTestCase {
     public void testPromoteReplicaToPrimary() throws Exception {
         internalCluster().startNode();
         internalCluster().startNode();
-        ensureStableCluster(2);
-        assertRepositoryMetadataPresentInClusterState();
         final String indexName = randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
         shard_count = scaledRandomIntBetween(1, 5);
         createIndex(indexName);
@@ -122,8 +120,6 @@ public class ReplicaToPrimaryPromotionIT extends RemoteStoreBaseIntegTestCase {
     public void testFailoverWhileIndexing() throws Exception {
         internalCluster().startNode();
         internalCluster().startNode();
-        ensureStableCluster(2);
-        assertRepositoryMetadataPresentInClusterState();
         final String indexName = randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
         shard_count = scaledRandomIntBetween(1, 5);
         createIndex(indexName);

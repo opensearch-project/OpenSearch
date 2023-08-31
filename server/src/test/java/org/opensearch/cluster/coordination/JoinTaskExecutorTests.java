@@ -33,7 +33,7 @@ package org.opensearch.cluster.coordination;
 
 import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
-import org.opensearch.action.admin.cluster.remotestore.RemoteStoreService;
+import org.opensearch.action.admin.cluster.remotestore.RemoteStoreNodeService;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateTaskExecutor;
@@ -54,6 +54,7 @@ import org.opensearch.common.SetOnce;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.repositories.RepositoriesService;
+import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
 
@@ -187,7 +188,7 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
         final AllocationService allocationService = mock(AllocationService.class);
         when(allocationService.adaptAutoExpandReplicas(any())).then(invocationOnMock -> invocationOnMock.getArguments()[0]);
         final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
-        final RemoteStoreService remoteStoreService = mock(RemoteStoreService.class);
+        final RemoteStoreNodeService remoteStoreService = mock(RemoteStoreNodeService.class);
 
         final JoinTaskExecutor joinTaskExecutor = new JoinTaskExecutor(
             Settings.EMPTY,
@@ -291,7 +292,7 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
         final AllocationService allocationService = mock(AllocationService.class);
         when(allocationService.adaptAutoExpandReplicas(any())).then(invocationOnMock -> invocationOnMock.getArguments()[0]);
         final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
-        final RemoteStoreService remoteStoreService = mock(RemoteStoreService.class);
+        final RemoteStoreNodeService remoteStoreService = mock(RemoteStoreNodeService.class);
 
         final JoinTaskExecutor joinTaskExecutor = new JoinTaskExecutor(
             Settings.EMPTY,
@@ -427,7 +428,7 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
             if (nodeAttribute.getKey() != REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY
                 && nodeAttribute.getKey() != REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY) {
                 remoteStoreNodeAttributes.put(nodeAttribute.getKey(), nodeAttribute.getValue() + "-new");
-                validateAttributes(remoteStoreNodeAttributes, nodeAttribute, currentState, existingNode);
+                validateAttributes(remoteStoreNodeAttributes, currentState, existingNode);
                 remoteStoreNodeAttributes.put(nodeAttribute.getKey(), nodeAttribute.getValue());
             }
         }
@@ -449,10 +450,10 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
         for (Map.Entry<String, String> nodeAttribute : existingNodeAttributes.entrySet()) {
             if (REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY.equals(nodeAttribute.getKey())) {
                 Map<String, String> remoteStoreNodeAttributes = remoteStoreNodeAttributes(SEGMENT_REPO + "new", TRANSLOG_REPO);
-                validateAttributes(remoteStoreNodeAttributes, nodeAttribute, currentState, existingNode);
+                validateAttributes(remoteStoreNodeAttributes, currentState, existingNode);
             } else if (REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY.equals(nodeAttribute.getKey())) {
                 Map<String, String> remoteStoreNodeAttributes = remoteStoreNodeAttributes(SEGMENT_REPO, TRANSLOG_REPO + "new");
-                validateAttributes(remoteStoreNodeAttributes, nodeAttribute, currentState, existingNode);
+                validateAttributes(remoteStoreNodeAttributes, currentState, existingNode);
             }
         }
     }
@@ -511,7 +512,10 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
         final AllocationService allocationService = mock(AllocationService.class);
         when(allocationService.adaptAutoExpandReplicas(any())).then(invocationOnMock -> invocationOnMock.getArguments()[0]);
         final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
-        final RemoteStoreService remoteStoreService = new RemoteStoreService(new SetOnce<>(mock(RepositoriesService.class))::get, null);
+        final RemoteStoreNodeService remoteStoreService = new RemoteStoreNodeService(
+            new SetOnce<>(mock(RepositoriesService.class))::get,
+            null
+        );
 
         final JoinTaskExecutor joinTaskExecutor = new JoinTaskExecutor(
             Settings.EMPTY,
@@ -553,7 +557,10 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
         final AllocationService allocationService = mock(AllocationService.class);
         when(allocationService.adaptAutoExpandReplicas(any())).then(invocationOnMock -> invocationOnMock.getArguments()[0]);
         final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
-        final RemoteStoreService remoteStoreService = new RemoteStoreService(new SetOnce<>(mock(RepositoriesService.class))::get, null);
+        final RemoteStoreNodeService remoteStoreService = new RemoteStoreNodeService(
+            new SetOnce<>(mock(RepositoriesService.class))::get,
+            null
+        );
 
         final JoinTaskExecutor joinTaskExecutor = new JoinTaskExecutor(
             Settings.EMPTY,
@@ -613,7 +620,10 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
         final AllocationService allocationService = mock(AllocationService.class);
         when(allocationService.adaptAutoExpandReplicas(any())).then(invocationOnMock -> invocationOnMock.getArguments()[0]);
         final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
-        final RemoteStoreService remoteStoreService = new RemoteStoreService(new SetOnce<>(mock(RepositoriesService.class))::get, null);
+        final RemoteStoreNodeService remoteStoreService = new RemoteStoreNodeService(
+            new SetOnce<>(mock(RepositoriesService.class))::get,
+            null
+        );
 
         final JoinTaskExecutor joinTaskExecutor = new JoinTaskExecutor(
             Settings.EMPTY,
@@ -655,7 +665,10 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
         final AllocationService allocationService = mock(AllocationService.class);
         when(allocationService.adaptAutoExpandReplicas(any())).then(invocationOnMock -> invocationOnMock.getArguments()[0]);
         final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
-        final RemoteStoreService remoteStoreService = new RemoteStoreService(new SetOnce<>(mock(RepositoriesService.class))::get, null);
+        final RemoteStoreNodeService remoteStoreService = new RemoteStoreNodeService(
+            new SetOnce<>(mock(RepositoriesService.class))::get,
+            null
+        );
 
         final JoinTaskExecutor joinTaskExecutor = new JoinTaskExecutor(
             Settings.EMPTY,
@@ -782,12 +795,7 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
         };
     }
 
-    private void validateAttributes(
-        Map<String, String> remoteStoreNodeAttributes,
-        Map.Entry<String, String> existingNodeAttribute,
-        ClusterState currentState,
-        DiscoveryNode existingNode
-    ) {
+    private void validateAttributes(Map<String, String> remoteStoreNodeAttributes, ClusterState currentState, DiscoveryNode existingNode) {
         DiscoveryNode joiningNode = newDiscoveryNode(remoteStoreNodeAttributes);
         Exception e = assertThrows(
             IllegalStateException.class,
@@ -819,6 +827,8 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
 
         Settings.Builder settings = Settings.builder();
         settingsMap.entrySet().forEach(entry -> settings.put(entry.getKey(), entry.getValue()));
+
+        settings.put(BlobStoreRepository.SYSTEM_REPOSITORY_SETTING.getKey(), true);
 
         return new RepositoryMetadata(name, type, settings.build());
     }

@@ -34,7 +34,7 @@ package org.opensearch.cluster.coordination;
 import org.apache.logging.log4j.Level;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListenerResponseHandler;
-import org.opensearch.action.admin.cluster.remotestore.RemoteStoreService;
+import org.opensearch.action.admin.cluster.remotestore.RemoteStoreNodeService;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
@@ -509,7 +509,7 @@ public class JoinHelperTests extends OpenSearchTestCase {
         return new TestClusterSetup(deterministicTaskQueue, localNode, transportService, localClusterState, joinHelper, capturingTransport);
     }
 
-    private RemoteStoreService buildRemoteStoreService(TransportService transportService, ThreadPool threadPool) {
+    private RemoteStoreNodeService buildRemoteStoreService(TransportService transportService, ThreadPool threadPool) {
         RepositoriesService repositoriesService = new RepositoriesService(
             Settings.EMPTY,
             mock(ClusterService.class),
@@ -518,7 +518,7 @@ public class JoinHelperTests extends OpenSearchTestCase {
             Collections.emptyMap(),
             threadPool
         );
-        return new RemoteStoreService(new SetOnce<>(repositoriesService)::get, threadPool);
+        return new RemoteStoreNodeService(new SetOnce<>(repositoriesService)::get, threadPool);
     }
 
     private static class TestClusterSetup {

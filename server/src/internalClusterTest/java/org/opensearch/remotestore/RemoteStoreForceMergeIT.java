@@ -17,6 +17,7 @@ import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.transport.MockTransportService;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -89,10 +90,8 @@ public class RemoteStoreForceMergeIT extends RemoteStoreBaseIntegTestCase {
     }
 
     private void testRestoreWithMergeFlow(int numberOfIterations, boolean invokeFlush, boolean flushAfterMerge, long deletedDocs)
-        throws Exception {
+        throws IOException {
         internalCluster().startNodes(3);
-        ensureStableCluster(3);
-        assertRepositoryMetadataPresentInClusterState();
         createIndex(INDEX_NAME, remoteStoreIndexSettings(0));
         ensureYellowAndNoInitializingShards(INDEX_NAME);
         ensureGreen(INDEX_NAME);
@@ -124,19 +123,19 @@ public class RemoteStoreForceMergeIT extends RemoteStoreBaseIntegTestCase {
     // values for each of the flags, number of integ tests become 16 in comparison to current 2.
     // We have run all the 16 tests on local and they run fine.
     @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/9294")
-    public void testRestoreForceMergeSingleIteration() throws Exception {
+    public void testRestoreForceMergeSingleIteration() throws IOException {
         boolean invokeFLush = randomBoolean();
         boolean flushAfterMerge = randomBoolean();
         testRestoreWithMergeFlow(1, invokeFLush, flushAfterMerge, randomIntBetween(0, 10));
     }
 
-    public void testRestoreForceMergeMultipleIterations() throws Exception {
+    public void testRestoreForceMergeMultipleIterations() throws IOException {
         boolean invokeFLush = randomBoolean();
         boolean flushAfterMerge = randomBoolean();
         testRestoreWithMergeFlow(randomIntBetween(2, 5), invokeFLush, flushAfterMerge, randomIntBetween(0, 10));
     }
 
-    public void testRestoreForceMergeMultipleIterationsDeleteAll() throws Exception {
+    public void testRestoreForceMergeMultipleIterationsDeleteAll() throws IOException {
         boolean invokeFLush = randomBoolean();
         boolean flushAfterMerge = randomBoolean();
         testRestoreWithMergeFlow(randomIntBetween(2, 3), invokeFLush, flushAfterMerge, -1);

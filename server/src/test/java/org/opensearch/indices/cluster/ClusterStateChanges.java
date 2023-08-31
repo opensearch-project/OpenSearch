@@ -36,7 +36,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.Version;
-import org.opensearch.action.admin.cluster.remotestore.RemoteStoreService;
+import org.opensearch.action.admin.cluster.remotestore.RemoteStoreNodeService;
 import org.opensearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.opensearch.action.admin.cluster.reroute.TransportClusterRerouteAction;
 import org.opensearch.action.admin.indices.close.CloseIndexRequest;
@@ -154,7 +154,7 @@ public class ClusterStateChanges {
     private final TransportClusterRerouteAction transportClusterRerouteAction;
     private final TransportCreateIndexAction transportCreateIndexAction;
     private final RepositoriesService repositoriesService;
-    private final RemoteStoreService remoteStoreService;
+    private final RemoteStoreNodeService remoteStoreService;
 
     private final NodeRemovalClusterStateTaskExecutor nodeRemovalExecutor;
     private final JoinTaskExecutor joinTaskExecutor;
@@ -376,7 +376,7 @@ public class ClusterStateChanges {
             threadPool
         );
 
-        remoteStoreService = new RemoteStoreService(new SetOnce<>(repositoriesService)::get, threadPool);
+        remoteStoreService = new RemoteStoreNodeService(new SetOnce<>(repositoriesService)::get, threadPool);
 
         nodeRemovalExecutor = new NodeRemovalClusterStateTaskExecutor(allocationService, logger);
         joinTaskExecutor = new JoinTaskExecutor(Settings.EMPTY, allocationService, logger, (s, p, r) -> {}, remoteStoreService);

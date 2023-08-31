@@ -29,7 +29,6 @@ import org.opensearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.opensearch.snapshots.SnapshotState;
 import org.opensearch.test.InternalTestCluster;
 import org.junit.After;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -47,23 +46,21 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
     private static final String BASE_REMOTE_REPO = "test-rs-repo" + TEST_REMOTE_STORE_REPO_SUFFIX;
     private Path remoteRepoPath;
 
-    @Before
-    public void setup() {
-        remoteRepoPath = randomRepoPath().toAbsolutePath();
-        createRepository(BASE_REMOTE_REPO, "fs", remoteRepoPath);
-    }
-
     @After
     public void teardown() {
+        remoteRepoPath = null;
         assertAcked(clusterAdmin().prepareDeleteRepository(BASE_REMOTE_REPO));
     }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
+        if (remoteRepoPath == null) {
+            remoteRepoPath = randomRepoPath().toAbsolutePath();
+        }
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
             .put(FeatureFlags.REMOTE_STORE, "true")
-            .put(remoteStoreClusterSettings(BASE_REMOTE_REPO))
+            .put(remoteStoreClusterSettings(BASE_REMOTE_REPO, remoteRepoPath))
             .build();
     }
 

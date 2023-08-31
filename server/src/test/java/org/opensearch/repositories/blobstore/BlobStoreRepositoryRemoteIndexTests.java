@@ -39,24 +39,29 @@ import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.env.Environment;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.snapshots.blobstore.RemoteStoreShardShallowCopySnapshot;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.RepositoryData;
+import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.test.FeatureFlagSetter;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.stream.Collectors;
 
-import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING;
-import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_STORE_ENABLED_SETTING;
-import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING;
+import static org.opensearch.action.admin.cluster.remotestore.RemoteStoreNode.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX;
+import static org.opensearch.action.admin.cluster.remotestore.RemoteStoreNode.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT;
+import static org.opensearch.action.admin.cluster.remotestore.RemoteStoreNode.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY;
+import static org.opensearch.action.admin.cluster.remotestore.RemoteStoreNode.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.indices.IndicesService.CLUSTER_REPLICATION_TYPE_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -71,12 +76,36 @@ public class BlobStoreRepositoryRemoteIndexTests extends BlobStoreRepositoryHelp
 
     @Override
     protected Settings nodeSettings() {
+        Path tempDir = createTempDir();
         return Settings.builder()
             .put(super.nodeSettings())
             .put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT)
-            .put(CLUSTER_REMOTE_STORE_ENABLED_SETTING.getKey(), true)
-            .put(CLUSTER_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING.getKey(), "test-rs-repo")
-            .put(CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING.getKey(), "test-rs-repo")
+            .put(buildRemoteStoreNodeAttributes("test-rs-repo", tempDir.resolve("repo")))
+            .put(Environment.PATH_HOME_SETTING.getKey(), tempDir)
+            .put(Environment.PATH_REPO_SETTING.getKey(), tempDir.resolve("repo"))
+            .put(Environment.PATH_SHARED_DATA_SETTING.getKey(), tempDir.getParent())
+            .build();
+    }
+
+    public static Settings buildRemoteStoreNodeAttributes(String repoName, Path repoPath) {
+        String repoTypeAttributeKey = String.format(
+            Locale.getDefault(),
+            "node.attr." + REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT,
+            repoName
+        );
+        String repoSettingsAttributeKeyPrefix = String.format(
+            Locale.getDefault(),
+            "node.attr." + REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX,
+            repoName
+        );
+
+        return Settings.builder()
+            .put("node.attr." + REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY, repoName)
+            .put(repoTypeAttributeKey, FsRepository.TYPE)
+            .put(repoSettingsAttributeKeyPrefix + "location", repoPath)
+            .put("node.attr." + REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY, repoName)
+            .put(repoTypeAttributeKey, FsRepository.TYPE)
+            .put(repoSettingsAttributeKeyPrefix + "location", repoPath)
             .build();
     }
 
@@ -95,13 +124,6 @@ public class BlobStoreRepositoryRemoteIndexTests extends BlobStoreRepositoryHelp
             .build();
         createRepository(client, snapshotRepositoryName, snapshotRepoSettings);
 
-        logger.info("-->  creating remote store repository");
-        Settings remoteStoreRepoSettings = Settings.builder()
-            .put(node().settings())
-            .put("location", OpenSearchIntegTestCase.randomRepoPath(node().settings()))
-            .build();
-        createRepository(client, remoteStoreRepositoryName, remoteStoreRepoSettings);
-
         logger.info("--> creating an index and indexing documents");
         final String indexName = "test-idx";
         createIndex(indexName);
@@ -110,7 +132,7 @@ public class BlobStoreRepositoryRemoteIndexTests extends BlobStoreRepositoryHelp
 
         logger.info("--> creating a remote store enabled index and indexing documents");
         final String remoteStoreIndexName = "test-rs-idx";
-        Settings indexSettings = getRemoteStoreBackedIndexSettings(remoteStoreRepositoryName);
+        Settings indexSettings = getRemoteStoreBackedIndexSettings();
         createIndex(remoteStoreIndexName, indexSettings);
         indexDocuments(client, remoteStoreIndexName);
 
@@ -195,16 +217,9 @@ public class BlobStoreRepositoryRemoteIndexTests extends BlobStoreRepositoryHelp
             .build();
         createRepository(client, snapshotRepositoryName, snapshotRepoSettings);
 
-        logger.info("-->  creating remote store repository");
-        Settings remoteStoreRepoSettings = Settings.builder()
-            .put(node().settings())
-            .put("location", OpenSearchIntegTestCase.randomRepoPath(node().settings()))
-            .build();
-        createRepository(client, remoteStoreRepositoryName, remoteStoreRepoSettings);
-
         logger.info("--> creating a remote store enabled index and indexing documents");
         final String remoteStoreIndexName = "test-rs-idx";
-        Settings indexSettings = getRemoteStoreBackedIndexSettings(remoteStoreRepositoryName);
+        Settings indexSettings = getRemoteStoreBackedIndexSettings();
         createIndex(remoteStoreIndexName, indexSettings);
         indexDocuments(client, remoteStoreIndexName);
 
@@ -266,9 +281,6 @@ public class BlobStoreRepositoryRemoteIndexTests extends BlobStoreRepositoryHelp
 
         assertFalse(updatedRepositoryMetadata.settings().getAsBoolean(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), false));
 
-        logger.info("-->  creating remote store repository");
-        createRepository(client, remoteStoreRepositoryName);
-
         logger.info("--> creating an index and indexing documents");
         final String indexName = "test-idx";
         createIndex(indexName);
@@ -277,7 +289,7 @@ public class BlobStoreRepositoryRemoteIndexTests extends BlobStoreRepositoryHelp
 
         logger.info("--> creating a remote store enabled index and indexing documents");
         final String remoteStoreIndexName = "test-rs-idx";
-        Settings indexSettings = getRemoteStoreBackedIndexSettings(remoteStoreRepositoryName);
+        Settings indexSettings = getRemoteStoreBackedIndexSettings();
         createIndex(remoteStoreIndexName, indexSettings);
         indexDocuments(client, remoteStoreIndexName);
 

@@ -39,7 +39,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
-import org.opensearch.action.admin.cluster.remotestore.RemoteStoreService;
+import org.opensearch.action.admin.cluster.remotestore.RemoteStoreNodeService;
 import org.opensearch.cluster.ClusterModule;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateTaskListener;
@@ -1039,7 +1039,7 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
             private DisruptableMockTransport mockTransport;
             private NodeHealthService nodeHealthService;
             private RepositoriesService repositoriesService;
-            private RemoteStoreService remoteStoreService;
+            private RemoteStoreNodeService remoteStoreService;
             List<BiConsumer<DiscoveryNode, ClusterState>> extraJoinValidators = new ArrayList<>();
 
             ClusterNode(int nodeIndex, boolean clusterManagerEligible, Settings nodeSettings, NodeHealthService nodeHealthService) {
@@ -1142,7 +1142,7 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
                     Collections.emptyMap(),
                     threadPool
                 );
-                remoteStoreService = new RemoteStoreService(new SetOnce<>(repositoriesService)::get, threadPool);
+                remoteStoreService = new RemoteStoreNodeService(new SetOnce<>(repositoriesService)::get, threadPool);
                 final Collection<BiConsumer<DiscoveryNode, ClusterState>> onJoinValidators = Collections.singletonList(
                     (dn, cs) -> extraJoinValidators.forEach(validator -> validator.accept(dn, cs))
                 );

@@ -15,18 +15,14 @@ import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.indices.recovery.IndexRecoveryIT;
 import org.opensearch.indices.replication.common.ReplicationType;
-import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 import org.junit.After;
+import org.junit.Before;
 
-import java.util.Locale;
+import java.nio.file.Path;
 
-import static org.opensearch.action.admin.cluster.remotestore.RemoteStoreNode.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX;
-import static org.opensearch.action.admin.cluster.remotestore.RemoteStoreNode.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT;
-import static org.opensearch.action.admin.cluster.remotestore.RemoteStoreNode.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY;
-import static org.opensearch.action.admin.cluster.remotestore.RemoteStoreNode.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.remotestore.RemoteStoreBaseIntegTestCase.remoteStoreClusterSettings;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
@@ -35,33 +31,18 @@ public class RemoteIndexRecoveryIT extends IndexRecoveryIT {
 
     protected static final String REPOSITORY_NAME = "test-remote-store-repo";
 
+    protected Path repositoryPath;
+
+    @Before
+    public void setup() {
+        repositoryPath = randomRepoPath().toAbsolutePath();
+    }
+
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
-            .put(remoteStoreClusterSettings(REPOSITORY_NAME))
-            .put(repositoryNodeAttributes(REPOSITORY_NAME, FsRepository.TYPE, randomRepoPath().toAbsolutePath().toString()))
-            .build();
-    }
-
-    private Settings repositoryNodeAttributes(String name, String type, String location) {
-        String segmentRepoNameAttributeKey = "node.attr." + REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY;
-        String translogRepoNameAttributeKey = "node.attr." + REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY;
-        String typeAttributeKey = String.format(
-            Locale.getDefault(),
-            "node.attr." + REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT,
-            name
-        );
-        String settingsAttributeKey = String.format(
-            Locale.getDefault(),
-            "node.attr." + REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX,
-            name
-        );
-        return Settings.builder()
-            .put(segmentRepoNameAttributeKey, name)
-            .put(translogRepoNameAttributeKey, name)
-            .put(typeAttributeKey, type)
-            .put(settingsAttributeKey + "location", location)
+            .put(remoteStoreClusterSettings(REPOSITORY_NAME, repositoryPath, REPOSITORY_NAME, repositoryPath))
             .build();
     }
 

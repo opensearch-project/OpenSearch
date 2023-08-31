@@ -40,7 +40,7 @@ import org.opensearch.action.ActionModule.DynamicActionRegistry;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.RequestValidators;
 import org.opensearch.action.StepListener;
-import org.opensearch.action.admin.cluster.remotestore.RemoteStoreService;
+import org.opensearch.action.admin.cluster.remotestore.RemoteStoreNodeService;
 import org.opensearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryAction;
 import org.opensearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryRequest;
 import org.opensearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryResponse;
@@ -1893,7 +1893,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
             private final ClusterInfoService clusterInfoService;
 
             private Coordinator coordinator;
-            private RemoteStoreService remoteStoreService;
+            private RemoteStoreNodeService remoteStoreService;
 
             private Map<ActionType, TransportAction> actions = new HashMap<>();
 
@@ -1999,7 +1999,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     emptyMap(),
                     threadPool
                 );
-                remoteStoreService = new RemoteStoreService(new SetOnce<>(repositoriesService)::get, threadPool);
+                remoteStoreService = new RemoteStoreNodeService(new SetOnce<>(repositoriesService)::get, threadPool);
                 final ActionFilters actionFilters = new ActionFilters(emptySet());
                 snapshotsService = new SnapshotsService(
                     settings,

@@ -33,8 +33,7 @@
 package org.opensearch.cluster.node;
 
 import org.opensearch.Version;
-import org.opensearch.action.admin.cluster.remotestore.RemoteStoreNode;
-import org.opensearch.action.admin.cluster.remotestore.RemoteStoreService;
+import org.opensearch.action.admin.cluster.remotestore.RemoteStoreNodeService;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.Setting;
@@ -46,13 +45,11 @@ import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.node.Node;
-import org.opensearch.repositories.Repository;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -287,11 +284,11 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
     }
 
     /** Creates a DiscoveryNode representing the local node and verifies the repository. */
-    public static DiscoveryNode createLocal(
+    public static DiscoveryNode createRemoteNodeLocal(
         Settings settings,
         TransportAddress publishAddress,
         String nodeId,
-        RemoteStoreService remoteStoreService
+        RemoteStoreNodeService remoteStoreService
     ) {
         Map<String, String> attributes = Node.NODE_ATTRIBUTES.getAsMap(settings);
         Set<DiscoveryNodeRole> roles = getRolesFromSettings(settings);
@@ -303,9 +300,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             roles,
             Version.CURRENT
         );
-        RemoteStoreNode remoteStoreNode = new RemoteStoreNode(discoveryNode);
-        List<Repository> repositories = remoteStoreService.createRepositories(remoteStoreNode);
-        remoteStoreService.verifyRepositoriesLocally(repositories, discoveryNode);
+        remoteStoreService.createAndVerifyRepositories(discoveryNode);
         return discoveryNode;
     }
 

@@ -63,8 +63,6 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
 
     private void testPeerRecovery(int numberOfIterations, boolean invokeFlush) throws Exception {
         internalCluster().startNodes(3);
-        ensureStableCluster(3);
-        assertRepositoryMetadataPresentInClusterState();
         createIndex(INDEX_NAME, remoteStoreIndexSettings(0));
         ensureYellowAndNoInitializingShards(INDEX_NAME);
         ensureGreen(INDEX_NAME);
@@ -124,10 +122,8 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         testPeerRecovery(randomIntBetween(2, 5), false);
     }
 
-    public void verifyRemoteStoreCleanup() throws Exception {
+    private void verifyRemoteStoreCleanup() throws Exception {
         internalCluster().startNodes(3);
-        ensureStableCluster(3);
-        assertRepositoryMetadataPresentInClusterState();
         createIndex(INDEX_NAME, remoteStoreIndexSettings(1));
 
         indexData(5, randomBoolean(), INDEX_NAME);
@@ -154,8 +150,6 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
 
     public void testStaleCommitDeletionWithInvokeFlush() throws Exception {
         internalCluster().startNode();
-        ensureStableCluster(1);
-        assertRepositoryMetadataPresentInClusterState();
         createIndex(INDEX_NAME, remoteStoreIndexSettings(1, 10000l, -1));
         int numberOfIterations = randomIntBetween(5, 15);
         indexData(numberOfIterations, true, INDEX_NAME);
@@ -183,8 +177,6 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
 
     public void testStaleCommitDeletionWithoutInvokeFlush() throws Exception {
         internalCluster().startNode();
-        ensureStableCluster(1);
-        assertRepositoryMetadataPresentInClusterState();
         createIndex(INDEX_NAME, remoteStoreIndexSettings(1, 10000l, -1));
         int numberOfIterations = randomIntBetween(5, 15);
         indexData(numberOfIterations, false, INDEX_NAME);

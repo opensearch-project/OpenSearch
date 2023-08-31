@@ -34,16 +34,6 @@ public class RemoteStoreMultipartIT extends RemoteStoreIT {
         return Stream.concat(super.nodePlugins().stream(), Stream.of(MockFsRepositoryPlugin.class)).collect(Collectors.toList());
     }
 
-    @Override
-    public Settings remoteStoreNodeAttributes(
-        String segmentRepoName,
-        String segmentRepoType,
-        String translogRepoName,
-        String translogRepoType
-    ) {
-        return super.remoteStoreNodeAttributes(segmentRepoName, MockFsRepositoryPlugin.TYPE, translogRepoName, MockFsRepositoryPlugin.TYPE);
-    }
-
     public void testRateLimitedRemoteUploads() throws Exception {
         internalCluster().startNode();
         Client client = client();
