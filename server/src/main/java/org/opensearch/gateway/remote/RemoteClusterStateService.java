@@ -184,7 +184,6 @@ public class RemoteClusterStateService implements Closeable {
             return null;
         }
         assert previousClusterState.metadata().coordinationMetadata().term() == clusterState.metadata().coordinationMetadata().term();
-        assert REMOTE_CLUSTER_STATE_ENABLED_SETTING.get(settings) == true : "Remote cluster state is not enabled";
         final Map<String, Long> previousStateIndexMetadataVersionByName = new HashMap<>();
         for (final IndexMetadata indexMetadata : previousClusterState.metadata().indices().values()) {
             previousStateIndexMetadataVersionByName.put(indexMetadata.getIndex().getName(), indexMetadata.getVersion());
@@ -261,7 +260,6 @@ public class RemoteClusterStateService implements Closeable {
         }
         assert clusterState != null : "Last accepted cluster state is not set";
         assert previousManifest != null : "Last cluster metadata manifest is not set";
-        assert REMOTE_CLUSTER_STATE_ENABLED_SETTING.get(settings) == true : "Remote cluster state is not enabled";
         return uploadManifest(clusterState, previousManifest.getIndices(), true);
     }
 
