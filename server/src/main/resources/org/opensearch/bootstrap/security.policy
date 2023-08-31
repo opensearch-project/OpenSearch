@@ -79,12 +79,6 @@ grant codeBase "${codebase.jna}" {
   permission java.lang.RuntimePermission "accessDeclaredMembers";
 };
 
-
-// ZSTD compression
-grant codeBase "${codebase.zstd-jni}" {
-  permission java.lang.RuntimePermission "loadLibrary.*";
-};
-
 //// Everything else:
 
 grant {

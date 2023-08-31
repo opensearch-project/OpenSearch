@@ -135,13 +135,11 @@ public final class EngineConfig {
             case "zlib":
             case "lucene_default":
                 return s;
-            case "zstd":
-            case "zstd_no_dict":
-                if (Codec.availableCodecs().contains("Lucene95CustomCodec")) {
-                    return s;
-                }
             default:
-                if (("zstd".equals(s) || "zstd_no_dict".equals(s)) && Codec.availableCodecs().contains("Lucene95CustomCodec")) {
+                // Though the external visible codec name is zstd or zstd_no_dict, internally it is registered as Lucene95CustomCodec
+                // Hence this check is required, Lucene95CustomCodec will not be part of availableCodecs if the custom-codecs plugin
+                // is not installed
+                if (("zstd".equals(s) || "zstd_no_dict".equals(s)) && Codec.availableCodecs().contains("Lucene95CustomCodec")){
                     return s;
                 }
                 if (Codec.availableCodecs().contains(s) == false) { // we don't error message the not officially supported ones
@@ -193,6 +191,9 @@ public final class EngineConfig {
             case "lz4":
                 break;
             default:
+                // Though the external visible codec name is zstd or zstd_no_dict, internally it is registered as Lucene95CustomCodec
+                // Hence this check is required, Lucene95CustomCodec will not be part of availableCodecs if the custom-codecs plugin
+                // is not installed
                 if (("zstd".equals(codec) || "zstd_no_dict".equals(codec)) && Codec.availableCodecs().contains("Lucene95CustomCodec")) {
                     return;
                 }
@@ -243,6 +244,7 @@ public final class EngineConfig {
         this.codecService = builder.codecService;
         this.eventListener = builder.eventListener;
         codecName = builder.indexSettings.getValue(INDEX_CODEC_SETTING);
+
         // We need to make the indexing buffer for this shard at least as large
         // as the amount of memory that is available for all engines on the
         // local node so that decisions to flush segments to disk are made by
