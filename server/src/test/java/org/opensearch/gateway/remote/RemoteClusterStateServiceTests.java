@@ -44,7 +44,6 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
@@ -80,10 +79,11 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         Assert.assertThat(manifest, nullValue());
     }
 
-    public void testFailWriteFullMetadataWhenRemoteStateDisabled() throws IOException {
+    public void testFailInitializationWhenRemoteStateDisabled() throws IOException {
         final Settings settings = Settings.builder().build();
-        remoteClusterStateService = spy(
-            new RemoteClusterStateService(
+        assertThrows(
+            AssertionError.class,
+            () -> new RemoteClusterStateService(
                 "test-node-id",
                 repositoriesServiceSupplier,
                 settings,
@@ -91,8 +91,6 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
                 () -> 0L
             )
         );
-        final ClusterState clusterState = generateClusterStateWithOneIndex().nodes(nodesWithLocalNodeClusterManager()).build();
-        assertThrows(AssertionError.class, () -> remoteClusterStateService.writeFullMetadata(clusterState));
     }
 
     public void testFailWriteFullMetadataWhenRepositoryNotSet() {
