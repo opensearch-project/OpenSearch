@@ -15,6 +15,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.blobstore.BlobContainer;
+import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
@@ -35,6 +36,7 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
@@ -87,7 +89,7 @@ public class RemoteClusterStateService implements Closeable {
     );
     private static final Logger logger = LogManager.getLogger(RemoteClusterStateService.class);
 
-    private static final String DELIMITER = "__";
+    public static final String DELIMITER = "__";
 
     private final String nodeId;
     private final Supplier<RepositoriesService> repositoriesService;
@@ -367,4 +369,80 @@ public class RemoteClusterStateService implements Closeable {
         return String.join(DELIMITER, "metadata", String.valueOf(indexMetadata.getVersion()), String.valueOf(System.currentTimeMillis()));
     }
 
+    /**
+     * Fetch latest index metadata from remote cluster state
+     * @param clusterUUID uuid of cluster state to refer to in remote
+     * @param clusterName name of the cluster
+     * @return Map<String, IndexMetadata> latest IndexUUID to IndexMetadata map
+     */
+    public Map<String, IndexMetadata> getLatestIndexMetadata(String clusterUUID, String clusterName) throws IOException {
+        Map<String, IndexMetadata> remoteIndexMetadata = new HashMap<>();
+        ClusterMetadataManifest ClusterMetadataManifest = getLatestClusterMetadataManifest(clusterUUID, clusterName);
+        for (UploadedIndexMetadata uploadedIndexMetadata : ClusterMetadataManifest.getIndices()) {
+            IndexMetadata indexMetadata = INDEX_METADATA_FORMAT.read(
+                indexMetadataContainer(clusterName, clusterUUID, uploadedIndexMetadata.getIndexUUID()),
+                uploadedIndexMetadata.getUploadedFilename(),
+                blobStoreRepository.getNamedXContentRegistry()
+            );
+            remoteIndexMetadata.put(uploadedIndexMetadata.getIndexUUID(), indexMetadata);
+        }
+        return remoteIndexMetadata;
+    }
+
+    /**
+     * Fetch latest ClusterMetadataManifest from remote state store
+     * @param clusterUUID uuid of cluster state to refer to in remote
+     * @param clusterName name of the cluster
+     * @return ClusterMetadataManifest
+     */
+    public ClusterMetadataManifest getLatestClusterMetadataManifest(String clusterUUID, String clusterName) {
+        String latestMarkerFileName = getLatestManifestFileName(clusterUUID, clusterName);
+        return fetchRemoteClusterMetadataManifest(latestMarkerFileName, clusterUUID, clusterName);
+    }
+
+    /**
+     * Fetch latest ClusterMetadataManifest file from remote state store
+     * @param clusterUUID uuid of cluster state to refer to in remote
+     * @param clusterName name of the cluster
+     * @return latest ClusterMetadataManifest filename
+     */
+    private String getLatestManifestFileName(String clusterUUID, String clusterName) throws IllegalStateException {
+        try {
+            List<BlobMetadata> markerFilesMetadata = manifestContainer(clusterUUID, clusterName).listBlobsByPrefixInSortedOrder(
+                "manifest" + DELIMITER,
+                1,
+                BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC
+            );
+            if (markerFilesMetadata != null && !markerFilesMetadata.isEmpty()) {
+                return markerFilesMetadata.get(0).name();
+            }
+        } catch (IOException e) {
+            String errorMsg = "Error while fetching latest manifest file for remote cluster state";
+            logger.error(errorMsg, e);
+            throw new IllegalStateException(errorMsg);
+        }
+
+        throw new IllegalStateException("Remote Cluster State not found");
+    }
+
+    /**
+     * Fetch ClusterMetadataManifest from remote state store
+     * @param clusterUUID uuid of cluster state to refer to in remote
+     * @param clusterName name of the cluster
+     * @return ClusterMetadataManifest
+     */
+    private ClusterMetadataManifest fetchRemoteClusterMetadataManifest(String filename, String clusterUUID, String clusterName)
+        throws IllegalStateException {
+        try {
+            return RemoteClusterStateService.CLUSTER_METADATA_MANIFEST_FORMAT.read(
+                manifestContainer(clusterUUID, clusterName),
+                filename,
+                blobStoreRepository.getNamedXContentRegistry()
+            );
+        } catch (IOException e) {
+            String errorMsg = String.format(Locale.ROOT, "Error while downloading ClusterMetadataManifest - %s", filename);
+            logger.error(errorMsg, e);
+            throw new IllegalStateException(errorMsg);
+        }
+    }
 }

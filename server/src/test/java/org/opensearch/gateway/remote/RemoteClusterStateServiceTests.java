@@ -16,24 +16,34 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.blobstore.BlobContainer;
+import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
+import org.opensearch.common.blobstore.support.PlainBlobMetadata;
 import org.opensearch.common.compress.DeflateCompressor;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.index.Index;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.gateway.remote.ClusterMetadataManifest.UploadedIndexMetadata;
 import org.opensearch.repositories.FilterRepository;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.RepositoryMissingException;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.VersionUtils;
 import org.junit.Assert;
 import org.junit.Before;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Supplier;
 
 import org.mockito.ArgumentMatchers;
@@ -52,6 +62,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
     private Supplier<RepositoriesService> repositoriesServiceSupplier;
     private RepositoriesService repositoriesService;
     private BlobStoreRepository blobStoreRepository;
+    private BlobStore blobStore;
 
     @Before
     public void setup() {
@@ -63,6 +74,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             .put(RemoteClusterStateService.REMOTE_CLUSTER_STATE_REPOSITORY_SETTING.getKey(), "remote_store_repository")
             .build();
         blobStoreRepository = mock(BlobStoreRepository.class);
+        blobStore = mock(BlobStore.class);
+        when(blobStoreRepository.blobStore()).thenReturn(blobStore);
         when(repositoriesService.repository("remote_store_repository")).thenReturn(blobStoreRepository);
         remoteClusterStateService = new RemoteClusterStateService(
             "test-node-id",
@@ -186,6 +199,78 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         assertThat(manifest.getStateUUID(), is(expectedManifest.getStateUUID()));
     }
 
+    public void testReadLatestMetadataMarkerSuccess() throws IOException {
+        final ClusterState clusterState = generateClusterStateWithOneIndex().nodes(nodesWithLocalNodeClusterManager()).build();
+        final UploadedIndexMetadata uploadedIndexMetadata = new UploadedIndexMetadata("test-index", "index-uuid", "metadata-filename");
+        final List<UploadedIndexMetadata> indices = List.of(uploadedIndexMetadata);
+
+        final ClusterMetadataManifest expectedManifest = ClusterMetadataManifest.builder()
+            .indices(indices)
+            .clusterTerm(1L)
+            .stateVersion(1L)
+            .stateUUID("state-uuid")
+            .clusterUUID("cluster-uuid")
+            .nodeId("nodeA")
+            .opensearchVersion(VersionUtils.randomOpenSearchVersion(random()))
+            .build();
+
+        mockBlobContainer(mockBlobStoreObjects(), expectedManifest, new HashMap<>());
+        remoteClusterStateService.ensureRepositorySet();
+        final ClusterMetadataManifest manifest = remoteClusterStateService.getLatestClusterMetadataManifest(
+            clusterState.metadata().clusterUUID(),
+            clusterState.getClusterName().value()
+        );
+
+        assertThat(manifest.getIndices().size(), is(1));
+        assertThat(manifest.getIndices().get(0).getIndexName(), is(uploadedIndexMetadata.getIndexName()));
+        assertThat(manifest.getIndices().get(0).getIndexUUID(), is(uploadedIndexMetadata.getIndexUUID()));
+        assertThat(manifest.getIndices().get(0).getUploadedFilename(), notNullValue());
+        assertThat(manifest.getClusterTerm(), is(expectedManifest.getClusterTerm()));
+        assertThat(manifest.getStateVersion(), is(expectedManifest.getStateVersion()));
+        assertThat(manifest.getClusterUUID(), is(expectedManifest.getClusterUUID()));
+        assertThat(manifest.getStateUUID(), is(expectedManifest.getStateUUID()));
+    }
+
+    public void testReadLatestIndexMetadataSuccess() throws IOException {
+        final ClusterState clusterState = generateClusterStateWithOneIndex().nodes(nodesWithLocalNodeClusterManager()).build();
+        remoteClusterStateService.ensureRepositorySet();
+
+        final Index index = new Index("test-index", "index-uuid");
+        String fileName = "metadata-" + index.getUUID();
+        final UploadedIndexMetadata uploadedIndexMetadata = new UploadedIndexMetadata(index.getName(), index.getUUID(), fileName);
+        final Settings idxSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
+            .build();
+        final IndexMetadata indexMetadata = new IndexMetadata.Builder(index.getName()).settings(idxSettings)
+            .numberOfShards(11)
+            .numberOfReplicas(10)
+            .build();
+
+        final List<UploadedIndexMetadata> indices = List.of(uploadedIndexMetadata);
+        final ClusterMetadataManifest expectedManifest = ClusterMetadataManifest.builder()
+            .indices(indices)
+            .clusterTerm(1L)
+            .stateVersion(1L)
+            .stateUUID("state-uuid")
+            .clusterUUID("cluster-uuid")
+            .nodeId("nodeA")
+            .opensearchVersion(VersionUtils.randomOpenSearchVersion(random()))
+            .build();
+
+        mockBlobContainer(mockBlobStoreObjects(), expectedManifest, Map.of(index.getUUID(), indexMetadata));
+
+        Map<String, IndexMetadata> indexMetadataMap = remoteClusterStateService.getLatestIndexMetadata(
+            clusterState.metadata().clusterUUID(),
+            clusterState.getClusterName().value()
+        );
+
+        assertEquals(indexMetadataMap.size(), 1);
+        assertEquals(indexMetadataMap.get(index.getUUID()).getIndex().getName(), index.getName());
+        assertEquals(indexMetadataMap.get(index.getUUID()).getNumberOfShards(), indexMetadata.getNumberOfShards());
+        assertEquals(indexMetadataMap.get(index.getUUID()).getNumberOfReplicas(), indexMetadata.getNumberOfReplicas());
+    }
+
     public void testMarkLastStateAsCommittedSuccess() throws IOException {
         final ClusterState clusterState = generateClusterStateWithOneIndex().nodes(nodesWithLocalNodeClusterManager()).build();
         mockBlobStoreObjects();
@@ -202,6 +287,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             .stateVersion(1L)
             .stateUUID("state-uuid")
             .clusterUUID("cluster-uuid")
+            .nodeId("nodeA")
             .build();
 
         assertThat(manifest.getIndices().size(), is(1));
@@ -214,9 +300,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         assertThat(manifest.getStateUUID(), is(expectedManifest.getStateUUID()));
     }
 
-    private void mockBlobStoreObjects() {
-        final BlobStore blobStore = mock(BlobStore.class);
-        when(blobStoreRepository.blobStore()).thenReturn(blobStore);
+    private BlobContainer mockBlobStoreObjects() {
         final BlobPath blobPath = mock(BlobPath.class);
         when((blobStoreRepository.basePath())).thenReturn(blobPath);
         when(blobPath.add(anyString())).thenReturn(blobPath);
@@ -225,6 +309,31 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         when(blobContainer.path()).thenReturn(blobPath);
         when(blobStore.blobContainer(ArgumentMatchers.any())).thenReturn(blobContainer);
         when(blobStoreRepository.getCompressor()).thenReturn(new DeflateCompressor());
+        return blobContainer;
+    }
+
+    private void mockBlobContainer(BlobContainer blobContainer, ClusterMetadataManifest clusterMetadataManifest, Map<String, IndexMetadata> indexMetadataList) throws IOException {
+        when(blobStoreRepository.getNamedXContentRegistry()).thenReturn(new NamedXContentRegistry(new ArrayList<>()));
+        BlobMetadata blobMetadata = new PlainBlobMetadata("manifestFileName", 1);
+        when(blobContainer.listBlobsByPrefixInSortedOrder("manifest" + RemoteClusterStateService.DELIMITER, 1, BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC)).thenReturn(Arrays.asList(blobMetadata));
+
+        BytesReference bytes = RemoteClusterStateService.CLUSTER_METADATA_MANIFEST_FORMAT.serialize(clusterMetadataManifest, "manifestFileName", blobStoreRepository.getCompressor());
+        when(blobContainer.readBlob("manifestFileName")).thenReturn(new ByteArrayInputStream(bytes.streamInput().readAllBytes()));
+
+
+        clusterMetadataManifest.getIndices().forEach(uploadedIndexMetadata -> {
+            try {
+                IndexMetadata indexMetadata = indexMetadataList.get(uploadedIndexMetadata.getIndexUUID());
+                if (indexMetadata == null) {
+                    return;
+                }
+                String fileName = uploadedIndexMetadata.getUploadedFilename();
+                BytesReference bytesIndexMetadata = RemoteClusterStateService.INDEX_METADATA_FORMAT.serialize(indexMetadata, fileName, blobStoreRepository.getCompressor());
+                when(blobContainer.readBlob(fileName + ".dat")).thenReturn(new ByteArrayInputStream(bytesIndexMetadata.streamInput().readAllBytes()));
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        });
     }
 
     private static ClusterState.Builder generateClusterStateWithOneIndex() {
