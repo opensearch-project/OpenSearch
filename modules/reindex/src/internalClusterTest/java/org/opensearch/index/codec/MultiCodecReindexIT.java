@@ -19,6 +19,7 @@ import org.opensearch.index.codec.customcodecs.CustomCodecPlugin;
 import org.opensearch.index.engine.Segment;
 import org.opensearch.index.reindex.BulkByScrollResponse;
 import org.opensearch.index.reindex.ReindexAction;
+import org.opensearch.index.reindex.ReindexModulePlugin;
 import org.opensearch.index.reindex.ReindexRequestBuilder;
 import org.opensearch.index.reindex.ReindexTestCase;
 import org.opensearch.plugins.Plugin;
@@ -46,9 +47,7 @@ public class MultiCodecReindexIT extends ReindexTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
-        plugins.add(CustomCodecPlugin.class);
-        return plugins;
+        return List.of(CustomCodecPlugin.class, ReindexModulePlugin.class);
     }
 
     public void testReindexingMultipleCodecs() throws InterruptedException, ExecutionException {

@@ -178,7 +178,7 @@ public class CustomCodecTests extends OpenSearchTestCase {
     private CodecService createCodecService(boolean isMapperServiceNull) throws IOException {
         Settings nodeSettings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
         if (isMapperServiceNull) {
-            return new CustomCodecService(null, IndexSettingsModule.newIndexSettings("_na", nodeSettings), LogManager.getLogger("test"));
+            return new CodecService(null, IndexSettingsModule.newIndexSettings("_na", nodeSettings), LogManager.getLogger("test"));
         }
         return buildCodecService(nodeSettings);
     }
