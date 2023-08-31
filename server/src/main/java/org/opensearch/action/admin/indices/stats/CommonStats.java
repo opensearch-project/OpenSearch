@@ -33,6 +33,7 @@
 package org.opensearch.action.admin.indices.stats;
 
 import org.apache.lucene.store.AlreadyClosedException;
+import org.opensearch.Version;
 import org.opensearch.common.Nullable;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -41,6 +42,7 @@ import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.index.ReplicationStats;
 import org.opensearch.index.cache.query.QueryCacheStats;
 import org.opensearch.index.cache.request.RequestCacheStats;
 import org.opensearch.index.engine.SegmentsStats;
@@ -120,6 +122,9 @@ public class CommonStats implements Writeable, ToXContentFragment {
     @Nullable
     public RecoveryStats recoveryStats;
 
+    @Nullable
+    public ReplicationStats replicationStats;
+
     public CommonStats() {
         this(CommonStatsFlags.NONE);
     }
@@ -176,6 +181,8 @@ public class CommonStats implements Writeable, ToXContentFragment {
                     break;
                 case Recovery:
                     recoveryStats = new RecoveryStats();
+                    break;
+                case SegmentReplication:
                     break;
                 default:
                     throw new IllegalStateException("Unknown Flag: " + flag);
@@ -236,6 +243,9 @@ public class CommonStats implements Writeable, ToXContentFragment {
                     case Recovery:
                         recoveryStats = indexShard.recoveryStats();
                         break;
+                    case SegmentReplication:
+                        replicationStats = indexShard.getReplicationStats();
+                        break;
                     default:
                         throw new IllegalStateException("Unknown Flag: " + flag);
                 }
@@ -262,6 +272,9 @@ public class CommonStats implements Writeable, ToXContentFragment {
         translog = in.readOptionalWriteable(TranslogStats::new);
         requestCache = in.readOptionalWriteable(RequestCacheStats::new);
         recoveryStats = in.readOptionalWriteable(RecoveryStats::new);
+        if (in.getVersion().onOrAfter(Version.V_2_10_0)) {
+            replicationStats = in.readOptionalWriteable(ReplicationStats::new);
+        }
     }
 
     @Override
@@ -282,6 +295,9 @@ public class CommonStats implements Writeable, ToXContentFragment {
         out.writeOptionalWriteable(translog);
         out.writeOptionalWriteable(requestCache);
         out.writeOptionalWriteable(recoveryStats);
+        if (out.getVersion().onOrAfter(Version.V_2_10_0)) {
+            out.writeOptionalWriteable(replicationStats);
+        }
     }
 
     public void add(CommonStats stats) {
@@ -414,6 +430,14 @@ public class CommonStats implements Writeable, ToXContentFragment {
         } else {
             recoveryStats.add(stats.getRecoveryStats());
         }
+        if (replicationStats == null) {
+            if (stats.getReplicationStats() != null) {
+                replicationStats = new ReplicationStats();
+                replicationStats.add(stats.getReplicationStats());
+            }
+        } else {
+            replicationStats.add(stats.getReplicationStats());
+        }
     }
 
     @Nullable
@@ -496,6 +520,11 @@ public class CommonStats implements Writeable, ToXContentFragment {
         return recoveryStats;
     }
 
+    @Nullable
+    public ReplicationStats getReplicationStats() {
+        return replicationStats;
+    }
+
     /**
      * Utility method which computes total memory by adding
      * FieldData, PercolatorCache, Segments (index writer, version map)
@@ -535,7 +564,8 @@ public class CommonStats implements Writeable, ToXContentFragment {
                 segments,
                 translog,
                 requestCache,
-                recoveryStats }
+                recoveryStats,
+                replicationStats }
         ).filter(Objects::nonNull);
         for (ToXContent toXContent : ((Iterable<ToXContent>) stream::iterator)) {
             toXContent.toXContent(builder, params);

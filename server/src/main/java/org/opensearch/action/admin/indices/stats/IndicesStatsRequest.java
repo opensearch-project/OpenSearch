@@ -282,6 +282,15 @@ public class IndicesStatsRequest extends BroadcastRequest<IndicesStatsRequest> {
         return this;
     }
 
+    public IndicesStatsRequest segmentReplication(boolean segmentReplication) {
+        flags.set(CommonStatsFlags.Flag.SegmentReplication, segmentReplication);
+        return this;
+    }
+
+    public boolean segmentReplication() {
+        return flags.isSet(CommonStatsFlags.Flag.SegmentReplication);
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);

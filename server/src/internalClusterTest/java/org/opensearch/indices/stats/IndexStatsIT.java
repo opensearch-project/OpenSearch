@@ -75,6 +75,7 @@ import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.IndicesQueryCache;
 import org.opensearch.indices.IndicesRequestCache;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.InternalSettingsPlugin;
@@ -960,7 +961,8 @@ public class IndexStatsIT extends OpenSearchIntegTestCase {
             Flag.Segments,
             Flag.Translog,
             Flag.RequestCache,
-            Flag.Recovery };
+            Flag.Recovery,
+            Flag.SegmentReplication };
 
         assertThat(flags.length, equalTo(Flag.values().length));
         for (int i = 0; i < flags.length; i++) {
@@ -1140,6 +1142,8 @@ public class IndexStatsIT extends OpenSearchIntegTestCase {
             case Recovery:
                 builder.setRecovery(set);
                 break;
+            case SegmentReplication:
+                builder.setSegmentReplication(set);
             default:
                 fail("new flag? " + flag);
                 break;
@@ -1180,6 +1184,8 @@ public class IndexStatsIT extends OpenSearchIntegTestCase {
                 return response.getRequestCache() != null;
             case Recovery:
                 return response.getRecoveryStats() != null;
+            case SegmentReplication:
+                return response.getReplicationStats() != null;
             default:
                 fail("new flag? " + flag);
                 return false;
@@ -1476,5 +1482,34 @@ public class IndexStatsIT extends OpenSearchIntegTestCase {
                 }
             }
         }
+    }
+
+    public void testSegmentReplicationStats() {
+        String indexName = "test-index";
+        createIndex(indexName, Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 1).build());
+        ensureGreen(indexName);
+
+        IndicesStatsRequestBuilder builder = client().admin().indices().prepareStats();
+        IndicesStatsResponse stats = builder.execute().actionGet();
+
+        // document replication enabled index should not return segment replication stats
+        assertNull(stats.getIndex(indexName).getTotal().getReplicationStats());
+
+        indexName = "test-index2";
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put("index.number_of_shards", 1)
+                .put("index.number_of_replicas", 1)
+                .put("index.replication.type", ReplicationType.SEGMENT)
+                .build()
+        );
+        ensureGreen(indexName);
+
+        builder = client().admin().indices().prepareStats();
+        stats = builder.execute().actionGet();
+
+        // segment replication enabled index should return segment replication stats
+        assertNotNull(stats.getIndex(indexName).getTotal().getReplicationStats());
     }
 }

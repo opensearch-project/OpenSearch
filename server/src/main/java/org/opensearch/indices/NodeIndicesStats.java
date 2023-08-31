@@ -42,6 +42,7 @@ import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.index.ReplicationStats;
 import org.opensearch.index.cache.query.QueryCacheStats;
 import org.opensearch.index.cache.request.RequestCacheStats;
 import org.opensearch.index.engine.SegmentsStats;
@@ -185,6 +186,11 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
     @Nullable
     public RecoveryStats getRecoveryStats() {
         return stats.getRecoveryStats();
+    }
+
+    @Nullable
+    public ReplicationStats getReplicationStats() {
+        return stats.getReplicationStats();
     }
 
     @Override

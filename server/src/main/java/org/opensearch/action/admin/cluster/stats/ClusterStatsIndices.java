@@ -35,6 +35,7 @@ package org.opensearch.action.admin.cluster.stats;
 import org.opensearch.action.admin.indices.stats.CommonStats;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.index.ReplicationStats;
 import org.opensearch.index.cache.query.QueryCacheStats;
 import org.opensearch.index.engine.SegmentsStats;
 import org.opensearch.index.fielddata.FieldDataStats;
@@ -65,6 +66,8 @@ public class ClusterStatsIndices implements ToXContentFragment {
     private AnalysisStats analysis;
     private MappingStats mappings;
 
+    private ReplicationStats replicationStats;
+
     public ClusterStatsIndices(List<ClusterStatsNodeResponse> nodeResponses, MappingStats mappingStats, AnalysisStats analysisStats) {
         Map<String, ShardStats> countsPerIndex = new HashMap<>();
 
@@ -74,6 +77,7 @@ public class ClusterStatsIndices implements ToXContentFragment {
         this.queryCache = new QueryCacheStats();
         this.completion = new CompletionStats();
         this.segments = new SegmentsStats();
+        this.replicationStats = new ReplicationStats();
 
         for (ClusterStatsNodeResponse r : nodeResponses) {
             for (org.opensearch.action.admin.indices.stats.ShardStats shardStats : r.shardsStats()) {
@@ -96,6 +100,7 @@ public class ClusterStatsIndices implements ToXContentFragment {
                 queryCache.add(shardCommonStats.queryCache);
                 completion.add(shardCommonStats.completion);
                 segments.add(shardCommonStats.segments);
+                replicationStats.add(shardCommonStats.replicationStats);
             }
         }
 
@@ -149,6 +154,10 @@ public class ClusterStatsIndices implements ToXContentFragment {
         return analysis;
     }
 
+    public ReplicationStats getReplicationStats() {
+        return replicationStats;
+    }
+
     /**
      * Inner Fields used for creating XContent and parsing
      *
@@ -173,6 +182,9 @@ public class ClusterStatsIndices implements ToXContentFragment {
         }
         if (analysis != null) {
             analysis.toXContent(builder, params);
+        }
+        if (replicationStats != null) {
+            replicationStats.toXContent(builder, params);
         }
         return builder;
     }
