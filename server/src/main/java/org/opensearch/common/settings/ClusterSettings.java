@@ -78,6 +78,7 @@ import org.opensearch.cluster.service.ClusterApplierService;
 import org.opensearch.cluster.service.ClusterManagerService;
 import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.network.NetworkService;
@@ -166,8 +167,9 @@ import java.util.function.Predicate;
 /**
  * Encapsulates all valid cluster level settings.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class ClusterSettings extends AbstractScopedSettings {
 
     public ClusterSettings(final Settings nodeSettings, final Set<Setting<?>> settingsSet) {

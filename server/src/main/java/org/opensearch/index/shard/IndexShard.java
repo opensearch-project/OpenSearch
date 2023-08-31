@@ -4590,6 +4590,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 }
 
                 @Override
+                public GatedCloseable<SegmentInfos> getSegmentInfosSnapshot() {
+                    synchronized (engineMutex) {
+                        if (newEngineReference.get() == null) {
+                            throw new AlreadyClosedException("engine was closed");
+                        }
+                        return newEngineReference.get().getSegmentInfosSnapshot();
+                    }
+                }
+
+                @Override
                 public void close() throws IOException {
                     assert Thread.holdsLock(engineMutex);
 
