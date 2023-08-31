@@ -69,8 +69,6 @@ public class RemoteStorePressureSettings {
 
     private volatile int minConsecutiveFailuresLimit;
 
-    private volatile int movingAverageWindowSize;
-
     public RemoteStorePressureSettings(
         ClusterService clusterService,
         Settings settings,
@@ -129,9 +127,5 @@ public class RemoteStorePressureSettings {
 
     public void setMinConsecutiveFailuresLimit(int minConsecutiveFailuresLimit) {
         this.minConsecutiveFailuresLimit = minConsecutiveFailuresLimit;
-    }
-
-    public void setMovingAverageWindowSize(int movingAverageWindowSize) {
-        this.movingAverageWindowSize = movingAverageWindowSize;
     }
 }
