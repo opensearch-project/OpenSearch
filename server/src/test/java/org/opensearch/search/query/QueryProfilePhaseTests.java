@@ -97,6 +97,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class QueryProfilePhaseTests extends IndexShardTestCase {
+    private final int concurrency;
     private IndexShard indexShard;
     private final ExecutorService executor;
     private final QueryPhaseSearcher queryPhaseSearcher;
@@ -112,6 +113,7 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
     public QueryProfilePhaseTests(int concurrency, QueryPhaseSearcher queryPhaseSearcher) {
         this.executor = (concurrency > 0) ? Executors.newFixedThreadPool(concurrency) : null;
         this.queryPhaseSearcher = queryPhaseSearcher;
+        this.concurrency = concurrency;
     }
 
     @Override
@@ -338,7 +340,7 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
             assertThat(query.getTimeBreakdown().keySet(), not(empty()));
             assertThat(query.getTimeBreakdown().get("score"), greaterThanOrEqualTo(100L));
             assertThat(query.getTimeBreakdown().get("score_count"), equalTo(1L));
-            if (query.getMaxSliceTime() != null) {
+            if (concurrency > 0) {
                 assertThat(query.getTimeBreakdown().get("max_score"), greaterThanOrEqualTo(100L));
                 assertThat(query.getTimeBreakdown().get("min_score"), greaterThanOrEqualTo(100L));
                 assertThat(query.getTimeBreakdown().get("avg_score"), greaterThanOrEqualTo(100L));
@@ -485,7 +487,7 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
                 assertThat(query.getTimeBreakdown().keySet(), not(empty()));
                 assertThat(query.getTimeBreakdown().get("score"), greaterThan(0L));
                 assertThat(query.getTimeBreakdown().get("score_count"), greaterThan(0L));
-                if (query.getMaxSliceTime() != null) {
+                if (concurrency > 0) {
                     assertThat(query.getTimeBreakdown().get("max_score"), greaterThan(0L));
                     assertThat(query.getTimeBreakdown().get("min_score"), greaterThan(0L));
                     assertThat(query.getTimeBreakdown().get("avg_score"), greaterThan(0L));
@@ -563,7 +565,7 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
                 assertThat(query.getTimeBreakdown().keySet(), not(empty()));
                 assertThat(query.getTimeBreakdown().get("score"), greaterThan(0L));
                 assertThat(query.getTimeBreakdown().get("score_count"), greaterThan(0L));
-                if (query.getMaxSliceTime() != null) {
+                if (concurrency > 0) {
                     assertThat(query.getTimeBreakdown().get("max_score"), greaterThan(0L));
                     assertThat(query.getTimeBreakdown().get("min_score"), greaterThan(0L));
                     assertThat(query.getTimeBreakdown().get("avg_score"), greaterThan(0L));
@@ -609,7 +611,7 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
                 assertThat(query.getTimeBreakdown().keySet(), not(empty()));
                 assertThat(query.getTimeBreakdown().get("score"), greaterThan(0L));
                 assertThat(query.getTimeBreakdown().get("score_count"), greaterThan(0L));
-                if (query.getMaxSliceTime() != null) {
+                if (concurrency > 0) {
                     assertThat(query.getTimeBreakdown().get("max_score"), greaterThan(0L));
                     assertThat(query.getTimeBreakdown().get("min_score"), greaterThan(0L));
                     assertThat(query.getTimeBreakdown().get("avg_score"), greaterThan(0L));
@@ -741,7 +743,7 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
                 assertThat(query.getProfiledChildren().get(0).getTimeBreakdown().get("create_weight_count"), equalTo(1L));
                 assertThat(query.getProfiledChildren().get(0).getTimeBreakdown().get("score"), greaterThan(0L));
                 assertThat(query.getProfiledChildren().get(0).getTimeBreakdown().get("score_count"), greaterThan(0L));
-                if (query.getMaxSliceTime() != null) {
+                if (concurrency > 0) {
                     assertThat(query.getProfiledChildren().get(0).getTimeBreakdown().get("max_score"), greaterThan(0L));
                     assertThat(query.getProfiledChildren().get(0).getTimeBreakdown().get("min_score"), greaterThan(0L));
                     assertThat(query.getProfiledChildren().get(0).getTimeBreakdown().get("avg_score"), greaterThan(0L));
@@ -756,7 +758,7 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
                 assertThat(query.getProfiledChildren().get(1).getTimeBreakdown().get("create_weight_count"), equalTo(1L));
                 assertThat(query.getProfiledChildren().get(1).getTimeBreakdown().get("score"), greaterThan(0L));
                 assertThat(query.getProfiledChildren().get(1).getTimeBreakdown().get("score_count"), greaterThan(0L));
-                if (query.getMaxSliceTime() != null) {
+                if (concurrency > 0) {
                     assertThat(query.getProfiledChildren().get(1).getTimeBreakdown().get("max_score"), greaterThan(0L));
                     assertThat(query.getProfiledChildren().get(1).getTimeBreakdown().get("min_score"), greaterThan(0L));
                     assertThat(query.getProfiledChildren().get(1).getTimeBreakdown().get("avg_score"), greaterThan(0L));
@@ -1102,7 +1104,7 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
             assertThat(query.getTimeBreakdown().keySet(), not(empty()));
             assertThat(query.getTimeBreakdown().get("score"), greaterThan(0L));
             assertThat(query.getTimeBreakdown().get("score_count"), greaterThan(0L));
-            if (query.getMaxSliceTime() != null) {
+            if (concurrency > 0) {
                 assertThat(query.getTimeBreakdown().get("max_score"), greaterThan(0L));
                 assertThat(query.getTimeBreakdown().get("min_score"), greaterThan(0L));
                 assertThat(query.getTimeBreakdown().get("avg_score"), greaterThan(0L));
@@ -1189,7 +1191,7 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
             assertThat(query.getTimeBreakdown().keySet(), not(empty()));
             assertThat(query.getTimeBreakdown().get("score"), greaterThan(0L));
             assertThat(query.getTimeBreakdown().get("score_count"), equalTo(10L));
-            if (query.getMaxSliceTime() != null) {
+            if (concurrency > 0) {
                 assertThat(query.getTimeBreakdown().get("max_score"), greaterThan(0L));
                 assertThat(query.getTimeBreakdown().get("min_score"), greaterThan(0L));
                 assertThat(query.getTimeBreakdown().get("avg_score"), greaterThan(0L));
@@ -1274,7 +1276,7 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
             assertThat(query.getTimeBreakdown().keySet(), not(empty()));
             assertThat(query.getTimeBreakdown().get("score"), greaterThan(0L));
             assertThat(query.getTimeBreakdown().get("score_count"), greaterThanOrEqualTo(6L));
-            if (query.getMaxSliceTime() != null) {
+            if (concurrency > 0) {
                 assertThat(query.getTimeBreakdown().get("max_score"), greaterThan(0L));
                 assertThat(query.getTimeBreakdown().get("min_score"), greaterThanOrEqualTo(0L));
                 assertThat(query.getTimeBreakdown().get("avg_score"), greaterThan(0L));
@@ -1317,7 +1319,7 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
             assertThat(query.getTimeBreakdown().keySet(), not(empty()));
             assertThat(query.getTimeBreakdown().get("score"), greaterThan(0L));
             assertThat(query.getTimeBreakdown().get("score_count"), greaterThanOrEqualTo(6L));
-            if (query.getMaxSliceTime() != null) {
+            if (concurrency > 0) {
                 assertThat(query.getTimeBreakdown().get("max_score"), greaterThan(0L));
                 assertThat(query.getTimeBreakdown().get("min_score"), greaterThan(0L));
                 assertThat(query.getTimeBreakdown().get("avg_score"), greaterThan(0L));
@@ -1395,7 +1397,7 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
             assertThat(query.getTimeBreakdown().keySet(), not(empty()));
             assertThat(query.getTimeBreakdown().get("score"), greaterThan(0L));
             assertThat(query.getTimeBreakdown().get("score_count"), greaterThanOrEqualTo(6L));
-            if (query.getMaxSliceTime() != null) {
+            if (concurrency > 0) {
                 assertThat(query.getTimeBreakdown().get("max_score"), greaterThan(0L));
                 assertThat(query.getTimeBreakdown().get("min_score"), greaterThan(0L));
                 assertThat(query.getTimeBreakdown().get("avg_score"), greaterThan(0L));
@@ -1430,7 +1432,7 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
             assertThat(query.getTimeBreakdown().keySet(), not(empty()));
             assertThat(query.getTimeBreakdown().get("score"), greaterThan(0L));
             assertThat(query.getTimeBreakdown().get("score_count"), greaterThanOrEqualTo(6L));
-            if (query.getMaxSliceTime() != null) {
+            if (concurrency > 0) {
                 assertThat(query.getTimeBreakdown().get("max_score"), greaterThan(0L));
                 assertThat(query.getTimeBreakdown().get("min_score"), greaterThan(0L));
                 assertThat(query.getTimeBreakdown().get("avg_score"), greaterThan(0L));

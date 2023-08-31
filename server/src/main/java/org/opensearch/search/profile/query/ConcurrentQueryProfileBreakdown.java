@@ -64,10 +64,10 @@ public final class ConcurrentQueryProfileBreakdown extends ContextualProfileBrea
 
     @Override
     public Map<String, Long> toBreakdownMap() {
-        if (sliceCollectorToLeaves.isEmpty()) {
+        if (sliceCollectorToLeaves.isEmpty() || contexts.isEmpty()) {
+            // If there are no leaf contexts, then return the top level breakdown, which will include the create_weight time/count.
             return super.toBreakdownMap();
         }
-
         final Map<String, Long> topLevelBreakdownMapWithWeightTime = super.toBreakdownMap();
         final long createWeightStartTime = topLevelBreakdownMapWithWeightTime.get(
             QueryTimingType.CREATE_WEIGHT + TIMING_TYPE_START_TIME_SUFFIX
@@ -107,11 +107,20 @@ public final class ConcurrentQueryProfileBreakdown extends ContextualProfileBrea
                 final String timingTypeSliceEndTimeKey = timingType + SLICE_END_TIME_SUFFIX;
 
                 for (LeafReaderContext sliceLeaf : slice.getValue()) {
+                    if (!contexts.containsKey(sliceLeaf)) {
+                        // In case like early termination, the sliceCollectorToLeave association will be added for a
+                        // leaf, but the leaf level breakdown will not be created in the contexts map.
+                        // This is because before updating the contexts map, the query hits earlyTerminationException.
+                        // To handle such case, we will ignore the leaf that is not present.
+                        continue;
+                    }
                     final Map<String, Long> currentSliceLeafBreakdownMap = contexts.get(sliceLeaf).toBreakdownMap();
                     // get the count for current leaf timing type
                     currentSliceBreakdown.compute(
                         timingTypeCountKey,
-                        (key, value) -> (value == null) ? 0 : value + currentSliceLeafBreakdownMap.get(timingTypeCountKey)
+                        (key, value) -> (value == null)
+                            ? currentSliceLeafBreakdownMap.get(timingTypeCountKey)
+                            : value + currentSliceLeafBreakdownMap.get(timingTypeCountKey)
                     );
 
                     // compute the sliceEndTime for timingType using max of endTime across slice leaves
