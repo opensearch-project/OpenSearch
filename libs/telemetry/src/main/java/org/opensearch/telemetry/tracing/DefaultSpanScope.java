@@ -17,15 +17,17 @@ public class DefaultSpanScope implements SpanScope {
     private final Span span;
     private final SpanScope previousSpanScope;
     private static final ThreadLocal<SpanScope> spanScopeThreadLocal = new ThreadLocal<>();
+    private final TracerContextStorage<String, Span> tracerContextStorage;
 
     /**
      * Constructor
      * @param span span
      * @param previousSpanScope before attached span scope.
      */
-    private DefaultSpanScope(Span span, SpanScope previousSpanScope) {
+    private DefaultSpanScope(Span span, SpanScope previousSpanScope, TracerContextStorage<String, Span> tracerContextStorage) {
         this.span = Objects.requireNonNull(span);
         this.previousSpanScope = previousSpanScope;
+        this.tracerContextStorage = tracerContextStorage;
     }
 
     /**
@@ -33,16 +35,31 @@ public class DefaultSpanScope implements SpanScope {
      * @param span span.
      * @return SpanScope spanScope
      */
-    public static SpanScope create(Span span) {
+    public static SpanScope create(Span span, TracerContextStorage<String, Span> tracerContextStorage) {
         final SpanScope beforeSpanScope = spanScopeThreadLocal.get();
-        SpanScope newSpanScope = new DefaultSpanScope(span, beforeSpanScope);
+        SpanScope newSpanScope = new DefaultSpanScope(span, beforeSpanScope, tracerContextStorage);
         spanScopeThreadLocal.set(newSpanScope);
         return newSpanScope;
     }
 
     @Override
     public void close() {
+        detach();
         spanScopeThreadLocal.set(previousSpanScope);
+    }
+
+    @Override
+    public SpanScope attach() {
+        tracerContextStorage.put(TracerContextStorage.CURRENT_SPAN, this.span);
+        return this;
+    }
+
+    private void detach() {
+        if (previousSpanScope != null) {
+            tracerContextStorage.put(TracerContextStorage.CURRENT_SPAN, previousSpanScope.getSpan());
+        } else {
+            tracerContextStorage.put(TracerContextStorage.CURRENT_SPAN, null);
+        }
     }
 
     @Override

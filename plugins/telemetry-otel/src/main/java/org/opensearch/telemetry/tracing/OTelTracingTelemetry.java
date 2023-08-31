@@ -14,7 +14,6 @@ import org.opensearch.telemetry.tracing.attributes.Attributes;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.function.Consumer;
 
 import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.context.Context;
@@ -48,8 +47,8 @@ public class OTelTracingTelemetry implements TracingTelemetry {
     }
 
     @Override
-    public Span createSpan(String spanName, Span parentSpan, Attributes attributes, Consumer<Span> onSpanEndConsumer) {
-        return createOtelSpan(spanName, parentSpan, attributes, onSpanEndConsumer);
+    public Span createSpan(String spanName, Span parentSpan, Attributes attributes, SpanLifecycleListener spanLifecycleListener) {
+        return createOtelSpan(spanName, parentSpan, attributes, spanLifecycleListener);
     }
 
     @Override
@@ -57,9 +56,11 @@ public class OTelTracingTelemetry implements TracingTelemetry {
         return new OTelTracingContextPropagator(openTelemetry);
     }
 
-    private Span createOtelSpan(String spanName, Span parentSpan, Attributes attributes, Consumer<Span> onSpanEndConsumer) {
+    private Span createOtelSpan(String spanName, Span parentSpan, Attributes attributes, SpanLifecycleListener spanLifecycleListener) {
         io.opentelemetry.api.trace.Span otelSpan = otelSpan(spanName, parentSpan, OTelAttributesConverter.convert(attributes));
-        return new OTelSpan(spanName, otelSpan, parentSpan, onSpanEndConsumer);
+        Span newSpan = new OTelSpan(spanName, otelSpan, parentSpan, spanLifecycleListener);
+        spanLifecycleListener.onStart(newSpan);
+        return newSpan;
     }
 
     io.opentelemetry.api.trace.Span otelSpan(String spanName, Span parentOTelSpan, io.opentelemetry.api.common.Attributes attributes) {

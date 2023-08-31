@@ -18,6 +18,16 @@ public class OTelPropagatedSpan extends OTelSpan {
      * @param span otel propagated span
      */
     public OTelPropagatedSpan(io.opentelemetry.api.trace.Span span) {
-        super(null, span, null, a -> {});
+        super(null, span, null, new SpanLifecycleListener() {
+            @Override
+            public void onStart(Span span) {
+
+            }
+
+            @Override
+            public void onEnd(Span span) {
+
+            }
+        });
     }
 }

@@ -10,6 +10,7 @@ package org.opensearch.test.telemetry.tracing;
 
 import org.opensearch.telemetry.tracing.AbstractSpan;
 import org.opensearch.telemetry.tracing.Span;
+import org.opensearch.telemetry.tracing.SpanLifecycleListener;
 import org.opensearch.telemetry.tracing.attributes.Attributes;
 
 import java.util.HashMap;
@@ -17,7 +18,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
@@ -36,7 +36,7 @@ public class MockSpan extends AbstractSpan {
 
     private static final Supplier<Random> randomSupplier = ThreadLocalRandom::current;
 
-    private final Consumer<Span> onSpanEndConsumer;
+    private final SpanLifecycleListener spanLifecycleListener;
 
     /**
      * Base Constructor.
@@ -51,7 +51,7 @@ public class MockSpan extends AbstractSpan {
         Span parentSpan,
         SpanProcessor spanProcessor,
         Attributes attributes,
-        Consumer<Span> onSpanEndConsumer
+        SpanLifecycleListener onSpanEndConsumer
     ) {
         this(
             spanName,
@@ -71,7 +71,7 @@ public class MockSpan extends AbstractSpan {
      * @param spanProcessor span processor.
      * @param onSpanEndConsumer consumer to be executed on span end.
      */
-    public MockSpan(String spanName, Span parentSpan, SpanProcessor spanProcessor, Consumer<Span> onSpanEndConsumer) {
+    public MockSpan(String spanName, Span parentSpan, SpanProcessor spanProcessor, SpanLifecycleListener onSpanEndConsumer) {
         this(
             spanName,
             parentSpan,
@@ -100,7 +100,7 @@ public class MockSpan extends AbstractSpan {
         String spanId,
         SpanProcessor spanProcessor,
         Attributes attributes,
-        Consumer<Span> onSpanEndConsumer
+        SpanLifecycleListener onSpanEndConsumer
     ) {
         super(spanName, parentSpan);
         this.spanProcessor = spanProcessor;
@@ -111,7 +111,7 @@ public class MockSpan extends AbstractSpan {
         if (attributes != null) {
             this.metadata.putAll(attributes.getAttributesMap());
         }
-        this.onSpanEndConsumer = Objects.requireNonNull(onSpanEndConsumer);
+        this.spanLifecycleListener = Objects.requireNonNull(onSpanEndConsumer);
     }
 
     @Override
@@ -120,9 +120,9 @@ public class MockSpan extends AbstractSpan {
             if (hasEnded) {
                 return;
             }
-            onSpanEndConsumer.accept(this);
             endTime = System.nanoTime();
             hasEnded = true;
+            spanLifecycleListener.onEnd(this);
         }
         spanProcessor.onEnd(this);
     }

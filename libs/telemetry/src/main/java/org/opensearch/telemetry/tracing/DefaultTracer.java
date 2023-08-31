@@ -96,11 +96,21 @@ class DefaultTracer implements Tracer {
 
     @Override
     public SpanScope withSpanInScope(Span span) {
-        return DefaultSpanScope.create(span);
+        return DefaultSpanScope.create(span, tracerContextStorage).attach();
     }
 
     private Span createSpan(String spanName, Span parentSpan, Attributes attributes) {
-        return tracingTelemetry.createSpan(spanName, parentSpan, attributes, span -> onSpanEnd(span, parentSpan));
+        return tracingTelemetry.createSpan(spanName, parentSpan, attributes, new SpanLifecycleListener() {
+            @Override
+            public void onStart(Span span) {
+                setCurrentSpanInContext(span);
+            }
+
+            @Override
+            public void onEnd(Span span) {
+                onSpanEnd(span, parentSpan);
+            }
+        });
     }
 
     private void onSpanEnd(Span span, Span parentSpan) {

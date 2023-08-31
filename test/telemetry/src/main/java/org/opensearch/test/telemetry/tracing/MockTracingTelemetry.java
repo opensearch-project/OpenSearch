@@ -9,6 +9,7 @@
 package org.opensearch.test.telemetry.tracing;
 
 import org.opensearch.telemetry.tracing.Span;
+import org.opensearch.telemetry.tracing.SpanLifecycleListener;
 import org.opensearch.telemetry.tracing.TracingContextPropagator;
 import org.opensearch.telemetry.tracing.TracingTelemetry;
 import org.opensearch.telemetry.tracing.attributes.Attributes;
@@ -17,7 +18,6 @@ import org.opensearch.test.telemetry.tracing.validators.AllSpansHaveUniqueId;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.function.Consumer;
 
 /**
  * Mock {@link TracingTelemetry} implementation for testing.
@@ -34,8 +34,9 @@ public class MockTracingTelemetry implements TracingTelemetry {
     }
 
     @Override
-    public Span createSpan(String spanName, Span parentSpan, Attributes attributes, Consumer<Span> onSpanEndConsumer) {
-        Span span = new MockSpan(spanName, parentSpan, spanProcessor, attributes, onSpanEndConsumer);
+    public Span createSpan(String spanName, Span parentSpan, Attributes attributes, SpanLifecycleListener spanLifecycleListener) {
+        Span span = new MockSpan(spanName, parentSpan, spanProcessor, attributes, spanLifecycleListener);
+        spanLifecycleListener.onStart(span);
         spanProcessor.onStart(span);
         return span;
     }

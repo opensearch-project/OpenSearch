@@ -10,6 +10,7 @@ package org.opensearch.test.telemetry.tracing;
 
 import org.opensearch.core.common.Strings;
 import org.opensearch.telemetry.tracing.Span;
+import org.opensearch.telemetry.tracing.SpanLifecycleListener;
 import org.opensearch.telemetry.tracing.TracingContextPropagator;
 import org.opensearch.telemetry.tracing.attributes.Attributes;
 
@@ -44,7 +45,7 @@ public class MockTracingContextPropagator implements TracingContextPropagator {
             String[] values = value.split(SEPARATOR);
             String traceId = values[0];
             String spanId = values[1];
-            return Optional.of(new MockSpan(null, null, traceId, spanId, spanProcessor, Attributes.EMPTY, (a) -> {}));
+            return Optional.of(new MockSpan(null, null, traceId, spanId, spanProcessor, Attributes.EMPTY, getSpanLifecycleListener()));
         } else {
             return Optional.empty();
         }
@@ -71,5 +72,19 @@ public class MockTracingContextPropagator implements TracingContextPropagator {
             String traceParent = String.format(Locale.ROOT, "%s%s%s", traceId, SEPARATOR, spanId);
             setter.accept(TRACE_PARENT, traceParent);
         }
+    }
+
+    private SpanLifecycleListener getSpanLifecycleListener() {
+        return new SpanLifecycleListener() {
+            @Override
+            public void onStart(org.opensearch.telemetry.tracing.Span span) {
+
+            }
+
+            @Override
+            public void onEnd(org.opensearch.telemetry.tracing.Span span) {
+
+            }
+        };
     }
 }

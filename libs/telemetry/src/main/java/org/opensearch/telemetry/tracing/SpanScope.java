@@ -24,6 +24,12 @@ public interface SpanScope extends AutoCloseable {
     void close();
 
     /**
+     * Attaches span to the {@link SpanScope}
+     * @return spanScope
+     */
+    SpanScope attach();
+
+    /**
      * Returns span attached with the {@link SpanScope}
      * @return span.
      */

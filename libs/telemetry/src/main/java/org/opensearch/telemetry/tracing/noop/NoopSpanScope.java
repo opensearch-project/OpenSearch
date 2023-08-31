@@ -28,6 +28,11 @@ public class NoopSpanScope implements SpanScope {
     }
 
     @Override
+    public SpanScope attach() {
+        return this;
+    }
+
+    @Override
     public Span getSpan() {
         return NoopSpan.INSTANCE;
     }
