@@ -8,9 +8,6 @@
 
 package org.opensearch.encryption;
 
-import com.amazonaws.encryptionsdk.CryptoAlgorithm;
-import com.amazonaws.encryptionsdk.caching.CachingCryptoMaterialsManager;
-import com.amazonaws.encryptionsdk.caching.LocalCryptoMaterialsCache;
 import org.opensearch.common.crypto.CryptoHandler;
 import org.opensearch.common.crypto.MasterKeyProvider;
 import org.opensearch.common.unit.TimeValue;
@@ -19,6 +16,10 @@ import org.opensearch.encryption.keyprovider.CryptoMasterKey;
 
 import java.security.SecureRandom;
 import java.util.concurrent.TimeUnit;
+
+import com.amazonaws.encryptionsdk.CryptoAlgorithm;
+import com.amazonaws.encryptionsdk.caching.CachingCryptoMaterialsManager;
+import com.amazonaws.encryptionsdk.caching.LocalCryptoMaterialsCache;
 
 public class CryptoManagerFactory {
 
@@ -49,7 +50,7 @@ public class CryptoManagerFactory {
         }
     }
 
-    public CryptoManager<? , ?> getOrCreateCryptoManager(
+    public CryptoManager<?, ?> getOrCreateCryptoManager(
         MasterKeyProvider keyProvider,
         String keyProviderName,
         String keyProviderType,
@@ -60,12 +61,12 @@ public class CryptoManagerFactory {
             keyProviderName,
             validateAndGetAlgorithmId(algorithm)
         );
-        CryptoHandler<? , ?> cryptoHandler = createCryptoProvider(algorithm, materialsManager, keyProvider);
+        CryptoHandler<?, ?> cryptoHandler = createCryptoProvider(algorithm, materialsManager, keyProvider);
         return createCryptoManager(cryptoHandler, keyProviderType, keyProviderName, onClose);
     }
 
     // package private for tests
-    CryptoHandler<? , ?> createCryptoProvider(
+    CryptoHandler<?, ?> createCryptoProvider(
         String algorithm,
         CachingCryptoMaterialsManager materialsManager,
         MasterKeyProvider masterKeyProvider
@@ -89,7 +90,12 @@ public class CryptoManagerFactory {
     }
 
     // package private for tests
-    <T, U> CryptoManager<?, ?> createCryptoManager(CryptoHandler<T, U> cryptoHandler, String keyProviderType, String keyProviderName, Runnable onClose) {
+    <T, U> CryptoManager<?, ?> createCryptoManager(
+        CryptoHandler<T, U> cryptoHandler,
+        String keyProviderType,
+        String keyProviderName,
+        Runnable onClose
+    ) {
         return new CryptoManagerImpl<T, U>(keyProviderName, keyProviderType) {
             @Override
             protected void closeInternal() {
