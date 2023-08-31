@@ -676,7 +676,7 @@ public class Node implements Closeable {
                 repositoriesServiceReference::get,
                 settings,
                 clusterService.getClusterSettings(),
-                threadPool::relativeTimeInMillis
+                threadPool::preciseRelativeTimeInNanos
             );
 
             // collect engine factory providers from plugins

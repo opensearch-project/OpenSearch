@@ -137,27 +137,6 @@ public class GatewayMetaStatePersistedStateTests extends OpenSearchTestCase {
         return persistedState;
     }
 
-    private CoordinationState.PersistedState newGatewayPersistedStateWithRemoteState() {
-        final MockGatewayMetaState gateway = new MockGatewayMetaState(localNode, bigArrays);
-        final PersistedStateRegistry persistedStateRegistry = persistedStateRegistry();
-        final Settings settingWithRemoteStateEnabled = Settings.builder()
-            .put(settings)
-            .put(RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING.getKey(), true)
-            .build();
-        gateway.start(settingWithRemoteStateEnabled, nodeEnvironment, xContentRegistry(), persistedStateRegistry);
-        final CoordinationState.PersistedState persistedState = gateway.getPersistedState();
-        assertThat(persistedState, instanceOf(GatewayMetaState.LucenePersistedState.class));
-        assertThat(
-            persistedStateRegistry.getPersistedState(PersistedStateType.LOCAL),
-            instanceOf(GatewayMetaState.LucenePersistedState.class)
-        );
-        assertThat(
-            persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE),
-            instanceOf(GatewayMetaState.RemotePersistedState.class)
-        );
-        return persistedState;
-    }
-
     private CoordinationState.PersistedState maybeNew(CoordinationState.PersistedState persistedState) throws IOException {
         if (randomBoolean()) {
             persistedState.close();
@@ -764,6 +743,31 @@ public class GatewayMetaStatePersistedStateTests extends OpenSearchTestCase {
         );
 
         assertThrows(OpenSearchException.class, () -> remotePersistedState.setLastAcceptedState(secondClusterState));
+    }
+
+    public void testGatewayForRemoteState() throws IOException {
+        MockGatewayMetaState gateway = null;
+        try {
+            gateway = new MockGatewayMetaState(localNode, bigArrays);
+            final PersistedStateRegistry persistedStateRegistry = persistedStateRegistry();
+            final Settings settingWithRemoteStateEnabled = Settings.builder()
+                .put(settings)
+                .put(RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING.getKey(), true)
+                .build();
+            gateway.start(settingWithRemoteStateEnabled, nodeEnvironment, xContentRegistry(), persistedStateRegistry);
+            final CoordinationState.PersistedState persistedState = gateway.getPersistedState();
+            assertThat(persistedState, instanceOf(GatewayMetaState.LucenePersistedState.class));
+            assertThat(
+                persistedStateRegistry.getPersistedState(PersistedStateType.LOCAL),
+                instanceOf(GatewayMetaState.LucenePersistedState.class)
+            );
+            assertThat(
+                persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE),
+                instanceOf(GatewayMetaState.RemotePersistedState.class)
+            );
+        } finally {
+            IOUtils.close(gateway);
+        }
     }
 
     private static BigArrays getBigArrays() {

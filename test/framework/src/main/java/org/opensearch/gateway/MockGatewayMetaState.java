@@ -88,7 +88,12 @@ public class MockGatewayMetaState extends GatewayMetaState {
         return ClusterStateUpdaters.setLocalNode(clusterState, localNode);
     }
 
-    public void start(Settings settings, NodeEnvironment nodeEnvironment, NamedXContentRegistry xContentRegistry, PersistedStateRegistry persistedStateRegistry) {
+    public void start(
+        Settings settings,
+        NodeEnvironment nodeEnvironment,
+        NamedXContentRegistry xContentRegistry,
+        PersistedStateRegistry persistedStateRegistry
+    ) {
         final TransportService transportService = mock(TransportService.class);
         when(transportService.getThreadPool()).thenReturn(mock(ThreadPool.class));
         final ClusterService clusterService = mock(ClusterService.class);
