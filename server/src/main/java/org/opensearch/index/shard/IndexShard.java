@@ -2264,7 +2264,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * opens the engine on top of the existing lucene engine and translog.
      * Operations from the translog will be replayed to bring lucene up to date.
      **/
-    public void openEngineAndRecoverFromTranslog() throws IOException {
+    public void openEngineAndRecoverFromTranslog(boolean syncFromRemote) throws IOException {
         recoveryState.validateCurrentStage(RecoveryState.Stage.INDEX);
         maybeCheckIndex();
         recoveryState.setStage(RecoveryState.Stage.TRANSLOG);
@@ -2285,7 +2285,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             loadGlobalCheckpointToReplicationTracker();
         }
 
-        innerOpenEngineAndTranslog(replicationTracker);
+        innerOpenEngineAndTranslog(replicationTracker, syncFromRemote);
         getEngine().translogManager()
             .recoverFromTranslog(translogRecoveryRunner, getEngine().getProcessedLocalCheckpoint(), Long.MAX_VALUE);
     }

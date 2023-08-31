@@ -414,7 +414,7 @@ final class StoreRecovery {
                 if (indexShard.indexSettings.isRemoteStoreEnabled()) {
                     indexShard.openEngineAndSkipTranslogRecoveryFromSnapshot();
                 } else {
-                    indexShard.openEngineAndRecoverFromTranslog();
+                    indexShard.openEngineAndRecoverFromTranslog(true);
                 }
                 indexShard.getEngine().fillSeqNoGaps(indexShard.getPendingPrimaryTerm());
                 indexShard.finalizeRecovery();
@@ -553,7 +553,7 @@ final class StoreRecovery {
 
             assert indexShard.shardRouting.primary() : "only primary shards can recover from store";
             indexShard.recoveryState().getIndex().setFileDetailsComplete();
-            indexShard.openEngineAndRecoverFromTranslog();
+            indexShard.openEngineAndRecoverFromTranslog(true);
             indexShard.getEngine().fillSeqNoGaps(indexShard.getPendingPrimaryTerm());
             indexShard.finalizeRecovery();
             indexShard.postRecovery("post recovery from remote_store");
@@ -638,7 +638,7 @@ final class StoreRecovery {
                 writeEmptyRetentionLeasesFile(indexShard);
                 indexShard.recoveryState().getIndex().setFileDetailsComplete();
             }
-            indexShard.openEngineAndRecoverFromTranslog();
+            indexShard.openEngineAndRecoverFromTranslog(false);
             indexShard.getEngine().fillSeqNoGaps(indexShard.getPendingPrimaryTerm());
             indexShard.finalizeRecovery();
             indexShard.postRecovery("post recovery from shard_store");
@@ -694,7 +694,7 @@ final class StoreRecovery {
             if (indexShard.indexSettings.isRemoteStoreEnabled()) {
                 indexShard.openEngineAndSkipTranslogRecoveryFromSnapshot();
             } else {
-                indexShard.openEngineAndRecoverFromTranslog();
+                indexShard.openEngineAndRecoverFromTranslog(true);
             }
             indexShard.getEngine().fillSeqNoGaps(indexShard.getPendingPrimaryTerm());
             indexShard.finalizeRecovery();
