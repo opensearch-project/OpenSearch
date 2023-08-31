@@ -379,7 +379,8 @@ public class RemoteClusterStateService implements Closeable {
     public Map<String, IndexMetadata> getLatestIndexMetadata(String clusterName, String clusterUUID) throws IOException {
         Map<String, IndexMetadata> remoteIndexMetadata = new HashMap<>();
         ClusterMetadataManifest clusterMetadataManifest = getLatestClusterMetadataManifest(clusterName, clusterUUID);
-        assert Objects.equals(clusterUUID, clusterMetadataManifest.getClusterUUID()) : "Corrupt ClusterMetadataManifest found. Cluster UUID mismatch.";
+        assert Objects.equals(clusterUUID, clusterMetadataManifest.getClusterUUID())
+            : "Corrupt ClusterMetadataManifest found. Cluster UUID mismatch.";
         for (UploadedIndexMetadata uploadedIndexMetadata : clusterMetadataManifest.getIndices()) {
             IndexMetadata indexMetadata = getIndexMetadata(clusterName, clusterUUID, uploadedIndexMetadata);
             remoteIndexMetadata.put(uploadedIndexMetadata.getIndexUUID(), indexMetadata);

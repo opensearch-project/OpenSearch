@@ -317,7 +317,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         Exception e = assertThrows(
             IllegalStateException.class,
             () -> remoteClusterStateService.getLatestIndexMetadata(
-                clusterState.getClusterName().value(), clusterState.metadata().clusterUUID()
+                clusterState.getClusterName().value(),
+                clusterState.metadata().clusterUUID()
             )
         );
         assertEquals(e.getMessage(), "Error while downloading IndexMetadata - " + uploadedIndexMetadata.getUploadedFilename());
