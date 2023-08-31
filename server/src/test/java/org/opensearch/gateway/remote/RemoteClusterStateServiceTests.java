@@ -244,7 +244,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
                 clusterState.getClusterName().value()
             )
         );
-        assertEquals(e.getMessage(), "Remote Cluster State not found");
+        assertEquals(e.getMessage(), "Remote Cluster State not found - " + clusterState.metadata().clusterUUID());
     }
 
     public void testReadLatestMetadataMarkerFailedMarkerFileRemoveAfterFetchInRemote() throws IOException {
@@ -269,7 +269,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
                 clusterState.getClusterName().value()
             )
         );
-        assertEquals(e.getMessage(), "Error while downloading ClusterMetadataManifest - manifestFileName");
+        assertEquals(e.getMessage(), "Error while downloading cluster metadata - manifestFileName");
     }
 
     public void testReadLatestMetadataMarkerSuccessButNoIndexMetadata() throws IOException {

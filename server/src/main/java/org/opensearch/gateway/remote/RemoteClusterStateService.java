@@ -437,7 +437,7 @@ public class RemoteClusterStateService implements Closeable {
             throw new IllegalStateException(errorMsg);
         }
 
-        throw new IllegalStateException("Remote Cluster State not found");
+        throw new IllegalStateException(String.format(Locale.ROOT, "Remote Cluster State not found - %s", clusterUUID));
     }
 
     /**
@@ -455,7 +455,7 @@ public class RemoteClusterStateService implements Closeable {
                 blobStoreRepository.getNamedXContentRegistry()
             );
         } catch (IOException e) {
-            String errorMsg = String.format(Locale.ROOT, "Error while downloading ClusterMetadataManifest - %s", filename);
+            String errorMsg = String.format(Locale.ROOT, "Error while downloading cluster metadata - %s", filename);
             logger.error(errorMsg, e);
             throw new IllegalStateException(errorMsg);
         }
