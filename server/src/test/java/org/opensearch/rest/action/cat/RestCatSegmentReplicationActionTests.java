@@ -84,6 +84,7 @@ public class RestCatSegmentReplicationActionTests extends OpenSearchTestCase {
                 0L,
                 0L,
                 0L,
+                0L,
                 0L
             );
             segmentReplicationShardStats.setCurrentReplicationState(state);
@@ -141,7 +142,7 @@ public class RestCatSegmentReplicationActionTests extends OpenSearchTestCase {
                 currentReplicationState.getTargetNode().getHostName(),
                 shardStats.getCheckpointsBehindCount(),
                 new ByteSizeValue(shardStats.getBytesBehindCount()),
-                new TimeValue(shardStats.getCurrentReplicationTimeMillis()),
+                new TimeValue(shardStats.getCurrentReplicationLagMillis()),
                 new TimeValue(shardStats.getLastCompletedReplicationTimeMillis()),
                 rejectedRequestCount
             );
