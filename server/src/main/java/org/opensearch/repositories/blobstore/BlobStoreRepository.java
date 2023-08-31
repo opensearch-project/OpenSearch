@@ -805,6 +805,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         return metadata;
     }
 
+    public Compressor getCompressor() {
+        return compressor;
+    }
+
     @Override
     public RepositoryStats stats() {
         final BlobStore store = blobStore.get();
