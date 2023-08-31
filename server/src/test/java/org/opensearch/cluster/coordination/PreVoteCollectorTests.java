@@ -293,7 +293,9 @@ public class PreVoteCollectorTests extends OpenSearchTestCase {
         final CoordinationState coordinationState = new CoordinationState(
             localNode,
             new InMemoryPersistedState(currentTerm, makeClusterState(votingNodes)),
-            ElectionStrategy.DEFAULT_INSTANCE
+            ElectionStrategy.DEFAULT_INSTANCE,
+            new InMemoryPersistedState(currentTerm, makeClusterState(votingNodes)),
+            Settings.EMPTY
         );
 
         final long newTerm = randomLongBetween(currentTerm + 1, Long.MAX_VALUE);

@@ -103,7 +103,6 @@ public class RemoteClusterStateService implements Closeable {
         ClusterSettings clusterSettings,
         LongSupplier relativeTimeMillisSupplier
     ) {
-        assert REMOTE_CLUSTER_STATE_ENABLED_SETTING.get(settings) == true : "Remote cluster state is not enabled";
         this.nodeId = nodeId;
         this.repositoriesService = repositoriesService;
         this.settings = settings;
@@ -280,6 +279,7 @@ public class RemoteClusterStateService implements Closeable {
         if (blobStoreRepository != null) {
             return;
         }
+        assert REMOTE_CLUSTER_STATE_ENABLED_SETTING.get(settings) == true : "Remote cluster state is not enabled";
         final String remoteStoreRepo = REMOTE_CLUSTER_STATE_REPOSITORY_SETTING.get(settings);
         assert remoteStoreRepo != null : "Remote Cluster State repository is not configured";
         final Repository repository = repositoriesService.get().repository(remoteStoreRepo);

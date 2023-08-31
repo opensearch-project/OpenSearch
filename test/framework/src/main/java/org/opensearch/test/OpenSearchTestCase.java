@@ -65,6 +65,7 @@ import org.opensearch.Version;
 import org.opensearch.bootstrap.BootstrapForTesting;
 import org.opensearch.client.Requests;
 import org.opensearch.cluster.ClusterModule;
+import org.opensearch.cluster.coordination.PersistedStateRegistry;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.CheckedRunnable;
@@ -1541,6 +1542,14 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
      */
     protected NamedWriteableRegistry writableRegistry() {
         return new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
+    }
+
+    /**
+     * The {@link PersistedStateRegistry} to use for this test. Subclasses should override and use liberally.
+     * @return
+     */
+    protected PersistedStateRegistry persistedStateRegistry() {
+        return new PersistedStateRegistry();
     }
 
     /**

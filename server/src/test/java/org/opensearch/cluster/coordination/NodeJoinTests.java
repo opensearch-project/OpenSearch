@@ -260,7 +260,8 @@ public class NodeJoinTests extends OpenSearchTestCase {
             random,
             (s, p, r) -> {},
             ElectionStrategy.DEFAULT_INSTANCE,
-            nodeHealthService
+            nodeHealthService,
+            new PersistedStateRegistry()
         );
         transportService.start();
         transportService.acceptIncomingRequests();

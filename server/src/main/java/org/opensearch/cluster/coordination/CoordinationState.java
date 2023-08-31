@@ -37,6 +37,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.common.settings.Settings;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -49,6 +50,7 @@ import java.util.Optional;
 import java.util.Set;
 
 import static org.opensearch.cluster.coordination.Coordinator.ZEN1_BWC_TERM;
+import static org.opensearch.gateway.remote.RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING;
 
 /**
  * The core class of the cluster state coordination algorithm, directly implementing the
@@ -66,6 +68,8 @@ public class CoordinationState {
 
     // persisted state
     private final PersistedState persistedState;
+    // remote persisted state
+    private final PersistedState remotePersistedState;
 
     // transient state
     private VoteCollection joinVotes;
@@ -74,8 +78,15 @@ public class CoordinationState {
     private long lastPublishedVersion;
     private VotingConfiguration lastPublishedConfiguration;
     private VoteCollection publishVotes;
+    private boolean isRemoteStateEnabled;
 
-    public CoordinationState(DiscoveryNode localNode, PersistedState persistedState, ElectionStrategy electionStrategy) {
+    public CoordinationState(
+        DiscoveryNode localNode,
+        PersistedState persistedState,
+        ElectionStrategy electionStrategy,
+        PersistedState remotePersistedState,
+        Settings settings
+    ) {
         this.localNode = localNode;
 
         // persisted state
@@ -89,6 +100,8 @@ public class CoordinationState {
         this.lastPublishedVersion = 0L;
         this.lastPublishedConfiguration = persistedState.getLastAcceptedState().getLastAcceptedConfiguration();
         this.publishVotes = new VoteCollection();
+        this.remotePersistedState = remotePersistedState;
+        this.isRemoteStateEnabled = REMOTE_CLUSTER_STATE_ENABLED_SETTING.get(settings);
     }
 
     public long getCurrentTerm() {
@@ -490,6 +503,7 @@ public class CoordinationState {
                 publishResponse.getVersion(),
                 publishResponse.getTerm()
             );
+            handlePreCommit();
             return Optional.of(new ApplyCommitRequest(localNode, publishResponse.getTerm(), publishResponse.getVersion()));
         }
 
@@ -549,6 +563,29 @@ public class CoordinationState {
 
         persistedState.markLastAcceptedStateAsCommitted();
         assert getLastCommittedConfiguration().equals(getLastAcceptedConfiguration());
+    }
+
+    /**
+     * This method should be called just before sending the PublishRequest to all cluster nodes.
+     * @param clusterState
+     */
+    public void handlePrePublish(ClusterState clusterState) {
+        // Publishing the current state to remote store
+        if (isRemoteStateEnabled == true) {
+            assert remotePersistedState != null : "Remote state has not been initialized";
+            remotePersistedState.setLastAcceptedState(clusterState);
+        }
+    }
+
+    /**
+     * This method should be called just before sending the ApplyCommitRequest to all cluster nodes.
+     */
+    public void handlePreCommit() {
+        // Publishing the committed state to remote store before sending apply commit to other nodes.
+        if (isRemoteStateEnabled) {
+            assert remotePersistedState != null : "Remote state has not been initialized";
+            remotePersistedState.markLastAcceptedStateAsCommitted();
+        }
     }
 
     public void invariant() {

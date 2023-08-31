@@ -130,6 +130,7 @@ import org.opensearch.cluster.coordination.DeterministicTaskQueue;
 import org.opensearch.cluster.coordination.ElectionStrategy;
 import org.opensearch.cluster.coordination.InMemoryPersistedState;
 import org.opensearch.cluster.coordination.MockSinglePrioritizingExecutor;
+import org.opensearch.cluster.coordination.PersistedStateRegistry;
 import org.opensearch.cluster.metadata.AliasValidator;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
@@ -2507,7 +2508,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     random(),
                     rerouteService,
                     ElectionStrategy.DEFAULT_INSTANCE,
-                    () -> new StatusInfo(HEALTHY, "healthy-info")
+                    () -> new StatusInfo(HEALTHY, "healthy-info"),
+                    new PersistedStateRegistry()
                 );
                 clusterManagerService.setClusterStatePublisher(coordinator);
                 coordinator.start();

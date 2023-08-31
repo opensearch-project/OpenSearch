@@ -94,7 +94,9 @@ public class PublicationTests extends OpenSearchTestCase {
             coordinationState = new CoordinationState(
                 localNode,
                 new InMemoryPersistedState(0L, initialState),
-                ElectionStrategy.DEFAULT_INSTANCE
+                ElectionStrategy.DEFAULT_INSTANCE,
+                new InMemoryPersistedState(0L, initialState),
+                Settings.EMPTY
             );
         }
 

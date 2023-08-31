@@ -846,7 +846,7 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
                         nodeEnvironment = newNodeEnvironment();
                         nodeEnvironments.add(nodeEnvironment);
                         final MockGatewayMetaState gatewayMetaState = new MockGatewayMetaState(localNode, bigArrays);
-                        gatewayMetaState.start(Settings.EMPTY, nodeEnvironment, xContentRegistry());
+                        gatewayMetaState.start(Settings.EMPTY, nodeEnvironment, xContentRegistry(), persistedStateRegistry());
                         delegate = gatewayMetaState.getPersistedState();
                     } else {
                         nodeEnvironment = null;
@@ -890,7 +890,7 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
                             }
                         }
                         final MockGatewayMetaState gatewayMetaState = new MockGatewayMetaState(newLocalNode, bigArrays);
-                        gatewayMetaState.start(Settings.EMPTY, nodeEnvironment, xContentRegistry());
+                        gatewayMetaState.start(Settings.EMPTY, nodeEnvironment, xContentRegistry(), persistedStateRegistry());
                         delegate = gatewayMetaState.getPersistedState();
                     } else {
                         nodeEnvironment = null;
@@ -1144,7 +1144,8 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
                     Randomness.get(),
                     (s, p, r) -> {},
                     getElectionStrategy(),
-                    nodeHealthService
+                    nodeHealthService,
+                    new PersistedStateRegistry()
                 );
                 clusterManagerService.setClusterStatePublisher(coordinator);
                 final GatewayService gatewayService = new GatewayService(

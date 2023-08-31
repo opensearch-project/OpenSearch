@@ -128,6 +128,8 @@ public class CoordinationStateTestCluster {
 
         DiscoveryNode localNode;
         CoordinationState.PersistedState persistedState;
+        CoordinationState.PersistedState remotePersistedState;
+
         CoordinationState state;
 
         ClusterNode(DiscoveryNode localNode, ElectionStrategy electionStrategy) {
@@ -143,8 +145,20 @@ public class CoordinationStateTestCluster {
                     0L
                 )
             );
+            remotePersistedState = new InMemoryPersistedState(
+                0L,
+                clusterState(
+                    0L,
+                    0L,
+                    localNode,
+                    CoordinationMetadata.VotingConfiguration.EMPTY_CONFIG,
+                    CoordinationMetadata.VotingConfiguration.EMPTY_CONFIG,
+                    0L
+                )
+            );
+
             this.electionStrategy = electionStrategy;
-            state = new CoordinationState(localNode, persistedState, electionStrategy);
+            state = new CoordinationState(localNode, persistedState, electionStrategy, remotePersistedState, Settings.EMPTY);
         }
 
         void reboot() {
@@ -183,7 +197,7 @@ public class CoordinationStateTestCluster {
                 localNode.getVersion()
             );
 
-            state = new CoordinationState(localNode, persistedState, electionStrategy);
+            state = new CoordinationState(localNode, persistedState, electionStrategy, remotePersistedState, Settings.EMPTY);
         }
 
         void setInitialState(CoordinationMetadata.VotingConfiguration initialConfig, long initialValue) {

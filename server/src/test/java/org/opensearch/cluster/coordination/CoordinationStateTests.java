@@ -44,19 +44,26 @@ import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.Assertions;
 import org.opensearch.core.common.transport.TransportAddress;
+import org.opensearch.gateway.GatewayMetaState.RemotePersistedState;
+import org.opensearch.gateway.remote.ClusterMetadataManifest;
+import org.opensearch.gateway.remote.RemoteClusterStateService;
 import org.opensearch.test.EqualsHashCodeTestUtils;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import org.mockito.Mockito;
+
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class CoordinationStateTests extends OpenSearchTestCase {
 
@@ -98,9 +105,19 @@ public class CoordinationStateTests extends OpenSearchTestCase {
 
         ps1 = new InMemoryPersistedState(0L, initialStateNode1);
 
-        cs1 = createCoordinationState(ps1, node1);
-        cs2 = createCoordinationState(new InMemoryPersistedState(0L, initialStateNode2), node2);
-        cs3 = createCoordinationState(new InMemoryPersistedState(0L, initialStateNode3), node3);
+        cs1 = createCoordinationState(ps1, node1, ps1, Settings.EMPTY);
+        cs2 = createCoordinationState(
+            new InMemoryPersistedState(0L, initialStateNode2),
+            node2,
+            new InMemoryPersistedState(0L, initialStateNode2),
+            Settings.EMPTY
+        );
+        cs3 = createCoordinationState(
+            new InMemoryPersistedState(0L, initialStateNode3),
+            node3,
+            new InMemoryPersistedState(0L, initialStateNode3),
+            Settings.EMPTY
+        );
     }
 
     public static DiscoveryNode createNode(String id) {
@@ -200,7 +217,7 @@ public class CoordinationStateTests extends OpenSearchTestCase {
     public void testJoinWithNoStartJoinAfterReboot() {
         StartJoinRequest startJoinRequest1 = new StartJoinRequest(node1, randomLongBetween(1, 5));
         Join v1 = cs1.handleStartJoin(startJoinRequest1);
-        cs1 = createCoordinationState(ps1, node1);
+        cs1 = createCoordinationState(ps1, node1, ps1, Settings.EMPTY);
         assertThat(
             expectThrows(CoordinationStateRejectedException.class, () -> cs1.handleJoin(v1)).getMessage(),
             containsString("ignored join as term has not been incremented yet after reboot")
@@ -886,8 +903,68 @@ public class CoordinationStateTests extends OpenSearchTestCase {
         ).runRandomly();
     }
 
-    public static CoordinationState createCoordinationState(PersistedState storage, DiscoveryNode localNode) {
-        return new CoordinationState(localNode, storage, ElectionStrategy.DEFAULT_INSTANCE);
+    public void testHandlePrePublishAndCommitWhenRemoteStateDisabled() {
+        final RemoteClusterStateService remoteClusterStateService = Mockito.mock(RemoteClusterStateService.class);
+
+        final PersistedState remotePersistedState = new RemotePersistedState(remoteClusterStateService);
+        final CoordinationState coordinationState = createCoordinationState(ps1, node1, ps1, Settings.EMPTY);
+        final VotingConfiguration initialConfig = VotingConfiguration.of(node1);
+        final ClusterState clusterState = clusterState(0L, 0L, node1, initialConfig, initialConfig, 42L);
+        coordinationState.handlePrePublish(clusterState);
+        assertThat(remotePersistedState.getLastAcceptedState(), nullValue());
+        Mockito.verifyNoInteractions(remoteClusterStateService);
+        final ClusterState clusterState2 = clusterState(0L, 1L, node1, initialConfig, initialConfig, 42L);
+        coordinationState.handlePrePublish(clusterState2);
+        assertThat(remotePersistedState.getLastAcceptedState(), nullValue());
+        Mockito.verifyNoInteractions(remoteClusterStateService);
+        coordinationState.handlePreCommit();
+        assertThat(remotePersistedState.getLastAcceptedState(), nullValue());
+        Mockito.verifyNoInteractions(remoteClusterStateService);
+    }
+
+    public void testHandlePrePublishAndCommitWhenRemoteStateEnabled() throws IOException {
+        final RemoteClusterStateService remoteClusterStateService = Mockito.mock(RemoteClusterStateService.class);
+
+        Mockito.when(remoteClusterStateService.writeFullMetadata(Mockito.any()))
+            .thenReturn(
+                new ClusterMetadataManifest(
+                    0L,
+                    0L,
+                    randomAlphaOfLength(10),
+                    randomAlphaOfLength(10),
+                    Version.CURRENT,
+                    randomAlphaOfLength(10),
+                    false,
+                    Collections.emptyList()
+                )
+            );
+
+        final PersistedState remotePersistedState = new RemotePersistedState(remoteClusterStateService);
+        final Settings settings = Settings.builder()
+            .put(RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING.getKey(), true)
+            .build();
+        final CoordinationState coordinationState = createCoordinationState(ps1, node1, remotePersistedState, settings);
+        final VotingConfiguration initialConfig = VotingConfiguration.of(node1);
+        final ClusterState clusterState = clusterState(0L, 0L, node1, initialConfig, initialConfig, 42L);
+        coordinationState.handlePrePublish(clusterState);
+        Mockito.verify(remoteClusterStateService, Mockito.times(0)).writeFullMetadata(Mockito.any());
+        assertThat(remotePersistedState.getLastAcceptedState(), equalTo(clusterState));
+
+        final ClusterState clusterState2 = clusterState(0L, 1L, node1, initialConfig, initialConfig, 42L);
+        coordinationState.handlePrePublish(clusterState2);
+        Mockito.verify(remoteClusterStateService, Mockito.times(1)).writeFullMetadata(Mockito.any());
+
+        coordinationState.handlePreCommit();
+        Mockito.verify(remoteClusterStateService, Mockito.times(1)).markLastStateAsCommitted(Mockito.any(), Mockito.any());
+    }
+
+    public static CoordinationState createCoordinationState(
+        PersistedState storage,
+        DiscoveryNode localNode,
+        PersistedState remoteState,
+        Settings settings
+    ) {
+        return new CoordinationState(localNode, storage, ElectionStrategy.DEFAULT_INSTANCE, remoteState, settings);
     }
 
     public static ClusterState clusterState(
