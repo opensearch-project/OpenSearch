@@ -58,7 +58,6 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
 
     protected Path segmentRepoPath;
     protected Path translogRepoPath;
-    protected Settings nodeAttributesSettings;
     private final List<String> documentKeys = List.of(
         randomAlphaOfLength(5),
         randomAlphaOfLength(5),
@@ -112,7 +111,6 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        Settings nodeAttributes = Settings.EMPTY;
         if (segmentRepoPath == null || translogRepoPath == null) {
             segmentRepoPath = randomRepoPath().toAbsolutePath();
             translogRepoPath = randomRepoPath().toAbsolutePath();
@@ -120,7 +118,6 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
             .put(remoteStoreClusterSettings(REPOSITORY_NAME, segmentRepoPath, REPOSITORY_2_NAME, translogRepoPath))
-            .put(nodeAttributes)
             .build();
     }
 
@@ -253,8 +250,7 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
     }
 
     @After
-    public void teardown() throws Exception {
-        nodeAttributesSettings = null;
+    public void teardown() {
         assertAcked(clusterAdmin().prepareDeleteRepository(REPOSITORY_NAME));
         assertAcked(clusterAdmin().prepareDeleteRepository(REPOSITORY_2_NAME));
     }

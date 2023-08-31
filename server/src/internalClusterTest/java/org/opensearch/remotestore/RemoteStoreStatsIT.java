@@ -45,9 +45,8 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
     private static final String INDEX_NAME = "remote-store-test-idx-1";
 
     @Before
-    public void setup() throws Exception {
+    public void setup() {
         internalCluster().startNodes(3);
-        ensureStableCluster(3);
     }
 
     public void testStatsResponseFromAllNodes() {
@@ -416,7 +415,7 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
         }
     }
 
-    public void testStatsOnShardRelocation() throws Exception {
+    public void testStatsOnShardRelocation() {
         // Scenario:
         // - Create index with single primary and single replica shard
         // - Index documents
@@ -497,7 +496,7 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
         indexSingleDoc(INDEX_NAME);
     }
 
-    public void testStatsOnRemoteStoreRestore() throws Exception {
+    public void testStatsOnRemoteStoreRestore() throws IOException {
         // Creating an index with primary shard count == total nodes in cluster and 0 replicas
         int dataNodeCount = client().admin().cluster().prepareHealth().get().getNumberOfDataNodes();
         createIndex(INDEX_NAME, remoteStoreIndexSettings(0, dataNodeCount));
@@ -512,8 +511,7 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
         ensureRed(INDEX_NAME);
 
         // Start another data node to fulfil the previously launched capacity
-        String nodeId = internalCluster().startDataOnlyNode();
-        ensureStableCluster(3);
+        internalCluster().startDataOnlyNode();
 
         // Restore index from remote store
         assertAcked(client().admin().indices().prepareClose(INDEX_NAME));

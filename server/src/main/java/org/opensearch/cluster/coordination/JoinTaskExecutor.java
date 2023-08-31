@@ -187,9 +187,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
             final DiscoveryNode node = joinTask.node();
             if (joinTask.isBecomeClusterManagerTask() || joinTask.isFinishElectionTask()) {
                 // noop
-            } else if (currentNodes.nodeExistsWithSameRoles(node)) {
-                logger.debug("received a join request for an existing node [{}]", node);
-
+            } else if (currentNodes.nodeExists(node)) {
                 // TODO: Fix this by moving it out of this if condition, Had to add this code back here as this was
                 // leading to failure of JoinTaskExecutorTests::testUpdatesNodeWithNewRoles test.
                 if (node.isRemoteStoreNode()) {
@@ -201,6 +199,8 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
                         remoteStoreService.updateClusterStateRepositoriesMetadata(new RemoteStoreNode(node), currentState)
                     );
                 }
+            } else if (currentNodes.nodeExistsWithSameRoles(node)) {
+                logger.debug("received a join request for an existing node [{}]", node);
             } else {
                 try {
                     if (enforceMajorVersion) {
