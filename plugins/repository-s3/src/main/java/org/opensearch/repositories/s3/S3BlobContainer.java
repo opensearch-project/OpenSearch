@@ -349,11 +349,8 @@ class S3BlobContainer extends AbstractBlobContainer implements VerifyingMultiStr
     }
 
     @Override
-    public List<BlobMetadata> listBlobsByPrefixInSortedOrder(
-        String blobNamePrefix,
-        int limit,
-        BlobNameSortOrder blobNameSortOrder
-    )  throws IOException  {
+    public List<BlobMetadata> listBlobsByPrefixInSortedOrder(String blobNamePrefix, int limit, BlobNameSortOrder blobNameSortOrder)
+        throws IOException {
         // As AWS S3 returns list of keys in Lexicographic order, we don't have to fetch all the keys in order to sort them
         // We fetch only keys as per the given limit to optimize the fetch. If provided sort order is not Lexicographic,
         // we fall-back to default implementation of fetching all the keys and sorting them.
