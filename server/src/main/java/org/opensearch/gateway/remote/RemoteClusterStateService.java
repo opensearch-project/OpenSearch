@@ -373,7 +373,7 @@ public class RemoteClusterStateService implements Closeable {
      * Fetch latest index metadata from remote cluster state
      * @param clusterUUID uuid of cluster state to refer to in remote
      * @param clusterName name of the cluster
-     * @return Map<String, IndexMetadata> latest IndexUUID to IndexMetadata map
+     * @return {@code Map<String, IndexMetadata>} latest IndexUUID to IndexMetadata map
      */
     public Map<String, IndexMetadata> getLatestIndexMetadata(String clusterUUID, String clusterName) throws IOException {
         Map<String, IndexMetadata> remoteIndexMetadata = new HashMap<>();
