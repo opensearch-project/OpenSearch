@@ -63,6 +63,7 @@ import org.opensearch.transport.TransportService;
 import org.junit.Assert;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -817,17 +818,24 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
     }
 
     protected void resolveCheckpointInfoResponseListener(ActionListener<CheckpointInfoResponse> listener, IndexShard primary) {
+        final CopyState copyState;
         try {
-            final CopyState copyState = new CopyState(
+            copyState = new CopyState(
                 ReplicationCheckpoint.empty(primary.shardId, primary.getLatestReplicationCheckpoint().getCodec()),
                 primary
-            );
-            listener.onResponse(
-                new CheckpointInfoResponse(copyState.getCheckpoint(), copyState.getMetadataMap(), copyState.getInfosBytes())
             );
         } catch (IOException e) {
             logger.error("Unexpected error computing CopyState", e);
             Assert.fail("Failed to compute copyState");
+            throw new UncheckedIOException(e);
+        }
+
+        try {
+            listener.onResponse(
+                new CheckpointInfoResponse(copyState.getCheckpoint(), copyState.getMetadataMap(), copyState.getInfosBytes())
+            );
+        } finally {
+            copyState.decRef();
         }
     }
 

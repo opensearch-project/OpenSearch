@@ -508,6 +508,13 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
             return indexShard.getSegmentInfosSnapshot();
         }).when(shard).getSegmentInfosSnapshot();
 
+        doAnswer((invocation -> {
+            if (counter.incrementAndGet() <= succeedOnAttempt) {
+                throw new RuntimeException("Inducing failure in upload");
+            }
+            return indexShard.getLatestSegmentInfosAndCheckpoint();
+        })).when(shard).getLatestSegmentInfosAndCheckpoint();
+
         doAnswer(invocation -> {
             if (Objects.nonNull(successLatch)) {
                 successLatch.countDown();

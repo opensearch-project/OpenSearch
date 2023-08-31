@@ -156,6 +156,7 @@ import org.opensearch.test.VersionUtils;
 import org.opensearch.threadpool.ThreadPool;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
+import org.junit.Assert;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -165,6 +166,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -7560,16 +7562,86 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
-    public void testGetSegmentInfosSnapshot() throws IOException {
+    public void testGetSegmentInfosSnapshot_AllSnapshotFilesPreservedAcrossCommit() throws Exception {
         IOUtils.close(store, engine);
-        Store store = createStore();
-        InternalEngine engine = spy(createEngine(store, createTempDir()));
-        GatedCloseable<SegmentInfos> segmentInfosSnapshot = engine.getSegmentInfosSnapshot();
-        assertNotNull(segmentInfosSnapshot);
-        assertNotNull(segmentInfosSnapshot.get());
-        verify(engine, times(1)).getLatestSegmentInfos();
-        store.close();
-        engine.close();
+        store = createStore();
+        engine = createEngine(store, createTempDir());
+        List<Engine.Operation> operations = generateHistoryOnReplica(
+            randomIntBetween(1, 100),
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean()
+        );
+        for (Engine.Operation op : operations) {
+            applyOperation(engine, op);
+        }
+        engine.refresh("test");
+        try (GatedCloseable<SegmentInfos> snapshot = engine.getSegmentInfosSnapshot()) {
+            Collection<String> files = snapshot.get().files(true);
+            Set<String> localFiles = Set.of(store.directory().listAll());
+            for (String file : files) {
+                assertTrue("Local directory contains file " + file, localFiles.contains(file));
+            }
+
+            engine.flush(true, true);
+
+            try (
+                final GatedCloseable<SegmentInfos> snapshotAfterFlush = engine.getSegmentInfosSnapshot();
+                final GatedCloseable<IndexCommit> commit = engine.acquireLastIndexCommit(false)
+            ) {
+                final SegmentInfos segmentInfos = snapshotAfterFlush.get();
+                assertNotEquals(segmentInfos.getSegmentsFileName(), snapshot.get().getSegmentsFileName());
+                assertEquals(commit.get().getSegmentsFileName(), segmentInfos.getSegmentsFileName());
+            }
+
+            // original files are preserved.
+            localFiles = Set.of(store.directory().listAll());
+            for (String file : files) {
+                assertTrue("Local directory contains file " + file, localFiles.contains(file));
+            }
+        }
+    }
+
+    public void testGetSegmentInfosSnapshot_LatestCommitOnDiskHasHigherGenThanReader() throws Exception {
+        IOUtils.close(store, engine);
+        store = createStore();
+        engine = createEngine(store, createTempDir());
+        // to simulate this we need concurrent flush/refresh.
+        AtomicBoolean run = new AtomicBoolean(true);
+        AtomicInteger docId = new AtomicInteger(0);
+        Thread refresher = new Thread(() -> {
+            while (run.get()) {
+                try {
+                    engine.index(indexForDoc(createParsedDoc(Integer.toString(docId.getAndIncrement()), null)));
+                    engine.refresh("test");
+                    getSnapshotAndAssertFilesExistLocally();
+                } catch (Exception e) {
+                    Assert.fail();
+                }
+            }
+        });
+        refresher.start();
+        try {
+            for (int i = 0; i < 10; i++) {
+                engine.flush(true, true);
+                getSnapshotAndAssertFilesExistLocally();
+            }
+        } catch (Exception e) {
+            Assert.fail();
+        } finally {
+            run.set(false);
+            refresher.join();
+        }
+    }
+
+    private void getSnapshotAndAssertFilesExistLocally() throws IOException {
+        try (GatedCloseable<SegmentInfos> snapshot = engine.getSegmentInfosSnapshot()) {
+            Collection<String> files = snapshot.get().files(true);
+            Set<String> localFiles = Set.of(store.directory().listAll());
+            for (String file : files) {
+                assertTrue("Local directory contains file " + file, localFiles.contains(file));
+            }
+        }
     }
 
     public void testGetProcessedLocalCheckpoint() throws IOException {
