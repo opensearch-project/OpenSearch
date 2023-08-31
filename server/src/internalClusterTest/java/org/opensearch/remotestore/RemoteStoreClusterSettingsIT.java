@@ -27,7 +27,7 @@ import java.util.concurrent.ExecutionException;
 import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
-public class RemoteTranslogBufferIntervalIT extends RemoteStoreBaseIntegTestCase {
+public class RemoteStoreClusterSettingsIT extends RemoteStoreBaseIntegTestCase {
 
     private final String INDEX_NAME = "remote-store-test-idx-1";
 
