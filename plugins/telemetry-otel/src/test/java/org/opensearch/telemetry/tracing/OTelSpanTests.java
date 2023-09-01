@@ -10,8 +10,6 @@ package org.opensearch.telemetry.tracing;
 
 import org.opensearch.test.OpenSearchTestCase;
 
-import java.util.concurrent.atomic.AtomicBoolean;
-
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.SpanContext;
 import io.opentelemetry.api.trace.TraceFlags;
@@ -28,10 +26,8 @@ public class OTelSpanTests extends OpenSearchTestCase {
 
     public void testEndSpanTest() {
         Span mockSpan = getMockSpan();
-        final AtomicBoolean onSpanEndTestFlag = new AtomicBoolean(false);
         OTelSpan oTelSpan = new OTelSpan("spanName", mockSpan, null);
         oTelSpan.endSpan();
-        assertTrue(onSpanEndTestFlag.get());
         verify(mockSpan).end();
     }
 
