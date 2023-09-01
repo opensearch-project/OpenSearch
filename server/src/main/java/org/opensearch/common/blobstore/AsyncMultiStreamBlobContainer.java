@@ -57,6 +57,7 @@ public interface AsyncMultiStreamBlobContainer extends BlobContainer {
         ReadContextListener readContextListener = new ReadContextListener(blobName, fileLocation, threadPool, completionListener);
         readBlobAsync(blobName, readContextListener);
     }
+
     /*
      * Wether underlying blobContainer can verify integrity of data after transfer. If true and if expected
      * checksum is provided in WriteContext, then the checksum of transferred data is compared with expected checksum

@@ -9,12 +9,15 @@
 package org.opensearch.common.blobstore;
 
 import org.opensearch.common.StreamContext;
+import org.opensearch.common.blobstore.stream.read.ReadContext;
 import org.opensearch.common.blobstore.stream.write.WriteContext;
 import org.opensearch.common.crypto.CryptoHandler;
 import org.opensearch.common.io.InputStreamContainer;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.nio.file.Path;
 
 /**
  * EncryptedBlobContainer is an encrypted BlobContainer that is backed by a
@@ -37,6 +40,16 @@ public class AsyncMultiStreamEncryptedBlobContainer<T, U> extends EncryptedBlobC
     public void asyncBlobUpload(WriteContext writeContext, ActionListener<Void> completionListener) throws IOException {
         EncryptedWriteContext<T, U> encryptedWriteContext = new EncryptedWriteContext<>(writeContext, cryptoHandler);
         blobContainer.asyncBlobUpload(encryptedWriteContext, completionListener);
+    }
+
+    @Override
+    public void readBlobAsync(String blobName, ActionListener<ReadContext> listener) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void asyncBlobDownload(String blobName, Path fileLocation, ThreadPool threadPool, ActionListener<String> completionListener) {
+        throw new UnsupportedOperationException();
     }
 
     @Override
