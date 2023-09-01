@@ -10,7 +10,7 @@ package org.opensearch.telemetry.tracing.listener;
 
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskListener;
-import org.opensearch.telemetry.tracing.SpanScope;
+import org.opensearch.telemetry.tracing.Span;
 
 import java.util.Objects;
 
@@ -21,30 +21,31 @@ import java.util.Objects;
 public class TraceableTaskListener<Response> implements TaskListener<Response> {
 
     private final TaskListener<Response> delegate;
-    private final SpanScope spanScope;
+    private final Span span;
 
     /**
      * Constructor.
      * @param delegate delegate
-     * @param spanScope span
+     * @param span span
      */
-    public TraceableTaskListener(TaskListener<Response> delegate, SpanScope spanScope) {
+    public TraceableTaskListener(TaskListener<Response> delegate, Span span) {
         Objects.requireNonNull(delegate);
-        Objects.requireNonNull(spanScope);
+        Objects.requireNonNull(span);
         this.delegate = delegate;
-        this.spanScope = spanScope;
+        this.span = span;
     }
 
     @Override
     public void onResponse(Task task, Response response) {
+        span.endSpan();
         delegate.onResponse(task, response);
     }
 
     @Override
     public void onFailure(Task task, Exception e) {
-        try (spanScope) {
-            spanScope.setError(e);
-            delegate.onFailure(task, e);
-        }
+        span.setError(e);
+        span.endSpan();
+        delegate.onFailure(task, e);
+
     }
 }

@@ -55,6 +55,8 @@ import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.rest.RestChannel;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.telemetry.tracing.AttributeNames;
+import org.opensearch.telemetry.tracing.Span;
+import org.opensearch.telemetry.tracing.SpanBuilder;
 import org.opensearch.telemetry.tracing.SpanScope;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.telemetry.tracing.attributes.Attributes;
@@ -363,24 +365,12 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
      */
     public void incomingRequest(final HttpRequest httpRequest, final HttpChannel httpChannel) {
         try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().stashContext()) {
-            // TODO: Add support for parsing the otel incoming tracer.
-            final SpanScope httpRequestSpanScope = tracer.startSpan(createSpanName(httpRequest), buildSpanAttributes(httpRequest));
-            HttpChannel traceableHttpChannel = new TraceableHttpChannel(httpChannel, httpRequestSpanScope);
-            handleIncomingRequest(httpRequest, traceableHttpChannel, httpRequest.getInboundException());
+            final Span span = tracer.startSpan(SpanBuilder.from(httpRequest), httpRequest.getHeaders());
+            try (final SpanScope httpRequestSpanScope = tracer.withSpanInScope(span)) {
+                HttpChannel traceableHttpChannel = new TraceableHttpChannel(httpChannel, span);
+                handleIncomingRequest(httpRequest, traceableHttpChannel, httpRequest.getInboundException());
+            }
         }
-    }
-
-    private String createSpanName(HttpRequest httpRequest) {
-        return httpRequest.method().name() + " " + httpRequest.uri();
-    }
-
-    private Attributes buildSpanAttributes(HttpRequest httpRequest) {
-        Attributes attributes = Attributes.create()
-            .addAttribute(AttributeNames.HTTP_URI, httpRequest.uri())
-            .addAttribute(AttributeNames.HTTP_METHOD, httpRequest.method().name())
-            .addAttribute(AttributeNames.HTTP_PROTOCOL_VERSION, httpRequest.protocolVersion().name());
-        populateHeader(httpRequest, attributes);
-        return attributes;
     }
 
     private void populateHeader(HttpRequest httpRequest, Attributes attributes) {
@@ -393,23 +383,19 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
 
     // Visible for testing
     void dispatchRequest(final RestRequest restRequest, final RestChannel channel, final Throwable badRequestCause) {
-        final SpanScope spanScope = tracer.startSpan(createRestRequestSpanName(restRequest));
-        if (restRequest != null) {
-            spanScope.addSpanAttribute(AttributeNames.REST_REQ_ID, restRequest.getRequestId());
-            spanScope.addSpanAttribute(AttributeNames.REST_REQ_RAW_PATH, restRequest.rawPath());
-        }
-
         RestChannel traceableRestChannel = channel;
-        if (channel != null) {
-            traceableRestChannel = new TraceableRestChannel(channel, spanScope);
-        }
-
-        final ThreadContext threadContext = threadPool.getThreadContext();
-        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-            if (badRequestCause != null) {
-                dispatcher.dispatchBadRequest(traceableRestChannel, threadContext, badRequestCause);
-            } else {
-                dispatcher.dispatchRequest(restRequest, traceableRestChannel, threadContext);
+        final Span span = tracer.startSpan(SpanBuilder.from(restRequest));
+        try (final SpanScope spanScope = tracer.withSpanInScope(span)) {
+            if (channel != null) {
+                traceableRestChannel = new TraceableRestChannel(channel, span);
+            }
+            final ThreadContext threadContext = threadPool.getThreadContext();
+            try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+                if (badRequestCause != null) {
+                    dispatcher.dispatchBadRequest(traceableRestChannel, threadContext, badRequestCause);
+                } else {
+                    dispatcher.dispatchRequest(restRequest, traceableRestChannel, threadContext);
+                }
             }
         }
     }
