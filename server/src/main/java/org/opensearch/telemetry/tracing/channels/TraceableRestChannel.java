@@ -35,10 +35,8 @@ public class TraceableRestChannel implements RestChannel {
      * @param span span
      */
     private TraceableRestChannel(RestChannel delegate, Span span) {
-        Objects.requireNonNull(delegate);
-        Objects.requireNonNull(span);
-        this.span = span;
-        this.delegate = delegate;
+        this.span = Objects.requireNonNull(span);
+        this.delegate = Objects.requireNonNull(delegate);
     }
 
     /**
@@ -48,7 +46,7 @@ public class TraceableRestChannel implements RestChannel {
      * @return rest channel
      */
     public static RestChannel create(RestChannel delegate, Span span) {
-        if (FeatureFlags.isEnabled(FeatureFlags.TELEMETRY)) {
+        if (FeatureFlags.isEnabled(FeatureFlags.TELEMETRY) == true) {
             return new TraceableRestChannel(delegate, span);
         } else {
             return delegate;

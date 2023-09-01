@@ -16,6 +16,7 @@ import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportResponseHandler;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * Tracer wrapped {@link TransportResponseHandler}
@@ -32,8 +33,8 @@ public class TraceableTransportResponseHandler<T extends TransportResponse> impl
      * @param delegate
      */
     private TraceableTransportResponseHandler(TransportResponseHandler<T> delegate, Span span) {
-        this.delegate = delegate;
-        this.span = span;
+        this.delegate = Objects.requireNonNull(delegate);
+        this.span = Objects.requireNonNull(span);
     }
 
     /**
@@ -43,7 +44,7 @@ public class TraceableTransportResponseHandler<T extends TransportResponse> impl
      * @return transportResponseHandler
      */
     public static TransportResponseHandler create(TransportResponseHandler delegate, Span span) {
-        if (FeatureFlags.isEnabled(FeatureFlags.TELEMETRY)) {
+        if (FeatureFlags.isEnabled(FeatureFlags.TELEMETRY) == true) {
             return new TraceableTransportResponseHandler(delegate, span);
         } else {
             return delegate;
