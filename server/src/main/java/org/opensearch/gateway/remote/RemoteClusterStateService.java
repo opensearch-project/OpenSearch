@@ -388,8 +388,14 @@ public class RemoteClusterStateService implements Closeable {
         return remoteIndexMetadata;
     }
 
-    private IndexMetadata getIndexMetadata(String clusterName, String clusterUUID, UploadedIndexMetadata uploadedIndexMetadata)
-        throws IOException {
+    /**
+     * Fetch index metadata from remote cluster state
+     * @param clusterUUID uuid of cluster state to refer to in remote
+     * @param clusterName name of the cluster
+     * @param uploadedIndexMetadata {@link UploadedIndexMetadata} contains details about remote location of index metadata
+     * @return {@link IndexMetadata}
+     */
+    private IndexMetadata getIndexMetadata(String clusterName, String clusterUUID, UploadedIndexMetadata uploadedIndexMetadata) {
         try {
             return INDEX_METADATA_FORMAT.read(
                 indexMetadataContainer(clusterName, clusterUUID, uploadedIndexMetadata.getIndexUUID()),
