@@ -81,9 +81,9 @@ public class ConcurrentQueryProfileBreakdownTests extends OpenSearchTestCase {
                 );
                 // verify total/min/max/avg node time is same as weight time
                 assertEquals(createWeightTime, testQueryProfileBreakdown.toNodeTime());
-                assertEquals(createWeightTime, (long) testQueryProfileBreakdown.getMaxSliceNodeTime());
-                assertEquals(createWeightTime, (long) testQueryProfileBreakdown.getMinSliceNodeTime());
-                assertEquals(createWeightTime, (long) testQueryProfileBreakdown.getAvgSliceNodeTime());
+                assertEquals(createWeightTime, testQueryProfileBreakdown.getMaxSliceNodeTime());
+                assertEquals(createWeightTime, testQueryProfileBreakdown.getMinSliceNodeTime());
+                assertEquals(createWeightTime, testQueryProfileBreakdown.getAvgSliceNodeTime());
                 continue;
             }
             assertEquals(0, (long) queryBreakDownMap.get(timingTypeKey));
@@ -109,7 +109,7 @@ public class ConcurrentQueryProfileBreakdownTests extends OpenSearchTestCase {
             leafProfileBreakdownMap
         );
         testQueryProfileBreakdown.associateCollectorToLeaves(sliceCollector, sliceLeaf);
-        testQueryProfileBreakdown.contexts.put(sliceLeaf, leafProfileBreakdown);
+        testQueryProfileBreakdown.getContexts().put(sliceLeaf, leafProfileBreakdown);
         final Map<Collector, Map<String, Long>> sliceBreakdownMap = testQueryProfileBreakdown.buildSliceLevelBreakdown(
             createWeightEarliestStartTime
         );
@@ -141,9 +141,9 @@ public class ConcurrentQueryProfileBreakdownTests extends OpenSearchTestCase {
                 (long) sliceBreakdown.get(timingTypeKey + SLICE_END_TIME_SUFFIX)
             );
         }
-        assertEquals(20, (long) testQueryProfileBreakdown.getMaxSliceNodeTime());
-        assertEquals(20, (long) testQueryProfileBreakdown.getMinSliceNodeTime());
-        assertEquals(20, (long) testQueryProfileBreakdown.getAvgSliceNodeTime());
+        assertEquals(20, testQueryProfileBreakdown.getMaxSliceNodeTime());
+        assertEquals(20, testQueryProfileBreakdown.getMinSliceNodeTime());
+        assertEquals(20, testQueryProfileBreakdown.getAvgSliceNodeTime());
         directoryReader.close();
         directory.close();
     }
@@ -166,8 +166,8 @@ public class ConcurrentQueryProfileBreakdownTests extends OpenSearchTestCase {
         );
         testQueryProfileBreakdown.associateCollectorToLeaves(sliceCollector_1, directoryReader.leaves().get(0));
         testQueryProfileBreakdown.associateCollectorToLeaves(sliceCollector_2, directoryReader.leaves().get(1));
-        testQueryProfileBreakdown.contexts.put(directoryReader.leaves().get(0), leafProfileBreakdown_1);
-        testQueryProfileBreakdown.contexts.put(directoryReader.leaves().get(1), leafProfileBreakdown_2);
+        testQueryProfileBreakdown.getContexts().put(directoryReader.leaves().get(0), leafProfileBreakdown_1);
+        testQueryProfileBreakdown.getContexts().put(directoryReader.leaves().get(1), leafProfileBreakdown_2);
         final Map<Collector, Map<String, Long>> sliceBreakdownMap = testQueryProfileBreakdown.buildSliceLevelBreakdown(
             createWeightEarliestStartTime
         );
@@ -208,9 +208,9 @@ public class ConcurrentQueryProfileBreakdownTests extends OpenSearchTestCase {
             }
         }
 
-        assertEquals(50, (long) testQueryProfileBreakdown.getMaxSliceNodeTime());
-        assertEquals(20, (long) testQueryProfileBreakdown.getMinSliceNodeTime());
-        assertEquals(35, (long) testQueryProfileBreakdown.getAvgSliceNodeTime());
+        assertEquals(50, testQueryProfileBreakdown.getMaxSliceNodeTime());
+        assertEquals(20, testQueryProfileBreakdown.getMinSliceNodeTime());
+        assertEquals(35, testQueryProfileBreakdown.getAvgSliceNodeTime());
         directoryReader.close();
         directory.close();
     }
@@ -233,8 +233,8 @@ public class ConcurrentQueryProfileBreakdownTests extends OpenSearchTestCase {
         );
         testQueryProfileBreakdown.associateCollectorToLeaves(sliceCollector_1, directoryReader.leaves().get(0));
         testQueryProfileBreakdown.associateCollectorToLeaves(sliceCollector_2, directoryReader.leaves().get(1));
-        testQueryProfileBreakdown.contexts.put(directoryReader.leaves().get(0), leafProfileBreakdown_1);
-        testQueryProfileBreakdown.contexts.put(directoryReader.leaves().get(1), leafProfileBreakdown_2);
+        testQueryProfileBreakdown.getContexts().put(directoryReader.leaves().get(0), leafProfileBreakdown_1);
+        testQueryProfileBreakdown.getContexts().put(directoryReader.leaves().get(1), leafProfileBreakdown_2);
 
         Map<String, Long> queryBreakDownMap = testQueryProfileBreakdown.toBreakdownMap();
         assertFalse(queryBreakDownMap == null || queryBreakDownMap.isEmpty());
@@ -269,9 +269,9 @@ public class ConcurrentQueryProfileBreakdownTests extends OpenSearchTestCase {
             assertEquals(1, (long) queryBreakDownMap.get(ConcurrentQueryProfileBreakdown.AVG_PREFIX + timingTypeCountKey));
         }
 
-        assertEquals(60, (long) testQueryProfileBreakdown.getMaxSliceNodeTime());
-        assertEquals(20, (long) testQueryProfileBreakdown.getMinSliceNodeTime());
-        assertEquals(40, (long) testQueryProfileBreakdown.getAvgSliceNodeTime());
+        assertEquals(60, testQueryProfileBreakdown.getMaxSliceNodeTime());
+        assertEquals(20, testQueryProfileBreakdown.getMinSliceNodeTime());
+        assertEquals(40, testQueryProfileBreakdown.getAvgSliceNodeTime());
         directoryReader.close();
         directory.close();
     }

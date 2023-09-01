@@ -65,7 +65,7 @@ public class ConcurrentQueryProfileTree extends AbstractQueryProfileTree {
             final ContextualProfileBreakdown<QueryTimingType> parentBreakdown = breakdowns.get(root);
             assert parentBreakdown instanceof ConcurrentQueryProfileBreakdown;
             final Map<Collector, List<LeafReaderContext>> parentCollectorToLeaves = ((ConcurrentQueryProfileBreakdown) parentBreakdown)
-                .getSliceCollectorToLeaves();
+                .getSliceCollectorsToLeaves();
             // update all the children with the parent collectorToLeaves association
             updateCollectorToLeavesForChildBreakdowns(root, parentCollectorToLeaves);
         }
@@ -83,7 +83,7 @@ public class ConcurrentQueryProfileTree extends AbstractQueryProfileTree {
         if (children != null) {
             for (Integer currentChild : children) {
                 final ContextualProfileBreakdown<QueryTimingType> currentChildBreakdown = breakdowns.get(currentChild);
-                currentChildBreakdown.associateCollectorToLeaves(collectorToLeaves);
+                currentChildBreakdown.associateCollectorsToLeaves(collectorToLeaves);
                 updateCollectorToLeavesForChildBreakdowns(currentChild, collectorToLeaves);
             }
         }

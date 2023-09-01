@@ -39,10 +39,10 @@ public final class ConcurrentQueryProfileBreakdown extends ContextualProfileBrea
     private long avgSliceNodeTime = 0L;
 
     // keep track of all breakdown timings per segment. package-private for testing
-    final Map<Object, AbstractProfileBreakdown<QueryTimingType>> contexts = new ConcurrentHashMap<>();
+    private final Map<Object, AbstractProfileBreakdown<QueryTimingType>> contexts = new ConcurrentHashMap<>();
 
     // represents slice to leaves mapping as for each slice a unique collector instance is created
-    private final Map<Collector, List<LeafReaderContext>> sliceCollectorToLeaves = new HashMap<>();
+    private final Map<Collector, List<LeafReaderContext>> sliceCollectorsToLeaves = new ConcurrentHashMap<>();
 
     /** Sole constructor. */
     public ConcurrentQueryProfileBreakdown() {
@@ -69,7 +69,7 @@ public final class ConcurrentQueryProfileBreakdown extends ContextualProfileBrea
         );
         final long createWeightTime = topLevelBreakdownMapWithWeightTime.get(QueryTimingType.CREATE_WEIGHT.toString());
 
-        if (sliceCollectorToLeaves.isEmpty() || contexts.isEmpty()) {
+        if (sliceCollectorsToLeaves.isEmpty() || contexts.isEmpty()) {
             // If there are no leaf contexts, then return the default concurrent query level breakdown, which will include the
             // create_weight time/count
             queryNodeTime = createWeightTime;
@@ -122,7 +122,7 @@ public final class ConcurrentQueryProfileBreakdown extends ContextualProfileBrea
     }
 
     /**
-     * Computes the slice level breakdownMap. It uses sliceCollectorToLeaves to figure out all the leaves or segments part of a slice.
+     * Computes the slice level breakdownMap. It uses sliceCollectorsToLeaves to figure out all the leaves or segments part of a slice.
      * Then use the breakdown timing stats for each of these leaves to calculate the breakdown stats at slice level.
      * @param createWeightStartTime start time when createWeight is called
      * @return map of collector (or slice) to breakdown map
@@ -130,7 +130,7 @@ public final class ConcurrentQueryProfileBreakdown extends ContextualProfileBrea
     Map<Collector, Map<String, Long>> buildSliceLevelBreakdown(long createWeightStartTime) {
         final Map<Collector, Map<String, Long>> sliceLevelBreakdowns = new HashMap<>();
         long totalSliceNodeTime = 0;
-        for (Map.Entry<Collector, List<LeafReaderContext>> slice : sliceCollectorToLeaves.entrySet()) {
+        for (Map.Entry<Collector, List<LeafReaderContext>> slice : sliceCollectorsToLeaves.entrySet()) {
             final Collector sliceCollector = slice.getKey();
             // initialize each slice level breakdown
             final Map<String, Long> currentSliceBreakdown = sliceLevelBreakdowns.computeIfAbsent(sliceCollector, k -> new HashMap<>());
@@ -197,7 +197,7 @@ public final class ConcurrentQueryProfileBreakdown extends ContextualProfileBrea
             // total time at query level
             totalSliceNodeTime += currentSliceNodeTime;
         }
-        avgSliceNodeTime = totalSliceNodeTime / sliceCollectorToLeaves.size();
+        avgSliceNodeTime = totalSliceNodeTime / sliceCollectorsToLeaves.size();
         return sliceLevelBreakdowns;
     }
 
@@ -298,27 +298,33 @@ public final class ConcurrentQueryProfileBreakdown extends ContextualProfileBrea
 
     @Override
     public void associateCollectorToLeaves(Collector collector, LeafReaderContext leaf) {
-        sliceCollectorToLeaves.computeIfAbsent(collector, k -> new ArrayList<>()).add(leaf);
+        // Each slice (or collector) is executed by single thread. So the list for a key will always be updated by a single thread only
+        sliceCollectorsToLeaves.computeIfAbsent(collector, k -> new ArrayList<>()).add(leaf);
     }
 
     @Override
-    public void associateCollectorToLeaves(Map<Collector, List<LeafReaderContext>> collectorToLeaves) {
-        this.sliceCollectorToLeaves.putAll(collectorToLeaves);
+    public void associateCollectorsToLeaves(Map<Collector, List<LeafReaderContext>> collectorsToLeaves) {
+        sliceCollectorsToLeaves.putAll(collectorsToLeaves);
     }
 
-    Map<Collector, List<LeafReaderContext>> getSliceCollectorToLeaves() {
-        return Collections.unmodifiableMap(sliceCollectorToLeaves);
+    Map<Collector, List<LeafReaderContext>> getSliceCollectorsToLeaves() {
+        return Collections.unmodifiableMap(sliceCollectorsToLeaves);
     }
 
-    Long getMaxSliceNodeTime() {
+    // used by tests
+    Map<Object, AbstractProfileBreakdown<QueryTimingType>> getContexts() {
+        return contexts;
+    }
+
+    long getMaxSliceNodeTime() {
         return maxSliceNodeTime;
     }
 
-    Long getMinSliceNodeTime() {
+    long getMinSliceNodeTime() {
         return minSliceNodeTime;
     }
 
-    Long getAvgSliceNodeTime() {
+    long getAvgSliceNodeTime() {
         return avgSliceNodeTime;
     }
 }
