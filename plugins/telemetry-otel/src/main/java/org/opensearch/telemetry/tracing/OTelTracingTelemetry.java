@@ -58,7 +58,8 @@ public class OTelTracingTelemetry implements TracingTelemetry {
 
     private Span createOtelSpan(String spanName, Span parentSpan, Attributes attributes) {
         io.opentelemetry.api.trace.Span otelSpan = otelSpan(spanName, parentSpan, OTelAttributesConverter.convert(attributes));
-        return new OTelSpan(spanName, otelSpan, parentSpan);
+        Span newSpan = new OTelSpan(spanName, otelSpan, parentSpan);
+        return newSpan;
     }
 
     io.opentelemetry.api.trace.Span otelSpan(String spanName, Span parentOTelSpan, io.opentelemetry.api.common.Attributes attributes) {
