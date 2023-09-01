@@ -362,10 +362,11 @@ class S3BlobContainer extends AbstractBlobContainer implements VerifyingMultiStr
             }
             String prefix = blobNamePrefix == null ? keyPath : buildKey(blobNamePrefix);
             try (AmazonS3Reference clientReference = blobStore.clientReference()) {
-                return executeListing(clientReference, listObjectsRequest(prefix, limit), limit).stream()
+                List<BlobMetadata> blobs = executeListing(clientReference, listObjectsRequest(prefix, limit), limit).stream()
                     .flatMap(listing -> listing.contents().stream())
                     .map(s3Object -> new PlainBlobMetadata(s3Object.key().substring(keyPath.length()), s3Object.size()))
                     .collect(Collectors.toList());
+                return blobs.subList(0, Math.min(limit, blobs.size()));
             } catch (final Exception e) {
                 throw new IOException("Exception when listing blobs by prefix [" + prefix + "]", e);
             }

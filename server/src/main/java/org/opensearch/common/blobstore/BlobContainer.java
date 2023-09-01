@@ -227,6 +227,9 @@ public interface BlobContainer {
         BlobNameSortOrder blobNameSortOrder,
         ActionListener<List<BlobMetadata>> listener
     ) {
+        if (limit < 0) {
+            throw new IllegalArgumentException("limit should not be a negative value");
+        }
         try {
             listener.onResponse(listBlobsByPrefixInSortedOrder(blobNamePrefix, limit, blobNameSortOrder));
         } catch (Exception e) {
