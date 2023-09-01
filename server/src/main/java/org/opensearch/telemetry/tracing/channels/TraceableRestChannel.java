@@ -9,6 +9,7 @@
 package org.opensearch.telemetry.tracing.channels;
 
 import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.rest.RestChannel;
@@ -33,11 +34,25 @@ public class TraceableRestChannel implements RestChannel {
      * @param delegate delegate
      * @param span span
      */
-    public TraceableRestChannel(RestChannel delegate, Span span) {
+    private TraceableRestChannel(RestChannel delegate, Span span) {
         Objects.requireNonNull(delegate);
         Objects.requireNonNull(span);
         this.span = span;
         this.delegate = delegate;
+    }
+
+    /**
+     * Factory method.
+     * @param delegate delegate
+     * @param span span
+     * @return rest channel
+     */
+    public static RestChannel create(RestChannel delegate, Span span) {
+        if (FeatureFlags.isEnabled(FeatureFlags.TELEMETRY)) {
+            return new TraceableRestChannel(delegate, span);
+        } else {
+            return delegate;
+        }
     }
 
     @Override

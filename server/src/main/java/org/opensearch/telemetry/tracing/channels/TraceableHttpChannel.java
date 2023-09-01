@@ -8,6 +8,7 @@
 
 package org.opensearch.telemetry.tracing.channels;
 
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.http.HttpChannel;
 import org.opensearch.http.HttpResponse;
@@ -30,11 +31,25 @@ public class TraceableHttpChannel implements HttpChannel {
      * @param delegate  delegate
      * @param span span
      */
-    public TraceableHttpChannel(HttpChannel delegate, Span span) {
+    private TraceableHttpChannel(HttpChannel delegate, Span span) {
         Objects.requireNonNull(delegate);
         Objects.requireNonNull(span);
         this.span = span;
         this.delegate = delegate;
+    }
+
+    /**
+     * Factory method.
+     * @param delegate delegate
+     * @param span span
+     * @return http channel
+     */
+    public static HttpChannel create(HttpChannel delegate, Span span) {
+        if (FeatureFlags.isEnabled(FeatureFlags.TELEMETRY)) {
+            return new TraceableHttpChannel(delegate, span);
+        } else {
+            return delegate;
+        }
     }
 
     @Override
@@ -54,7 +69,7 @@ public class TraceableHttpChannel implements HttpChannel {
 
     @Override
     public void sendResponse(HttpResponse response, ActionListener<Void> listener) {
-        delegate.sendResponse(response, new TraceableActionListener<>(listener, span));
+        delegate.sendResponse(response, TraceableActionListener.create(listener, span));
     }
 
     @Override

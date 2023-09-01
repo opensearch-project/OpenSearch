@@ -8,6 +8,7 @@
 
 package org.opensearch.telemetry.tracing.listener;
 
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskListener;
 import org.opensearch.telemetry.tracing.Span;
@@ -28,11 +29,25 @@ public class TraceableTaskListener<Response> implements TaskListener<Response> {
      * @param delegate delegate
      * @param span span
      */
-    public TraceableTaskListener(TaskListener<Response> delegate, Span span) {
+    private TraceableTaskListener(TaskListener<Response> delegate, Span span) {
         Objects.requireNonNull(delegate);
         Objects.requireNonNull(span);
         this.delegate = delegate;
         this.span = span;
+    }
+
+    /**
+     * Factory method.
+     * @param delegate delegate
+     * @param span span
+     * @return task listener
+     */
+    public static TaskListener create(TaskListener delegate, Span span) {
+        if (FeatureFlags.isEnabled(FeatureFlags.TELEMETRY)) {
+            return new TraceableTaskListener(delegate, span);
+        } else {
+            return delegate;
+        }
     }
 
     @Override

@@ -361,25 +361,23 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
      * @param httpChannel that received the http request
      */
     public void incomingRequest(final HttpRequest httpRequest, final HttpChannel httpChannel) {
-        try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().stashContext()) {
-            final Span span = tracer.startSpan(SpanBuilder.from(httpRequest), httpRequest.getHeaders());
-            try (final SpanScope httpRequestSpanScope = tracer.withSpanInScope(span)) {
-                HttpChannel traceableHttpChannel = new TraceableHttpChannel(httpChannel, span);
-                handleIncomingRequest(httpRequest, traceableHttpChannel, httpRequest.getInboundException());
-            }
+        final Span span = tracer.startSpan(SpanBuilder.from(httpRequest), httpRequest.getHeaders());
+        try (final SpanScope httpRequestSpanScope = tracer.withSpanInScope(span)) {
+            HttpChannel traceableHttpChannel = TraceableHttpChannel.create(httpChannel, span);
+            handleIncomingRequest(httpRequest, traceableHttpChannel, httpRequest.getInboundException());
         }
     }
 
     // Visible for testing
     void dispatchRequest(final RestRequest restRequest, final RestChannel channel, final Throwable badRequestCause) {
         RestChannel traceableRestChannel = channel;
-        final Span span = tracer.startSpan(SpanBuilder.from(restRequest));
-        try (final SpanScope spanScope = tracer.withSpanInScope(span)) {
-            if (channel != null) {
-                traceableRestChannel = new TraceableRestChannel(channel, span);
-            }
-            final ThreadContext threadContext = threadPool.getThreadContext();
-            try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+        final ThreadContext threadContext = threadPool.getThreadContext();
+        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+            final Span span = tracer.startSpan(SpanBuilder.from(restRequest));
+            try (final SpanScope spanScope = tracer.withSpanInScope(span)) {
+                if (channel != null) {
+                    traceableRestChannel = TraceableRestChannel.create(channel, span);
+                }
                 if (badRequestCause != null) {
                     dispatcher.dispatchBadRequest(traceableRestChannel, threadContext, badRequestCause);
                 } else {
@@ -387,6 +385,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
                 }
             }
         }
+
     }
 
     private void handleIncomingRequest(final HttpRequest httpRequest, final HttpChannel httpChannel, final Exception exception) {
