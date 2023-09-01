@@ -27,7 +27,7 @@ public class StrictCheckSpanProcessor implements SpanProcessor {
      */
     public StrictCheckSpanProcessor() {}
 
-    private static Map<String, MockSpanData> spanMap = new ConcurrentHashMap<>();
+    private Map<String, MockSpanData> spanMap = new ConcurrentHashMap<>();
 
     @Override
     public void onStart(Span span) {
