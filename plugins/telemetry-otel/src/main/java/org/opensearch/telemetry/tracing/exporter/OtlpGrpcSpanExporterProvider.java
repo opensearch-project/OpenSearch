@@ -38,7 +38,7 @@ public final class OtlpGrpcSpanExporterProvider implements SpanExporter {
     public static OtlpGrpcSpanExporterProvider create(Settings settings) {
         OtlpGrpcSpanExporter exporter;
         String endpoint = OTelTelemetrySettings.TRACER_SPAN_EXPORTER_ENDPOINT.get(settings);
-        //if endpoint is empty, do not set Endpoint
+        // if endpoint is empty, do not set Endpoint
         if (endpoint.isEmpty()) {
             exporter = OtlpGrpcSpanExporter.builder().build();
         } else {
