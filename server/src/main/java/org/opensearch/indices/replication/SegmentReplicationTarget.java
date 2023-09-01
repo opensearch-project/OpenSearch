@@ -186,7 +186,7 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         state.setStage(SegmentReplicationState.Stage.FILE_DIFF);
         final Store.RecoveryDiff diff = Store.segmentReplicationDiff(checkpointInfo.getMetadataMap(), indexShard.getSegmentMetadataMap());
         // local files
-        final Set<String> localFiles = new HashSet<>(List.of(store.directory().listAll()));
+        final Set<String> localFiles = Set.of(indexShard.store().directory().listAll());
         // set of local files that can be reused
         final Set<String> reuseFiles = diff.missing.stream()
             .filter(storeFileMetadata -> localFiles.contains(storeFileMetadata.name()))
