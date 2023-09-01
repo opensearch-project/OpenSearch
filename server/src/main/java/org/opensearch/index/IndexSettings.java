@@ -1196,6 +1196,13 @@ public final class IndexSettings {
         return remoteTranslogUploadBufferInterval;
     }
 
+    /**
+     * Returns true iff the remote translog buffer interval setting exists or in other words is explicitly set.
+     */
+    public boolean isRemoteTranslogBufferIntervalExplicit() {
+        return INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.exists(settings);
+    }
+
     public void setRemoteTranslogUploadBufferInterval(TimeValue remoteTranslogUploadBufferInterval) {
         this.remoteTranslogUploadBufferInterval = remoteTranslogUploadBufferInterval;
     }
