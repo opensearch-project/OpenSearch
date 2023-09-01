@@ -1198,6 +1198,46 @@
     - match:  { tokens.0.token: foo }
 
 ---
+"delimited_term_freq":
+  - skip:
+      version: " - 2.9.99"
+      reason: "delimited_term_freq token filter was added in v2.10.0"
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            analysis:
+              filter:
+                my_delimited_term_freq:
+                  type: delimited_term_freq
+                  delimiter: ^
+  - do:
+      indices.analyze:
+        index: test
+        body:
+          text:       foo^3
+          tokenizer:  keyword
+          filter:     [my_delimited_term_freq]
+          attributes: termFrequency
+          explain:    true
+  - length: { detail.tokenfilters: 1 }
+  - match:  { detail.tokenfilters.0.tokens.0.token: foo }
+  - match:  { detail.tokenfilters.0.tokens.0.termFrequency: 3 }
+
+  # Test pre-configured token filter too:
+  - do:
+      indices.analyze:
+        body:
+          text:       foo|100
+          tokenizer:  keyword
+          filter:     [delimited_term_freq]
+          attributes: termFrequency
+          explain:    true
+  - length: { detail.tokenfilters: 1 }
+  - match:  { detail.tokenfilters.0.tokens.0.token: foo }
+  - match:  { detail.tokenfilters.0.tokens.0.termFrequency: 100 }
+---
 "keep_filter":
     - do:
         indices.create:
