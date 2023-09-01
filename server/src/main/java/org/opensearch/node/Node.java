@@ -671,13 +671,18 @@ public class Node implements Closeable {
                 clusterService.getClusterSettings(),
                 threadPool::relativeTimeInMillis
             );
-            final RemoteClusterStateService remoteClusterStateService = new RemoteClusterStateService(
-                nodeEnvironment.nodeId(),
-                repositoriesServiceReference::get,
-                settings,
-                clusterService.getClusterSettings(),
-                threadPool::preciseRelativeTimeInNanos
-            );
+            final RemoteClusterStateService remoteClusterStateService;
+            if (RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING.get(settings) == true) {
+                remoteClusterStateService = new RemoteClusterStateService(
+                    nodeEnvironment.nodeId(),
+                    repositoriesServiceReference::get,
+                    settings,
+                    clusterService.getClusterSettings(),
+                    threadPool::preciseRelativeTimeInNanos
+                );
+            } else {
+                remoteClusterStateService = null;
+            }
 
             // collect engine factory providers from plugins
             final Collection<EnginePlugin> enginePlugins = pluginsService.filterPlugins(EnginePlugin.class);

@@ -35,9 +35,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
+import org.opensearch.cluster.coordination.PersistedStateRegistry.PersistedStateType;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.io.IOUtils;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -66,10 +68,8 @@ public class CoordinationState {
 
     private final ElectionStrategy electionStrategy;
 
-    // persisted state
-    private final PersistedState persistedState;
-    // remote persisted state
-    private final PersistedState remotePersistedState;
+    // persisted state registry
+    private final PersistedStateRegistry persistedStateRegistry;
 
     // transient state
     private VoteCollection joinVotes;
@@ -78,19 +78,18 @@ public class CoordinationState {
     private long lastPublishedVersion;
     private VotingConfiguration lastPublishedConfiguration;
     private VoteCollection publishVotes;
-    private boolean isRemoteStateEnabled;
+    private final boolean isRemoteStateEnabled;
 
     public CoordinationState(
         DiscoveryNode localNode,
-        PersistedState persistedState,
+        PersistedStateRegistry persistedStateRegistry,
         ElectionStrategy electionStrategy,
-        PersistedState remotePersistedState,
         Settings settings
     ) {
         this.localNode = localNode;
 
-        // persisted state
-        this.persistedState = persistedState;
+        // persisted state registry
+        this.persistedStateRegistry = persistedStateRegistry;
         this.electionStrategy = electionStrategy;
 
         // transient state
@@ -98,18 +97,19 @@ public class CoordinationState {
         this.startedJoinSinceLastReboot = false;
         this.electionWon = false;
         this.lastPublishedVersion = 0L;
-        this.lastPublishedConfiguration = persistedState.getLastAcceptedState().getLastAcceptedConfiguration();
+        this.lastPublishedConfiguration = persistedStateRegistry.getPersistedState(PersistedStateType.LOCAL)
+            .getLastAcceptedState()
+            .getLastAcceptedConfiguration();
         this.publishVotes = new VoteCollection();
-        this.remotePersistedState = remotePersistedState;
         this.isRemoteStateEnabled = REMOTE_CLUSTER_STATE_ENABLED_SETTING.get(settings);
     }
 
     public long getCurrentTerm() {
-        return persistedState.getCurrentTerm();
+        return persistedStateRegistry.getPersistedState(PersistedStateType.LOCAL).getCurrentTerm();
     }
 
     public ClusterState getLastAcceptedState() {
-        return persistedState.getLastAcceptedState();
+        return persistedStateRegistry.getPersistedState(PersistedStateType.LOCAL).getLastAcceptedState();
     }
 
     public long getLastAcceptedTerm() {
@@ -199,7 +199,7 @@ public class CoordinationState {
         assert initialState.getLastAcceptedConfiguration().isEmpty() == false;
         assert initialState.getLastCommittedConfiguration().isEmpty() == false;
 
-        persistedState.setLastAcceptedState(initialState);
+        persistedStateRegistry.getPersistedState(PersistedStateType.LOCAL).setLastAcceptedState(initialState);
     }
 
     /**
@@ -235,7 +235,7 @@ public class CoordinationState {
             logger.debug("handleStartJoin: discarding {}: {}", joinVotes, reason);
         }
 
-        persistedState.setCurrentTerm(startJoinRequest.getTerm());
+        persistedStateRegistry.getPersistedState(PersistedStateType.LOCAL).setCurrentTerm(startJoinRequest.getTerm());
         assert getCurrentTerm() == startJoinRequest.getTerm();
         lastPublishedVersion = 0;
         lastPublishedConfiguration = getLastAcceptedConfiguration();
@@ -449,7 +449,7 @@ public class CoordinationState {
             clusterState.version(),
             clusterState.term()
         );
-        persistedState.setLastAcceptedState(clusterState);
+        persistedStateRegistry.getPersistedState(PersistedStateType.LOCAL).setLastAcceptedState(clusterState);
         assert getLastAcceptedState() == clusterState;
 
         return new PublishResponse(clusterState.term(), clusterState.version());
@@ -561,19 +561,22 @@ public class CoordinationState {
             applyCommit.getVersion()
         );
 
-        persistedState.markLastAcceptedStateAsCommitted();
+        persistedStateRegistry.getPersistedState(PersistedStateType.LOCAL).markLastAcceptedStateAsCommitted();
         assert getLastCommittedConfiguration().equals(getLastAcceptedConfiguration());
     }
 
     /**
      * This method should be called just before sending the PublishRequest to all cluster nodes.
-     * @param clusterState
+     * @param clusterState The cluster state for which pre publish activities should happen.
      */
     public void handlePrePublish(ClusterState clusterState) {
-        // Publishing the current state to remote store
-        if (isRemoteStateEnabled == true) {
-            assert remotePersistedState != null : "Remote state has not been initialized";
-            remotePersistedState.setLastAcceptedState(clusterState);
+        // Publishing the current state to remote store before sending the cluster state to other nodes.
+        // This is to ensure the remote store is the single source of truth for current state. Even if the current node
+        // goes down after sending the cluster state to other nodes, we should be able to read the remote state and
+        // recover the cluster.
+        if (isRemoteStateEnabled) {
+            assert persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE) != null : "Remote state has not been initialized";
+            persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE).setLastAcceptedState(clusterState);
         }
     }
 
@@ -583,8 +586,8 @@ public class CoordinationState {
     public void handlePreCommit() {
         // Publishing the committed state to remote store before sending apply commit to other nodes.
         if (isRemoteStateEnabled) {
-            assert remotePersistedState != null : "Remote state has not been initialized";
-            remotePersistedState.markLastAcceptedStateAsCommitted();
+            assert persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE) != null : "Remote state has not been initialized";
+            persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE).markLastAcceptedStateAsCommitted();
         }
     }
 
@@ -601,7 +604,7 @@ public class CoordinationState {
     }
 
     public void close() throws IOException {
-        persistedState.close();
+        IOUtils.close(persistedStateRegistry);
     }
 
     /**

@@ -36,6 +36,7 @@ import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.opensearch.cluster.coordination.CoordinationState.PersistedState;
+import org.opensearch.cluster.coordination.PersistedStateRegistry.PersistedStateType;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
@@ -74,6 +75,7 @@ public class CoordinationStateTests extends OpenSearchTestCase {
     private ClusterState initialStateNode1;
 
     private PersistedState ps1;
+    private PersistedStateRegistry psr1;
 
     private CoordinationState cs1;
     private CoordinationState cs2;
@@ -104,20 +106,13 @@ public class CoordinationStateTests extends OpenSearchTestCase {
         );
 
         ps1 = new InMemoryPersistedState(0L, initialStateNode1);
+        psr1 = persistedStateRegistry();
+        psr1.addPersistedState(PersistedStateType.LOCAL, ps1);
+        psr1.addPersistedState(PersistedStateType.REMOTE, ps1);
 
-        cs1 = createCoordinationState(ps1, node1, ps1, Settings.EMPTY);
-        cs2 = createCoordinationState(
-            new InMemoryPersistedState(0L, initialStateNode2),
-            node2,
-            new InMemoryPersistedState(0L, initialStateNode2),
-            Settings.EMPTY
-        );
-        cs3 = createCoordinationState(
-            new InMemoryPersistedState(0L, initialStateNode3),
-            node3,
-            new InMemoryPersistedState(0L, initialStateNode3),
-            Settings.EMPTY
-        );
+        cs1 = createCoordinationState(psr1, node1, Settings.EMPTY);
+        cs2 = createCoordinationState(createPersistedStateRegistry(initialStateNode2), node2, Settings.EMPTY);
+        cs3 = createCoordinationState(createPersistedStateRegistry(initialStateNode3), node3, Settings.EMPTY);
     }
 
     public static DiscoveryNode createNode(String id) {
@@ -217,7 +212,7 @@ public class CoordinationStateTests extends OpenSearchTestCase {
     public void testJoinWithNoStartJoinAfterReboot() {
         StartJoinRequest startJoinRequest1 = new StartJoinRequest(node1, randomLongBetween(1, 5));
         Join v1 = cs1.handleStartJoin(startJoinRequest1);
-        cs1 = createCoordinationState(ps1, node1, ps1, Settings.EMPTY);
+        cs1 = createCoordinationState(psr1, node1, Settings.EMPTY);
         assertThat(
             expectThrows(CoordinationStateRejectedException.class, () -> cs1.handleJoin(v1)).getMessage(),
             containsString("ignored join as term has not been incremented yet after reboot")
@@ -907,7 +902,7 @@ public class CoordinationStateTests extends OpenSearchTestCase {
         final RemoteClusterStateService remoteClusterStateService = Mockito.mock(RemoteClusterStateService.class);
 
         final PersistedState remotePersistedState = new RemotePersistedState(remoteClusterStateService);
-        final CoordinationState coordinationState = createCoordinationState(ps1, node1, ps1, Settings.EMPTY);
+        final CoordinationState coordinationState = createCoordinationState(psr1, node1, Settings.EMPTY);
         final VotingConfiguration initialConfig = VotingConfiguration.of(node1);
         final ClusterState clusterState = clusterState(0L, 0L, node1, initialConfig, initialConfig, 42L);
         coordinationState.handlePrePublish(clusterState);
@@ -939,16 +934,18 @@ public class CoordinationStateTests extends OpenSearchTestCase {
                 )
             );
 
-        final PersistedState remotePersistedState = new RemotePersistedState(remoteClusterStateService);
+        final PersistedStateRegistry persistedStateRegistry = persistedStateRegistry();
+        persistedStateRegistry.addPersistedState(PersistedStateType.LOCAL, ps1);
+        persistedStateRegistry.addPersistedState(PersistedStateType.REMOTE, new RemotePersistedState(remoteClusterStateService));
         final Settings settings = Settings.builder()
             .put(RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING.getKey(), true)
             .build();
-        final CoordinationState coordinationState = createCoordinationState(ps1, node1, remotePersistedState, settings);
+        final CoordinationState coordinationState = createCoordinationState(persistedStateRegistry, node1, settings);
         final VotingConfiguration initialConfig = VotingConfiguration.of(node1);
         final ClusterState clusterState = clusterState(0L, 0L, node1, initialConfig, initialConfig, 42L);
         coordinationState.handlePrePublish(clusterState);
         Mockito.verify(remoteClusterStateService, Mockito.times(0)).writeFullMetadata(Mockito.any());
-        assertThat(remotePersistedState.getLastAcceptedState(), equalTo(clusterState));
+        assertThat(persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE).getLastAcceptedState(), equalTo(clusterState));
 
         final ClusterState clusterState2 = clusterState(0L, 1L, node1, initialConfig, initialConfig, 42L);
         coordinationState.handlePrePublish(clusterState2);
@@ -959,12 +956,11 @@ public class CoordinationStateTests extends OpenSearchTestCase {
     }
 
     public static CoordinationState createCoordinationState(
-        PersistedState storage,
+        PersistedStateRegistry persistedStateRegistry,
         DiscoveryNode localNode,
-        PersistedState remoteState,
         Settings settings
     ) {
-        return new CoordinationState(localNode, storage, ElectionStrategy.DEFAULT_INSTANCE, remoteState, settings);
+        return new CoordinationState(localNode, persistedStateRegistry, ElectionStrategy.DEFAULT_INSTANCE, settings);
     }
 
     public static ClusterState clusterState(
@@ -1026,5 +1022,12 @@ public class CoordinationStateTests extends OpenSearchTestCase {
 
     public static long value(ClusterState clusterState) {
         return clusterState.metadata().persistentSettings().getAsLong("value", 0L);
+    }
+
+    private static PersistedStateRegistry createPersistedStateRegistry(ClusterState clusterState) {
+        final PersistedStateRegistry persistedStateRegistry = new PersistedStateRegistry();
+        persistedStateRegistry.addPersistedState(PersistedStateType.LOCAL, new InMemoryPersistedState(0L, clusterState));
+        persistedStateRegistry.addPersistedState(PersistedStateType.REMOTE, new InMemoryPersistedState(0L, clusterState));
+        return persistedStateRegistry;
     }
 }

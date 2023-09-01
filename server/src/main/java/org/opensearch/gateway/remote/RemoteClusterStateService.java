@@ -92,7 +92,7 @@ public class RemoteClusterStateService implements Closeable {
     private final String nodeId;
     private final Supplier<RepositoriesService> repositoriesService;
     private final Settings settings;
-    private final LongSupplier relativeTimeMillisSupplier;
+    private final LongSupplier relativeTimeNanosSupplier;
     private BlobStoreRepository blobStoreRepository;
     private volatile TimeValue slowWriteLoggingThreshold;
 
@@ -101,12 +101,13 @@ public class RemoteClusterStateService implements Closeable {
         Supplier<RepositoriesService> repositoriesService,
         Settings settings,
         ClusterSettings clusterSettings,
-        LongSupplier relativeTimeMillisSupplier
+        LongSupplier relativeTimeNanosSupplier
     ) {
+        assert REMOTE_CLUSTER_STATE_ENABLED_SETTING.get(settings) == true : "Remote cluster state is not enabled";
         this.nodeId = nodeId;
         this.repositoriesService = repositoriesService;
         this.settings = settings;
-        this.relativeTimeMillisSupplier = relativeTimeMillisSupplier;
+        this.relativeTimeNanosSupplier = relativeTimeNanosSupplier;
         this.slowWriteLoggingThreshold = clusterSettings.get(SLOW_WRITE_LOGGING_THRESHOLD);
         clusterSettings.addSettingsUpdateConsumer(SLOW_WRITE_LOGGING_THRESHOLD, this::setSlowWriteLoggingThreshold);
     }
@@ -119,7 +120,7 @@ public class RemoteClusterStateService implements Closeable {
      */
     @Nullable
     public ClusterMetadataManifest writeFullMetadata(ClusterState clusterState) throws IOException {
-        final long startTimeMillis = relativeTimeMillisSupplier.getAsLong();
+        final long startTimeNanos = relativeTimeNanosSupplier.getAsLong();
         if (clusterState.nodes().isLocalNodeElectedClusterManager() == false) {
             logger.error("Local node is not elected cluster manager. Exiting");
             return null;
@@ -145,7 +146,7 @@ public class RemoteClusterStateService implements Closeable {
             allUploadedIndexMetadata.add(uploadedIndexMetadata);
         }
         final ClusterMetadataManifest manifest = uploadManifest(clusterState, allUploadedIndexMetadata, false);
-        final long durationMillis = relativeTimeMillisSupplier.getAsLong() - startTimeMillis;
+        final long durationMillis = TimeValue.nsecToMSec(relativeTimeNanosSupplier.getAsLong() - startTimeNanos);
         if (durationMillis >= slowWriteLoggingThreshold.getMillis()) {
             logger.warn(
                 "writing cluster state took [{}ms] which is above the warn threshold of [{}]; " + "wrote full state with [{}] indices",
@@ -177,7 +178,7 @@ public class RemoteClusterStateService implements Closeable {
         ClusterState clusterState,
         ClusterMetadataManifest previousManifest
     ) throws IOException {
-        final long startTimeMillis = relativeTimeMillisSupplier.getAsLong();
+        final long startTimeNanos = relativeTimeNanosSupplier.getAsLong();
         if (clusterState.nodes().isLocalNodeElectedClusterManager() == false) {
             logger.error("Local node is not elected cluster manager. Exiting");
             return null;
@@ -229,7 +230,7 @@ public class RemoteClusterStateService implements Closeable {
             allUploadedIndexMetadata.values().stream().collect(Collectors.toList()),
             false
         );
-        final long durationMillis = relativeTimeMillisSupplier.getAsLong() - startTimeMillis;
+        final long durationMillis = TimeValue.nsecToMSec(relativeTimeNanosSupplier.getAsLong() - startTimeNanos);
         if (durationMillis >= slowWriteLoggingThreshold.getMillis()) {
             logger.warn(
                 "writing cluster state took [{}ms] which is above the warn threshold of [{}]; "

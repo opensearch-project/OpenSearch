@@ -79,6 +79,20 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         Assert.assertThat(manifest, nullValue());
     }
 
+    public void testFailInitializationWhenRemoteStateDisabled() throws IOException {
+        final Settings settings = Settings.builder().build();
+        assertThrows(
+            AssertionError.class,
+            () -> new RemoteClusterStateService(
+                "test-node-id",
+                repositoriesServiceSupplier,
+                settings,
+                new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                () -> 0L
+            )
+        );
+    }
+
     public void testFailWriteFullMetadataWhenRepositoryNotSet() {
         final ClusterState clusterState = generateClusterStateWithOneIndex().nodes(nodesWithLocalNodeClusterManager()).build();
         doThrow(new RepositoryMissingException("repository missing")).when(repositoriesService).repository("remote_store_repository");
