@@ -1622,5 +1622,4 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         assertTrue(mgetResponse.getResponses()[1].isFailed());
 
     }
-
 }

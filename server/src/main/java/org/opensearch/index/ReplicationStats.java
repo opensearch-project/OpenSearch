@@ -21,6 +21,8 @@ import java.io.IOException;
 /**
  * ReplicationStats is used to provide segment replication statistics at an index,
  * node and cluster level on a segment replication enabled cluster.
+ *
+ * @opensearch.internal
  */
 public class ReplicationStats implements ToXContentFragment, Writeable {
 
@@ -74,7 +76,7 @@ public class ReplicationStats implements ToXContentFragment, Writeable {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(Fields.REPLICATION);
+        builder.startObject(Fields.SEGMENT_REPLICATION);
         builder.field(Fields.MAX_BYTES_BEHIND, new ByteSizeValue(maxBytesBehind).toString());
         builder.field(Fields.TOTAL_BYTES_BEHIND, new ByteSizeValue(totalBytesBehind).toString());
         builder.field(Fields.MAX_REPLICATION_LAG, new TimeValue(maxReplicationLag));
@@ -88,7 +90,7 @@ public class ReplicationStats implements ToXContentFragment, Writeable {
      * @opensearch.internal
      */
     static final class Fields {
-        static final String REPLICATION = "replication";
+        static final String SEGMENT_REPLICATION = "segment_replication";
         static final String MAX_BYTES_BEHIND = "max_bytes_behind";
         static final String TOTAL_BYTES_BEHIND = "total_bytes_behind";
         static final String MAX_REPLICATION_LAG = "max_replication_lag";

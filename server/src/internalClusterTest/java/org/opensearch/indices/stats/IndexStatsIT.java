@@ -1144,6 +1144,7 @@ public class IndexStatsIT extends OpenSearchIntegTestCase {
                 break;
             case SegmentReplication:
                 builder.setSegmentReplication(set);
+                break;
             default:
                 fail("new flag? " + flag);
                 break;
@@ -1486,7 +1487,11 @@ public class IndexStatsIT extends OpenSearchIntegTestCase {
 
     public void testSegmentReplicationStats() {
         String indexName = "test-index";
-        createIndex(indexName, Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 1).build());
+        createIndex(
+            indexName,
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 1).build()
+        );
+
         ensureGreen(indexName);
 
         IndicesStatsRequestBuilder builder = client().admin().indices().prepareStats();
@@ -1499,9 +1504,9 @@ public class IndexStatsIT extends OpenSearchIntegTestCase {
         createIndex(
             indexName,
             Settings.builder()
-                .put("index.number_of_shards", 1)
-                .put("index.number_of_replicas", 1)
-                .put("index.replication.type", ReplicationType.SEGMENT)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
                 .build()
         );
         ensureGreen(indexName);
