@@ -66,12 +66,11 @@ import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.node.NodeClosedException;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskManager;
-import org.opensearch.telemetry.tracing.AttributeNames;
 import org.opensearch.telemetry.tracing.Span;
 import org.opensearch.telemetry.tracing.SpanBuilder;
 import org.opensearch.telemetry.tracing.SpanScope;
 import org.opensearch.telemetry.tracing.Tracer;
-import org.opensearch.telemetry.tracing.attributes.Attributes;
+import org.opensearch.telemetry.tracing.handler.TraceableTransportResponseHandler;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -870,7 +869,10 @@ public class TransportService extends AbstractLifecycleComponent
             logger.debug("Action: " + action);
             final Span span = tracer.startSpan(SpanBuilder.from(action, connection));
             try (SpanScope spanScope = tracer.withSpanInScope(span)) {
-                final TransportResponseHandler<T> traceableTransportResponseHandler = getTransportResponseHandler(span, handler);
+                final TransportResponseHandler<T> traceableTransportResponseHandler = TraceableTransportResponseHandler.create(
+                    handler,
+                    span
+                );
                 final TransportResponseHandler<T> delegate;
                 if (request.getParentTask().isSet()) {
                     // TODO: capture the connection instead so that we can cancel child tasks on the remote connections.
@@ -921,54 +923,6 @@ public class TransportService extends AbstractLifecycleComponent
             }
             handler.handleException(te);
         }
-    }
-
-    private String createSpanName(String action, Transport.Connection connection) {
-        return action + " " + (connection.getNode() != null ? connection.getNode().getHostAddress() : null);
-    }
-
-    private <T extends TransportResponse> TransportResponseHandler<T> getTransportResponseHandler(
-        Span span,
-        TransportResponseHandler<T> handler
-    ) {
-        return new TransportResponseHandler<T>() {
-
-            @Override
-            public void handleResponse(T response) {
-                span.endSpan();
-                handler.handleResponse(response);
-            }
-
-            @Override
-            public void handleException(TransportException exp) {
-                span.setError(exp);
-                span.endSpan();
-                handler.handleException(exp);
-            }
-
-            @Override
-            public String executor() {
-                return handler.executor();
-            }
-
-            @Override
-            public T read(StreamInput in) throws IOException {
-                return handler.read(in);
-            }
-
-            @Override
-            public String toString() {
-                return handler.toString();
-            }
-        };
-    }
-
-    private Attributes populateAttributes(String action, Transport.Connection connection) {
-        Attributes attributes = Attributes.create().addAttribute(AttributeNames.TRANSPORT_ACTION, action);
-        if (connection != null && connection.getNode() != null) {
-            attributes.addAttribute(AttributeNames.TRANSPORT_TARGET_HOST, connection.getNode().getHostAddress());
-        }
-        return attributes;
     }
 
     /**
