@@ -39,12 +39,12 @@ import org.opensearch.core.common.io.stream.ProtobufWriteable;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.tasks.proto.TaskIdProto;
 import org.opensearch.core.xcontent.ContextParser;
 import org.opensearch.core.xcontent.XContentParser;
+
 import java.io.IOException;
 import java.io.OutputStream;
-
-import org.opensearch.core.tasks.proto.TaskIdProto;
 
 /**
  * Task id that consists of node id and id of the task on the node
@@ -67,7 +67,7 @@ public final class TaskId implements Writeable, ProtobufWriteable {
         }
         this.nodeId = nodeId;
         this.id = id;
-        this.taskIdProto = TaskIdProto.TaskId.newBuilder().setNodeId(nodeId).setId(id).build();;
+        this.taskIdProto = TaskIdProto.TaskId.newBuilder().setNodeId(nodeId).setId(id).build();
     }
 
     /**
@@ -76,7 +76,7 @@ public final class TaskId implements Writeable, ProtobufWriteable {
     private TaskId() {
         nodeId = "";
         id = -1;
-        taskIdProto = TaskIdProto.TaskId.newBuilder().setNodeId(nodeId).setId(id).build();;
+        taskIdProto = TaskIdProto.TaskId.newBuilder().setNodeId(nodeId).setId(id).build();
     }
 
     public TaskId(String taskId) {
@@ -119,10 +119,17 @@ public final class TaskId implements Writeable, ProtobufWriteable {
      * Read a {@linkplain TaskId} from a byte array. {@linkplain TaskId} has this rather than the usual constructor that takes a
     * {@linkplain byte[]} so we can return the {@link #EMPTY_TASK_ID} without allocating.
     */
-    public TaskId(byte[] in) throws IOException {
-        this.taskIdProto = TaskIdProto.TaskId.parseFrom(in);
-        this.nodeId = taskIdProto.getNodeId();
-        this.id = taskIdProto.getId();
+    public static TaskId readFromBytes(byte[] in) throws IOException {
+        TaskIdProto.TaskId taskIdProto = TaskIdProto.TaskId.parseFrom(in);
+        String nodeId = taskIdProto.getNodeId();
+        if (nodeId.isEmpty()) {
+            /*
+             * The only TaskId allowed to have the empty string as its nodeId is the EMPTY_TASK_ID and there is only ever one of it and it
+             * never writes its taskId to save bytes on the wire because it is by far the most common TaskId.
+             */
+            return EMPTY_TASK_ID;
+        }
+        return new TaskId(nodeId, taskIdProto.getId());
     }
 
     @Override
@@ -159,6 +166,10 @@ public final class TaskId implements Writeable, ProtobufWriteable {
 
     public boolean isSet() {
         return id != -1L;
+    }
+
+    public TaskIdProto.TaskId getTaskIdProto() {
+        return taskIdProto;
     }
 
     @Override

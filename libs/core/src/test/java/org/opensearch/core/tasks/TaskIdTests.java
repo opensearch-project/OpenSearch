@@ -30,15 +30,15 @@
  * GitHub history for details.
  */
 
-package org.opensearch.tasks;
+package org.opensearch.core.tasks;
 
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.core.tasks.TaskId;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 
 public class TaskIdTests extends OpenSearchTestCase {
@@ -52,7 +52,7 @@ public class TaskIdTests extends OpenSearchTestCase {
         int expectedSize = 31; // 8 for the task number, 1 for the string length of the uuid, 22 for the actual uuid
         for (int i = 0; i < ROUNDS; i++) {
             TaskId taskId = new TaskId(UUIDs.randomBase64UUID(random()), randomInt());
-            TaskId roundTripped = roundTrip(taskId, expectedSize, false);
+            TaskId roundTripped = roundTrip(taskId, expectedSize);
             assertNotSame(taskId, roundTripped);
             assertEquals(taskId, roundTripped);
             assertEquals(taskId.hashCode(), roundTripped.hashCode());
@@ -62,38 +62,46 @@ public class TaskIdTests extends OpenSearchTestCase {
     public void testSerializationOfEmpty() throws IOException {
         // The size of the serialized representation of the EMPTY_TASK_ID matters a lot because many requests contain it.
         int expectedSize = 1;
-        TaskId roundTripped = roundTrip(TaskId.EMPTY_TASK_ID, expectedSize, false);
+        TaskId roundTripped = roundTrip(TaskId.EMPTY_TASK_ID, expectedSize);
         assertSame(TaskId.EMPTY_TASK_ID, roundTripped);
     }
 
-    public void testSerializationProtobuf() throws IOException {
-        System.out.println("testSerializationProtobuf");
-        /*
-         * The size of the serialized representation of the TaskId doesn't really matter that much because most requests don't contain a
-         * full TaskId.
-         */
-        int expectedSize = 31; // 8 for the task number, 1 for the string length of the uuid, 22 for the actual uuid
+    public void testProtobufSerialization() throws IOException {
         for (int i = 0; i < ROUNDS; i++) {
             TaskId taskId = new TaskId(UUIDs.randomBase64UUID(random()), randomInt());
-            TaskId roundTripped = roundTrip(taskId, expectedSize, true);
+            TaskId roundTripped = roundTripForProtobuf(taskId);
             assertNotSame(taskId, roundTripped);
             assertEquals(taskId, roundTripped);
             assertEquals(taskId.hashCode(), roundTripped.hashCode());
         }
     }
 
-    private TaskId roundTrip(TaskId taskId, int expectedSize, boolean isProtobuf) throws IOException {
+    public void testProtobufSerializationOfEmpty() throws IOException {
+        // The size of the serialized representation of the EMPTY_TASK_ID matters a lot because many requests contain it.
+        TaskId roundTripped = roundTripForProtobuf(TaskId.EMPTY_TASK_ID);
+        assertSame(TaskId.EMPTY_TASK_ID, roundTripped);
+    }
+
+    private TaskId roundTrip(TaskId taskId, int expectedSize) throws IOException {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             taskId.writeTo(out);
             BytesReference bytes = out.bytes();
             assertEquals(expectedSize, bytes.length());
-            if (isProtobuf) {
-                return new TaskId(BytesReference.toBytes(bytes));
-            } else {
-                try (StreamInput in = bytes.streamInput()) {
-                    return TaskId.readFromStream(in);
-                }
+            try (StreamInput in = bytes.streamInput()) {
+                return TaskId.readFromStream(in);
             }
         }
     }
+
+    private TaskId roundTripForProtobuf(TaskId taskId) throws IOException {
+        try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            taskId.writeTo(out);
+            byte[] bytes = out.toByteArray();
+            TaskId taskId2 = TaskId.readFromBytes(bytes);
+            assertEquals(taskId.getId(), taskId2.getTaskIdProto().getId());
+            assertEquals(taskId.getNodeId(), taskId2.getTaskIdProto().getNodeId());
+            return taskId2;
+        }
+    }
+
 }

@@ -39,14 +39,6 @@ base {
   archivesBaseName = 'opensearch-core'
 }
 
-sourceSets {
-  main {
-    java {
-      srcDir "${buildDir}/generated/source/proto/main/java"
-    }
-  }
-}
-
 // we want to keep the JDKs in our IDEs set to JDK 8 until minimum JDK is bumped to 11 so we do not include this source set in our IDEs
 if (!isEclipse) {
   sourceSets {
@@ -97,6 +89,10 @@ dependencies {
   // logging
   api "org.apache.logging.log4j:log4j-api:${versions.log4j}"
 
+  // protobuf
+  api "com.google.protobuf:protobuf-java:${versions.protobuf}"
+  api "jakarta.annotation:jakarta.annotation-api:${versions.jakarta_annotation}"
+
   testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   testImplementation "junit:junit:${versions.junit}"
   testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
@@ -133,6 +129,15 @@ tasks.named("thirdPartyAudit").configure {
        'jdk.incubator.vector.VectorSpecies'
     ]
   )
+  ignoreViolations(
+    'com.google.protobuf.MessageSchema',
+    'com.google.protobuf.UnsafeUtil',
+    'com.google.protobuf.UnsafeUtil$1',
+    'com.google.protobuf.UnsafeUtil$Android32MemoryAccessor',
+    'com.google.protobuf.UnsafeUtil$Android64MemoryAccessor',
+    'com.google.protobuf.UnsafeUtil$JvmMemoryAccessor',
+    'com.google.protobuf.UnsafeUtil$MemoryAccessor'
+  )
 }
 
 tasks.named("dependencyLicenses").configure {
@@ -141,29 +146,23 @@ tasks.named("dependencyLicenses").configure {
 }
 
 tasks.named("licenseHeaders").configure {
-    dependsOn("generateProto")
-    // Ignore for protobuf generated code
-    excludes << 'org/opensearch/core/tasks/proto/*'
+  dependsOn("generateProto")
+  // Ignore for protobuf generated code
+  excludes << 'org/opensearch/core/tasks/proto/*'
 }
 
-tasks.named("compileJava").configure {
-    dependsOn("generateProto")
-    // Ignore for protobuf generated code
-    excludes << 'org/opensearch/core/tasks/proto/*'
+tasks.named("sourcesJar").configure {
+  // Ignore duplicates for protobuf generated code (main and generatedSources).
+  filesMatching("**/proto/*") {
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+  }
 }
 
-protobuf {
-  protoc {
-    artifact = "com.google.protobuf:protoc:${versions.protobuf}"
-  }
-
-  generateProtoTasks {
-    all().each { task ->
-      task.builtins {
-        java {
-          option "annotate_code"
-        }
-      }
-    }
-  }
+tasks.named("missingJavadoc").configure {
+  dependsOn("generateProto")
+  javadocMissingIgnore = [
+    "org.opensearch.core.tasks.proto.TaskIdProto",
+    "org.opensearch.core.tasks.proto.TaskIdProto.TaskIdOrBuilder",
+    "org.opensearch.core.tasks.proto"
+  ]
 }

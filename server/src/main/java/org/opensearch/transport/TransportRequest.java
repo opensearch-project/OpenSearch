@@ -77,8 +77,8 @@ public abstract class TransportRequest extends TransportMessage implements TaskA
         parentTaskId = TaskId.readFromStream(in);
     }
 
-    public TransportRequest(byte[] in) throws IOException{
-        parentTaskId = new TaskId(in);
+    public TransportRequest(byte[] in) throws IOException {
+        parentTaskId = TaskId.readFromBytes(in);
     }
 
     /**
