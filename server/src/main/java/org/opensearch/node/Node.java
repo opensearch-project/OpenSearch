@@ -671,17 +671,17 @@ public class Node implements Closeable {
                 clusterService.getClusterSettings(),
                 threadPool::relativeTimeInMillis
             );
-            final RemoteClusterStateService remoteClusterStateService;
+            final SetOnce<RemoteClusterStateService> remoteClusterStateServiceReference = new SetOnce<>();
             if (RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING.get(settings) == true) {
-                remoteClusterStateService = new RemoteClusterStateService(
-                    nodeEnvironment.nodeId(),
-                    repositoriesServiceReference::get,
-                    settings,
-                    clusterService.getClusterSettings(),
-                    threadPool::preciseRelativeTimeInNanos
+                remoteClusterStateServiceReference.set(
+                    new RemoteClusterStateService(
+                        nodeEnvironment.nodeId(),
+                        repositoriesServiceReference::get,
+                        settings,
+                        clusterService.getClusterSettings(),
+                        threadPool::preciseRelativeTimeInNanos
+                    )
                 );
-            } else {
-                remoteClusterStateService = null;
             }
 
             // collect engine factory providers from plugins
@@ -1171,7 +1171,7 @@ public class Node implements Closeable {
                 b.bind(SystemIndices.class).toInstance(systemIndices);
                 b.bind(IdentityService.class).toInstance(identityService);
                 b.bind(Tracer.class).toInstance(tracer);
-                b.bind(RemoteClusterStateService.class).toInstance(remoteClusterStateService);
+                b.bind(RemoteClusterStateService.class).toProvider(remoteClusterStateServiceReference::get);
                 b.bind(PersistedStateRegistry.class).toInstance(persistedStateRegistry);
             });
             injector = modules.createInjector();
