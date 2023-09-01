@@ -61,6 +61,16 @@ public final class OTelTelemetrySettings {
     );
 
     /**
+     * span exporter endpoint in string
+     */
+    public static final Setting<String> TRACER_SPAN_EXPORTER_ENDPOINT = Setting.simpleString(
+        "telemetry.otel.tracer.exporter.endpoint",
+        "",
+        Setting.Property.NodeScope,
+        Setting.Property.Final
+    );
+
+    /**
      * Span Exporter type setting.
      */
     @SuppressWarnings("unchecked")

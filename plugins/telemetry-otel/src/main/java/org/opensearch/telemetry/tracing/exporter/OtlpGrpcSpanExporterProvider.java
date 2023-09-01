@@ -8,6 +8,9 @@
 
 package org.opensearch.telemetry.tracing.exporter;
 
+import org.opensearch.common.settings.Settings;
+import org.opensearch.telemetry.OTelTelemetrySettings;
+
 import java.util.Collection;
 
 import io.opentelemetry.exporter.otlp.trace.OtlpGrpcSpanExporter;
@@ -18,7 +21,7 @@ import io.opentelemetry.sdk.trace.export.SpanExporter;
 /**
 * OtlpGrpcSpanExporterProvider class creates an instance of OtlpGrpcSpanExporter
 */
-public class OtlpGrpcSpanExporterProvider implements SpanExporter {
+public final class OtlpGrpcSpanExporterProvider implements SpanExporter {
 
     private OtlpGrpcSpanExporter delegate;
 
@@ -29,9 +32,17 @@ public class OtlpGrpcSpanExporterProvider implements SpanExporter {
     /**
      * create() is expected by OTelSpanExporterFactory. This creates an instance of
      * OtlpGrpcSpanExporter and sets https endpoint.
+     * @param settings settings
+     * @return OtlpGrpcSpanExporterProvider instance.
      */
-    public static OtlpGrpcSpanExporterProvider create() {
-        OtlpGrpcSpanExporter exporter = OtlpGrpcSpanExporter.builder().setEndpoint("https://localhost:4317").build();
+    public static OtlpGrpcSpanExporterProvider create(Settings settings) {
+        OtlpGrpcSpanExporter exporter;
+        String endpoint = OTelTelemetrySettings.TRACER_SPAN_EXPORTER_ENDPOINT.get(settings);
+        if (endpoint.isEmpty()) {
+            exporter = OtlpGrpcSpanExporter.builder().build();
+        } else {
+            exporter = OtlpGrpcSpanExporter.builder().setEndpoint(endpoint).build();
+        }
         return new OtlpGrpcSpanExporterProvider(exporter);
     }
 

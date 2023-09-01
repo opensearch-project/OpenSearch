@@ -45,21 +45,41 @@ public class OTelSpanExporterFactory {
      */
     public static SpanExporter create(Settings settings) {
         Class<SpanExporter> spanExporterProviderClass = OTelTelemetrySettings.OTEL_TRACER_SPAN_EXPORTER_CLASS_SETTING.get(settings);
-        SpanExporter spanExporter = instantiateSpanExporter(spanExporterProviderClass);
+        SpanExporter spanExporter = instantiateSpanExporter(spanExporterProviderClass, settings);
         logger.info("Successfully instantiated the SpanExporter class {}", spanExporterProviderClass);
         return spanExporter;
     }
 
-    private static SpanExporter instantiateSpanExporter(Class<SpanExporter> spanExporterProviderClass) {
+    private static SpanExporter instantiateSpanExporter(Class<SpanExporter> spanExporterProviderClass, Settings settings) {
         try {
             // Check we ourselves are not being called by unprivileged code.
             SpecialPermission.check();
             return AccessController.doPrivileged((PrivilegedExceptionAction<SpanExporter>) () -> {
                 try {
-                    return (SpanExporter) MethodHandles.publicLookup()
-                        .findStatic(spanExporterProviderClass, "create", MethodType.methodType(spanExporterProviderClass))
-                        .asType(MethodType.methodType(SpanExporter.class))
-                        .invokeExact();
+                    String methodName = "create";
+                    boolean createMethodWithSettingsParamExists = true;
+                    try {
+                        // Attempt to get the method with the specified name and parameter types
+                        spanExporterProviderClass.getMethod(methodName, Settings.class);
+                    } catch (NoSuchMethodException e) {
+                        createMethodWithSettingsParamExists = false;
+                    }
+                    if (createMethodWithSettingsParamExists) {
+                        return (SpanExporter) MethodHandles.publicLookup()
+                            .findStatic(
+                                spanExporterProviderClass,
+                                methodName,
+                                MethodType.methodType(spanExporterProviderClass, Settings.class)
+                            )
+                            .asType(MethodType.methodType(SpanExporter.class, Settings.class))
+                            .invokeExact(settings);
+                    } else {
+                        return (SpanExporter) MethodHandles.publicLookup()
+                            .findStatic(spanExporterProviderClass, methodName, MethodType.methodType(spanExporterProviderClass))
+                            .asType(MethodType.methodType(SpanExporter.class))
+                            .invokeExact();
+                    }
+
                 } catch (Throwable e) {
                     if (e.getCause() instanceof NoSuchMethodException) {
                         throw new IllegalStateException("No create factory method exist in [" + spanExporterProviderClass.getName() + "]");

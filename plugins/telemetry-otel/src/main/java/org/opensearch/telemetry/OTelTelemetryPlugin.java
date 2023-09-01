@@ -44,7 +44,8 @@ public class OTelTelemetryPlugin extends Plugin implements TelemetryPlugin {
             OTelTelemetrySettings.TRACER_EXPORTER_BATCH_SIZE_SETTING,
             OTelTelemetrySettings.TRACER_EXPORTER_DELAY_SETTING,
             OTelTelemetrySettings.TRACER_EXPORTER_MAX_QUEUE_SIZE_SETTING,
-            OTelTelemetrySettings.OTEL_TRACER_SPAN_EXPORTER_CLASS_SETTING
+            OTelTelemetrySettings.OTEL_TRACER_SPAN_EXPORTER_CLASS_SETTING,
+            OTelTelemetrySettings.TRACER_SPAN_EXPORTER_ENDPOINT
         );
     }
 
