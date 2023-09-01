@@ -88,7 +88,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class QueryProfilerTests extends OpenSearchTestCase {
-    private final int concurrency;
     private Directory dir;
     private IndexReader reader;
     private ContextIndexSearcher searcher;
@@ -105,7 +104,6 @@ public class QueryProfilerTests extends OpenSearchTestCase {
 
     public QueryProfilerTests(int concurrency) {
         this.executor = (concurrency > 0) ? Executors.newFixedThreadPool(concurrency) : null;
-        this.concurrency = concurrency;
     }
 
     @Before
@@ -185,7 +183,7 @@ public class QueryProfilerTests extends OpenSearchTestCase {
         assertThat(breakdown.get(QueryTimingType.SCORE + TIMING_TYPE_COUNT_SUFFIX), greaterThan(0L));
         assertThat(breakdown.get(QueryTimingType.MATCH + TIMING_TYPE_COUNT_SUFFIX), equalTo(0L));
 
-        if (concurrency > 0) {
+        if (executor != null) {
             assertThat(profileResult.getMaxSliceTime(), is(not(nullValue())));
             assertThat(profileResult.getMinSliceTime(), is(not(nullValue())));
             assertThat(profileResult.getAvgSliceTime(), is(not(nullValue())));
@@ -252,7 +250,7 @@ public class QueryProfilerTests extends OpenSearchTestCase {
         assertThat(breakdown.get(QueryTimingType.SCORE + TIMING_TYPE_COUNT_SUFFIX), equalTo(0L));
         assertThat(breakdown.get(QueryTimingType.MATCH + TIMING_TYPE_COUNT_SUFFIX), equalTo(0L));
 
-        if (concurrency > 0) {
+        if (executor != null) {
             assertThat(profileResult.getMaxSliceTime(), is(not(nullValue())));
             assertThat(profileResult.getMinSliceTime(), is(not(nullValue())));
             assertThat(profileResult.getAvgSliceTime(), is(not(nullValue())));
@@ -333,7 +331,7 @@ public class QueryProfilerTests extends OpenSearchTestCase {
         assertThat(breakdown.get(QueryTimingType.SCORE + TIMING_TYPE_COUNT_SUFFIX), equalTo(0L));
         assertThat(breakdown.get(QueryTimingType.MATCH + TIMING_TYPE_COUNT_SUFFIX), greaterThan(0L));
 
-        if (concurrency > 0) {
+        if (executor != null) {
             assertThat(profileResult.getMaxSliceTime(), is(not(nullValue())));
             assertThat(profileResult.getMinSliceTime(), is(not(nullValue())));
             assertThat(profileResult.getAvgSliceTime(), is(not(nullValue())));
