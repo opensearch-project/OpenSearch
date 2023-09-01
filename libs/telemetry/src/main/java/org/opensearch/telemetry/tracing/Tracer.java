@@ -8,6 +8,7 @@
 
 package org.opensearch.telemetry.tracing;
 
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.telemetry.tracing.attributes.Attributes;
 import org.opensearch.telemetry.tracing.http.HttpTracer;
 
@@ -18,7 +19,10 @@ import java.io.Closeable;
  * It automatically handles the context propagation between threads, tasks, nodes etc.
  *
  * All methods on the Tracer object are multi-thread safe.
+ *
+ * @opensearch.experimental
  */
+@ExperimentalApi
 public interface Tracer extends HttpTracer, Closeable {
     /**
      * Starts the {@link Span} with given {@link SpanCreationContext}
