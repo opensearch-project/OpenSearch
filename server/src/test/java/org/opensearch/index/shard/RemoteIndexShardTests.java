@@ -12,6 +12,7 @@ import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.util.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.engine.DocIdSeqNoAndSource;
@@ -63,18 +64,22 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
         return createGroup(numberOfReplicas, settings, indexMapping, new NRTReplicationEngineFactory(), createTempDir());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/9624")
     public void testNRTReplicaWithRemoteStorePromotedAsPrimaryRefreshRefresh() throws Exception {
         testNRTReplicaWithRemoteStorePromotedAsPrimary(false, false);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/9624")
     public void testNRTReplicaWithRemoteStorePromotedAsPrimaryRefreshCommit() throws Exception {
         testNRTReplicaWithRemoteStorePromotedAsPrimary(false, true);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/9624")
     public void testNRTReplicaWithRemoteStorePromotedAsPrimaryCommitRefresh() throws Exception {
         testNRTReplicaWithRemoteStorePromotedAsPrimary(true, false);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/9624")
     public void testNRTReplicaWithRemoteStorePromotedAsPrimaryCommitCommit() throws Exception {
         testNRTReplicaWithRemoteStorePromotedAsPrimary(true, true);
     }
@@ -204,11 +209,14 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
                 Set.of("segments_3"),
                 primary.remoteStore().readLastCommittedSegmentsInfo().files(true)
             );
-            MatcherAssert.assertThat(
-                "Segments are referenced in memory only",
-                primaryEngine.getSegmentInfosSnapshot().get().files(false),
-                containsInAnyOrder("_0.cfe", "_0.si", "_0.cfs")
-            );
+
+            try (final GatedCloseable<SegmentInfos> segmentInfosSnapshot = primaryEngine.getSegmentInfosSnapshot()) {
+                MatcherAssert.assertThat(
+                    "Segments are referenced in memory only",
+                    segmentInfosSnapshot.get().files(false),
+                    containsInAnyOrder("_0.cfe", "_0.si", "_0.cfs")
+                );
+            }
 
             final IndexShard replica = shards.addReplica(remotePath);
             replica.store().createEmpty(Version.LATEST);
@@ -236,13 +244,17 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
             MatcherAssert.assertThat(
                 "Replica commits infos bytes referencing latest refresh point",
                 latestReplicaCommit.files(true),
-                containsInAnyOrder("_0.cfe", "_0.si", "_0.cfs", "segments_5")
+                containsInAnyOrder("_0.cfe", "_0.si", "_0.cfs", "segments_6")
             );
-            MatcherAssert.assertThat(
-                "Segments are referenced in memory",
-                replicaEngine.getSegmentInfosSnapshot().get().files(false),
-                containsInAnyOrder("_0.cfe", "_0.si", "_0.cfs")
-            );
+
+            try (final GatedCloseable<SegmentInfos> segmentInfosSnapshot = replicaEngine.getSegmentInfosSnapshot()) {
+                MatcherAssert.assertThat(
+                    "Segments are referenced in memory",
+                    segmentInfosSnapshot.get().files(false),
+                    containsInAnyOrder("_0.cfe", "_0.si", "_0.cfs")
+                );
+            }
+
             final Store.RecoveryDiff recoveryDiff = Store.segmentReplicationDiff(
                 primary.getSegmentMetadataMap(),
                 replica.getSegmentMetadataMap()
@@ -294,20 +306,20 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
             replicateSegments(primary, shards.getReplicas());
             assertDocCount(primary, 1);
             assertDocCount(replica, 1);
-            assertEquals("segments_4", replica.store().readLastCommittedSegmentsInfo().getSegmentsFileName());
-            assertSingleSegmentFile(replica, "segments_4");
+            assertEquals("segments_5", replica.store().readLastCommittedSegmentsInfo().getSegmentsFileName());
+            assertSingleSegmentFile(replica, "segments_5");
 
             shards.indexDocs(1);
             primary.refresh("test");
             replicateSegments(primary, shards.getReplicas());
             assertDocCount(replica, 2);
-            assertSingleSegmentFile(replica, "segments_4");
+            assertSingleSegmentFile(replica, "segments_5");
 
             shards.indexDocs(1);
             flushShard(primary);
             replicateSegments(primary, shards.getReplicas());
             assertDocCount(replica, 3);
-            assertSingleSegmentFile(replica, "segments_5");
+            assertSingleSegmentFile(replica, "segments_6");
 
             final Store.RecoveryDiff diff = Store.segmentReplicationDiff(primary.getSegmentMetadataMap(), replica.getSegmentMetadataMap());
             assertTrue(diff.missing.isEmpty());

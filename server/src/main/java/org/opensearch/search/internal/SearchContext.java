@@ -487,4 +487,6 @@ public abstract class SearchContext implements Releasable {
     public abstract BucketCollectorProcessor bucketCollectorProcessor();
 
     public abstract int getTargetMaxSliceCount();
+
+    public abstract boolean shouldUseTimeSeriesDescSortOptimization();
 }

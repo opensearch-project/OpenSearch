@@ -32,6 +32,7 @@
 
 package org.opensearch.core.index.shard;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -45,8 +46,9 @@ import java.io.IOException;
 /**
  * Allows for shard level components to be injected with the shard id.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class ShardId implements Comparable<ShardId>, ToXContentFragment, Writeable {
 
     private final Index index;

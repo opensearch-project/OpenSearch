@@ -52,6 +52,7 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.SegmentReplicationShardStats;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.common.ReplicationType;
+import org.opensearch.indices.replication.common.SegmentReplicationLagTimer;
 import org.opensearch.test.IndexSettingsModule;
 
 import java.io.IOException;
@@ -1851,8 +1852,11 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         );
 
         tracker.setLatestReplicationCheckpoint(initialCheckpoint);
+        tracker.startReplicationLagTimers(initialCheckpoint);
         tracker.setLatestReplicationCheckpoint(secondCheckpoint);
+        tracker.startReplicationLagTimers(secondCheckpoint);
         tracker.setLatestReplicationCheckpoint(thirdCheckpoint);
+        tracker.startReplicationLagTimers(thirdCheckpoint);
 
         final Set<String> expectedIds = ids(initializingIds);
 
@@ -1861,6 +1865,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         for (SegmentReplicationShardStats shardStat : groupStats) {
             assertEquals(3, shardStat.getCheckpointsBehindCount());
             assertEquals(100L, shardStat.getBytesBehindCount());
+            assertTrue(shardStat.getCurrentReplicationLagMillis() >= shardStat.getCurrentReplicationTimeMillis());
         }
 
         // simulate replicas moved up to date.
@@ -1936,6 +1941,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
             Codec.getDefault().getName()
         );
         tracker.setLatestReplicationCheckpoint(initialCheckpoint);
+        tracker.startReplicationLagTimers(initialCheckpoint);
 
         // we expect that the only returned ids from getSegmentReplicationStats will be the initializing ids we marked with
         // markAsTrackingAndInSyncQuietly.
@@ -2159,6 +2165,17 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
 
         expectThrows(IllegalStateException.class, () -> tracker.initiateTracking(randomAlphaOfLength(10)));
         expectThrows(IllegalStateException.class, () -> tracker.markAllocationIdAsInSync(randomAlphaOfLength(10), randomNonNegativeLong()));
+    }
+
+    public void testSegRepTimer() throws Throwable {
+        SegmentReplicationLagTimer timer = new SegmentReplicationLagTimer();
+        Thread.sleep(100);
+        timer.start();
+        Thread.sleep(100);
+        timer.stop();
+        assertTrue("Total time since timer started should be greater than 100", timer.time() >= 100);
+        assertTrue("Total time since timer was created should be greater than 200", timer.totalElapsedTime() >= 200);
+        assertTrue("Total elapsed time should be greater than time since timer start", timer.totalElapsedTime() - timer.time() >= 100);
     }
 
 }

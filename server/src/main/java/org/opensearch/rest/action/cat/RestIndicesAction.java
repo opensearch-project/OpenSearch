@@ -581,6 +581,23 @@ public class RestIndicesAction extends AbstractCatAction {
             "sibling:pri;alias:sqto,searchQueryTotal;default:false;text-align:right;desc:total query phase ops"
         );
         table.addCell("pri.search.query_total", "default:false;text-align:right;desc:total query phase ops");
+        table.addCell(
+            "search.concurrent_query_current",
+            "sibling:pri;alias:scqc,searchConcurrentQueryCurrent;default:false;text-align:right;desc:current concurrent query phase ops"
+        );
+        table.addCell("pri.search.concurrent_query_current", "default:false;text-align:right;desc:current concurrent query phase ops");
+
+        table.addCell(
+            "search.concurrent_query_time",
+            "sibling:pri;alias:scqti,searchConcurrentQueryTime;default:false;text-align:right;desc:time spent in concurrent query phase"
+        );
+        table.addCell("pri.search.concurrent_query_time", "default:false;text-align:right;desc:time spent in concurrent query phase");
+
+        table.addCell(
+            "search.concurrent_query_total",
+            "sibling:pri;alias:scqto,searchConcurrentQueryTotal;default:false;text-align:right;desc:total query phase ops"
+        );
+        table.addCell("pri.search.concurrent_query_total", "default:false;text-align:right;desc:total query phase ops");
 
         table.addCell(
             "search.scroll_current",
@@ -889,6 +906,15 @@ public class RestIndicesAction extends AbstractCatAction {
 
             table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getQueryCount());
             table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getQueryCount());
+
+            table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getConcurrentQueryCurrent());
+            table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getConcurrentQueryCurrent());
+
+            table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getConcurrentQueryTime());
+            table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getConcurrentQueryTime());
+
+            table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getConcurrentQueryCount());
+            table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getConcurrentQueryCount());
 
             table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getScrollCurrent());
             table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getScrollCurrent());
