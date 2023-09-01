@@ -147,7 +147,7 @@ public interface DateFormatter {
      */
     DateMathParser toDateMathParser();
 
-    static DateFormatter forPattern(String input, Boolean canCacheFormatter) {
+    static DateFormatter forPattern(String input, String printPattern, Boolean canCacheFormatter) {
 
         if (Strings.hasLength(input) == false) {
             throw new IllegalArgumentException("No date pattern provided");
@@ -158,11 +158,28 @@ public interface DateFormatter {
         List<String> patterns = splitCombinedPatterns(format);
         List<DateFormatter> formatters = patterns.stream().map(DateFormatters::forPattern).collect(Collectors.toList());
 
-        return JavaDateFormatter.combined(input, formatters, canCacheFormatter);
+        DateFormatter printFormatter = formatters.get(0);
+        if (Strings.hasLength(printPattern)) {
+            String printFormat = strip8Prefix(printPattern);
+            try {
+                printFormatter = DateFormatters.forPattern(printFormat);
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException("Invalid print format: " + e.getMessage(), e);
+            }
+        }
+        return JavaDateFormatter.combined(input, formatters, printFormatter, canCacheFormatter);
     }
 
     static DateFormatter forPattern(String input) {
-        return forPattern(input, false);
+        return forPattern(input, null, false);
+    }
+
+    static DateFormatter forPattern(String input, String printPattern) {
+        return forPattern(input, printPattern, false);
+    }
+
+    static DateFormatter forPattern(String input, Boolean canCacheFormatter) {
+        return forPattern(input, null, canCacheFormatter);
     }
 
     static String strip8Prefix(String input) {

@@ -93,6 +93,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
     public static final String DATE_NANOS_CONTENT_TYPE = "date_nanos";
     public static final DateFormatter DEFAULT_DATE_TIME_FORMATTER = DateFormatter.forPattern(
         "strict_date_time_no_millis||strict_date_optional_time||epoch_millis",
+        "strict_date_optional_time",
         true
     );
 

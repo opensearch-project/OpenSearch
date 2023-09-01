@@ -181,19 +181,23 @@ class JavaDateFormatter implements DateFormatter {
         return null;
     }
 
-    public static DateFormatter combined(String input, List<DateFormatter> formatters, Boolean canCacheLastParsedFormatter) {
+    public static DateFormatter combined(
+        String input,
+        List<DateFormatter> formatters,
+        DateFormatter printFormatter,
+        Boolean canCacheLastParsedFormatter
+    ) {
         assert formatters.size() > 0;
+        assert printFormatter != null;
 
         List<DateTimeFormatter> parsers = new ArrayList<>(formatters.size());
         List<DateTimeFormatter> roundUpParsers = new ArrayList<>(formatters.size());
 
-        DateTimeFormatter printer = null;
+        assert printFormatter instanceof JavaDateFormatter;
+        DateTimeFormatter printer = ((JavaDateFormatter) printFormatter).getPrinter();
         for (DateFormatter formatter : formatters) {
             assert formatter instanceof JavaDateFormatter;
             JavaDateFormatter javaDateFormatter = (JavaDateFormatter) formatter;
-            if (printer == null) {
-                printer = javaDateFormatter.getPrinter();
-            }
             parsers.addAll(javaDateFormatter.getParsers());
             roundUpParsers.addAll(javaDateFormatter.getRoundupParser().getParsers());
         }
