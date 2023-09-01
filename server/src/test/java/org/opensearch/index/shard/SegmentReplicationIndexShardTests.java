@@ -30,6 +30,8 @@ import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.SegmentReplicationShardStats;
+import org.opensearch.index.engine.DocIdSeqNoAndSource;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.InternalEngineFactory;
 import org.opensearch.index.engine.NRTReplicationEngine;
@@ -69,6 +71,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -803,6 +806,65 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             shards.promoteReplicaToPrimary(replicaShard).get();
             assertNull("Expected correct doc count during engine reset", failed.get());
         }
+    }
+
+    public void testSegmentReplicationStats() throws Exception {
+        final NRTReplicationEngineFactory engineFactory = new NRTReplicationEngineFactory();
+        final NRTReplicationEngineFactory spy = spy(engineFactory);
+        try (ReplicationGroup shards = createGroup(1, settings, indexMapping, spy, createTempDir())) {
+            final IndexShard primaryShard = shards.getPrimary();
+            final IndexShard replicaShard = shards.getReplicas().get(0);
+            shards.startAll();
+
+            assertReplicaCaughtUp(primaryShard);
+
+            shards.indexDocs(10);
+            shards.refresh("test");
+
+            final ReplicationCheckpoint primaryCheckpoint = primaryShard.getLatestReplicationCheckpoint();
+            final long initialCheckpointSize = primaryCheckpoint.getMetadataMap()
+                .values()
+                .stream()
+                .mapToLong(StoreFileMetadata::length)
+                .sum();
+
+            Set<SegmentReplicationShardStats> postRefreshStats = primaryShard.getReplicationStats();
+            SegmentReplicationShardStats shardStats = postRefreshStats.stream().findFirst().get();
+            assertEquals(1, shardStats.getCheckpointsBehindCount());
+            assertEquals(initialCheckpointSize, shardStats.getBytesBehindCount());
+            replicateSegments(primaryShard, shards.getReplicas());
+            assertReplicaCaughtUp(primaryShard);
+            shards.assertAllEqual(10);
+
+            final List<DocIdSeqNoAndSource> docIdAndSeqNos = getDocIdAndSeqNos(primaryShard);
+            for (DocIdSeqNoAndSource docIdAndSeqNo : docIdAndSeqNos.subList(0, 5)) {
+                deleteDoc(primaryShard, docIdAndSeqNo.getId());
+                // delete on replica for xlog.
+                deleteDoc(replicaShard, docIdAndSeqNo.getId());
+            }
+            primaryShard.forceMerge(new ForceMergeRequest().maxNumSegments(1).flush(true));
+
+            final Map<String, StoreFileMetadata> segmentMetadataMap = primaryShard.getSegmentMetadataMap();
+            final Store.RecoveryDiff diff = Store.segmentReplicationDiff(segmentMetadataMap, replicaShard.getSegmentMetadataMap());
+            final long sizeAfterDeleteAndCommit = diff.missing.stream().mapToLong(StoreFileMetadata::length).sum();
+
+            final Set<SegmentReplicationShardStats> statsAfterFlush = primaryShard.getReplicationStats();
+            shardStats = statsAfterFlush.stream().findFirst().get();
+            assertEquals(sizeAfterDeleteAndCommit, shardStats.getBytesBehindCount());
+            assertEquals(1, shardStats.getCheckpointsBehindCount());
+
+            replicateSegments(primaryShard, shards.getReplicas());
+            assertReplicaCaughtUp(primaryShard);
+            shards.assertAllEqual(5);
+        }
+    }
+
+    private void assertReplicaCaughtUp(IndexShard primaryShard) {
+        Set<SegmentReplicationShardStats> initialStats = primaryShard.getReplicationStats();
+        assertEquals(initialStats.size(), 1);
+        SegmentReplicationShardStats shardStats = initialStats.stream().findFirst().get();
+        assertEquals(0, shardStats.getCheckpointsBehindCount());
+        assertEquals(0, shardStats.getBytesBehindCount());
     }
 
     /**
