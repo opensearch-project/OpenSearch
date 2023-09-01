@@ -30,10 +30,8 @@ public class TraceableTaskListener<Response> implements TaskListener<Response> {
      * @param span span
      */
     private TraceableTaskListener(TaskListener<Response> delegate, Span span) {
-        Objects.requireNonNull(delegate);
-        Objects.requireNonNull(span);
-        this.delegate = delegate;
-        this.span = span;
+        this.delegate = Objects.requireNonNull(delegate);
+        this.span = Objects.requireNonNull(span);
     }
 
     /**
@@ -43,7 +41,7 @@ public class TraceableTaskListener<Response> implements TaskListener<Response> {
      * @return task listener
      */
     public static TaskListener create(TaskListener delegate, Span span) {
-        if (FeatureFlags.isEnabled(FeatureFlags.TELEMETRY)) {
+        if (FeatureFlags.isEnabled(FeatureFlags.TELEMETRY) == true) {
             return new TraceableTaskListener(delegate, span);
         } else {
             return delegate;

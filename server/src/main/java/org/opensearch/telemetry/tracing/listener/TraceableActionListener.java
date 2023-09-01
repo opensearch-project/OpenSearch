@@ -29,10 +29,8 @@ public class TraceableActionListener<Response> implements ActionListener<Respons
      * @param span span
      */
     private TraceableActionListener(ActionListener<Response> delegate, Span span) {
-        Objects.requireNonNull(delegate);
-        Objects.requireNonNull(span);
-        this.delegate = delegate;
-        this.span = span;
+        this.delegate = Objects.requireNonNull(delegate);
+        this.span = Objects.requireNonNull(span);
     }
 
     /**
@@ -42,7 +40,7 @@ public class TraceableActionListener<Response> implements ActionListener<Respons
      * @return action listener
      */
     public static ActionListener create(ActionListener delegate, Span span) {
-        if (FeatureFlags.isEnabled(FeatureFlags.TELEMETRY)) {
+        if (FeatureFlags.isEnabled(FeatureFlags.TELEMETRY) == true) {
             return new TraceableActionListener(delegate, span);
         } else {
             return delegate;

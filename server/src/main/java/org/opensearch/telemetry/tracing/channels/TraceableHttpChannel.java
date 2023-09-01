@@ -32,10 +32,8 @@ public class TraceableHttpChannel implements HttpChannel {
      * @param span span
      */
     private TraceableHttpChannel(HttpChannel delegate, Span span) {
-        Objects.requireNonNull(delegate);
-        Objects.requireNonNull(span);
-        this.span = span;
-        this.delegate = delegate;
+        this.span = Objects.requireNonNull(span);
+        this.delegate = Objects.requireNonNull(delegate);
     }
 
     /**
@@ -45,7 +43,7 @@ public class TraceableHttpChannel implements HttpChannel {
      * @return http channel
      */
     public static HttpChannel create(HttpChannel delegate, Span span) {
-        if (FeatureFlags.isEnabled(FeatureFlags.TELEMETRY)) {
+        if (FeatureFlags.isEnabled(FeatureFlags.TELEMETRY) == true) {
             return new TraceableHttpChannel(delegate, span);
         } else {
             return delegate;

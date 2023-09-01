@@ -56,6 +56,7 @@ import java.util.function.Supplier;
  * @opensearch.internal
  */
 public class NodeClient extends AbstractClient {
+
     private DynamicActionRegistry actionRegistry;
     /**
      * The id of the local {@link DiscoveryNode}. Useful for generating task ids from tasks returned by
