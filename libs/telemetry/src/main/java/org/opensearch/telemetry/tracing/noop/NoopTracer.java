@@ -8,7 +8,10 @@
 
 package org.opensearch.telemetry.tracing.noop;
 
+import org.opensearch.telemetry.tracing.ScopedSpan;
+import org.opensearch.telemetry.tracing.Span;
 import org.opensearch.telemetry.tracing.SpanContext;
+import org.opensearch.telemetry.tracing.SpanCreationContext;
 import org.opensearch.telemetry.tracing.SpanScope;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.telemetry.tracing.attributes.Attributes;
@@ -31,23 +34,43 @@ public class NoopTracer implements Tracer {
     private NoopTracer() {}
 
     @Override
-    public SpanScope startSpan(String spanName) {
-        return SpanScope.NO_OP;
+    public Span startSpan(SpanCreationContext context) {
+        return NoopSpan.INSTANCE;
     }
 
     @Override
-    public SpanScope startSpan(String spanName, Attributes attributes) {
-        return SpanScope.NO_OP;
+    public Span startSpan(String spanName) {
+        return NoopSpan.INSTANCE;
     }
 
     @Override
-    public SpanScope startSpan(String spanName, SpanContext parentSpan, Attributes attributes) {
-        return SpanScope.NO_OP;
+    public Span startSpan(String spanName, Attributes attributes) {
+        return NoopSpan.INSTANCE;
+    }
+
+    @Override
+    public Span startSpan(String spanName, SpanContext parentSpan, Attributes attributes) {
+        return NoopSpan.INSTANCE;
     }
 
     @Override
     public SpanContext getCurrentSpan() {
-        return null;
+        return new SpanContext(NoopSpan.INSTANCE);
+    }
+
+    @Override
+    public ScopedSpan startScopedSpan(SpanCreationContext spanCreationContext) {
+        return ScopedSpan.NO_OP;
+    }
+
+    @Override
+    public ScopedSpan startScopedSpan(SpanCreationContext spanCreationContext, SpanContext parentSpan) {
+        return ScopedSpan.NO_OP;
+    }
+
+    @Override
+    public SpanScope withSpanInScope(Span span) {
+        return SpanScope.NO_OP;
     }
 
     @Override
@@ -56,7 +79,7 @@ public class NoopTracer implements Tracer {
     }
 
     @Override
-    public SpanScope startSpan(String spanName, Map<String, List<String>> header, Attributes attributes) {
-        return SpanScope.NO_OP;
+    public Span startSpan(String spanName, Map<String, List<String>> header, Attributes attributes) {
+        return NoopSpan.INSTANCE;
     }
 }

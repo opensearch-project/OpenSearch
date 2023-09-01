@@ -37,6 +37,7 @@ import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.single.shard.TransportSingleShardAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.routing.Preference;
 import org.opensearch.cluster.routing.ShardIterator;
 import org.opensearch.cluster.service.ClusterService;
@@ -92,8 +93,8 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
     /**
      * Returns true if GET request should be routed to primary shards, else false.
      */
-    protected static boolean shouldForcePrimaryRouting(ClusterState state, boolean realtime, String preference, String indexName) {
-        return state.isSegmentReplicationEnabled(indexName) && realtime && preference == null;
+    protected static boolean shouldForcePrimaryRouting(Metadata metadata, boolean realtime, String preference, String indexName) {
+        return metadata.isSegmentReplicationEnabled(indexName) && realtime && preference == null;
     }
 
     @Override
@@ -101,7 +102,12 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
         final String preference;
         // route realtime GET requests when segment replication is enabled to primary shards,
         // iff there are no other preferences/routings enabled for routing to a specific shard
-        if (shouldForcePrimaryRouting(state, request.request().realtime, request.request().preference(), request.concreteIndex())) {
+        if (shouldForcePrimaryRouting(
+            state.getMetadata(),
+            request.request().realtime,
+            request.request().preference(),
+            request.concreteIndex()
+        )) {
             preference = Preference.PRIMARY.type();
         } else {
             preference = request.request().preference();
