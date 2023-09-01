@@ -15,9 +15,9 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.mapper.MapperService;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Map;
+import java.util.stream.Stream;
 
 import static org.opensearch.index.engine.EngineConfig.INDEX_CODEC_COMPRESSION_LEVEL_SETTING;
 
@@ -67,8 +67,6 @@ public class CustomCodecService extends CodecService {
 
     @Override
     public String[] availableCodecs() {
-        ArrayList<String> ac = new ArrayList<String>(Arrays.asList(super.availableCodecs()));
-        ac.addAll(codecs.keySet());
-        return ac.toArray(new String[0]);
+        return Stream.concat(Arrays.stream(super.availableCodecs()), codecs.keySet().stream()).toArray(String[]::new);
     }
 }

@@ -10,7 +10,6 @@
  */
 
 apply plugin: 'opensearch.opensearchplugin'
-apply plugin: 'opensearch.yaml-rest-test'
 apply plugin: 'opensearch.internal-cluster-test'
 
 opensearchplugin {
@@ -25,5 +24,4 @@ dependencies {
   api "com.github.luben:zstd-jni:1.5.5-5"
 }
 
-yamlRestTest.enabled = false;
 testingConventions.enabled = false;
