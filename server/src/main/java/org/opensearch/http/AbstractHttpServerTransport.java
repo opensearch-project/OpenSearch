@@ -54,12 +54,10 @@ import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.rest.RestChannel;
 import org.opensearch.rest.RestRequest;
-import org.opensearch.telemetry.tracing.AttributeNames;
 import org.opensearch.telemetry.tracing.Span;
 import org.opensearch.telemetry.tracing.SpanBuilder;
 import org.opensearch.telemetry.tracing.SpanScope;
 import org.opensearch.telemetry.tracing.Tracer;
-import org.opensearch.telemetry.tracing.attributes.Attributes;
 import org.opensearch.telemetry.tracing.channels.TraceableHttpChannel;
 import org.opensearch.telemetry.tracing.channels.TraceableRestChannel;
 import org.opensearch.threadpool.ThreadPool;
@@ -93,7 +91,6 @@ import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_PUBLISH_POR
 public abstract class AbstractHttpServerTransport extends AbstractLifecycleComponent implements HttpServerTransport {
     private static final Logger logger = LogManager.getLogger(AbstractHttpServerTransport.class);
     private static final ActionListener<Void> NO_OP = ActionListener.wrap(() -> {});
-    private static final List<String> HEADERS_TO_BE_ADDED_AS_ATTRIBUTES = Arrays.asList(AttributeNames.TRACE);
 
     protected final Settings settings;
     public final HttpHandlingSettings handlingSettings;
@@ -373,14 +370,6 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         }
     }
 
-    private void populateHeader(HttpRequest httpRequest, Attributes attributes) {
-        HEADERS_TO_BE_ADDED_AS_ATTRIBUTES.forEach(x -> {
-            if (httpRequest.getHeaders() != null && httpRequest.getHeaders().get(x) != null) {
-                attributes.addAttribute(x, Strings.collectionToCommaDelimitedString(httpRequest.getHeaders().get(x)));
-            }
-        });
-    }
-
     // Visible for testing
     void dispatchRequest(final RestRequest restRequest, final RestChannel channel, final Throwable badRequestCause) {
         RestChannel traceableRestChannel = channel;
@@ -398,21 +387,6 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
                 }
             }
         }
-    }
-
-    private String createRestRequestSpanName(RestRequest restRequest) {
-        String spanName = "rest_request";
-        if (restRequest != null) {
-            try {
-                String methodName = restRequest.method().name();
-                // path() does the decoding, which may give error
-                String path = restRequest.path();
-                spanName = methodName + " " + path;
-            } catch (Exception e) {
-                // swallow the exception and keep the default name.
-            }
-        }
-        return spanName;
     }
 
     private void handleIncomingRequest(final HttpRequest httpRequest, final HttpChannel httpChannel, final Exception exception) {
