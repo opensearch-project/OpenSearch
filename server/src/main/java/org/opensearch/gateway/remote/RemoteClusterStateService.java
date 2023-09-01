@@ -414,8 +414,8 @@ public class RemoteClusterStateService implements Closeable {
      * @return ClusterMetadataManifest
      */
     public ClusterMetadataManifest getLatestClusterMetadataManifest(String clusterName, String clusterUUID) {
-        String latestMarkerFileName = getLatestManifestFileName(clusterName, clusterUUID);
-        return fetchRemoteClusterMetadataManifest(clusterName, clusterUUID, latestMarkerFileName);
+        String latestManifestFileName = getLatestManifestFileName(clusterName, clusterUUID);
+        return fetchRemoteClusterMetadataManifest(clusterName, clusterUUID, latestManifestFileName);
     }
 
     /**
@@ -431,13 +431,13 @@ public class RemoteClusterStateService implements Closeable {
              * as the manifest file name generated via {@link RemoteClusterStateService#getManifestFileName} ensures
              * when sorted in LEXICOGRAPHIC order the latest uploaded manifest file comes on top.
              */
-            List<BlobMetadata> markerFilesMetadata = manifestContainer(clusterName, clusterUUID).listBlobsByPrefixInSortedOrder(
+            List<BlobMetadata> manifestFilesMetadata = manifestContainer(clusterName, clusterUUID).listBlobsByPrefixInSortedOrder(
                 "manifest" + DELIMITER,
                 1,
                 BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC
             );
-            if (markerFilesMetadata != null && !markerFilesMetadata.isEmpty()) {
-                return markerFilesMetadata.get(0).name();
+            if (manifestFilesMetadata != null && !manifestFilesMetadata.isEmpty()) {
+                return manifestFilesMetadata.get(0).name();
             }
         } catch (IOException e) {
             String errorMsg = "Error while fetching latest manifest file for remote cluster state";
