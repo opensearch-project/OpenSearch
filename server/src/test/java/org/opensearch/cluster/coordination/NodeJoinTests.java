@@ -38,6 +38,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.OpenSearchAllocationTestCase;
 import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
+import org.opensearch.cluster.coordination.PersistedStateRegistry.PersistedStateType;
 import org.opensearch.cluster.decommission.DecommissionAttribute;
 import org.opensearch.cluster.decommission.DecommissionAttributeMetadata;
 import org.opensearch.cluster.decommission.DecommissionStatus;
@@ -245,6 +246,8 @@ public class NodeJoinTests extends OpenSearchTestCase {
             clusterSettings,
             Collections.emptySet()
         );
+        final PersistedStateRegistry persistedStateRegistry = persistedStateRegistry();
+        persistedStateRegistry.addPersistedState(PersistedStateType.LOCAL, new InMemoryPersistedState(term, initialState));
         coordinator = new Coordinator(
             "test_node",
             Settings.EMPTY,
@@ -253,7 +256,7 @@ public class NodeJoinTests extends OpenSearchTestCase {
             writableRegistry(),
             OpenSearchAllocationTestCase.createAllocationService(Settings.EMPTY),
             clusterManagerService,
-            () -> new InMemoryPersistedState(term, initialState),
+            () -> persistedStateRegistry.getPersistedState(PersistedStateType.LOCAL),
             r -> emptyList(),
             new NoOpClusterApplier(),
             Collections.emptyList(),
@@ -261,7 +264,7 @@ public class NodeJoinTests extends OpenSearchTestCase {
             (s, p, r) -> {},
             ElectionStrategy.DEFAULT_INSTANCE,
             nodeHealthService,
-            new PersistedStateRegistry()
+            persistedStateRegistry
         );
         transportService.start();
         transportService.acceptIncomingRequests();

@@ -81,6 +81,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
 import org.mockito.Mockito;
 
@@ -443,20 +444,26 @@ public class GatewayMetaStatePersistedStateTests extends OpenSearchTestCase {
                 new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                 () -> 0L
             );
-            final RemoteClusterStateService remoteClusterStateService = new RemoteClusterStateService(
-                nodeEnvironment.nodeId(),
-                () -> new RepositoriesService(
-                    settings,
-                    clusterService,
-                    transportService,
-                    Collections.emptyMap(),
-                    Collections.emptyMap(),
-                    transportService.getThreadPool()
-                ),
-                settings,
-                new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                () -> 0L
-            );
+            Supplier<RemoteClusterStateService> remoteClusterStateServiceSupplier = () -> {
+                if (RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING.get(settings) == true) {
+                    return new RemoteClusterStateService(
+                        nodeEnvironment.nodeId(),
+                        () -> new RepositoriesService(
+                            settings,
+                            clusterService,
+                            transportService,
+                            Collections.emptyMap(),
+                            Collections.emptyMap(),
+                            transportService.getThreadPool()
+                        ),
+                        settings,
+                        new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                        () -> 0L
+                    );
+                } else {
+                    return null;
+                }
+            };
             gateway.start(
                 settings,
                 transportService,
@@ -465,7 +472,7 @@ public class GatewayMetaStatePersistedStateTests extends OpenSearchTestCase {
                 null,
                 null,
                 persistedClusterStateService,
-                remoteClusterStateService,
+                remoteClusterStateServiceSupplier.get(),
                 new PersistedStateRegistry()
             );
             final CoordinationState.PersistedState persistedState = gateway.getPersistedState();

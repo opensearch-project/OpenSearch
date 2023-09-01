@@ -53,6 +53,7 @@ import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.function.Supplier;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -106,6 +107,26 @@ public class MockGatewayMetaState extends GatewayMetaState {
         } catch (IOException e) {
             throw new AssertionError(e);
         }
+        Supplier<RemoteClusterStateService> remoteClusterStateServiceSupplier = () -> {
+            if (RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING.get(settings) == true) {
+                return new RemoteClusterStateService(
+                    nodeEnvironment.nodeId(),
+                    () -> new RepositoriesService(
+                        settings,
+                        clusterService,
+                        transportService,
+                        Collections.emptyMap(),
+                        Collections.emptyMap(),
+                        transportService.getThreadPool()
+                    ),
+                    settings,
+                    new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                    () -> 0L
+                );
+            } else {
+                return null;
+            }
+        };
         start(
             settings,
             transportService,
@@ -120,20 +141,7 @@ public class MockGatewayMetaState extends GatewayMetaState {
                 new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                 () -> 0L
             ),
-            new RemoteClusterStateService(
-                nodeEnvironment.nodeId(),
-                () -> new RepositoriesService(
-                    settings,
-                    clusterService,
-                    transportService,
-                    Collections.emptyMap(),
-                    Collections.emptyMap(),
-                    transportService.getThreadPool()
-                ),
-                settings,
-                new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                () -> 0L
-            ),
+            remoteClusterStateServiceSupplier.get(),
             persistedStateRegistry
         );
     }
