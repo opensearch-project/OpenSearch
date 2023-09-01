@@ -1143,6 +1143,22 @@ public class RoundingTests extends OpenSearchTestCase {
         assertThat(prepared.roundingSize(thirdQuarter, Rounding.DateTimeUnit.HOUR_OF_DAY), closeTo(2208.0, 0.000001));
     }
 
+    public void testArrayRoundingImplementations() {
+        int length = randomIntBetween(1, 256);
+        long[] values = new long[length];
+        for (int i = 1; i < values.length; i++) {
+            values[i] = values[i - 1] + (randomNonNegativeLong() % 100);
+        }
+
+        Rounding.Prepared binarySearchImpl = new Rounding.BinarySearchArrayRounding(values, length, null);
+        Rounding.Prepared linearSearchImpl = new Rounding.BidirectionalLinearSearchArrayRounding(values, length, null);
+
+        for (int i = 0; i < 100000; i++) {
+            long key = values[0] + (randomNonNegativeLong() % (100 + values[length - 1] - values[0]));
+            assertEquals(binarySearchImpl.round(key), linearSearchImpl.round(key));
+        }
+    }
+
     private void assertInterval(long rounded, long nextRoundingValue, Rounding rounding, int minutes, ZoneId tz) {
         assertInterval(rounded, dateBetween(rounded, nextRoundingValue), nextRoundingValue, rounding, tz);
         long millisPerMinute = 60_000;
