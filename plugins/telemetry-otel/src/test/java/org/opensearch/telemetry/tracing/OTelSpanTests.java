@@ -29,17 +29,7 @@ public class OTelSpanTests extends OpenSearchTestCase {
     public void testEndSpanTest() {
         Span mockSpan = getMockSpan();
         final AtomicBoolean onSpanEndTestFlag = new AtomicBoolean(false);
-        OTelSpan oTelSpan = new OTelSpan("spanName", mockSpan, null, new SpanLifecycleListener() {
-            @Override
-            public void onStart(org.opensearch.telemetry.tracing.Span span) {
-
-            }
-
-            @Override
-            public void onEnd(org.opensearch.telemetry.tracing.Span span) {
-                onSpanEndTestFlag.set(true);
-            }
-        });
+        OTelSpan oTelSpan = new OTelSpan("spanName", mockSpan, null);
         oTelSpan.endSpan();
         assertTrue(onSpanEndTestFlag.get());
         verify(mockSpan).end();
@@ -47,7 +37,7 @@ public class OTelSpanTests extends OpenSearchTestCase {
 
     public void testAddAttributeString() {
         Span mockSpan = getMockSpan();
-        OTelSpan oTelSpan = new OTelSpan("spanName", mockSpan, null, getSpanLifecycleListener());
+        OTelSpan oTelSpan = new OTelSpan("spanName", mockSpan, null);
         oTelSpan.addAttribute("key", "value");
 
         verify(mockSpan).setAttribute("key", "value");
@@ -55,7 +45,7 @@ public class OTelSpanTests extends OpenSearchTestCase {
 
     public void testAddAttributeLong() {
         Span mockSpan = getMockSpan();
-        OTelSpan oTelSpan = new OTelSpan("spanName", mockSpan, null, getSpanLifecycleListener());
+        OTelSpan oTelSpan = new OTelSpan("spanName", mockSpan, null);
         oTelSpan.addAttribute("key", 1L);
 
         verify(mockSpan).setAttribute("key", 1L);
@@ -63,7 +53,7 @@ public class OTelSpanTests extends OpenSearchTestCase {
 
     public void testAddAttributeDouble() {
         Span mockSpan = getMockSpan();
-        OTelSpan oTelSpan = new OTelSpan("spanName", mockSpan, null, getSpanLifecycleListener());
+        OTelSpan oTelSpan = new OTelSpan("spanName", mockSpan, null);
         oTelSpan.addAttribute("key", 1.0);
 
         verify(mockSpan).setAttribute("key", 1.0);
@@ -71,7 +61,7 @@ public class OTelSpanTests extends OpenSearchTestCase {
 
     public void testAddAttributeBoolean() {
         Span mockSpan = getMockSpan();
-        OTelSpan oTelSpan = new OTelSpan("spanName", mockSpan, null, getSpanLifecycleListener());
+        OTelSpan oTelSpan = new OTelSpan("spanName", mockSpan, null);
         oTelSpan.addAttribute("key", true);
 
         verify(mockSpan).setAttribute("key", true);
@@ -79,7 +69,7 @@ public class OTelSpanTests extends OpenSearchTestCase {
 
     public void testAddEvent() {
         Span mockSpan = getMockSpan();
-        OTelSpan oTelSpan = new OTelSpan("spanName", mockSpan, null, getSpanLifecycleListener());
+        OTelSpan oTelSpan = new OTelSpan("spanName", mockSpan, null);
         oTelSpan.addEvent("eventName");
 
         verify(mockSpan).addEvent("eventName");
@@ -87,14 +77,14 @@ public class OTelSpanTests extends OpenSearchTestCase {
 
     public void testGetTraceId() {
         Span mockSpan = getMockSpan();
-        OTelSpan oTelSpan = new OTelSpan("spanName", mockSpan, null, getSpanLifecycleListener());
+        OTelSpan oTelSpan = new OTelSpan("spanName", mockSpan, null);
 
         assertEquals(TRACE_ID, oTelSpan.getTraceId());
     }
 
     public void testGetSpanId() {
         Span mockSpan = getMockSpan();
-        OTelSpan oTelSpan = new OTelSpan("spanName", mockSpan, null, getSpanLifecycleListener());
+        OTelSpan oTelSpan = new OTelSpan("spanName", mockSpan, null);
 
         assertEquals(SPAN_ID, oTelSpan.getSpanId());
     }
@@ -103,19 +93,5 @@ public class OTelSpanTests extends OpenSearchTestCase {
         Span mockSpan = mock(Span.class);
         when(mockSpan.getSpanContext()).thenReturn(SpanContext.create(TRACE_ID, SPAN_ID, TraceFlags.getDefault(), TraceState.getDefault()));
         return mockSpan;
-    }
-
-    private SpanLifecycleListener getSpanLifecycleListener() {
-        return new SpanLifecycleListener() {
-            @Override
-            public void onStart(org.opensearch.telemetry.tracing.Span span) {
-
-            }
-
-            @Override
-            public void onEnd(org.opensearch.telemetry.tracing.Span span) {
-
-            }
-        };
     }
 }

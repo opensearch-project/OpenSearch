@@ -35,7 +35,7 @@ public class OTelTracingContextPropagatorTests extends OpenSearchTestCase {
     public void testAddTracerContextToHeader() {
         Span mockSpan = mock(Span.class);
         when(mockSpan.getSpanContext()).thenReturn(SpanContext.create(TRACE_ID, SPAN_ID, TraceFlags.getDefault(), TraceState.getDefault()));
-        OTelSpan span = new OTelSpan("spanName", mockSpan, null, getSpanLifecycleListener());
+        OTelSpan span = new OTelSpan("spanName", mockSpan, null);
         Map<String, String> requestHeaders = new HashMap<>();
         OpenTelemetry mockOpenTelemetry = mock(OpenTelemetry.class);
         when(mockOpenTelemetry.getPropagators()).thenReturn(ContextPropagators.create(W3CTraceContextPropagator.getInstance()));
@@ -85,19 +85,5 @@ public class OTelTracingContextPropagatorTests extends OpenSearchTestCase {
         org.opensearch.telemetry.tracing.Span propagatedSpan = new OTelPropagatedSpan(Span.fromContext(Context.root()));
         assertEquals(propagatedSpan.getTraceId(), span.getTraceId());
         assertEquals(propagatedSpan.getSpanId(), span.getSpanId());
-    }
-
-    private SpanLifecycleListener getSpanLifecycleListener() {
-        return new SpanLifecycleListener() {
-            @Override
-            public void onStart(org.opensearch.telemetry.tracing.Span span) {
-
-            }
-
-            @Override
-            public void onEnd(org.opensearch.telemetry.tracing.Span span) {
-
-            }
-        };
     }
 }

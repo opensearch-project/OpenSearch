@@ -100,28 +100,7 @@ class DefaultTracer implements Tracer {
     }
 
     private Span createSpan(String spanName, Span parentSpan, Attributes attributes) {
-        return tracingTelemetry.createSpan(spanName, parentSpan, attributes, new SpanLifecycleListener() {
-            @Override
-            public void onStart(Span span) {
-                setCurrentSpanInContext(span);
-            }
-
-            @Override
-            public void onEnd(Span span) {
-                onSpanEnd(span, parentSpan);
-            }
-        });
-    }
-
-    private void onSpanEnd(Span span, Span parentSpan) {
-        if (getCurrentSpanInternal() == span && parentSpan != null) {
-            setCurrentSpanInContext(parentSpan);
-        } else if (span.getParentSpan() == null) {
-            setCurrentSpanInContext(null);
-        } else {
-            // Most likely this scenario is where parent is coming from a calling thread
-            // and need not be updated. stashContext upstream would take care of this.
-        }
+        return tracingTelemetry.createSpan(spanName, parentSpan, attributes);
     }
 
     private void setCurrentSpanInContext(Span span) {

@@ -10,12 +10,10 @@ package org.opensearch.test.telemetry.tracing;
 
 import org.opensearch.telemetry.tracing.AbstractSpan;
 import org.opensearch.telemetry.tracing.Span;
-import org.opensearch.telemetry.tracing.SpanLifecycleListener;
 import org.opensearch.telemetry.tracing.attributes.Attributes;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Supplier;
@@ -36,31 +34,21 @@ public class MockSpan extends AbstractSpan {
 
     private static final Supplier<Random> randomSupplier = ThreadLocalRandom::current;
 
-    private final SpanLifecycleListener spanLifecycleListener;
-
     /**
      * Base Constructor.
      * @param spanName  Span Name
      * @param parentSpan  Parent Span
      * @param spanProcessor  Span Processor
      * @param attributes attributes
-     * @param onSpanEndConsumer consumer to be executed on span end.
      */
-    public MockSpan(
-        String spanName,
-        Span parentSpan,
-        SpanProcessor spanProcessor,
-        Attributes attributes,
-        SpanLifecycleListener onSpanEndConsumer
-    ) {
+    public MockSpan(String spanName, Span parentSpan, SpanProcessor spanProcessor, Attributes attributes) {
         this(
             spanName,
             parentSpan,
             parentSpan != null ? parentSpan.getTraceId() : IdGenerator.generateTraceId(),
             IdGenerator.generateSpanId(),
             spanProcessor,
-            attributes,
-            onSpanEndConsumer
+            attributes
         );
     }
 
@@ -69,17 +57,15 @@ public class MockSpan extends AbstractSpan {
      * @param spanName span name.
      * @param parentSpan parent span name
      * @param spanProcessor span processor.
-     * @param onSpanEndConsumer consumer to be executed on span end.
      */
-    public MockSpan(String spanName, Span parentSpan, SpanProcessor spanProcessor, SpanLifecycleListener onSpanEndConsumer) {
+    public MockSpan(String spanName, Span parentSpan, SpanProcessor spanProcessor) {
         this(
             spanName,
             parentSpan,
             parentSpan != null ? parentSpan.getTraceId() : IdGenerator.generateTraceId(),
             IdGenerator.generateSpanId(),
             spanProcessor,
-            Attributes.EMPTY,
-            onSpanEndConsumer
+            Attributes.EMPTY
         );
     }
 
@@ -91,17 +77,8 @@ public class MockSpan extends AbstractSpan {
      * @param spanId  Span ID
      * @param spanProcessor  Span Processor
      * @param attributes attributes
-     * @param onSpanEndConsumer consumer to be executed on span end.
      */
-    public MockSpan(
-        String spanName,
-        Span parentSpan,
-        String traceId,
-        String spanId,
-        SpanProcessor spanProcessor,
-        Attributes attributes,
-        SpanLifecycleListener onSpanEndConsumer
-    ) {
+    public MockSpan(String spanName, Span parentSpan, String traceId, String spanId, SpanProcessor spanProcessor, Attributes attributes) {
         super(spanName, parentSpan);
         this.spanProcessor = spanProcessor;
         this.metadata = new HashMap<>();
@@ -111,7 +88,6 @@ public class MockSpan extends AbstractSpan {
         if (attributes != null) {
             this.metadata.putAll(attributes.getAttributesMap());
         }
-        this.spanLifecycleListener = Objects.requireNonNull(onSpanEndConsumer);
     }
 
     @Override
@@ -122,7 +98,6 @@ public class MockSpan extends AbstractSpan {
             }
             endTime = System.nanoTime();
             hasEnded = true;
-            spanLifecycleListener.onEnd(this);
         }
         spanProcessor.onEnd(this);
     }

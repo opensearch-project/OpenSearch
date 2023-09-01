@@ -47,8 +47,8 @@ public class OTelTracingTelemetry implements TracingTelemetry {
     }
 
     @Override
-    public Span createSpan(String spanName, Span parentSpan, Attributes attributes, SpanLifecycleListener spanLifecycleListener) {
-        return createOtelSpan(spanName, parentSpan, attributes, spanLifecycleListener);
+    public Span createSpan(String spanName, Span parentSpan, Attributes attributes) {
+        return createOtelSpan(spanName, parentSpan, attributes);
     }
 
     @Override
@@ -56,10 +56,9 @@ public class OTelTracingTelemetry implements TracingTelemetry {
         return new OTelTracingContextPropagator(openTelemetry);
     }
 
-    private Span createOtelSpan(String spanName, Span parentSpan, Attributes attributes, SpanLifecycleListener spanLifecycleListener) {
+    private Span createOtelSpan(String spanName, Span parentSpan, Attributes attributes) {
         io.opentelemetry.api.trace.Span otelSpan = otelSpan(spanName, parentSpan, OTelAttributesConverter.convert(attributes));
-        Span newSpan = new OTelSpan(spanName, otelSpan, parentSpan, spanLifecycleListener);
-        spanLifecycleListener.onStart(newSpan);
+        Span newSpan = new OTelSpan(spanName, otelSpan, parentSpan);
         return newSpan;
     }
 
