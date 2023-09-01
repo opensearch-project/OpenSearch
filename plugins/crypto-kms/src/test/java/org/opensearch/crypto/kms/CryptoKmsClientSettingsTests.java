@@ -8,12 +8,13 @@
 
 package org.opensearch.crypto.kms;
 
+import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
+import software.amazon.awssdk.regions.Region;
+
 import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.unit.TimeValue;
-import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
-import software.amazon.awssdk.regions.Region;
 
 import java.io.IOException;
 
@@ -85,7 +86,15 @@ public class CryptoKmsClientSettingsTests extends AbstractAwsTestCase {
         assertEquals(baseSettings.endpoint, "kms.endpoint");
     }
 
-    public void testOverrideWithMetadataSettings() {
+    public void testOverrideWithPrefixedMetadataSettings() {
+        overrideWithMetadataSettings("kms.");
+    }
+
+    public void testOverrideWithNoPrefixMetadataSettings() {
+        overrideWithMetadataSettings("");
+    }
+
+    public void overrideWithMetadataSettings(String prefix) {
         final MockSecureSettings secureSettings = new MockSecureSettings();
         String accessKey = "access_key", secretKey = "secret_key", sessionToken = "session_token";
         secureSettings.setString("kms.access_key", accessKey);
@@ -103,7 +112,7 @@ public class CryptoKmsClientSettingsTests extends AbstractAwsTestCase {
         {
             final String endpoint = "some.host";
             final KmsClientSettings refinedSettings = baseSettings.getMetadataSettings(
-                Settings.builder().put("kms.endpoint", endpoint).build()
+                Settings.builder().put(prefix + "endpoint", endpoint).build()
             );
             assertEquals(refinedSettings.endpoint, endpoint);
             validateCredsAreStillSame(refinedSettings, accessKey, secretKey, sessionToken);
@@ -112,7 +121,7 @@ public class CryptoKmsClientSettingsTests extends AbstractAwsTestCase {
         {
             String region = "eu-west-1";
             final KmsClientSettings refinedSettings = baseSettings.getMetadataSettings(
-                Settings.builder().put("kms.region", region).build()
+                Settings.builder().put(prefix + "region", region).build()
             );
             assertEquals(refinedSettings.region, region);
             validateCredsAreStillSame(refinedSettings, accessKey, secretKey, sessionToken);
@@ -121,7 +130,7 @@ public class CryptoKmsClientSettingsTests extends AbstractAwsTestCase {
         {
             String proxyHost = "proxy-host";
             final KmsClientSettings refinedSettings = baseSettings.getMetadataSettings(
-                Settings.builder().put("kms.proxy.host", proxyHost).build()
+                Settings.builder().put(prefix + "proxy.host", proxyHost).build()
             );
             assertEquals(refinedSettings.proxyHost, proxyHost);
             validateCredsAreStillSame(refinedSettings, accessKey, secretKey, sessionToken);
@@ -130,7 +139,7 @@ public class CryptoKmsClientSettingsTests extends AbstractAwsTestCase {
         {
             int proxyPort = 70;
             final KmsClientSettings refinedSettings = baseSettings.getMetadataSettings(
-                Settings.builder().put("kms.proxy.port", proxyPort).build()
+                Settings.builder().put(prefix + "proxy.port", proxyPort).build()
             );
             assertEquals(refinedSettings.proxyPort, proxyPort);
             validateCredsAreStillSame(refinedSettings, accessKey, secretKey, sessionToken);
@@ -139,7 +148,7 @@ public class CryptoKmsClientSettingsTests extends AbstractAwsTestCase {
         {
             TimeValue readTimeout = TimeValue.timeValueMillis(5000);
             final KmsClientSettings refinedSettings = baseSettings.getMetadataSettings(
-                Settings.builder().put("kms.read_timeout", readTimeout).build()
+                Settings.builder().put(prefix + "read_timeout", readTimeout).build()
             );
             assertEquals(refinedSettings.readTimeoutMillis, readTimeout.getMillis());
             validateCredsAreStillSame(refinedSettings, accessKey, secretKey, sessionToken);

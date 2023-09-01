@@ -8,15 +8,6 @@
 
 package org.opensearch.crypto.kms;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.opensearch.cluster.metadata.CryptoMetadata;
-import org.opensearch.common.SuppressForbidden;
-import org.opensearch.common.collect.MapBuilder;
-import org.opensearch.common.crypto.MasterKeyProvider;
-import org.opensearch.common.settings.Setting;
-import org.opensearch.common.settings.Settings;
-import org.opensearch.core.common.Strings;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
@@ -28,6 +19,16 @@ import software.amazon.awssdk.profiles.ProfileFileSystemSetting;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.kms.KmsClient;
 import software.amazon.awssdk.services.kms.KmsClientBuilder;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.opensearch.cluster.metadata.CryptoMetadata;
+import org.opensearch.common.SuppressForbidden;
+import org.opensearch.common.collect.MapBuilder;
+import org.opensearch.common.crypto.MasterKeyProvider;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.Strings;
 
 import java.io.Closeable;
 import java.net.URI;

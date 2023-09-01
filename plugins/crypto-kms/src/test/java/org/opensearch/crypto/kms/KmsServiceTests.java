@@ -8,9 +8,6 @@
 
 package org.opensearch.crypto.kms;
 
-import org.opensearch.cluster.metadata.CryptoMetadata;
-import org.opensearch.common.settings.MockSecureSettings;
-import org.opensearch.common.settings.Settings;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
@@ -19,6 +16,10 @@ import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
 import software.amazon.awssdk.core.retry.RetryPolicy;
 import software.amazon.awssdk.http.apache.ProxyConfiguration;
 import software.amazon.awssdk.services.kms.KmsClient;
+
+import org.opensearch.cluster.metadata.CryptoMetadata;
+import org.opensearch.common.settings.MockSecureSettings;
+import org.opensearch.common.settings.Settings;
 
 public class KmsServiceTests extends AbstractAwsTestCase {
     private final CryptoMetadata cryptoMetadata = new CryptoMetadata("kp1", "kp2", Settings.EMPTY);

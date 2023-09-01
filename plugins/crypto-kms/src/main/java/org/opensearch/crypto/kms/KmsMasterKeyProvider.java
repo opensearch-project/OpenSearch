@@ -8,16 +8,17 @@
 
 package org.opensearch.crypto.kms;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.opensearch.common.crypto.DataKeyPair;
-import org.opensearch.common.crypto.MasterKeyProvider;
 import software.amazon.awssdk.core.SdkBytes;
 import software.amazon.awssdk.services.kms.model.DataKeySpec;
 import software.amazon.awssdk.services.kms.model.DecryptRequest;
 import software.amazon.awssdk.services.kms.model.DecryptResponse;
 import software.amazon.awssdk.services.kms.model.GenerateDataKeyRequest;
 import software.amazon.awssdk.services.kms.model.GenerateDataKeyResponse;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.opensearch.common.crypto.DataKeyPair;
+import org.opensearch.common.crypto.MasterKeyProvider;
 
 import java.util.Map;
 import java.util.function.Supplier;

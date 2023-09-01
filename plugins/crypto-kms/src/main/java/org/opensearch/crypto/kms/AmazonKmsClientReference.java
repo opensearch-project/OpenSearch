@@ -8,8 +8,9 @@
 
 package org.opensearch.crypto.kms;
 
-import org.opensearch.common.concurrent.RefCountedReleasable;
 import software.amazon.awssdk.services.kms.KmsClient;
+
+import org.opensearch.common.concurrent.RefCountedReleasable;
 
 /**
  * Handles the shutdown of the wrapped {@link KmsClient} using reference

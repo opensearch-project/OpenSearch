@@ -8,6 +8,10 @@
 
 package org.opensearch.crypto.kms;
 
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.AwsCredentials;
+import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.common.settings.SecureSetting;
@@ -17,9 +21,6 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.settings.SecureString;
-import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
-import software.amazon.awssdk.auth.credentials.AwsCredentials;
-import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
 
 import java.util.Locale;
 import java.util.Objects;
@@ -188,7 +189,7 @@ public class KmsClientSettings {
     KmsClientSettings getMetadataSettings(Settings settings) {
         AwsCredentials newCredentials = loadCredentials(settings);
         newCredentials = newCredentials == null ? this.credentials : newCredentials;
-        final Settings normalizedSettings = Settings.builder().put(settings).build();
+        final Settings normalizedSettings = Settings.builder().put(settings).normalizePrefix("kms.").build();
 
         String newProxyUsername = this.proxyUsername, newProxyPassword = this.proxyPassword;
         if (PROXY_USERNAME_SETTING.exists(normalizedSettings)) {
