@@ -177,6 +177,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final ValuesSourceRegistry valuesSourceRegistry;
     private final BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier;
     private final Supplier<TimeValue> clusterDefaultRefreshIntervalSupplier;
+    private final Supplier<TimeValue> clusterRemoteTranslogBufferIntervalSupplier;
 
     public IndexService(
         IndexSettings indexSettings,
@@ -210,7 +211,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         ValuesSourceRegistry valuesSourceRegistry,
         IndexStorePlugin.RecoveryStateFactory recoveryStateFactory,
         BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier,
-        Supplier<TimeValue> clusterDefaultRefreshIntervalSupplier
+        Supplier<TimeValue> clusterDefaultRefreshIntervalSupplier,
+        Supplier<TimeValue> clusterRemoteTranslogBufferIntervalSupplier
     ) {
         super(indexSettings);
         this.allowExpensiveQueries = allowExpensiveQueries;
@@ -284,6 +286,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.globalCheckpointTask = new AsyncGlobalCheckpointTask(this);
         this.retentionLeaseSyncTask = new AsyncRetentionLeaseSyncTask(this);
         this.translogFactorySupplier = translogFactorySupplier;
+        this.clusterRemoteTranslogBufferIntervalSupplier = clusterRemoteTranslogBufferIntervalSupplier;
         updateFsyncTaskIfNecessary();
     }
 
@@ -512,7 +515,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 translogFactorySupplier,
                 this.indexSettings.isSegRepEnabled() ? checkpointPublisher : null,
                 remoteStore,
-                remoteStoreStatsTrackerFactory
+                remoteStoreStatsTrackerFactory,
+                clusterRemoteTranslogBufferIntervalSupplier
             );
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);
