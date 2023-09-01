@@ -64,18 +64,22 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
         return createGroup(numberOfReplicas, settings, indexMapping, new NRTReplicationEngineFactory(), createTempDir());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/9624")
     public void testNRTReplicaWithRemoteStorePromotedAsPrimaryRefreshRefresh() throws Exception {
         testNRTReplicaWithRemoteStorePromotedAsPrimary(false, false);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/9624")
     public void testNRTReplicaWithRemoteStorePromotedAsPrimaryRefreshCommit() throws Exception {
         testNRTReplicaWithRemoteStorePromotedAsPrimary(false, true);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/9624")
     public void testNRTReplicaWithRemoteStorePromotedAsPrimaryCommitRefresh() throws Exception {
         testNRTReplicaWithRemoteStorePromotedAsPrimary(true, false);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/9624")
     public void testNRTReplicaWithRemoteStorePromotedAsPrimaryCommitCommit() throws Exception {
         testNRTReplicaWithRemoteStorePromotedAsPrimary(true, true);
     }

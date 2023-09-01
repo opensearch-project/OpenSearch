@@ -686,7 +686,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
         List.of(
             IndicesService.CLUSTER_REMOTE_STORE_ENABLED_SETTING,
             IndicesService.CLUSTER_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING,
-            IndicesService.CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING
+            IndicesService.CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING,
+            IndicesService.CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING
         ),
         List.of(FeatureFlags.CONCURRENT_SEGMENT_SEARCH),
         List.of(
@@ -694,6 +695,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
             SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING
         ),
         List.of(FeatureFlags.TELEMETRY),
-        List.of(TelemetrySettings.TRACER_ENABLED_SETTING)
+        List.of(TelemetrySettings.TRACER_ENABLED_SETTING, TelemetrySettings.TRACER_SAMPLER_PROBABILITY)
     );
 }

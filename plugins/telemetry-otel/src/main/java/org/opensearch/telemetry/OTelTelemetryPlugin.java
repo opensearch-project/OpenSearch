@@ -50,8 +50,8 @@ public class OTelTelemetryPlugin extends Plugin implements TelemetryPlugin {
     }
 
     @Override
-    public Optional<Telemetry> getTelemetry(TelemetrySettings settings) {
-        return Optional.of(telemetry());
+    public Optional<Telemetry> getTelemetry(TelemetrySettings telemetrySettings) {
+        return Optional.of(telemetry(telemetrySettings));
     }
 
     @Override
@@ -59,8 +59,8 @@ public class OTelTelemetryPlugin extends Plugin implements TelemetryPlugin {
         return OTEL_TRACER_NAME;
     }
 
-    private Telemetry telemetry() {
-        return new OTelTelemetry(new OTelTracingTelemetry(OTelResourceProvider.get(settings)), new MetricsTelemetry() {
+    private Telemetry telemetry(TelemetrySettings telemetrySettings) {
+        return new OTelTelemetry(new OTelTracingTelemetry(OTelResourceProvider.get(telemetrySettings, settings)), new MetricsTelemetry() {
         });
     }
 

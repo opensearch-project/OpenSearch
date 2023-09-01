@@ -9,7 +9,10 @@
 package org.opensearch.telemetry.tracing;
 
 import org.opensearch.common.settings.Settings;
+import org.opensearch.telemetry.TelemetrySettings;
 import org.opensearch.telemetry.tracing.exporter.OTelSpanExporterFactory;
+import org.opensearch.telemetry.tracing.sampler.ProbabilisticSampler;
+import org.opensearch.telemetry.tracing.sampler.RequestSampler;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;
@@ -39,16 +42,17 @@ public final class OTelResourceProvider {
 
     /**
      * Creates OpenTelemetry instance with default configuration
+     * @param telemetrySettings telemetry settings
      * @param settings cluster settings
      * @return OpenTelemetry instance
      */
-    public static OpenTelemetry get(Settings settings) {
+    public static OpenTelemetry get(TelemetrySettings telemetrySettings, Settings settings) {
         return AccessController.doPrivileged(
             (PrivilegedAction<OpenTelemetry>) () -> get(
                 settings,
                 OTelSpanExporterFactory.create(settings),
                 ContextPropagators.create(W3CTraceContextPropagator.getInstance()),
-                Sampler.alwaysOn()
+                Sampler.parentBased(new RequestSampler(new ProbabilisticSampler(telemetrySettings)))
             )
         );
     }
