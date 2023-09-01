@@ -361,7 +361,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier,
         @Nullable final SegmentReplicationCheckpointPublisher checkpointPublisher,
         @Nullable final Store remoteStore,
-        final RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory
+        final RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory,
+        final Supplier<TimeValue> clusterRemoteTranslogBufferIntervalSupplier
     ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
@@ -382,7 +383,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             threadPool,
             this::getEngine,
             indexSettings.isRemoteTranslogStoreEnabled(),
-            indexSettings::getRemoteTranslogUploadBufferInterval
+            () -> getRemoteTranslogUploadBufferInterval(clusterRemoteTranslogBufferIntervalSupplier)
         );
         this.mapperService = mapperService;
         this.indexCache = indexCache;
@@ -4117,6 +4118,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         boolean bufferAsyncIoProcessor,
         Supplier<TimeValue> bufferIntervalSupplier
     ) {
+        assert bufferAsyncIoProcessor == false || Objects.nonNull(bufferIntervalSupplier)
+            : "If bufferAsyncIoProcessor is true, then the bufferIntervalSupplier needs to be non null";
         ThreadContext threadContext = threadPool.getThreadContext();
         CheckedConsumer<List<Tuple<Translog.Location, Consumer<Exception>>>, IOException> writeConsumer = candidates -> {
             try {
@@ -4910,5 +4913,18 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public GatedCloseable<SegmentInfos> getSegmentInfosSnapshot() {
         return getEngine().getSegmentInfosSnapshot();
+    }
+
+    private TimeValue getRemoteTranslogUploadBufferInterval(Supplier<TimeValue> clusterRemoteTranslogBufferIntervalSupplier) {
+        assert Objects.nonNull(clusterRemoteTranslogBufferIntervalSupplier) : "remote translog buffer interval supplier is null";
+        if (indexSettings().isRemoteTranslogBufferIntervalExplicit()) {
+            return indexSettings().getRemoteTranslogUploadBufferInterval();
+        }
+        return clusterRemoteTranslogBufferIntervalSupplier.get();
+    }
+
+    // Exclusively for testing, please do not use it elsewhere.
+    public AsyncIOProcessor<Translog.Location> getTranslogSyncProcessor() {
+        return translogSyncProcessor;
     }
 }
