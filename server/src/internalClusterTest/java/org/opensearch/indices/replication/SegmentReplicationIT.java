@@ -1636,9 +1636,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
                 INDEX_NAME,
                 Settings.builder()
                     .put(indexSettings())
-                    // .put("number_of_shards", 1)
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2)
-                // .put("index.replication.type", ReplicationType.SEGMENT)
             )
         );
 
