@@ -139,7 +139,7 @@ public final class EngineConfig {
                 // Though the external visible codec name is zstd or zstd_no_dict, internally it is registered as Lucene95CustomCodec
                 // Hence this check is required, Lucene95CustomCodec will not be part of availableCodecs if the custom-codecs plugin
                 // is not installed
-                if (("zstd".equals(s) || "zstd_no_dict".equals(s)) && Codec.availableCodecs().contains("Lucene95CustomCodec")){
+                if (("zstd".equals(s) || "zstd_no_dict".equals(s)) && Codec.availableCodecs().contains("Lucene95CustomCodec")) {
                     return s;
                 }
                 if (Codec.availableCodecs().contains(s) == false) { // we don't error message the not officially supported ones

@@ -13,7 +13,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST)
-public class ZstdNotEnabledIT extends OpenSearchIntegTestCase  {
+public class ZstdNotEnabledIT extends OpenSearchIntegTestCase {
 
     public void testZStdCodecsWithoutPluginInstalled() {
 
@@ -33,6 +33,5 @@ public class ZstdNotEnabledIT extends OpenSearchIntegTestCase  {
             )
         );
     }
-
 
 }
