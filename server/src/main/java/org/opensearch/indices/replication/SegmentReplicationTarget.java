@@ -37,7 +37,6 @@ import org.opensearch.indices.replication.common.ReplicationTarget;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
