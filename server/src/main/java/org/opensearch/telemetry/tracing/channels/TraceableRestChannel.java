@@ -14,7 +14,7 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.rest.RestChannel;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
-import org.opensearch.telemetry.tracing.SpanScope;
+import org.opensearch.telemetry.tracing.Span;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -25,18 +25,18 @@ import java.util.Objects;
 public class TraceableRestChannel implements RestChannel {
 
     private final RestChannel delegate;
-    private final SpanScope spanScope;
+    private final Span span;
 
     /**
      * Constructor.
      *
      * @param delegate delegate
-     * @param spanScope span
+     * @param span span
      */
-    public TraceableRestChannel(RestChannel delegate, SpanScope spanScope) {
+    public TraceableRestChannel(RestChannel delegate, Span span) {
         Objects.requireNonNull(delegate);
-        Objects.requireNonNull(spanScope);
-        this.spanScope = spanScope;
+        Objects.requireNonNull(span);
+        this.span = span;
         this.delegate = delegate;
     }
 
@@ -77,11 +77,7 @@ public class TraceableRestChannel implements RestChannel {
 
     @Override
     public void sendResponse(RestResponse response) {
-        try (spanScope) {
-            delegate.sendResponse(response);
-        } catch (Exception e) {
-            spanScope.setError(e);
-            throw e;
-        }
+        span.endSpan();
+        delegate.sendResponse(response);
     }
 }

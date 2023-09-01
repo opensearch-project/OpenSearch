@@ -11,7 +11,7 @@ package org.opensearch.telemetry.tracing.channels;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.http.HttpChannel;
 import org.opensearch.http.HttpResponse;
-import org.opensearch.telemetry.tracing.SpanScope;
+import org.opensearch.telemetry.tracing.Span;
 import org.opensearch.telemetry.tracing.listener.TraceableActionListener;
 
 import java.net.InetSocketAddress;
@@ -22,18 +22,18 @@ import java.util.Objects;
  */
 public class TraceableHttpChannel implements HttpChannel {
     private final HttpChannel delegate;
-    private final SpanScope spanScope;
+    private final Span span;
 
     /**
      * Constructor.
      *
      * @param delegate  delegate
-     * @param spanScope span
+     * @param span span
      */
-    public TraceableHttpChannel(HttpChannel delegate, SpanScope spanScope) {
+    public TraceableHttpChannel(HttpChannel delegate, Span span) {
         Objects.requireNonNull(delegate);
-        Objects.requireNonNull(spanScope);
-        this.spanScope = spanScope;
+        Objects.requireNonNull(span);
+        this.span = span;
         this.delegate = delegate;
     }
 
@@ -54,7 +54,7 @@ public class TraceableHttpChannel implements HttpChannel {
 
     @Override
     public void sendResponse(HttpResponse response, ActionListener<Void> listener) {
-        delegate.sendResponse(response, new TraceableActionListener<>(listener, spanScope));
+        delegate.sendResponse(response, new TraceableActionListener<>(listener, span));
     }
 
     @Override

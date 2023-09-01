@@ -58,7 +58,7 @@ public class MockTracingTelemetry implements TracingTelemetry {
     public void close() {
         // Run onClose hook
         onClose.run();
-
+        
         List<MockSpanData> spanData = ((StrictCheckSpanProcessor) spanProcessor).getFinishedSpanItems();
         if (spanData.size() != 0) {
             TelemetryValidators validators = new TelemetryValidators(
