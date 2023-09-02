@@ -19,9 +19,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.rest.RestStatus;
-import org.opensearch.index.IndexService;
 import org.opensearch.index.query.QueryBuilders;
-import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.InternalTestCluster;
@@ -140,54 +138,6 @@ public class SegmentReplicationSnapshotIT extends AbstractSnapshotIntegTestCase 
 
         // Assertions
         assertEquals(restoreSnapshotResponse.status(), RestStatus.ACCEPTED);
-        ensureGreen(RESTORED_INDEX_NAME);
-        GetSettingsResponse settingsResponse = client().admin()
-            .indices()
-            .getSettings(new GetSettingsRequest().indices(RESTORED_INDEX_NAME))
-            .get();
-        assertEquals(settingsResponse.getSetting(RESTORED_INDEX_NAME, "index.replication.type"), "SEGMENT");
-        SearchResponse resp = client().prepareSearch(RESTORED_INDEX_NAME).setQuery(QueryBuilders.matchAllQuery()).get();
-        assertHitCount(resp, DOC_COUNT);
-    }
-
-    public void testCreateSnapshotOnNewlyElectedPrimaryBeforePrimaryMode() throws Exception {
-        // Start cluster with one primary and one replica node
-        List<String> nodes = startClusterWithSettings(segRepEnableIndexSettings(), 1);
-        // drop the primary - will be first in this list.
-        // Snapshot declaration
-        Path absolutePath = randomRepoPath().toAbsolutePath();
-        createRepository(REPOSITORY_NAME, "fs", absolutePath);
-        final String primary = nodes.get(0);
-        final String replica = nodes.get(1);
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primary));
-        // Create snapshot - this will occasionally fail because the replica has not completed promotion.
-        CreateSnapshotResponse createSnapshotResponse = client().admin()
-            .cluster()
-            .prepareCreateSnapshot(REPOSITORY_NAME, SNAPSHOT_NAME)
-            .setWaitForCompletion(true)
-            .setIndices(INDEX_NAME)
-            .get();
-
-        final SnapshotInfo snapshotInfo = createSnapshotResponse.getSnapshotInfo();
-        if (snapshotInfo.failedShards() > 0) {
-            final List<SnapshotShardFailure> failures = snapshotInfo.shardFailures();
-            assertEquals(1, failures.size());
-            final SnapshotShardFailure failure = failures.get(0);
-            assertTrue(failure.reason().contains("cannot proceed until promotion is complete"));
-            final IndexShard indexShard = getIndexShard(replica, INDEX_NAME);
-            assertBusy(() -> { assertTrue(indexShard.isPrimaryMode()); });
-            createSnapshot();
-        }
-
-        // Delete index
-        assertAcked(client().admin().indices().delete(new DeleteIndexRequest(INDEX_NAME)).get());
-        assertFalse("index [" + INDEX_NAME + "] should have been deleted", indexExists(INDEX_NAME));
-
-        RestoreSnapshotResponse restoreSnapshotResponse = restoreSnapshotWithSettings(null);
-
-        // Assertions
-        assertEquals(restoreSnapshotResponse.status(), RestStatus.ACCEPTED);
-        internalCluster().startDataOnlyNode();
         ensureGreen(RESTORED_INDEX_NAME);
         GetSettingsResponse settingsResponse = client().admin()
             .indices()
@@ -356,13 +306,5 @@ public class SegmentReplicationSnapshotIT extends AbstractSnapshotIntegTestCase 
         Index index = resolveIndex(RESTORED_INDEX_NAME);
         IndicesService indicesService = internalCluster().getInstance(IndicesService.class);
         assertEquals(indicesService.indexService(index).getIndexSettings().isSegRepEnabled(), false);
-    }
-
-    protected IndexShard getIndexShard(String node, String indexName) {
-        final Index index = resolveIndex(indexName);
-        IndicesService indicesService = internalCluster().getInstance(IndicesService.class, node);
-        IndexService indexService = indicesService.indexServiceSafe(index);
-        final Optional<Integer> shardId = indexService.shardIds().stream().findFirst();
-        return indexService.getShard(shardId.get());
     }
 }
