@@ -31,7 +31,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 2)
 public class SegmentReplicationResizeRequestIT extends SegmentReplicationBaseIT {
 
-    public void testCreateShrinkIndexThrowsException() throws Exception {
+    public void testCreateShrinkIndexThrowsExceptionWhenReplicasBehind() throws Exception {
 
         // create index with -1 as refresh interval as we are blocking segrep and we want to control refreshes.
         prepareCreate("test").setSettings(
@@ -87,7 +87,7 @@ public class SegmentReplicationResizeRequestIT extends SegmentReplicationBaseIT 
                     .get()
             );
             assertEquals(
-                " For index test replica shards haven't caught up with primary, please retry after sometime.",
+                " For index [test] replica shards haven't caught up with primary, please retry after sometime.",
                 exception.getMessage()
             );
 

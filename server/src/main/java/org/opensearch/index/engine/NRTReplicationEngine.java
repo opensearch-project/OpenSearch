@@ -39,7 +39,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiFunction;
@@ -64,7 +63,6 @@ public class NRTReplicationEngine extends Engine {
     protected final ReplicaFileTracker replicaFileTracker;
 
     private volatile long lastReceivedPrimaryGen = SequenceNumbers.NO_OPS_PERFORMED;
-    private final AtomicLong maxUnsafeAutoIdTimestamp = new AtomicLong(-1);
 
     private static final int SI_COUNTER_INCREMENT = 10;
 
@@ -438,13 +436,6 @@ public class NRTReplicationEngine extends Engine {
                 closedLatch.countDown();
             }
         }
-    }
-
-    @Override
-    protected final void writerSegmentStats(SegmentsStats stats) {
-        stats.addVersionMapMemoryInBytes(0);
-        stats.addIndexWriterMemoryInBytes(0);
-        stats.updateMaxUnsafeAutoIdTimestamp(maxUnsafeAutoIdTimestamp.get());
     }
 
     @Override
