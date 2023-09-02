@@ -69,7 +69,6 @@ public class CodecService {
     public CodecService(@Nullable MapperService mapperService, IndexSettings indexSettings, Logger logger) {
         final MapBuilder<String, Codec> codecs = MapBuilder.<String, Codec>newMapBuilder();
         assert null != indexSettings;
-        int compressionLevel = indexSettings.getValue(INDEX_CODEC_COMPRESSION_LEVEL_SETTING);
         if (mapperService == null) {
             codecs.put(DEFAULT_CODEC, new Lucene95Codec());
             codecs.put(LZ4, new Lucene95Codec());

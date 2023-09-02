@@ -118,7 +118,7 @@ public class CustomCodecTests extends OpenSearchTestCase {
 
         final Settings customCodecSettings = Settings.builder()
             .put(INDEX_CODEC_COMPRESSION_LEVEL_SETTING.getKey(), randomIntBetween(1, 6))
-            .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), "Lucene95CustomCodec")
+            .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), randomFrom("zstd", "zstd_no_dict"))
             .build();
 
         final IndexScopedSettings customCodecIndexScopedSettings = new IndexScopedSettings(

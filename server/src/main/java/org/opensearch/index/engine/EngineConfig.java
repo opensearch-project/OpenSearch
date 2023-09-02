@@ -49,6 +49,7 @@ import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.codec.CodecAliases;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.codec.CodecSettings;
 import org.opensearch.index.mapper.ParsedDocument;
@@ -136,18 +137,23 @@ public final class EngineConfig {
             case "lucene_default":
                 return s;
             default:
-                // Though the external visible codec name is zstd or zstd_no_dict, internally it is registered as Lucene95CustomCodec
-                // Hence this check is required, Lucene95CustomCodec will not be part of availableCodecs if the custom-codecs plugin
-                // is not installed
-                if (("zstd".equals(s) || "zstd_no_dict".equals(s)) && Codec.availableCodecs().contains("Lucene95CustomCodec")) {
+                if (Codec.availableCodecs().contains(s)) {
                     return s;
                 }
-                if (Codec.availableCodecs().contains(s) == false) { // we don't error message the not officially supported ones
-                    throw new IllegalArgumentException(
-                        "unknown value for [index.codec] must be one of [default, lz4, best_compression, zlib] but was: " + s
-                    );
+
+                for (String codecName : Codec.availableCodecs()) {
+                    Codec codec = Codec.forName(codecName);
+                    if (codec instanceof CodecAliases) {
+                        CodecAliases codecWithAlias = (CodecAliases) codec;
+                        if (codecWithAlias.aliases() != null && codecWithAlias.aliases().contains(s)) {
+                            return s;
+                        }
+                    }
                 }
-                return s;
+
+                throw new IllegalArgumentException(
+                    "unknown value for [index.codec] must be one of [default, lz4, best_compression, zlib] but was: " + s
+                );
         }
     }, Property.IndexScope, Property.NodeScope);
 
@@ -191,17 +197,14 @@ public final class EngineConfig {
             case "lz4":
                 break;
             default:
-                // Though the external visible codec name is zstd or zstd_no_dict, internally it is registered as Lucene95CustomCodec
-                // Hence this check is required, Lucene95CustomCodec will not be part of availableCodecs if the custom-codecs plugin
-                // is not installed
-                if (("zstd".equals(codec) || "zstd_no_dict".equals(codec)) && Codec.availableCodecs().contains("Lucene95CustomCodec")) {
-                    return;
-                }
-                if (Codec.availableCodecs().contains(codec)) {
-                    Codec luceneCodec = Codec.forName(codec);
-                    if (luceneCodec instanceof CodecSettings
-                        && ((CodecSettings) luceneCodec).supports(INDEX_CODEC_COMPRESSION_LEVEL_SETTING)) {
-                        return;
+                for (String codecName : Codec.availableCodecs()) {
+                    Codec availableCodec = Codec.forName(codecName);
+                    if (codecName.equals(codec)
+                        || (availableCodec instanceof CodecAliases && ((CodecAliases) availableCodec).aliases().contains(codec))) {
+                        if (availableCodec instanceof CodecSettings
+                            && ((CodecSettings) availableCodec).supports(INDEX_CODEC_COMPRESSION_LEVEL_SETTING)) {
+                            return;
+                        }
                     }
                 }
         }

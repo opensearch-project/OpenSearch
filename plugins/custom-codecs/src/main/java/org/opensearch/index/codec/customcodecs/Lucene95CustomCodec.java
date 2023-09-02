@@ -29,10 +29,27 @@ public abstract class Lucene95CustomCodec extends FilterCodec {
 
     /** Each mode represents a compression algorithm. */
     public enum Mode {
-        /** ZStandard mode with dictionary*/
-        ZSTD,
-        /** ZStandard mode without dictionary*/
-        ZSTD_NO_DICT
+        /**
+         * ZStandard mode with dictionary
+         */
+        ZSTD("zstd"),
+        /**
+         * ZStandard mode without dictionary
+         */
+        ZSTD_NO_DICT("zstdnodict");
+
+        private final String codec;
+
+        Mode(String codec) {
+            this.codec = codec;
+        }
+
+        /**
+         * Returns the Codec that is registered with Lucene
+         */
+        public String getCodec() {
+            return codec;
+        }
     }
 
     private final StoredFieldsFormat storedFieldsFormat;
@@ -55,7 +72,7 @@ public abstract class Lucene95CustomCodec extends FilterCodec {
      * @param compressionLevel The compression level.
      */
     public Lucene95CustomCodec(Mode mode, int compressionLevel) {
-        super("Lucene95CustomCodec", new Lucene95Codec());
+        super(mode.getCodec(), new Lucene95Codec());
         this.storedFieldsFormat = new Lucene95CustomStoredFieldsFormat(mode, compressionLevel);
     }
 
@@ -70,7 +87,7 @@ public abstract class Lucene95CustomCodec extends FilterCodec {
      * @param logger The logger.
      */
     public Lucene95CustomCodec(Mode mode, int compressionLevel, MapperService mapperService, Logger logger) {
-        super("Lucene95CustomCodec", new PerFieldMappingPostingFormatCodec(Lucene95Codec.Mode.BEST_SPEED, mapperService, logger));
+        super(mode.getCodec(), new PerFieldMappingPostingFormatCodec(Lucene95Codec.Mode.BEST_SPEED, mapperService, logger));
         this.storedFieldsFormat = new Lucene95CustomStoredFieldsFormat(mode, compressionLevel);
     }
 
