@@ -99,6 +99,7 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
     public SegmentsStats() {
         fileSizes = new HashMap<>();
         remoteSegmentStats = new RemoteSegmentStats();
+        // replicationStats = new ReplicationStats();
     }
 
     public SegmentsStats(StreamInput in) throws IOException {
@@ -124,6 +125,7 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
             replicationStats = in.readOptionalWriteable(ReplicationStats::new);
         } else {
             remoteSegmentStats = new RemoteSegmentStats();
+            // replicationStats = new ReplicationStats();
         }
     }
 
@@ -152,7 +154,14 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
     }
 
     public void addReplicationStats(ReplicationStats replicationStats) {
-        this.replicationStats.add(replicationStats);
+        if (this.replicationStats == null) {
+            if (replicationStats != null) {
+                this.replicationStats = new ReplicationStats();
+                this.replicationStats.add(replicationStats);
+            }
+        } else {
+            this.replicationStats.add(replicationStats);
+        }
     }
 
     public void addFileSizes(final Map<String, Long> newFileSizes) {
