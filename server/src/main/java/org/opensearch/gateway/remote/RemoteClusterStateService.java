@@ -403,11 +403,10 @@ public class RemoteClusterStateService implements Closeable {
                 blobStoreRepository.getNamedXContentRegistry()
             );
         } catch (IOException e) {
-            throw new IllegalStateException(String.format(
-                Locale.ROOT,
-                "Error while downloading IndexMetadata - %s",
-                uploadedIndexMetadata.getUploadedFilename()
-            ), e);
+            throw new IllegalStateException(
+                String.format(Locale.ROOT, "Error while downloading IndexMetadata - %s", uploadedIndexMetadata.getUploadedFilename()),
+                e
+            );
         }
     }
 
