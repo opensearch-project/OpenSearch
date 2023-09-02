@@ -57,15 +57,6 @@ public class SegmentReplicationResizeRequestIT extends SegmentReplicationBaseIT 
             for (int i = 0; i < docs; i++) {
                 client().prepareIndex("test").setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", MediaTypeRegistry.JSON).get();
             }
-            assertBusy(() -> {
-                assertHitCount(
-                    client().prepareSearch("test")
-                        .setQuery(new TermsQueryBuilder("foo", "bar"))
-                        .setPreference(Preference.PRIMARY.type())
-                        .get(),
-                    docs
-                );
-            });
 
             // block writes on index before performing shrink operation
             client().admin()

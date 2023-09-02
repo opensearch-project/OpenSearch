@@ -148,42 +148,33 @@ public class TransportResizeAction extends TransportClusterManagerNodeAction<Res
         final String targetIndex = indexNameExpressionResolver.resolveDateMathExpression(resizeRequest.getTargetIndexRequest().index());
 
         IndexMetadata indexMetadata = state.metadata().index(sourceIndex);
-        if (state.isSegmentReplicationEnabled(sourceIndex)
+        if (state.metadata().isSegmentReplicationEnabled(sourceIndex)
             && Integer.valueOf(indexMetadata.getSettings().get("index.number_of_replicas")) > 0
             && resizeRequest.getResizeType().equals(ResizeType.SHRINK)) {
             client.admin()
                 .indices()
                 .prepareStats(sourceIndex)
+                .setRefresh(true)
                 .clear()
                 .setDocs(true)
                 .setStore(true)
-                .setRefresh(true)
                 .execute(ActionListener.delegateFailure(listener, (delegatedListener, indicesStatsResponse) -> {
                     CreateIndexClusterStateUpdateRequest updateRequest = prepareCreateIndexRequest(resizeRequest, state, i -> {
                         IndexShardStats shard = indicesStatsResponse.getIndex(sourceIndex).getIndexShards().get(i);
                         return shard == null ? null : shard.getPrimary().getDocs();
                     }, indicesStatsResponse.getPrimaries().store, sourceIndex, targetIndex);
 
-                    Map<ShardId, List<ShardStats>> shardStatsMap = new HashMap<>();
-                    for (Map.Entry<ShardRouting, ShardStats> map : indicesStatsResponse.asMap().entrySet()) {
-                        if (shardStatsMap.containsKey(map.getKey().shardId())) {
-                            shardStatsMap.get(map.getKey().shardId()).add(map.getValue());
-                        } else {
-                            shardStatsMap.put(map.getKey().shardId(), new ArrayList<ShardStats>(Arrays.asList(map.getValue())));
-                        }
+                    try {
+                        Thread.sleep(1000);
+                    } catch (InterruptedException e) {
+                        throw new RuntimeException(e);
                     }
-                    for (Map.Entry<ShardId, List<ShardStats>> map : shardStatsMap.entrySet()) {
-                        long docCount = map.getValue().get(0).getStats().getDocs().getCount();
-                        for (ShardStats shardStats : map.getValue()) {
-                            if (shardStats.getStats().docs.getCount() != docCount) {
-                                throw new IllegalStateException(
-                                    " For index "
-                                        + sourceIndex
-                                        + " replica shards haven't caught up with primary, please retry after sometime."
-                                );
-                            }
-                        }
+                    if (verifyDocCountOnReplicationGroup(indicesStatsResponse, sourceIndex) == false) {
+                        throw new IllegalStateException(
+                            " For index [" + sourceIndex + "] replica shards haven't caught up with primary, please retry after sometime."
+                        );
                     }
+
                     createIndexService.createIndex(
                         updateRequest,
                         ActionListener.map(
@@ -208,11 +199,6 @@ public class TransportResizeAction extends TransportClusterManagerNodeAction<Res
                         IndexShardStats shard = indicesStatsResponse.getIndex(sourceIndex).getIndexShards().get(i);
                         return shard == null ? null : shard.getPrimary().getDocs();
                     }, indicesStatsResponse.getPrimaries().store, sourceIndex, targetIndex);
-                    if (verifyDocCountOnReplicationGroup(indicesStatsResponse, sourceIndex) == false) {
-                        throw new IllegalStateException(
-                            " For index [" + sourceIndex + "] replica shards haven't caught up with primary, please retry after sometime."
-                        );
-                    }
                     createIndexService.createIndex(
                         updateRequest,
                         ActionListener.map(
@@ -226,7 +212,6 @@ public class TransportResizeAction extends TransportClusterManagerNodeAction<Res
                     );
                 }));
         }
-        // client.admin().indices().getSettings(new GetSettingsRequest()).actionGet();
 
     }
 
