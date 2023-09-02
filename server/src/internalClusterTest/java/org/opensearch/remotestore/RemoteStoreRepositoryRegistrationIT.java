@@ -53,7 +53,7 @@ public class RemoteStoreRepositoryRegistrationIT extends RemoteStoreBaseIntegTes
         return new RepositoryMetadata(name, type, settings.build());
     }
 
-    private void assertRemoteStoreRepositoryOnAllNodes() throws Exception {
+    private void assertRemoteStoreRepositoryOnAllNodes() {
         RepositoriesMetadata repositories = internalCluster().getInstance(ClusterService.class, internalCluster().getNodeNames()[0])
             .state()
             .metadata()
@@ -91,11 +91,13 @@ public class RemoteStoreRepositoryRegistrationIT extends RemoteStoreBaseIntegTes
         internalCluster().startNodes(3);
         internalCluster().stopCurrentClusterManagerNode();
         ensureStableCluster(2);
+        assertRemoteStoreRepositoryOnAllNodes();
     }
 
     public void testMultiNodeClusterRandomNodeShutDown() throws Exception {
         internalCluster().startNodes(3);
         internalCluster().stopRandomDataNode();
         ensureStableCluster(2);
+        assertRemoteStoreRepositoryOnAllNodes();
     }
 }

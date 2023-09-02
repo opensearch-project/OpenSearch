@@ -51,7 +51,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 
-@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST)
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class RemoteIndexSnapshotStatusApiIT extends AbstractSnapshotIntegTestCase {
 
     protected Path absolutePath;
@@ -76,7 +76,7 @@ public class RemoteIndexSnapshotStatusApiIT extends AbstractSnapshotIntegTestCas
     public void testStatusAPICallForShallowCopySnapshot() throws Exception {
         disableRepoConsistencyCheck("Remote store repository is being used for the test");
         internalCluster().startClusterManagerOnlyNode();
-        internalCluster().startDataOnlyNode();
+        internalCluster().startDataOnlyNodes(2);
 
         final String snapshotRepoName = "snapshot-repo-name";
         createRepository(snapshotRepoName, "fs", snapshotRepoSettingsForShallowCopy());
@@ -111,7 +111,7 @@ public class RemoteIndexSnapshotStatusApiIT extends AbstractSnapshotIntegTestCas
     public void testStatusAPIStatsForBackToBackShallowSnapshot() throws Exception {
         disableRepoConsistencyCheck("Remote store repository is being used for the test");
         internalCluster().startClusterManagerOnlyNode();
-        internalCluster().startDataOnlyNode();
+        internalCluster().startDataOnlyNodes(2);
 
         final String snapshotRepoName = "snapshot-repo-name";
         createRepository(snapshotRepoName, "fs", snapshotRepoSettingsForShallowCopy());
@@ -155,7 +155,7 @@ public class RemoteIndexSnapshotStatusApiIT extends AbstractSnapshotIntegTestCas
     public void testStatusAPICallInProgressShallowSnapshot() throws Exception {
         disableRepoConsistencyCheck("Remote store repository is being used for the test");
         internalCluster().startClusterManagerOnlyNode();
-        internalCluster().startDataOnlyNode();
+        internalCluster().startDataOnlyNodes(2);
 
         final String snapshotRepoName = "snapshot-repo-name";
         createRepository(snapshotRepoName, "mock", snapshotRepoSettingsForShallowCopy().put("block_on_data", true));

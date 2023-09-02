@@ -284,7 +284,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         final String remoteStoreRepoName = "remote-store-repo-name";
         final Path remoteStoreRepoPath = randomRepoPath();
         internalCluster().startClusterManagerOnlyNode(remoteStoreClusterSettings(remoteStoreRepoName, remoteStoreRepoPath));
-        internalCluster().startDataOnlyNode();
+        internalCluster().startDataOnlyNode(remoteStoreClusterSettings(remoteStoreRepoName, remoteStoreRepoPath));
 
         final String snapshotRepoName = "snapshot-repo-name";
         final Path snapshotRepoPath = randomRepoPath();
