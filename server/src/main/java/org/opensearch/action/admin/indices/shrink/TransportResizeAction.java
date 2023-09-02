@@ -35,8 +35,8 @@ package org.opensearch.action.admin.indices.shrink;
 import org.apache.lucene.index.IndexWriter;
 import org.opensearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.opensearch.action.admin.indices.create.CreateIndexRequest;
-import org.opensearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.opensearch.action.admin.indices.stats.IndexShardStats;
+import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.opensearch.action.admin.indices.stats.ShardStats;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
@@ -60,19 +60,18 @@ import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.DocsStats;
 import org.opensearch.index.store.StoreStats;
-import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.List;
-import java.util.Locale;
-import java.util.Objects;
-import java.util.Set;
-import java.util.Map;
-import java.util.HashMap;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.function.IntFunction;
 
 /**
@@ -149,15 +148,16 @@ public class TransportResizeAction extends TransportClusterManagerNodeAction<Res
         final String targetIndex = indexNameExpressionResolver.resolveDateMathExpression(resizeRequest.getTargetIndexRequest().index());
 
         IndexMetadata indexMetadata = state.metadata().index(sourceIndex);
-        if( state.isSegmentReplicationEnabled(sourceIndex) && Integer.valueOf(indexMetadata.getSettings().get("index.number_of_replicas")) > 0 && resizeRequest.getResizeType().equals(ResizeType.SHRINK)
-            && state.blocks().indexBlocked(ClusterBlockLevel.WRITE, sourceIndex)){
-            client.admin().indices().prepareRefresh(sourceIndex).execute();
+        if (state.isSegmentReplicationEnabled(sourceIndex)
+            && Integer.valueOf(indexMetadata.getSettings().get("index.number_of_replicas")) > 0
+            && resizeRequest.getResizeType().equals(ResizeType.SHRINK)) {
             client.admin()
                 .indices()
                 .prepareStats(sourceIndex)
                 .clear()
                 .setDocs(true)
                 .setStore(true)
+                .setRefresh(true)
                 .execute(ActionListener.delegateFailure(listener, (delegatedListener, indicesStatsResponse) -> {
                     CreateIndexClusterStateUpdateRequest updateRequest = prepareCreateIndexRequest(resizeRequest, state, i -> {
                         IndexShardStats shard = indicesStatsResponse.getIndex(sourceIndex).getIndexShards().get(i);
@@ -165,20 +165,21 @@ public class TransportResizeAction extends TransportClusterManagerNodeAction<Res
                     }, indicesStatsResponse.getPrimaries().store, sourceIndex, targetIndex);
 
                     Map<ShardId, List<ShardStats>> shardStatsMap = new HashMap<>();
-                    for(Map.Entry<ShardRouting, ShardStats> map : indicesStatsResponse.asMap().entrySet()){
-                        if(shardStatsMap.containsKey(map.getKey().shardId())){
+                    for (Map.Entry<ShardRouting, ShardStats> map : indicesStatsResponse.asMap().entrySet()) {
+                        if (shardStatsMap.containsKey(map.getKey().shardId())) {
                             shardStatsMap.get(map.getKey().shardId()).add(map.getValue());
-                        }
-                        else{
+                        } else {
                             shardStatsMap.put(map.getKey().shardId(), new ArrayList<ShardStats>(Arrays.asList(map.getValue())));
                         }
                     }
-                    for (Map.Entry<ShardId, List<ShardStats>> map : shardStatsMap.entrySet()){
+                    for (Map.Entry<ShardId, List<ShardStats>> map : shardStatsMap.entrySet()) {
                         long docCount = map.getValue().get(0).getStats().getDocs().getCount();
-                        for(ShardStats shardStats : map.getValue()){
-                            if(shardStats.getStats().docs.getCount() != docCount){
+                        for (ShardStats shardStats : map.getValue()) {
+                            if (shardStats.getStats().docs.getCount() != docCount) {
                                 throw new IllegalStateException(
-                                    " For index " + sourceIndex + " replica shards haven't caught up with primary, please retry after sometime."
+                                    " For index "
+                                        + sourceIndex
+                                        + " replica shards haven't caught up with primary, please retry after sometime."
                                 );
                             }
                         }
@@ -187,12 +188,15 @@ public class TransportResizeAction extends TransportClusterManagerNodeAction<Res
                         updateRequest,
                         ActionListener.map(
                             delegatedListener,
-                            response -> new ResizeResponse(response.isAcknowledged(), response.isShardsAcknowledged(), updateRequest.index())
+                            response -> new ResizeResponse(
+                                response.isAcknowledged(),
+                                response.isShardsAcknowledged(),
+                                updateRequest.index()
+                            )
                         )
                     );
                 }));
-        }
-        else {
+        } else {
             client.admin()
                 .indices()
                 .prepareStats(sourceIndex)
@@ -204,17 +208,46 @@ public class TransportResizeAction extends TransportClusterManagerNodeAction<Res
                         IndexShardStats shard = indicesStatsResponse.getIndex(sourceIndex).getIndexShards().get(i);
                         return shard == null ? null : shard.getPrimary().getDocs();
                     }, indicesStatsResponse.getPrimaries().store, sourceIndex, targetIndex);
+                    if (verifyDocCountOnReplicationGroup(indicesStatsResponse, sourceIndex) == false) {
+                        throw new IllegalStateException(
+                            " For index [" + sourceIndex + "] replica shards haven't caught up with primary, please retry after sometime."
+                        );
+                    }
                     createIndexService.createIndex(
                         updateRequest,
                         ActionListener.map(
                             delegatedListener,
-                            response -> new ResizeResponse(response.isAcknowledged(), response.isShardsAcknowledged(), updateRequest.index())
+                            response -> new ResizeResponse(
+                                response.isAcknowledged(),
+                                response.isShardsAcknowledged(),
+                                updateRequest.index()
+                            )
                         )
                     );
                 }));
         }
-//        client.admin().indices().getSettings(new GetSettingsRequest()).actionGet();
+        // client.admin().indices().getSettings(new GetSettingsRequest()).actionGet();
 
+    }
+
+    private boolean verifyDocCountOnReplicationGroup(IndicesStatsResponse indicesStatsResponse, String index) {
+        Map<ShardId, List<ShardStats>> shardStatsMap = new HashMap<>();
+        for (Map.Entry<ShardRouting, ShardStats> map : indicesStatsResponse.asMap().entrySet()) {
+            if (shardStatsMap.containsKey(map.getKey().shardId())) {
+                shardStatsMap.get(map.getKey().shardId()).add(map.getValue());
+            } else {
+                shardStatsMap.put(map.getKey().shardId(), new ArrayList<ShardStats>(Arrays.asList(map.getValue())));
+            }
+        }
+        for (Map.Entry<ShardId, List<ShardStats>> map : shardStatsMap.entrySet()) {
+            long docCount = map.getValue().get(0).getStats().getDocs().getCount();
+            for (ShardStats shardStats : map.getValue()) {
+                if (shardStats.getStats().docs.getCount() != docCount) {
+                    return false;
+                }
+            }
+        }
+        return true;
     }
 
     // static for unittesting this method

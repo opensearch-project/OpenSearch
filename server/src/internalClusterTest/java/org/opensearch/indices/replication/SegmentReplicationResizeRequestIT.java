@@ -8,9 +8,7 @@
 
 package org.opensearch.indices.replication;
 
-import org.opensearch.Version;
 import org.opensearch.action.admin.indices.shrink.ResizeType;
-import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.Preference;
 import org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider;
@@ -18,8 +16,8 @@ import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.query.TermsQueryBuilder;
-import org.opensearch.index.shard.IndexShard;
 import org.opensearch.test.OpenSearchIntegTestCase;
+
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -37,7 +35,11 @@ public class SegmentReplicationResizeRequestIT extends SegmentReplicationBaseIT 
 
         // create index with -1 as refresh interval as we are blocking segrep and we want to control refreshes.
         prepareCreate("test").setSettings(
-            Settings.builder().put(indexSettings()).put("index.refresh_interval", -1).put("index.number_of_replicas", 1).put("number_of_shards", 2)
+            Settings.builder()
+                .put(indexSettings())
+                .put("index.refresh_interval", -1)
+                .put("index.number_of_replicas", 1)
+                .put("number_of_shards", 2)
         ).get();
 
         final Map<String, DiscoveryNode> dataNodes = client().admin().cluster().prepareState().get().getState().nodes().getDataNodes();
@@ -50,14 +52,19 @@ public class SegmentReplicationResizeRequestIT extends SegmentReplicationBaseIT 
 
         // block Segment Replication so that replicas never get the docs from primary
         CountDownLatch latch = new CountDownLatch(1);
-        try(final Releasable ignored = blockReplication(List.of(discoveryNodes[0].getName()), latch)){
+        try (final Releasable ignored = blockReplication(List.of(discoveryNodes[0].getName()), latch)) {
             final int docs = 500;
             for (int i = 0; i < docs; i++) {
                 client().prepareIndex("test").setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", MediaTypeRegistry.JSON).get();
             }
-            refresh();
             assertBusy(() -> {
-                assertHitCount(client().prepareSearch("test").setQuery(new TermsQueryBuilder("foo", "bar")).setPreference(Preference.PRIMARY.type()).get(), docs);
+                assertHitCount(
+                    client().prepareSearch("test")
+                        .setQuery(new TermsQueryBuilder("foo", "bar"))
+                        .setPreference(Preference.PRIMARY.type())
+                        .get(),
+                    docs
+                );
             });
 
             // block writes on index before performing shrink operation
@@ -73,22 +80,25 @@ public class SegmentReplicationResizeRequestIT extends SegmentReplicationBaseIT 
             ensureGreen();
 
             // Trigger Shrink operation, as replicas don't have any docs it will throw exception that replicas haven't caught up
-            IllegalStateException exception = assertThrows(IllegalStateException.class,
-                () ->
-                    client().admin()
-                        .indices()
-                        .prepareResizeIndex("test", "target")
-                        .setResizeType(ResizeType.SHRINK)
-                        .setSettings(
-                            Settings.builder()
-                                .put("index.number_of_replicas", 1)
-                                .putNull("index.blocks.write")
-                                .putNull("index.routing.allocation.require._name")
-                                .build()
-                        )
-                        .get()
+            IllegalStateException exception = assertThrows(
+                IllegalStateException.class,
+                () -> client().admin()
+                    .indices()
+                    .prepareResizeIndex("test", "target")
+                    .setResizeType(ResizeType.SHRINK)
+                    .setSettings(
+                        Settings.builder()
+                            .put("index.number_of_replicas", 1)
+                            .putNull("index.blocks.write")
+                            .putNull("index.routing.allocation.require._name")
+                            .build()
+                    )
+                    .get()
             );
-            assertEquals(" For index test replica shards haven't caught up with primary, please retry after sometime.", exception.getMessage());
+            assertEquals(
+                " For index test replica shards haven't caught up with primary, please retry after sometime.",
+                exception.getMessage()
+            );
 
         }
 
@@ -99,7 +109,11 @@ public class SegmentReplicationResizeRequestIT extends SegmentReplicationBaseIT 
 
         // create index with -1 as refresh interval as we are blocking segrep and we want to control refreshes.
         prepareCreate("test").setSettings(
-            Settings.builder().put(indexSettings()).put("index.refresh_interval", -1).put("index.number_of_replicas", 1).put("number_of_shards", 3)
+            Settings.builder()
+                .put(indexSettings())
+                .put("index.refresh_interval", -1)
+                .put("index.number_of_replicas", 1)
+                .put("number_of_shards", 3)
         ).get();
 
         final Map<String, DiscoveryNode> dataNodes = client().admin().cluster().prepareState().get().getState().nodes().getDataNodes();
@@ -113,31 +127,32 @@ public class SegmentReplicationResizeRequestIT extends SegmentReplicationBaseIT 
         CountDownLatch latch = new CountDownLatch(1);
 
         // block Segment Replication so that replicas never get the docs from primary
-        try(final Releasable ignored = blockReplication(List.of(discoveryNodes[0].getName()), latch)){
+        try (final Releasable ignored = blockReplication(List.of(discoveryNodes[0].getName()), latch)) {
             final int docs = 500;
             for (int i = 0; i < docs; i++) {
                 client().prepareIndex("test").setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", MediaTypeRegistry.JSON).get();
             }
             refresh();
             assertBusy(() -> {
-                assertHitCount(client().prepareSearch("test").setQuery(new TermsQueryBuilder("foo", "bar")).setPreference(Preference.PRIMARY.type()).get(), docs);
+                assertHitCount(
+                    client().prepareSearch("test")
+                        .setQuery(new TermsQueryBuilder("foo", "bar"))
+                        .setPreference(Preference.PRIMARY.type())
+                        .get(),
+                    docs
+                );
             });
 
             // block writes on index before performing split operation
-            client().admin()
-                .indices()
-                .prepareUpdateSettings("test")
-                .setSettings(
-                    Settings.builder()
-                        .put("index.blocks.write", true)
-                )
-                .get();
+            client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put("index.blocks.write", true)).get();
             ensureGreen();
 
             client().admin()
                 .cluster()
                 .prepareUpdateSettings()
-                .setTransientSettings(Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none"))
+                .setTransientSettings(
+                    Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none")
+                )
                 .get();
 
             // Trigger split operation
@@ -158,7 +173,13 @@ public class SegmentReplicationResizeRequestIT extends SegmentReplicationBaseIT 
             ensureGreen();
 
             // verify that all docs are present in new target index
-            assertHitCount(client().prepareSearch("target").setQuery(new TermsQueryBuilder("foo", "bar")).setPreference(Preference.PRIMARY.type()).get(), docs);
+            assertHitCount(
+                client().prepareSearch("target")
+                    .setQuery(new TermsQueryBuilder("foo", "bar"))
+                    .setPreference(Preference.PRIMARY.type())
+                    .get(),
+                docs
+            );
         }
 
     }
@@ -182,31 +203,32 @@ public class SegmentReplicationResizeRequestIT extends SegmentReplicationBaseIT 
         CountDownLatch latch = new CountDownLatch(1);
 
         // block Segment Replication so that replicas never get the docs from primary
-        try(final Releasable ignored = blockReplication(List.of(discoveryNodes[0].getName()), latch)){
+        try (final Releasable ignored = blockReplication(List.of(discoveryNodes[0].getName()), latch)) {
             final int docs = 500;
             for (int i = 0; i < docs; i++) {
                 client().prepareIndex("test").setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", MediaTypeRegistry.JSON).get();
             }
             refresh();
             assertBusy(() -> {
-                assertHitCount(client().prepareSearch("test").setQuery(new TermsQueryBuilder("foo", "bar")).setPreference(Preference.PRIMARY.type()).get(), docs);
+                assertHitCount(
+                    client().prepareSearch("test")
+                        .setQuery(new TermsQueryBuilder("foo", "bar"))
+                        .setPreference(Preference.PRIMARY.type())
+                        .get(),
+                    docs
+                );
             });
 
             // block writes on index before performing clone operation
-            client().admin()
-                .indices()
-                .prepareUpdateSettings("test")
-                .setSettings(
-                    Settings.builder()
-                        .put("index.blocks.write", true)
-                )
-                .get();
+            client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put("index.blocks.write", true)).get();
             ensureGreen();
 
             client().admin()
                 .cluster()
                 .prepareUpdateSettings()
-                .setTransientSettings(Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none"))
+                .setTransientSettings(
+                    Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none")
+                )
                 .get();
 
             // Trigger split operation
@@ -215,20 +237,20 @@ public class SegmentReplicationResizeRequestIT extends SegmentReplicationBaseIT 
                     .indices()
                     .prepareResizeIndex("test", "target")
                     .setResizeType(ResizeType.CLONE)
-                    .setSettings(
-                        Settings.builder()
-                            .put("index.number_of_replicas", 1)
-                            .putNull("index.blocks.write")
-                            .build()
-                    )
+                    .setSettings(Settings.builder().put("index.number_of_replicas", 1).putNull("index.blocks.write").build())
                     .get()
             );
             ensureGreen();
 
             // verify that all docs are present in new target index
-            assertHitCount(client().prepareSearch("target").setQuery(new TermsQueryBuilder("foo", "bar")).setPreference(Preference.PRIMARY.type()).get(), docs);
+            assertHitCount(
+                client().prepareSearch("target")
+                    .setQuery(new TermsQueryBuilder("foo", "bar"))
+                    .setPreference(Preference.PRIMARY.type())
+                    .get(),
+                docs
+            );
         }
-
 
     }
 
