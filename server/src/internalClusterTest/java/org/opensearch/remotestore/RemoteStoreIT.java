@@ -196,7 +196,7 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
      * default.
      */
     public void testDefaultBufferInterval() throws ExecutionException, InterruptedException {
-        setupRepo();
+        internalCluster().startClusterManagerOnlyNode();
         String clusterManagerName = internalCluster().getClusterManagerName();
         String dataNode = internalCluster().startDataOnlyNodes(1).get(0);
         createIndex(INDEX_NAME);
@@ -224,7 +224,7 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
      * with and without cluster default.
      */
     public void testOverriddenBufferInterval() throws ExecutionException, InterruptedException {
-        setupRepo();
+        internalCluster().startClusterManagerOnlyNode();
         String clusterManagerName = internalCluster().getClusterManagerName();
         String dataNode = internalCluster().startDataOnlyNodes(1).get(0);
 
@@ -281,7 +281,7 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
      * This tests validation which kicks in during index creation failing creation if the value is less than minimum allowed value.
      */
     public void testOverriddenBufferIntervalValidation() {
-        setupRepo();
+        internalCluster().startClusterManagerOnlyNode();
         TimeValue bufferInterval = TimeValue.timeValueSeconds(-1);
         Settings indexSettings = Settings.builder()
             .put(indexSettings())
@@ -302,7 +302,6 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
      */
     public void testClusterBufferIntervalValidation() {
         String clusterManagerName = internalCluster().startClusterManagerOnlyNode();
-        setupRepo(false);
         IllegalArgumentException exception = assertThrows(
             IllegalArgumentException.class,
             () -> client(clusterManagerName).admin()
