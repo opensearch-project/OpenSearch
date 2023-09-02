@@ -9,7 +9,6 @@
 package org.opensearch.telemetry.tracing.http;
 
 import org.opensearch.telemetry.tracing.Span;
-import org.opensearch.telemetry.tracing.SpanScope;
 import org.opensearch.telemetry.tracing.attributes.Attributes;
 
 import java.util.List;
@@ -28,7 +27,7 @@ public interface HttpTracer {
      * @param spanName span name.
      * @param header http request header.
      * @param attributes span attributes.
-     * @return scope of the span, must be closed with explicit close or with try-with-resource
+     * @return span.
      */
-    SpanScope startSpan(String spanName, Map<String, List<String>> header, Attributes attributes);
+    Span startSpan(String spanName, Map<String, List<String>> header, Attributes attributes);
 }
