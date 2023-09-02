@@ -396,11 +396,11 @@ public class SegmentReplicationStatsIT extends SegmentReplicationBaseIT {
                 .cluster()
                 .prepareNodesStats()
                 .clear()
-                .setIndices(new CommonStatsFlags(CommonStatsFlags.Flag.SegmentReplication))
+                .setIndices(new CommonStatsFlags(CommonStatsFlags.Flag.Segments))
                 .get();
 
             for (NodeStats nodeStats : nodesStatsResponse.getNodes()) {
-                ReplicationStats replicationStats = nodeStats.getIndices().getReplicationStats();
+                ReplicationStats replicationStats = nodeStats.getIndices().getSegments().getReplicationStats();
                 // primary node - should hold replication statistics
                 if (nodeStats.getNode().getName().equals(primaryNode)) {
                     assertTrue(replicationStats.getMaxBytesBehind() > 0);
@@ -418,7 +418,7 @@ public class SegmentReplicationStatsIT extends SegmentReplicationBaseIT {
             IndicesStatsResponse stats = client().admin().indices().prepareStats().execute().actionGet();
 
             // stats should be of non-zero value when aggregated at index level
-            ReplicationStats indexReplicationStats = stats.getIndex(INDEX_NAME).getTotal().getReplicationStats();
+            ReplicationStats indexReplicationStats = stats.getIndex(INDEX_NAME).getTotal().getSegments().getReplicationStats();
             assertNotNull(indexReplicationStats);
             assertTrue(indexReplicationStats.getMaxBytesBehind() > 0);
             assertTrue(indexReplicationStats.getTotalBytesBehind() > 0);

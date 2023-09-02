@@ -1391,6 +1391,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 new RemoteSegmentStats(remoteStoreStatsTrackerFactory.getRemoteSegmentTransferTracker(shardId).stats())
             );
         }
+        if (indexSettings.isSegRepEnabled()) {
+            segmentsStats.addReplicationStats(getReplicationStats());
+        }
         return segmentsStats;
     }
 

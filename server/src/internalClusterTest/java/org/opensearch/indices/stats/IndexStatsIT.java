@@ -961,8 +961,7 @@ public class IndexStatsIT extends OpenSearchIntegTestCase {
             Flag.Segments,
             Flag.Translog,
             Flag.RequestCache,
-            Flag.Recovery,
-            Flag.SegmentReplication };
+            Flag.Recovery };
 
         assertThat(flags.length, equalTo(Flag.values().length));
         for (int i = 0; i < flags.length; i++) {
@@ -1142,9 +1141,6 @@ public class IndexStatsIT extends OpenSearchIntegTestCase {
             case Recovery:
                 builder.setRecovery(set);
                 break;
-            case SegmentReplication:
-                builder.setSegmentReplication(set);
-                break;
             default:
                 fail("new flag? " + flag);
                 break;
@@ -1185,8 +1181,6 @@ public class IndexStatsIT extends OpenSearchIntegTestCase {
                 return response.getRequestCache() != null;
             case Recovery:
                 return response.getRecoveryStats() != null;
-            case SegmentReplication:
-                return response.getReplicationStats() != null;
             default:
                 fail("new flag? " + flag);
                 return false;
@@ -1498,7 +1492,7 @@ public class IndexStatsIT extends OpenSearchIntegTestCase {
         IndicesStatsResponse stats = builder.execute().actionGet();
 
         // document replication enabled index should not return segment replication stats
-        assertNull(stats.getIndex(indexName).getTotal().getReplicationStats());
+        assertNull(stats.getIndex(indexName).getTotal().getSegments().getReplicationStats());
 
         indexName = "test-index2";
         createIndex(
@@ -1515,6 +1509,6 @@ public class IndexStatsIT extends OpenSearchIntegTestCase {
         stats = builder.execute().actionGet();
 
         // segment replication enabled index should return segment replication stats
-        assertNotNull(stats.getIndex(indexName).getTotal().getReplicationStats());
+        assertNotNull(stats.getIndex(indexName).getTotal().getSegments().getReplicationStats());
     }
 }

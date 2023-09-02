@@ -179,9 +179,4 @@ public class IndicesStatsRequestBuilder extends BroadcastOperationRequestBuilder
         request.includeSegmentFileSizes(includeSegmentFileSizes);
         return this;
     }
-
-    public IndicesStatsRequestBuilder setSegmentReplication(boolean segmentReplication) {
-        request.segmentReplication(segmentReplication);
-        return this;
-    }
 }
