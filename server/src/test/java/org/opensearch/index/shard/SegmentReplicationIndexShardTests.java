@@ -19,9 +19,6 @@ import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.SnapshotsInProgress;
-import org.opensearch.cluster.ClusterChangedEvent;
-import org.opensearch.cluster.ClusterState;
-import org.opensearch.cluster.SnapshotsInProgress;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
@@ -35,9 +32,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.shard.ShardId;
-import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
-import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.SegmentReplicationShardStats;
@@ -51,12 +46,10 @@ import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.replication.OpenSearchIndexLevelReplicationTestCase;
 import org.opensearch.index.replication.TestReplicationSource;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
-import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.index.translog.SnapshotMatchers;
 import org.opensearch.index.translog.Translog;
-import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RecoveryTarget;
@@ -74,12 +67,6 @@ import org.opensearch.indices.replication.common.ReplicationFailedException;
 import org.opensearch.indices.replication.common.ReplicationListener;
 import org.opensearch.indices.replication.common.ReplicationState;
 import org.opensearch.indices.replication.common.ReplicationType;
-import org.opensearch.repositories.IndexId;
-import org.opensearch.snapshots.Snapshot;
-import org.opensearch.snapshots.SnapshotId;
-import org.opensearch.snapshots.SnapshotInfoTests;
-import org.opensearch.snapshots.SnapshotShardsService;
-import org.opensearch.test.VersionUtils;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.snapshots.Snapshot;
 import org.opensearch.snapshots.SnapshotId;
@@ -106,11 +93,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
-import static org.mockito.ArgumentMatchers.anyInt;
 import static org.opensearch.index.engine.EngineTestCase.assertAtMostOneLuceneDocumentPerSequenceNumber;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
@@ -911,7 +898,13 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
                 assertNotNull(engineOrNull);
                 assertTrue(engineOrNull instanceof ReadOnlyEngine);
                 shards.assertAllEqual(10);
-                shardsService.clusterChanged(new ClusterChangedEvent("test", addSnapshotIndex(clusterService.state(), snapshot, replicaShard, SnapshotsInProgress.State.STARTED), initState));
+                shardsService.clusterChanged(
+                    new ClusterChangedEvent(
+                        "test",
+                        addSnapshotIndex(clusterService.state(), snapshot, replicaShard, SnapshotsInProgress.State.STARTED),
+                        initState
+                    )
+                );
                 latch.countDown();
                 return ans.callRealMethod();
             }).when(spy).newReadWriteEngine(any());
@@ -922,7 +915,10 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
                 final IndexShardSnapshotStatus.Stage stage = copy.getStage();
                 assertEquals(IndexShardSnapshotStatus.Stage.FAILURE, stage);
                 assertNotNull(copy.getFailure());
-                assertTrue(copy.getFailure().contains("snapshot triggered on a new primary following failover and cannot proceed until promotion is complete"));
+                assertTrue(
+                    copy.getFailure()
+                        .contains("snapshot triggered on a new primary following failover and cannot proceed until promotion is complete")
+                );
             });
         }
     }
@@ -937,10 +933,18 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         return new SnapshotShardsService(settings, clusterService, createRepositoriesService(), transportService, indicesService);
     }
 
-    private ClusterState addSnapshotIndex(ClusterState state, Snapshot snapshot, IndexShard shard, SnapshotsInProgress.State snapshotState) {
+    private ClusterState addSnapshotIndex(
+        ClusterState state,
+        Snapshot snapshot,
+        IndexShard shard,
+        SnapshotsInProgress.State snapshotState
+    ) {
         final Map<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shardsBuilder = new HashMap<>();
         ShardRouting shardRouting = shard.shardRouting;
-        shardsBuilder.put(shardRouting.shardId(), new SnapshotsInProgress.ShardSnapshotStatus(state.getNodes().getLocalNode().getId(), "1"));
+        shardsBuilder.put(
+            shardRouting.shardId(),
+            new SnapshotsInProgress.ShardSnapshotStatus(state.getNodes().getLocalNode().getId(), "1")
+        );
         final SnapshotsInProgress.Entry entry = new SnapshotsInProgress.Entry(
             snapshot,
             randomBoolean(),
