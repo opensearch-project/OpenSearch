@@ -43,8 +43,6 @@ import org.opensearch.index.mapper.MapperService;
 
 import java.util.Map;
 
-import static org.opensearch.index.engine.EngineConfig.INDEX_CODEC_COMPRESSION_LEVEL_SETTING;
-
 /**
  * Since Lucene 4.0 low level index segments are read and written through a
  * codec layer that allows to use use-case specific file formats &amp;

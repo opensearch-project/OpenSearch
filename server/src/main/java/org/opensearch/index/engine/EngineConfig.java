@@ -197,13 +197,22 @@ public final class EngineConfig {
             case "lz4":
                 break;
             default:
+                if (Codec.availableCodecs().contains(codec)) {
+                    Codec luceneCodec = Codec.forName(codec);
+                    if (luceneCodec instanceof CodecSettings
+                        && ((CodecSettings) luceneCodec).supports(INDEX_CODEC_COMPRESSION_LEVEL_SETTING)) {
+                        return;
+                    }
+                }
                 for (String codecName : Codec.availableCodecs()) {
                     Codec availableCodec = Codec.forName(codecName);
-                    if (codecName.equals(codec)
-                        || (availableCodec instanceof CodecAliases && ((CodecAliases) availableCodec).aliases().contains(codec))) {
-                        if (availableCodec instanceof CodecSettings
-                            && ((CodecSettings) availableCodec).supports(INDEX_CODEC_COMPRESSION_LEVEL_SETTING)) {
-                            return;
+                    if (availableCodec instanceof CodecAliases) {
+                        CodecAliases availableCodecWithAlias = (CodecAliases) availableCodec;
+                        if (availableCodecWithAlias.aliases() != null && availableCodecWithAlias.aliases().contains(codec)) {
+                            if (availableCodec instanceof CodecSettings
+                                && ((CodecSettings) availableCodec).supports(INDEX_CODEC_COMPRESSION_LEVEL_SETTING)) {
+                                return;
+                            }
                         }
                     }
                 }
