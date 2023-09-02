@@ -114,9 +114,7 @@ public abstract class AbstractRemoteStoreMockRepositoryIntegTestCase extends Abs
         assertAcked(clusterAdmin().prepareDeleteRepository(TRANSLOG_REPOSITORY_NAME));
     }
 
-    protected String setup(Path repoLocation, double ioFailureRate, String skipExceptionBlobList, long maxFailure) throws Exception {
-        logger.info("--> Creating repository={} at the path={}", REPOSITORY_NAME, repoLocation);
-        logger.info("--> Creating repository={} at the path={}", TRANSLOG_REPOSITORY_NAME, repoLocation);
+    protected String setup(Path repoLocation, double ioFailureRate, String skipExceptionBlobList, long maxFailure) {
         // The random_control_io_exception_rate setting ensures that 10-25% of all operations to remote store results in
         /// IOException. skip_exception_on_verification_file & skip_exception_on_list_blobs settings ensures that the
         // repository creation can happen without failure.

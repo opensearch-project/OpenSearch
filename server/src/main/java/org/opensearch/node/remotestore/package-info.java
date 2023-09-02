@@ -7,4 +7,4 @@
  */
 
 /** Restore remote store transport handler. */
-package org.opensearch.action.admin.cluster.remotestore;
+package org.opensearch.node.remotestore;
