@@ -9,26 +9,17 @@
 package org.opensearch.repositories.s3.async;
 
 import software.amazon.awssdk.awscore.exception.AwsErrorDetails;
-import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.core.async.AsyncRequestBody;
-import software.amazon.awssdk.core.async.AsyncResponseTransformer;
-import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.http.HttpStatusCode;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.model.AbortMultipartUploadRequest;
 import software.amazon.awssdk.services.s3.model.AbortMultipartUploadResponse;
-import software.amazon.awssdk.services.s3.model.Checksum;
 import software.amazon.awssdk.services.s3.model.CompleteMultipartUploadRequest;
 import software.amazon.awssdk.services.s3.model.CompleteMultipartUploadResponse;
 import software.amazon.awssdk.services.s3.model.CreateMultipartUploadRequest;
 import software.amazon.awssdk.services.s3.model.CreateMultipartUploadResponse;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.DeleteObjectResponse;
-import software.amazon.awssdk.services.s3.model.GetObjectAttributesParts;
-import software.amazon.awssdk.services.s3.model.GetObjectAttributesRequest;
-import software.amazon.awssdk.services.s3.model.GetObjectAttributesResponse;
-import software.amazon.awssdk.services.s3.model.GetObjectRequest;
-import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectResponse;
 import software.amazon.awssdk.services.s3.model.S3Exception;
@@ -45,12 +36,9 @@ import org.opensearch.repositories.blobstore.ZeroInputStream;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
-import java.io.InputStream;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
-
-import org.mockito.ArgumentMatchers;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -247,96 +235,5 @@ public class AsyncTransferManagerTests extends OpenSearchTestCase {
         verify(s3AsyncClient, times(5)).uploadPart(any(UploadPartRequest.class), any(AsyncRequestBody.class));
         verify(s3AsyncClient, times(0)).completeMultipartUpload(any(CompleteMultipartUploadRequest.class));
         verify(s3AsyncClient, times(1)).abortMultipartUpload(any(AbortMultipartUploadRequest.class));
-    }
-
-    public void testGetBlobMetadata() throws Exception {
-        final String checksum = randomAlphaOfLengthBetween(1, 10);
-        final long objectSize = 100L;
-        final int objectPartCount = 10;
-        final String blobName = randomAlphaOfLengthBetween(1, 10);
-        final String bucketName = randomAlphaOfLengthBetween(1, 10);
-
-        CompletableFuture<GetObjectAttributesResponse> getObjectAttributesResponseCompletableFuture = new CompletableFuture<>();
-        getObjectAttributesResponseCompletableFuture.complete(
-            GetObjectAttributesResponse.builder()
-                .checksum(Checksum.builder().checksumCRC32(checksum).build())
-                .objectSize(objectSize)
-                .objectParts(GetObjectAttributesParts.builder().totalPartsCount(objectPartCount).build())
-                .build()
-        );
-        when(s3AsyncClient.getObjectAttributes(any(GetObjectAttributesRequest.class))).thenReturn(
-            getObjectAttributesResponseCompletableFuture
-        );
-
-        CompletableFuture<GetObjectAttributesResponse> responseFuture = asyncTransferManager.getBlobMetadata(
-            s3AsyncClient,
-            bucketName,
-            blobName
-        );
-        GetObjectAttributesResponse objectAttributesResponse = responseFuture.get();
-
-        assertEquals(checksum, objectAttributesResponse.checksum().checksumCRC32());
-        assertEquals(Long.valueOf(objectSize), objectAttributesResponse.objectSize());
-        assertEquals(Integer.valueOf(objectPartCount), objectAttributesResponse.objectParts().totalPartsCount());
-    }
-
-    public void testGetBlobPartInputStream() throws Exception {
-        final String blobName = randomAlphaOfLengthBetween(1, 10);
-        final String bucketName = randomAlphaOfLengthBetween(1, 10);
-        final long contentLength = 10L;
-        final String contentRange = "bytes 0-10/100";
-        final InputStream inputStream = ResponseInputStream.nullInputStream();
-
-        GetObjectResponse getObjectResponse = GetObjectResponse.builder().contentLength(contentLength).contentRange(contentRange).build();
-
-        CompletableFuture<ResponseInputStream<GetObjectResponse>> getObjectPartResponse = new CompletableFuture<>();
-        ResponseInputStream<GetObjectResponse> responseInputStream = new ResponseInputStream<>(getObjectResponse, inputStream);
-        getObjectPartResponse.complete(responseInputStream);
-
-        when(
-            s3AsyncClient.getObject(
-                any(GetObjectRequest.class),
-                ArgumentMatchers.<AsyncResponseTransformer<GetObjectResponse, ResponseInputStream<GetObjectResponse>>>any()
-            )
-        ).thenReturn(getObjectPartResponse);
-
-        InputStreamContainer inputStreamContainer = asyncTransferManager.getBlobPartInputStreamContainer(
-            s3AsyncClient,
-            bucketName,
-            blobName,
-            0
-        ).get();
-
-        assertEquals(0, inputStreamContainer.getOffset());
-        assertEquals(contentLength, inputStreamContainer.getContentLength());
-        assertEquals(inputStream.available(), inputStreamContainer.getInputStream().available());
-    }
-
-    public void testTransformResponseToInputStreamContainer() throws Exception {
-        final String contentRange = "bytes 0-10/100";
-        final long contentLength = 10L;
-        final InputStream inputStream = ResponseInputStream.nullInputStream();
-
-        GetObjectResponse getObjectResponse = GetObjectResponse.builder().contentLength(contentLength).build();
-
-        ResponseInputStream<GetObjectResponse> responseInputStreamNoRange = new ResponseInputStream<>(getObjectResponse, inputStream);
-        assertThrows(SdkException.class, () -> asyncTransferManager.transformResponseToInputStreamContainer(responseInputStreamNoRange));
-
-        getObjectResponse = GetObjectResponse.builder().contentRange(contentRange).build();
-        ResponseInputStream<GetObjectResponse> responseInputStreamNoContentLength = new ResponseInputStream<>(
-            getObjectResponse,
-            inputStream
-        );
-        assertThrows(
-            SdkException.class,
-            () -> asyncTransferManager.transformResponseToInputStreamContainer(responseInputStreamNoContentLength)
-        );
-
-        getObjectResponse = GetObjectResponse.builder().contentRange(contentRange).contentLength(contentLength).build();
-        ResponseInputStream<GetObjectResponse> responseInputStream = new ResponseInputStream<>(getObjectResponse, inputStream);
-        InputStreamContainer inputStreamContainer = asyncTransferManager.transformResponseToInputStreamContainer(responseInputStream);
-        assertEquals(contentLength, inputStreamContainer.getContentLength());
-        assertEquals(0, inputStreamContainer.getOffset());
-        assertEquals(inputStream.available(), inputStreamContainer.getInputStream().available());
     }
 }

@@ -899,7 +899,27 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         }
     }
 
-    public void testAsyncBlobDownload() throws Exception {
+    public void testListBlobsByPrefixInLexicographicOrderWithNegativeLimit() throws IOException {
+        testListBlobsByPrefixInLexicographicOrder(-5, 0, BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC);
+    }
+
+    public void testListBlobsByPrefixInLexicographicOrderWithZeroLimit() throws IOException {
+        testListBlobsByPrefixInLexicographicOrder(0, 1, BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC);
+    }
+
+    public void testListBlobsByPrefixInLexicographicOrderWithLimitLessThanPageSize() throws IOException {
+        testListBlobsByPrefixInLexicographicOrder(2, 1, BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC);
+    }
+
+    public void testListBlobsByPrefixInLexicographicOrderWithLimitGreaterThanPageSize() throws IOException {
+        testListBlobsByPrefixInLexicographicOrder(8, 2, BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC);
+    }
+
+    public void testListBlobsByPrefixInLexicographicOrderWithLimitGreaterThanNumberOfRecords() throws IOException {
+        testListBlobsByPrefixInLexicographicOrder(12, 2, BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC);
+    }
+
+    public void testReadBlobAsync() throws Exception {
         final String bucketName = randomAlphaOfLengthBetween(1, 10);
         final String blobName = randomAlphaOfLengthBetween(1, 10);
         final String checksum = randomAlphaOfLength(10);
@@ -964,7 +984,7 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         }
     }
 
-    public void testAsyncBlobDownloadFailure() throws Exception {
+    public void testReadBlobAsyncFailure() throws Exception {
         final String bucketName = randomAlphaOfLengthBetween(1, 10);
         final String blobName = randomAlphaOfLengthBetween(1, 10);
         final String checksum = randomAlphaOfLength(10);
@@ -1012,24 +1032,102 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         assertEquals(1, readContextActionListener.getFailureCount());
     }
 
-    public void testListBlobsByPrefixInLexicographicOrderWithNegativeLimit() throws IOException {
-        testListBlobsByPrefixInLexicographicOrder(-5, 0, BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC);
+    public void testGetBlobMetadata() throws Exception {
+        final String checksum = randomAlphaOfLengthBetween(1, 10);
+        final long objectSize = 100L;
+        final int objectPartCount = 10;
+        final String blobName = randomAlphaOfLengthBetween(1, 10);
+        final String bucketName = randomAlphaOfLengthBetween(1, 10);
+
+        final S3AsyncClient s3AsyncClient = mock(S3AsyncClient.class);
+        final S3BlobStore blobStore = mock(S3BlobStore.class);
+        final BlobPath blobPath = new BlobPath();
+        when(blobStore.bucket()).thenReturn(bucketName);
+        when(blobStore.getStatsMetricPublisher()).thenReturn(new StatsMetricPublisher());
+        when(blobStore.serverSideEncryption()).thenReturn(false);
+        final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
+
+        CompletableFuture<GetObjectAttributesResponse> getObjectAttributesResponseCompletableFuture = new CompletableFuture<>();
+        getObjectAttributesResponseCompletableFuture.complete(
+            GetObjectAttributesResponse.builder()
+                .checksum(Checksum.builder().checksumCRC32(checksum).build())
+                .objectSize(objectSize)
+                .objectParts(GetObjectAttributesParts.builder().totalPartsCount(objectPartCount).build())
+                .build()
+        );
+        when(s3AsyncClient.getObjectAttributes(any(GetObjectAttributesRequest.class))).thenReturn(
+            getObjectAttributesResponseCompletableFuture
+        );
+
+        CompletableFuture<GetObjectAttributesResponse> responseFuture = blobContainer.getBlobMetadata(s3AsyncClient, bucketName, blobName);
+        GetObjectAttributesResponse objectAttributesResponse = responseFuture.get();
+
+        assertEquals(checksum, objectAttributesResponse.checksum().checksumCRC32());
+        assertEquals(Long.valueOf(objectSize), objectAttributesResponse.objectSize());
+        assertEquals(Integer.valueOf(objectPartCount), objectAttributesResponse.objectParts().totalPartsCount());
     }
 
-    public void testListBlobsByPrefixInLexicographicOrderWithZeroLimit() throws IOException {
-        testListBlobsByPrefixInLexicographicOrder(0, 1, BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC);
+    public void testGetBlobPartInputStream() throws Exception {
+        final String blobName = randomAlphaOfLengthBetween(1, 10);
+        final String bucketName = randomAlphaOfLengthBetween(1, 10);
+        final long contentLength = 10L;
+        final String contentRange = "bytes 0-10/100";
+        final InputStream inputStream = ResponseInputStream.nullInputStream();
+
+        final S3AsyncClient s3AsyncClient = mock(S3AsyncClient.class);
+        final S3BlobStore blobStore = mock(S3BlobStore.class);
+        final BlobPath blobPath = new BlobPath();
+        when(blobStore.bucket()).thenReturn(bucketName);
+        when(blobStore.getStatsMetricPublisher()).thenReturn(new StatsMetricPublisher());
+        when(blobStore.serverSideEncryption()).thenReturn(false);
+        final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
+
+        GetObjectResponse getObjectResponse = GetObjectResponse.builder().contentLength(contentLength).contentRange(contentRange).build();
+
+        CompletableFuture<ResponseInputStream<GetObjectResponse>> getObjectPartResponse = new CompletableFuture<>();
+        ResponseInputStream<GetObjectResponse> responseInputStream = new ResponseInputStream<>(getObjectResponse, inputStream);
+        getObjectPartResponse.complete(responseInputStream);
+
+        when(
+            s3AsyncClient.getObject(
+                any(GetObjectRequest.class),
+                ArgumentMatchers.<AsyncResponseTransformer<GetObjectResponse, ResponseInputStream<GetObjectResponse>>>any()
+            )
+        ).thenReturn(getObjectPartResponse);
+
+        InputStreamContainer inputStreamContainer = blobContainer.getBlobPartInputStreamContainer(s3AsyncClient, bucketName, blobName, 0)
+            .get();
+
+        assertEquals(0, inputStreamContainer.getOffset());
+        assertEquals(contentLength, inputStreamContainer.getContentLength());
+        assertEquals(inputStream.available(), inputStreamContainer.getInputStream().available());
     }
 
-    public void testListBlobsByPrefixInLexicographicOrderWithLimitLessThanPageSize() throws IOException {
-        testListBlobsByPrefixInLexicographicOrder(2, 1, BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC);
-    }
+    public void testTransformResponseToInputStreamContainer() throws Exception {
+        final String contentRange = "bytes 0-10/100";
+        final long contentLength = 10L;
+        final InputStream inputStream = ResponseInputStream.nullInputStream();
 
-    public void testListBlobsByPrefixInLexicographicOrderWithLimitGreaterThanPageSize() throws IOException {
-        testListBlobsByPrefixInLexicographicOrder(8, 2, BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC);
-    }
+        final S3AsyncClient s3AsyncClient = mock(S3AsyncClient.class);
 
-    public void testListBlobsByPrefixInLexicographicOrderWithLimitGreaterThanNumberOfRecords() throws IOException {
-        testListBlobsByPrefixInLexicographicOrder(12, 2, BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC);
+        GetObjectResponse getObjectResponse = GetObjectResponse.builder().contentLength(contentLength).build();
+
+        ResponseInputStream<GetObjectResponse> responseInputStreamNoRange = new ResponseInputStream<>(getObjectResponse, inputStream);
+        assertThrows(SdkException.class, () -> S3BlobContainer.transformResponseToInputStreamContainer(responseInputStreamNoRange));
+
+        getObjectResponse = GetObjectResponse.builder().contentRange(contentRange).build();
+        ResponseInputStream<GetObjectResponse> responseInputStreamNoContentLength = new ResponseInputStream<>(
+            getObjectResponse,
+            inputStream
+        );
+        assertThrows(SdkException.class, () -> S3BlobContainer.transformResponseToInputStreamContainer(responseInputStreamNoContentLength));
+
+        getObjectResponse = GetObjectResponse.builder().contentRange(contentRange).contentLength(contentLength).build();
+        ResponseInputStream<GetObjectResponse> responseInputStream = new ResponseInputStream<>(getObjectResponse, inputStream);
+        InputStreamContainer inputStreamContainer = S3BlobContainer.transformResponseToInputStreamContainer(responseInputStream);
+        assertEquals(contentLength, inputStreamContainer.getContentLength());
+        assertEquals(0, inputStreamContainer.getOffset());
+        assertEquals(inputStream.available(), inputStreamContainer.getInputStream().available());
     }
 
     private void mockObjectPartResponse(
