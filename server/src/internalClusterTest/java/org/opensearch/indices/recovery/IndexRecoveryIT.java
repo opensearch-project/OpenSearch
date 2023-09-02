@@ -509,6 +509,8 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
 
         ensureGreen();
 
+        refresh(INDEX_NAME);
+
         logger.info("--> slowing down recoveries");
         slowDownRecovery(shardSize);
 

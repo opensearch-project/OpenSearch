@@ -179,6 +179,8 @@ public class RemoteIndexRecoveryIT extends IndexRecoveryIT {
      */
     @Override
     public void slowDownRecovery(ByteSizeValue shardSize) {
+        logger.info("shard size --- >>>>> " + shardSize.getBytes());
+        super.slowDownRecovery(shardSize);
         long chunkSize = Math.max(1, shardSize.getBytes() / 10);
         assertAcked(
             client().admin()
