@@ -1863,6 +1863,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
+    public void onCheckpointPublished(ReplicationCheckpoint checkpoint) {
+        replicationTracker.startReplicationLagTimers(checkpoint);
+    }
+
     /**
      * Used with segment replication during relocation handoff, this method updates current read only engine to global
      * checkpoint followed by changing to writeable engine
@@ -4511,6 +4515,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         @Override
         public void afterRefresh(boolean didRefresh) throws IOException {
             if (didRefresh) {
+                // We're only starting to track the replication checkpoint. The timers for replication are started when
+                // the checkpoint is published. This is done so that the timers do not include the time spent by primary
+                // in uploading the segments to remote store.
                 updateReplicationCheckpoint();
             }
         }
