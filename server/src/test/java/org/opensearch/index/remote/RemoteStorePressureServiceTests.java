@@ -82,7 +82,7 @@ public class RemoteStorePressureServiceTests extends OpenSearchTestCase {
         pressureTracker.updateRemoteRefreshSeqNo(3);
         AtomicLong sum = new AtomicLong();
         IntStream.range(0, 20).forEach(i -> {
-            pressureTracker.addTimeForCompletedUploadSync(i);
+            pressureTracker.updateUploadTimeMovingAverage(i);
             sum.addAndGet(i);
         });
         double avg = (double) sum.get() / 20;
@@ -99,7 +99,7 @@ public class RemoteStorePressureServiceTests extends OpenSearchTestCase {
         // 2. bytes lag more than dynamic threshold
         sum.set(0);
         IntStream.range(0, 20).forEach(i -> {
-            pressureTracker.addUploadBytes(i);
+            pressureTracker.updateUploadBytesMovingAverage(i);
             sum.addAndGet(i);
         });
         avg = (double) sum.get() / 20;
@@ -116,12 +116,15 @@ public class RemoteStorePressureServiceTests extends OpenSearchTestCase {
         pressureService.validateSegmentsUploadLag(shardId);
 
         // 3. Consecutive failures more than the limit
+        IntStream.range(0, 5).forEach(ignore -> pressureTracker.incrementTotalUploadsStarted());
         IntStream.range(0, 5).forEach(ignore -> pressureTracker.incrementTotalUploadsFailed());
         pressureService.validateSegmentsUploadLag(shardId);
+        pressureTracker.incrementTotalUploadsStarted();
         pressureTracker.incrementTotalUploadsFailed();
         e = assertThrows(OpenSearchRejectedExecutionException.class, () -> pressureService.validateSegmentsUploadLag(shardId));
         assertTrue(e.getMessage().contains("due to remote segments lagging behind local segments"));
         assertTrue(e.getMessage().contains("failure_streak_count:6 min_consecutive_failure_threshold:5"));
+        pressureTracker.incrementTotalUploadsStarted();
         pressureTracker.incrementTotalUploadsSucceeded();
         pressureService.validateSegmentsUploadLag(shardId);
     }

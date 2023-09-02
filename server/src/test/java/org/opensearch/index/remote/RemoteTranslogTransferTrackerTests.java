@@ -42,38 +42,38 @@ public class RemoteTranslogTransferTrackerTests extends OpenSearchTestCase {
     public void testAddUploadsFailed() {
         populateUploadsStarted();
         assertEquals(0L, tracker.getTotalUploadsFailed());
-        tracker.incrementUploadsFailed();
+        tracker.incrementTotalUploadsFailed();
         assertEquals(1L, tracker.getTotalUploadsFailed());
-        tracker.incrementUploadsFailed();
+        tracker.incrementTotalUploadsFailed();
         assertEquals(2L, tracker.getTotalUploadsFailed());
     }
 
     public void testInvalidAddUploadsFailed() {
         populateUploadsStarted();
         for (int i = 0; i < tracker.getTotalUploadsStarted(); i++) {
-            tracker.incrementUploadsSucceeded();
+            tracker.incrementTotalUploadsSucceeded();
         }
 
-        AssertionError error = assertThrows(AssertionError.class, () -> tracker.incrementUploadsFailed());
+        AssertionError error = assertThrows(AssertionError.class, () -> tracker.incrementTotalUploadsFailed());
         assertTrue(error.getMessage().contains("Sum of failure count ("));
     }
 
     public void testAddUploadsSucceeded() {
         populateUploadsStarted();
         assertEquals(0L, tracker.getTotalUploadsSucceeded());
-        tracker.incrementUploadsSucceeded();
+        tracker.incrementTotalUploadsSucceeded();
         assertEquals(1L, tracker.getTotalUploadsSucceeded());
-        tracker.incrementUploadsSucceeded();
+        tracker.incrementTotalUploadsSucceeded();
         assertEquals(2L, tracker.getTotalUploadsSucceeded());
     }
 
     public void testInvalidAddUploadsSucceeded() {
         populateUploadsStarted();
         for (int i = 0; i < tracker.getTotalUploadsStarted(); i++) {
-            tracker.incrementUploadsFailed();
+            tracker.incrementTotalUploadsFailed();
         }
 
-        AssertionError error = assertThrows(AssertionError.class, () -> tracker.incrementUploadsSucceeded());
+        AssertionError error = assertThrows(AssertionError.class, () -> tracker.incrementTotalUploadsSucceeded());
         assertTrue(error.getMessage().contains("Sum of failure count ("));
     }
 
@@ -345,9 +345,9 @@ public class RemoteTranslogTransferTrackerTests extends OpenSearchTestCase {
 
     private void populateUploadsStarted() {
         assertEquals(0L, tracker.getTotalUploadsStarted());
-        tracker.incrementUploadsStarted();
+        tracker.incrementTotalUploadsStarted();
         assertEquals(1L, tracker.getTotalUploadsStarted());
-        tracker.incrementUploadsStarted();
+        tracker.incrementTotalUploadsStarted();
         assertEquals(2L, tracker.getTotalUploadsStarted());
     }
 
@@ -370,10 +370,10 @@ public class RemoteTranslogTransferTrackerTests extends OpenSearchTestCase {
         tracker.addUploadTimeInMillis(randomIntBetween(10, 100));
         tracker.setLastSuccessfulUploadTimestamp(System.currentTimeMillis() + randomIntBetween(10, 100));
 
-        tracker.incrementUploadsStarted();
-        tracker.incrementUploadsStarted();
-        tracker.incrementUploadsFailed();
-        tracker.incrementUploadsSucceeded();
+        tracker.incrementTotalUploadsStarted();
+        tracker.incrementTotalUploadsStarted();
+        tracker.incrementTotalUploadsFailed();
+        tracker.incrementTotalUploadsSucceeded();
 
         tracker.addDownloadBytesSucceeded(randomIntBetween(10, 100));
         tracker.addDownloadTimeInMillis(randomIntBetween(10, 100));

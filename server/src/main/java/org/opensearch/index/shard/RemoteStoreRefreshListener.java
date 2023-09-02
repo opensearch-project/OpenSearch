@@ -430,9 +430,9 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
             long bytesUploaded = segmentTracker.getUploadBytesSucceeded() - bytesBeforeUpload;
             long timeTakenInMS = TimeValue.nsecToMSec(System.nanoTime() - startTimeInNS);
             segmentTracker.incrementTotalUploadsSucceeded();
-            segmentTracker.addUploadBytes(bytesUploaded);
-            segmentTracker.addUploadBytesPerSec((bytesUploaded * 1_000L) / Math.max(1, timeTakenInMS));
-            segmentTracker.addTimeForCompletedUploadSync(timeTakenInMS);
+            segmentTracker.updateUploadBytesMovingAverage(bytesUploaded);
+            segmentTracker.updateUploadBytesPerSecMovingAverage((bytesUploaded * 1_000L) / Math.max(1, timeTakenInMS));
+            segmentTracker.updateUploadTimeMovingAverage(timeTakenInMS);
         } else {
             segmentTracker.incrementTotalUploadsFailed();
         }
@@ -457,14 +457,14 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
                 // Track upload success
                 segmentTracker.addUploadBytesSucceeded(segmentTracker.getLatestLocalFileNameLengthMap().get(file));
                 segmentTracker.addToLatestUploadedFiles(file);
-                segmentTracker.addTotalUploadTimeInMs(Math.max(1, System.currentTimeMillis() - uploadStartTime));
+                segmentTracker.addUploadTimeInMillis(Math.max(1, System.currentTimeMillis() - uploadStartTime));
             }
 
             @Override
             public void onFailure(String file) {
                 // Track upload failure
                 segmentTracker.addUploadBytesFailed(segmentTracker.getLatestLocalFileNameLengthMap().get(file));
-                segmentTracker.addTotalUploadTimeInMs(Math.max(1, System.currentTimeMillis() - uploadStartTime));
+                segmentTracker.addUploadTimeInMillis(Math.max(1, System.currentTimeMillis() - uploadStartTime));
             }
         };
     }

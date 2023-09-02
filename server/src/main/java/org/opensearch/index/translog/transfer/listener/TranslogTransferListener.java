@@ -19,12 +19,6 @@ import java.io.IOException;
  */
 public interface TranslogTransferListener {
     /**
-     * Invoked before the transfer of {@link TransferSnapshot}
-     * @param transferSnapshot the transfer snapshot
-     */
-    void beforeUpload(TransferSnapshot transferSnapshot) throws IOException;
-
-    /**
      * Invoked when the transfer of {@link TransferSnapshot} succeeds
      * @param transferSnapshot the transfer snapshot
      * @throws IOException the exception during the transfer of data

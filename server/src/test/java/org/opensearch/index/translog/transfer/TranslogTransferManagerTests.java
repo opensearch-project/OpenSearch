@@ -65,6 +65,11 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
     private long generation;
     private long minTranslogGeneration;
     private RemoteTranslogTransferTracker remoteTranslogTransferTracker;
+    byte[] tlogBytes;
+    byte[] ckpBytes;
+    FileTransferTracker tracker;
+    TranslogTransferManager translogTransferManager;
+    long delayForBlobDownload;
 
     @Override
     public void setUp() throws Exception {
@@ -78,6 +83,27 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         transferService = mock(TransferService.class);
         threadPool = new TestThreadPool(getClass().getName());
         remoteTranslogTransferTracker = new RemoteTranslogTransferTracker(shardId, 20);
+        tlogBytes = "Hello Translog".getBytes(StandardCharsets.UTF_8);
+        ckpBytes = "Hello Checkpoint".getBytes(StandardCharsets.UTF_8);
+        tracker = new FileTransferTracker(new ShardId("index", "indexUuid", 0), remoteTranslogTransferTracker);
+        translogTransferManager = new TranslogTransferManager(
+            shardId,
+            transferService,
+            remoteBaseTransferPath,
+            tracker,
+            remoteTranslogTransferTracker
+        );
+
+        delayForBlobDownload = 1;
+        when(transferService.downloadBlob(any(BlobPath.class), eq("translog-23.tlog"))).thenAnswer(invocation -> {
+            Thread.sleep(delayForBlobDownload);
+            return new ByteArrayInputStream(tlogBytes);
+        });
+
+        when(transferService.downloadBlob(any(BlobPath.class), eq("translog-23.ckp"))).thenAnswer(invocation -> {
+            Thread.sleep(delayForBlobDownload);
+            return new ByteArrayInputStream(ckpBytes);
+        });
     }
 
     @Override
@@ -133,9 +159,6 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         );
 
         assertTrue(translogTransferManager.transferSnapshot(createTransferSnapshot(), new TranslogTransferListener() {
-            @Override
-            public void beforeUpload(TransferSnapshot transferSnapshot) throws IOException {}
-
             @Override
             public void onUploadComplete(TransferSnapshot transferSnapshot) {
                 translogTransferSucceeded.incrementAndGet();
@@ -225,8 +248,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
             .listAllInSortedOrder(any(BlobPath.class), eq(TranslogTransferMetadata.METADATA_PREFIX), anyInt(), any(ActionListener.class));
 
         assertNull(translogTransferManager.readMetadata());
-        assertEquals(0, remoteTranslogTransferTracker.getDownloadBytesSucceeded());
-        assertEquals(0, remoteTranslogTransferTracker.getTotalDownloadsSucceeded());
+        assertNoDownloadStats();
     }
 
     // This should happen most of the time - Just a single metadata file
@@ -250,12 +272,16 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
             .listAllInSortedOrder(any(BlobPath.class), eq(TranslogTransferMetadata.METADATA_PREFIX), anyInt(), any(ActionListener.class));
 
         TranslogTransferMetadata metadata = createTransferSnapshot().getTranslogTransferMetadata();
-        when(transferService.downloadBlob(any(BlobPath.class), eq(mdFilename))).thenReturn(
-            new ByteArrayInputStream(translogTransferManager.getMetadataBytes(metadata))
-        );
+        long delayForMdDownload = 1;
+        when(transferService.downloadBlob(any(BlobPath.class), eq(mdFilename))).thenAnswer(invocation -> {
+            Thread.sleep(delayForMdDownload);
+            return new ByteArrayInputStream(translogTransferManager.getMetadataBytes(metadata));
+        });
 
         assertEquals(metadata, translogTransferManager.readMetadata());
+
         assertEquals(translogTransferManager.getMetadataBytes(metadata).length, remoteTranslogTransferTracker.getDownloadBytesSucceeded());
+        assertTrue(remoteTranslogTransferTracker.getTotalDownloadTimeInMillis() >= delayForMdDownload);
     }
 
     public void testReadMetadataReadException() throws IOException {
@@ -281,8 +307,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         when(transferService.downloadBlob(any(BlobPath.class), eq(mdFilename))).thenThrow(new IOException("Something went wrong"));
 
         assertThrows(IOException.class, translogTransferManager::readMetadata);
-        assertEquals(0, remoteTranslogTransferTracker.getDownloadBytesSucceeded());
-        assertEquals(0, remoteTranslogTransferTracker.getTotalDownloadsSucceeded());
+        assertNoDownloadStats();
     }
 
     public void testMetadataFileNameOrder() throws IOException {
@@ -314,56 +339,23 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         when(transferService.downloadBlob(any(BlobPath.class), any(String.class))).thenThrow(new IOException("Something went wrong"));
 
         assertThrows(IOException.class, translogTransferManager::readMetadata);
-        assertEquals(0, remoteTranslogTransferTracker.getDownloadBytesSucceeded());
-        assertEquals(0, remoteTranslogTransferTracker.getTotalDownloadsSucceeded());
+        assertNoDownloadStats();
     }
 
     public void testDownloadTranslog() throws IOException {
         Path location = createTempDir();
-        TranslogTransferManager translogTransferManager = new TranslogTransferManager(
-            shardId,
-            transferService,
-            remoteBaseTransferPath,
-            new FileTransferTracker(new ShardId("index", "indexUuid", 0), remoteTranslogTransferTracker),
-            remoteTranslogTransferTracker
-        );
-
-        when(transferService.downloadBlob(any(BlobPath.class), eq("translog-23.tlog"))).thenReturn(
-            new ByteArrayInputStream("Hello Translog".getBytes(StandardCharsets.UTF_8))
-        );
-
-        when(transferService.downloadBlob(any(BlobPath.class), eq("translog-23.ckp"))).thenReturn(
-            new ByteArrayInputStream("Hello Checkpoint".getBytes(StandardCharsets.UTF_8))
-        );
-
         assertFalse(Files.exists(location.resolve("translog-23.tlog")));
         assertFalse(Files.exists(location.resolve("translog-23.ckp")));
         translogTransferManager.downloadTranslog("12", "23", location);
         assertTrue(Files.exists(location.resolve("translog-23.tlog")));
         assertTrue(Files.exists(location.resolve("translog-23.ckp")));
-        assertTrue(remoteTranslogTransferTracker.getDownloadBytesSucceeded() > 0);
+        assertTlogCkpDownloadStats();
     }
 
     public void testDownloadTranslogAlreadyExists() throws IOException {
-        FileTransferTracker tracker = new FileTransferTracker(new ShardId("index", "indexUuid", 0), remoteTranslogTransferTracker);
         Path location = createTempDir();
         Files.createFile(location.resolve("translog-23.tlog"));
         Files.createFile(location.resolve("translog-23.ckp"));
-
-        TranslogTransferManager translogTransferManager = new TranslogTransferManager(
-            shardId,
-            transferService,
-            remoteBaseTransferPath,
-            tracker,
-            remoteTranslogTransferTracker
-        );
-
-        when(transferService.downloadBlob(any(BlobPath.class), eq("translog-23.tlog"))).thenReturn(
-            new ByteArrayInputStream("Hello Translog".getBytes(StandardCharsets.UTF_8))
-        );
-        when(transferService.downloadBlob(any(BlobPath.class), eq("translog-23.ckp"))).thenReturn(
-            new ByteArrayInputStream("Hello Checkpoint".getBytes(StandardCharsets.UTF_8))
-        );
 
         translogTransferManager.downloadTranslog("12", "23", location);
 
@@ -371,30 +363,14 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         verify(transferService).downloadBlob(any(BlobPath.class), eq("translog-23.ckp"));
         assertTrue(Files.exists(location.resolve("translog-23.tlog")));
         assertTrue(Files.exists(location.resolve("translog-23.ckp")));
-        assertTrue(remoteTranslogTransferTracker.getDownloadBytesSucceeded() > 0);
+        assertTlogCkpDownloadStats();
     }
 
     public void testDownloadTranslogWithTrackerUpdated() throws IOException {
-        FileTransferTracker tracker = new FileTransferTracker(new ShardId("index", "indexUuid", 0), remoteTranslogTransferTracker);
         Path location = createTempDir();
         String translogFile = "translog-23.tlog", checkpointFile = "translog-23.ckp";
         Files.createFile(location.resolve(translogFile));
         Files.createFile(location.resolve(checkpointFile));
-
-        TranslogTransferManager translogTransferManager = new TranslogTransferManager(
-            shardId,
-            transferService,
-            remoteBaseTransferPath,
-            tracker,
-            remoteTranslogTransferTracker
-        );
-
-        when(transferService.downloadBlob(any(BlobPath.class), eq(translogFile))).thenReturn(
-            new ByteArrayInputStream("Hello Translog".getBytes(StandardCharsets.UTF_8))
-        );
-        when(transferService.downloadBlob(any(BlobPath.class), eq(checkpointFile))).thenReturn(
-            new ByteArrayInputStream("Hello Checkpoint".getBytes(StandardCharsets.UTF_8))
-        );
 
         translogTransferManager.downloadTranslog("12", "23", location);
 
@@ -410,12 +386,10 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         // Since the tracker already holds the files with success state, adding them with success state is allowed
         tracker.add(translogFile, true);
         tracker.add(checkpointFile, true);
-
-        assertTrue(remoteTranslogTransferTracker.getDownloadBytesSucceeded() > 0);
+        assertTlogCkpDownloadStats();
     }
 
     public void testDeleteTranslogSuccess() throws Exception {
-        FileTransferTracker tracker = new FileTransferTracker(new ShardId("index", "indexUuid", 0), remoteTranslogTransferTracker);
         BlobStore blobStore = mock(BlobStore.class);
         BlobContainer blobContainer = mock(BlobContainer.class);
         when(blobStore.blobContainer(any(BlobPath.class))).thenReturn(blobContainer);
@@ -504,5 +478,18 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
 
         translogTransferManager.deleteGenerationAsync(primaryTerm, Set.of(19L), () -> {});
         assertEquals(2, tracker.allUploaded().size());
+    }
+
+    private void assertNoDownloadStats() {
+        assertEquals(0, remoteTranslogTransferTracker.getDownloadBytesSucceeded());
+        assertEquals(0, remoteTranslogTransferTracker.getTotalDownloadsSucceeded());
+        assertEquals(0, remoteTranslogTransferTracker.getTotalDownloadTimeInMillis());
+        assertEquals(0, remoteTranslogTransferTracker.getLastSuccessfulDownloadTimestamp());
+    }
+
+    private void assertTlogCkpDownloadStats() {
+        assertEquals(tlogBytes.length + ckpBytes.length, remoteTranslogTransferTracker.getDownloadBytesSucceeded());
+        // Expect delay for both tlog and ckp file
+        assertTrue(remoteTranslogTransferTracker.getTotalDownloadTimeInMillis() >= 2 * delayForBlobDownload);
     }
 }

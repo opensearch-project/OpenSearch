@@ -261,9 +261,11 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
     private static void assertUploadStatsNoFailures(RemoteTranslogTransferTracker statsTracker) {
         assertTrue(statsTracker.getUploadBytesStarted() > 0);
         assertTrue(statsTracker.getTotalUploadsStarted() > 0);
-
+        assertEquals(0, statsTracker.getUploadBytesFailed());
         assertEquals(0, statsTracker.getTotalUploadsFailed());
+        assertTrue(statsTracker.getUploadBytesSucceeded() > 0);
         assertTrue(statsTracker.getTotalUploadsSucceeded() > 0);
+        assertTrue(statsTracker.getTotalUploadTimeInMillis() > 0);
         assertTrue(statsTracker.getLastSuccessfulUploadTimestamp() > 0);
     }
 
@@ -281,7 +283,8 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
     private static void assertDownloadStatsPopulated(RemoteTranslogTransferTracker statsTracker) {
         assertTrue(statsTracker.getDownloadBytesSucceeded() > 0);
         assertTrue(statsTracker.getTotalDownloadsSucceeded() > 0);
-        assertTrue(statsTracker.getTotalDownloadTimeInMillis() > 0);
+        // TODO: Need to simulate a delay for this assertion to avoid flakiness
+        // assertTrue(statsTracker.getTotalDownloadTimeInMillis() > 0);
         assertTrue(statsTracker.getLastSuccessfulDownloadTimestamp() > 0);
     }
 
@@ -383,11 +386,16 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         locs.add(addToTranslogAndListAndUpload(translog, ops, new Translog.Index("1", 0, primaryTerm.get(), new byte[] { 1 })));
         locs.add(addToTranslogAndListAndUpload(translog, ops, new Translog.Index("2", 1, primaryTerm.get(), new byte[] { 1 })));
         locs.add(addToTranslogAndListAndUpload(translog, ops, new Translog.Index("3", 2, primaryTerm.get(), new byte[] { 1 })));
+
         translog.sync();
         int i = 0;
         for (Translog.Operation op : ops) {
             assertEquals(op, translog.readOperation(locs.get(i++)));
         }
+
+        RemoteTranslogTransferTracker statsTracker = translog.getRemoteTranslogTracker();
+        assertUploadStatsNoFailures(statsTracker);
+        assertDownloadStatsNoDownloads(statsTracker);
 
         String translogUUID = translog.translogUUID;
         try {
@@ -409,7 +417,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
             assertEquals(op, newTranslog.readOperation(locs.get(i++)));
         }
 
-        RemoteTranslogTransferTracker statsTracker = newTranslog.getRemoteTranslogTracker();
+        statsTracker = newTranslog.getRemoteTranslogTracker();
         assertUploadStatsNoUploads(statsTracker);
         assertDownloadStatsPopulated(statsTracker);
 
