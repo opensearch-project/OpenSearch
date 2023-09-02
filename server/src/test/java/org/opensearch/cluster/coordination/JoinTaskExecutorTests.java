@@ -33,7 +33,6 @@ package org.opensearch.cluster.coordination;
 
 import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
-import org.opensearch.action.admin.cluster.remotestore.RemoteStoreNodeService;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateTaskExecutor;
@@ -53,6 +52,7 @@ import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.test.OpenSearchTestCase;
@@ -67,10 +67,10 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import static org.opensearch.action.admin.cluster.remotestore.RemoteStoreNode.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX;
-import static org.opensearch.action.admin.cluster.remotestore.RemoteStoreNode.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT;
-import static org.opensearch.action.admin.cluster.remotestore.RemoteStoreNode.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY;
-import static org.opensearch.action.admin.cluster.remotestore.RemoteStoreNode.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.test.VersionUtils.allVersions;
 import static org.opensearch.test.VersionUtils.maxCompatibleVersion;
 import static org.opensearch.test.VersionUtils.randomCompatibleVersion;
@@ -123,14 +123,20 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
         builder.add(new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), randomCompatibleVersion(random(), version)));
         DiscoveryNodes nodes = builder.build();
 
+        Metadata metadata = Metadata.EMPTY_METADATA;
+
         final Version maxNodeVersion = nodes.getMaxNodeVersion();
         final Version minNodeVersion = nodes.getMinNodeVersion();
-        final Version tooLow = LegacyESVersion.fromString("6.7.0");
+        final DiscoveryNode tooLowJoiningNode = new DiscoveryNode(
+            UUIDs.base64UUID(),
+            buildNewFakeTransportAddress(),
+            LegacyESVersion.fromString("6.7.0")
+        );
         expectThrows(IllegalStateException.class, () -> {
             if (randomBoolean()) {
-                JoinTaskExecutor.ensureNodesCompatibility(tooLow, nodes);
+                JoinTaskExecutor.ensureNodesCompatibility(tooLowJoiningNode, nodes, metadata);
             } else {
-                JoinTaskExecutor.ensureNodesCompatibility(tooLow, minNodeVersion, maxNodeVersion);
+                JoinTaskExecutor.ensureNodesCompatibility(tooLowJoiningNode, nodes, metadata, minNodeVersion, maxNodeVersion);
             }
         });
 
@@ -148,11 +154,11 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
             minGoodVersion = minCompatVersion.before(allVersions().get(0)) ? allVersions().get(0) : minCompatVersion;
         }
         final Version justGood = randomVersionBetween(random(), minGoodVersion, maxCompatibleVersion(minNodeVersion));
-
+        final DiscoveryNode justGoodJoiningNode = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), justGood);
         if (randomBoolean()) {
-            JoinTaskExecutor.ensureNodesCompatibility(justGood, nodes);
+            JoinTaskExecutor.ensureNodesCompatibility(justGoodJoiningNode, nodes, metadata);
         } else {
-            JoinTaskExecutor.ensureNodesCompatibility(justGood, minNodeVersion, maxNodeVersion);
+            JoinTaskExecutor.ensureNodesCompatibility(justGoodJoiningNode, nodes, metadata, minNodeVersion, maxNodeVersion);
         }
     }
 
@@ -189,6 +195,7 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
         when(allocationService.adaptAutoExpandReplicas(any())).then(invocationOnMock -> invocationOnMock.getArguments()[0]);
         final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
         final RemoteStoreNodeService remoteStoreService = mock(RemoteStoreNodeService.class);
+        when(remoteStoreService.updateRepositoriesMetadata(any(), any())).thenReturn(new RepositoriesMetadata(Collections.emptyList()));
 
         final JoinTaskExecutor joinTaskExecutor = new JoinTaskExecutor(
             Settings.EMPTY,
@@ -359,14 +366,14 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
         ClusterState currentState = ClusterState.builder(ClusterName.DEFAULT).build();
 
         DiscoveryNode joiningNode = newDiscoveryNode(Collections.emptyMap());
-        JoinTaskExecutor.ensureRemoteStoreNodesCompatibility(joiningNode, currentState);
+        JoinTaskExecutor.ensureNodesCompatibility(joiningNode, currentState.getNodes(), currentState.metadata());
     }
 
     public void testJoinClusterWithRemoteStoreNodeJoining() {
         ClusterState currentState = ClusterState.builder(ClusterName.DEFAULT).build();
 
         DiscoveryNode joiningNode = newDiscoveryNode(remoteStoreNodeAttributes(SEGMENT_REPO, TRANSLOG_REPO));
-        JoinTaskExecutor.ensureRemoteStoreNodesCompatibility(joiningNode, currentState);
+        JoinTaskExecutor.ensureNodesCompatibility(joiningNode, currentState.getNodes(), currentState.metadata());
     }
 
     public void testJoinClusterWithNonRemoteStoreNodeJoiningNonRemoteStoreCluster() {
@@ -377,7 +384,7 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
 
         DiscoveryNode joiningNode = newDiscoveryNode(Collections.emptyMap());
 
-        JoinTaskExecutor.ensureRemoteStoreNodesCompatibility(joiningNode, currentState);
+        JoinTaskExecutor.ensureNodesCompatibility(joiningNode, currentState.getNodes(), currentState.metadata());
     }
 
     public void testPreventJoinClusterWithRemoteStoreNodeJoiningNonRemoteStoreCluster() {
@@ -389,7 +396,7 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
         DiscoveryNode joiningNode = newDiscoveryNode(remoteStoreNodeAttributes(SEGMENT_REPO, TRANSLOG_REPO));
         Exception e = assertThrows(
             IllegalStateException.class,
-            () -> JoinTaskExecutor.ensureRemoteStoreNodesCompatibility(joiningNode, currentState)
+            () -> JoinTaskExecutor.ensureNodesCompatibility(joiningNode, currentState.getNodes(), currentState.metadata())
         );
         assertTrue(e.getMessage().equals("a remote store node [" + joiningNode + "] is trying to join a non remote " + "store cluster"));
     }
@@ -407,7 +414,7 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
             .build();
 
         DiscoveryNode joiningNode = newDiscoveryNode(remoteStoreNodeAttributes(SEGMENT_REPO, TRANSLOG_REPO));
-        JoinTaskExecutor.ensureRemoteStoreNodesCompatibility(joiningNode, currentState);
+        JoinTaskExecutor.ensureNodesCompatibility(joiningNode, currentState.getNodes(), currentState.metadata());
     }
 
     public void testPreventJoinClusterWithRemoteStoreNodeWithDifferentAttributesJoiningRemoteStoreCluster() {
@@ -473,7 +480,7 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
         DiscoveryNode joiningNode = newDiscoveryNode(Collections.emptyMap());
         Exception e = assertThrows(
             IllegalStateException.class,
-            () -> JoinTaskExecutor.ensureRemoteStoreNodesCompatibility(joiningNode, currentState)
+            () -> JoinTaskExecutor.ensureNodesCompatibility(joiningNode, currentState.getNodes(), currentState.metadata())
         );
         assertTrue(e.getMessage().equals("a non remote store node [" + joiningNode + "] is trying to join a remote " + "store cluster"));
     }
@@ -497,7 +504,7 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
             DiscoveryNode joiningNode = newDiscoveryNode(remoteStoreNodeAttributes);
             Exception e = assertThrows(
                 IllegalStateException.class,
-                () -> JoinTaskExecutor.ensureRemoteStoreNodesCompatibility(joiningNode, currentState)
+                () -> JoinTaskExecutor.ensureNodesCompatibility(joiningNode, currentState.getNodes(), currentState.metadata())
             );
             assertTrue(
                 e.getMessage().equals("joining node [" + joiningNode + "] doesn't have the node attribute [" + nodeAttribute.getKey() + "]")
@@ -799,7 +806,7 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
         DiscoveryNode joiningNode = newDiscoveryNode(remoteStoreNodeAttributes);
         Exception e = assertThrows(
             IllegalStateException.class,
-            () -> JoinTaskExecutor.ensureRemoteStoreNodesCompatibility(joiningNode, currentState)
+            () -> JoinTaskExecutor.ensureNodesCompatibility(joiningNode, currentState.getNodes(), currentState.metadata())
         );
         assertTrue(
             e.getMessage()

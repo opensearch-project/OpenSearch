@@ -33,7 +33,6 @@ package org.opensearch.common.settings;
 
 import org.apache.logging.log4j.LogManager;
 import org.opensearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
-import org.opensearch.action.admin.cluster.remotestore.RemoteStoreNodeService;
 import org.opensearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.opensearch.action.search.CreatePitController;
 import org.opensearch.action.search.TransportSearchAction;
@@ -130,6 +129,7 @@ import org.opensearch.monitor.process.ProcessService;
 import org.opensearch.node.Node;
 import org.opensearch.node.Node.DiscoverySettings;
 import org.opensearch.node.NodeRoleSettings;
+import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.persistent.PersistentTasksClusterService;
 import org.opensearch.persistent.decider.EnableAssignmentDecider;
 import org.opensearch.plugins.PluginsService;

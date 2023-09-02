@@ -33,7 +33,6 @@
 package org.opensearch.cluster.node;
 
 import org.opensearch.Version;
-import org.opensearch.action.admin.cluster.remotestore.RemoteStoreNodeService;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.Setting;
@@ -45,6 +44,7 @@ import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.node.Node;
+import org.opensearch.node.remotestore.RemoteStoreNodeService;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -61,8 +61,8 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.opensearch.action.admin.cluster.remotestore.RemoteStoreNode.REMOTE_STORE_NODE_ATTRIBUTE_KEY_PREFIX;
 import static org.opensearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_NODE_ATTRIBUTE_KEY_PREFIX;
 
 /**
  * A discovery node represents a node that is part of the cluster.

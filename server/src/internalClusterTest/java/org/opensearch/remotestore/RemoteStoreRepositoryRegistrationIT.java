@@ -24,8 +24,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import static org.opensearch.action.admin.cluster.remotestore.RemoteStoreNode.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX;
-import static org.opensearch.action.admin.cluster.remotestore.RemoteStoreNode.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class RemoteStoreRepositoryRegistrationIT extends RemoteStoreBaseIntegTestCase {
@@ -85,5 +85,17 @@ public class RemoteStoreRepositoryRegistrationIT extends RemoteStoreBaseIntegTes
         internalCluster().startClusterManagerOnlyNodes(3);
         internalCluster().startNodes(3);
         assertRemoteStoreRepositoryOnAllNodes();
+    }
+
+    public void testMultiNodeClusterActiveMasterShutDown() throws Exception {
+        internalCluster().startNodes(3);
+        internalCluster().stopCurrentClusterManagerNode();
+        ensureStableCluster(2);
+    }
+
+    public void testMultiNodeClusterRandomNodeShutDown() throws Exception {
+        internalCluster().startNodes(3);
+        internalCluster().stopRandomDataNode();
+        ensureStableCluster(2);
     }
 }

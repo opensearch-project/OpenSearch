@@ -30,11 +30,11 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.opensearch.action.admin.cluster.remotestore.RemoteStoreNode.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX;
-import static org.opensearch.action.admin.cluster.remotestore.RemoteStoreNode.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT;
-import static org.opensearch.action.admin.cluster.remotestore.RemoteStoreNode.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY;
-import static org.opensearch.action.admin.cluster.remotestore.RemoteStoreNode.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.indices.IndicesService.CLUSTER_REPLICATION_TYPE_SETTING;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 public abstract class AbstractRemoteStoreMockRepositoryIntegTestCase extends AbstractSnapshotIntegTestCase {
@@ -120,13 +120,15 @@ public abstract class AbstractRemoteStoreMockRepositoryIntegTestCase extends Abs
         // The random_control_io_exception_rate setting ensures that 10-25% of all operations to remote store results in
         /// IOException. skip_exception_on_verification_file & skip_exception_on_list_blobs settings ensures that the
         // repository creation can happen without failure.
-        Settings settings = Settings.builder()
-            .put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), randomBoolean() ? ReplicationType.SEGMENT : ReplicationType.DOCUMENT)
-            .put(buildRemoteStoreNodeAttributes(repoLocation, ioFailureRate, skipExceptionBlobList, maxFailure))
-            .build();
+        Settings.Builder settings = Settings.builder()
+            .put(buildRemoteStoreNodeAttributes(repoLocation, ioFailureRate, skipExceptionBlobList, maxFailure));
 
-        internalCluster().startClusterManagerOnlyNode(settings);
-        String dataNodeName = internalCluster().startDataOnlyNode(settings);
+        if (randomBoolean()) {
+            settings.put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT);
+        }
+
+        internalCluster().startClusterManagerOnlyNode(settings.build());
+        String dataNodeName = internalCluster().startDataOnlyNode(settings.build());
         // assertRepositoryMetadataPresentInClusterState();
         createIndex(INDEX_NAME);
         logger.info("--> Created index={}", INDEX_NAME);

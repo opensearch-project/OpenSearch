@@ -156,6 +156,7 @@ public class PrimaryTermValidationIT extends RemoteStoreBaseIntegTestCase {
         // received the following exception.
         ShardNotFoundException exception = assertThrows(ShardNotFoundException.class, () -> indexSameDoc(primaryNode, INDEX_NAME));
         assertTrue(exception.getMessage().contains("no such shard"));
+        internalCluster().clearDisruptionScheme();
         ensureStableCluster(3);
         ensureGreen(INDEX_NAME);
     }

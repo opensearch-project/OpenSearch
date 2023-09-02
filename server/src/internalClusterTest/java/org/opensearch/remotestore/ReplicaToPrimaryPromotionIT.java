@@ -33,7 +33,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-@OpenSearchIntegTestCase.ClusterScope(numDataNodes = 0)
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class ReplicaToPrimaryPromotionIT extends RemoteStoreBaseIntegTestCase {
     private int shard_count = 5;
 
@@ -99,7 +99,7 @@ public class ReplicaToPrimaryPromotionIT extends RemoteStoreBaseIntegTestCase {
         final DiscoveryNode randomNode = state.nodes().resolveNode(primaryShard.currentNodeId());
 
         // stop the random data node, all remaining shards are promoted to primaries
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(randomNode.getName()));
+        internalCluster().stopCurrentClusterManagerNode();
         ensureYellowAndNoInitializingShards(indexName);
 
         state = client(internalCluster().getClusterManagerName()).admin().cluster().prepareState().get().getState();

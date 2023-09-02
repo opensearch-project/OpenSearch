@@ -16,8 +16,11 @@ import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.node.Node;
+import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.RepositoriesService;
+import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.transport.MockTransportService;
@@ -26,10 +29,13 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.greaterThan;
@@ -88,8 +94,19 @@ public class RemoteStoreRestoreIT extends RemoteStoreBaseIntegTestCase {
     }
 
     private void prepareCluster(int numClusterManagerNodes, int numDataOnlyNodes, String indices, int replicaCount, int shardCount) {
-        internalCluster().startClusterManagerOnlyNodes(numClusterManagerNodes);
-        internalCluster().startDataOnlyNodes(numDataOnlyNodes);
+        prepareCluster(numClusterManagerNodes, numDataOnlyNodes, indices, replicaCount, shardCount, Settings.EMPTY);
+    }
+
+    private void prepareCluster(
+        int numClusterManagerNodes,
+        int numDataOnlyNodes,
+        String indices,
+        int replicaCount,
+        int shardCount,
+        Settings clusterSettings
+    ) {
+        internalCluster().startClusterManagerOnlyNodes(numClusterManagerNodes, clusterSettings);
+        internalCluster().startDataOnlyNodes(numDataOnlyNodes, clusterSettings);
         for (String index : indices.split(",")) {
             createIndex(index, remoteStoreIndexSettings(replicaCount, shardCount));
             ensureYellowAndNoInitializingShards(index);
@@ -452,23 +469,50 @@ public class RemoteStoreRestoreIT extends RemoteStoreBaseIntegTestCase {
         testRestoreFlow(0, true, randomIntBetween(1, 5));
     }
 
-    public void testRateLimitedRemoteDownloads() throws Exception {
-        assertAcked(
-            client().admin()
-                .cluster()
-                .preparePutRepository(REPOSITORY_NAME)
-                .setType("fs")
-                .setSettings(
-                    Settings.builder()
-                        .put("location", randomRepoPath())
-                        .put("compress", randomBoolean())
-                        .put("max_remote_download_bytes_per_sec", "2kb")
-                        .put("chunk_size", 200, ByteSizeUnit.BYTES)
-
-                )
+    private Settings buildClusterSettings() {
+        String segmentRepoTypeAttributeKey = String.format(
+            Locale.getDefault(),
+            "node.attr." + REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT,
+            REPOSITORY_NAME
         );
+        String segmentRepoSettingsAttributeKeyPrefix = String.format(
+            Locale.getDefault(),
+            "node.attr." + REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX,
+            REPOSITORY_NAME
+        );
+        String translogRepoTypeAttributeKey = String.format(
+            Locale.getDefault(),
+            "node.attr." + REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT,
+            REPOSITORY_2_NAME
+        );
+        String translogRepoSettingsAttributeKeyPrefix = String.format(
+            Locale.getDefault(),
+            "node.attr." + REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX,
+            REPOSITORY_2_NAME
+        );
+        return Settings.builder()
+            .put(
+                Node.NODE_ATTRIBUTES.getKey() + RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY,
+                REPOSITORY_NAME
+            )
+            .put(segmentRepoTypeAttributeKey, FsRepository.TYPE)
+            .put(segmentRepoSettingsAttributeKeyPrefix + "location", randomRepoPath())
+            .put(segmentRepoSettingsAttributeKeyPrefix + "compress", randomBoolean())
+            .put(segmentRepoSettingsAttributeKeyPrefix + "max_remote_download_bytes_per_sec", "2kb")
+            .put(segmentRepoSettingsAttributeKeyPrefix + "chunk_size", 200, ByteSizeUnit.BYTES)
+            .put(
+                Node.NODE_ATTRIBUTES.getKey() + RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY,
+                REPOSITORY_2_NAME
+            )
+            .put(translogRepoTypeAttributeKey, FsRepository.TYPE)
+            .put(translogRepoSettingsAttributeKeyPrefix + "location", randomRepoPath())
+            .build();
+    }
+
+    public void testRateLimitedRemoteDownloads() throws Exception {
+        clusterSettingsSuppliedByTest = true;
         int shardCount = randomIntBetween(1, 3);
-        prepareCluster(1, 3, INDEX_NAME, 0, shardCount);
+        prepareCluster(1, 3, INDEX_NAME, 0, shardCount, buildClusterSettings());
         Map<String, Long> indexStats = indexData(5, false, INDEX_NAME);
         assertEquals(shardCount, getNumShards(INDEX_NAME).totalNumShards);
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primaryNodeName(INDEX_NAME)));

@@ -33,8 +33,6 @@ package org.opensearch.cluster.coordination;
 
 import org.apache.logging.log4j.Logger;
 import org.opensearch.Version;
-import org.opensearch.action.admin.cluster.remotestore.RemoteStoreNode;
-import org.opensearch.action.admin.cluster.remotestore.RemoteStoreNodeService;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateTaskExecutor;
 import org.opensearch.cluster.NotClusterManagerException;
@@ -42,13 +40,17 @@ import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.decommission.NodeDecommissionedException;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.metadata.RepositoriesMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.RerouteService;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.common.Priority;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
+import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.persistent.PersistentTasksCustomMetadata;
 
 import java.util.ArrayList;
@@ -61,11 +63,11 @@ import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
-import static org.opensearch.action.admin.cluster.remotestore.RemoteStoreNodeService.CompatibilityMode;
-import static org.opensearch.action.admin.cluster.remotestore.RemoteStoreNodeService.CompatibilityMode.STRICT;
-import static org.opensearch.action.admin.cluster.remotestore.RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING;
 import static org.opensearch.cluster.decommission.DecommissionHelper.nodeCommissioned;
 import static org.opensearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
+import static org.opensearch.node.remotestore.RemoteStoreNodeService.CompatibilityMode;
+import static org.opensearch.node.remotestore.RemoteStoreNodeService.CompatibilityMode.STRICT;
+import static org.opensearch.node.remotestore.RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING;
 
 /**
  * Main executor for Nodes joining the OpenSearch cluster
@@ -174,6 +176,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         }
 
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(newState.nodes());
+        SetOnce<RepositoriesMetadata> repositoriesMetadata = new SetOnce<>();
 
         assert nodesBuilder.isLocalNodeElectedClusterManager();
 
@@ -187,34 +190,24 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
             final DiscoveryNode node = joinTask.node();
             if (joinTask.isBecomeClusterManagerTask() || joinTask.isFinishElectionTask()) {
                 // noop
-            } else if (currentNodes.nodeExists(node)) {
-                // TODO: Fix this by moving it out of this if condition, Had to add this code back here as this was
-                // leading to failure of JoinTaskExecutorTests::testUpdatesNodeWithNewRoles test.
-                if (node.isRemoteStoreNode()) {
-                    /** cluster state is updated here as elect leader task can have same node present in join task as
-                     *  well as current node. We want the repositories to be added in cluster state during first node
-                     *  join. See
-                     * {@link org.opensearch.gateway.GatewayMetaState#prepareInitialClusterState(TransportService, ClusterService, ClusterState)} **/
-                    newState = ClusterState.builder(
-                        remoteStoreService.updateClusterStateRepositoriesMetadata(new RemoteStoreNode(node), currentState)
-                    );
-                }
             } else if (currentNodes.nodeExistsWithSameRoles(node)) {
                 logger.debug("received a join request for an existing node [{}]", node);
+
+                repositoriesMetadata.trySet(
+                    remoteStoreService.updateRepositoriesMetadata(node, currentState.getMetadata().custom(RepositoriesMetadata.TYPE))
+                );
             } else {
                 try {
                     if (enforceMajorVersion) {
                         ensureMajorVersionBarrier(node.getVersion(), minClusterNodeVersion);
                     }
-                    ensureNodesCompatibility(node.getVersion(), minClusterNodeVersion, maxClusterNodeVersion);
+                    ensureNodesCompatibility(node, currentNodes, currentState.metadata(), minClusterNodeVersion, maxClusterNodeVersion);
                     // we do this validation quite late to prevent race conditions between nodes joining and importing dangling indices
                     // we have to reject nodes that don't support all indices we have in this cluster
                     ensureIndexCompatibility(node.getVersion(), currentState.getMetadata());
                     // we have added the same check in handleJoinRequest method and adding it here as this method
                     // would guarantee that a decommissioned node would never be able to join the cluster and ensures correctness
                     ensureNodeCommissioned(node, currentState.metadata());
-
-                    ensureRemoteStoreNodesCompatibility(node, currentState);
                     nodesBuilder.add(node);
                     nodesChanged = true;
                     minClusterNodeVersion = Version.min(minClusterNodeVersion, node.getVersion());
@@ -222,12 +215,9 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
                     if (node.isClusterManagerNode()) {
                         joiniedNodeNameIds.put(node.getName(), node.getId());
                     }
-                    if (node.isRemoteStoreNode()) {
-                        // Try updating repositories metadata in cluster state once its compatible with the cluster.
-                        newState = ClusterState.builder(
-                            remoteStoreService.updateClusterStateRepositoriesMetadata(new RemoteStoreNode(node), currentState)
-                        );
-                    }
+                    repositoriesMetadata.trySet(
+                        remoteStoreService.updateRepositoriesMetadata(node, currentState.getMetadata().custom(RepositoriesMetadata.TYPE))
+                    );
                 } catch (IllegalArgumentException | IllegalStateException | NodeDecommissionedException e) {
                     results.failure(joinTask, e);
                     continue;
@@ -266,16 +256,39 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
                         .coordinationMetadata(coordMetadataBuilder.build())
                         .build();
                     return results.build(
-                        allocationService.adaptAutoExpandReplicas(newState.nodes(nodesBuilder).metadata(newMetadata).build())
+                        allocationService.adaptAutoExpandReplicas(
+                            newState.nodes(nodesBuilder)
+                                .metadata(updateMetadataWithRepositoriesMetadata(newMetadata, repositoriesMetadata))
+                                .build()
+                        )
                     );
                 }
             }
 
-            return results.build(allocationService.adaptAutoExpandReplicas(newState.nodes(nodesBuilder).build()));
+            return results.build(
+                allocationService.adaptAutoExpandReplicas(
+                    newState.nodes(nodesBuilder)
+                        .metadata(updateMetadataWithRepositoriesMetadata(currentState.metadata(), repositoriesMetadata))
+                        .build()
+                )
+            );
         } else {
             // we must return a new cluster state instance to force publishing. This is important
             // for the joining node to finalize its join and set us as a cluster-manager
-            return results.build(newState.build());
+            return results.build(
+                newState.metadata(updateMetadataWithRepositoriesMetadata(currentState.metadata(), repositoriesMetadata)).build()
+            );
+        }
+    }
+
+    protected Metadata updateMetadataWithRepositoriesMetadata(
+        Metadata currentMetadata,
+        SetOnce<RepositoriesMetadata> repositoriesMetadata
+    ) {
+        if (repositoriesMetadata == null || repositoriesMetadata.get() == null || repositoriesMetadata.get().repositories().isEmpty()) {
+            return currentMetadata;
+        } else {
+            return Metadata.builder(currentMetadata).putCustom(RepositoriesMetadata.TYPE, repositoriesMetadata.get()).build();
         }
     }
 
@@ -393,16 +406,24 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
     /**
      * ensures that the joining node has a version that's compatible with all current nodes
      */
-    public static void ensureNodesCompatibility(final Version joiningNodeVersion, DiscoveryNodes currentNodes) {
+    public static void ensureNodesCompatibility(final DiscoveryNode joiningNode, DiscoveryNodes currentNodes, Metadata metadata) {
         final Version minNodeVersion = currentNodes.getMinNodeVersion();
         final Version maxNodeVersion = currentNodes.getMaxNodeVersion();
-        ensureNodesCompatibility(joiningNodeVersion, minNodeVersion, maxNodeVersion);
+        ensureNodesCompatibility(joiningNode, currentNodes, metadata, minNodeVersion, maxNodeVersion);
     }
 
     /**
-     * ensures that the joining node has a version that's compatible with a given version range
+     * ensures that the joining node has a version that's compatible with a given version range and ensures that the
+     * joining node has required attributes to join a remotestore cluster.
      */
-    public static void ensureNodesCompatibility(Version joiningNodeVersion, Version minClusterNodeVersion, Version maxClusterNodeVersion) {
+    public static void ensureNodesCompatibility(
+        DiscoveryNode joiningNode,
+        DiscoveryNodes currentNodes,
+        Metadata metadata,
+        Version minClusterNodeVersion,
+        Version maxClusterNodeVersion
+    ) {
+        Version joiningNodeVersion = joiningNode.getVersion();
         assert minClusterNodeVersion.onOrBefore(maxClusterNodeVersion) : minClusterNodeVersion + " > " + maxClusterNodeVersion;
         if (joiningNodeVersion.isCompatible(maxClusterNodeVersion) == false) {
             throw new IllegalStateException(
@@ -424,6 +445,8 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
                     + "], which is incompatible."
             );
         }
+
+        ensureRemoteStoreNodesCompatibility(joiningNode, currentNodes, metadata);
     }
 
     /**
@@ -470,8 +493,8 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
      * TODO: When we support moving from remote store cluster to non remote store and vice versa the this logic will
      *       needs to be modified.
      */
-    public static void ensureRemoteStoreNodesCompatibility(DiscoveryNode joiningNode, ClusterState currentState) {
-        List<DiscoveryNode> existingNodes = new ArrayList<>(currentState.getNodes().getNodes().values());
+    private static void ensureRemoteStoreNodesCompatibility(DiscoveryNode joiningNode, DiscoveryNodes currentNodes, Metadata metadata) {
+        List<DiscoveryNode> existingNodes = new ArrayList<>(currentNodes.getNodes().values());
 
         // If there are no node in the cluster state we will No op the compatibility check as at this point we cannot
         // determine if this is a remote store cluster or non-remote store cluster.
@@ -481,13 +504,13 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
 
         // TODO: The below check is valid till we support migration, once we start supporting migration a remote
         // store node will be able to join a non remote store cluster and vice versa. #7986
-        CompatibilityMode remoteStoreCompatibilityMode = REMOTE_STORE_COMPATIBILITY_MODE_SETTING.get(currentState.metadata().settings());
+        CompatibilityMode remoteStoreCompatibilityMode = REMOTE_STORE_COMPATIBILITY_MODE_SETTING.get(metadata.settings());
         if (STRICT.equals(remoteStoreCompatibilityMode)) {
             DiscoveryNode existingNode = existingNodes.get(0);
             if (joiningNode.isRemoteStoreNode()) {
                 if (existingNode.isRemoteStoreNode()) {
-                    RemoteStoreNode joiningRemoteStoreNode = new RemoteStoreNode(joiningNode);
-                    RemoteStoreNode existingRemoteStoreNode = new RemoteStoreNode(existingNode);
+                    RemoteStoreNodeAttribute joiningRemoteStoreNode = new RemoteStoreNodeAttribute(joiningNode);
+                    RemoteStoreNodeAttribute existingRemoteStoreNode = new RemoteStoreNodeAttribute(existingNode);
                     if (existingRemoteStoreNode.equals(joiningRemoteStoreNode) == false) {
                         throw new IllegalStateException(
                             "a remote store node ["
@@ -518,10 +541,9 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
     ) {
         final Collection<BiConsumer<DiscoveryNode, ClusterState>> validators = new ArrayList<>();
         validators.add((node, state) -> {
-            ensureNodesCompatibility(node.getVersion(), state.getNodes());
+            ensureNodesCompatibility(node, state.getNodes(), state.metadata());
             ensureIndexCompatibility(node.getVersion(), state.getMetadata());
             ensureNodeCommissioned(node, state.getMetadata());
-            ensureRemoteStoreNodesCompatibility(node, state);
         });
         validators.addAll(onJoinValidators);
         return Collections.unmodifiableCollection(validators);

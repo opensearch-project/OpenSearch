@@ -39,11 +39,11 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.opensearch.action.admin.cluster.remotestore.RemoteStoreNode.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX;
-import static org.opensearch.action.admin.cluster.remotestore.RemoteStoreNode.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT;
-import static org.opensearch.action.admin.cluster.remotestore.RemoteStoreNode.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY;
-import static org.opensearch.action.admin.cluster.remotestore.RemoteStoreNode.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.indices.IndicesService.CLUSTER_REPLICATION_TYPE_SETTING;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
@@ -58,6 +58,7 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
 
     protected Path segmentRepoPath;
     protected Path translogRepoPath;
+    protected boolean clusterSettingsSuppliedByTest = false;
     private final List<String> documentKeys = List.of(
         randomAlphaOfLength(5),
         randomAlphaOfLength(5),
@@ -115,10 +116,14 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
             segmentRepoPath = randomRepoPath().toAbsolutePath();
             translogRepoPath = randomRepoPath().toAbsolutePath();
         }
-        return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal))
-            .put(remoteStoreClusterSettings(REPOSITORY_NAME, segmentRepoPath, REPOSITORY_2_NAME, translogRepoPath))
-            .build();
+        if (clusterSettingsSuppliedByTest) {
+            return Settings.builder().put(super.nodeSettings(nodeOrdinal)).build();
+        } else {
+            return Settings.builder()
+                .put(super.nodeSettings(nodeOrdinal))
+                .put(remoteStoreClusterSettings(REPOSITORY_NAME, segmentRepoPath, REPOSITORY_2_NAME, translogRepoPath))
+                .build();
+        }
     }
 
     @Override
@@ -251,6 +256,7 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
 
     @After
     public void teardown() {
+        clusterSettingsSuppliedByTest = false;
         assertAcked(clusterAdmin().prepareDeleteRepository(REPOSITORY_NAME));
         assertAcked(clusterAdmin().prepareDeleteRepository(REPOSITORY_2_NAME));
     }

@@ -6,13 +6,11 @@
  * compatible open source license.
  */
 
-package org.opensearch.action.admin.cluster.remotestore;
+package org.opensearch.node.remotestore;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.opensearch.cluster.ClusterState;
-import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.RepositoriesMetadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -22,7 +20,6 @@ import org.opensearch.repositories.Repository;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.function.Supplier;
@@ -85,7 +82,7 @@ public class RemoteStoreNodeService {
      * to the repository with appropriate permissions.
      */
     public List<Repository> createAndVerifyRepositories(DiscoveryNode localNode) {
-        RemoteStoreNode node = new RemoteStoreNode(localNode);
+        RemoteStoreNodeAttribute node = new RemoteStoreNodeAttribute(localNode);
         List<Repository> repositories = new ArrayList<>();
         for (RepositoryMetadata repositoryMetadata : node.getRepositoriesMetadata().repositories()) {
             String repositoryName = repositoryMetadata.name();
@@ -110,49 +107,48 @@ public class RemoteStoreNodeService {
         return repositories;
     }
 
-    private ClusterState updateRepositoryMetadata(RepositoryMetadata newRepositoryMetadata, ClusterState currentState) {
-        Metadata metadata = currentState.metadata();
-        Metadata.Builder mdBuilder = Metadata.builder(currentState.metadata());
-        RepositoriesMetadata repositories = metadata.custom(RepositoriesMetadata.TYPE);
-        if (repositories == null) {
-            repositories = new RepositoriesMetadata(Collections.singletonList(newRepositoryMetadata));
-        } else {
-            List<RepositoryMetadata> repositoriesMetadata = new ArrayList<>(repositories.repositories().size() + 1);
-
-            for (RepositoryMetadata repositoryMetadata : repositories.repositories()) {
-                if (repositoryMetadata.name().equals(newRepositoryMetadata.name())) {
-                    if (newRepositoryMetadata.equalsIgnoreGenerations(repositoryMetadata)) {
-                        return new ClusterState.Builder(currentState).build();
-                    } else {
-                        throw new IllegalStateException(
-                            "new repository metadata ["
-                                + newRepositoryMetadata
-                                + "] supplied by joining node is different from existing repository metadata ["
-                                + repositoryMetadata
-                                + "]."
-                        );
-                    }
-                } else {
-                    repositoriesMetadata.add(repositoryMetadata);
-                }
-            }
-            repositoriesMetadata.add(newRepositoryMetadata);
-            repositories = new RepositoriesMetadata(repositoriesMetadata);
-        }
-        mdBuilder.putCustom(RepositoriesMetadata.TYPE, repositories);
-        return ClusterState.builder(currentState).metadata(mdBuilder).build();
-    }
-
     /**
      * Updates repositories metadata in the cluster state if not already present. If a repository metadata for a
      * repository is already present in the cluster state and if it's different then the joining remote store backed
      * node repository metadata an exception will be thrown and the node will not be allowed to join the cluster.
      */
-    public ClusterState updateClusterStateRepositoriesMetadata(RemoteStoreNode joiningNode, ClusterState currentState) {
-        ClusterState newState = ClusterState.builder(currentState).build();
-        for (RepositoryMetadata newRepositoryMetadata : joiningNode.getRepositoriesMetadata().repositories()) {
-            newState = updateRepositoryMetadata(newRepositoryMetadata, newState);
+    public RepositoriesMetadata updateRepositoriesMetadata(DiscoveryNode joiningNode, RepositoriesMetadata existingRepositories) {
+        if (joiningNode.isRemoteStoreNode()) {
+            List<RepositoryMetadata> updatedRepositoryMetadataList = new ArrayList<>();
+            List<RepositoryMetadata> newRepositoryMetadataList = new RemoteStoreNodeAttribute(joiningNode).getRepositoriesMetadata()
+                .repositories();
+
+            if (existingRepositories == null) {
+                return new RepositoriesMetadata(newRepositoryMetadataList);
+            } else {
+                updatedRepositoryMetadataList.addAll(existingRepositories.repositories());
+            }
+
+            for (RepositoryMetadata newRepositoryMetadata : newRepositoryMetadataList) {
+                boolean repositoryAlreadyPresent = false;
+                for (RepositoryMetadata existingRepositoryMetadata : existingRepositories.repositories()) {
+                    if (newRepositoryMetadata.name().equals(existingRepositoryMetadata.name())) {
+                        if (newRepositoryMetadata.equalsIgnoreGenerations(existingRepositoryMetadata)) {
+                            repositoryAlreadyPresent = true;
+                            break;
+                        } else {
+                            throw new IllegalStateException(
+                                "new repository metadata ["
+                                    + newRepositoryMetadata
+                                    + "] supplied by joining node is different from existing repository metadata ["
+                                    + existingRepositoryMetadata
+                                    + "]."
+                            );
+                        }
+                    }
+                }
+                if (repositoryAlreadyPresent == false) {
+                    updatedRepositoryMetadataList.add(newRepositoryMetadata);
+                }
+            }
+            return new RepositoriesMetadata(updatedRepositoryMetadataList);
+        } else {
+            return existingRepositories;
         }
-        return newState;
     }
 }

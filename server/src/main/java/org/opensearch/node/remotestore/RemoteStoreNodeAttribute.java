@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.action.admin.cluster.remotestore;
+package org.opensearch.node.remotestore;
 
 import org.opensearch.cluster.metadata.RepositoriesMetadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
@@ -28,7 +28,7 @@ import java.util.stream.Collectors;
  *
  * @opensearch.internal
  */
-public class RemoteStoreNode {
+public class RemoteStoreNodeAttribute {
 
     public static final String REMOTE_STORE_NODE_ATTRIBUTE_KEY_PREFIX = "remote_store";
     public static final String REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY = "remote_store.segment.repository";
@@ -39,9 +39,9 @@ public class RemoteStoreNode {
     private final DiscoveryNode node;
 
     /**
-     * Creates a new {@link RemoteStoreNode}
+     * Creates a new {@link RemoteStoreNodeAttribute}
      */
-    public RemoteStoreNode(DiscoveryNode node) {
+    public RemoteStoreNodeAttribute(DiscoveryNode node) {
         this.node = node;
         this.repositoriesMetadata = buildRepositoriesMetadata();
     }
@@ -119,7 +119,7 @@ public class RemoteStoreNode {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
-        RemoteStoreNode that = (RemoteStoreNode) o;
+        RemoteStoreNodeAttribute that = (RemoteStoreNodeAttribute) o;
 
         return this.getRepositoriesMetadata().equalsIgnoreGenerations(that.getRepositoriesMetadata());
     }

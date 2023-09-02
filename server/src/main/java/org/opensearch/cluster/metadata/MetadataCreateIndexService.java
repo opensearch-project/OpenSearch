@@ -39,7 +39,6 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.OpenSearchException;
 import org.opensearch.ResourceAlreadyExistsException;
 import org.opensearch.Version;
-import org.opensearch.action.admin.cluster.remotestore.RemoteStoreNode;
 import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.opensearch.action.admin.indices.shrink.ResizeType;
@@ -96,6 +95,7 @@ import org.opensearch.indices.ShardLimitValidator;
 import org.opensearch.indices.SystemIndices;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.node.Node;
+import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -937,12 +937,13 @@ public class MetadataCreateIndexService {
             settingsBuilder.put(SETTING_REPLICATION_TYPE, INDEX_REPLICATION_TYPE_SETTING.get(requestSettings));
         } else if (CLUSTER_REPLICATION_TYPE_SETTING.exists(clusterSettings)) {
             settingsBuilder.put(SETTING_REPLICATION_TYPE, CLUSTER_REPLICATION_TYPE_SETTING.get(clusterSettings));
-        } else if (clusterSettings.getByPrefix(Node.NODE_ATTRIBUTES.getKey() + RemoteStoreNode.REMOTE_STORE_NODE_ATTRIBUTE_KEY_PREFIX)
-            .isEmpty() == false) {
-                settingsBuilder.put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT);
-            } else {
-                settingsBuilder.put(SETTING_REPLICATION_TYPE, CLUSTER_REPLICATION_TYPE_SETTING.getDefault(clusterSettings));
-            }
+        } else if (clusterSettings.getByPrefix(
+            Node.NODE_ATTRIBUTES.getKey() + RemoteStoreNodeAttribute.REMOTE_STORE_NODE_ATTRIBUTE_KEY_PREFIX
+        ).isEmpty() == false) {
+            settingsBuilder.put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT);
+        } else {
+            settingsBuilder.put(SETTING_REPLICATION_TYPE, CLUSTER_REPLICATION_TYPE_SETTING.getDefault(clusterSettings));
+        }
     }
 
     /**
@@ -951,16 +952,20 @@ public class MetadataCreateIndexService {
      * @param clusterSettings cluster level settings
      */
     private static void updateRemoteStoreSettings(Settings.Builder settingsBuilder, Settings clusterSettings) {
-        if (clusterSettings.getByPrefix(Node.NODE_ATTRIBUTES.getKey() + RemoteStoreNode.REMOTE_STORE_NODE_ATTRIBUTE_KEY_PREFIX)
+        if (clusterSettings.getByPrefix(Node.NODE_ATTRIBUTES.getKey() + RemoteStoreNodeAttribute.REMOTE_STORE_NODE_ATTRIBUTE_KEY_PREFIX)
             .isEmpty() == false) {
             settingsBuilder.put(SETTING_REMOTE_STORE_ENABLED, true)
                 .put(
                     SETTING_REMOTE_SEGMENT_STORE_REPOSITORY,
-                    clusterSettings.get(Node.NODE_ATTRIBUTES.getKey() + RemoteStoreNode.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY)
+                    clusterSettings.get(
+                        Node.NODE_ATTRIBUTES.getKey() + RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY
+                    )
                 )
                 .put(
                     SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY,
-                    clusterSettings.get(Node.NODE_ATTRIBUTES.getKey() + RemoteStoreNode.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY)
+                    clusterSettings.get(
+                        Node.NODE_ATTRIBUTES.getKey() + RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY
+                    )
                 );
         }
     }
