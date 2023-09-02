@@ -128,9 +128,8 @@ public class GatewayMetaState implements Closeable {
         RemoteClusterStateService remoteClusterStateService,
         PersistedStateRegistry persistedStateRegistry
     ) {
+        assert this.persistedStateRegistry == null : "Persisted state registry should only be set once";
         this.persistedStateRegistry = persistedStateRegistry;
-        assert persistedStateRegistry.getPersistedState(PersistedStateType.LOCAL) == null : "should only start once, but already have "
-            + persistedStateRegistry.getPersistedState(PersistedStateType.LOCAL);
 
         if (DiscoveryNode.isClusterManagerNode(settings) || DiscoveryNode.isDataNode(settings)) {
             try {
@@ -189,8 +188,7 @@ public class GatewayMetaState implements Closeable {
                     success = true;
                 } finally {
                     if (success == false) {
-                        IOUtils.closeWhileHandlingException(persistedState);
-                        IOUtils.closeWhileHandlingException(remotePersistedState);
+                        IOUtils.closeWhileHandlingException(persistedStateRegistry);
                     }
                 }
 
@@ -348,6 +346,8 @@ public class GatewayMetaState implements Closeable {
 
     // visible for testing
     public boolean allPendingAsyncStatesWritten() {
+        // This method is invoked for persisted state implementations which write asynchronously.
+        // RemotePersistedState is invoked in synchronous path. So this logic is not required for remote state.
         final PersistedState ps = persistedStateRegistry.getPersistedState(PersistedStateType.LOCAL);
         if (ps instanceof AsyncLucenePersistedState) {
             return ((AsyncLucenePersistedState) ps).allPendingAsyncStatesWritten();

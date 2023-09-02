@@ -1546,7 +1546,6 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
 
     /**
      * The {@link PersistedStateRegistry} to use for this test. Subclasses should override and use liberally.
-     * @return
      */
     protected PersistedStateRegistry persistedStateRegistry() {
         return new PersistedStateRegistry();

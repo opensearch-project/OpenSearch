@@ -129,7 +129,6 @@ public class CoordinationStateTestCluster {
 
         DiscoveryNode localNode;
         CoordinationState.PersistedState persistedState;
-        CoordinationState.PersistedState remotePersistedState;
         PersistedStateRegistry persistedStateRegistry;
 
         CoordinationState state;
@@ -147,20 +146,8 @@ public class CoordinationStateTestCluster {
                     0L
                 )
             );
-            remotePersistedState = new InMemoryPersistedState(
-                0L,
-                clusterState(
-                    0L,
-                    0L,
-                    localNode,
-                    CoordinationMetadata.VotingConfiguration.EMPTY_CONFIG,
-                    CoordinationMetadata.VotingConfiguration.EMPTY_CONFIG,
-                    0L
-                )
-            );
             persistedStateRegistry = new PersistedStateRegistry();
             persistedStateRegistry.addPersistedState(PersistedStateType.LOCAL, persistedState);
-            persistedStateRegistry.addPersistedState(PersistedStateType.REMOTE, remotePersistedState);
 
             this.electionStrategy = electionStrategy;
             state = new CoordinationState(localNode, persistedStateRegistry, electionStrategy, Settings.EMPTY);

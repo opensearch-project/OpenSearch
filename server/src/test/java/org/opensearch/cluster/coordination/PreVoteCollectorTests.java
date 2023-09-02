@@ -296,10 +296,6 @@ public class PreVoteCollectorTests extends OpenSearchTestCase {
             PersistedStateType.LOCAL,
             new InMemoryPersistedState(currentTerm, makeClusterState(votingNodes))
         );
-        persistedStateRegistry.addPersistedState(
-            PersistedStateType.REMOTE,
-            new InMemoryPersistedState(currentTerm, makeClusterState(votingNodes))
-        );
         final CoordinationState coordinationState = new CoordinationState(
             localNode,
             persistedStateRegistry,
