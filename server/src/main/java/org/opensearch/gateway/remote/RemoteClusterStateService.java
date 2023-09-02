@@ -403,13 +403,11 @@ public class RemoteClusterStateService implements Closeable {
                 blobStoreRepository.getNamedXContentRegistry()
             );
         } catch (IOException e) {
-            String errorMsg = String.format(
+            throw new IllegalStateException(String.format(
                 Locale.ROOT,
                 "Error while downloading IndexMetadata - %s",
                 uploadedIndexMetadata.getUploadedFilename()
-            );
-            logger.error(errorMsg, e);
-            throw new IllegalStateException(errorMsg, e);
+            ), e);
         }
     }
 
@@ -446,9 +444,7 @@ public class RemoteClusterStateService implements Closeable {
                 return manifestFilesMetadata.get(0).name();
             }
         } catch (IOException e) {
-            String errorMsg = "Error while fetching latest manifest file for remote cluster state";
-            logger.error(errorMsg, e);
-            throw new IllegalStateException(errorMsg, e);
+            throw new IllegalStateException("Error while fetching latest manifest file for remote cluster state", e);
         }
 
         throw new IllegalStateException(String.format(Locale.ROOT, "Remote Cluster State not found - %s", clusterUUID));
@@ -469,9 +465,7 @@ public class RemoteClusterStateService implements Closeable {
                 blobStoreRepository.getNamedXContentRegistry()
             );
         } catch (IOException e) {
-            String errorMsg = String.format(Locale.ROOT, "Error while downloading cluster metadata - %s", filename);
-            logger.error(errorMsg, e);
-            throw new IllegalStateException(errorMsg, e);
+            throw new IllegalStateException(String.format(Locale.ROOT, "Error while downloading cluster metadata - %s", filename), e);
         }
     }
 }
