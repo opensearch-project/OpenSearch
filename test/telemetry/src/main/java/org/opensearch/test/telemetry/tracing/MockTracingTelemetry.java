@@ -59,13 +59,13 @@ public class MockTracingTelemetry implements TracingTelemetry {
         // Run onClose hook
         onClose.run();
 
-        //TODO: We need to work on a test setup where this validation occurs once all the nodes are closed
+        // TODO: We need to work on a test setup where this validation occurs once all the nodes are closed
         // in case of MultiNode Internal Cluster Setup. For now, putting a 10 seconds wait for other nodes
         // to be closed as well before the validation.
 
-        try{
-            Thread.sleep(10*1000);
-        } catch(Exception e){
+        try {
+            Thread.sleep(10 * 1000);
+        } catch (Exception e) {
             // do nothing.
         }
 
