@@ -25,6 +25,10 @@ public class InMemorySingletonSpanExporter implements SpanExporter {
 
     private static InMemorySpanExporter delegate;
 
+    public static InMemorySingletonSpanExporter create() {
+        return INSTANCE;
+    }
+
     private InMemorySingletonSpanExporter(InMemorySpanExporter delegate) {
         InMemorySingletonSpanExporter.delegate = delegate;
     }
