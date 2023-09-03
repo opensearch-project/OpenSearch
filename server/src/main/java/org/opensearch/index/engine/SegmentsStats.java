@@ -66,7 +66,7 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
     /**
      * Segment replication statistics.
      */
-    private ReplicationStats replicationStats;
+    private final ReplicationStats replicationStats;
 
     /*
      * A map to provide a best-effort approach describing Lucene index files.

@@ -47,12 +47,11 @@ public class ReplicationStats implements ToXContentFragment, Writeable {
     }
 
     public void add(ReplicationStats other) {
-        if (other == null) {
-            return;
+        if (other != null) {
+            maxBytesBehind = Math.max(other.maxBytesBehind, maxBytesBehind);
+            totalBytesBehind += other.totalBytesBehind;
+            maxReplicationLag = Math.max(other.maxReplicationLag, maxReplicationLag);
         }
-        maxBytesBehind = Math.max(other.maxBytesBehind, maxBytesBehind);
-        totalBytesBehind += other.totalBytesBehind;
-        maxReplicationLag = Math.max(other.maxReplicationLag, maxReplicationLag);
     }
 
     public long getMaxBytesBehind() {
