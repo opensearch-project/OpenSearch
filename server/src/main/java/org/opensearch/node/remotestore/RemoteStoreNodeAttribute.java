@@ -105,8 +105,7 @@ public class RemoteStoreNodeAttribute {
     }
 
     public static boolean isRemoteStoreAttributePresent(Settings settings) {
-        return settings.getByPrefix(Node.NODE_ATTRIBUTES.getKey() + RemoteStoreNodeAttribute.REMOTE_STORE_NODE_ATTRIBUTE_KEY_PREFIX)
-            .isEmpty() == false;
+        return settings.getByPrefix(Node.NODE_ATTRIBUTES.getKey() + REMOTE_STORE_NODE_ATTRIBUTE_KEY_PREFIX).isEmpty() == false;
     }
 
     public RepositoriesMetadata getRepositoriesMetadata() {

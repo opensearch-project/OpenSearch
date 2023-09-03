@@ -82,28 +82,37 @@ public class RemoteStoreNodeService {
      * Creates a repository during a node startup and performs verification by invoking verify method against
      * mentioned repository. This verification will happen on a local node to validate if the node is able to connect
      * to the repository with appropriate permissions.
+     * If the creation or verification fails this will close all the repositories this method created and throw
+     * exception.
      */
     public List<Repository> createAndVerifyRepositories(DiscoveryNode localNode) {
         RemoteStoreNodeAttribute nodeAttribute = new RemoteStoreNodeAttribute(localNode);
+        RepositoriesService reposService = repositoriesService.get();
         List<Repository> repositories = new ArrayList<>();
         for (RepositoryMetadata repositoryMetadata : nodeAttribute.getRepositoriesMetadata().repositories()) {
             String repositoryName = repositoryMetadata.name();
+            Repository repository;
+            try {
+                RepositoriesService.validate(repositoryName);
 
-            // Create Repository
-            RepositoriesService.validate(repositoryName);
-            Repository repository = repositoriesService.get().createRepository(repositoryMetadata);
-            logger.info(
-                "remote backed storage repository with name {} and type {} created.",
-                repository.getMetadata().name(),
-                repository.getMetadata().type()
-            );
+                // Create Repository
+                repository = reposService.createRepository(repositoryMetadata);
+                logger.info(
+                    "remote backed storage repository with name [{}] and type [{}] created",
+                    repository.getMetadata().name(),
+                    repository.getMetadata().type()
+                );
 
-            // Verify Repository
-            String verificationToken = repository.startVerification();
-            repository.verify(verificationToken, localNode);
-            repository.endVerification(verificationToken);
-            logger.info(() -> new ParameterizedMessage("successfully verified [{}] repository", repositoryName));
-
+                // Verify Repository
+                String verificationToken = repository.startVerification();
+                repository.verify(verificationToken, localNode);
+                repository.endVerification(verificationToken);
+                logger.info(() -> new ParameterizedMessage("successfully verified [{}] repository", repositoryName));
+            } catch (Exception exception) {
+                logger.info(() -> new ParameterizedMessage("failure while creating and verifying [{}] repository", repositoryName));
+                repositories.forEach(repo -> reposService.closeRepository(repo));
+                throw exception;
+            }
             repositories.add(repository);
         }
         return repositories;
@@ -115,14 +124,14 @@ public class RemoteStoreNodeService {
      * node repository metadata an exception will be thrown and the node will not be allowed to join the cluster.
      */
     public RepositoriesMetadata updateRepositoriesMetadata(
-        Optional<JoinTaskExecutor.Task> task,
+        Optional<JoinTaskExecutor.Task> joiningTask,
         RepositoriesMetadata existingRepositories
     ) {
-        if (task.isEmpty()) {
+        if (joiningTask.isEmpty()) {
             return existingRepositories;
         }
 
-        DiscoveryNode joiningNode = task.get().node();
+        DiscoveryNode joiningNode = joiningTask.get().node();
 
         if (joiningNode.isRemoteStoreNode()) {
             List<RepositoryMetadata> updatedRepositoryMetadataList = new ArrayList<>();

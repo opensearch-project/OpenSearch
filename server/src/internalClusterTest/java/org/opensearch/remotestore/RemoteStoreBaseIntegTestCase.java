@@ -263,12 +263,13 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
     @After
     public void teardown() {
         clusterSettingsSuppliedByTest = false;
-        assertRemoteStoreRepositoryOnAllNodes();
+        assertRemoteStoreRepositoryOnAllNodes(REPOSITORY_NAME);
+        assertRemoteStoreRepositoryOnAllNodes(REPOSITORY_2_NAME);
         assertAcked(clusterAdmin().prepareDeleteRepository(REPOSITORY_NAME));
         assertAcked(clusterAdmin().prepareDeleteRepository(REPOSITORY_2_NAME));
     }
 
-    private RepositoryMetadata buildRepositoryMetadata(DiscoveryNode node, String name) {
+    public RepositoryMetadata buildRepositoryMetadata(DiscoveryNode node, String name) {
         Map<String, String> nodeAttributes = node.getAttributes();
         String type = nodeAttributes.get(String.format(Locale.getDefault(), REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT, name));
 
@@ -286,21 +287,18 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
         return new RepositoryMetadata(name, type, settings.build());
     }
 
-    private void assertRemoteStoreRepositoryOnAllNodes() {
+    public void assertRemoteStoreRepositoryOnAllNodes(String repositoryName) {
         RepositoriesMetadata repositories = internalCluster().getInstance(ClusterService.class, internalCluster().getNodeNames()[0])
             .state()
             .metadata()
             .custom(RepositoriesMetadata.TYPE);
-        RepositoryMetadata actualSegmentRepository = repositories.repository(REPOSITORY_NAME);
-        RepositoryMetadata actualTranslogRepository = repositories.repository(REPOSITORY_2_NAME);
+        RepositoryMetadata actualRepository = repositories.repository(repositoryName);
 
         for (String nodeName : internalCluster().getNodeNames()) {
             ClusterService clusterService = internalCluster().getInstance(ClusterService.class, nodeName);
             DiscoveryNode node = clusterService.localNode();
-            RepositoryMetadata expectedSegmentRepository = buildRepositoryMetadata(node, REPOSITORY_NAME);
-            RepositoryMetadata expectedTranslogRepository = buildRepositoryMetadata(node, REPOSITORY_2_NAME);
-            assertTrue(actualSegmentRepository.equalsIgnoreGenerations(expectedSegmentRepository));
-            assertTrue(actualTranslogRepository.equalsIgnoreGenerations(expectedTranslogRepository));
+            RepositoryMetadata expectedRepository = buildRepositoryMetadata(node, repositoryName);
+            assertTrue(actualRepository.equalsIgnoreGenerations(expectedRepository));
         }
     }
 

@@ -587,7 +587,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     }
 
     /** Closes the given repository. */
-    private void closeRepository(Repository repository) {
+    public void closeRepository(Repository repository) {
         logger.debug("closing repository [{}][{}]", repository.getMetadata().type(), repository.getMetadata().name());
         repository.close();
     }
