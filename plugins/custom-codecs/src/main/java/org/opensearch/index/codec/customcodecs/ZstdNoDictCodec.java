@@ -10,17 +10,14 @@ package org.opensearch.index.codec.customcodecs;
 
 import org.apache.logging.log4j.Logger;
 import org.opensearch.common.settings.Setting;
-import org.opensearch.index.codec.CodecAliases;
 import org.opensearch.index.codec.CodecSettings;
 import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.mapper.MapperService;
 
-import java.util.Set;
-
 /**
  * ZstdNoDictCodec provides ZSTD compressor without a dictionary support.
  */
-public class ZstdNoDictCodec extends Lucene95CustomCodec implements CodecSettings, CodecAliases {
+public class ZstdNoDictCodec extends Lucene95CustomCodec implements CodecSettings {
 
     /**
      * Creates a new ZstdNoDictCodec instance with the default compression level.
@@ -60,8 +57,4 @@ public class ZstdNoDictCodec extends Lucene95CustomCodec implements CodecSetting
         return setting.equals(EngineConfig.INDEX_CODEC_COMPRESSION_LEVEL_SETTING);
     }
 
-    @Override
-    public Set<String> aliases() {
-        return Set.of("zstd_no_dict");
-    }
 }

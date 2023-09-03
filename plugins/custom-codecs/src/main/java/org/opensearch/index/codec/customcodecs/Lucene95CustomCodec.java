@@ -12,8 +12,11 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.FilterCodec;
 import org.apache.lucene.codecs.StoredFieldsFormat;
 import org.apache.lucene.codecs.lucene95.Lucene95Codec;
+import org.opensearch.index.codec.CodecAliases;
 import org.opensearch.index.codec.PerFieldMappingPostingFormatCodec;
 import org.opensearch.index.mapper.MapperService;
+
+import java.util.Set;
 
 /**
  *
@@ -22,7 +25,7 @@ import org.opensearch.index.mapper.MapperService;
  *
  * @opensearch.internal
  */
-public abstract class Lucene95CustomCodec extends FilterCodec {
+public abstract class Lucene95CustomCodec extends FilterCodec implements CodecAliases {
 
     /** Default compression level used for compression */
     public static final int DEFAULT_COMPRESSION_LEVEL = 3;
@@ -99,5 +102,10 @@ public abstract class Lucene95CustomCodec extends FilterCodec {
     @Override
     public String toString() {
         return getClass().getSimpleName();
+    }
+
+    @Override
+    public Set<String> aliases() {
+        return Set.of("zstd", "zstd_no_dict");
     }
 }
