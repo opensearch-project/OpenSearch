@@ -534,8 +534,7 @@ public class RemoteClusterStateService implements Closeable {
         }
     }
 
-
-    class IndexMetadataTransferException extends RuntimeException {
+    static class IndexMetadataTransferException extends RuntimeException {
 
         private final IndexMetadata indexMetadata;
 
