@@ -409,9 +409,11 @@ public class SegmentReplicationStatsIT extends SegmentReplicationBaseIT {
                     // 2 replicas so total bytes should be double of max
                     assertEquals(replicationStats.getMaxBytesBehind() * 2, replicationStats.getTotalBytesBehind());
                 }
-                // replica nodes will not return stats
+                // replica nodes - should hold empty replication statistics
                 if (nodeStats.getNode().getName().equals(replicaNode1) || nodeStats.getNode().getName().equals(replicaNode2)) {
-                    assertNull(replicationStats);
+                    assertEquals(0, replicationStats.getMaxBytesBehind());
+                    assertEquals(0, replicationStats.getTotalBytesBehind());
+                    assertEquals(0, replicationStats.getMaxReplicationLag());
                 }
             }
             // get replication statistics at index level

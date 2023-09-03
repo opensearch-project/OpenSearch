@@ -1491,8 +1491,8 @@ public class IndexStatsIT extends OpenSearchIntegTestCase {
         IndicesStatsRequestBuilder builder = client().admin().indices().prepareStats();
         IndicesStatsResponse stats = builder.execute().actionGet();
 
-        // document replication enabled index should not return segment replication stats
-        assertNull(stats.getIndex(indexName).getTotal().getSegments().getReplicationStats());
+        // document replication enabled index should return empty segment replication stats
+        assertNotNull(stats.getIndex(indexName).getTotal().getSegments().getReplicationStats());
 
         indexName = "test-index2";
         createIndex(
