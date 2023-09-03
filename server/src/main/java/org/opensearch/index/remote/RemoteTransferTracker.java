@@ -14,6 +14,11 @@ import org.opensearch.core.index.shard.ShardId;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
+/**
+ * Base class for remote store stats trackers
+ *
+ * @opensearch.internal
+ */
 public abstract class RemoteTransferTracker {
     /**
      * The shard that this tracker is associated with
