@@ -113,9 +113,6 @@ public class CustomCodecTests extends OpenSearchTestCase {
     }
 
     public void testLuceneCodecsWithCompressionLevel() {
-        String codecName = randomFrom(Codec.availableCodecs());
-        Codec codec = Codec.forName(codecName);
-
         final Settings customCodecSettings = Settings.builder()
             .put(INDEX_CODEC_COMPRESSION_LEVEL_SETTING.getKey(), randomIntBetween(1, 6))
             .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), randomFrom("zstd", "zstd_no_dict"))

@@ -145,7 +145,7 @@ public final class EngineConfig {
                     Codec codec = Codec.forName(codecName);
                     if (codec instanceof CodecAliases) {
                         CodecAliases codecWithAlias = (CodecAliases) codec;
-                        if (codecWithAlias.aliases() != null && codecWithAlias.aliases().contains(s)) {
+                        if (codecWithAlias.aliases().contains(s)) {
                             return s;
                         }
                     }
@@ -208,7 +208,7 @@ public final class EngineConfig {
                     Codec availableCodec = Codec.forName(codecName);
                     if (availableCodec instanceof CodecAliases) {
                         CodecAliases availableCodecWithAlias = (CodecAliases) availableCodec;
-                        if (availableCodecWithAlias.aliases() != null && availableCodecWithAlias.aliases().contains(codec)) {
+                        if (availableCodecWithAlias.aliases().contains(codec)) {
                             if (availableCodec instanceof CodecSettings
                                 && ((CodecSettings) availableCodec).supports(INDEX_CODEC_COMPRESSION_LEVEL_SETTING)) {
                                 return;

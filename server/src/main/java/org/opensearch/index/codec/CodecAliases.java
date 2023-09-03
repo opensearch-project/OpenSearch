@@ -13,10 +13,16 @@ import org.apache.lucene.codecs.Codec;
 import java.util.Set;
 
 /**
- * This {@link CodecAliases} allows us to manage the settings with {@link Codec}.
+ * This {@link CodecAliases} to provide aliases for the {@link Codec}.
  *
  * @opensearch.internal
  */
 public interface CodecAliases {
+
+    /**
+     * Retrieves a set of aliases for an codec.
+     *
+     * @return A non-null set of alias strings. If no aliases are available, an empty set should be returned.
+     */
     Set<String> aliases();
 }

@@ -32,11 +32,11 @@ public abstract class Lucene95CustomCodec extends FilterCodec {
         /**
          * ZStandard mode with dictionary
          */
-        ZSTD("zstd"),
+        ZSTD("Lucene95CustomCodec"),
         /**
          * ZStandard mode without dictionary
          */
-        ZSTD_NO_DICT("zstdnodict");
+        ZSTD_NO_DICT("Lucene95CustomCodec");
 
         private final String codec;
 
