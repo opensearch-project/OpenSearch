@@ -21,13 +21,9 @@ import io.opentelemetry.sdk.trace.export.SpanExporter;
 
 public class InMemorySingletonSpanExporter implements SpanExporter {
 
-    private static final InMemorySingletonSpanExporter INSTANCE = new InMemorySingletonSpanExporter(InMemorySpanExporter.create());
+    public static final InMemorySingletonSpanExporter INSTANCE = new InMemorySingletonSpanExporter(InMemorySpanExporter.create());
 
     private static InMemorySpanExporter delegate;
-
-    public static InMemorySingletonSpanExporter create() {
-        return INSTANCE;
-    }
 
     private InMemorySingletonSpanExporter(InMemorySpanExporter delegate) {
         InMemorySingletonSpanExporter.delegate = delegate;
@@ -67,5 +63,12 @@ public class InMemorySingletonSpanExporter implements SpanExporter {
             )
             .collect(Collectors.toList());
         return mockSpanDataList;
+    }
+
+    /**
+     * Clears the state.
+     */
+    public void reset() {
+        delegate.reset();
     }
 }
