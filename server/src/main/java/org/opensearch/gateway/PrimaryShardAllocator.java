@@ -57,6 +57,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -81,7 +82,7 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
     /**
      * Is the allocator responsible for allocating the given {@link ShardRouting}?
      */
-    private static boolean isResponsibleFor(final ShardRouting shard) {
+    protected static boolean isResponsibleFor(final ShardRouting shard) {
         return shard.primary() // must be primary
             && shard.unassigned() // must be unassigned
             // only handle either an existing store or a snapshot recovery
@@ -89,19 +90,20 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
                 || shard.recoverySource().getType() == RecoverySource.Type.SNAPSHOT);
     }
 
-    @Override
-    public AllocateUnassignedDecision makeAllocationDecision(
-        final ShardRouting unassignedShard,
-        final RoutingAllocation allocation,
-        final Logger logger
-    ) {
+    /**
+     * Skip doing fetchData call for a shard if recovery mode is snapshot. Also do not take decision if allocator is
+     * not responsible for this particular shard.
+     *
+     * @param unassignedShard unassigned shard routing
+     * @param allocation      routing allocation object
+     * @return allocation decision taken for this shard
+     */
+    protected AllocateUnassignedDecision getInEligibleShardDecision(ShardRouting unassignedShard, RoutingAllocation allocation) {
         if (isResponsibleFor(unassignedShard) == false) {
             // this allocator is not responsible for allocating this shard
             return AllocateUnassignedDecision.NOT_TAKEN;
         }
-
         final boolean explain = allocation.debugDecision();
-
         if (unassignedShard.recoverySource().getType() == RecoverySource.Type.SNAPSHOT
             && allocation.snapshotShardSizeInfo().getShardSize(unassignedShard) == null) {
             List<NodeAllocationResult> nodeDecisions = null;
@@ -110,17 +112,43 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
             }
             return AllocateUnassignedDecision.no(UnassignedInfo.AllocationStatus.FETCHING_SHARD_DATA, nodeDecisions);
         }
+        return null;
+    }
 
+    @Override
+    public AllocateUnassignedDecision makeAllocationDecision(
+        final ShardRouting unassignedShard,
+        final RoutingAllocation allocation,
+        final Logger logger
+    ) {
+        AllocateUnassignedDecision decision = getInEligibleShardDecision(unassignedShard, allocation);
+        if (decision != null) {
+            return decision;
+        }
         final FetchResult<NodeGatewayStartedShards> shardState = fetchData(unassignedShard, allocation);
         if (shardState.hasData() == false) {
             allocation.setHasPendingAsyncFetch();
             List<NodeAllocationResult> nodeDecisions = null;
-            if (explain) {
+            if (allocation.debugDecision()) {
                 nodeDecisions = buildDecisionsForAllNodes(unassignedShard, allocation);
             }
             return AllocateUnassignedDecision.no(AllocationStatus.FETCHING_SHARD_DATA, nodeDecisions);
         }
+        NodeShardStates nodeShardStates = getNodeShardStates(shardState);
+        return getAllocationDecision(unassignedShard, allocation, nodeShardStates, logger);
+    }
 
+    private static NodeShardStates getNodeShardStates(FetchResult<NodeGatewayStartedShards> shardsState) {
+        NodeShardStates nodeShardStates = new NodeShardStates((o1, o2) -> 1);
+        shardsState.getData().forEach((node, nodeGatewayStartedShard) -> {
+            nodeShardStates.add(new NodeShardState(node, nodeGatewayStartedShard.allocationId(), nodeGatewayStartedShard.primary(), nodeGatewayStartedShard.replicationCheckpoint(), nodeGatewayStartedShard.storeException()), node);
+        });
+        return nodeShardStates;
+    }
+
+    protected AllocateUnassignedDecision getAllocationDecision(ShardRouting unassignedShard, RoutingAllocation allocation,
+                                                               NodeShardStates shardState, Logger logger) {
+        final boolean explain = allocation.debugDecision();
         // don't create a new IndexSetting object for every shard as this could cause a lot of garbage
         // on cluster restart if we allocate a boat load of shards
         final IndexMetadata indexMetadata = allocation.metadata().getIndexSafe(unassignedShard.index());
@@ -185,22 +213,23 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
         boolean throttled = false;
         if (nodesToAllocate.yesNodeShards.isEmpty() == false) {
             DecidedNode decidedNode = nodesToAllocate.yesNodeShards.get(0);
+            NodeShardState nodeShardState = decidedNode.nodeShardState;
             logger.debug(
                 "[{}][{}]: allocating [{}] to [{}] on primary allocation",
                 unassignedShard.index(),
                 unassignedShard.id(),
                 unassignedShard,
-                decidedNode.nodeShardState.getNode()
+                nodeShardState.getNode()
             );
-            node = decidedNode.nodeShardState.getNode();
-            allocationId = decidedNode.nodeShardState.allocationId();
+            node = nodeShardState.getNode();
+            allocationId = nodeShardState.allocationId();
         } else if (nodesToAllocate.throttleNodeShards.isEmpty() && !nodesToAllocate.noNodeShards.isEmpty()) {
             // The deciders returned a NO decision for all nodes with shard copies, so we check if primary shard
             // can be force-allocated to one of the nodes.
             nodesToAllocate = buildNodesToAllocate(allocation, nodeShardsResult.orderedAllocationCandidates, unassignedShard, true);
             if (nodesToAllocate.yesNodeShards.isEmpty() == false) {
                 final DecidedNode decidedNode = nodesToAllocate.yesNodeShards.get(0);
-                final NodeGatewayStartedShards nodeShardState = decidedNode.nodeShardState;
+                final NodeShardState nodeShardState = decidedNode.nodeShardState;
                 logger.debug(
                     "[{}][{}]: allocating [{}] to [{}] on forced primary allocation",
                     unassignedShard.index(),
@@ -260,11 +289,11 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
      */
     private static List<NodeAllocationResult> buildNodeDecisions(
         NodesToAllocate nodesToAllocate,
-        FetchResult<NodeGatewayStartedShards> fetchedShardData,
+        NodeShardStates fetchedShardData,
         Set<String> inSyncAllocationIds
     ) {
         List<NodeAllocationResult> nodeResults = new ArrayList<>();
-        Collection<NodeGatewayStartedShards> ineligibleShards;
+        Collection<NodeShardState> ineligibleShards = new ArrayList<>();
         if (nodesToAllocate != null) {
             final Set<DiscoveryNode> discoNodes = new HashSet<>();
             nodeResults.addAll(
@@ -280,15 +309,15 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
                     })
                     .collect(Collectors.toList())
             );
-            ineligibleShards = fetchedShardData.getData()
-                .values()
-                .stream()
-                .filter(shardData -> discoNodes.contains(shardData.getNode()) == false)
-                .collect(Collectors.toList());
+            fetchedShardData.iterator().forEachRemaining(shardData -> {
+                if (discoNodes.contains(shardData.getNode()) == false) {
+                    ineligibleShards.add(shardData);
+                }
+            });
         } else {
             // there were no shard copies that were eligible for being assigned the allocation,
             // so all fetched shard data are ineligible shards
-            ineligibleShards = fetchedShardData.getData().values();
+            fetchedShardData.iterator().forEachRemaining(ineligibleShards::add);
         }
 
         nodeResults.addAll(
@@ -300,21 +329,21 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
         return nodeResults;
     }
 
-    private static ShardStoreInfo shardStoreInfo(NodeGatewayStartedShards nodeShardState, Set<String> inSyncAllocationIds) {
+    protected static ShardStoreInfo shardStoreInfo(NodeShardState nodeShardState, Set<String> inSyncAllocationIds) {
         final Exception storeErr = nodeShardState.storeException();
         final boolean inSync = nodeShardState.allocationId() != null && inSyncAllocationIds.contains(nodeShardState.allocationId());
         return new ShardStoreInfo(nodeShardState.allocationId(), inSync, storeErr);
     }
 
-    private static final Comparator<NodeGatewayStartedShards> NO_STORE_EXCEPTION_FIRST_COMPARATOR = Comparator.comparing(
-        (NodeGatewayStartedShards state) -> state.storeException() == null
+    private static final Comparator<NodeShardState> NO_STORE_EXCEPTION_FIRST_COMPARATOR = Comparator.comparing(
+        (NodeShardState state) -> state.storeException() == null
     ).reversed();
-    private static final Comparator<NodeGatewayStartedShards> PRIMARY_FIRST_COMPARATOR = Comparator.comparing(
-        NodeGatewayStartedShards::primary
+    private static final Comparator<NodeShardState> PRIMARY_FIRST_COMPARATOR = Comparator.comparing(
+        NodeShardState::primary
     ).reversed();
 
-    private static final Comparator<NodeGatewayStartedShards> HIGHEST_REPLICATION_CHECKPOINT_FIRST_COMPARATOR = Comparator.comparing(
-        NodeGatewayStartedShards::replicationCheckpoint,
+    private static final Comparator<NodeShardState> HIGHEST_REPLICATION_CHECKPOINT_FIRST_COMPARATOR = Comparator.comparing(
+        NodeShardState::replicationCheckpoint,
         Comparator.nullsLast(Comparator.naturalOrder())
     );
 
@@ -323,17 +352,19 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
      * inSyncAllocationIds are added to the list. Otherwise, any node that has a shard is added to the list, but
      * entries with matching allocation id are always at the front of the list.
      */
-    protected static NodeShardsResult buildNodeShardsResult(
+    protected NodeShardsResult buildNodeShardsResult(
         ShardRouting shard,
         boolean matchAnyShard,
         Set<String> ignoreNodes,
         Set<String> inSyncAllocationIds,
-        FetchResult<NodeGatewayStartedShards> shardState,
+        NodeShardStates shardState,
         Logger logger
     ) {
-        List<NodeGatewayStartedShards> nodeShardStates = new ArrayList<>();
+        NodeShardStates nodeShardStates = new NodeShardStates(getComparator(matchAnyShard, inSyncAllocationIds));
         int numberOfAllocationsFound = 0;
-        for (NodeGatewayStartedShards nodeShardState : shardState.getData().values()) {
+        Iterator<NodeShardState> iterator = shardState.iterator();
+        while (iterator.hasNext()) {
+            NodeShardState nodeShardState = iterator.next();
             DiscoveryNode node = nodeShardState.getNode();
             String allocationId = nodeShardState.allocationId();
 
@@ -381,22 +412,33 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
                         + nodeShardState.storeException();
                 numberOfAllocationsFound++;
                 if (matchAnyShard || inSyncAllocationIds.contains(nodeShardState.allocationId())) {
-                    nodeShardStates.add(nodeShardState);
+                    nodeShardStates.add(nodeShardState, nodeShardState.getNode());
                 }
             }
         }
 
+        if (logger.isTraceEnabled()) {
+            logger.trace(
+                "{} candidates for allocation: {}",
+                shard,
+                nodeShardStates.nodeShardStates.values().stream().map(DiscoveryNode::getName).collect(Collectors.joining(", "))
+            );
+        }
+        return new NodeShardsResult(nodeShardStates, numberOfAllocationsFound);
+    }
+
+    protected static Comparator<NodeShardState> getComparator(boolean matchAnyShard, Set<String> inSyncAllocationIds) {
         /**
          * Orders the active shards copies based on below comparators
          * 1. No store exception i.e. shard copy is readable
          * 2. Prefer previous primary shard
          * 3. Prefer shard copy with the highest replication checkpoint. It is NO-OP for doc rep enabled indices.
          */
-        final Comparator<NodeGatewayStartedShards> comparator; // allocation preference
+        final Comparator<NodeShardState> comparator; // allocation preference
         if (matchAnyShard) {
             // prefer shards with matching allocation ids
-            Comparator<NodeGatewayStartedShards> matchingAllocationsFirst = Comparator.comparing(
-                (NodeGatewayStartedShards state) -> inSyncAllocationIds.contains(state.allocationId())
+            Comparator<NodeShardState> matchingAllocationsFirst = Comparator.comparing(
+                (NodeShardState state) -> inSyncAllocationIds.contains(state.allocationId())
             ).reversed();
             comparator = matchingAllocationsFirst.thenComparing(NO_STORE_EXCEPTION_FIRST_COMPARATOR)
                 .thenComparing(PRIMARY_FIRST_COMPARATOR)
@@ -406,31 +448,24 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
                 .thenComparing(HIGHEST_REPLICATION_CHECKPOINT_FIRST_COMPARATOR);
         }
 
-        nodeShardStates.sort(comparator);
-
-        if (logger.isTraceEnabled()) {
-            logger.trace(
-                "{} candidates for allocation: {}",
-                shard,
-                nodeShardStates.stream().map(s -> s.getNode().getName()).collect(Collectors.joining(", "))
-            );
-        }
-        return new NodeShardsResult(nodeShardStates, numberOfAllocationsFound);
+        return comparator;
     }
 
     /**
      * Split the list of node shard states into groups yes/no/throttle based on allocation deciders
      */
-    private static NodesToAllocate buildNodesToAllocate(
+    protected static NodesToAllocate buildNodesToAllocate(
         RoutingAllocation allocation,
-        List<NodeGatewayStartedShards> nodeShardStates,
+        NodeShardStates nodeShardStates,
         ShardRouting shardRouting,
         boolean forceAllocate
     ) {
         List<DecidedNode> yesNodeShards = new ArrayList<>();
         List<DecidedNode> throttledNodeShards = new ArrayList<>();
         List<DecidedNode> noNodeShards = new ArrayList<>();
-        for (NodeGatewayStartedShards nodeShardState : nodeShardStates) {
+        Iterator<NodeShardState> iterator = nodeShardStates.iterator();
+        while (iterator.hasNext()) {
+            NodeShardState nodeShardState = iterator.next();
             RoutingNode node = allocation.routingNodes().node(nodeShardState.getNode().getId());
             if (node == null) {
                 continue;
@@ -457,22 +492,22 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
 
     protected abstract FetchResult<NodeGatewayStartedShards> fetchData(ShardRouting shard, RoutingAllocation allocation);
 
-    private static class NodeShardsResult {
-        final List<NodeGatewayStartedShards> orderedAllocationCandidates;
+    protected static class NodeShardsResult {
+        final NodeShardStates orderedAllocationCandidates;
         final int allocationsFound;
 
-        NodeShardsResult(List<NodeGatewayStartedShards> orderedAllocationCandidates, int allocationsFound) {
+        NodeShardsResult(NodeShardStates orderedAllocationCandidates, int allocationsFound) {
             this.orderedAllocationCandidates = orderedAllocationCandidates;
             this.allocationsFound = allocationsFound;
         }
     }
 
-    static class NodesToAllocate {
-        final List<DecidedNode> yesNodeShards;
-        final List<DecidedNode> throttleNodeShards;
-        final List<DecidedNode> noNodeShards;
+    protected static class NodesToAllocate {
+        final List<? extends DecidedNode> yesNodeShards;
+        final List<? extends DecidedNode> throttleNodeShards;
+        final List<? extends DecidedNode> noNodeShards;
 
-        NodesToAllocate(List<DecidedNode> yesNodeShards, List<DecidedNode> throttleNodeShards, List<DecidedNode> noNodeShards) {
+        NodesToAllocate(List<? extends DecidedNode> yesNodeShards, List<? extends DecidedNode> throttleNodeShards, List<? extends DecidedNode> noNodeShards) {
             this.yesNodeShards = yesNodeShards;
             this.throttleNodeShards = throttleNodeShards;
             this.noNodeShards = noNodeShards;
@@ -483,11 +518,11 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
      * This class encapsulates the shard state retrieved from a node and the decision that was made
      * by the allocator for allocating to the node that holds the shard copy.
      */
-    private static class DecidedNode {
-        final NodeGatewayStartedShards nodeShardState;
+    protected static class DecidedNode {
+        final NodeShardState nodeShardState;
         final Decision decision;
 
-        private DecidedNode(NodeGatewayStartedShards nodeShardState, Decision decision) {
+        protected DecidedNode(NodeShardState nodeShardState, Decision decision) {
             this.nodeShardState = nodeShardState;
             this.decision = decision;
         }
