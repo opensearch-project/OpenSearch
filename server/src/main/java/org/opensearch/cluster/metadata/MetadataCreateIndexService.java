@@ -135,6 +135,7 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_TRANS
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
 import static org.opensearch.cluster.metadata.Metadata.DEFAULT_REPLICA_COUNT_SETTING;
 import static org.opensearch.indices.IndicesService.CLUSTER_REPLICATION_TYPE_SETTING;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteStoreAttributePresent;
 
 /**
  * Service responsible for submitting create index requests
@@ -937,9 +938,7 @@ public class MetadataCreateIndexService {
             settingsBuilder.put(SETTING_REPLICATION_TYPE, INDEX_REPLICATION_TYPE_SETTING.get(requestSettings));
         } else if (CLUSTER_REPLICATION_TYPE_SETTING.exists(clusterSettings)) {
             settingsBuilder.put(SETTING_REPLICATION_TYPE, CLUSTER_REPLICATION_TYPE_SETTING.get(clusterSettings));
-        } else if (clusterSettings.getByPrefix(
-            Node.NODE_ATTRIBUTES.getKey() + RemoteStoreNodeAttribute.REMOTE_STORE_NODE_ATTRIBUTE_KEY_PREFIX
-        ).isEmpty() == false) {
+        } else if (isRemoteStoreAttributePresent(clusterSettings)) {
             settingsBuilder.put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT);
         } else {
             settingsBuilder.put(SETTING_REPLICATION_TYPE, CLUSTER_REPLICATION_TYPE_SETTING.getDefault(clusterSettings));
@@ -952,8 +951,7 @@ public class MetadataCreateIndexService {
      * @param clusterSettings cluster level settings
      */
     private static void updateRemoteStoreSettings(Settings.Builder settingsBuilder, Settings clusterSettings) {
-        if (clusterSettings.getByPrefix(Node.NODE_ATTRIBUTES.getKey() + RemoteStoreNodeAttribute.REMOTE_STORE_NODE_ATTRIBUTE_KEY_PREFIX)
-            .isEmpty() == false) {
+        if (isRemoteStoreAttributePresent(clusterSettings)) {
             settingsBuilder.put(SETTING_REMOTE_STORE_ENABLED, true)
                 .put(
                     SETTING_REMOTE_SEGMENT_STORE_REPOSITORY,

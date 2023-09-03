@@ -12,6 +12,7 @@ import org.opensearch.cluster.metadata.RepositoriesMetadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.node.Node;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 
 import java.util.ArrayList;
@@ -101,6 +102,11 @@ public class RemoteStoreNodeAttribute {
         }
 
         return new RepositoriesMetadata(repositoryMetadataList);
+    }
+
+    public static boolean isRemoteStoreAttributePresent(Settings settings) {
+        return settings.getByPrefix(Node.NODE_ATTRIBUTES.getKey() + RemoteStoreNodeAttribute.REMOTE_STORE_NODE_ATTRIBUTE_KEY_PREFIX)
+            .isEmpty() == false;
     }
 
     public RepositoriesMetadata getRepositoriesMetadata() {

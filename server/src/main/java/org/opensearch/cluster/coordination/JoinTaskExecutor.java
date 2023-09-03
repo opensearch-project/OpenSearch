@@ -46,7 +46,6 @@ import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.RerouteService;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.common.Priority;
-import org.opensearch.common.SetOnce;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
@@ -176,7 +175,10 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         }
 
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(newState.nodes());
-        SetOnce<RepositoriesMetadata> repositoriesMetadata = new SetOnce<>();
+        RepositoriesMetadata repositoriesMetadata = remoteStoreNodeService.updateRepositoriesMetadata(
+            joiningNodes.stream().filter(task -> task.node() != null).findAny(),
+            currentState.getMetadata().custom(RepositoriesMetadata.TYPE)
+        );
 
         assert nodesBuilder.isLocalNodeElectedClusterManager();
 
@@ -192,15 +194,6 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
                 // noop
             } else if (currentNodes.nodeExistsWithSameRoles(node)) {
                 logger.debug("received a join request for an existing node [{}]", node);
-
-                if (repositoriesMetadata.get() == null) {
-                    repositoriesMetadata.trySet(
-                        remoteStoreNodeService.updateRepositoriesMetadata(
-                            node,
-                            currentState.getMetadata().custom(RepositoriesMetadata.TYPE)
-                        )
-                    );
-                }
             } else {
                 try {
                     if (enforceMajorVersion) {
@@ -219,14 +212,6 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
                     maxClusterNodeVersion = Version.max(maxClusterNodeVersion, node.getVersion());
                     if (node.isClusterManagerNode()) {
                         joiniedNodeNameIds.put(node.getName(), node.getId());
-                    }
-                    if (repositoriesMetadata.get() == null) {
-                        repositoriesMetadata.trySet(
-                            remoteStoreNodeService.updateRepositoriesMetadata(
-                                node,
-                                currentState.getMetadata().custom(RepositoriesMetadata.TYPE)
-                            )
-                        );
                     }
                 } catch (IllegalArgumentException | IllegalStateException | NodeDecommissionedException e) {
                     results.failure(joinTask, e);
@@ -291,8 +276,8 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         }
     }
 
-    private Metadata updateMetadataWithRepositoriesMetadata(Metadata currentMetadata, SetOnce<RepositoriesMetadata> repositoriesMetadata) {
-        if (repositoriesMetadata == null || repositoriesMetadata.get() == null || repositoriesMetadata.get().repositories().isEmpty()) {
+    private Metadata updateMetadataWithRepositoriesMetadata(Metadata currentMetadata, RepositoriesMetadata repositoriesMetadata) {
+        if (repositoriesMetadata == null || repositoriesMetadata.repositories() == null || repositoriesMetadata.repositories().isEmpty()) {
             return currentMetadata;
         } else {
             return Metadata.builder(currentMetadata).putCustom(RepositoriesMetadata.TYPE, repositoriesMetadata.get()).build();
