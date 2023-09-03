@@ -224,7 +224,7 @@ public class RemoteClusterStateService implements Closeable {
         }
         final ClusterMetadataManifest manifest = uploadManifest(
             clusterState,
-            allUploadedIndexMetadata.values().stream().collect(Collectors.toList()),
+            new ArrayList<>(allUploadedIndexMetadata.values()),
             false
         );
         final long durationMillis = TimeValue.nsecToMSec(relativeTimeNanosSupplier.getAsLong() - startTimeNanos);

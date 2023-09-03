@@ -43,7 +43,7 @@ import org.apache.lucene.util.BytesRef;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.blobstore.BlobContainer;
-import org.opensearch.common.blobstore.VerifyingMultiStreamBlobContainer;
+import org.opensearch.common.blobstore.AsyncMultiStreamBlobContainer;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.blobstore.transfer.RemoteTransferContainer;
 import org.opensearch.common.blobstore.transfer.stream.OffsetRangeIndexInputStream;
@@ -63,6 +63,7 @@ import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.gateway.CorruptStateException;
+import org.opensearch.index.store.exception.ChecksumCombinationException;
 import org.opensearch.snapshots.SnapshotInfo;
 
 import java.io.IOException;
@@ -71,6 +72,8 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+
+import static org.opensearch.common.blobstore.transfer.RemoteTransferContainer.checksumOfChecksum;
 
 /**
  * Snapshot metadata file format used in v2.0 and above
@@ -189,14 +192,26 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
         final Compressor compressor,
         ActionListener<Void> listener
     ) throws IOException {
-        if (blobContainer instanceof VerifyingMultiStreamBlobContainer == false) {
+        if (blobContainer instanceof AsyncMultiStreamBlobContainer == false) {
             write(obj, blobContainer, name, compressor);
             return;
         }
         final String blobName = blobName(name);
         final BytesReference bytes = serialize(obj, blobName, compressor);
 
-        IndexInput input = new ByteArrayIndexInput("", BytesReference.toBytes(bytes));
+        IndexInput input = new ByteArrayIndexInput("ChecksumBlobStoreFormat", BytesReference.toBytes(bytes));
+
+        long expectedChecksum;
+        try {
+            expectedChecksum = checksumOfChecksum(input.clone(), 8);
+        } catch (Exception e) {
+            throw new ChecksumCombinationException(
+                "Potentially corrupted file: Checksum combination failed while combining stored checksum "
+                    + "and calculated checksum of stored checksum in stream",
+                "ChecksumBlobStoreFormat",
+                e
+            );
+        }
 
         RemoteTransferContainer remoteTransferContainer = new RemoteTransferContainer(
             blobName,
@@ -205,11 +220,11 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
             true,
             WritePriority.HIGH,
             (size, position) -> new OffsetRangeIndexInputStream(input, size, position),
-            CodecUtil.checksumEntireFile(input),
+            expectedChecksum,
             true
         );
 
-        ((VerifyingMultiStreamBlobContainer) blobContainer).asyncBlobUpload(remoteTransferContainer.createWriteContext(), listener);
+        ((AsyncMultiStreamBlobContainer) blobContainer).asyncBlobUpload(remoteTransferContainer.createWriteContext(), listener);
     }
 
     public BytesReference serialize(final T obj, final String blobName, final Compressor compressor) throws IOException {
