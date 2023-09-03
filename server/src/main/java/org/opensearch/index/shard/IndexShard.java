@@ -1614,6 +1614,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             snapshot = getSegmentInfosSnapshot();
             if (snapshot.get() != null) {
                 SegmentInfos segmentInfos = snapshot.get();
+                final Map<String, StoreFileMetadata> metadataMap = store.getSegmentMetadataMap(segmentInfos);
                 return new Tuple<>(
                     snapshot,
                     new ReplicationCheckpoint(
@@ -1621,8 +1622,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         getOperationPrimaryTerm(),
                         segmentInfos.getGeneration(),
                         segmentInfos.getVersion(),
-                        store.getSegmentMetadataMap(segmentInfos).values().stream().mapToLong(StoreFileMetadata::length).sum(),
-                        getEngine().config().getCodec().getName()
+                        metadataMap.values().stream().mapToLong(StoreFileMetadata::length).sum(),
+                        getEngine().config().getCodec().getName(),
+                        metadataMap
                     )
                 );
             }
