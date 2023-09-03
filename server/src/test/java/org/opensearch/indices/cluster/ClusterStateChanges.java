@@ -154,7 +154,7 @@ public class ClusterStateChanges {
     private final TransportClusterRerouteAction transportClusterRerouteAction;
     private final TransportCreateIndexAction transportCreateIndexAction;
     private final RepositoriesService repositoriesService;
-    private final RemoteStoreNodeService remoteStoreService;
+    private final RemoteStoreNodeService remoteStoreNodeService;
 
     private final NodeRemovalClusterStateTaskExecutor nodeRemovalExecutor;
     private final JoinTaskExecutor joinTaskExecutor;
@@ -376,10 +376,10 @@ public class ClusterStateChanges {
             threadPool
         );
 
-        remoteStoreService = new RemoteStoreNodeService(new SetOnce<>(repositoriesService)::get, threadPool);
+        remoteStoreNodeService = new RemoteStoreNodeService(new SetOnce<>(repositoriesService)::get, threadPool);
 
         nodeRemovalExecutor = new NodeRemovalClusterStateTaskExecutor(allocationService, logger);
-        joinTaskExecutor = new JoinTaskExecutor(Settings.EMPTY, allocationService, logger, (s, p, r) -> {}, remoteStoreService);
+        joinTaskExecutor = new JoinTaskExecutor(Settings.EMPTY, allocationService, logger, (s, p, r) -> {}, remoteStoreNodeService);
     }
 
     public ClusterState createIndex(ClusterState state, CreateIndexRequest request) {

@@ -133,7 +133,7 @@ public class DiscoveryModule {
         RerouteService rerouteService,
         NodeHealthService nodeHealthService,
         PersistedStateRegistry persistedStateRegistry,
-        RemoteStoreNodeService remoteStoreService
+        RemoteStoreNodeService remoteStoreNodeService
     ) {
         final Collection<BiConsumer<DiscoveryNode, ClusterState>> joinValidators = new ArrayList<>();
         final Map<String, Supplier<SeedHostsProvider>> hostProviders = new HashMap<>();
@@ -210,8 +210,12 @@ public class DiscoveryModule {
                 rerouteService,
                 electionStrategy,
                 nodeHealthService,
+<<<<<<< HEAD
                 persistedStateRegistry,
                 remoteStoreService
+=======
+                remoteStoreNodeService
+>>>>>>> 5e3b618bf6b (Addressing Comments)
             );
         } else {
             throw new IllegalArgumentException("Unknown discovery type [" + discoveryType + "]");

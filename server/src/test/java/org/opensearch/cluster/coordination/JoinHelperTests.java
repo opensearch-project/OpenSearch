@@ -103,7 +103,7 @@ public class JoinHelperTests extends OpenSearchTestCase {
             null,
             null,
             transportService,
-            buildRemoteStoreService(transportService, deterministicTaskQueue.getThreadPool()),
+            buildRemoteStoreNodeService(transportService, deterministicTaskQueue.getThreadPool()),
             () -> 0L,
             () -> null,
             (joinRequest, joinCallback) -> {
@@ -289,7 +289,7 @@ public class JoinHelperTests extends OpenSearchTestCase {
             null,
             null,
             transportService,
-            buildRemoteStoreService(transportService, deterministicTaskQueue.getThreadPool()),
+            buildRemoteStoreNodeService(transportService, deterministicTaskQueue.getThreadPool()),
             () -> 0L,
             () -> null,
             (joinRequest, joinCallback) -> {
@@ -489,7 +489,7 @@ public class JoinHelperTests extends OpenSearchTestCase {
             null,
             null,
             transportService,
-            buildRemoteStoreService(transportService, deterministicTaskQueue.getThreadPool()),
+            buildRemoteStoreNodeService(transportService, deterministicTaskQueue.getThreadPool()),
             () -> 0L,
             () -> localClusterState,
             (joinRequest, joinCallback) -> {
@@ -509,7 +509,7 @@ public class JoinHelperTests extends OpenSearchTestCase {
         return new TestClusterSetup(deterministicTaskQueue, localNode, transportService, localClusterState, joinHelper, capturingTransport);
     }
 
-    private RemoteStoreNodeService buildRemoteStoreService(TransportService transportService, ThreadPool threadPool) {
+    private RemoteStoreNodeService buildRemoteStoreNodeService(TransportService transportService, ThreadPool threadPool) {
         RepositoriesService repositoriesService = new RepositoriesService(
             Settings.EMPTY,
             mock(ClusterService.class),

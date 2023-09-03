@@ -1893,7 +1893,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
             private final ClusterInfoService clusterInfoService;
 
             private Coordinator coordinator;
-            private RemoteStoreNodeService remoteStoreService;
+            private RemoteStoreNodeService remoteStoreNodeService;
 
             private Map<ActionType, TransportAction> actions = new HashMap<>();
 
@@ -1999,7 +1999,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     emptyMap(),
                     threadPool
                 );
-                remoteStoreService = new RemoteStoreNodeService(new SetOnce<>(repositoriesService)::get, threadPool);
+                remoteStoreNodeService = new RemoteStoreNodeService(new SetOnce<>(repositoriesService)::get, threadPool);
                 final ActionFilters actionFilters = new ActionFilters(emptySet());
                 snapshotsService = new SnapshotsService(
                     settings,
@@ -2517,7 +2517,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     ElectionStrategy.DEFAULT_INSTANCE,
                     () -> new StatusInfo(HEALTHY, "healthy-info"),
                     persistedStateRegistry,
-                    remoteStoreService
+                    remoteStoreNodeService
                 );
                 clusterManagerService.setClusterStatePublisher(coordinator);
                 coordinator.start();

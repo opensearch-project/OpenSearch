@@ -78,7 +78,7 @@ public class DiscoveryModuleTests extends OpenSearchTestCase {
     private ClusterSettings clusterSettings;
     private GatewayMetaState gatewayMetaState;
 
-    private RemoteStoreNodeService remoteStoreService;
+    private RemoteStoreNodeService remoteStoreNodeService;
 
     public interface DummyHostsProviderPlugin extends DiscoveryPlugin {
         Map<String, Supplier<SeedHostsProvider>> impl();
@@ -102,7 +102,7 @@ public class DiscoveryModuleTests extends OpenSearchTestCase {
         clusterApplier = mock(ClusterApplier.class);
         clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         gatewayMetaState = mock(GatewayMetaState.class);
-        remoteStoreService = mock(RemoteStoreNodeService.class);
+        remoteStoreNodeService = mock(RemoteStoreNodeService.class);
     }
 
     @After
@@ -127,7 +127,7 @@ public class DiscoveryModuleTests extends OpenSearchTestCase {
             mock(RerouteService.class),
             null,
             new PersistedStateRegistry(),
-            remoteStoreService
+            remoteStoreNodeService
         );
     }
 

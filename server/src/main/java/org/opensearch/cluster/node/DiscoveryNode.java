@@ -288,7 +288,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         Settings settings,
         TransportAddress publishAddress,
         String nodeId,
-        RemoteStoreNodeService remoteStoreService
+        RemoteStoreNodeService remoteStoreNodeService
     ) {
         Map<String, String> attributes = Node.NODE_ATTRIBUTES.getAsMap(settings);
         Set<DiscoveryNodeRole> roles = getRolesFromSettings(settings);
@@ -300,7 +300,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             roles,
             Version.CURRENT
         );
-        remoteStoreService.createAndVerifyRepositories(discoveryNode);
+        remoteStoreNodeService.createAndVerifyRepositories(discoveryNode);
         return discoveryNode;
     }
 

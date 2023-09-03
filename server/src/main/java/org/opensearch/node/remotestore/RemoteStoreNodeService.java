@@ -82,9 +82,9 @@ public class RemoteStoreNodeService {
      * to the repository with appropriate permissions.
      */
     public List<Repository> createAndVerifyRepositories(DiscoveryNode localNode) {
-        RemoteStoreNodeAttribute node = new RemoteStoreNodeAttribute(localNode);
+        RemoteStoreNodeAttribute nodeAttribute = new RemoteStoreNodeAttribute(localNode);
         List<Repository> repositories = new ArrayList<>();
-        for (RepositoryMetadata repositoryMetadata : node.getRepositoriesMetadata().repositories()) {
+        for (RepositoryMetadata repositoryMetadata : nodeAttribute.getRepositoriesMetadata().repositories()) {
             String repositoryName = repositoryMetadata.name();
 
             // Create Repository

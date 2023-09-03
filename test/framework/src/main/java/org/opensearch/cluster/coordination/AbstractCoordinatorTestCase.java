@@ -1039,7 +1039,7 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
             private DisruptableMockTransport mockTransport;
             private NodeHealthService nodeHealthService;
             private RepositoriesService repositoriesService;
-            private RemoteStoreNodeService remoteStoreService;
+            private RemoteStoreNodeService remoteStoreNodeService;
             List<BiConsumer<DiscoveryNode, ClusterState>> extraJoinValidators = new ArrayList<>();
 
             ClusterNode(int nodeIndex, boolean clusterManagerEligible, Settings nodeSettings, NodeHealthService nodeHealthService) {
@@ -1142,7 +1142,7 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
                     Collections.emptyMap(),
                     threadPool
                 );
-                remoteStoreService = new RemoteStoreNodeService(new SetOnce<>(repositoriesService)::get, threadPool);
+                remoteStoreNodeService = new RemoteStoreNodeService(new SetOnce<>(repositoriesService)::get, threadPool);
                 final Collection<BiConsumer<DiscoveryNode, ClusterState>> onJoinValidators = Collections.singletonList(
                     (dn, cs) -> extraJoinValidators.forEach(validator -> validator.accept(dn, cs))
                 );
@@ -1164,7 +1164,7 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
                     getElectionStrategy(),
                     nodeHealthService,
                     persistedStateRegistry,
-                    remoteStoreService
+                    remoteStoreNodeService
                 );
                 clusterManagerService.setClusterStatePublisher(coordinator);
                 final GatewayService gatewayService = new GatewayService(

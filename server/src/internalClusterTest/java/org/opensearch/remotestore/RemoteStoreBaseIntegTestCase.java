@@ -16,6 +16,10 @@ import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.support.WriteRequest;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.RepositoriesMetadata;
+import org.opensearch.cluster.metadata.RepositoryMetadata;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
@@ -23,6 +27,7 @@ import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.indices.replication.common.ReplicationType;
+import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.junit.After;
@@ -38,6 +43,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 import static org.opensearch.indices.IndicesService.CLUSTER_REPLICATION_TYPE_SETTING;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX;
@@ -257,8 +263,45 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
     @After
     public void teardown() {
         clusterSettingsSuppliedByTest = false;
+        assertRemoteStoreRepositoryOnAllNodes();
         assertAcked(clusterAdmin().prepareDeleteRepository(REPOSITORY_NAME));
         assertAcked(clusterAdmin().prepareDeleteRepository(REPOSITORY_2_NAME));
+    }
+
+    private RepositoryMetadata buildRepositoryMetadata(DiscoveryNode node, String name) {
+        Map<String, String> nodeAttributes = node.getAttributes();
+        String type = nodeAttributes.get(String.format(Locale.getDefault(), REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT, name));
+
+        String settingsAttributeKeyPrefix = String.format(Locale.getDefault(), REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX, name);
+        Map<String, String> settingsMap = node.getAttributes()
+            .keySet()
+            .stream()
+            .filter(key -> key.startsWith(settingsAttributeKeyPrefix))
+            .collect(Collectors.toMap(key -> key.replace(settingsAttributeKeyPrefix, ""), key -> node.getAttributes().get(key)));
+
+        Settings.Builder settings = Settings.builder();
+        settingsMap.entrySet().forEach(entry -> settings.put(entry.getKey(), entry.getValue()));
+        settings.put(BlobStoreRepository.SYSTEM_REPOSITORY_SETTING.getKey(), true);
+
+        return new RepositoryMetadata(name, type, settings.build());
+    }
+
+    private void assertRemoteStoreRepositoryOnAllNodes() {
+        RepositoriesMetadata repositories = internalCluster().getInstance(ClusterService.class, internalCluster().getNodeNames()[0])
+            .state()
+            .metadata()
+            .custom(RepositoriesMetadata.TYPE);
+        RepositoryMetadata actualSegmentRepository = repositories.repository(REPOSITORY_NAME);
+        RepositoryMetadata actualTranslogRepository = repositories.repository(REPOSITORY_2_NAME);
+
+        for (String nodeName : internalCluster().getNodeNames()) {
+            ClusterService clusterService = internalCluster().getInstance(ClusterService.class, nodeName);
+            DiscoveryNode node = clusterService.localNode();
+            RepositoryMetadata expectedSegmentRepository = buildRepositoryMetadata(node, REPOSITORY_NAME);
+            RepositoryMetadata expectedTranslogRepository = buildRepositoryMetadata(node, REPOSITORY_2_NAME);
+            assertTrue(actualSegmentRepository.equalsIgnoreGenerations(expectedSegmentRepository));
+            assertTrue(actualTranslogRepository.equalsIgnoreGenerations(expectedTranslogRepository));
+        }
     }
 
     public static int getFileCount(Path path) throws Exception {

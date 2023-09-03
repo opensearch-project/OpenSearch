@@ -136,7 +136,7 @@ public class JoinHelper {
         AllocationService allocationService,
         ClusterManagerService clusterManagerService,
         TransportService transportService,
-        RemoteStoreNodeService remoteStoreService,
+        RemoteStoreNodeService remoteStoreNodeService,
         LongSupplier currentTermSupplier,
         Supplier<ClusterState> currentStateSupplier,
         BiConsumer<JoinRequest, JoinCallback> joinHandler,
@@ -159,7 +159,7 @@ public class JoinHelper {
             allocationService,
             logger,
             rerouteService,
-            remoteStoreService
+            remoteStoreNodeService
         ) {
 
             private final long term = currentTermSupplier.getAsLong();

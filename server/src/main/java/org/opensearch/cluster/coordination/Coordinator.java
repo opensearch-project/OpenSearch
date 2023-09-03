@@ -183,7 +183,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     private Optional<CoordinatorPublication> currentPublication = Optional.empty();
     private final NodeHealthService nodeHealthService;
     private final PersistedStateRegistry persistedStateRegistry;
-    private final RemoteStoreNodeService remoteStoreService;
+    private final RemoteStoreNodeService remoteStoreNodeService;
 
     /**
      * @param nodeName The name of the node, used to name the {@link java.util.concurrent.ExecutorService} of the {@link SeedHostsResolver}.
@@ -206,7 +206,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         ElectionStrategy electionStrategy,
         NodeHealthService nodeHealthService,
         PersistedStateRegistry persistedStateRegistry,
-        RemoteStoreNodeService remoteStoreService
+        RemoteStoreNodeService remoteStoreNodeService
     ) {
         this.settings = settings;
         this.transportService = transportService;
@@ -220,7 +220,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             allocationService,
             clusterManagerService,
             transportService,
-            remoteStoreService,
+            remoteStoreNodeService,
             this::getCurrentTerm,
             this::getStateForClusterManagerService,
             this::handleJoinRequest,
@@ -294,7 +294,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         this.nodeHealthService = nodeHealthService;
         this.persistedStateRegistry = persistedStateRegistry;
         this.localNodeCommissioned = true;
-        this.remoteStoreService = remoteStoreService;
+        this.remoteStoreNodeService = remoteStoreNodeService;
     }
 
     private ClusterFormationState getClusterFormationState() {

@@ -81,7 +81,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
     private final Logger logger;
     private final RerouteService rerouteService;
 
-    private final RemoteStoreNodeService remoteStoreService;
+    private final RemoteStoreNodeService remoteStoreNodeService;
 
     /**
      * Task for the join task executor.
@@ -139,12 +139,12 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         AllocationService allocationService,
         Logger logger,
         RerouteService rerouteService,
-        RemoteStoreNodeService remoteStoreService
+        RemoteStoreNodeService remoteStoreNodeService
     ) {
         this.allocationService = allocationService;
         this.logger = logger;
         this.rerouteService = rerouteService;
-        this.remoteStoreService = remoteStoreService;
+        this.remoteStoreNodeService = remoteStoreNodeService;
     }
 
     @Override
@@ -193,9 +193,14 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
             } else if (currentNodes.nodeExistsWithSameRoles(node)) {
                 logger.debug("received a join request for an existing node [{}]", node);
 
-                repositoriesMetadata.trySet(
-                    remoteStoreService.updateRepositoriesMetadata(node, currentState.getMetadata().custom(RepositoriesMetadata.TYPE))
-                );
+                if (repositoriesMetadata.get() == null) {
+                    repositoriesMetadata.trySet(
+                        remoteStoreNodeService.updateRepositoriesMetadata(
+                            node,
+                            currentState.getMetadata().custom(RepositoriesMetadata.TYPE)
+                        )
+                    );
+                }
             } else {
                 try {
                     if (enforceMajorVersion) {
@@ -215,9 +220,14 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
                     if (node.isClusterManagerNode()) {
                         joiniedNodeNameIds.put(node.getName(), node.getId());
                     }
-                    repositoriesMetadata.trySet(
-                        remoteStoreService.updateRepositoriesMetadata(node, currentState.getMetadata().custom(RepositoriesMetadata.TYPE))
-                    );
+                    if (repositoriesMetadata.get() == null) {
+                        repositoriesMetadata.trySet(
+                            remoteStoreNodeService.updateRepositoriesMetadata(
+                                node,
+                                currentState.getMetadata().custom(RepositoriesMetadata.TYPE)
+                            )
+                        );
+                    }
                 } catch (IllegalArgumentException | IllegalStateException | NodeDecommissionedException e) {
                     results.failure(joinTask, e);
                     continue;
@@ -281,10 +291,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         }
     }
 
-    protected Metadata updateMetadataWithRepositoriesMetadata(
-        Metadata currentMetadata,
-        SetOnce<RepositoriesMetadata> repositoriesMetadata
-    ) {
+    private Metadata updateMetadataWithRepositoriesMetadata(Metadata currentMetadata, SetOnce<RepositoriesMetadata> repositoriesMetadata) {
         if (repositoriesMetadata == null || repositoriesMetadata.get() == null || repositoriesMetadata.get().repositories().isEmpty()) {
             return currentMetadata;
         } else {
@@ -502,16 +509,16 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
             return;
         }
 
-        // TODO: The below check is valid till we support migration, once we start supporting migration a remote
+        // TODO: The below check is valid till we don't support migration, once we start supporting migration a remote
         // store node will be able to join a non remote store cluster and vice versa. #7986
         CompatibilityMode remoteStoreCompatibilityMode = REMOTE_STORE_COMPATIBILITY_MODE_SETTING.get(metadata.settings());
         if (STRICT.equals(remoteStoreCompatibilityMode)) {
             DiscoveryNode existingNode = existingNodes.get(0);
             if (joiningNode.isRemoteStoreNode()) {
                 if (existingNode.isRemoteStoreNode()) {
-                    RemoteStoreNodeAttribute joiningRemoteStoreNode = new RemoteStoreNodeAttribute(joiningNode);
-                    RemoteStoreNodeAttribute existingRemoteStoreNode = new RemoteStoreNodeAttribute(existingNode);
-                    if (existingRemoteStoreNode.equals(joiningRemoteStoreNode) == false) {
+                    RemoteStoreNodeAttribute joiningRemoteStoreNodeAttribute = new RemoteStoreNodeAttribute(joiningNode);
+                    RemoteStoreNodeAttribute existingRemoteStoreNodeAttribute = new RemoteStoreNodeAttribute(existingNode);
+                    if (existingRemoteStoreNodeAttribute.equals(joiningRemoteStoreNodeAttribute) == false) {
                         throw new IllegalStateException(
                             "a remote store node ["
                                 + joiningNode

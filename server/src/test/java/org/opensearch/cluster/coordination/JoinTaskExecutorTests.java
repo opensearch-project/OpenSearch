@@ -194,15 +194,15 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
         final AllocationService allocationService = mock(AllocationService.class);
         when(allocationService.adaptAutoExpandReplicas(any())).then(invocationOnMock -> invocationOnMock.getArguments()[0]);
         final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
-        final RemoteStoreNodeService remoteStoreService = mock(RemoteStoreNodeService.class);
-        when(remoteStoreService.updateRepositoriesMetadata(any(), any())).thenReturn(new RepositoriesMetadata(Collections.emptyList()));
+        final RemoteStoreNodeService remoteStoreNodeService = mock(RemoteStoreNodeService.class);
+        when(remoteStoreNodeService.updateRepositoriesMetadata(any(), any())).thenReturn(new RepositoriesMetadata(Collections.emptyList()));
 
         final JoinTaskExecutor joinTaskExecutor = new JoinTaskExecutor(
             Settings.EMPTY,
             allocationService,
             logger,
             rerouteService,
-            remoteStoreService
+            remoteStoreNodeService
         );
 
         final DiscoveryNode clusterManagerNode = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.CURRENT);
@@ -299,14 +299,14 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
         final AllocationService allocationService = mock(AllocationService.class);
         when(allocationService.adaptAutoExpandReplicas(any())).then(invocationOnMock -> invocationOnMock.getArguments()[0]);
         final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
-        final RemoteStoreNodeService remoteStoreService = mock(RemoteStoreNodeService.class);
+        final RemoteStoreNodeService remoteStoreNodeService = mock(RemoteStoreNodeService.class);
 
         final JoinTaskExecutor joinTaskExecutor = new JoinTaskExecutor(
             Settings.EMPTY,
             allocationService,
             logger,
             rerouteService,
-            remoteStoreService
+            remoteStoreNodeService
         );
 
         final DiscoveryNode clusterManagerNode = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.CURRENT);
@@ -519,7 +519,7 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
         final AllocationService allocationService = mock(AllocationService.class);
         when(allocationService.adaptAutoExpandReplicas(any())).then(invocationOnMock -> invocationOnMock.getArguments()[0]);
         final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
-        final RemoteStoreNodeService remoteStoreService = new RemoteStoreNodeService(
+        final RemoteStoreNodeService remoteStoreNodeService = new RemoteStoreNodeService(
             new SetOnce<>(mock(RepositoriesService.class))::get,
             null
         );
@@ -529,7 +529,7 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
             allocationService,
             logger,
             rerouteService,
-            remoteStoreService
+            remoteStoreNodeService
         );
 
         final DiscoveryNode clusterManagerNode = new DiscoveryNode(
@@ -564,7 +564,7 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
         final AllocationService allocationService = mock(AllocationService.class);
         when(allocationService.adaptAutoExpandReplicas(any())).then(invocationOnMock -> invocationOnMock.getArguments()[0]);
         final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
-        final RemoteStoreNodeService remoteStoreService = new RemoteStoreNodeService(
+        final RemoteStoreNodeService remoteStoreNodeService = new RemoteStoreNodeService(
             new SetOnce<>(mock(RepositoriesService.class))::get,
             null
         );
@@ -574,7 +574,7 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
             allocationService,
             logger,
             rerouteService,
-            remoteStoreService
+            remoteStoreNodeService
         );
 
         final DiscoveryNode clusterManagerNode = new DiscoveryNode(
@@ -627,7 +627,7 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
         final AllocationService allocationService = mock(AllocationService.class);
         when(allocationService.adaptAutoExpandReplicas(any())).then(invocationOnMock -> invocationOnMock.getArguments()[0]);
         final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
-        final RemoteStoreNodeService remoteStoreService = new RemoteStoreNodeService(
+        final RemoteStoreNodeService remoteStoreNodeService = new RemoteStoreNodeService(
             new SetOnce<>(mock(RepositoriesService.class))::get,
             null
         );
@@ -637,7 +637,7 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
             allocationService,
             logger,
             rerouteService,
-            remoteStoreService
+            remoteStoreNodeService
         );
 
         final DiscoveryNode clusterManagerNode = new DiscoveryNode(
@@ -672,7 +672,7 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
         final AllocationService allocationService = mock(AllocationService.class);
         when(allocationService.adaptAutoExpandReplicas(any())).then(invocationOnMock -> invocationOnMock.getArguments()[0]);
         final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
-        final RemoteStoreNodeService remoteStoreService = new RemoteStoreNodeService(
+        final RemoteStoreNodeService remoteStoreNodeService = new RemoteStoreNodeService(
             new SetOnce<>(mock(RepositoriesService.class))::get,
             null
         );
@@ -682,7 +682,7 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
             allocationService,
             logger,
             rerouteService,
-            remoteStoreService
+            remoteStoreNodeService
         );
 
         final DiscoveryNode clusterManagerNode = new DiscoveryNode(

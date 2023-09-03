@@ -127,7 +127,6 @@ public abstract class AbstractRemoteStoreMockRepositoryIntegTestCase extends Abs
 
         internalCluster().startClusterManagerOnlyNode(settings.build());
         String dataNodeName = internalCluster().startDataOnlyNode(settings.build());
-        // assertRepositoryMetadataPresentInClusterState();
         createIndex(INDEX_NAME);
         logger.info("--> Created index={}", INDEX_NAME);
         ensureYellowAndNoInitializingShards(INDEX_NAME);
