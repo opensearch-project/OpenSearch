@@ -114,7 +114,7 @@ public class SegmentReplicationPressureServiceTests extends OpenSearchIndexLevel
 
             indexInBatches(5, shards, primaryShard);
 
-            Set<SegmentReplicationShardStats> replicationStats = primaryShard.getReplicationStats();
+            Set<SegmentReplicationShardStats> replicationStats = primaryShard.getReplicationStatsForTrackedReplicas();
             assertEquals(1, replicationStats.size());
             SegmentReplicationShardStats shardStats = replicationStats.stream().findFirst().get();
             assertEquals(5, shardStats.getCheckpointsBehindCount());
@@ -142,7 +142,7 @@ public class SegmentReplicationPressureServiceTests extends OpenSearchIndexLevel
             indexInBatches(1, shards, primaryShard);
 
             assertBusy(() -> {
-                Set<SegmentReplicationShardStats> replicationStats = primaryShard.getReplicationStats();
+                Set<SegmentReplicationShardStats> replicationStats = primaryShard.getReplicationStatsForTrackedReplicas();
                 assertEquals(1, replicationStats.size());
                 SegmentReplicationShardStats shardStats = replicationStats.stream().findFirst().get();
                 assertTrue(shardStats.getCurrentReplicationTimeMillis() > TimeValue.timeValueSeconds(5).millis());
@@ -164,7 +164,7 @@ public class SegmentReplicationPressureServiceTests extends OpenSearchIndexLevel
             SegmentReplicationPressureService service = buildPressureService(settings, primaryShard);
 
             assertBusy(() -> {
-                Set<SegmentReplicationShardStats> replicationStats = primaryShard.getReplicationStats();
+                Set<SegmentReplicationShardStats> replicationStats = primaryShard.getReplicationStatsForTrackedReplicas();
                 assertEquals(3, replicationStats.size());
                 SegmentReplicationShardStats shardStats = replicationStats.stream().findFirst().get();
                 assertTrue(shardStats.getCurrentReplicationTimeMillis() > TimeValue.timeValueSeconds(5).millis());
@@ -211,7 +211,7 @@ public class SegmentReplicationPressureServiceTests extends OpenSearchIndexLevel
             indexInBatches(5, shards, primaryShard);
 
             // assert that replica shard is few checkpoints behind primary
-            Set<SegmentReplicationShardStats> replicationStats = primaryShard.getReplicationStats();
+            Set<SegmentReplicationShardStats> replicationStats = primaryShard.getReplicationStatsForTrackedReplicas();
             assertEquals(1, replicationStats.size());
             SegmentReplicationShardStats shardStats = replicationStats.stream().findFirst().get();
             assertEquals(5, shardStats.getCheckpointsBehindCount());
@@ -243,7 +243,7 @@ public class SegmentReplicationPressureServiceTests extends OpenSearchIndexLevel
             indexInBatches(5, shards, primaryShard);
 
             // assert that replica shard is few checkpoints behind primary
-            Set<SegmentReplicationShardStats> replicationStats = primaryShard.getReplicationStats();
+            Set<SegmentReplicationShardStats> replicationStats = primaryShard.getReplicationStatsForTrackedReplicas();
             assertEquals(1, replicationStats.size());
             SegmentReplicationShardStats shardStats = replicationStats.stream().findFirst().get();
             assertEquals(5, shardStats.getCheckpointsBehindCount());

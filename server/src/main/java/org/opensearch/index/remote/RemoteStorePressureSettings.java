@@ -89,43 +89,43 @@ public class RemoteStorePressureSettings {
         clusterSettings.addSettingsUpdateConsumer(MIN_CONSECUTIVE_FAILURES_LIMIT, this::setMinConsecutiveFailuresLimit);
     }
 
-    public boolean isRemoteRefreshSegmentPressureEnabled() {
+    boolean isRemoteRefreshSegmentPressureEnabled() {
         return remoteRefreshSegmentPressureEnabled;
     }
 
-    public void setRemoteRefreshSegmentPressureEnabled(boolean remoteRefreshSegmentPressureEnabled) {
+    private void setRemoteRefreshSegmentPressureEnabled(boolean remoteRefreshSegmentPressureEnabled) {
         this.remoteRefreshSegmentPressureEnabled = remoteRefreshSegmentPressureEnabled;
     }
 
-    public long getMinRefreshSeqNoLagLimit() {
+    long getMinRefreshSeqNoLagLimit() {
         return minRefreshSeqNoLagLimit;
     }
 
-    public void setMinRefreshSeqNoLagLimit(long minRefreshSeqNoLagLimit) {
+    private void setMinRefreshSeqNoLagLimit(long minRefreshSeqNoLagLimit) {
         this.minRefreshSeqNoLagLimit = minRefreshSeqNoLagLimit;
     }
 
-    public double getBytesLagVarianceFactor() {
+    double getBytesLagVarianceFactor() {
         return bytesLagVarianceFactor;
     }
 
-    public void setBytesLagVarianceFactor(double bytesLagVarianceFactor) {
+    private void setBytesLagVarianceFactor(double bytesLagVarianceFactor) {
         this.bytesLagVarianceFactor = bytesLagVarianceFactor;
     }
 
-    public double getUploadTimeLagVarianceFactor() {
+    double getUploadTimeLagVarianceFactor() {
         return uploadTimeLagVarianceFactor;
     }
 
-    public void setUploadTimeLagVarianceFactor(double uploadTimeLagVarianceFactor) {
+    private void setUploadTimeLagVarianceFactor(double uploadTimeLagVarianceFactor) {
         this.uploadTimeLagVarianceFactor = uploadTimeLagVarianceFactor;
     }
 
-    public int getMinConsecutiveFailuresLimit() {
+    int getMinConsecutiveFailuresLimit() {
         return minConsecutiveFailuresLimit;
     }
 
-    public void setMinConsecutiveFailuresLimit(int minConsecutiveFailuresLimit) {
+    private void setMinConsecutiveFailuresLimit(int minConsecutiveFailuresLimit) {
         this.minConsecutiveFailuresLimit = minConsecutiveFailuresLimit;
     }
 }
