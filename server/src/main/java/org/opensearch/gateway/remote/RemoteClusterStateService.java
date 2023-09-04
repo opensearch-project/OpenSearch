@@ -64,6 +64,8 @@ public class RemoteClusterStateService implements Closeable {
 
     public static final String METADATA_MANIFEST_NAME_FORMAT = "%s";
 
+    public static final int INDEX_METADATA_UPLOAD_WAIT_MILLIS = 20000;
+
     public static final ChecksumBlobStoreFormat<IndexMetadata> INDEX_METADATA_FORMAT = new ChecksumBlobStoreFormat<>(
         "index-metadata",
         METADATA_NAME_FORMAT,
@@ -243,7 +245,7 @@ public class RemoteClusterStateService implements Closeable {
     }
 
     /**
-     * Uploads provided IndexMetadata to remote store in parallel. The call is blocking so the method waits for upload to finish and then return.
+     * Uploads provided IndexMetadata's to remote store in parallel. The call is blocking so the method waits for upload to finish and then return.
      * @param clusterState current ClusterState
      * @param toUpload list of IndexMetadata to upload
      * @return {@code List<UploadedIndexMetadata>} list of IndexMetadata uploaded to remote
@@ -278,7 +280,7 @@ public class RemoteClusterStateService implements Closeable {
         }
 
         try {
-            if (latch.await(20000, TimeUnit.MILLISECONDS) == false) {
+            if (latch.await(INDEX_METADATA_UPLOAD_WAIT_MILLIS, TimeUnit.MILLISECONDS) == false) {
                 IndexMetadataTransferException ex = new IndexMetadataTransferException(
                     String.format(
                         Locale.ROOT,
@@ -302,10 +304,16 @@ public class RemoteClusterStateService implements Closeable {
             Thread.currentThread().interrupt();
             throw exception;
         }
-
         return result;
     }
 
+    /**
+     * Allows async Upload of IndexMetadata to remote
+     * @param clusterState current ClusterState
+     * @param indexMetadata {@link IndexMetadata} to upload
+     * @param latchedActionListener listener to respond back on after upload finishes
+     * @throws IOException
+     */
     private void writeIndexMetadataAsync(
         ClusterState clusterState,
         IndexMetadata indexMetadata,
