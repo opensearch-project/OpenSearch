@@ -75,6 +75,7 @@ import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.IndicesQueryCache;
 import org.opensearch.indices.IndicesRequestCache;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.InternalSettingsPlugin;
@@ -1476,5 +1477,38 @@ public class IndexStatsIT extends OpenSearchIntegTestCase {
                 }
             }
         }
+    }
+
+    public void testSegmentReplicationStats() {
+        String indexName = "test-index";
+        createIndex(
+            indexName,
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 1).build()
+        );
+
+        ensureGreen(indexName);
+
+        IndicesStatsRequestBuilder builder = client().admin().indices().prepareStats();
+        IndicesStatsResponse stats = builder.execute().actionGet();
+
+        // document replication enabled index should return empty segment replication stats
+        assertNotNull(stats.getIndex(indexName).getTotal().getSegments().getReplicationStats());
+
+        indexName = "test-index2";
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+                .build()
+        );
+        ensureGreen(indexName);
+
+        builder = client().admin().indices().prepareStats();
+        stats = builder.execute().actionGet();
+
+        // segment replication enabled index should return segment replication stats
+        assertNotNull(stats.getIndex(indexName).getTotal().getSegments().getReplicationStats());
     }
 }
