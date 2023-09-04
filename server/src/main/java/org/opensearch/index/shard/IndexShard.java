@@ -110,6 +110,7 @@ import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.ReplicationStats;
 import org.opensearch.index.SegmentReplicationShardStats;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.cache.IndexCache;
@@ -1389,6 +1390,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             segmentsStats.addRemoteSegmentStats(
                 new RemoteSegmentStats(remoteStoreStatsTrackerFactory.getRemoteSegmentTransferTracker(shardId).stats())
             );
+        }
+        if (indexSettings.isSegRepEnabled()) {
+            segmentsStats.addReplicationStats(getReplicationStats());
         }
         return segmentsStats;
     }
@@ -2935,8 +2939,22 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @return {@link Tuple} V1 - TimeValue in ms - mean replication lag for this primary to its entire group,
      * V2 - Set of {@link SegmentReplicationShardStats} per shard in this primary's replication group.
      */
-    public Set<SegmentReplicationShardStats> getReplicationStats() {
+    public Set<SegmentReplicationShardStats> getReplicationStatsForTrackedReplicas() {
         return replicationTracker.getSegmentReplicationStats();
+    }
+
+    public ReplicationStats getReplicationStats() {
+        if (indexSettings.isSegRepEnabled() && routingEntry().primary()) {
+            final Set<SegmentReplicationShardStats> stats = getReplicationStatsForTrackedReplicas();
+            long maxBytesBehind = stats.stream().mapToLong(SegmentReplicationShardStats::getBytesBehindCount).max().orElse(0L);
+            long totalBytesBehind = stats.stream().mapToLong(SegmentReplicationShardStats::getBytesBehindCount).sum();
+            long maxReplicationLag = stats.stream()
+                .mapToLong(SegmentReplicationShardStats::getCurrentReplicationTimeMillis)
+                .max()
+                .orElse(0L);
+            return new ReplicationStats(maxBytesBehind, totalBytesBehind, maxReplicationLag);
+        }
+        return new ReplicationStats();
     }
 
     /**
