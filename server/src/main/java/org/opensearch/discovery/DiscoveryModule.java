@@ -37,6 +37,7 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.coordination.Coordinator;
 import org.opensearch.cluster.coordination.ElectionStrategy;
+import org.opensearch.cluster.coordination.PersistedStateRegistry;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.RerouteService;
 import org.opensearch.cluster.routing.allocation.AllocationService;
@@ -129,7 +130,8 @@ public class DiscoveryModule {
         Path configFile,
         GatewayMetaState gatewayMetaState,
         RerouteService rerouteService,
-        NodeHealthService nodeHealthService
+        NodeHealthService nodeHealthService,
+        PersistedStateRegistry persistedStateRegistry
     ) {
         final Collection<BiConsumer<DiscoveryNode, ClusterState>> joinValidators = new ArrayList<>();
         final Map<String, Supplier<SeedHostsProvider>> hostProviders = new HashMap<>();
@@ -205,7 +207,8 @@ public class DiscoveryModule {
                 new Random(Randomness.get().nextLong()),
                 rerouteService,
                 electionStrategy,
-                nodeHealthService
+                nodeHealthService,
+                persistedStateRegistry
             );
         } else {
             throw new IllegalArgumentException("Unknown discovery type [" + discoveryType + "]");

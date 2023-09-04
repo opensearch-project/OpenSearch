@@ -145,7 +145,7 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
             segmentInfos = indexShardStore.readLastCommittedSegmentsInfo();
         }
 
-        when(remoteMetadataDirectory.openInput(any(), any())).thenAnswer(
+        when(remoteMetadataDirectory.getBlobStream(any())).thenAnswer(
             I -> createMetadataFileBytes(getDummyMetadata("_0", 1), indexShard.getLatestReplicationCheckpoint(), segmentInfos)
         );
         RemoteSegmentStoreDirectory remoteSegmentStoreDirectory = new RemoteSegmentStoreDirectory(
@@ -162,9 +162,9 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         // Since the thrown IOException is caught in the constructor, ctor should be invoked successfully.
         new RemoteStoreRefreshListener(shard, SegmentReplicationCheckpointPublisher.EMPTY, mock(RemoteSegmentTransferTracker.class));
 
-        // Validate that the openInput method of remoteMetadataDirectory has been opened only once and the
+        // Validate that the stream of metadata file of remoteMetadataDirectory has been opened only once and the
         // listFilesByPrefixInLexicographicOrder has been called twice.
-        verify(remoteMetadataDirectory, times(1)).openInput(any(), any());
+        verify(remoteMetadataDirectory, times(1)).getBlobStream(any());
         verify(remoteMetadataDirectory, times(2)).listFilesByPrefixInLexicographicOrder(MetadataFilenameUtils.METADATA_PREFIX, 1);
     }
 
