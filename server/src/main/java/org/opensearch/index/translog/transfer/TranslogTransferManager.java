@@ -147,6 +147,7 @@ public class TranslogTransferManager {
 
             uploadStartTime = System.nanoTime();
             // TODO: Ideally each file's upload start time should be when it is actually picked for upload
+            // https://github.com/opensearch-project/OpenSearch/issues/9729
             fileTransferTracker.recordFileTransferStartTime(uploadStartTime);
             transferService.uploadBlobs(toUpload, blobPathMap, latchedActionListener, WritePriority.HIGH);
 
@@ -199,6 +200,7 @@ public class TranslogTransferManager {
     private void captureStatsBeforeUpload() {
         remoteTranslogTransferTracker.incrementTotalUploadsStarted();
         // TODO: Ideally each file's byte uploads started should be when it is actually picked for upload
+        // https://github.com/opensearch-project/OpenSearch/issues/9729
         remoteTranslogTransferTracker.addUploadBytesStarted(fileTransferTracker.getTotalBytesToUpload());
     }
 

@@ -134,6 +134,11 @@ public class RemoteFsTranslog extends Translog {
         }
     }
 
+    // visible for testing
+    RemoteTranslogTransferTracker getRemoteTranslogTracker() {
+        return remoteTranslogTransferTracker;
+    }
+
     public static void download(Repository repository, ShardId shardId, ThreadPool threadPool, Path location, Logger logger)
         throws IOException {
         assert repository instanceof BlobStoreRepository : String.format(
