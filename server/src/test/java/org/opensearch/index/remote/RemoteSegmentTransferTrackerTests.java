@@ -170,9 +170,10 @@ public class RemoteSegmentTransferTrackerTests extends OpenSearchTestCase {
             remoteStoreStatsTrackerFactory.getMovingAverageWindowSize()
         );
         long bytesToAdd = randomLongBetween(1000, 1000000);
+        long moreBytesToAdd = randomLongBetween(1000, 10000);
+        transferTracker.addUploadBytesStarted(bytesToAdd + moreBytesToAdd);
         transferTracker.addUploadBytesFailed(bytesToAdd);
         assertEquals(bytesToAdd, transferTracker.getUploadBytesFailed());
-        long moreBytesToAdd = randomLongBetween(1000, 10000);
         transferTracker.addUploadBytesFailed(moreBytesToAdd);
         assertEquals(bytesToAdd + moreBytesToAdd, transferTracker.getUploadBytesFailed());
     }
@@ -184,9 +185,10 @@ public class RemoteSegmentTransferTrackerTests extends OpenSearchTestCase {
             remoteStoreStatsTrackerFactory.getMovingAverageWindowSize()
         );
         long bytesToAdd = randomLongBetween(1000, 1000000);
+        long moreBytesToAdd = randomLongBetween(1000, 10000);
+        transferTracker.addUploadBytesStarted(bytesToAdd + moreBytesToAdd);
         transferTracker.addUploadBytesSucceeded(bytesToAdd);
         assertEquals(bytesToAdd, transferTracker.getUploadBytesSucceeded());
-        long moreBytesToAdd = randomLongBetween(1000, 10000);
         transferTracker.addUploadBytesSucceeded(moreBytesToAdd);
         assertEquals(bytesToAdd + moreBytesToAdd, transferTracker.getUploadBytesSucceeded());
     }
@@ -266,6 +268,8 @@ public class RemoteSegmentTransferTrackerTests extends OpenSearchTestCase {
             directoryFileTransferTracker,
             remoteStoreStatsTrackerFactory.getMovingAverageWindowSize()
         );
+        transferTracker.incrementTotalUploadsStarted();
+        transferTracker.incrementTotalUploadsStarted();
         transferTracker.incrementTotalUploadsFailed();
         assertEquals(1, transferTracker.getTotalUploadsFailed());
         transferTracker.incrementTotalUploadsFailed();
@@ -278,6 +282,8 @@ public class RemoteSegmentTransferTrackerTests extends OpenSearchTestCase {
             directoryFileTransferTracker,
             remoteStoreStatsTrackerFactory.getMovingAverageWindowSize()
         );
+        transferTracker.incrementTotalUploadsStarted();
+        transferTracker.incrementTotalUploadsStarted();
         transferTracker.incrementTotalUploadsSucceeded();
         assertEquals(1, transferTracker.getTotalUploadsSucceeded());
         transferTracker.incrementTotalUploadsSucceeded();
@@ -318,6 +324,9 @@ public class RemoteSegmentTransferTrackerTests extends OpenSearchTestCase {
             directoryFileTransferTracker,
             remoteStoreStatsTrackerFactory.getMovingAverageWindowSize()
         );
+        transferTracker.incrementTotalUploadsStarted();
+        transferTracker.incrementTotalUploadsStarted();
+        transferTracker.incrementTotalUploadsStarted();
         transferTracker.incrementTotalUploadsFailed();
         assertEquals(1, transferTracker.getConsecutiveFailureCount());
         transferTracker.incrementTotalUploadsFailed();
@@ -354,73 +363,73 @@ public class RemoteSegmentTransferTrackerTests extends OpenSearchTestCase {
         assertEquals(0L, transferTracker.getBytesLag());
     }
 
-    public void testIsUploadBytesAverageReady() {
+    public void testisUploadBytesMovingAverageReady() {
         int movingAverageWindowSize = remoteStoreStatsTrackerFactory.getMovingAverageWindowSize();
         transferTracker = new RemoteSegmentTransferTracker(shardId, directoryFileTransferTracker, movingAverageWindowSize);
-        assertFalse(transferTracker.isUploadBytesAverageReady());
+        assertFalse(transferTracker.isUploadBytesMovingAverageReady());
 
         long sum = 0;
         for (int i = 1; i < movingAverageWindowSize; i++) {
-            transferTracker.addUploadBytes(i);
+            transferTracker.updateUploadBytesMovingAverage(i);
             sum += i;
-            assertFalse(transferTracker.isUploadBytesAverageReady());
-            assertEquals((double) sum / i, transferTracker.getUploadBytesAverage(), 0.0d);
+            assertFalse(transferTracker.isUploadBytesMovingAverageReady());
+            assertEquals((double) sum / i, transferTracker.getUploadBytesMovingAverage(), 0.0d);
         }
 
-        transferTracker.addUploadBytes(movingAverageWindowSize);
+        transferTracker.updateUploadBytesMovingAverage(movingAverageWindowSize);
         sum += movingAverageWindowSize;
-        assertTrue(transferTracker.isUploadBytesAverageReady());
-        assertEquals((double) sum / movingAverageWindowSize, transferTracker.getUploadBytesAverage(), 0.0d);
+        assertTrue(transferTracker.isUploadBytesMovingAverageReady());
+        assertEquals((double) sum / movingAverageWindowSize, transferTracker.getUploadBytesMovingAverage(), 0.0d);
 
-        transferTracker.addUploadBytes(100);
+        transferTracker.updateUploadBytesMovingAverage(100);
         sum = sum + 100 - 1;
-        assertEquals((double) sum / movingAverageWindowSize, transferTracker.getUploadBytesAverage(), 0.0d);
+        assertEquals((double) sum / movingAverageWindowSize, transferTracker.getUploadBytesMovingAverage(), 0.0d);
     }
 
     public void testIsUploadBytesPerSecAverageReady() {
         int movingAverageWindowSize = remoteStoreStatsTrackerFactory.getMovingAverageWindowSize();
         transferTracker = new RemoteSegmentTransferTracker(shardId, directoryFileTransferTracker, movingAverageWindowSize);
-        assertFalse(transferTracker.isUploadBytesPerSecAverageReady());
+        assertFalse(transferTracker.isUploadBytesPerSecMovingAverageReady());
 
         long sum = 0;
         for (int i = 1; i < movingAverageWindowSize; i++) {
-            transferTracker.addUploadBytesPerSec(i);
+            transferTracker.updateUploadBytesPerSecMovingAverage(i);
             sum += i;
-            assertFalse(transferTracker.isUploadBytesPerSecAverageReady());
-            assertEquals((double) sum / i, transferTracker.getUploadBytesPerSecAverage(), 0.0d);
+            assertFalse(transferTracker.isUploadBytesPerSecMovingAverageReady());
+            assertEquals((double) sum / i, transferTracker.getUploadBytesPerSecMovingAverage(), 0.0d);
         }
 
-        transferTracker.addUploadBytesPerSec(movingAverageWindowSize);
+        transferTracker.updateUploadBytesPerSecMovingAverage(movingAverageWindowSize);
         sum += movingAverageWindowSize;
-        assertTrue(transferTracker.isUploadBytesPerSecAverageReady());
-        assertEquals((double) sum / movingAverageWindowSize, transferTracker.getUploadBytesPerSecAverage(), 0.0d);
+        assertTrue(transferTracker.isUploadBytesPerSecMovingAverageReady());
+        assertEquals((double) sum / movingAverageWindowSize, transferTracker.getUploadBytesPerSecMovingAverage(), 0.0d);
 
-        transferTracker.addUploadBytesPerSec(100);
+        transferTracker.updateUploadBytesPerSecMovingAverage(100);
         sum = sum + 100 - 1;
-        assertEquals((double) sum / movingAverageWindowSize, transferTracker.getUploadBytesPerSecAverage(), 0.0d);
+        assertEquals((double) sum / movingAverageWindowSize, transferTracker.getUploadBytesPerSecMovingAverage(), 0.0d);
     }
 
     public void testIsUploadTimeMsAverageReady() {
         int movingAverageWindowSize = remoteStoreStatsTrackerFactory.getMovingAverageWindowSize();
         transferTracker = new RemoteSegmentTransferTracker(shardId, directoryFileTransferTracker, movingAverageWindowSize);
-        assertFalse(transferTracker.isUploadTimeMsAverageReady());
+        assertFalse(transferTracker.isUploadTimeMovingAverageReady());
 
         long sum = 0;
         for (int i = 1; i < movingAverageWindowSize; i++) {
-            transferTracker.addTimeForCompletedUploadSync(i);
+            transferTracker.updateUploadTimeMovingAverage(i);
             sum += i;
-            assertFalse(transferTracker.isUploadTimeMsAverageReady());
-            assertEquals((double) sum / i, transferTracker.getUploadTimeMsAverage(), 0.0d);
+            assertFalse(transferTracker.isUploadTimeMovingAverageReady());
+            assertEquals((double) sum / i, transferTracker.getUploadTimeMovingAverage(), 0.0d);
         }
 
-        transferTracker.addTimeForCompletedUploadSync(movingAverageWindowSize);
+        transferTracker.updateUploadTimeMovingAverage(movingAverageWindowSize);
         sum += movingAverageWindowSize;
-        assertTrue(transferTracker.isUploadTimeMsAverageReady());
-        assertEquals((double) sum / movingAverageWindowSize, transferTracker.getUploadTimeMsAverage(), 0.0d);
+        assertTrue(transferTracker.isUploadTimeMovingAverageReady());
+        assertEquals((double) sum / movingAverageWindowSize, transferTracker.getUploadTimeMovingAverage(), 0.0d);
 
-        transferTracker.addTimeForCompletedUploadSync(100);
+        transferTracker.updateUploadTimeMovingAverage(100);
         sum = sum + 100 - 1;
-        assertEquals((double) sum / movingAverageWindowSize, transferTracker.getUploadTimeMsAverage(), 0.0d);
+        assertEquals((double) sum / movingAverageWindowSize, transferTracker.getUploadTimeMovingAverage(), 0.0d);
     }
 
     public void testIsDownloadBytesAverageReady() {
@@ -482,11 +491,11 @@ public class RemoteSegmentTransferTrackerTests extends OpenSearchTestCase {
             remoteStoreStatsTrackerFactory.getMovingAverageWindowSize()
         );
         long timeToAdd = randomLongBetween(100, 200);
-        transferTracker.addTotalUploadTimeInMs(timeToAdd);
-        assertEquals(timeToAdd, transferTracker.getTotalUploadTimeInMs());
+        transferTracker.addUploadTimeInMillis(timeToAdd);
+        assertEquals(timeToAdd, transferTracker.getTotalUploadTimeInMillis());
         long moreTimeToAdd = randomLongBetween(100, 200);
-        transferTracker.addTotalUploadTimeInMs(moreTimeToAdd);
-        assertEquals(timeToAdd + moreTimeToAdd, transferTracker.getTotalUploadTimeInMs());
+        transferTracker.addUploadTimeInMillis(moreTimeToAdd);
+        assertEquals(timeToAdd + moreTimeToAdd, transferTracker.getTotalUploadTimeInMillis());
     }
 
     public void testAddTotalTransferTimeMs() {
@@ -519,9 +528,9 @@ public class RemoteSegmentTransferTrackerTests extends OpenSearchTestCase {
         assertEquals(transferTracker.getUploadBytesStarted(), (int) transferTrackerStats.uploadBytesStarted);
         assertEquals(transferTracker.getUploadBytesSucceeded(), (int) transferTrackerStats.uploadBytesSucceeded);
         assertEquals(transferTracker.getUploadBytesFailed(), (int) transferTrackerStats.uploadBytesFailed);
-        assertEquals(transferTracker.getUploadBytesAverage(), transferTrackerStats.uploadBytesMovingAverage, 0);
-        assertEquals(transferTracker.getUploadBytesPerSecAverage(), transferTrackerStats.uploadBytesPerSecMovingAverage, 0);
-        assertEquals(transferTracker.getUploadTimeMsAverage(), transferTrackerStats.uploadTimeMovingAverage, 0);
+        assertEquals(transferTracker.getUploadBytesMovingAverage(), transferTrackerStats.uploadBytesMovingAverage, 0);
+        assertEquals(transferTracker.getUploadBytesPerSecMovingAverage(), transferTrackerStats.uploadBytesPerSecMovingAverage, 0);
+        assertEquals(transferTracker.getUploadTimeMovingAverage(), transferTrackerStats.uploadTimeMovingAverage, 0);
         assertEquals(transferTracker.getTotalUploadsStarted(), (int) transferTrackerStats.totalUploadsStarted);
         assertEquals(transferTracker.getTotalUploadsSucceeded(), (int) transferTrackerStats.totalUploadsSucceeded);
         assertEquals(transferTracker.getTotalUploadsFailed(), (int) transferTrackerStats.totalUploadsFailed);
@@ -580,9 +589,10 @@ public class RemoteSegmentTransferTrackerTests extends OpenSearchTestCase {
             new DirectoryFileTransferTracker(),
             remoteStoreStatsTrackerFactory.getMovingAverageWindowSize()
         );
+        transferTracker.incrementTotalUploadsStarted();
         transferTracker.incrementTotalUploadsFailed();
-        transferTracker.addTimeForCompletedUploadSync(System.nanoTime() / 1_000_000L + randomIntBetween(10, 100));
-        transferTracker.addUploadBytes(99);
+        transferTracker.updateUploadTimeMovingAverage(System.nanoTime() / 1_000_000L + randomIntBetween(10, 100));
+        transferTracker.updateUploadBytesMovingAverage(99);
         transferTracker.updateRemoteRefreshTimeMs(System.nanoTime() / 1_000_000L + randomIntBetween(10, 100));
         transferTracker.incrementRejectionCount();
         transferTracker.getDirectoryFileTransferTracker().addTransferredBytesStarted(10);
