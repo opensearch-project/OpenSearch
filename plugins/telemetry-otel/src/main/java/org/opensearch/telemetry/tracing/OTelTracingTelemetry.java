@@ -8,14 +8,15 @@
 
 package org.opensearch.telemetry.tracing;
 
-import io.opentelemetry.api.OpenTelemetry;
-import io.opentelemetry.context.Context;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.telemetry.tracing.attributes.Attributes;
 
 import java.io.Closeable;
 import java.io.IOException;
-import org.opensearch.telemetry.tracing.attributes.Attributes;
+
+import io.opentelemetry.api.OpenTelemetry;
+import io.opentelemetry.context.Context;
 
 /**
  * OTel based Telemetry provider
@@ -57,7 +58,8 @@ public class OTelTracingTelemetry implements TracingTelemetry {
 
     private Span createOtelSpan(String spanName, Span parentSpan, Attributes attributes) {
         io.opentelemetry.api.trace.Span otelSpan = otelSpan(spanName, parentSpan, OTelAttributesConverter.convert(attributes));
-        return new OTelSpan(spanName, otelSpan, parentSpan);
+        Span newSpan = new OTelSpan(spanName, otelSpan, parentSpan);
+        return newSpan;
     }
 
     io.opentelemetry.api.trace.Span otelSpan(String spanName, Span parentOTelSpan, io.opentelemetry.api.common.Attributes attributes) {

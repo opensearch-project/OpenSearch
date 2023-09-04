@@ -10,9 +10,9 @@ package org.opensearch.common.bytes;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.hamcrest.Matchers;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;

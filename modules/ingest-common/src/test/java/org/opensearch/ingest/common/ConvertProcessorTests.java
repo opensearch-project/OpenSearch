@@ -32,17 +32,17 @@
 
 package org.opensearch.ingest.common;
 
+import org.opensearch.ingest.IngestDocument;
+import org.opensearch.ingest.Processor;
+import org.opensearch.ingest.RandomDocumentPicks;
+import org.opensearch.test.OpenSearchTestCase;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-
-import org.opensearch.ingest.IngestDocument;
-import org.opensearch.ingest.Processor;
-import org.opensearch.ingest.RandomDocumentPicks;
-import org.opensearch.test.OpenSearchTestCase;
 
 import static org.opensearch.ingest.IngestDocumentMatcher.assertIngestDocument;
 import static org.opensearch.ingest.common.ConvertProcessor.Type;

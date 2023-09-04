@@ -40,8 +40,6 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.io.IOException;
 
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.arrayWithSize;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.index.query.QueryBuilders.functionScoreQuery;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
@@ -50,6 +48,8 @@ import static org.opensearch.index.query.functionscore.ScoreFunctionBuilders.fie
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertFailures;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertOrderedSearchHits;
+import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.containsString;
 
 /**
  * Tests for the {@code field_value_factor} function in a function_score query.

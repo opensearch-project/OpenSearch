@@ -12,14 +12,16 @@ import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
-import org.mockito.ArgumentMatchers;
 import org.opensearch.search.aggregations.bucket.global.GlobalAggregator;
 import org.opensearch.search.internal.ContextIndexSearcher;
+import org.opensearch.search.profile.query.CollectorResult;
 import org.opensearch.search.query.ReduceableSearchResult;
 import org.opensearch.test.TestSearchContext;
 
 import java.util.ArrayList;
 import java.util.Collection;
+
+import org.mockito.ArgumentMatchers;
 
 import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.mock;
@@ -48,15 +50,19 @@ public class AggregationProcessorTests extends AggregationSetupTests {
     }
 
     public void testPostProcessWithNonGlobalAggregatorsAndSingleSlice() throws Exception {
-        testPostProcessCommon(multipleNonGlobalAggs, 1, 0, 2);
+        testPostProcessCommon(multipleNonGlobalAggs, 1, 0, 2, false);
     }
 
     public void testPostProcessWithNonGlobalAggregatorsAndMultipleSlices() throws Exception {
-        testPostProcessCommon(multipleNonGlobalAggs, randomIntBetween(2, 5), 0, 2);
+        testPostProcessCommon(multipleNonGlobalAggs, randomIntBetween(2, 5), 0, 2, false);
     }
 
     public void testPostProcessGlobalAndNonGlobalAggregators() throws Exception {
-        testPostProcessCommon(globalNonGlobalAggs, randomIntBetween(2, 5), 1, 1);
+        testPostProcessCommon(globalNonGlobalAggs, randomIntBetween(2, 5), 1, 1, false);
+    }
+
+    public void testPostProcessGlobalAndNonGlobalAggregatorsWithProfilers() throws Exception {
+        testPostProcessCommon(globalNonGlobalAggs, randomIntBetween(2, 5), 1, 1, true);
     }
 
     private void testPreProcessCommon(String agg, int expectedGlobalAggs, int expectedNonGlobalAggs) throws Exception {
@@ -127,8 +133,13 @@ public class AggregationProcessorTests extends AggregationSetupTests {
         }
     }
 
-    private void testPostProcessCommon(String aggs, int numSlices, int expectedGlobalAggs, int expectedNonGlobalAggsPerSlice)
-        throws Exception {
+    private void testPostProcessCommon(
+        String aggs,
+        int numSlices,
+        int expectedGlobalAggs,
+        int expectedNonGlobalAggsPerSlice,
+        boolean withProfilers
+    ) throws Exception {
         final Collection<Collector> nonGlobalCollectors = new ArrayList<>();
         final Collection<Collector> globalCollectors = new ArrayList<>();
         testPreProcessCommon(aggs, expectedGlobalAggs, expectedNonGlobalAggsPerSlice, nonGlobalCollectors, globalCollectors);
@@ -157,11 +168,22 @@ public class AggregationProcessorTests extends AggregationSetupTests {
                 .thenReturn(result);
         }
         assertTrue(context.queryResult().hasAggs());
+        if (withProfilers) {
+            ((TestSearchContext) context).withProfilers();
+        }
         testAggregationProcessor.postProcess(context);
         assertTrue(context.queryResult().hasAggs());
         // for global aggs verify that search.search is called with CollectionManager
         if (expectedGlobalAggs > 0) {
             verify(testSearcher, times(1)).search(nullable(Query.class), ArgumentMatchers.<CollectorManager<?, ?>>any());
+            if (withProfilers) {
+                // First profiler is from withProfilers() call, second one is from postProcess() call
+                assertEquals(2, context.getProfilers().getQueryProfilers().size());
+                assertEquals(
+                    CollectorResult.REASON_AGGREGATION_GLOBAL,
+                    context.getProfilers().getQueryProfilers().get(1).getCollector().getReason()
+                );
+            }
         }
         // after shard level reduce it should have only 1 InternalAggregation instance for each agg in request and internal aggregation
         // will be equal to sum of expected global and nonglobal aggs

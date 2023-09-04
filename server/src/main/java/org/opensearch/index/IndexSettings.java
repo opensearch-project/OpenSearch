@@ -36,16 +36,17 @@ import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.sandbox.index.MergeOnFlushMergePolicy;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.common.unit.ByteSizeUnit;
-import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.Index;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.replication.common.ReplicationType;
@@ -77,8 +78,9 @@ import static org.opensearch.index.store.remote.directory.RemoteSnapshotDirector
  * a settings consumer at index creation via {@link IndexModule#addSettingsUpdateConsumer(Setting, Consumer)} that will
  * be called for each settings update.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class IndexSettings {
     private static final String MERGE_ON_FLUSH_DEFAULT_POLICY = "default";
     private static final String MERGE_ON_FLUSH_MERGE_POLICY = "merge-on-flush";
@@ -299,10 +301,11 @@ public final class IndexSettings {
         Property.Deprecated
     );
     public static final TimeValue DEFAULT_REFRESH_INTERVAL = new TimeValue(1, TimeUnit.SECONDS);
+    public static final TimeValue MINIMUM_REFRESH_INTERVAL = new TimeValue(-1, TimeUnit.MILLISECONDS);
     public static final Setting<TimeValue> INDEX_REFRESH_INTERVAL_SETTING = Setting.timeSetting(
         "index.refresh_interval",
         DEFAULT_REFRESH_INTERVAL,
-        new TimeValue(-1, TimeUnit.MILLISECONDS),
+        MINIMUM_REFRESH_INTERVAL,
         Property.Dynamic,
         Property.IndexScope
     );
@@ -1146,7 +1149,9 @@ public final class IndexSettings {
      */
     public static boolean same(final Settings left, final Settings right) {
         return left.filter(IndexScopedSettings.INDEX_SETTINGS_KEY_PREDICATE)
-            .equals(right.filter(IndexScopedSettings.INDEX_SETTINGS_KEY_PREDICATE));
+            .equals(right.filter(IndexScopedSettings.INDEX_SETTINGS_KEY_PREDICATE))
+            && left.filter(IndexScopedSettings.ARCHIVED_SETTINGS_KEY_PREDICATE)
+                .equals(right.filter(IndexScopedSettings.ARCHIVED_SETTINGS_KEY_PREDICATE));
     }
 
     /**
@@ -1190,6 +1195,13 @@ public final class IndexSettings {
      */
     public TimeValue getRemoteTranslogUploadBufferInterval() {
         return remoteTranslogUploadBufferInterval;
+    }
+
+    /**
+     * Returns true iff the remote translog buffer interval setting exists or in other words is explicitly set.
+     */
+    public boolean isRemoteTranslogBufferIntervalExplicit() {
+        return INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.exists(settings);
     }
 
     public void setRemoteTranslogUploadBufferInterval(TimeValue remoteTranslogUploadBufferInterval) {

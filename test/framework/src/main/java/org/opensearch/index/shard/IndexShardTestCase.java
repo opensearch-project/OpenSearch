@@ -37,11 +37,8 @@ import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
-import org.junit.Assert;
-import org.mockito.Mockito;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.Version;
-import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.support.PlainActionFuture;
@@ -73,12 +70,14 @@ import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.env.Environment;
@@ -98,7 +97,7 @@ import org.opensearch.index.engine.InternalEngineFactory;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.SourceToParse;
-import org.opensearch.index.remote.RemoteRefreshSegmentPressureService;
+import org.opensearch.index.remote.RemoteStoreStatsTrackerFactory;
 import org.opensearch.index.replication.TestReplicationSource;
 import org.opensearch.index.seqno.ReplicationTracker;
 import org.opensearch.index.seqno.RetentionLeaseSyncer;
@@ -117,7 +116,6 @@ import org.opensearch.index.translog.RemoteBlobStoreInternalTranslogFactory;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogFactory;
 import org.opensearch.indices.IndicesService;
-import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.opensearch.indices.recovery.AsyncRecoveryTarget;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
@@ -157,6 +155,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
+import org.junit.Assert;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -178,6 +177,10 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import org.mockito.Mockito;
+
+import static org.opensearch.cluster.routing.TestShardRouting.newShardRouting;
+import static org.opensearch.test.ClusterServiceUtils.createClusterService;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -186,8 +189,6 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
-import static org.opensearch.cluster.routing.TestShardRouting.newShardRouting;
-import static org.opensearch.test.ClusterServiceUtils.createClusterService;
 
 /**
  * A base class for unit tests that need to create and shutdown {@link IndexShard} instances easily,
@@ -639,7 +640,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 clusterSettings
             );
             Store remoteStore = null;
-            RemoteRefreshSegmentPressureService remoteRefreshSegmentPressureService = null;
+            RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory = null;
             RepositoriesService mockRepoSvc = mock(RepositoriesService.class);
 
             if (indexSettings.isRemoteStoreEnabled()) {
@@ -654,7 +655,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
 
                 remoteStore = createRemoteStore(remotePath, routing, indexMetadata);
 
-                remoteRefreshSegmentPressureService = new RemoteRefreshSegmentPressureService(clusterService, indexSettings.getSettings());
+                remoteStoreStatsTrackerFactory = new RemoteStoreStatsTrackerFactory(clusterService, indexSettings.getSettings());
                 BlobStoreRepository repo = createRepository(remotePath);
                 when(mockRepoSvc.repository(any())).thenAnswer(invocationOnMock -> repo);
             }
@@ -694,11 +695,12 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 translogFactorySupplier,
                 checkpointPublisher,
                 remoteStore,
-                remoteRefreshSegmentPressureService
+                remoteStoreStatsTrackerFactory,
+                () -> IndexSettings.DEFAULT_REMOTE_TRANSLOG_BUFFER_INTERVAL
             );
             indexShard.addShardFailureCallback(DEFAULT_SHARD_FAILURE_HANDLER);
-            if (remoteRefreshSegmentPressureService != null) {
-                remoteRefreshSegmentPressureService.afterIndexShardCreated(indexShard);
+            if (remoteStoreStatsTrackerFactory != null) {
+                remoteStoreStatsTrackerFactory.afterIndexShardCreated(indexShard);
             }
             success = true;
         } finally {

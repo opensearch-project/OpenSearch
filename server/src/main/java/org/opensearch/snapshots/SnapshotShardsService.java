@@ -37,7 +37,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.IndexCommit;
 import org.opensearch.Version;
-import org.opensearch.core.action.ActionListener;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterStateListener;
 import org.opensearch.cluster.SnapshotsInProgress;
@@ -47,19 +46,20 @@ import org.opensearch.cluster.SnapshotsInProgress.State;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.concurrent.GatedCloseable;
-import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.index.snapshots.IndexShardSnapshotFailedException;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardState;
-import org.opensearch.core.index.shard.ShardId;
-import org.opensearch.core.index.snapshots.IndexShardSnapshotFailedException;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus.Stage;
 import org.opensearch.indices.IndicesService;
@@ -378,6 +378,12 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
             final IndexShard indexShard = indicesService.indexServiceSafe(shardId.getIndex()).getShardOrNull(shardId.id());
             if (indexShard.routingEntry().primary() == false) {
                 throw new IndexShardSnapshotFailedException(shardId, "snapshot should be performed only on primary");
+            }
+            if (indexShard.indexSettings().isSegRepEnabled() && indexShard.isPrimaryMode() == false) {
+                throw new IndexShardSnapshotFailedException(
+                    shardId,
+                    "snapshot triggered on a new primary following failover and cannot proceed until promotion is complete"
+                );
             }
             if (indexShard.routingEntry().relocating()) {
                 // do not snapshot when in the process of relocation of primaries so we won't get conflicts

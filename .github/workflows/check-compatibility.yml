@@ -5,31 +5,55 @@ on:
   pull_request_target
 
 jobs:
-  build:
+  check-compatibility:
+    if: github.repository == 'opensearch-project/OpenSearch'
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Increase swapfile
+        run: |
+          sudo swapoff -a
+          sudo fallocate -l 10G /swapfile
+          sudo chmod 600 /swapfile
+          sudo mkswap /swapfile
+          sudo swapon /swapfile
+          sudo swapon --show
 
       - name: Run compatibility task
-        run: ./gradlew checkCompatibility | tee $HOME/gradlew-check.out
+        run: ./gradlew checkCompatibility -i | tee $HOME/gradlew-check.out
 
       - name: Get results
         run: |
-          echo 'Compatibility status:' > ${{ github.workspace }}/results.txt && echo '```' >> ${{ github.workspace }}/results.txt
-          grep -e 'Compatible components' -e 'Incompatible components' -e 'Components skipped' -A 2 -B 3 $HOME/gradlew-check.out >> "${{ github.workspace }}/results.txt"
-          echo '```' >> ${{ github.workspace }}/results.txt
+          echo '## Compatibility status:' > "${{ github.workspace }}/results.txt"
+          echo "Checks if related components are compatible with change $(git rev-parse --short HEAD)" >> "${{ github.workspace }}/results.txt"
+          echo "### Incompatible components" >> "${{ github.workspace }}/results.txt" && grep -e 'Incompatible component' $HOME/gradlew-check.out | sed -e 's/Incompatible component: \[\(.*\)\]/- \1/' >> "${{ github.workspace }}/results.txt"
+          echo "### Skipped components"      >> "${{ github.workspace }}/results.txt" && grep -e 'Skipped component'      $HOME/gradlew-check.out | sed -e 's/Skipped component: \[\(.*\)\]/- \1/'      >> "${{ github.workspace }}/results.txt"
+          echo "### Compatible components"   >> "${{ github.workspace }}/results.txt" && grep -e 'Compatible component'   $HOME/gradlew-check.out | sed -e 's/Compatible component: \[\(.*\)\]/- \1/'   >> "${{ github.workspace }}/results.txt"
 
-      - name: GitHub App token
-        id: github_app_token
-        uses: tibdex/github-app-token@v1.6.0
+      - name: Upload results
+        uses: actions/upload-artifact@v3
         with:
-          app_id: ${{ secrets.APP_ID }}
-          private_key: ${{ secrets.APP_PRIVATE_KEY }}
-          installation_id: 22958780
+          name: results.txt
+          path: ${{ github.workspace }}/results.txt
+
+  add-comment:
+    needs: [check-compatibility]
+    permissions:
+      pull-requests: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download results
+        uses: actions/download-artifact@v3
+        with:
+          name: results.txt
 
       - name: Add comment on the PR
         uses: peter-evans/create-or-update-comment@v3
         with:
-          token: ${{ steps.github_app_token.outputs.token }}
           issue-number: ${{ github.event.number }}
-          body-path: "${{ github.workspace }}/results.txt"
+          body-path: results.txt

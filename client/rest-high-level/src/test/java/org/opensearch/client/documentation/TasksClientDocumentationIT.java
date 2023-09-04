@@ -33,7 +33,6 @@
 package org.opensearch.client.documentation;
 
 import org.opensearch.OpenSearchException;
-import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.action.TaskOperationFailure;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
@@ -45,6 +44,7 @@ import org.opensearch.client.RestHighLevelClient;
 import org.opensearch.client.tasks.CancelTasksRequest;
 import org.opensearch.client.tasks.CancelTasksResponse;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.tasks.TaskId;
 import org.opensearch.tasks.TaskInfo;
 

@@ -32,6 +32,7 @@
 package org.opensearch.discovery;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
+
 import org.apache.lucene.tests.mockfile.FilterFileSystemProvider;
 import org.opensearch.action.admin.indices.stats.ShardStats;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -41,9 +42,8 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.test.BackgroundIndexer;
-import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.InternalTestCluster;
-
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;

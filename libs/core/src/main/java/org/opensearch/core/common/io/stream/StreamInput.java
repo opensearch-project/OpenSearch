@@ -46,12 +46,13 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.common.CharArrays;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.settings.SecureString;
 import org.opensearch.core.common.text.Text;
-import org.opensearch.common.unit.TimeValue;
-import org.opensearch.core.common.Strings;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
@@ -104,8 +105,9 @@ import static org.opensearch.OpenSearchException.readStackTrace;
  * lists, either by storing {@code List}s internally or just converting to and from a {@code List} when calling. This comment is repeated
  * on {@link StreamInput}.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public abstract class StreamInput extends InputStream {
 
     private Version version = Version.CURRENT;
@@ -722,6 +724,8 @@ public abstract class StreamInput extends InputStream {
                 return readByte();
             case 12:
                 return readDate();
+            case 13:
+                return readZonedDateTime();
             case 14:
                 return readBytesReference();
             case 15:

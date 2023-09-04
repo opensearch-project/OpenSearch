@@ -32,11 +32,12 @@
 
 package org.opensearch.core.index;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.ParseField;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -48,8 +49,9 @@ import java.util.Objects;
 /**
  * A value class representing the basic required properties of an OpenSearch index.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class Index implements Writeable, ToXContentObject {
 
     public static final Index[] EMPTY_ARRAY = new Index[0];

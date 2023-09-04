@@ -32,15 +32,6 @@
 
 package org.opensearch.grok;
 
-import org.jcodings.specific.UTF8Encoding;
-import org.joni.Matcher;
-import org.joni.NameEntry;
-import org.joni.Option;
-import org.joni.Regex;
-import org.joni.Region;
-import org.joni.Syntax;
-import org.joni.exception.ValueException;
-
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -55,6 +46,15 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Stack;
 import java.util.function.Consumer;
+
+import org.jcodings.specific.UTF8Encoding;
+import org.joni.Matcher;
+import org.joni.NameEntry;
+import org.joni.Option;
+import org.joni.Regex;
+import org.joni.Region;
+import org.joni.Syntax;
+import org.joni.exception.ValueException;
 
 import static java.util.Collections.unmodifiableList;
 

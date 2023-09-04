@@ -8,10 +8,8 @@
 
 package org.opensearch.identity.shiro;
 
-import java.util.Optional;
 import org.apache.shiro.authc.AuthenticationToken;
 import org.apache.shiro.authc.UsernamePasswordToken;
-import org.junit.Before;
 import org.opensearch.identity.Subject;
 import org.opensearch.identity.noop.NoopSubject;
 import org.opensearch.identity.noop.NoopTokenManager;
@@ -20,12 +18,17 @@ import org.opensearch.identity.tokens.BasicAuthToken;
 import org.opensearch.identity.tokens.BearerAuthToken;
 import org.opensearch.identity.tokens.OnBehalfOfClaims;
 import org.opensearch.test.OpenSearchTestCase;
+import org.junit.Before;
+
+import java.util.Optional;
+
 import org.passay.CharacterCharacteristicsRule;
 import org.passay.CharacterRule;
 import org.passay.EnglishCharacterData;
 import org.passay.LengthRule;
 import org.passay.PasswordData;
 import org.passay.PasswordValidator;
+
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;

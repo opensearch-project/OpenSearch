@@ -8,14 +8,15 @@
 
 package org.opensearch.test.telemetry.tracing;
 
+import org.opensearch.telemetry.tracing.AbstractSpan;
+import org.opensearch.telemetry.tracing.Span;
+import org.opensearch.telemetry.tracing.attributes.Attributes;
+
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Supplier;
-import org.opensearch.telemetry.tracing.AbstractSpan;
-import org.opensearch.telemetry.tracing.Span;
-import org.opensearch.telemetry.tracing.attributes.Attributes;
 
 /**
  * MockSpan for testing and strict check validations. Not to be used for production cases.
@@ -35,9 +36,9 @@ public class MockSpan extends AbstractSpan {
 
     /**
      * Base Constructor.
-     * @param spanName span name
-     * @param parentSpan parent span
-     * @param spanProcessor span processor
+     * @param spanName  Span Name
+     * @param parentSpan  Parent Span
+     * @param spanProcessor  Span Processor
      * @param attributes attributes
      */
     public MockSpan(String spanName, Span parentSpan, SpanProcessor spanProcessor, Attributes attributes) {

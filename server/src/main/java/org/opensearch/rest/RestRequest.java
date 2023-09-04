@@ -64,8 +64,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-import static org.opensearch.core.common.unit.ByteSizeValue.parseBytesSizeValue;
 import static org.opensearch.common.unit.TimeValue.parseTimeValue;
+import static org.opensearch.core.common.unit.ByteSizeValue.parseBytesSizeValue;
 
 /**
  * REST Request

@@ -40,31 +40,36 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.MetadataIndexStateService;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.node.DiscoveryNodes.Builder;
+import org.opensearch.cluster.routing.RecoverySource.RemoteStoreRecoverySource;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.index.Index;
-import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.IndexNotFoundException;
+import org.opensearch.repositories.IndexId;
 import org.junit.Before;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
-import static org.mockito.Mockito.mock;
+import static org.opensearch.cluster.routing.ShardRoutingState.INITIALIZING;
+import static org.opensearch.cluster.routing.ShardRoutingState.RELOCATING;
+import static org.opensearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.opensearch.cluster.routing.ShardRoutingState.UNASSIGNED;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
-
-import org.opensearch.cluster.routing.RecoverySource.RemoteStoreRecoverySource;
-import org.opensearch.repositories.IndexId;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class RoutingTableTests extends OpenSearchAllocationTestCase {
 
@@ -541,8 +546,47 @@ public class RoutingTableTests extends OpenSearchAllocationTestCase {
         }
     }
 
-    public void testAddAsRemoteStoreRestore() {
-        final IndexMetadata indexMetadata = createIndexMetadata(TEST_INDEX_1).state(IndexMetadata.State.OPEN).build();
+    private Map<ShardId, IndexShardRoutingTable> getIndexShardRoutingTableMap(Index index, boolean allUnassigned, int numberOfReplicas) {
+        Map<ShardId, IndexShardRoutingTable> indexShardRoutingTableMap = new HashMap<>();
+        List<ShardRoutingState> activeInitializingStates = List.of(INITIALIZING, STARTED, RELOCATING);
+        for (int i = 0; i < this.numberOfShards; i++) {
+            IndexShardRoutingTable indexShardRoutingTable = mock(IndexShardRoutingTable.class);
+            ShardRouting primaryShardRouting = mock(ShardRouting.class);
+            Boolean primaryUnassigned = allUnassigned || randomBoolean();
+            when(primaryShardRouting.unassigned()).thenReturn(primaryUnassigned);
+            if (primaryUnassigned) {
+                when(primaryShardRouting.state()).thenReturn(UNASSIGNED);
+            } else {
+                when(primaryShardRouting.state()).thenReturn(
+                    activeInitializingStates.get(randomIntBetween(0, activeInitializingStates.size() - 1))
+                );
+            }
+            when(indexShardRoutingTable.primaryShard()).thenReturn(primaryShardRouting);
+            List<ShardRouting> replicaShards = new ArrayList<>();
+            for (int j = 0; j < numberOfReplicas; j++) {
+                ShardRouting replicaShardRouting = mock(ShardRouting.class);
+                Boolean replicaUnassigned = allUnassigned || randomBoolean();
+                when(replicaShardRouting.unassigned()).thenReturn(replicaUnassigned);
+                if (replicaUnassigned) {
+                    when(replicaShardRouting.state()).thenReturn(UNASSIGNED);
+                } else {
+                    when(replicaShardRouting.state()).thenReturn(
+                        activeInitializingStates.get(randomIntBetween(0, activeInitializingStates.size() - 1))
+                    );
+                }
+                replicaShards.add(replicaShardRouting);
+            }
+            when(indexShardRoutingTable.replicaShards()).thenReturn(replicaShards);
+            indexShardRoutingTableMap.put(new ShardId(index, i), indexShardRoutingTable);
+        }
+        return indexShardRoutingTableMap;
+    }
+
+    public void testAddAsRemoteStoreRestoreAllUnassigned() {
+        int numberOfReplicas = randomIntBetween(0, 5);
+        final IndexMetadata indexMetadata = createIndexMetadata(TEST_INDEX_1).state(IndexMetadata.State.OPEN)
+            .numberOfReplicas(numberOfReplicas)
+            .build();
         final RemoteStoreRecoverySource remoteStoreRecoverySource = new RemoteStoreRecoverySource(
             "restore_uuid",
             Version.CURRENT,
@@ -551,34 +595,78 @@ public class RoutingTableTests extends OpenSearchAllocationTestCase {
         final RoutingTable routingTable = new RoutingTable.Builder().addAsRemoteStoreRestore(
             indexMetadata,
             remoteStoreRecoverySource,
-            new HashMap<>()
+            getIndexShardRoutingTableMap(indexMetadata.getIndex(), true, numberOfReplicas),
+            false
         ).build();
         assertTrue(routingTable.hasIndex(TEST_INDEX_1));
-        assertEquals(this.numberOfShards, routingTable.allShards(TEST_INDEX_1).size());
-        assertEquals(this.numberOfShards, routingTable.index(TEST_INDEX_1).shardsWithState(UNASSIGNED).size());
+        int numberOfShards = this.numberOfShards * (numberOfReplicas + 1);
+        assertEquals(numberOfShards, routingTable.allShards(TEST_INDEX_1).size());
+        assertEquals(numberOfShards, routingTable.index(TEST_INDEX_1).shardsWithState(UNASSIGNED).size());
     }
 
     public void testAddAsRemoteStoreRestoreWithActiveShards() {
-        final IndexMetadata indexMetadata = createIndexMetadata(TEST_INDEX_1).state(IndexMetadata.State.OPEN).build();
+        int numberOfReplicas = randomIntBetween(0, 5);
+        final IndexMetadata indexMetadata = createIndexMetadata(TEST_INDEX_1).state(IndexMetadata.State.OPEN)
+            .numberOfReplicas(numberOfReplicas)
+            .build();
         final RemoteStoreRecoverySource remoteStoreRecoverySource = new RemoteStoreRecoverySource(
             "restore_uuid",
             Version.CURRENT,
             new IndexId(TEST_INDEX_1, "1")
         );
-        Map<ShardId, ShardRouting> activeInitializingShards = new HashMap<>();
-        for (int i = 0; i < randomIntBetween(1, this.numberOfShards); i++) {
-            activeInitializingShards.put(new ShardId(indexMetadata.getIndex(), i), mock(ShardRouting.class));
-        }
+        Map<ShardId, IndexShardRoutingTable> indexShardRoutingTableMap = getIndexShardRoutingTableMap(
+            indexMetadata.getIndex(),
+            false,
+            numberOfReplicas
+        );
         final RoutingTable routingTable = new RoutingTable.Builder().addAsRemoteStoreRestore(
             indexMetadata,
             remoteStoreRecoverySource,
-            activeInitializingShards
+            indexShardRoutingTableMap,
+            false
         ).build();
         assertTrue(routingTable.hasIndex(TEST_INDEX_1));
-        assertEquals(this.numberOfShards, routingTable.allShards(TEST_INDEX_1).size());
-        assertEquals(
-            this.numberOfShards - activeInitializingShards.size(),
-            routingTable.index(TEST_INDEX_1).shardsWithState(UNASSIGNED).size()
+        int numberOfShards = this.numberOfShards * (numberOfReplicas + 1);
+        assertEquals(numberOfShards, routingTable.allShards(TEST_INDEX_1).size());
+        int unassignedShards = 0;
+        for (IndexShardRoutingTable indexShardRoutingTable : indexShardRoutingTableMap.values()) {
+            if (indexShardRoutingTable.primaryShard().unassigned()) {
+                unassignedShards += indexShardRoutingTable.replicaShards().size() + 1;
+            } else {
+                for (ShardRouting replicaShardRouting : indexShardRoutingTable.replicaShards()) {
+                    if (replicaShardRouting.unassigned()) {
+                        unassignedShards += 1;
+                    }
+                }
+            }
+        }
+        assertEquals(unassignedShards, routingTable.index(TEST_INDEX_1).shardsWithState(UNASSIGNED).size());
+    }
+
+    public void testAddAsRemoteStoreRestoreShardMismatch() {
+        int numberOfReplicas = randomIntBetween(0, 5);
+        final IndexMetadata indexMetadata = createIndexMetadata(TEST_INDEX_1).state(IndexMetadata.State.OPEN)
+            .numberOfReplicas(numberOfReplicas)
+            .build();
+        final RemoteStoreRecoverySource remoteStoreRecoverySource = new RemoteStoreRecoverySource(
+            "restore_uuid",
+            Version.CURRENT,
+            new IndexId(TEST_INDEX_1, "1")
+        );
+        Map<ShardId, IndexShardRoutingTable> indexShardRoutingTableMap = getIndexShardRoutingTableMap(
+            indexMetadata.getIndex(),
+            true,
+            numberOfReplicas
+        );
+        indexShardRoutingTableMap.remove(indexShardRoutingTableMap.keySet().iterator().next());
+        assertThrows(
+            IllegalStateException.class,
+            () -> new RoutingTable.Builder().addAsRemoteStoreRestore(
+                indexMetadata,
+                remoteStoreRecoverySource,
+                indexShardRoutingTableMap,
+                false
+            ).build()
         );
     }
 

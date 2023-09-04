@@ -34,7 +34,9 @@ package org.opensearch.repositories.s3;
 import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
-import fixture.s3.S3HttpHandler;
+
+import software.amazon.awssdk.core.internal.http.pipeline.stages.ApplyTransactionIdStage;
+
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.SuppressForbidden;
@@ -55,7 +57,6 @@ import org.opensearch.repositories.s3.utils.AwsRequestSigner;
 import org.opensearch.snapshots.mockstore.BlobStoreWrapper;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.threadpool.ThreadPool;
-import software.amazon.awssdk.core.internal.http.pipeline.stages.ApplyTransactionIdStage;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -64,6 +65,8 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+
+import fixture.s3.S3HttpHandler;
 
 import static org.hamcrest.Matchers.containsString;
 

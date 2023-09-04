@@ -34,10 +34,10 @@ package org.opensearch.test;
 
 import com.carrotsearch.randomizedtesting.RandomizedContext;
 
+import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentParser;
 
 import java.util.Map;

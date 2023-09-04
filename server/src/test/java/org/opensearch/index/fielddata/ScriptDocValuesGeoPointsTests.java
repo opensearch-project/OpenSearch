@@ -32,9 +32,9 @@
 
 package org.opensearch.index.fielddata;
 
-import org.opensearch.index.fielddata.ScriptDocValues.GeoPoints;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.geo.GeoUtils;
+import org.opensearch.index.fielddata.ScriptDocValues.GeoPoints;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;

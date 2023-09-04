@@ -40,6 +40,7 @@ import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.action.search.SearchType;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.cache.bitset.BitsetFilterCache;
 import org.opensearch.index.mapper.MappedFieldType;
@@ -48,7 +49,6 @@ import org.opensearch.index.mapper.ObjectMapper;
 import org.opensearch.index.query.ParsedQuery;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.shard.IndexShard;
-import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.similarity.SimilarityService;
 import org.opensearch.search.SearchExtBuilder;
 import org.opensearch.search.SearchShardTarget;
@@ -632,7 +632,7 @@ public class TestSearchContext extends SearchContext {
      * Returns concurrent segment search status for the search context
      */
     @Override
-    public boolean isConcurrentSegmentSearchEnabled() {
+    public boolean shouldUseConcurrentSearch() {
         return concurrentSegmentSearchEnabled;
     }
 
@@ -690,6 +690,15 @@ public class TestSearchContext extends SearchContext {
     public int getTargetMaxSliceCount() {
         assert concurrentSegmentSearchEnabled == true : "Please use concurrent search before fetching maxSliceCount";
         return maxSliceCount;
+    }
+
+    @Override
+    public boolean shouldUseTimeSeriesDescSortOptimization() {
+        return indexShard != null
+            && indexShard.isTimeSeriesDescSortOptimizationEnabled()
+            && sort != null
+            && sort.isSortOnTimeSeriesField()
+            && sort.sort.getSort()[0].getReverse() == false;
     }
 
     /**

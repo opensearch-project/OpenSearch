@@ -8,10 +8,6 @@
 
 package org.opensearch.remotestore;
 
-import org.hamcrest.Matcher;
-import org.hamcrest.Matchers;
-import org.junit.After;
-import org.junit.Before;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
@@ -20,6 +16,10 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.indices.recovery.IndexRecoveryIT;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.hamcrest.Matcher;
+import org.hamcrest.Matchers;
+import org.junit.After;
+import org.junit.Before;
 
 import java.nio.file.Path;
 
@@ -171,4 +171,10 @@ public class RemoteIndexRecoveryIT extends IndexRecoveryIT {
     public void testReplicaRecovery() {
 
     }
+
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/9580")
+    public void testRerouteRecovery() {
+
+    }
+
 }

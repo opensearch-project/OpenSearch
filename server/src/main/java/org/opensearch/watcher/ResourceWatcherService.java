@@ -33,12 +33,13 @@ package org.opensearch.watcher;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.threadpool.Scheduler.Cancellable;
+import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.threadpool.ThreadPool.Names;
 
 import java.io.Closeable;
@@ -54,8 +55,9 @@ import java.util.concurrent.CopyOnWriteArraySet;
  * registered watcher periodically. The frequency of checks can be specified using {@code resource.reload.interval} setting, which
  * defaults to {@code 60s}. The service can be disabled by setting {@code resource.reload.enabled} setting to {@code false}.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class ResourceWatcherService implements Closeable {
     private static final Logger logger = LogManager.getLogger(ResourceWatcherService.class);
 

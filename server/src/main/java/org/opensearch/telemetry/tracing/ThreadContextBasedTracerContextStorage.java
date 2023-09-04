@@ -40,9 +40,6 @@ public class ThreadContextBasedTracerContextStorage implements TracerContextStor
 
     @Override
     public void put(String key, Span span) {
-        if (span == null) {
-            return;
-        }
         SpanReference currentSpanRef = threadContext.getTransient(key);
         if (currentSpanRef == null) {
             threadContext.putTransient(key, new SpanReference(span));
@@ -90,6 +87,7 @@ public class ThreadContextBasedTracerContextStorage implements TracerContextStor
     }
 
     private Span spanFromHeader() {
-        return tracingTelemetry.getContextPropagator().extract(threadContext.getHeaders());
+        Optional<Span> span = tracingTelemetry.getContextPropagator().extract(threadContext.getHeaders());
+        return span.orElse(null);
     }
 }
