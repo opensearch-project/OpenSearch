@@ -157,7 +157,7 @@ public class EncryptedBlobContainer<T, U> implements BlobContainer {
             .collect(
                 Collectors.toMap(
                     Map.Entry::getKey,
-                    entry -> new EncryptedBlobMetadata(entry.getValue(), cryptoHandler, getEncryptedHeaderContentSupplier(entry.getKey()))
+                    entry -> new EncryptedBlobMetadata<>(entry.getValue(), cryptoHandler, getEncryptedHeaderContentSupplier(entry.getKey()))
                 )
             );
 
@@ -176,7 +176,7 @@ public class EncryptedBlobContainer<T, U> implements BlobContainer {
                 if (metadataList != null) {
                     List<BlobMetadata> encryptedMetadata = metadataList.stream()
                         .map(
-                            blobMetadata -> new EncryptedBlobMetadata(
+                            blobMetadata -> new EncryptedBlobMetadata<>(
                                 blobMetadata,
                                 cryptoHandler,
                                 getEncryptedHeaderContentSupplier(blobMetadata.name())

@@ -146,6 +146,17 @@ public class RemoteDirectory extends Directory {
     }
 
     /**
+     * Returns stream emitted from by blob object. Should be used with a closeable block.
+     *
+     * @param fileName Name of file
+     * @return Stream from the blob object
+     * @throws IOException if fetch of stream fails with IO error
+     */
+    public InputStream getBlobStream(String fileName) throws IOException {
+        return blobContainer.readBlob(fileName);
+    }
+
+    /**
      * Removes an existing file in the directory.
      *
      * <p>This method will not throw an exception when the file doesn't exist and simply ignores this case.

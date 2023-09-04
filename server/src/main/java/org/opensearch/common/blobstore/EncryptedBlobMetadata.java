@@ -38,12 +38,12 @@ public class EncryptedBlobMetadata<T, U> implements BlobMetadata {
 
     @Override
     public long length() {
-        Object cryptoContext;
+        U cryptoContext;
         try {
             cryptoContext = cryptoHandler.loadEncryptionMetadata(encryptedHeaderContentSupplier);
         } catch (IOException ex) {
             throw new RuntimeException(ex);
         }
-        return cryptoHandler.estimateDecryptedLength((U) cryptoContext, delegate.length());
+        return cryptoHandler.estimateDecryptedLength(cryptoContext, delegate.length());
     }
 }

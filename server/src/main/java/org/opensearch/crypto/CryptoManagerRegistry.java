@@ -14,7 +14,6 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.cluster.metadata.CryptoMetadata;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.crypto.MasterKeyProvider;
-import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.encryption.CryptoManager;
@@ -25,7 +24,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Function;
 
 /**
  * During node bootstrap, installed key provider extensions responsible for generating data keys are loaded.
@@ -45,50 +43,13 @@ public class CryptoManagerRegistry {
     private static final Object lock = new Object();
 
     /**
-     * The crypto algorithm to be used by {@link CryptoManager} to encrypt data.
-     */
-    public static final Setting<String> CRYPTO_ALGORITHM = new Setting<>(
-        "crypto.algorithm",
-        "ALG_AES_256_GCM_HKDF_SHA512_COMMIT_KEY",
-        Function.identity(),
-        Setting.Property.NodeScope
-    );
-
-    /**
-     * Refresh interval for the rotation of crypto key used in encrypting data.
-     */
-    public static final Setting<TimeValue> CRYPTO_KEY_REFRESH_INTERVAL = Setting.timeSetting(
-        "crypto.key.refresh_interval",
-        TimeValue.timeValueDays(2),
-        TimeValue.timeValueHours(1),
-        TimeValue.timeValueDays(10),
-        Setting.Property.NodeScope
-    );
-
-    /**
-     * Size of cache used for encryption keys.
-     */
-    public static final Setting<Integer> CRYPTO_KEY_CACHE_SIZE = Setting.intSetting(
-        "crypto.key.cache_size",
-        500,
-        100,
-        Setting.Property.NodeScope
-    );
-
-    /**
      * Initializes the registry with crypto factories for the installed crypto key providers.
      *
      * @param cryptoPlugins The list of installed crypto key provider plugins.
      * @param settings Crypto settings.
      */
     protected CryptoManagerRegistry(List<CryptoKeyProviderPlugin> cryptoPlugins, Settings settings) {
-        cryptoManagerFactory.set(
-            new CryptoManagerFactory(
-                CRYPTO_ALGORITHM.get(settings),
-                CRYPTO_KEY_REFRESH_INTERVAL.get(settings),
-                CRYPTO_KEY_CACHE_SIZE.get(settings)
-            )
-        );
+        cryptoManagerFactory.set(new CryptoManagerFactory("ALG_AES_256_GCM_HKDF_SHA512_COMMIT_KEY", TimeValue.timeValueDays(2), 500));
         registry.set(loadCryptoFactories(cryptoPlugins));
     }
 
