@@ -99,7 +99,7 @@ public class ReplicaToPrimaryPromotionIT extends RemoteStoreBaseIntegTestCase {
         final DiscoveryNode randomNode = state.nodes().resolveNode(primaryShard.currentNodeId());
 
         // stop the random data node, all remaining shards are promoted to primaries
-        internalCluster().stopCurrentClusterManagerNode();
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(randomNode.getName()));
         ensureYellowAndNoInitializingShards(indexName);
 
         state = client(internalCluster().getClusterManagerName()).admin().cluster().prepareState().get().getState();

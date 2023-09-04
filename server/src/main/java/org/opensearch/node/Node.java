@@ -270,7 +270,7 @@ import static java.util.stream.Collectors.toList;
 import static org.opensearch.common.util.FeatureFlags.TELEMETRY;
 import static org.opensearch.env.NodeEnvironment.collectFileCacheDataPath;
 import static org.opensearch.index.ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENABLED_ATTRIBUTE_KEY;
-import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_NODE_ATTRIBUTE_KEY_PREFIX;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteStoreAttributePresent;
 
 /**
  * A node represent a node within a cluster ({@code cluster.name}). The {@link #client()} can be used
@@ -1754,10 +1754,7 @@ public class Node implements Closeable {
 
         @Override
         public DiscoveryNode apply(BoundTransportAddress boundTransportAddress) {
-            if (Node.NODE_ATTRIBUTES.getAsMap(settings)
-                .keySet()
-                .stream()
-                .anyMatch(key -> key.startsWith(REMOTE_STORE_NODE_ATTRIBUTE_KEY_PREFIX))) {
+            if (isRemoteStoreAttributePresent(settings)) {
                 localNode.set(
                     DiscoveryNode.createRemoteNodeLocal(
                         settings,

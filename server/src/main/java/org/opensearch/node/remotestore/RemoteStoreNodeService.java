@@ -48,8 +48,7 @@ public class RemoteStoreNodeService {
      * @opensearch.internal
      */
     public enum CompatibilityMode {
-        STRICT("strict"),
-        ALLOW_MIX("allow_mix");
+        STRICT("strict");
 
         public final String mode;
 

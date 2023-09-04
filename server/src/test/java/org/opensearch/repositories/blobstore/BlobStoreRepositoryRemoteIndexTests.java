@@ -87,7 +87,7 @@ public class BlobStoreRepositoryRemoteIndexTests extends BlobStoreRepositoryHelp
             .build();
     }
 
-    public static Settings buildRemoteStoreNodeAttributes(String repoName, Path repoPath) {
+    private Settings buildRemoteStoreNodeAttributes(String repoName, Path repoPath) {
         String repoTypeAttributeKey = String.format(
             Locale.getDefault(),
             "node.attr." + REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT,

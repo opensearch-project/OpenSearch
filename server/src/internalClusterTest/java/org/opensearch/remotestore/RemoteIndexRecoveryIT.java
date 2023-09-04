@@ -42,7 +42,7 @@ public class RemoteIndexRecoveryIT extends IndexRecoveryIT {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
-            .put(remoteStoreClusterSettings(REPOSITORY_NAME, repositoryPath, REPOSITORY_NAME, repositoryPath))
+            .put(remoteStoreClusterSettings(REPOSITORY_NAME, repositoryPath))
             .build();
     }
 

@@ -210,12 +210,8 @@ public class DiscoveryModule {
                 rerouteService,
                 electionStrategy,
                 nodeHealthService,
-<<<<<<< HEAD
                 persistedStateRegistry,
-                remoteStoreService
-=======
                 remoteStoreNodeService
->>>>>>> 5e3b618bf6b (Addressing Comments)
             );
         } else {
             throw new IllegalArgumentException("Unknown discovery type [" + discoveryType + "]");

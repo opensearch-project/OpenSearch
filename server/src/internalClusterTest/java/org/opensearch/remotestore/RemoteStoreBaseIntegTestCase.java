@@ -23,10 +23,13 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
+import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.indices.replication.common.ReplicationType;
+import org.opensearch.node.Node;
+import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -187,7 +190,7 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
             settingsBuilder.put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT);
         }
 
-        settingsBuilder.put(buildRemoteStoreNodeAttributes(segmentRepoName, segmentRepoPath, translogRepoName, translogRepoPath));
+        settingsBuilder.put(buildRemoteStoreNodeAttributes(segmentRepoName, segmentRepoPath, translogRepoName, translogRepoPath, false));
 
         return settingsBuilder.build();
     }
@@ -196,7 +199,8 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
         String segmentRepoName,
         Path segmentRepoPath,
         String translogRepoName,
-        Path translogRepoPath
+        Path translogRepoPath,
+        boolean withRateLimiterAttributes
     ) {
         String segmentRepoTypeAttributeKey = String.format(
             Locale.getDefault(),
@@ -219,14 +223,21 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
             translogRepoName
         );
 
-        return Settings.builder()
+        Settings.Builder settings = Settings.builder()
             .put("node.attr." + REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY, segmentRepoName)
             .put(segmentRepoTypeAttributeKey, FsRepository.TYPE)
             .put(segmentRepoSettingsAttributeKeyPrefix + "location", segmentRepoPath)
             .put("node.attr." + REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY, translogRepoName)
             .put(translogRepoTypeAttributeKey, FsRepository.TYPE)
-            .put(translogRepoSettingsAttributeKeyPrefix + "location", translogRepoPath)
-            .build();
+            .put(translogRepoSettingsAttributeKeyPrefix + "location", translogRepoPath);
+
+        if (withRateLimiterAttributes) {
+            settings.put(segmentRepoSettingsAttributeKeyPrefix + "compress", randomBoolean())
+                .put(segmentRepoSettingsAttributeKeyPrefix + "max_remote_download_bytes_per_sec", "2kb")
+                .put(segmentRepoSettingsAttributeKeyPrefix + "chunk_size", 200, ByteSizeUnit.BYTES);
+        }
+
+        return settings.build();
     }
 
     private Settings defaultIndexSettings() {
@@ -300,6 +311,46 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
             RepositoryMetadata expectedRepository = buildRepositoryMetadata(node, repositoryName);
             assertTrue(actualRepository.equalsIgnoreGenerations(expectedRepository));
         }
+    }
+
+    public Settings buildClusterSettingsWith() {
+        String segmentRepoTypeAttributeKey = String.format(
+            Locale.getDefault(),
+            "node.attr." + REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT,
+            REPOSITORY_NAME
+        );
+        String segmentRepoSettingsAttributeKeyPrefix = String.format(
+            Locale.getDefault(),
+            "node.attr." + REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX,
+            REPOSITORY_NAME
+        );
+        String translogRepoTypeAttributeKey = String.format(
+            Locale.getDefault(),
+            "node.attr." + REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT,
+            REPOSITORY_2_NAME
+        );
+        String translogRepoSettingsAttributeKeyPrefix = String.format(
+            Locale.getDefault(),
+            "node.attr." + REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX,
+            REPOSITORY_2_NAME
+        );
+        return Settings.builder()
+            .put(
+                Node.NODE_ATTRIBUTES.getKey() + RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY,
+                REPOSITORY_NAME
+            )
+            .put(segmentRepoTypeAttributeKey, FsRepository.TYPE)
+            .put(segmentRepoSettingsAttributeKeyPrefix + "location", randomRepoPath())
+            .put(segmentRepoSettingsAttributeKeyPrefix + "compress", randomBoolean())
+            .put(segmentRepoSettingsAttributeKeyPrefix + "max_remote_download_bytes_per_sec", "2kb")
+            .put(segmentRepoSettingsAttributeKeyPrefix + "chunk_size", 200, ByteSizeUnit.BYTES)
+            .put(
+                Node.NODE_ATTRIBUTES.getKey() + RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY,
+                REPOSITORY_2_NAME
+            )
+            .put(translogRepoTypeAttributeKey, FsRepository.TYPE)
+            .put(translogRepoSettingsAttributeKeyPrefix + "location", randomRepoPath())
+            .build();
     }
 
     public static int getFileCount(Path path) throws Exception {
