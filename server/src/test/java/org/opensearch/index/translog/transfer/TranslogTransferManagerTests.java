@@ -488,7 +488,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
             assertNotEquals(0, remoteTranslogTransferTracker.getTotalDownloadTimeInMillis());
         } else {
             assertEquals(0, remoteTranslogTransferTracker.getTotalDownloadTimeInMillis());
-        }        
+        }
     }
 
     private void assertTlogCkpDownloadStats() {
