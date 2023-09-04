@@ -36,8 +36,6 @@ import org.apache.lucene.index.IndexWriter;
 import org.opensearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.opensearch.action.admin.indices.create.CreateIndexRequest;
 import org.opensearch.action.admin.indices.stats.IndexShardStats;
-import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
-import org.opensearch.action.admin.indices.stats.ShardStats;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.client.Client;
@@ -48,7 +46,6 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.MetadataCreateIndexService;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.Settings;
@@ -64,12 +61,7 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.IntFunction;
@@ -164,13 +156,17 @@ public class TransportResizeAction extends TransportClusterManagerNodeAction<Res
                         .clear()
                         .setDocs(true)
                         .setStore(true)
+                        .setSegments(true)
                         .execute(ActionListener.delegateFailure(listener, (delegatedIndicesStatsListener, indicesStatsResponse) -> {
                             CreateIndexClusterStateUpdateRequest updateRequest = prepareCreateIndexRequest(resizeRequest, state, i -> {
                                 IndexShardStats shard = indicesStatsResponse.getIndex(sourceIndex).getIndexShards().get(i);
                                 return shard == null ? null : shard.getPrimary().getDocs();
                             }, indicesStatsResponse.getPrimaries().store, sourceIndex, targetIndex);
 
-                            if (verifyDocCountOnReplicationGroup(indicesStatsResponse, sourceIndex) == false) {
+                            if (indicesStatsResponse.getIndex(sourceIndex)
+                                .getTotal()
+                                .getSegments()
+                                .getReplicationStats().maxBytesBehind != 0) {
                                 throw new IllegalStateException(
                                     " For index ["
                                         + sourceIndex
@@ -217,26 +213,6 @@ public class TransportResizeAction extends TransportClusterManagerNodeAction<Res
                 }));
         }
 
-    }
-
-    private boolean verifyDocCountOnReplicationGroup(IndicesStatsResponse indicesStatsResponse, String index) {
-        Map<ShardId, List<ShardStats>> shardStatsMap = new HashMap<>();
-        for (Map.Entry<ShardRouting, ShardStats> entry : indicesStatsResponse.asMap().entrySet()) {
-            if (shardStatsMap.containsKey(entry.getKey().shardId())) {
-                shardStatsMap.get(entry.getKey().shardId()).add(entry.getValue());
-            } else {
-                shardStatsMap.put(entry.getKey().shardId(), new ArrayList<ShardStats>(Arrays.asList(entry.getValue())));
-            }
-        }
-        for (Map.Entry<ShardId, List<ShardStats>> entry : shardStatsMap.entrySet()) {
-            long docCount = entry.getValue().get(0).getStats().getDocs().getCount();
-            for (ShardStats shardStats : entry.getValue()) {
-                if (shardStats.getStats().docs.getCount() != docCount) {
-                    return false;
-                }
-            }
-        }
-        return true;
     }
 
     // static for unittesting this method

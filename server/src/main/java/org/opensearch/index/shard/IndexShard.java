@@ -994,7 +994,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
         // For Segment Replication enabled replica shards we can be skip parsing the documents as we directly copy segments from primary
         // shard.
-        if (indexSettings.isSegRepEnabled() && routingEntry().primary() == false && getReplicationEngine().isPresent()) {
+        if (indexSettings.isSegRepEnabled() && routingEntry().primary() == false) {
             Engine.Index index = new Engine.Index(
                 new Term(IdFieldMapper.NAME, Uid.encodeId(id)),
                 new ParsedDocument(null, null, id, null, null, sourceToParse.source(), sourceToParse.getMediaType(), null),
