@@ -12,6 +12,8 @@ import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskListener;
 import org.opensearch.telemetry.tracing.Span;
+import org.opensearch.telemetry.tracing.SpanScope;
+import org.opensearch.telemetry.tracing.Tracer;
 
 import java.util.Objects;
 
@@ -23,26 +25,31 @@ public class TraceableTaskListener<Response> implements TaskListener<Response> {
 
     private final TaskListener<Response> delegate;
     private final Span span;
+    private final Tracer tracer;
 
     /**
      * Constructor.
+     *
      * @param delegate delegate
-     * @param span span
+     * @param span     span
+     * @param tracer tracer
      */
-    private TraceableTaskListener(TaskListener<Response> delegate, Span span) {
+    private TraceableTaskListener(TaskListener<Response> delegate, Span span, Tracer tracer) {
         this.delegate = Objects.requireNonNull(delegate);
         this.span = Objects.requireNonNull(span);
+        this.tracer = Objects.requireNonNull(tracer);
     }
 
     /**
      * Factory method.
      * @param delegate delegate
      * @param span span
+     * @param tracer tracer
      * @return task listener
      */
-    public static TaskListener create(TaskListener delegate, Span span) {
+    public static TaskListener create(TaskListener delegate, Span span, Tracer tracer) {
         if (FeatureFlags.isEnabled(FeatureFlags.TELEMETRY) == true) {
-            return new TraceableTaskListener(delegate, span);
+            return new TraceableTaskListener(delegate, span, tracer);
         } else {
             return delegate;
         }
@@ -50,7 +57,7 @@ public class TraceableTaskListener<Response> implements TaskListener<Response> {
 
     @Override
     public void onResponse(Task task, Response response) {
-        try {
+        try (SpanScope scope = tracer.withSpanInScope(span)) {
             delegate.onResponse(task, response);
         } finally {
             span.endSpan();
@@ -60,7 +67,7 @@ public class TraceableTaskListener<Response> implements TaskListener<Response> {
 
     @Override
     public void onFailure(Task task, Exception e) {
-        try {
+        try (SpanScope scope = tracer.withSpanInScope(span)) {
             delegate.onFailure(task, e);
         } finally {
             span.setError(e);

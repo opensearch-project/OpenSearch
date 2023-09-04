@@ -13,6 +13,7 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.http.HttpChannel;
 import org.opensearch.http.HttpResponse;
 import org.opensearch.telemetry.tracing.Span;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.telemetry.tracing.listener.TraceableActionListener;
 
 import java.net.InetSocketAddress;
@@ -24,27 +25,32 @@ import java.util.Objects;
 public class TraceableHttpChannel implements HttpChannel {
     private final HttpChannel delegate;
     private final Span span;
+    private final Tracer tracer;
 
     /**
      * Constructor.
      *
-     * @param delegate  delegate
-     * @param span span
+     * @param delegate delegate
+     * @param span     span
+     * @param tracer tracer
      */
-    private TraceableHttpChannel(HttpChannel delegate, Span span) {
+    private TraceableHttpChannel(HttpChannel delegate, Span span, Tracer tracer) {
         this.span = Objects.requireNonNull(span);
         this.delegate = Objects.requireNonNull(delegate);
+        this.tracer = Objects.requireNonNull(tracer);
     }
 
     /**
      * Factory method.
+     *
      * @param delegate delegate
-     * @param span span
+     * @param span     span
+     * @param tracer tracer
      * @return http channel
      */
-    public static HttpChannel create(HttpChannel delegate, Span span) {
+    public static HttpChannel create(HttpChannel delegate, Span span, Tracer tracer) {
         if (FeatureFlags.isEnabled(FeatureFlags.TELEMETRY) == true) {
-            return new TraceableHttpChannel(delegate, span);
+            return new TraceableHttpChannel(delegate, span, tracer);
         } else {
             return delegate;
         }
@@ -67,7 +73,7 @@ public class TraceableHttpChannel implements HttpChannel {
 
     @Override
     public void sendResponse(HttpResponse response, ActionListener<Void> listener) {
-        delegate.sendResponse(response, TraceableActionListener.create(listener, span));
+        delegate.sendResponse(response, TraceableActionListener.create(listener, span, tracer));
     }
 
     @Override

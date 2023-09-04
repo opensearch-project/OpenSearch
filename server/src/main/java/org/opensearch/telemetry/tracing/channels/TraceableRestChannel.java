@@ -16,6 +16,8 @@ import org.opensearch.rest.RestChannel;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.telemetry.tracing.Span;
+import org.opensearch.telemetry.tracing.SpanScope;
+import org.opensearch.telemetry.tracing.Tracer;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -28,26 +30,31 @@ public class TraceableRestChannel implements RestChannel {
     private final RestChannel delegate;
     private final Span span;
 
+    private final Tracer tracer;
+
     /**
      * Constructor.
      *
      * @param delegate delegate
      * @param span span
+     * @param tracer tracer
      */
-    private TraceableRestChannel(RestChannel delegate, Span span) {
+    private TraceableRestChannel(RestChannel delegate, Span span, Tracer tracer) {
         this.span = Objects.requireNonNull(span);
         this.delegate = Objects.requireNonNull(delegate);
+        this.tracer = Objects.requireNonNull(tracer);
     }
 
     /**
      * Factory method.
      * @param delegate delegate
      * @param span span
+     * @param tracer tracer
      * @return rest channel
      */
-    public static RestChannel create(RestChannel delegate, Span span) {
+    public static RestChannel create(RestChannel delegate, Span span, Tracer tracer) {
         if (FeatureFlags.isEnabled(FeatureFlags.TELEMETRY) == true) {
-            return new TraceableRestChannel(delegate, span);
+            return new TraceableRestChannel(delegate, span, tracer);
         } else {
             return delegate;
         }
@@ -90,7 +97,7 @@ public class TraceableRestChannel implements RestChannel {
 
     @Override
     public void sendResponse(RestResponse response) {
-        try {
+        try (SpanScope scope = tracer.withSpanInScope(span)) {
             delegate.sendResponse(response);
         } finally {
             span.endSpan();

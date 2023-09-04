@@ -12,6 +12,8 @@ import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.telemetry.tracing.Span;
+import org.opensearch.telemetry.tracing.SpanScope;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportResponseHandler;
 
@@ -26,26 +28,32 @@ public class TraceableTransportResponseHandler<T extends TransportResponse> impl
 
     private final Span span;
     private final TransportResponseHandler<T> delegate;
+    private final Tracer tracer;
 
     /**
      * Constructor.
-     * @param span
-     * @param delegate
+     *
+     * @param delegate delegate
+     * @param span span
+     * @param tracer tracer
      */
-    private TraceableTransportResponseHandler(TransportResponseHandler<T> delegate, Span span) {
+    private TraceableTransportResponseHandler(TransportResponseHandler<T> delegate, Span span, Tracer tracer) {
         this.delegate = Objects.requireNonNull(delegate);
         this.span = Objects.requireNonNull(span);
+        this.tracer = Objects.requireNonNull(tracer);
+        ;
     }
 
     /**
      * Factory method.
      * @param delegate delegate
      * @param span span
+     * @param tracer tracer
      * @return transportResponseHandler
      */
-    public static TransportResponseHandler create(TransportResponseHandler delegate, Span span) {
+    public static TransportResponseHandler create(TransportResponseHandler delegate, Span span, Tracer tracer) {
         if (FeatureFlags.isEnabled(FeatureFlags.TELEMETRY) == true) {
-            return new TraceableTransportResponseHandler(delegate, span);
+            return new TraceableTransportResponseHandler(delegate, span, tracer);
         } else {
             return delegate;
         }
@@ -58,7 +66,7 @@ public class TraceableTransportResponseHandler<T extends TransportResponse> impl
 
     @Override
     public void handleResponse(T response) {
-        try {
+        try (SpanScope scope = tracer.withSpanInScope(span)) {
             delegate.handleResponse(response);
         } finally {
             span.endSpan();
@@ -67,7 +75,7 @@ public class TraceableTransportResponseHandler<T extends TransportResponse> impl
 
     @Override
     public void handleException(TransportException exp) {
-        try {
+        try (SpanScope scope = tracer.withSpanInScope(span)) {
             delegate.handleException(exp);
         } finally {
             span.setError(exp);

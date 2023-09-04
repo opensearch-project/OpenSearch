@@ -11,6 +11,8 @@ package org.opensearch.telemetry.tracing.listener;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.telemetry.tracing.Span;
+import org.opensearch.telemetry.tracing.SpanScope;
+import org.opensearch.telemetry.tracing.Tracer;
 
 import java.util.Objects;
 
@@ -22,26 +24,31 @@ public class TraceableActionListener<Response> implements ActionListener<Respons
 
     private final ActionListener<Response> delegate;
     private final Span span;
+    private final Tracer tracer;
 
     /**
      * Constructor.
+     *
      * @param delegate delegate
-     * @param span span
+     * @param span     span
+     * @param tracer tracer
      */
-    private TraceableActionListener(ActionListener<Response> delegate, Span span) {
+    private TraceableActionListener(ActionListener<Response> delegate, Span span, Tracer tracer) {
         this.delegate = Objects.requireNonNull(delegate);
         this.span = Objects.requireNonNull(span);
+        this.tracer = Objects.requireNonNull(tracer);
     }
 
     /**
      * Factory method.
      * @param delegate delegate
      * @param span span
+     * @param tracer tracer
      * @return action listener
      */
-    public static ActionListener create(ActionListener delegate, Span span) {
+    public static ActionListener create(ActionListener delegate, Span span, Tracer tracer) {
         if (FeatureFlags.isEnabled(FeatureFlags.TELEMETRY) == true) {
-            return new TraceableActionListener(delegate, span);
+            return new TraceableActionListener(delegate, span, tracer);
         } else {
             return delegate;
         }
@@ -49,7 +56,7 @@ public class TraceableActionListener<Response> implements ActionListener<Respons
 
     @Override
     public void onResponse(Response response) {
-        try {
+        try (SpanScope scope = tracer.withSpanInScope(span)) {
             delegate.onResponse(response);
         } finally {
             span.endSpan();
@@ -59,7 +66,7 @@ public class TraceableActionListener<Response> implements ActionListener<Respons
 
     @Override
     public void onFailure(Exception e) {
-        try {
+        try (SpanScope scope = tracer.withSpanInScope(span)) {
             delegate.onFailure(e);
         } finally {
             span.setError(e);
