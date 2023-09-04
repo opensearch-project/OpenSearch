@@ -9,12 +9,14 @@
 package org.opensearch.plugins;
 
 import org.opensearch.cluster.metadata.CryptoMetadata;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.crypto.MasterKeyProvider;
 
 /**
  * Crypto plugin to provide support for custom key providers.
  * @opensearch.api
  */
+@ExperimentalApi
 public interface CryptoKeyProviderPlugin {
 
     /**
