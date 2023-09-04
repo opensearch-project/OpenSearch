@@ -918,8 +918,9 @@ public class CoordinationStateTests extends OpenSearchTestCase {
 
     public void testHandlePrePublishAndCommitWhenRemoteStateEnabled() throws IOException {
         final RemoteClusterStateService remoteClusterStateService = Mockito.mock(RemoteClusterStateService.class);
-
-        Mockito.when(remoteClusterStateService.writeFullMetadata(Mockito.any()))
+        final VotingConfiguration initialConfig = VotingConfiguration.of(node1);
+        final ClusterState clusterState = clusterState(0L, 0L, node1, initialConfig, initialConfig, 42L);
+        Mockito.when(remoteClusterStateService.writeFullMetadata(clusterState))
             .thenReturn(
                 new ClusterMetadataManifest(
                     0L,
@@ -940,18 +941,27 @@ public class CoordinationStateTests extends OpenSearchTestCase {
             .put(RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING.getKey(), true)
             .build();
         final CoordinationState coordinationState = createCoordinationState(persistedStateRegistry, node1, settings);
-        final VotingConfiguration initialConfig = VotingConfiguration.of(node1);
-        final ClusterState clusterState = clusterState(0L, 0L, node1, initialConfig, initialConfig, 42L);
         coordinationState.handlePrePublish(clusterState);
-        Mockito.verify(remoteClusterStateService, Mockito.times(0)).writeFullMetadata(Mockito.any());
+        Mockito.verifyNoInteractions(remoteClusterStateService);
         assertThat(persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE).getLastAcceptedState(), equalTo(clusterState));
 
         final ClusterState clusterState2 = clusterState(0L, 1L, node1, initialConfig, initialConfig, 42L);
+        final ClusterMetadataManifest manifest2 = new ClusterMetadataManifest(
+            0L,
+            1L,
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            Version.CURRENT,
+            randomAlphaOfLength(10),
+            false,
+            Collections.emptyList()
+        );
+        Mockito.when(remoteClusterStateService.writeFullMetadata(clusterState2)).thenReturn(manifest2);
         coordinationState.handlePrePublish(clusterState2);
-        Mockito.verify(remoteClusterStateService, Mockito.times(1)).writeFullMetadata(Mockito.any());
+        Mockito.verify(remoteClusterStateService, Mockito.times(1)).writeFullMetadata(clusterState2);
 
         coordinationState.handlePreCommit();
-        Mockito.verify(remoteClusterStateService, Mockito.times(1)).markLastStateAsCommitted(Mockito.any(), Mockito.any());
+        Mockito.verify(remoteClusterStateService, Mockito.times(1)).markLastStateAsCommitted(clusterState2, manifest2);
     }
 
     public static CoordinationState createCoordinationState(
