@@ -22,6 +22,7 @@ import org.opensearch.core.rest.RestStatus;
 import org.opensearch.test.BackgroundIndexer;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.junit.Before;
 
 import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
@@ -36,6 +37,11 @@ import static org.hamcrest.Matchers.is;
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class ReplicaToPrimaryPromotionIT extends RemoteStoreBaseIntegTestCase {
     private int shard_count = 5;
+
+    @Before
+    public void setup() {
+        internalCluster().startClusterManagerOnlyNode();
+    }
 
     @Override
     public Settings indexSettings() {
