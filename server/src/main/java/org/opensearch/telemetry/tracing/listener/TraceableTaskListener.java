@@ -50,15 +50,21 @@ public class TraceableTaskListener<Response> implements TaskListener<Response> {
 
     @Override
     public void onResponse(Task task, Response response) {
-        span.endSpan();
-        delegate.onResponse(task, response);
+        try {
+            delegate.onResponse(task, response);
+        } finally {
+            span.endSpan();
+        }
+
     }
 
     @Override
     public void onFailure(Task task, Exception e) {
-        span.setError(e);
-        span.endSpan();
-        delegate.onFailure(task, e);
-
+        try {
+            delegate.onFailure(task, e);
+        } finally {
+            span.setError(e);
+            span.endSpan();
+        }
     }
 }
