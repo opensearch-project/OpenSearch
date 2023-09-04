@@ -248,7 +248,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
             .listAllInSortedOrder(any(BlobPath.class), eq(TranslogTransferMetadata.METADATA_PREFIX), anyInt(), any(ActionListener.class));
 
         assertNull(translogTransferManager.readMetadata());
-        assertNoDownloadStats();
+        assertNoDownloadStats(false);
     }
 
     // This should happen most of the time - Just a single metadata file
@@ -307,7 +307,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         when(transferService.downloadBlob(any(BlobPath.class), eq(mdFilename))).thenThrow(new IOException("Something went wrong"));
 
         assertThrows(IOException.class, translogTransferManager::readMetadata);
-        assertNoDownloadStats();
+        assertNoDownloadStats(true);
     }
 
     public void testMetadataFileNameOrder() throws IOException {
@@ -339,7 +339,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         when(transferService.downloadBlob(any(BlobPath.class), any(String.class))).thenThrow(new IOException("Something went wrong"));
 
         assertThrows(IOException.class, translogTransferManager::readMetadata);
-        assertNoDownloadStats();
+        assertNoDownloadStats(false);
     }
 
     public void testDownloadTranslog() throws IOException {
@@ -480,11 +480,15 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         assertEquals(2, tracker.allUploaded().size());
     }
 
-    private void assertNoDownloadStats() {
+    private void assertNoDownloadStats(boolean nonZeroUploadTime) {
         assertEquals(0, remoteTranslogTransferTracker.getDownloadBytesSucceeded());
         assertEquals(0, remoteTranslogTransferTracker.getTotalDownloadsSucceeded());
-        assertEquals(0, remoteTranslogTransferTracker.getTotalDownloadTimeInMillis());
         assertEquals(0, remoteTranslogTransferTracker.getLastSuccessfulDownloadTimestamp());
+        if (nonZeroUploadTime) {
+            assertNotEquals(0, remoteTranslogTransferTracker.getTotalDownloadTimeInMillis());
+        } else {
+            assertEquals(0, remoteTranslogTransferTracker.getTotalDownloadTimeInMillis());
+        }        
     }
 
     private void assertTlogCkpDownloadStats() {
