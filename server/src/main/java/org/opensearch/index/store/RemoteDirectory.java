@@ -20,9 +20,9 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.Lock;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.LatchedActionListener;
+import org.opensearch.common.blobstore.AsyncMultiStreamBlobContainer;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
-import org.opensearch.common.blobstore.VerifyingMultiStreamBlobContainer;
 import org.opensearch.common.blobstore.exception.CorruptFileException;
 import org.opensearch.common.blobstore.stream.write.WriteContext;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
@@ -63,6 +63,7 @@ import com.jcraft.jzlib.JZlib;
 public class RemoteDirectory extends Directory {
 
     protected final BlobContainer blobContainer;
+    private static final Logger logger = LogManager.getLogger(RemoteDirectory.class);
 
     protected final UnaryOperator<OffsetRangeInputStream> uploadRateLimiter;
 
@@ -72,8 +73,6 @@ public class RemoteDirectory extends Directory {
      * Number of bytes in the segment file to store checksum
      */
     private static final int SEGMENT_CHECKSUM_BYTES = 8;
-
-    private static final Logger logger = LogManager.getLogger(RemoteDirectory.class);
 
     public BlobContainer getBlobContainer() {
         return blobContainer;
@@ -147,6 +146,17 @@ public class RemoteDirectory extends Directory {
     }
 
     /**
+     * Returns stream emitted from by blob object. Should be used with a closeable block.
+     *
+     * @param fileName Name of file
+     * @return Stream from the blob object
+     * @throws IOException if fetch of stream fails with IO error
+     */
+    public InputStream getBlobStream(String fileName) throws IOException {
+        return blobContainer.readBlob(fileName);
+    }
+
+    /**
      * Removes an existing file in the directory.
      *
      * <p>This method will not throw an exception when the file doesn't exist and simply ignores this case.
@@ -192,7 +202,14 @@ public class RemoteDirectory extends Directory {
             return new RemoteIndexInput(name, downloadRateLimiter.apply(inputStream), fileLength(name));
         } catch (Exception e) {
             // Incase the RemoteIndexInput creation fails, close the input stream to avoid file handler leak.
-            if (inputStream != null) inputStream.close();
+            if (inputStream != null) {
+                try {
+                    inputStream.close();
+                } catch (Exception closeEx) {
+                    e.addSuppressed(closeEx);
+                }
+            }
+            logger.error("Exception while reading blob for file: " + name + " for path " + blobContainer.path());
             throw e;
         }
     }
@@ -308,7 +325,7 @@ public class RemoteDirectory extends Directory {
         Runnable postUploadRunner,
         ActionListener<Void> listener
     ) {
-        if (blobContainer instanceof VerifyingMultiStreamBlobContainer) {
+        if (blobContainer instanceof AsyncMultiStreamBlobContainer) {
             try {
                 uploadBlob(from, src, remoteFileName, context, postUploadRunner, listener);
             } catch (Exception e) {
@@ -332,6 +349,10 @@ public class RemoteDirectory extends Directory {
         try (IndexInput indexInput = from.openInput(src, ioContext)) {
             contentLength = indexInput.length();
         }
+        boolean remoteIntegrityEnabled = false;
+        if (getBlobContainer() instanceof AsyncMultiStreamBlobContainer) {
+            remoteIntegrityEnabled = ((AsyncMultiStreamBlobContainer) getBlobContainer()).remoteIntegrityCheckSupported();
+        }
         RemoteTransferContainer remoteTransferContainer = new RemoteTransferContainer(
             src,
             remoteFileName,
@@ -340,7 +361,7 @@ public class RemoteDirectory extends Directory {
             WritePriority.NORMAL,
             (size, position) -> uploadRateLimiter.apply(new OffsetRangeIndexInputStream(from.openInput(src, ioContext), size, position)),
             expectedChecksum,
-            this.getBlobContainer() instanceof VerifyingMultiStreamBlobContainer
+            remoteIntegrityEnabled
         );
         ActionListener<Void> completionListener = ActionListener.wrap(resp -> {
             try {
@@ -375,7 +396,7 @@ public class RemoteDirectory extends Directory {
         });
 
         WriteContext writeContext = remoteTransferContainer.createWriteContext();
-        ((VerifyingMultiStreamBlobContainer) blobContainer).asyncBlobUpload(writeContext, completionListener);
+        ((AsyncMultiStreamBlobContainer) blobContainer).asyncBlobUpload(writeContext, completionListener);
     }
 
     private long calculateChecksumOfChecksum(Directory directory, String file) throws IOException {
