@@ -213,7 +213,9 @@ public class SegmentReplicationTargetService implements IndexEventListener {
 
     @Nullable
     public ReplicationStats.ShardReplicationStats getStatsForShard(ReplicationCheckpoint checkpoint) {
-        return Optional.ofNullable(replicaTrackers.get(checkpoint.getShardId())).map(tracker -> new ReplicationStats.ShardReplicationStats(tracker.getBytesBehind(checkpoint), tracker.getReplicationLag())).orElse(null);
+        return Optional.ofNullable(replicaTrackers.get(checkpoint.getShardId()))
+            .map(tracker -> new ReplicationStats.ShardReplicationStats(tracker.getBytesBehind(checkpoint), tracker.getReplicationLag()))
+            .orElse(null);
     }
 
     /**

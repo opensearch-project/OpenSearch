@@ -105,6 +105,9 @@ public class ReplicationStats implements ToXContentFragment, Writeable {
         static final String TOTAL_BYTES_AHEAD = "total_bytes_ahead";
     }
 
+    /**
+     * Replication stats for a shard. This class is reused by primary and replicas
+     */
     public static class ShardReplicationStats implements Writeable {
         public long maxBytes;
         public long totalBytes;

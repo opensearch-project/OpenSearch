@@ -12,7 +12,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
-import org.opensearch.index.ReplicationStats;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
@@ -89,7 +88,10 @@ public class SegmentReplicationReplicaStatsTracker {
     private List<StoreFileMetadata> getMissingFiles(ReplicationCheckpoint latestReplicationCheckpoint) {
         final ReplicationCheckpoint latestReceivedCheckpoint = getLatestReceivedCheckpoint();
         if (latestReplicationCheckpoint != null && latestReceivedCheckpoint != null) {
-            return Store.segmentReplicationDiff(latestReplicationCheckpoint.getMetadataMap(), latestReceivedCheckpoint.getMetadataMap()).missing;
+            return Store.segmentReplicationDiff(
+                latestReplicationCheckpoint.getMetadataMap(),
+                latestReceivedCheckpoint.getMetadataMap()
+            ).missing;
         }
         return Collections.emptyList();
     }
@@ -114,9 +116,7 @@ public class SegmentReplicationReplicaStatsTracker {
 
         @Override
         public String toString() {
-            return "TimedReplicationCheckpoint{" +
-                "checkpoint=" + checkpoint +
-                '}';
+            return "TimedReplicationCheckpoint{" + "checkpoint=" + checkpoint + '}';
         }
     }
 }

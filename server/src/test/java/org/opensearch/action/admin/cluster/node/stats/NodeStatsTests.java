@@ -488,9 +488,18 @@ public class NodeStatsTests extends OpenSearchTestCase {
                     final ReplicationStats.ShardReplicationStats deserializedReplicationStatsReplicaStats = deserializedReplicationStats
                         .getReplicaStats();
                     final ReplicationStats.ShardReplicationStats replicaStats = replicationStats.getReplicaStats();
-                    assertEquals(deserializedReplicationStatsReplicaStats.getMaxBytes(), deserializedReplicationStatsReplicaStats.getMaxBytes());
-                    assertEquals(deserializedReplicationStatsReplicaStats.getTotalBytes(), deserializedReplicationStatsReplicaStats.getTotalBytes());
-                    assertEquals(deserializedReplicationStatsReplicaStats.getMaxReplicationLag(), deserializedReplicationStatsReplicaStats.getMaxReplicationLag());
+                    assertEquals(
+                        deserializedReplicationStatsReplicaStats.getMaxBytes(),
+                        deserializedReplicationStatsReplicaStats.getMaxBytes()
+                    );
+                    assertEquals(
+                        deserializedReplicationStatsReplicaStats.getTotalBytes(),
+                        deserializedReplicationStatsReplicaStats.getTotalBytes()
+                    );
+                    assertEquals(
+                        deserializedReplicationStatsReplicaStats.getMaxReplicationLag(),
+                        deserializedReplicationStatsReplicaStats.getMaxReplicationLag()
+                    );
                 }
             }
         }
