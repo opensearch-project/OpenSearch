@@ -25,6 +25,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.index.Index;
 import org.opensearch.gateway.remote.ClusterMetadataManifest.UploadedIndexMetadata;
 import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.repositories.RepositoriesService;
@@ -45,7 +46,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
@@ -138,15 +138,10 @@ public class RemoteClusterStateService implements Closeable {
         ensureRepositorySet();
 
         // any validations before/after upload ?
-        final List<UploadedIndexMetadata> allUploadedIndexMetadata;
-        try {
-            allUploadedIndexMetadata = writeIndexMetadataParallel(
-                clusterState,
-                new ArrayList<>(clusterState.metadata().indices().values())
-            );
-        } catch (InterruptedException | TimeoutException e) {
-            throw new RuntimeException(e);
-        }
+        final List<UploadedIndexMetadata> allUploadedIndexMetadata = writeIndexMetadataParallel(
+            clusterState,
+            new ArrayList<>(clusterState.metadata().indices().values())
+        );
         final ClusterMetadataManifest manifest = uploadManifest(clusterState, allUploadedIndexMetadata, false);
         final long durationMillis = TimeValue.nsecToMSec(relativeTimeNanosSupplier.getAsLong() - startTimeNanos);
         if (durationMillis >= slowWriteLoggingThreshold.getMillis()) {
@@ -216,11 +211,7 @@ public class RemoteClusterStateService implements Closeable {
             previousStateIndexMetadataVersionByName.remove(indexMetadata.getIndex().getName());
         }
 
-        try {
-            writeIndexMetadataParallel(clusterState, toUpload);
-        } catch (InterruptedException | TimeoutException e) {
-            throw new RuntimeException(e);
-        }
+        writeIndexMetadataParallel(clusterState, toUpload);
 
         for (String removedIndexName : previousStateIndexMetadataVersionByName.keySet()) {
             allUploadedIndexMetadata.remove(removedIndexName);
@@ -251,8 +242,15 @@ public class RemoteClusterStateService implements Closeable {
         return manifest;
     }
 
+    /**
+     * Uploads provided IndexMetadata to remote store in parallel. The call is blocking so the method waits for upload to finish and then return.
+     * @param clusterState current ClusterState
+     * @param toUpload list of IndexMetadata to upload
+     * @return {@code List<UploadedIndexMetadata>} list of IndexMetadata uploaded to remote
+     * @throws IOException
+     */
     private List<UploadedIndexMetadata> writeIndexMetadataParallel(ClusterState clusterState, List<IndexMetadata> toUpload)
-        throws IOException, InterruptedException, TimeoutException {
+        throws IOException {
         List<Exception> exceptionList = Collections.synchronizedList(new ArrayList<>(toUpload.size()));
         final CountDownLatch latch = new CountDownLatch(toUpload.size());
         List<UploadedIndexMetadata> result = new ArrayList<>(toUpload.size());
@@ -266,10 +264,7 @@ public class RemoteClusterStateService implements Closeable {
             }, ex -> {
                 assert ex instanceof IndexMetadataTransferException;
                 logger.error(
-                    () -> new ParameterizedMessage(
-                        "Exception during transfer of IndexMetadata to Remote {}",
-                        ((IndexMetadataTransferException) ex).getIndexMetadata().getIndex().toString()
-                    ),
+                    () -> new ParameterizedMessage("Exception during transfer of IndexMetadata to Remote {}", ex.getMessage()),
                     ex
                 );
                 exceptionList.add(ex);
@@ -284,14 +279,28 @@ public class RemoteClusterStateService implements Closeable {
 
         try {
             if (latch.await(20000, TimeUnit.MILLISECONDS) == false) {
-                TimeoutException ex = new TimeoutException("Timed out waiting for transfer of index metadata to complete");
+                IndexMetadataTransferException ex = new IndexMetadataTransferException(
+                    String.format(
+                        Locale.ROOT,
+                        "Timed out waiting for transfer of index metadata to complete - %s",
+                        toUpload.stream().map(IndexMetadata::getIndex).map(Index::toString).collect(Collectors.joining(","))
+                    )
+                );
                 exceptionList.forEach(ex::addSuppressed);
                 throw ex;
             }
         } catch (InterruptedException ex) {
             exceptionList.forEach(ex::addSuppressed);
+            IndexMetadataTransferException exception = new IndexMetadataTransferException(
+                String.format(
+                    Locale.ROOT,
+                    "Timed out waiting for transfer of index metadata to complete - %s",
+                    toUpload.stream().map(IndexMetadata::getIndex).map(Index::toString).collect(Collectors.joining(","))
+                ),
+                ex
+            );
             Thread.currentThread().interrupt();
-            throw ex;
+            throw exception;
         }
 
         return result;
@@ -316,7 +325,7 @@ public class RemoteClusterStateService implements Closeable {
                     indexMetadataContainer.path().buildAsString() + indexMetadataFileName(indexMetadata)
                 )
             ),
-            ex -> latchedActionListener.onFailure(new IndexMetadataTransferException(indexMetadata, ex))
+            ex -> latchedActionListener.onFailure(new IndexMetadataTransferException(indexMetadata.getIndex().toString(), ex))
         );
 
         INDEX_METADATA_FORMAT.writeAsync(
@@ -540,15 +549,12 @@ public class RemoteClusterStateService implements Closeable {
      */
     static class IndexMetadataTransferException extends RuntimeException {
 
-        private final IndexMetadata indexMetadata;
-
-        public IndexMetadataTransferException(IndexMetadata indexMetadata, Throwable cause) {
-            super(cause);
-            this.indexMetadata = indexMetadata;
+        public IndexMetadataTransferException(String errorDesc) {
+            super(errorDesc);
         }
 
-        public IndexMetadata getIndexMetadata() {
-            return indexMetadata;
+        public IndexMetadataTransferException(String errorDesc, Throwable cause) {
+            super(errorDesc, cause);
         }
     }
 }

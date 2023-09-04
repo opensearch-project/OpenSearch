@@ -250,7 +250,7 @@ public class RemoteTransferContainer implements Closeable {
     }
 
     /**
-     * Compute final checksum for IndexInput
+     * Compute final checksum for IndexInput container checksum footer added by {@link CodecUtil}
      * @param indexInput IndexInput with checksum in footer
      * @param checksumBytesLength length of checksum bytes
      * @return final computed checksum of entire indexInput
