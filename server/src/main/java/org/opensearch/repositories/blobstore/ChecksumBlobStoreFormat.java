@@ -198,33 +198,35 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
         }
         final String blobName = blobName(name);
         final BytesReference bytes = serialize(obj, blobName, compressor);
+        final String resourceDescription = "ChecksumBlobStoreFormat.writeAsync(blob=\"" + blobName + "\")";
+        try (IndexInput input = new ByteArrayIndexInput(resourceDescription, BytesReference.toBytes(bytes))) {
+            long expectedChecksum;
+            try {
+                expectedChecksum = checksumOfChecksum(input.clone(), 8);
+            } catch (Exception e) {
+                throw new ChecksumCombinationException(
+                    "Potentially corrupted file: Checksum combination failed while combining stored checksum "
+                        + "and calculated checksum of stored checksum",
+                    resourceDescription,
+                    e
+                );
+            }
 
-        IndexInput input = new ByteArrayIndexInput("ChecksumBlobStoreFormat", BytesReference.toBytes(bytes));
-
-        long expectedChecksum;
-        try {
-            expectedChecksum = checksumOfChecksum(input.clone(), 8);
-        } catch (Exception e) {
-            throw new ChecksumCombinationException(
-                "Potentially corrupted file: Checksum combination failed while combining stored checksum "
-                    + "and calculated checksum of stored checksum in stream",
-                "ChecksumBlobStoreFormat",
-                e
-            );
+            try (
+                RemoteTransferContainer remoteTransferContainer = new RemoteTransferContainer(
+                    blobName,
+                    blobName,
+                    bytes.length(),
+                    true,
+                    WritePriority.HIGH,
+                    (size, position) -> new OffsetRangeIndexInputStream(input, size, position),
+                    expectedChecksum,
+                    true
+                )
+            ) {
+                ((AsyncMultiStreamBlobContainer) blobContainer).asyncBlobUpload(remoteTransferContainer.createWriteContext(), listener);
+            }
         }
-
-        RemoteTransferContainer remoteTransferContainer = new RemoteTransferContainer(
-            blobName,
-            blobName,
-            bytes.length(),
-            true,
-            WritePriority.HIGH,
-            (size, position) -> new OffsetRangeIndexInputStream(input, size, position),
-            expectedChecksum,
-            true
-        );
-
-        ((AsyncMultiStreamBlobContainer) blobContainer).asyncBlobUpload(remoteTransferContainer.createWriteContext(), listener);
     }
 
     public BytesReference serialize(final T obj, final String blobName, final Compressor compressor) throws IOException {
