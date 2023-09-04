@@ -248,16 +248,18 @@ public class TranslogTransferManager {
             Files.delete(filePath);
         }
 
-        long downloadStartTime = System.nanoTime();
+        boolean downloadStatus = false;
+        long bytesToRead = 0, downloadStartTime = System.nanoTime();
         try (InputStream inputStream = transferService.downloadBlob(remoteDataTransferPath.add(primaryTerm), fileName)) {
             // Capture number of bytes for stats before reading
-            long bytesToRead = inputStream.available();
+            bytesToRead = inputStream.available();
             Files.copy(inputStream, filePath);
+            downloadStatus = true;
+        } finally {
             remoteTranslogTransferTracker.addDownloadTimeInMillis((System.nanoTime() - downloadStartTime) / 1_000_000L);
-            remoteTranslogTransferTracker.addDownloadBytesSucceeded(bytesToRead);
-        } catch (IOException e) {
-            remoteTranslogTransferTracker.addDownloadTimeInMillis((System.nanoTime() - downloadStartTime) / 1_000_000L);
-            logger.error(() -> new ParameterizedMessage("Exception while reading file: {}", fileName), e);
+            if (downloadStatus) {
+                remoteTranslogTransferTracker.addDownloadBytesSucceeded(bytesToRead);
+            }
         }
 
         // Mark in FileTransferTracker so that the same files are not uploaded at the time of translog sync
@@ -272,18 +274,22 @@ public class TranslogTransferManager {
             ActionListener.wrap(blobMetadataList -> {
                 if (blobMetadataList.isEmpty()) return;
                 String filename = blobMetadataList.get(0).name();
-                long downloadStartTime = System.nanoTime();
+                boolean downloadStatus = false;
+                long downloadStartTime = System.nanoTime(), bytesToRead = 0;
                 try (InputStream inputStream = transferService.downloadBlob(remoteMetadataTransferPath, filename)) {
                     // Capture number of bytes for stats before reading
-                    long bytesToRead = inputStream.available();
+                    bytesToRead = inputStream.available();
                     IndexInput indexInput = new ByteArrayIndexInput("metadata file", inputStream.readAllBytes());
                     metadataSetOnce.set(metadataStreamWrapper.readStream(indexInput));
-                    remoteTranslogTransferTracker.addDownloadTimeInMillis((System.nanoTime() - downloadStartTime) / 1_000_000L);
-                    remoteTranslogTransferTracker.addDownloadBytesSucceeded(bytesToRead);
+                    downloadStatus = true;
                 } catch (IOException e) {
-                    remoteTranslogTransferTracker.addDownloadTimeInMillis((System.nanoTime() - downloadStartTime) / 1_000_000L);
                     logger.error(() -> new ParameterizedMessage("Exception while reading metadata file: {}", filename), e);
                     exceptionSetOnce.set(e);
+                } finally {
+                    remoteTranslogTransferTracker.addDownloadTimeInMillis((System.nanoTime() - downloadStartTime) / 1_000_000L);
+                    if (downloadStatus) {
+                        remoteTranslogTransferTracker.addDownloadBytesSucceeded(bytesToRead);
+                    }
                 }
             }, e -> {
                 logger.error(() -> new ParameterizedMessage("Exception while listing metadata files"), e);
