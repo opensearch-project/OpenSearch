@@ -101,7 +101,7 @@ public class Lucene95CustomStoredFieldsFormat extends StoredFieldsFormat {
     StoredFieldsFormat impl(Lucene95CustomCodec.Mode mode) {
         switch (mode) {
             case ZSTD:
-            case ZSTD_DEFAULT:
+            case ZSTD_DEPRECATED:
                 return new Lucene90CompressingStoredFieldsFormat(
                     "CustomStoredFieldsZstd",
                     zstdCompressionMode,

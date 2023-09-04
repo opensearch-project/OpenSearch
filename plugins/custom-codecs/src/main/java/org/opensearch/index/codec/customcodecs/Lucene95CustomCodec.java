@@ -40,7 +40,7 @@ public abstract class Lucene95CustomCodec extends FilterCodec {
         /**
          * Default ZStandard mode
          */
-        ZSTD_DEFAULT("Lucene95CustomCodec");
+        ZSTD_DEPRECATED("Lucene95CustomCodec");
 
         private final String codec;
 

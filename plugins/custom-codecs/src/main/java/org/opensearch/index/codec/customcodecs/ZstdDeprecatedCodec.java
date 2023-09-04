@@ -15,19 +15,18 @@ import org.opensearch.index.codec.CodecSettings;
 import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.mapper.MapperService;
 
-import java.util.HashSet;
 import java.util.Set;
 
 /**
  * ZstdDefaultCodec provides ZSTD compressor using the <a href="https://github.com/luben/zstd-jni">zstd-jni</a> library.
  */
 @Deprecated(since = "2.10")
-public class ZstdDefaultCodec extends Lucene95CustomCodec implements CodecSettings, CodecAliases {
+public class ZstdDeprecatedCodec extends Lucene95CustomCodec implements CodecSettings, CodecAliases {
 
     /**
      * Creates a new ZstdDefaultCodec instance with the default compression level.
      */
-    public ZstdDefaultCodec() {
+    public ZstdDeprecatedCodec() {
         this(DEFAULT_COMPRESSION_LEVEL);
     }
 
@@ -36,8 +35,8 @@ public class ZstdDefaultCodec extends Lucene95CustomCodec implements CodecSettin
      *
      * @param compressionLevel The compression level.
      */
-    public ZstdDefaultCodec(int compressionLevel) {
-        super(Mode.ZSTD_DEFAULT, compressionLevel);
+    public ZstdDeprecatedCodec(int compressionLevel) {
+        super(Mode.ZSTD_DEPRECATED, compressionLevel);
     }
 
     /**
@@ -47,8 +46,8 @@ public class ZstdDefaultCodec extends Lucene95CustomCodec implements CodecSettin
      * @param logger The logger.
      * @param compressionLevel The compression level.
      */
-    public ZstdDefaultCodec(MapperService mapperService, Logger logger, int compressionLevel) {
-        super(Mode.ZSTD_DEFAULT, compressionLevel, mapperService, logger);
+    public ZstdDeprecatedCodec(MapperService mapperService, Logger logger, int compressionLevel) {
+        super(Mode.ZSTD_DEPRECATED, compressionLevel, mapperService, logger);
     }
 
     /** The name for this codec. */
@@ -64,6 +63,6 @@ public class ZstdDefaultCodec extends Lucene95CustomCodec implements CodecSettin
 
     @Override
     public Set<String> aliases() {
-        return new HashSet<>();
+        return Set.of();
     }
 }
