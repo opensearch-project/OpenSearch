@@ -2081,8 +2081,8 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
 
     /**
      * Returns {@code true} if this test cluster should have tracing enabled with MockTelemetryPlugin
-     * Disabling this for now as the existing way of strict check doesnt support multiple nodes internal cluster.
-     * @return
+     * Disabling this for now as the existing way of strict check do not support multiple nodes internal cluster.
+     * @return boolean.
      */
     protected boolean addMockTelemetryPlugin() {
         return false;
