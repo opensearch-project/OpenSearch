@@ -254,7 +254,8 @@ public class IndexModuleTests extends OpenSearchTestCase {
             null,
             new RemoteSegmentStoreDirectoryFactory(() -> repositoriesService, threadPool),
             translogFactorySupplier,
-            () -> IndexSettings.DEFAULT_REFRESH_INTERVAL
+            () -> IndexSettings.DEFAULT_REFRESH_INTERVAL,
+            () -> IndexSettings.DEFAULT_REMOTE_TRANSLOG_BUFFER_INTERVAL
         );
     }
 
