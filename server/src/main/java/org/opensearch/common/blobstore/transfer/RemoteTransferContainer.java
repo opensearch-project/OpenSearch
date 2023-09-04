@@ -254,7 +254,6 @@ public class RemoteTransferContainer implements Closeable {
      * @param indexInput IndexInput with checksum in footer
      * @param checksumBytesLength length of checksum bytes
      * @return final computed checksum of entire indexInput
-     * @throws IOException
      */
     public static long checksumOfChecksum(IndexInput indexInput, int checksumBytesLength) throws IOException {
         long storedChecksum = CodecUtil.retrieveChecksum(indexInput);
