@@ -11,7 +11,6 @@ package org.opensearch.index.remote;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
@@ -53,7 +52,11 @@ public class RemoteStoreStatsTrackerFactory implements IndexEventListener {
      */
     private final Map<ShardId, RemoteSegmentTransferTracker> remoteSegmentTrackerMap = ConcurrentCollections.newConcurrentMap();
 
-    @Inject
+    /**
+     * Keeps map of remote-backed index shards and their corresponding stats tracker.
+     */
+    private final Map<ShardId, RemoteTranslogTransferTracker> remoteTranslogTrackerMap = ConcurrentCollections.newConcurrentMap();
+
     public RemoteStoreStatsTrackerFactory(ClusterService clusterService, Settings settings) {
         ClusterSettings clusterSettings = clusterService.getClusterSettings();
 
@@ -72,6 +75,8 @@ public class RemoteStoreStatsTrackerFactory implements IndexEventListener {
             new RemoteSegmentTransferTracker(shardId, indexShard.store().getDirectoryFileTransferTracker(), movingAverageWindowSize)
         );
         logger.trace("Created RemoteSegmentTransferTracker for shardId={}", shardId);
+        remoteTranslogTrackerMap.put(shardId, new RemoteTranslogTransferTracker(shardId, movingAverageWindowSize));
+        logger.trace("Created RemoteTranslogTransferTracker for shardId={}", shardId);
     }
 
     @Override
@@ -80,10 +85,16 @@ public class RemoteStoreStatsTrackerFactory implements IndexEventListener {
         if (remoteSegmentTransferTracker != null) {
             logger.trace("Deleted RemoteSegmentTransferTracker for shardId={}", shardId);
         }
+
+        RemoteTranslogTransferTracker remoteTranslogTransferTracker = remoteTranslogTrackerMap.remove(shardId);
+        if (remoteTranslogTransferTracker != null) {
+            logger.trace("Deleted RemoteTranslogTransferTracker for shardId={}", shardId);
+        }
     }
 
-    void updateMovingAverageWindowSize(int updatedSize) {
+    private void updateMovingAverageWindowSize(int updatedSize) {
         remoteSegmentTrackerMap.values().forEach(tracker -> tracker.updateMovingAverageWindowSize(updatedSize));
+        remoteTranslogTrackerMap.values().forEach(tracker -> tracker.updateMovingAverageWindowSize(updatedSize));
 
         // Update movingAverageWindowSize only if the trackers were successfully updated
         movingAverageWindowSize = updatedSize;
@@ -91,6 +102,10 @@ public class RemoteStoreStatsTrackerFactory implements IndexEventListener {
 
     public RemoteSegmentTransferTracker getRemoteSegmentTransferTracker(ShardId shardId) {
         return remoteSegmentTrackerMap.get(shardId);
+    }
+
+    public RemoteTranslogTransferTracker getRemoteTranslogTransferTracker(ShardId shardId) {
+        return remoteTranslogTrackerMap.get(shardId);
     }
 
     // visible for testing
