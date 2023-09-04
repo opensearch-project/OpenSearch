@@ -92,7 +92,6 @@ import org.opensearch.core.util.FileSystemUtils;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.env.ShardLockObtainFailedException;
-import org.opensearch.gateway.GatewayService;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexingPressure;
@@ -1321,8 +1320,7 @@ public final class InternalTestCluster extends TestCluster {
                     }
                 });
                 states.forEach(cs -> {
-                    if (cs.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK) == false
-                        && cs.nodes().getNodes().values().stream().findFirst().get().isRemoteStoreNode()) {
+                    if (cs.nodes().getNodes().values().stream().findFirst().get().isRemoteStoreNode()) {
                         RepositoriesMetadata repositoriesMetadata = cs.metadata().custom(RepositoriesMetadata.TYPE);
                         assertTrue(repositoriesMetadata != null && !repositoriesMetadata.repositories().isEmpty());
                     }

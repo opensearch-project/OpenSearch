@@ -108,7 +108,7 @@ public class RemoteStoreNodeService {
                 repository.endVerification(verificationToken);
                 logger.info(() -> new ParameterizedMessage("successfully verified [{}] repository", repositoryName));
             } catch (Exception exception) {
-                logger.info(() -> new ParameterizedMessage("failure while creating and verifying [{}] repository", repositoryName));
+                logger.error(() -> new ParameterizedMessage("failure while creating and verifying [{}] repository", repositoryName));
                 repositories.forEach(repo -> reposService.closeRepository(repo));
                 throw exception;
             }
