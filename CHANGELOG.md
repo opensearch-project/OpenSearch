@@ -191,6 +191,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - [Segment Replication] Fixed bug where replica shard temporarily serves stale data during an engine reset ([#9495](https://github.com/opensearch-project/OpenSearch/pull/9495))
 - Disable shard/segment level search_after short cutting if track_total_hits != false ([#9683](https://github.com/opensearch-project/OpenSearch/pull/9683))
 - [Segment Replication] Fixed bug where bytes behind metric is not accurate ([#9686](https://github.com/opensearch-project/OpenSearch/pull/9686))
+- Fix ignore_missing parameter has no effect when using template snippet in rename ingest processor
 
 ### Security
 
