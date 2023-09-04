@@ -221,11 +221,7 @@ public class RemoteClusterStateService implements Closeable {
         for (String removedIndexName : previousStateIndexMetadataVersionByName.keySet()) {
             allUploadedIndexMetadata.remove(removedIndexName);
         }
-        final ClusterMetadataManifest manifest = uploadManifest(
-            clusterState,
-            new ArrayList<>(allUploadedIndexMetadata.values()),
-            false
-        );
+        final ClusterMetadataManifest manifest = uploadManifest(clusterState, new ArrayList<>(allUploadedIndexMetadata.values()), false);
         final long durationMillis = TimeValue.nsecToMSec(relativeTimeNanosSupplier.getAsLong() - startTimeNanos);
         if (durationMillis >= slowWriteLoggingThreshold.getMillis()) {
             logger.warn(

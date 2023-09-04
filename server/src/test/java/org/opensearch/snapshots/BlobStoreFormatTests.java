@@ -38,7 +38,7 @@ import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
-import org.opensearch.common.blobstore.VerifyingMultiStreamBlobContainer;
+import org.opensearch.common.blobstore.AsyncMultiStreamBlobContainer;
 import org.opensearch.common.blobstore.fs.FsBlobContainer;
 import org.opensearch.common.blobstore.fs.FsBlobStore;
 import org.opensearch.common.blobstore.stream.read.ReadContext;
@@ -255,7 +255,7 @@ public class BlobStoreFormatTests extends OpenSearchTestCase {
         }
     }
 
-    public static class MockFsVerifyingBlobContainer extends FsBlobContainer implements VerifyingMultiStreamBlobContainer {
+    public static class MockFsVerifyingBlobContainer extends FsBlobContainer implements AsyncMultiStreamBlobContainer {
 
         private BlobContainer delegate;
 
@@ -274,6 +274,11 @@ public class BlobStoreFormatTests extends OpenSearchTestCase {
         @Override
         public void readBlobAsync(String blobName, ActionListener<ReadContext> listener) {
             throw new RuntimeException("read not supported");
+        }
+
+        @Override
+        public boolean remoteIntegrityCheckSupported() {
+            return false;
         }
 
         public BlobContainer getDelegate() {
