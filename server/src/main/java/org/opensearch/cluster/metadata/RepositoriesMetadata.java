@@ -208,6 +208,7 @@ public class RepositoriesMetadata extends AbstractNamedDiffable<Custom> implemen
                 Settings settings = Settings.EMPTY;
                 long generation = RepositoryData.UNKNOWN_REPO_GEN;
                 long pendingGeneration = RepositoryData.EMPTY_REPO_GEN;
+                CryptoMetadata cryptoMetadata = null;
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     if (token == XContentParser.Token.FIELD_NAME) {
                         String currentFieldName = parser.currentName();
@@ -231,6 +232,11 @@ public class RepositoriesMetadata extends AbstractNamedDiffable<Custom> implemen
                                 throw new OpenSearchParseException("failed to parse repository [{}], unknown type", name);
                             }
                             pendingGeneration = parser.longValue();
+                        } else if ("crypto_metadata".equals(currentFieldName)) {
+                            if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
+                                throw new OpenSearchParseException("failed to parse repository [{}], unknown type", name);
+                            }
+                            cryptoMetadata = CryptoMetadata.fromXContent(parser);
                         } else {
                             throw new OpenSearchParseException(
                                 "failed to parse repository [{}], unknown field [{}]",
@@ -245,7 +251,7 @@ public class RepositoriesMetadata extends AbstractNamedDiffable<Custom> implemen
                 if (type == null) {
                     throw new OpenSearchParseException("failed to parse repository [{}], missing repository type", name);
                 }
-                repository.add(new RepositoryMetadata(name, type, settings, generation, pendingGeneration));
+                repository.add(new RepositoryMetadata(name, type, settings, generation, pendingGeneration, cryptoMetadata));
             } else {
                 throw new OpenSearchParseException("failed to parse repositories");
             }
@@ -279,6 +285,9 @@ public class RepositoriesMetadata extends AbstractNamedDiffable<Custom> implemen
     public static void toXContent(RepositoryMetadata repository, XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject(repository.name());
         builder.field("type", repository.type());
+        if (repository.cryptoMetadata() != null) {
+            repository.cryptoMetadata().toXContent(repository.cryptoMetadata(), builder, params);
+        }
         builder.startObject("settings");
         repository.settings().toXContent(builder, params);
         builder.endObject();
