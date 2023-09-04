@@ -2944,7 +2944,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public ReplicationStats getReplicationStats() {
-        if (indexSettings.isSegRepEnabled()) {
+        if (indexSettings.isSegRepEnabled() && routingEntry().primary()) {
             final Set<SegmentReplicationShardStats> stats = getReplicationStatsForTrackedReplicas();
             long maxBytesBehind = stats.stream().mapToLong(SegmentReplicationShardStats::getBytesBehindCount).max().orElse(0L);
             long totalBytesBehind = stats.stream().mapToLong(SegmentReplicationShardStats::getBytesBehindCount).sum();
@@ -2954,7 +2954,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 .orElse(0L);
             return new ReplicationStats(maxBytesBehind, totalBytesBehind, maxReplicationLag);
         }
-        return null;
+        return new ReplicationStats();
     }
 
     /**

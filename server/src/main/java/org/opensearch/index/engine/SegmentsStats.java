@@ -122,9 +122,12 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
         fileSizes = in.readMap(StreamInput::readString, StreamInput::readLong);
         if (in.getVersion().onOrAfter(Version.V_2_10_0)) {
             remoteSegmentStats = in.readOptionalWriteable(RemoteSegmentStats::new);
-            replicationStats = in.readOptionalWriteable(ReplicationStats::new);
         } else {
             remoteSegmentStats = new RemoteSegmentStats();
+        }
+        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+            replicationStats = in.readOptionalWriteable(ReplicationStats::new);
+        } else {
             replicationStats = new ReplicationStats();
         }
     }
@@ -326,6 +329,8 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
         out.writeMap(this.fileSizes, StreamOutput::writeString, StreamOutput::writeLong);
         if (out.getVersion().onOrAfter(Version.V_2_10_0)) {
             out.writeOptionalWriteable(remoteSegmentStats);
+        }
+        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
             out.writeOptionalWriteable(replicationStats);
         }
     }
