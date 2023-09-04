@@ -363,7 +363,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     public void incomingRequest(final HttpRequest httpRequest, final HttpChannel httpChannel) {
         final Span span = tracer.startSpan(SpanBuilder.from(httpRequest), httpRequest.getHeaders());
         try (final SpanScope httpRequestSpanScope = tracer.withSpanInScope(span)) {
-            HttpChannel traceableHttpChannel = TraceableHttpChannel.create(httpChannel, span);
+            HttpChannel traceableHttpChannel = TraceableHttpChannel.create(httpChannel, span, tracer);
             handleIncomingRequest(httpRequest, traceableHttpChannel, httpRequest.getInboundException());
         }
     }
@@ -376,7 +376,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
             final Span span = tracer.startSpan(SpanBuilder.from(restRequest));
             try (final SpanScope spanScope = tracer.withSpanInScope(span)) {
                 if (channel != null) {
-                    traceableRestChannel = TraceableRestChannel.create(channel, span);
+                    traceableRestChannel = TraceableRestChannel.create(channel, span, tracer);
                 }
                 if (badRequestCause != null) {
                     dispatcher.dispatchBadRequest(traceableRestChannel, threadContext, badRequestCause);

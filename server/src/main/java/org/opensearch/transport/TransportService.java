@@ -871,7 +871,8 @@ public class TransportService extends AbstractLifecycleComponent
             try (SpanScope spanScope = tracer.withSpanInScope(span)) {
                 final TransportResponseHandler<T> traceableTransportResponseHandler = TraceableTransportResponseHandler.create(
                     handler,
-                    span
+                    span,
+                    tracer
                 );
                 final TransportResponseHandler<T> delegate;
                 if (request.getParentTask().isSet()) {
