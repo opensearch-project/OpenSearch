@@ -194,6 +194,7 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
     ) throws IOException {
         if (blobContainer instanceof AsyncMultiStreamBlobContainer == false) {
             write(obj, blobContainer, name, compressor);
+            listener.onResponse(null);
             return;
         }
         final String blobName = blobName(name);

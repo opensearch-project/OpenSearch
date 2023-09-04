@@ -213,7 +213,10 @@ public class RemoteClusterStateService implements Closeable {
             previousStateIndexMetadataVersionByName.remove(indexMetadata.getIndex().getName());
         }
 
-        writeIndexMetadataParallel(clusterState, toUpload);
+        List<UploadedIndexMetadata> uploadedIndexMetadataList = writeIndexMetadataParallel(clusterState, toUpload);
+        uploadedIndexMetadataList.forEach(
+            uploadedIndexMetadata -> allUploadedIndexMetadata.put(uploadedIndexMetadata.getIndexName(), uploadedIndexMetadata)
+        );
 
         for (String removedIndexName : previousStateIndexMetadataVersionByName.keySet()) {
             allUploadedIndexMetadata.remove(removedIndexName);
