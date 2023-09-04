@@ -673,15 +673,15 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
     }
 
     /**
-    * The state of the lucene checkpoint
-    *
-    * @opensearch.internal
-    */
+     * The state of the lucene checkpoint
+     *
+     * @opensearch.internal
+     */
     public static class CheckpointState implements Writeable {
 
         /**
-        * the last local checkpoint information that we have for this shard. All operations up to this point are properly fsynced to disk.
-        */
+         * the last local checkpoint information that we have for this shard. All operations up to this point are properly fsynced to disk.
+         */
         long localCheckpoint;
 
         /**

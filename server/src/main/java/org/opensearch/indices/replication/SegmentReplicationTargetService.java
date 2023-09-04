@@ -25,6 +25,7 @@ import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.transport.TransportResponse;
+import org.opensearch.index.ReplicationStats;
 import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardState;
@@ -67,10 +68,9 @@ public class SegmentReplicationTargetService implements IndexEventListener {
     private final ReplicationCollection<SegmentReplicationTarget> onGoingReplications;
 
     private final Map<ShardId, SegmentReplicationTarget> completedReplications = ConcurrentCollections.newConcurrentMap();
+    private final Map<ShardId, SegmentReplicationReplicaStatsTracker> replicaTrackers = ConcurrentCollections.newConcurrentMap();
 
     private final SegmentReplicationSourceFactory sourceFactory;
-
-    protected final Map<ShardId, ReplicationCheckpoint> latestReceivedCheckpoint = ConcurrentCollections.newConcurrentMap();
 
     private final IndicesService indicesService;
     private final ClusterService clusterService;
@@ -140,6 +140,18 @@ public class SegmentReplicationTargetService implements IndexEventListener {
         );
     }
 
+    @Override
+    public void afterIndexShardCreated(IndexShard indexShard) {
+        final ShardId shardId = indexShard.shardId();
+        replicaTrackers.putIfAbsent(shardId, new SegmentReplicationReplicaStatsTracker(indexShard.getLatestReplicationCheckpoint()));
+        logger.info("Created SegmentReplicationReplicaTracker for shardId={}", shardId);
+    }
+
+    @Override
+    public void afterIndexShardClosed(ShardId shardId, IndexShard indexShard, Settings indexSettings) {
+        removeTrackedReplica(shardId);
+    }
+
     /**
      * Cancel any replications on this node for a replica that is about to be closed.
      */
@@ -147,7 +159,6 @@ public class SegmentReplicationTargetService implements IndexEventListener {
     public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, Settings indexSettings) {
         if (indexShard != null && indexShard.indexSettings().isSegRepEnabled()) {
             onGoingReplications.requestCancel(indexShard.shardId(), "Shard closing");
-            latestReceivedCheckpoint.remove(shardId);
         }
     }
 
@@ -168,8 +179,8 @@ public class SegmentReplicationTargetService implements IndexEventListener {
     @Override
     public void shardRoutingChanged(IndexShard indexShard, @Nullable ShardRouting oldRouting, ShardRouting newRouting) {
         if (oldRouting != null && indexShard.indexSettings().isSegRepEnabled() && oldRouting.primary() == false && newRouting.primary()) {
+            removeTrackedReplica(indexShard.shardId());
             onGoingReplications.requestCancel(indexShard.shardId(), "Shard has been promoted to primary");
-            latestReceivedCheckpoint.remove(indexShard.shardId());
         }
     }
 
@@ -200,6 +211,11 @@ public class SegmentReplicationTargetService implements IndexEventListener {
             .orElseGet(() -> getlatestCompletedEventSegmentReplicationState(shardId));
     }
 
+    @Nullable
+    public ReplicationStats.ShardReplicationStats getStatsForShard(ReplicationCheckpoint checkpoint) {
+        return Optional.ofNullable(replicaTrackers.get(checkpoint.getShardId())).map(tracker -> new ReplicationStats.ShardReplicationStats(tracker.getBytesBehind(checkpoint), tracker.getReplicationLag())).orElse(null);
+    }
+
     /**
      * Invoked when a new checkpoint is received from a primary shard.
      * It checks if a new checkpoint should be processed or not and starts replication if needed.
@@ -208,11 +224,11 @@ public class SegmentReplicationTargetService implements IndexEventListener {
      * @param replicaShard       replica shard on which checkpoint is received
      */
     public synchronized void onNewCheckpoint(final ReplicationCheckpoint receivedCheckpoint, final IndexShard replicaShard) {
-        logger.trace(() -> new ParameterizedMessage("Replica received new replication checkpoint from primary [{}]", receivedCheckpoint));
+        logger.info(() -> new ParameterizedMessage("Replica received new replication checkpoint from primary [{}]", receivedCheckpoint));
         // if the shard is in any state
         if (replicaShard.state().equals(IndexShardState.CLOSED)) {
             // ignore if shard is closed
-            logger.trace(() -> "Ignoring checkpoint, Shard is closed");
+            logger.info(() -> "Ignoring checkpoint, Shard is closed");
             return;
         }
         updateLatestReceivedCheckpoint(receivedCheckpoint, replicaShard);
@@ -224,7 +240,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
             SegmentReplicationTarget ongoingReplicationTarget = onGoingReplications.getOngoingReplicationTarget(replicaShard.shardId());
             if (ongoingReplicationTarget != null) {
                 if (ongoingReplicationTarget.getCheckpoint().getPrimaryTerm() < receivedCheckpoint.getPrimaryTerm()) {
-                    logger.trace(
+                    logger.info(
                         () -> new ParameterizedMessage(
                             "Cancelling ongoing replication {} from old primary with primary term {}",
                             ongoingReplicationTarget.description(),
@@ -233,7 +249,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
                     );
                     ongoingReplicationTarget.cancel("Cancelling stuck target after new primary");
                 } else {
-                    logger.trace(
+                    logger.info(
                         () -> new ParameterizedMessage(
                             "Ignoring new replication checkpoint - shard is currently replicating to checkpoint {}",
                             ongoingReplicationTarget.getCheckpoint()
@@ -247,7 +263,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
                 startReplication(replicaShard, receivedCheckpoint, new SegmentReplicationListener() {
                     @Override
                     public void onReplicationDone(SegmentReplicationState state) {
-                        logger.trace(
+                        logger.info(
                             () -> new ParameterizedMessage(
                                 "[shardId {}] [replication id {}] Replication complete to {}, timing data: {}",
                                 replicaShard.shardId().getId(),
@@ -281,7 +297,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
                 });
             }
         } else {
-            logger.trace(
+            logger.info(
                 () -> new ParameterizedMessage("Ignoring checkpoint, shard not started {} {}", receivedCheckpoint, replicaShard.state())
             );
         }
@@ -330,7 +346,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
         final TransportRequestOptions options = TransportRequestOptions.builder()
             .withTimeout(recoverySettings.internalActionTimeout())
             .build();
-        logger.trace(
+        logger.info(
             () -> new ParameterizedMessage(
                 "Updating Primary shard that replica {}-{} is synced to checkpoint {}",
                 replicaShard.shardId(),
@@ -347,7 +363,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
         final ActionListener<Void> listener = new ActionListener<>() {
             @Override
             public void onResponse(Void unused) {
-                logger.trace(
+                logger.info(
                     () -> new ParameterizedMessage(
                         "Successfully updated replication checkpoint {} for replica {}",
                         replicaShard.shardId(),
@@ -384,35 +400,35 @@ public class SegmentReplicationTargetService implements IndexEventListener {
 
     // visible to tests
     protected boolean processLatestReceivedCheckpoint(IndexShard replicaShard, Thread thread) {
-        final ReplicationCheckpoint latestPublishedCheckpoint = latestReceivedCheckpoint.get(replicaShard.shardId());
-        if (latestPublishedCheckpoint != null && latestPublishedCheckpoint.isAheadOf(replicaShard.getLatestReplicationCheckpoint())) {
-            logger.trace(
-                () -> new ParameterizedMessage(
-                    "Processing latest received checkpoint for shard {} {}",
-                    replicaShard.shardId(),
-                    latestPublishedCheckpoint
-                )
-            );
-            Runnable runnable = () -> onNewCheckpoint(latestReceivedCheckpoint.get(replicaShard.shardId()), replicaShard);
-            // Checks if we are using same thread and forks if necessary.
-            if (thread == Thread.currentThread()) {
-                threadPool.generic().execute(runnable);
-            } else {
-                runnable.run();
+        final SegmentReplicationReplicaStatsTracker tracker = replicaTrackers.get(replicaShard.shardId());
+        if (tracker != null) {
+            final ReplicationCheckpoint latestReceivedCheckpoint = tracker.getLatestReceivedCheckpoint();
+            if (latestReceivedCheckpoint != null && latestReceivedCheckpoint.isAheadOf(replicaShard.getLatestReplicationCheckpoint())) {
+                logger.info(
+                    () -> new ParameterizedMessage(
+                        "Processing latest received checkpoint for shard {} {}",
+                        replicaShard.shardId(),
+                        latestReceivedCheckpoint
+                    )
+                );
+                Runnable runnable = () -> onNewCheckpoint(latestReceivedCheckpoint, replicaShard);
+                // Checks if we are using same thread and forks if necessary.
+                if (thread == Thread.currentThread()) {
+                    threadPool.generic().execute(runnable);
+                } else {
+                    runnable.run();
+                }
+                return true;
             }
-            return true;
         }
         return false;
     }
 
     // visible to tests
     protected void updateLatestReceivedCheckpoint(ReplicationCheckpoint receivedCheckpoint, IndexShard replicaShard) {
-        if (latestReceivedCheckpoint.get(replicaShard.shardId()) != null) {
-            if (receivedCheckpoint.isAheadOf(latestReceivedCheckpoint.get(replicaShard.shardId()))) {
-                latestReceivedCheckpoint.replace(replicaShard.shardId(), receivedCheckpoint);
-            }
-        } else {
-            latestReceivedCheckpoint.put(replicaShard.shardId(), receivedCheckpoint);
+        final SegmentReplicationReplicaStatsTracker tracker = replicaTrackers.get(replicaShard.shardId());
+        if (tracker != null) {
+            tracker.addCheckpoint(receivedCheckpoint);
         }
     }
 
@@ -448,7 +464,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
             target.fail(e, false);
             return;
         }
-        logger.trace(() -> new ParameterizedMessage("Added new replication to collection {}", target.description()));
+        logger.info(() -> new ParameterizedMessage("Added new replication to collection {}", target.description()));
         threadPool.generic().execute(new ReplicationRunner(replicationId));
     }
 
@@ -512,7 +528,13 @@ public class SegmentReplicationTargetService implements IndexEventListener {
         target.startReplication(new ActionListener<>() {
             @Override
             public void onResponse(Void o) {
-                logger.trace(() -> new ParameterizedMessage("Finished replicating {} marking as done.", target.description()));
+                logger.info(() -> new ParameterizedMessage("Finished replicating {} marking as done.", target.description()));
+                final SegmentReplicationReplicaStatsTracker tracker = replicaTrackers.get(target.shardId());
+                if (tracker != null) {
+                    tracker.clearUpToCheckpoint(target.indexShard().getLatestReplicationCheckpoint());
+                } else {
+                    logger.info("Tracker null for shard {}", target.shardId());
+                }
                 onGoingReplications.markAsDone(replicationId);
                 if (target.state().getIndex().recoveredFileCount() != 0 && target.state().getIndex().recoveredBytes() != 0) {
                     completedReplications.put(target.shardId(), target);
@@ -572,7 +594,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
                     @Override
                     public void onReplicationDone(SegmentReplicationState state) {
                         try {
-                            logger.trace(
+                            logger.info(
                                 () -> new ParameterizedMessage(
                                     "[shardId {}] [replication id {}] Force replication Sync complete to {}, timing data: {}",
                                     shardId,
@@ -621,4 +643,10 @@ public class SegmentReplicationTargetService implements IndexEventListener {
         }
     }
 
+    private void removeTrackedReplica(ShardId shardId) {
+        SegmentReplicationReplicaStatsTracker remoteSegmentTransferTracker = replicaTrackers.remove(shardId);
+        if (remoteSegmentTransferTracker != null) {
+            logger.info("Deleted SegmentReplicationReplicaTracker for shardId={}", shardId);
+        }
+    }
 }

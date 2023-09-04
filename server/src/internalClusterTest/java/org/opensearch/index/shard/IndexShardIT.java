@@ -702,7 +702,8 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
             SegmentReplicationCheckpointPublisher.EMPTY,
             null,
             null,
-            () -> IndexSettings.DEFAULT_REMOTE_TRANSLOG_BUFFER_INTERVAL
+            () -> IndexSettings.DEFAULT_REMOTE_TRANSLOG_BUFFER_INTERVAL,
+            (shardId) -> null
         );
     }
 

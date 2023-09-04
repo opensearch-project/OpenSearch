@@ -337,6 +337,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier;
     private final boolean isTimeSeriesIndex;
     private final RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory;
+    private final Function<ReplicationCheckpoint, ReplicationStats.ShardReplicationStats> segmentReplicationShardStatsSupplier;
 
     private final List<ReferenceManager.RefreshListener> internalRefreshListener = new ArrayList<>();
 
@@ -365,7 +366,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         @Nullable final SegmentReplicationCheckpointPublisher checkpointPublisher,
         @Nullable final Store remoteStore,
         final RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory,
-        final Supplier<TimeValue> clusterRemoteTranslogBufferIntervalSupplier
+        final Supplier<TimeValue> clusterRemoteTranslogBufferIntervalSupplier,
+        final Function<ReplicationCheckpoint, ReplicationStats.ShardReplicationStats> segmentReplicationShardStatsSupplier
     ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
@@ -461,6 +463,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             ? false
             : mapperService.documentMapper().mappers().containsTimeStampField();
         this.remoteStoreStatsTrackerFactory = remoteStoreStatsTrackerFactory;
+        this.segmentReplicationShardStatsSupplier = segmentReplicationShardStatsSupplier;
     }
 
     public ThreadPool getThreadPool() {
@@ -2974,17 +2977,24 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public ReplicationStats getReplicationStats() {
-        if (indexSettings.isSegRepEnabled() && routingEntry().primary()) {
-            final Set<SegmentReplicationShardStats> stats = getReplicationStatsForTrackedReplicas();
-            long maxBytesBehind = stats.stream().mapToLong(SegmentReplicationShardStats::getBytesBehindCount).max().orElse(0L);
-            long totalBytesBehind = stats.stream().mapToLong(SegmentReplicationShardStats::getBytesBehindCount).sum();
-            long maxReplicationLag = stats.stream()
-                .mapToLong(SegmentReplicationShardStats::getCurrentReplicationTimeMillis)
-                .max()
-                .orElse(0L);
-            return new ReplicationStats(maxBytesBehind, totalBytesBehind, maxReplicationLag);
+        final ReplicationStats replicationStats = new ReplicationStats();
+        if (indexSettings.isSegRepEnabled()) {
+            if (routingEntry().primary()) {
+                final Set<SegmentReplicationShardStats> stats = getReplicationStatsForTrackedReplicas();
+                long maxBytesBehind = stats.stream().mapToLong(SegmentReplicationShardStats::getBytesBehindCount).max().orElse(0L);
+                long totalBytesBehind = stats.stream().mapToLong(SegmentReplicationShardStats::getBytesBehindCount).sum();
+                long maxReplicationLag = stats.stream()
+                    .mapToLong(SegmentReplicationShardStats::getCurrentReplicationTimeMillis)
+                    .max()
+                    .orElse(0L);
+                replicationStats.addPrimaryStats(
+                    new ReplicationStats.ShardReplicationStats(maxBytesBehind, totalBytesBehind, maxReplicationLag)
+                );
+            } else {
+                replicationStats.addReplicaStats(segmentReplicationShardStatsSupplier.apply(getLatestReplicationCheckpoint()));
+            }
         }
-        return new ReplicationStats();
+        return replicationStats;
     }
 
     /**

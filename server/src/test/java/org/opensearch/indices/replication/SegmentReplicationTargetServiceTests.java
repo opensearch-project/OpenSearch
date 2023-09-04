@@ -157,6 +157,8 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
             "",
             new DiscoveryNode("local", buildNewFakeTransportAddress(), Version.CURRENT)
         );
+        // to init trackers.
+        sut.afterIndexShardCreated(replicaShard);
     }
 
     @Override
@@ -511,13 +513,6 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
         targetService.shardRoutingChanged(shard, shard.routingEntry(), primaryShard.routingEntry());
         verifyNoInteractions(ongoingReplications);
         closeShards(shard);
-    }
-
-    public void testUpdateLatestReceivedCheckpoint() {
-        final SegmentReplicationTargetService spy = spy(sut);
-        sut.updateLatestReceivedCheckpoint(checkpoint, replicaShard);
-        sut.updateLatestReceivedCheckpoint(aheadCheckpoint, replicaShard);
-        assertEquals(sut.latestReceivedCheckpoint.get(replicaShard.shardId()), aheadCheckpoint);
     }
 
     public void testForceSegmentSyncHandler() throws Exception {
