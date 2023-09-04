@@ -38,6 +38,7 @@ import org.opensearch.threadpool.ThreadPool;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.NoSuchFileException;
 import java.util.Collection;
 import java.util.Collections;
@@ -190,9 +191,8 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
     }
 
     private RemoteSegmentMetadata readMetadataFile(String metadataFilename) throws IOException {
-        try (IndexInput indexInput = remoteMetadataDirectory.openInput(metadataFilename, IOContext.DEFAULT)) {
-            byte[] metadataBytes = new byte[(int) indexInput.length()];
-            indexInput.readBytes(metadataBytes, 0, (int) indexInput.length());
+        try (InputStream inputStream = remoteMetadataDirectory.getBlobStream(metadataFilename)) {
+            byte[] metadataBytes = inputStream.readAllBytes();
             return metadataStreamWrapper.readStream(new ByteArrayIndexInput(metadataFilename, metadataBytes));
         }
     }
