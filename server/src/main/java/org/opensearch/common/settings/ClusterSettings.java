@@ -649,7 +649,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 SearchBackpressureSettings.SETTING_CANCELLATION_BURST,   // deprecated
                 SegmentReplicationPressureService.SEGMENT_REPLICATION_INDEXING_PRESSURE_ENABLED,
                 SegmentReplicationPressureService.MAX_INDEXING_CHECKPOINTS,
-                SegmentReplicationPressureService.MAX_REPLICATION_TIME_SETTING,
+                SegmentReplicationPressureService.MAX_REPLICATION_TIME_BACKPRESSURE_SETTING,
+                SegmentReplicationPressureService.MAX_REPLICATION_LIMIT_STALE_REPLICA_SETTING,
                 SegmentReplicationPressureService.MAX_ALLOWED_STALE_SHARDS,
 
                 // Settings related to Searchable Snapshots
@@ -688,7 +689,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
         List.of(
             IndicesService.CLUSTER_REMOTE_STORE_ENABLED_SETTING,
             IndicesService.CLUSTER_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING,
-            IndicesService.CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING
+            IndicesService.CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING,
+            IndicesService.CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING
         ),
         List.of(FeatureFlags.CONCURRENT_SEGMENT_SEARCH),
         List.of(

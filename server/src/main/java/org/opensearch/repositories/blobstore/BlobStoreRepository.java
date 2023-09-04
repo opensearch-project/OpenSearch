@@ -805,6 +805,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         return metadata;
     }
 
+    public NamedXContentRegistry getNamedXContentRegistry() {
+        return namedXContentRegistry;
+    }
+
     public Compressor getCompressor() {
         return compressor;
     }

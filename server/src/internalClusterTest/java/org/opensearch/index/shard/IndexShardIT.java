@@ -678,7 +678,8 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
             (indexSettings, shardRouting) -> new InternalTranslogFactory(),
             SegmentReplicationCheckpointPublisher.EMPTY,
             null,
-            null
+            null,
+            () -> IndexSettings.DEFAULT_REMOTE_TRANSLOG_BUFFER_INTERVAL
         );
     }
 

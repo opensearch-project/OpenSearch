@@ -695,7 +695,8 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 translogFactorySupplier,
                 checkpointPublisher,
                 remoteStore,
-                remoteStoreStatsTrackerFactory
+                remoteStoreStatsTrackerFactory,
+                () -> IndexSettings.DEFAULT_REMOTE_TRANSLOG_BUFFER_INTERVAL
             );
             indexShard.addShardFailureCallback(DEFAULT_SHARD_FAILURE_HANDLER);
             if (remoteStoreStatsTrackerFactory != null) {

@@ -10,66 +10,71 @@ package org.opensearch.telemetry.tracing;
 
 import org.opensearch.test.OpenSearchTestCase;
 
-import java.util.function.Consumer;
-
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
-public class DefaultSpanScopeTests extends OpenSearchTestCase {
+public class DefaultScopedSpanTests extends OpenSearchTestCase {
 
     @SuppressWarnings("unchecked")
     public void testClose() {
         Span mockSpan = mock(Span.class);
-        Consumer<Span> mockConsumer = mock(Consumer.class);
-        DefaultSpanScope defaultSpanScope = new DefaultSpanScope(mockSpan, mockConsumer);
+        SpanScope mockSpanScope = mock(SpanScope.class);
+        DefaultScopedSpan defaultSpanScope = new DefaultScopedSpan(mockSpan, mockSpanScope);
         defaultSpanScope.close();
 
-        verify(mockConsumer).accept(mockSpan);
+        verify(mockSpan).endSpan();
+        verify(mockSpanScope).close();
     }
 
     public void testAddSpanAttributeString() {
         Span mockSpan = mock(Span.class);
-        DefaultSpanScope defaultSpanScope = new DefaultSpanScope(mockSpan, null);
-        defaultSpanScope.addSpanAttribute("key", "value");
+        SpanScope mockSpanScope = mock(SpanScope.class);
+        DefaultScopedSpan defaultSpanScope = new DefaultScopedSpan(mockSpan, mockSpanScope);
+        defaultSpanScope.addAttribute("key", "value");
 
         verify(mockSpan).addAttribute("key", "value");
     }
 
     public void testAddSpanAttributeLong() {
         Span mockSpan = mock(Span.class);
-        DefaultSpanScope defaultSpanScope = new DefaultSpanScope(mockSpan, null);
-        defaultSpanScope.addSpanAttribute("key", 1L);
+        SpanScope mockSpanScope = mock(SpanScope.class);
+        DefaultScopedSpan defaultSpanScope = new DefaultScopedSpan(mockSpan, mockSpanScope);
+        defaultSpanScope.addAttribute("key", 1L);
 
         verify(mockSpan).addAttribute("key", 1L);
     }
 
     public void testAddSpanAttributeDouble() {
         Span mockSpan = mock(Span.class);
-        DefaultSpanScope defaultSpanScope = new DefaultSpanScope(mockSpan, null);
-        defaultSpanScope.addSpanAttribute("key", 1.0);
+        SpanScope mockSpanScope = mock(SpanScope.class);
+        DefaultScopedSpan defaultSpanScope = new DefaultScopedSpan(mockSpan, mockSpanScope);
+        defaultSpanScope.addAttribute("key", 1.0);
 
         verify(mockSpan).addAttribute("key", 1.0);
     }
 
     public void testAddSpanAttributeBoolean() {
         Span mockSpan = mock(Span.class);
-        DefaultSpanScope defaultSpanScope = new DefaultSpanScope(mockSpan, null);
-        defaultSpanScope.addSpanAttribute("key", true);
+        SpanScope mockSpanScope = mock(SpanScope.class);
+        DefaultScopedSpan defaultSpanScope = new DefaultScopedSpan(mockSpan, mockSpanScope);
+        defaultSpanScope.addAttribute("key", true);
 
         verify(mockSpan).addAttribute("key", true);
     }
 
     public void testAddEvent() {
         Span mockSpan = mock(Span.class);
-        DefaultSpanScope defaultSpanScope = new DefaultSpanScope(mockSpan, null);
-        defaultSpanScope.addSpanEvent("eventName");
+        SpanScope mockSpanScope = mock(SpanScope.class);
+        DefaultScopedSpan defaultSpanScope = new DefaultScopedSpan(mockSpan, mockSpanScope);
+        defaultSpanScope.addEvent("eventName");
 
         verify(mockSpan).addEvent("eventName");
     }
 
     public void testSetError() {
         Span mockSpan = mock(Span.class);
-        DefaultSpanScope defaultSpanScope = new DefaultSpanScope(mockSpan, null);
+        SpanScope mockSpanScope = mock(SpanScope.class);
+        DefaultScopedSpan defaultSpanScope = new DefaultScopedSpan(mockSpan, mockSpanScope);
         Exception ex = new Exception("error");
         defaultSpanScope.setError(ex);
 
