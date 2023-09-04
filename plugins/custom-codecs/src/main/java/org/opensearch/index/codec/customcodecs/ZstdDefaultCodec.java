@@ -15,38 +15,40 @@ import org.opensearch.index.codec.CodecSettings;
 import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.mapper.MapperService;
 
+import java.util.HashSet;
 import java.util.Set;
 
 /**
- * ZstdNoDictCodec provides ZSTD compressor without a dictionary support.
+ * ZstdDefaultCodec provides ZSTD compressor using the <a href="https://github.com/luben/zstd-jni">zstd-jni</a> library.
  */
-public class ZstdNoDictCodec extends Lucene95CustomCodec implements CodecSettings, CodecAliases {
+@Deprecated(since = "2.10")
+public class ZstdDefaultCodec extends Lucene95CustomCodec implements CodecSettings, CodecAliases {
 
     /**
-     * Creates a new ZstdNoDictCodec instance with the default compression level.
+     * Creates a new ZstdDefaultCodec instance with the default compression level.
      */
-    public ZstdNoDictCodec() {
+    public ZstdDefaultCodec() {
         this(DEFAULT_COMPRESSION_LEVEL);
     }
 
     /**
-     * Creates a new ZstdNoDictCodec instance.
+     * Creates a new ZstdDefaultCodec instance.
      *
      * @param compressionLevel The compression level.
      */
-    public ZstdNoDictCodec(int compressionLevel) {
-        super(Mode.ZSTD_NO_DICT, compressionLevel);
+    public ZstdDefaultCodec(int compressionLevel) {
+        super(Mode.ZSTD_DEFAULT, compressionLevel);
     }
 
     /**
-     * Creates a new ZstdNoDictCodec instance.
+     * Creates a new ZstdDefaultCodec instance.
      *
      * @param mapperService The mapper service.
      * @param logger The logger.
      * @param compressionLevel The compression level.
      */
-    public ZstdNoDictCodec(MapperService mapperService, Logger logger, int compressionLevel) {
-        super(Mode.ZSTD_NO_DICT, compressionLevel, mapperService, logger);
+    public ZstdDefaultCodec(MapperService mapperService, Logger logger, int compressionLevel) {
+        super(Mode.ZSTD_DEFAULT, compressionLevel, mapperService, logger);
     }
 
     /** The name for this codec. */
@@ -62,6 +64,6 @@ public class ZstdNoDictCodec extends Lucene95CustomCodec implements CodecSetting
 
     @Override
     public Set<String> aliases() {
-        return Set.of("zstd_no_dict");
+        return new HashSet<>();
     }
 }

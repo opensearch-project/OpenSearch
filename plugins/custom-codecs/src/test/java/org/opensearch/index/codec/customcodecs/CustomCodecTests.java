@@ -49,6 +49,8 @@ import org.opensearch.env.Environment;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.IndexAnalyzers;
 import org.opensearch.index.codec.CodecService;
+import org.opensearch.index.codec.CodecServiceConfig;
+import org.opensearch.index.codec.CodecServiceFactory;
 import org.opensearch.index.codec.CodecSettings;
 import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.mapper.MapperService;
@@ -57,9 +59,11 @@ import org.opensearch.indices.mapper.MapperRegistry;
 import org.opensearch.plugins.MapperPlugin;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.OpenSearchTestCase;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Optional;
 
 import static org.opensearch.index.codec.customcodecs.CustomCodecService.ZSTD_CODEC;
 import static org.opensearch.index.codec.customcodecs.CustomCodecService.ZSTD_NO_DICT_CODEC;
@@ -67,6 +71,13 @@ import static org.opensearch.index.engine.EngineConfig.INDEX_CODEC_COMPRESSION_L
 
 @SuppressCodecs("*") // we test against default codec so never get a random one here!
 public class CustomCodecTests extends OpenSearchTestCase {
+
+    private CustomCodecPlugin plugin;
+
+    @Before
+    public void setup() {
+        plugin = new CustomCodecPlugin();
+    }
 
     public void testZstd() throws Exception {
         Codec codec = createCodecService(false).codec("zstd");
@@ -205,6 +216,11 @@ public class CustomCodecTests extends OpenSearchTestCase {
             () -> false,
             null
         );
+
+        Optional<CodecServiceFactory> customCodecServiceFactory = plugin.getCustomCodecServiceFactory(indexSettings);
+        if (customCodecServiceFactory.isPresent()) {
+            return customCodecServiceFactory.get().createCodecService(new CodecServiceConfig(indexSettings, service, logger));
+        }
         return new CustomCodecService(service, indexSettings, LogManager.getLogger("test"));
     }
 

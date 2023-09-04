@@ -12,11 +12,8 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.FilterCodec;
 import org.apache.lucene.codecs.StoredFieldsFormat;
 import org.apache.lucene.codecs.lucene95.Lucene95Codec;
-import org.opensearch.index.codec.CodecAliases;
 import org.opensearch.index.codec.PerFieldMappingPostingFormatCodec;
 import org.opensearch.index.mapper.MapperService;
-
-import java.util.Set;
 
 /**
  *
@@ -25,7 +22,7 @@ import java.util.Set;
  *
  * @opensearch.internal
  */
-public abstract class Lucene95CustomCodec extends FilterCodec implements CodecAliases {
+public abstract class Lucene95CustomCodec extends FilterCodec {
 
     /** Default compression level used for compression */
     public static final int DEFAULT_COMPRESSION_LEVEL = 3;
@@ -35,11 +32,15 @@ public abstract class Lucene95CustomCodec extends FilterCodec implements CodecAl
         /**
          * ZStandard mode with dictionary
          */
-        ZSTD("Lucene95CustomCodec"),
+        ZSTD("ZSTD"),
         /**
          * ZStandard mode without dictionary
          */
-        ZSTD_NO_DICT("Lucene95CustomCodec");
+        ZSTD_NO_DICT("ZSTDNODICT"),
+        /**
+         * Default ZStandard mode
+         */
+        ZSTD_DEFAULT("Lucene95CustomCodec");
 
         private final String codec;
 
@@ -102,10 +103,5 @@ public abstract class Lucene95CustomCodec extends FilterCodec implements CodecAl
     @Override
     public String toString() {
         return getClass().getSimpleName();
-    }
-
-    @Override
-    public Set<String> aliases() {
-        return Set.of("zstd", "zstd_no_dict");
     }
 }
