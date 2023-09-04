@@ -58,15 +58,21 @@ public class TraceableTransportResponseHandler<T extends TransportResponse> impl
 
     @Override
     public void handleResponse(T response) {
-        span.endSpan();
-        delegate.handleResponse(response);
+        try {
+            delegate.handleResponse(response);
+        } finally {
+            span.endSpan();
+        }
     }
 
     @Override
     public void handleException(TransportException exp) {
-        span.setError(exp);
-        span.endSpan();
-        delegate.handleException(exp);
+        try {
+            delegate.handleException(exp);
+        } finally {
+            span.setError(exp);
+            span.endSpan();
+        }
     }
 
     @Override

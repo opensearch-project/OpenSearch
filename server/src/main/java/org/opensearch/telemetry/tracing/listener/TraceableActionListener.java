@@ -49,14 +49,22 @@ public class TraceableActionListener<Response> implements ActionListener<Respons
 
     @Override
     public void onResponse(Response response) {
-        span.endSpan();
-        delegate.onResponse(response);
+        try {
+            delegate.onResponse(response);
+        } finally {
+            span.endSpan();
+        }
+
     }
 
     @Override
     public void onFailure(Exception e) {
-        span.setError(e);
-        span.endSpan();
-        delegate.onFailure(e);
+        try {
+            delegate.onFailure(e);
+        } finally {
+            span.setError(e);
+            span.endSpan();
+        }
+
     }
 }

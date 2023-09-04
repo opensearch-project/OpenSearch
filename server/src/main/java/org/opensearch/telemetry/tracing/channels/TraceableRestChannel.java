@@ -90,7 +90,10 @@ public class TraceableRestChannel implements RestChannel {
 
     @Override
     public void sendResponse(RestResponse response) {
-        span.endSpan();
-        delegate.sendResponse(response);
+        try {
+            delegate.sendResponse(response);
+        } finally {
+            span.endSpan();
+        }
     }
 }
