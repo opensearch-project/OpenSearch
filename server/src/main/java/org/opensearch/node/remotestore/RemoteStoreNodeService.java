@@ -91,27 +91,21 @@ public class RemoteStoreNodeService {
         for (RepositoryMetadata repositoryMetadata : nodeAttribute.getRepositoriesMetadata().repositories()) {
             String repositoryName = repositoryMetadata.name();
             Repository repository;
-            try {
-                RepositoriesService.validate(repositoryName);
+            RepositoriesService.validate(repositoryName);
 
-                // Create Repository
-                repository = reposService.createRepository(repositoryMetadata);
-                logger.info(
-                    "remote backed storage repository with name [{}] and type [{}] created",
-                    repository.getMetadata().name(),
-                    repository.getMetadata().type()
-                );
+            // Create Repository
+            repository = reposService.createRepository(repositoryMetadata);
+            logger.info(
+                "remote backed storage repository with name [{}] and type [{}] created",
+                repository.getMetadata().name(),
+                repository.getMetadata().type()
+            );
 
-                // Verify Repository
-                String verificationToken = repository.startVerification();
-                repository.verify(verificationToken, localNode);
-                repository.endVerification(verificationToken);
-                logger.info(() -> new ParameterizedMessage("successfully verified [{}] repository", repositoryName));
-            } catch (Exception exception) {
-                logger.error(() -> new ParameterizedMessage("failure while creating and verifying [{}] repository", repositoryName));
-                repositories.forEach(repo -> reposService.closeRepository(repo));
-                throw exception;
-            }
+            // Verify Repository
+            String verificationToken = repository.startVerification();
+            repository.verify(verificationToken, localNode);
+            repository.endVerification(verificationToken);
+            logger.info(() -> new ParameterizedMessage("successfully verified [{}] repository", repositoryName));
             repositories.add(repository);
         }
         return repositories;
