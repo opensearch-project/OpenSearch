@@ -17,6 +17,7 @@ import org.opensearch.repositories.blobstore.BlobStoreRepository;
 
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -37,26 +38,24 @@ public class RemoteStoreNodeAttribute {
     public static final String REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT = "remote_store.repository.%s.type";
     public static final String REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX = "remote_store.repository.%s.settings.";
     private final RepositoriesMetadata repositoriesMetadata;
-    private final DiscoveryNode node;
 
     /**
      * Creates a new {@link RemoteStoreNodeAttribute}
      */
     public RemoteStoreNodeAttribute(DiscoveryNode node) {
-        this.node = node;
-        this.repositoriesMetadata = buildRepositoriesMetadata();
+        this.repositoriesMetadata = buildRepositoriesMetadata(node);
     }
 
-    private String validateAttributeNonNull(String attributeKey) {
+    private String validateAttributeNonNull(DiscoveryNode node, String attributeKey) {
         String attributeValue = node.getAttributes().get(attributeKey);
         if (attributeValue == null || attributeValue.isEmpty()) {
-            throw new IllegalStateException("joining node [" + this.node + "] doesn't have the node attribute [" + attributeKey + "]");
+            throw new IllegalStateException("joining node [" + node + "] doesn't have the node attribute [" + attributeKey + "]");
         }
 
         return attributeValue;
     }
 
-    private Map<String, String> validateSettingsAttributesNonNull(String repositoryName) {
+    private Map<String, String> validateSettingsAttributesNonNull(DiscoveryNode node, String repositoryName) {
         String settingsAttributeKeyPrefix = String.format(
             Locale.getDefault(),
             REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX,
@@ -66,20 +65,23 @@ public class RemoteStoreNodeAttribute {
             .keySet()
             .stream()
             .filter(key -> key.startsWith(settingsAttributeKeyPrefix))
-            .collect(Collectors.toMap(key -> key.replace(settingsAttributeKeyPrefix, ""), key -> validateAttributeNonNull(key)));
+            .collect(Collectors.toMap(key -> key.replace(settingsAttributeKeyPrefix, ""), key -> validateAttributeNonNull(node, key)));
 
         if (settingsMap.isEmpty()) {
             throw new IllegalStateException(
-                "joining node [" + this.node + "] doesn't have settings attribute for [" + repositoryName + "] repository"
+                "joining node [" + node + "] doesn't have settings attribute for [" + repositoryName + "] repository"
             );
         }
 
         return settingsMap;
     }
 
-    private RepositoryMetadata buildRepositoryMetadata(String name) {
-        String type = validateAttributeNonNull(String.format(Locale.getDefault(), REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT, name));
-        Map<String, String> settingsMap = validateSettingsAttributesNonNull(name);
+    private RepositoryMetadata buildRepositoryMetadata(DiscoveryNode node, String name) {
+        String type = validateAttributeNonNull(
+            node,
+            String.format(Locale.getDefault(), REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT, name)
+        );
+        Map<String, String> settingsMap = validateSettingsAttributesNonNull(node, name);
 
         Settings.Builder settings = Settings.builder();
         settingsMap.forEach(settings::put);
@@ -90,15 +92,15 @@ public class RemoteStoreNodeAttribute {
         return new RepositoryMetadata(name, type, settings.build());
     }
 
-    private RepositoriesMetadata buildRepositoriesMetadata() {
+    private RepositoriesMetadata buildRepositoriesMetadata(DiscoveryNode node) {
         List<RepositoryMetadata> repositoryMetadataList = new ArrayList<>();
         Set<String> repositoryNames = new HashSet<>();
 
-        repositoryNames.add(validateAttributeNonNull(REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY));
-        repositoryNames.add(validateAttributeNonNull(REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY));
+        repositoryNames.add(validateAttributeNonNull(node, REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY));
+        repositoryNames.add(validateAttributeNonNull(node, REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY));
 
         for (String repositoryName : repositoryNames) {
-            repositoryMetadataList.add(buildRepositoryMetadata(repositoryName));
+            repositoryMetadataList.add(buildRepositoryMetadata(node, repositoryName));
         }
 
         return new RepositoriesMetadata(repositoryMetadataList);
@@ -114,9 +116,18 @@ public class RemoteStoreNodeAttribute {
 
     @Override
     public int hashCode() {
-        // We will hash the id and repositories metadata as its highly unlikely that two nodes will have same id and
-        // repositories metadata but are actually different.
-        return Objects.hash(node.getEphemeralId(), repositoriesMetadata);
+        // The hashCode is generated by computing the has of all the repositoryMetadata present in
+        // repositoriesMetadata without generation. Below is the modified list hashCode generation logic.
+
+        int hashCode = 1;
+        Iterator iterator = this.repositoriesMetadata.repositories().iterator();
+        while (iterator.hasNext()) {
+            RepositoryMetadata repositoryMetadata = (RepositoryMetadata) iterator.next();
+            hashCode = 31 * hashCode + (repositoryMetadata == null
+                ? 0
+                : Objects.hash(repositoryMetadata.name(), repositoryMetadata.type(), repositoryMetadata.settings()));
+        }
+        return hashCode;
     }
 
     @Override
@@ -132,7 +143,6 @@ public class RemoteStoreNodeAttribute {
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
-        sb.append('{').append(this.node).append('}');
         sb.append('{').append(this.repositoriesMetadata).append('}');
         return super.toString();
     }

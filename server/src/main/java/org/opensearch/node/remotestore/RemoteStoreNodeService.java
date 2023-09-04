@@ -11,7 +11,6 @@ package org.opensearch.node.remotestore;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.opensearch.cluster.coordination.JoinTaskExecutor;
 import org.opensearch.cluster.metadata.RepositoriesMetadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -23,7 +22,6 @@ import org.opensearch.threadpool.ThreadPool;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.Optional;
 import java.util.function.Supplier;
 
 /**
@@ -116,16 +114,7 @@ public class RemoteStoreNodeService {
      * repository is already present in the cluster state and if it's different then the joining remote store backed
      * node repository metadata an exception will be thrown and the node will not be allowed to join the cluster.
      */
-    public RepositoriesMetadata updateRepositoriesMetadata(
-        Optional<JoinTaskExecutor.Task> joiningTask,
-        RepositoriesMetadata existingRepositories
-    ) {
-        if (joiningTask.isEmpty()) {
-            return existingRepositories;
-        }
-
-        DiscoveryNode joiningNode = joiningTask.get().node();
-
+    public RepositoriesMetadata updateRepositoriesMetadata(DiscoveryNode joiningNode, RepositoriesMetadata existingRepositories) {
         if (joiningNode.isRemoteStoreNode()) {
             List<RepositoryMetadata> updatedRepositoryMetadataList = new ArrayList<>();
             List<RepositoryMetadata> newRepositoryMetadataList = new RemoteStoreNodeAttribute(joiningNode).getRepositoriesMetadata()

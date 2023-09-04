@@ -363,16 +363,20 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
     }
 
     public void testJoinClusterWithNonRemoteStoreNodeJoining() {
-        ClusterState currentState = ClusterState.builder(ClusterName.DEFAULT).build();
-
         DiscoveryNode joiningNode = newDiscoveryNode(Collections.emptyMap());
+        ClusterState currentState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(joiningNode).build())
+            .build();
+
         JoinTaskExecutor.ensureNodesCompatibility(joiningNode, currentState.getNodes(), currentState.metadata());
     }
 
     public void testJoinClusterWithRemoteStoreNodeJoining() {
-        ClusterState currentState = ClusterState.builder(ClusterName.DEFAULT).build();
-
         DiscoveryNode joiningNode = newDiscoveryNode(remoteStoreNodeAttributes(SEGMENT_REPO, TRANSLOG_REPO));
+        ClusterState currentState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(joiningNode).build())
+            .build();
+
         JoinTaskExecutor.ensureNodesCompatibility(joiningNode, currentState.getNodes(), currentState.metadata());
     }
 
