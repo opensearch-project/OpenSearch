@@ -1365,7 +1365,13 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             assertThat(validationErrors.size(), is(1));
             assertThat(
                 validationErrors.get(0),
-                is(String.format(Locale.ROOT, "private index setting [%s] can not be set explicitly", SETTING_REMOTE_SEGMENT_STORE_REPOSITORY))
+                is(
+                    String.format(
+                        Locale.ROOT,
+                        "private index setting [%s] can not be set explicitly",
+                        SETTING_REMOTE_SEGMENT_STORE_REPOSITORY
+                    )
+                )
             );
         }));
     }
@@ -1398,7 +1404,13 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             assertThat(validationErrors.size(), is(1));
             assertThat(
                 validationErrors.get(0),
-                is(String.format(Locale.ROOT, "private index setting [%s] can not be set explicitly", SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY))
+                is(
+                    String.format(
+                        Locale.ROOT,
+                        "private index setting [%s] can not be set explicitly",
+                        SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY
+                    )
+                )
             );
         }));
     }

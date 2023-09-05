@@ -10,7 +10,6 @@ package org.opensearch.remotestore;
 
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.indices.recovery.IndexPrimaryRelocationIT;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -53,11 +52,6 @@ public class RemoteIndexPrimaryRelocationIT extends IndexPrimaryRelocationIT {
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .build();
-    }
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL, "true").build();
     }
 
     @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/9191")

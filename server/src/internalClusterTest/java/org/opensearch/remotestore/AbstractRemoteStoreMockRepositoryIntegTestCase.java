@@ -12,14 +12,12 @@ import org.opensearch.action.index.IndexResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.util.FileSystemUtils;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.snapshots.AbstractSnapshotIntegTestCase;
-import org.opensearch.test.FeatureFlagSetter;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -40,7 +38,6 @@ public abstract class AbstractRemoteStoreMockRepositoryIntegTestCase extends Abs
 
     @Before
     public void setup() {
-        FeatureFlagSetter.set(FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL);
         internalCluster().startClusterManagerOnlyNode(remoteStoreClusterSettings(REPOSITORY_NAME, TRANSLOG_REPOSITORY_NAME));
     }
 

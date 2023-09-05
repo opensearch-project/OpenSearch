@@ -18,7 +18,6 @@ import org.opensearch.action.support.WriteRequest;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.MapperService;
@@ -112,11 +111,6 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
             .put(super.nodeSettings(nodeOrdinal))
             .put(remoteStoreClusterSettings(REPOSITORY_NAME, REPOSITORY_2_NAME, true))
             .build();
-    }
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL, "true").build();
     }
 
     public Settings indexSettings() {

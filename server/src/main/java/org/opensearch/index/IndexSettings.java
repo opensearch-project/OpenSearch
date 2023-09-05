@@ -1052,7 +1052,7 @@ public final class IndexSettings {
     }
 
     public boolean isSegRepWithRemoteEnabled() {
-        return isSegRepEnabled() && isRemoteStoreEnabled() && FeatureFlags.isEnabled(FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL);
+        return isSegRepEnabled() && isRemoteStoreEnabled();
     }
 
     /**
