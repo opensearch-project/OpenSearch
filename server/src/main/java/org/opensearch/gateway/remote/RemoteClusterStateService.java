@@ -284,7 +284,7 @@ public class RemoteClusterStateService implements Closeable {
                     String.format(
                         Locale.ROOT,
                         "Timed out waiting for transfer of index metadata to complete - %s",
-                        toUpload.stream().map(IndexMetadata::getIndex).map(Index::toString).collect(Collectors.joining(","))
+                        toUpload.stream().map(IndexMetadata::getIndex).map(Index::toString).collect(Collectors.joining(""))
                     )
                 );
                 exceptionList.forEach(ex::addSuppressed);
@@ -296,11 +296,22 @@ public class RemoteClusterStateService implements Closeable {
                 String.format(
                     Locale.ROOT,
                     "Timed out waiting for transfer of index metadata to complete - %s",
-                    toUpload.stream().map(IndexMetadata::getIndex).map(Index::toString).collect(Collectors.joining(","))
+                    toUpload.stream().map(IndexMetadata::getIndex).map(Index::toString).collect(Collectors.joining(""))
                 ),
                 ex
             );
             Thread.currentThread().interrupt();
+            throw exception;
+        }
+        if (exceptionList.size() > 0) {
+            IndexMetadataTransferException exception = new IndexMetadataTransferException(
+                String.format(
+                    Locale.ROOT,
+                    "Exception during transfer of IndexMetadata to Remote %s",
+                    toUpload.stream().map(IndexMetadata::getIndex).map(Index::toString).collect(Collectors.joining(""))
+                )
+            );
+            exceptionList.forEach(exception::addSuppressed);
             throw exception;
         }
         return result;
