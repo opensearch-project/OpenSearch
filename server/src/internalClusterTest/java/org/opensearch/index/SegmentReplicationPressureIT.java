@@ -15,11 +15,11 @@ import org.opensearch.common.UUIDs;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardState;
+import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.replication.SegmentReplicationBaseIT;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.plugins.Plugin;
@@ -264,9 +264,9 @@ public class SegmentReplicationPressureIT extends SegmentReplicationBaseIT {
     }
 
     public void testWithDocumentReplicationEnabledIndex() throws Exception {
-        assumeTrue(
-            "Can't create DocRep index with remote store enabled. Skipping.",
-            Objects.equals(featureFlagSettings().get(FeatureFlags.REMOTE_STORE, "false"), "false")
+        assumeFalse(
+            "Skipping the test as its not compatible with segment replication with remote store. Cannot create DocRep indices with Remote store enabled",
+            segmentReplicationWithRemoteEnabled()
         );
         Settings settings = Settings.builder()
             .put(MAX_REPLICATION_TIME_BACKPRESSURE_SETTING.getKey(), TimeValue.timeValueMillis(500))

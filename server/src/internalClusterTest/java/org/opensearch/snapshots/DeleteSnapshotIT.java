@@ -16,9 +16,7 @@ import org.opensearch.common.UUIDs;
 import org.opensearch.common.action.ActionFuture;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.remotestore.RemoteStoreBaseIntegTestCase;
-import org.opensearch.test.FeatureFlagSetter;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.nio.file.Path;
@@ -41,7 +39,6 @@ public class DeleteSnapshotIT extends AbstractSnapshotIntegTestCase {
 
     public void testDeleteSnapshot() throws Exception {
         disableRepoConsistencyCheck("Remote store repository is being used in the test");
-        FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
         internalCluster().startClusterManagerOnlyNode(remoteStoreClusterSettings(REMOTE_REPO_NAME));
         internalCluster().startDataOnlyNode();
 
@@ -71,7 +68,6 @@ public class DeleteSnapshotIT extends AbstractSnapshotIntegTestCase {
 
     public void testDeleteShallowCopySnapshot() throws Exception {
         disableRepoConsistencyCheck("Remote store repository is being used in the test");
-        FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
         internalCluster().startClusterManagerOnlyNode(remoteStoreClusterSettings(REMOTE_REPO_NAME));
         internalCluster().startDataOnlyNode();
 
@@ -102,8 +98,6 @@ public class DeleteSnapshotIT extends AbstractSnapshotIntegTestCase {
     // Deleting multiple shallow copy snapshots as part of single delete call with repo having only shallow copy snapshots.
     public void testDeleteMultipleShallowCopySnapshotsCase1() throws Exception {
         disableRepoConsistencyCheck("Remote store repository is being used in the test");
-        FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
-
         internalCluster().startClusterManagerOnlyNode(remoteStoreClusterSettings(REMOTE_REPO_NAME));
         internalCluster().startDataOnlyNode();
         final Client clusterManagerClient = internalCluster().clusterManagerClient();
@@ -148,8 +142,6 @@ public class DeleteSnapshotIT extends AbstractSnapshotIntegTestCase {
     @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/8610")
     public void testDeleteMultipleShallowCopySnapshotsCase2() throws Exception {
         disableRepoConsistencyCheck("Remote store repository is being used in the test");
-        FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
-
         internalCluster().startClusterManagerOnlyNode(remoteStoreClusterSettings(REMOTE_REPO_NAME));
         final String dataNode = internalCluster().startDataOnlyNode();
         ensureStableCluster(2);
@@ -236,8 +228,6 @@ public class DeleteSnapshotIT extends AbstractSnapshotIntegTestCase {
     @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/8610")
     public void testDeleteMultipleShallowCopySnapshotsCase3() throws Exception {
         disableRepoConsistencyCheck("Remote store repository is being used in the test");
-        FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
-
         internalCluster().startClusterManagerOnlyNode(remoteStoreClusterSettings(REMOTE_REPO_NAME));
         internalCluster().startDataOnlyNode();
         final Client clusterManagerClient = internalCluster().clusterManagerClient();
@@ -298,8 +288,6 @@ public class DeleteSnapshotIT extends AbstractSnapshotIntegTestCase {
 
     public void testRemoteStoreCleanupForDeletedIndex() throws Exception {
         disableRepoConsistencyCheck("Remote store repository is being used in the test");
-        FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
-
         internalCluster().startClusterManagerOnlyNode(remoteStoreClusterSettings(REMOTE_REPO_NAME));
         internalCluster().startDataOnlyNode();
         final Client clusterManagerClient = internalCluster().clusterManagerClient();

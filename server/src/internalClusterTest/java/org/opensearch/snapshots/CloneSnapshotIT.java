@@ -44,7 +44,6 @@ import org.opensearch.common.UUIDs;
 import org.opensearch.common.action.ActionFuture;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
@@ -57,7 +56,6 @@ import org.opensearch.repositories.RepositoryData;
 import org.opensearch.repositories.RepositoryShardId;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.snapshots.mockstore.MockRepository;
-import org.opensearch.test.FeatureFlagSetter;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.nio.file.Path;
@@ -159,7 +157,6 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
 
     public void testCloneShallowSnapshotIndex() throws Exception {
         disableRepoConsistencyCheck("This test uses remote store repository");
-        FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
         final String remoteStoreRepoName = "remote-store-repo-name";
         internalCluster().startClusterManagerOnlyNode(remoteStoreClusterSettings(remoteStoreRepoName));
         internalCluster().startDataOnlyNode();
@@ -206,7 +203,6 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
 
     public void testShallowCloneNameAvailability() throws Exception {
         disableRepoConsistencyCheck("This test uses remote store repository");
-        FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
         final String remoteStoreRepoName = "remote-store-repo-name";
         internalCluster().startClusterManagerOnlyNode(
             Settings.builder().put(LARGE_SNAPSHOT_POOL_SETTINGS).put(remoteStoreClusterSettings(remoteStoreRepoName)).build()
@@ -243,7 +239,6 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
 
     public void testCloneAfterRepoShallowSettingEnabled() throws Exception {
         disableRepoConsistencyCheck("This test uses remote store repository");
-        FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
         final String remoteStoreRepoName = "remote-store-repo-name";
         internalCluster().startClusterManagerOnlyNode(remoteStoreClusterSettings(remoteStoreRepoName));
         internalCluster().startDataOnlyNode();
@@ -280,7 +275,6 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
 
     public void testCloneAfterRepoShallowSettingDisabled() throws Exception {
         disableRepoConsistencyCheck("This test uses remote store repository");
-        FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
         final String remoteStoreRepoName = "remote-store-repo-name";
         internalCluster().startClusterManagerOnlyNode(remoteStoreClusterSettings(remoteStoreRepoName));
         internalCluster().startDataOnlyNode();

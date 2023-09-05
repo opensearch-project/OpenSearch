@@ -13,10 +13,8 @@ import org.opensearch.action.admin.indices.get.GetIndexResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.indices.replication.common.ReplicationType;
-import org.opensearch.test.FeatureFlagSetter;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.junit.After;
 import org.junit.Before;
@@ -51,14 +49,8 @@ public class CreateRemoteIndexIT extends OpenSearchIntegTestCase {
         return builder.build();
     }
 
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.REMOTE_STORE, "true").build();
-    }
-
     @Before
     public void setup() {
-        FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
         internalCluster().startClusterManagerOnlyNode();
         assertAcked(
             clusterAdmin().preparePutRepository("my-segment-repo-1")

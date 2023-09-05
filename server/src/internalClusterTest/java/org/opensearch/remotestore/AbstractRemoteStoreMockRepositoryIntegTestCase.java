@@ -38,14 +38,8 @@ public abstract class AbstractRemoteStoreMockRepositoryIntegTestCase extends Abs
     protected static final String TRANSLOG_REPOSITORY_NAME = "my-translog-repo-1";
     protected static final String INDEX_NAME = "remote-store-test-idx-1";
 
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.REMOTE_STORE, "true").build();
-    }
-
     @Before
     public void setup() {
-        FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
         FeatureFlagSetter.set(FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL);
         internalCluster().startClusterManagerOnlyNode(remoteStoreClusterSettings(REPOSITORY_NAME, TRANSLOG_REPOSITORY_NAME));
     }
