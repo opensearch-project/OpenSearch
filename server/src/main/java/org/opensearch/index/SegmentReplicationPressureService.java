@@ -151,7 +151,7 @@ public class SegmentReplicationPressureService implements Closeable {
     }
 
     private void validateReplicationGroup(IndexShard shard) {
-        final Set<SegmentReplicationShardStats> replicaStats = shard.getReplicationStats();
+        final Set<SegmentReplicationShardStats> replicaStats = shard.getReplicationStatsForTrackedReplicas();
         final Set<SegmentReplicationShardStats> staleReplicas = getStaleReplicas(replicaStats);
         if (staleReplicas.isEmpty() == false) {
             // inSyncIds always considers the primary id, so filter it out.

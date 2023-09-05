@@ -33,6 +33,7 @@
 package org.opensearch.index.seqno;
 
 import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.util.Version;
 import org.opensearch.action.support.replication.ReplicationResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.AllocationId;
@@ -50,6 +51,7 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.SegmentReplicationShardStats;
+import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.indices.replication.common.SegmentReplicationLagTimer;
@@ -1826,29 +1828,35 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
 
         initializingIds.forEach(aId -> markAsTrackingAndInSyncQuietly(tracker, aId.getId(), NO_OPS_PERFORMED));
 
+        final StoreFileMetadata segment_1 = new StoreFileMetadata("segment_1", 1L, "abcd", Version.LATEST);
+        final StoreFileMetadata segment_2 = new StoreFileMetadata("segment_2", 50L, "abcd", Version.LATEST);
+        final StoreFileMetadata segment_3 = new StoreFileMetadata("segment_3", 100L, "abcd", Version.LATEST);
         final ReplicationCheckpoint initialCheckpoint = new ReplicationCheckpoint(
             tracker.shardId(),
             0L,
             1,
             1,
             1L,
-            Codec.getDefault().getName()
+            Codec.getDefault().getName(),
+            Map.of("segment_1", segment_1)
         );
         final ReplicationCheckpoint secondCheckpoint = new ReplicationCheckpoint(
             tracker.shardId(),
             0L,
             2,
             2,
-            50L,
-            Codec.getDefault().getName()
+            51L,
+            Codec.getDefault().getName(),
+            Map.of("segment_1", segment_1, "segment_2", segment_2)
         );
         final ReplicationCheckpoint thirdCheckpoint = new ReplicationCheckpoint(
             tracker.shardId(),
             0L,
             2,
             3,
-            100L,
-            Codec.getDefault().getName()
+            151L,
+            Codec.getDefault().getName(),
+            Map.of("segment_1", segment_1, "segment_2", segment_2, "segment_3", segment_3)
         );
 
         tracker.setLatestReplicationCheckpoint(initialCheckpoint);
@@ -1864,7 +1872,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         assertEquals(expectedIds.size(), groupStats.size());
         for (SegmentReplicationShardStats shardStat : groupStats) {
             assertEquals(3, shardStat.getCheckpointsBehindCount());
-            assertEquals(100L, shardStat.getBytesBehindCount());
+            assertEquals(151L, shardStat.getBytesBehindCount());
             assertTrue(shardStat.getCurrentReplicationLagMillis() >= shardStat.getCurrentReplicationTimeMillis());
         }
 
@@ -1881,7 +1889,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         assertEquals(expectedIds.size(), groupStats.size());
         for (SegmentReplicationShardStats shardStat : groupStats) {
             assertEquals(2, shardStat.getCheckpointsBehindCount());
-            assertEquals(99L, shardStat.getBytesBehindCount());
+            assertEquals(150L, shardStat.getBytesBehindCount());
         }
 
         for (String id : expectedIds) {
@@ -1938,7 +1946,8 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
             1,
             1,
             1L,
-            Codec.getDefault().getName()
+            Codec.getDefault().getName(),
+            Collections.emptyMap()
         );
         tracker.setLatestReplicationCheckpoint(initialCheckpoint);
         tracker.startReplicationLagTimers(initialCheckpoint);

@@ -59,7 +59,7 @@ public class SegmentReplicationStatsTracker {
     public SegmentReplicationPerGroupStats getStatsForShard(IndexShard indexShard) {
         return new SegmentReplicationPerGroupStats(
             indexShard.shardId(),
-            indexShard.getReplicationStats(),
+            indexShard.getReplicationStatsForTrackedReplicas(),
             Optional.ofNullable(rejectionCount.get(indexShard.shardId())).map(AtomicInteger::get).orElse(0)
         );
     }
