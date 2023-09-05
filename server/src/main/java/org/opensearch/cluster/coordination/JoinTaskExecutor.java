@@ -181,7 +181,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         // for every set of node join task which we can optimize to not compute if cluster state already has
         // repository information.
         RepositoriesMetadata repositoriesMetadata = remoteStoreNodeService.updateRepositoriesMetadata(
-            (currentNodes.getNodes().values()).stream().collect(Collectors.toList()).get(0),
+            (currentNodes.getNodes().values()).stream().findFirst().get(),
             currentState.getMetadata().custom(RepositoriesMetadata.TYPE)
         );
 
