@@ -57,15 +57,15 @@ public class OTelSpanExporterFactory {
             SpecialPermission.check();
             return AccessController.doPrivileged((PrivilegedExceptionAction<SpanExporter>) () -> {
                 String methodName = "create";
-                boolean isCreateMethodContainsSettingsParam = false;
+                boolean createMethodContainsSettingsParam = false;
                 for (Method m : spanExporterProviderClass.getMethods()) {
                     if (m.getName().equals(methodName) && m.getParameterCount() == 1 && m.getParameterTypes()[0] == Settings.class) {
-                        isCreateMethodContainsSettingsParam = true;
+                        createMethodContainsSettingsParam = true;
                         break;
                     }
                 }
                 try {
-                    if (isCreateMethodContainsSettingsParam) {
+                    if (createMethodContainsSettingsParam) {
                         return (SpanExporter) MethodHandles.publicLookup()
                             .findStatic(
                                 spanExporterProviderClass,
