@@ -176,12 +176,12 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
 
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(newState.nodes());
 
-        // TODO: We are using the local node to build the repository metadata, this will need to be updated once
-        // we start supporting mixed compatibility mode.
-        // An optimization can be done as this will get invoked for every set of node join task which we can optimize
-        // to not compute if cluster state already has repository information.
+        // TODO: We are using one of the existing node to build the repository metadata, this will need to be updated
+        // once we start supporting mixed compatibility mode. An optimization can be done as this will get invoked
+        // for every set of node join task which we can optimize to not compute if cluster state already has
+        // repository information.
         RepositoriesMetadata repositoriesMetadata = remoteStoreNodeService.updateRepositoriesMetadata(
-            currentNodes.getLocalNode(),
+            (currentNodes.getNodes().values()).stream().collect(Collectors.toList()).get(0),
             currentState.getMetadata().custom(RepositoriesMetadata.TYPE)
         );
 
@@ -491,11 +491,15 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
      *       needs to be modified.
      */
     private static void ensureRemoteStoreNodesCompatibility(DiscoveryNode joiningNode, DiscoveryNodes currentNodes, Metadata metadata) {
+        List<DiscoveryNode> existingNodes = new ArrayList<>(currentNodes.getNodes().values());
+
+        assert existingNodes.isEmpty() == false;
+
         // TODO: The below check is valid till we don't support migration, once we start supporting migration a remote
         // store node will be able to join a non remote store cluster and vice versa. #7986
         CompatibilityMode remoteStoreCompatibilityMode = REMOTE_STORE_COMPATIBILITY_MODE_SETTING.get(metadata.settings());
         if (STRICT.equals(remoteStoreCompatibilityMode)) {
-            DiscoveryNode existingNode = currentNodes.getLocalNode();
+            DiscoveryNode existingNode = existingNodes.get(0);
             if (joiningNode.isRemoteStoreNode()) {
                 if (existingNode.isRemoteStoreNode()) {
                     RemoteStoreNodeAttribute joiningRemoteStoreNodeAttribute = new RemoteStoreNodeAttribute(joiningNode);
