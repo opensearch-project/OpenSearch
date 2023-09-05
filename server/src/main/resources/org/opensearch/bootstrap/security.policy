@@ -89,6 +89,8 @@ grant codeBase "${codebase.bcprov-jdk15to18}" {
   permission java.security.SecurityPermission "putProviderProperty.BC";
   permission java.security.SecurityPermission "insertProvider.BC";
   permission java.security.SecurityPermission "removeProviderProperty.BC";
+  permission java.security.SecurityPermission "getProperty.org.bouncycastle.rsa.max_size";
+  permission java.security.SecurityPermission "getProperty.org.bouncycastle.rsa.max_mr_tests";
 };
 
 //// Everything else:
