@@ -163,7 +163,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
                 pitCurrent = in.readVLong();
             }
 
-            if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+            if (in.getVersion().onOrAfter(Version.V_2_10_0)) {
                 concurrentQueryCount = in.readVLong();
                 concurrentQueryTimeInMillis = in.readVLong();
                 concurrentQueryCurrent = in.readVLong();
@@ -354,7 +354,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
                 out.writeVLong(pitCurrent);
             }
 
-            if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+            if (out.getVersion().onOrAfter(Version.V_2_10_0)) {
                 out.writeVLong(concurrentQueryCount);
                 out.writeVLong(concurrentQueryTimeInMillis);
                 out.writeVLong(concurrentQueryCurrent);
