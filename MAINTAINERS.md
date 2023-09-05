@@ -22,6 +22,7 @@ This document contains a list of maintainers in this repo. See [opensearch-proje
 | Michael Froh             | [msfroh](https://github.com/msfroh)                     | Amazon      |
 | Nick Knize               | [nknize](https://github.com/nknize)                     | Amazon      |
 | Owais Kazi               | [owaiskazi19](https://github.com/owaiskazi19)           | Amazon      |
+| Peter Nied               | [peternied](https://github.com/peternied)               | Amazon      |
 | Rabi Panda               | [adnapibar](https://github.com/adnapibar)               | Independent |
 | Rishikesh Pasham         | [Rishikesh1159](https://github.com/Rishikesh1159)       | Amazon      |
 | Ryan Bogan               | [ryanbogan](https://github.com/ryanbogan)               | Amazon      |
