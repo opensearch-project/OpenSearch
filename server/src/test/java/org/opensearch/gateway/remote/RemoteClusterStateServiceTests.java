@@ -21,11 +21,15 @@ import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.blobstore.stream.write.WriteContext;
+import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.blobstore.support.PlainBlobMetadata;
+import org.opensearch.common.blobstore.transfer.RemoteTransferContainer;
 import org.opensearch.common.compress.DeflateCompressor;
+import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
@@ -156,11 +160,12 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         AsyncMultiStreamBlobContainer container = (AsyncMultiStreamBlobContainer) mockBlobStoreObjects(AsyncMultiStreamBlobContainer.class);
 
         ArgumentCaptor<ActionListener<Void>> actionListenerArgumentCaptor = ArgumentCaptor.forClass(ActionListener.class);
+        ArgumentCaptor<WriteContext> writeContextArgumentCaptor = ArgumentCaptor.forClass(WriteContext.class);
 
         doAnswer((i) -> {
             actionListenerArgumentCaptor.getValue().onResponse(null);
             return null;
-        }).when(container).asyncBlobUpload(any(WriteContext.class), actionListenerArgumentCaptor.capture());
+        }).when(container).asyncBlobUpload(writeContextArgumentCaptor.capture(), actionListenerArgumentCaptor.capture());
 
         final ClusterMetadataManifest manifest = remoteClusterStateService.writeFullMetadata(clusterState);
 
@@ -183,6 +188,26 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         assertThat(manifest.getStateVersion(), is(expectedManifest.getStateVersion()));
         assertThat(manifest.getClusterUUID(), is(expectedManifest.getClusterUUID()));
         assertThat(manifest.getStateUUID(), is(expectedManifest.getStateUUID()));
+
+        assertEquals(actionListenerArgumentCaptor.getAllValues().size(), 1);
+        assertEquals(writeContextArgumentCaptor.getAllValues().size(), 1);
+
+        WriteContext capturedWriteContext = writeContextArgumentCaptor.getValue();
+        byte[] writtenBytes = capturedWriteContext.getStreamProvider(Integer.MAX_VALUE).provideStream(0).getInputStream().readAllBytes();
+        IndexMetadata writtenIndexMetadata = RemoteClusterStateService.INDEX_METADATA_FORMAT.deserialize(
+            capturedWriteContext.getFileName(),
+            blobStoreRepository.getNamedXContentRegistry(),
+            new BytesArray(writtenBytes)
+        );
+
+        assertEquals(capturedWriteContext.getWritePriority(), WritePriority.HIGH);
+        assertEquals(writtenIndexMetadata.getNumberOfShards(), 1);
+        assertEquals(writtenIndexMetadata.getNumberOfReplicas(), 0);
+        assertEquals(writtenIndexMetadata.getIndex().getName(), "test-index");
+        assertEquals(writtenIndexMetadata.getIndex().getUUID(), "index-uuid");
+        long expectedChecksum = RemoteTransferContainer.checksumOfChecksum(new ByteArrayIndexInput("metadata-filename", writtenBytes), 8);
+        assertEquals(capturedWriteContext.getExpectedChecksum().longValue(), expectedChecksum);
+
     }
 
     public void testWriteFullMetadataInParallelFailure() throws IOException {
