@@ -16,6 +16,7 @@ import org.opensearch.telemetry.OTelTelemetrySettings;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
+import java.lang.reflect.Method;
 import java.security.AccessController;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
@@ -55,16 +56,16 @@ public class OTelSpanExporterFactory {
             // Check we ourselves are not being called by unprivileged code.
             SpecialPermission.check();
             return AccessController.doPrivileged((PrivilegedExceptionAction<SpanExporter>) () -> {
-                try {
-                    String methodName = "create";
-                    boolean createMethodWithSettingsParamExists = true;
-                    try {
-                        // Attempt to get the method with the specified name and parameter types
-                        spanExporterProviderClass.getMethod(methodName, Settings.class);
-                    } catch (NoSuchMethodException e) {
-                        createMethodWithSettingsParamExists = false;
+                String methodName = "create";
+                boolean isCreateMethodContainsSettingsParam = false;
+                for (Method m : spanExporterProviderClass.getMethods()) {
+                    if (m.getName().equals(methodName) && m.getParameterCount() == 1 && m.getParameterTypes()[0] == Settings.class) {
+                        isCreateMethodContainsSettingsParam = true;
+                        break;
                     }
-                    if (createMethodWithSettingsParamExists) {
+                }
+                try {
+                    if (isCreateMethodContainsSettingsParam) {
                         return (SpanExporter) MethodHandles.publicLookup()
                             .findStatic(
                                 spanExporterProviderClass,
@@ -79,7 +80,6 @@ public class OTelSpanExporterFactory {
                             .asType(MethodType.methodType(SpanExporter.class))
                             .invokeExact();
                     }
-
                 } catch (Throwable e) {
                     if (e.getCause() instanceof NoSuchMethodException) {
                         throw new IllegalStateException("No create factory method exist in [" + spanExporterProviderClass.getName() + "]");
