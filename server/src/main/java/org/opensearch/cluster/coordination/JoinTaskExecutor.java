@@ -176,10 +176,14 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
 
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(newState.nodes());
 
-        // TODO: repositoriesMetadata is getting computed every time for individual set of joinTasks, We can optimize
-        // this to avoid computation if the repository metadata is already present.
-        RepositoriesMetadata repositoriesMetadata = null;
-        final RepositoriesMetadata existingRepositoriesMetadata = currentState.getMetadata().custom(RepositoriesMetadata.TYPE);
+        // TODO: We are using the local node to build the repository metadata, this will need to be updated once
+        // we start supporting mixed compatibility mode.
+        // An optimization can be done as this will get invoked for every set of node join task which we can optimize
+        // to not compute if cluster state already has repository information.
+        RepositoriesMetadata repositoriesMetadata = remoteStoreNodeService.updateRepositoriesMetadata(
+            currentNodes.getLocalNode(),
+            currentState.getMetadata().custom(RepositoriesMetadata.TYPE)
+        );
 
         assert nodesBuilder.isLocalNodeElectedClusterManager();
 
@@ -195,7 +199,6 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
                 // noop
             } else if (currentNodes.nodeExistsWithSameRoles(node)) {
                 logger.debug("received a join request for an existing node [{}]", node);
-                repositoriesMetadata = remoteStoreNodeService.updateRepositoriesMetadata(node, existingRepositoriesMetadata);
             } else {
                 try {
                     if (enforceMajorVersion) {
@@ -215,7 +218,6 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
                     if (node.isClusterManagerNode()) {
                         joiniedNodeNameIds.put(node.getName(), node.getId());
                     }
-                    repositoriesMetadata = remoteStoreNodeService.updateRepositoriesMetadata(node, existingRepositoriesMetadata);
                 } catch (IllegalArgumentException | IllegalStateException | NodeDecommissionedException e) {
                     results.failure(joinTask, e);
                     continue;
@@ -489,15 +491,11 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
      *       needs to be modified.
      */
     private static void ensureRemoteStoreNodesCompatibility(DiscoveryNode joiningNode, DiscoveryNodes currentNodes, Metadata metadata) {
-        List<DiscoveryNode> existingNodes = new ArrayList<>(currentNodes.getNodes().values());
-
-        assert existingNodes.isEmpty() == false;
-
         // TODO: The below check is valid till we don't support migration, once we start supporting migration a remote
         // store node will be able to join a non remote store cluster and vice versa. #7986
         CompatibilityMode remoteStoreCompatibilityMode = REMOTE_STORE_COMPATIBILITY_MODE_SETTING.get(metadata.settings());
         if (STRICT.equals(remoteStoreCompatibilityMode)) {
-            DiscoveryNode existingNode = existingNodes.get(0);
+            DiscoveryNode existingNode = currentNodes.getLocalNode();
             if (joiningNode.isRemoteStoreNode()) {
                 if (existingNode.isRemoteStoreNode()) {
                     RemoteStoreNodeAttribute joiningRemoteStoreNodeAttribute = new RemoteStoreNodeAttribute(joiningNode);
