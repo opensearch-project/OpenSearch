@@ -754,7 +754,6 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
 
     /**
      * This method will be used to update the repositories map.
-     * @param repos
      */
     public void updateRepositoriesMap(Map<String, Repository> repos) {
         if (repositories.isEmpty()) {
