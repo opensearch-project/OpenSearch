@@ -1,0 +1,72 @@
+import org.opensearch.gradle.info.BuildParams
+
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ *
+ * Modifications Copyright OpenSearch Contributors. See
+ * GitHub history for details.
+ */
+
+apply plugin: 'opensearch.build'
+apply plugin: 'opensearch.publish'
+apply plugin: 'opensearch.yaml-rest-test'
+
+opensearchplugin {
+  description 'AWS KMS plugin to provide crypto keys'
+  classname 'org.opensearch.crypto.kms.CryptoKmsPlugin'
+}
+
+ext {
+  // Do not fail on `javadoc` warning (ANTLR generated code)
+  failOnJavadocWarning = false
+}
+
+dependencies {
+  api project(':libs:opensearch-encryption-sdk')
+
+  api "software.amazon.awssdk:sdk-core:${versions.aws}"
+  api "software.amazon.awssdk:aws-core:${versions.aws}"
+  api "software.amazon.awssdk:utils:${versions.aws}"
+  api "software.amazon.awssdk:auth:${versions.aws}"
+  api "software.amazon.awssdk:kms:${versions.aws}"
+  api "software.amazon.awssdk:http-client-spi:${versions.aws}"
+  api "software.amazon.awssdk:apache-client:${versions.aws}"
+  api "software.amazon.awssdk:regions:${versions.aws}"
+  api "software.amazon.awssdk:profiles:${versions.aws}"
+  api "software.amazon.awssdk:endpoints-spi:${versions.aws}"
+  api "software.amazon.awssdk:annotations:${versions.aws}"
+  api "software.amazon.awssdk:metrics-spi:${versions.aws}"
+  api "software.amazon.awssdk:json-utils:${versions.aws}"
+  api "software.amazon.awssdk:protocol-core:${versions.aws}"
+  api "software.amazon.awssdk:aws-query-protocol:${versions.aws}"
+  api "software.amazon.awssdk:aws-json-protocol:${versions.aws}"
+  api "software.amazon.awssdk:third-party-jackson-core:${versions.aws}"
+  api "org.apache.httpcomponents:httpclient:${versions.httpclient}"
+  api "org.apache.httpcomponents:httpcore:${versions.httpcore}"
+  api "commons-logging:commons-logging:${versions.commonslogging}"
+  api "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
+  api "org.slf4j:slf4j-api:${versions.slf4j}"
+  api "commons-codec:commons-codec:${versions.commonscodec}"
+  api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
+  api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
+  api "org.reactivestreams:reactive-streams:${versions.reactivestreams}"
+}
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /jackson-.*/, to: 'jackson'
+  mapping from: /jaxb-.*/, to: 'jaxb'
+  mapping from: /netty-.*/, to: 'netty'
+}
+
+bundlePlugin {
+  from('config/crypto-kms') {
+    into 'config'
+  }
+}
+
+thirdPartyAudit.enabled = false
+testingConventions.enabled = false

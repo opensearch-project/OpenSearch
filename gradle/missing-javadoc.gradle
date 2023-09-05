@@ -159,6 +159,7 @@ configure([
   project(":plugins:repository-s3"),
   project(":plugins:store-smb"),
   project(":plugins:transport-nio"),
+  project(":plugins:crypto-kms"),
   project(":qa:die-with-dignity"),
   project(":qa:os"),
   project(":qa:wildfly"),
