@@ -10,18 +10,16 @@ package org.opensearch.index.codec.customcodecs;
 
 import org.apache.logging.log4j.Logger;
 import org.opensearch.common.settings.Setting;
-import org.opensearch.index.codec.CodecAliases;
 import org.opensearch.index.codec.CodecSettings;
 import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.mapper.MapperService;
 
-import java.util.Set;
-
 /**
- * ZstdDefaultCodec provides ZSTD compressor using the <a href="https://github.com/luben/zstd-jni">zstd-jni</a> library.
+ * ZstdDeprecatedCodec provides ZSTD compressor using the <a href="https://github.com/luben/zstd-jni">zstd-jni</a> library.
+ * Added to support backward compatibility for indices created with Lucene95CustomCodec as codec name.
  */
 @Deprecated(since = "2.10")
-public class ZstdDeprecatedCodec extends Lucene95CustomCodec implements CodecSettings, CodecAliases {
+public class ZstdDeprecatedCodec extends Lucene95CustomCodec implements CodecSettings {
 
     /**
      * Creates a new ZstdDefaultCodec instance with the default compression level.
@@ -59,10 +57,5 @@ public class ZstdDeprecatedCodec extends Lucene95CustomCodec implements CodecSet
     @Override
     public boolean supports(Setting<?> setting) {
         return setting.equals(EngineConfig.INDEX_CODEC_COMPRESSION_LEVEL_SETTING);
-    }
-
-    @Override
-    public Set<String> aliases() {
-        return Set.of();
     }
 }

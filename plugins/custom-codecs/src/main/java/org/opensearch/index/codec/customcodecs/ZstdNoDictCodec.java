@@ -62,6 +62,6 @@ public class ZstdNoDictCodec extends Lucene95CustomCodec implements CodecSetting
 
     @Override
     public Set<String> aliases() {
-        return Set.of("zstd_no_dict");
+        return Mode.ZSTD_NO_DICT.getAliases();
     }
 }

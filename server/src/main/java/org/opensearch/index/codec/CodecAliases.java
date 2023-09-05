@@ -24,5 +24,7 @@ public interface CodecAliases {
      *
      * @return A non-null set of alias strings. If no aliases are available, an empty set should be returned.
      */
-    Set<String> aliases();
+    default Set<String> aliases() {
+        return Set.of();
+    }
 }

@@ -15,6 +15,9 @@ import org.apache.lucene.codecs.lucene95.Lucene95Codec;
 import org.opensearch.index.codec.PerFieldMappingPostingFormatCodec;
 import org.opensearch.index.mapper.MapperService;
 
+import java.util.Collections;
+import java.util.Set;
+
 /**
  *
  * Extends {@link FilterCodec} to reuse the functionality of Lucene Codec.
@@ -32,20 +35,24 @@ public abstract class Lucene95CustomCodec extends FilterCodec {
         /**
          * ZStandard mode with dictionary
          */
-        ZSTD("ZSTD"),
+        ZSTD("ZSTD", Set.of("zstd")),
         /**
          * ZStandard mode without dictionary
          */
-        ZSTD_NO_DICT("ZSTDNODICT"),
+        ZSTD_NO_DICT("ZSTDNODICT", Set.of("zstd_no_dict")),
         /**
-         * Default ZStandard mode
+         * Deprecated ZStandard mode, added for backward compatibility to support indices created in 2.9.0 where
+         * both ZSTD and ZSTD_NO_DICT used Lucene95CustomCodec underneath. This should not be used to
+         * create new indices.
          */
-        ZSTD_DEPRECATED("Lucene95CustomCodec");
+        ZSTD_DEPRECATED("Lucene95CustomCodec", Collections.emptySet());
 
         private final String codec;
+        private final Set<String> aliases;
 
-        Mode(String codec) {
+        Mode(String codec, Set<String> aliases) {
             this.codec = codec;
+            this.aliases = aliases;
         }
 
         /**
@@ -53,6 +60,13 @@ public abstract class Lucene95CustomCodec extends FilterCodec {
          */
         public String getCodec() {
             return codec;
+        }
+
+        /**
+         * Returns the aliases of the Codec
+         */
+        public Set<String> getAliases() {
+            return aliases;
         }
     }
 

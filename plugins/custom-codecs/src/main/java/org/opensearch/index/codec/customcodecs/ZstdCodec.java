@@ -62,6 +62,6 @@ public class ZstdCodec extends Lucene95CustomCodec implements CodecSettings, Cod
 
     @Override
     public Set<String> aliases() {
-        return Set.of("zstd");
+        return Mode.ZSTD.getAliases();
     }
 }

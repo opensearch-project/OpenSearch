@@ -93,6 +93,14 @@ public class CustomCodecTests extends OpenSearchTestCase {
         assertEquals(Lucene95CustomCodec.DEFAULT_COMPRESSION_LEVEL, storedFieldsFormat.getCompressionLevel());
     }
 
+    public void testZstdDeprecatedCodec() {
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> createCodecService(false).codec("ZSTD_DEPRECATED")
+        );
+        assertTrue(e.getMessage().startsWith("failed to find codec"));
+    }
+
     public void testZstdWithCompressionLevel() throws Exception {
         int randomCompressionLevel = randomIntBetween(1, 6);
         Codec codec = createCodecService(randomCompressionLevel, "zstd").codec("zstd");
