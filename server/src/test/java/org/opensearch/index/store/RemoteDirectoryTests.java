@@ -15,9 +15,9 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.action.LatchedActionListener;
+import org.opensearch.common.blobstore.AsyncMultiStreamBlobContainer;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
-import org.opensearch.common.blobstore.VerifyingMultiStreamBlobContainer;
 import org.opensearch.common.blobstore.stream.write.WriteContext;
 import org.opensearch.common.blobstore.support.PlainBlobMetadata;
 import org.opensearch.core.action.ActionListener;
@@ -71,7 +71,7 @@ public class RemoteDirectoryTests extends OpenSearchTestCase {
     public void testCopyFrom() throws IOException, InterruptedException {
         AtomicReference<Boolean> postUploadInvoked = new AtomicReference<>(false);
         String filename = "_100.si";
-        VerifyingMultiStreamBlobContainer blobContainer = mock(VerifyingMultiStreamBlobContainer.class);
+        AsyncMultiStreamBlobContainer blobContainer = mock(AsyncMultiStreamBlobContainer.class);
         Mockito.doAnswer(invocation -> {
             ActionListener<Void> completionListener = invocation.getArgument(1);
             completionListener.onResponse(null);
@@ -113,7 +113,7 @@ public class RemoteDirectoryTests extends OpenSearchTestCase {
     public void testCopyFromWithException() throws IOException, InterruptedException {
         AtomicReference<Boolean> postUploadInvoked = new AtomicReference<>(false);
         String filename = "_100.si";
-        VerifyingMultiStreamBlobContainer blobContainer = mock(VerifyingMultiStreamBlobContainer.class);
+        AsyncMultiStreamBlobContainer blobContainer = mock(AsyncMultiStreamBlobContainer.class);
         Mockito.doAnswer(invocation -> {
             ActionListener<Void> completionListener = invocation.getArgument(1);
             completionListener.onResponse(null);

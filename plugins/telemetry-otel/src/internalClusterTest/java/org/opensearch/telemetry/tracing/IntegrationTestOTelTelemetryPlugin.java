@@ -32,10 +32,10 @@ public class IntegrationTestOTelTelemetryPlugin extends OTelTelemetryPlugin {
     /**
      * This method overrides getTelemetry() method in OTel plugin class, so we create only one instance of global OpenTelemetry
      * resetForTest() will set OpenTelemetry to null again.
-     * @param settings cluster settings
+     * @param telemetrySettings telemetry settings
      */
-    public Optional<Telemetry> getTelemetry(TelemetrySettings settings) {
+    public Optional<Telemetry> getTelemetry(TelemetrySettings telemetrySettings) {
         GlobalOpenTelemetry.resetForTest();
-        return super.getTelemetry(settings);
+        return super.getTelemetry(telemetrySettings);
     }
 }

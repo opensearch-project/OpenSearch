@@ -72,6 +72,7 @@ import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.blobstore.DeleteResult;
+import org.opensearch.common.blobstore.EncryptedBlobStore;
 import org.opensearch.common.blobstore.fs.FsBlobContainer;
 import org.opensearch.common.blobstore.transfer.stream.OffsetRangeInputStream;
 import org.opensearch.common.blobstore.transfer.stream.RateLimitingOffsetRangeInputStream;
@@ -754,6 +755,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     }
                     try {
                         store = createBlobStore();
+                        if (metadata.cryptoMetadata() != null) {
+                            store = new EncryptedBlobStore(store, metadata.cryptoMetadata());
+                        }
                     } catch (RepositoryException e) {
                         throw e;
                     } catch (Exception e) {
@@ -799,6 +803,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     @Override
     public RepositoryMetadata getMetadata() {
         return metadata;
+    }
+
+    public NamedXContentRegistry getNamedXContentRegistry() {
+        return namedXContentRegistry;
     }
 
     public Compressor getCompressor() {
