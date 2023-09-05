@@ -372,9 +372,9 @@ public class RemoteStoreStats implements Writeable, ToXContentFragment {
         static final String SUCCEEDED = "succeeded";
         static final String FAILED = "failed";
 
-        static final String STARTED_BYTES = "started";
-        static final String SUCCEEDED_BYTES = "succeeded";
-        static final String FAILED_BYTES = "failed";
+        static final String STARTED_BYTES = "started_bytes";
+        static final String SUCCEEDED_BYTES = "succeeded_bytes";
+        static final String FAILED_BYTES = "failed_bytes";
 
         static final String DOWNLOAD = "download";
         static final String UPLOAD = "upload";
