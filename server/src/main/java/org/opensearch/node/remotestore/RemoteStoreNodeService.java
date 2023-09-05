@@ -20,8 +20,10 @@ import org.opensearch.repositories.Repository;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.function.Supplier;
 
 /**
@@ -82,10 +84,10 @@ public class RemoteStoreNodeService {
      * If the creation or verification fails this will close all the repositories this method created and throw
      * exception.
      */
-    public List<Repository> createAndVerifyRepositories(DiscoveryNode localNode) {
+    public void createAndVerifyRepositories(DiscoveryNode localNode) {
         RemoteStoreNodeAttribute nodeAttribute = new RemoteStoreNodeAttribute(localNode);
         RepositoriesService reposService = repositoriesService.get();
-        List<Repository> repositories = new ArrayList<>();
+        Map<String, Repository> repositories = new HashMap<>();
         for (RepositoryMetadata repositoryMetadata : nodeAttribute.getRepositoriesMetadata().repositories()) {
             String repositoryName = repositoryMetadata.name();
             Repository repository;
@@ -104,9 +106,10 @@ public class RemoteStoreNodeService {
             repository.verify(verificationToken, localNode);
             repository.endVerification(verificationToken);
             logger.info(() -> new ParameterizedMessage("successfully verified [{}] repository", repositoryName));
-            repositories.add(repository);
+            repositories.put(repositoryName, repository);
         }
-        return repositories;
+        // Updating the repositories map in RepositoriesService
+        reposService.updateRepositoriesMap(repositories);
     }
 
     /**
