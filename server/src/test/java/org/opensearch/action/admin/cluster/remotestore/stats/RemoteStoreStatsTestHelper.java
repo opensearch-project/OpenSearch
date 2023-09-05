@@ -155,20 +155,20 @@ public class RemoteStoreStatsTestHelper {
                 (int) segmentTransferStats.directoryFileTransferTrackerStats.lastTransferTimestampMs
             );
             assertEquals(
-                ((Map) segmentDownloads.get(RemoteStoreStats.DownloadStatsFields.TOTAL_DOWNLOADS_IN_BYTES)).get(
-                    RemoteStoreStats.SubFields.STARTED
+                ((Map) segmentDownloads.get(RemoteStoreStats.DownloadStatsFields.TOTAL_DOWNLOAD_SIZE)).get(
+                    RemoteStoreStats.SubFields.STARTED_BYTES
                 ),
                 (int) segmentTransferStats.directoryFileTransferTrackerStats.transferredBytesStarted
             );
             assertEquals(
-                ((Map) segmentDownloads.get(RemoteStoreStats.DownloadStatsFields.TOTAL_DOWNLOADS_IN_BYTES)).get(
-                    RemoteStoreStats.SubFields.SUCCEEDED
+                ((Map) segmentDownloads.get(RemoteStoreStats.DownloadStatsFields.TOTAL_DOWNLOAD_SIZE)).get(
+                    RemoteStoreStats.SubFields.SUCCEEDED_BYTES
                 ),
                 (int) segmentTransferStats.directoryFileTransferTrackerStats.transferredBytesSucceeded
             );
             assertEquals(
-                ((Map) segmentDownloads.get(RemoteStoreStats.DownloadStatsFields.TOTAL_DOWNLOADS_IN_BYTES)).get(
-                    RemoteStoreStats.SubFields.FAILED
+                ((Map) segmentDownloads.get(RemoteStoreStats.DownloadStatsFields.TOTAL_DOWNLOAD_SIZE)).get(
+                    RemoteStoreStats.SubFields.FAILED_BYTES
                 ),
                 (int) segmentTransferStats.directoryFileTransferTrackerStats.transferredBytesFailed
             );
@@ -222,20 +222,20 @@ public class RemoteStoreStatsTestHelper {
                 (int) segmentTransferStats.consecutiveFailuresCount
             );
             assertEquals(
-                ((Map) segmentUploads.get(RemoteStoreStats.UploadStatsFields.TOTAL_UPLOADS_IN_BYTES)).get(
-                    RemoteStoreStats.SubFields.STARTED
+                ((Map) segmentUploads.get(RemoteStoreStats.UploadStatsFields.TOTAL_UPLOAD_SIZE)).get(
+                    RemoteStoreStats.SubFields.STARTED_BYTES
                 ),
                 (int) segmentTransferStats.uploadBytesStarted
             );
             assertEquals(
-                ((Map) segmentUploads.get(RemoteStoreStats.UploadStatsFields.TOTAL_UPLOADS_IN_BYTES)).get(
-                    RemoteStoreStats.SubFields.SUCCEEDED
+                ((Map) segmentUploads.get(RemoteStoreStats.UploadStatsFields.TOTAL_UPLOAD_SIZE)).get(
+                    RemoteStoreStats.SubFields.SUCCEEDED_BYTES
                 ),
                 (int) segmentTransferStats.uploadBytesSucceeded
             );
             assertEquals(
-                ((Map) segmentUploads.get(RemoteStoreStats.UploadStatsFields.TOTAL_UPLOADS_IN_BYTES)).get(
-                    RemoteStoreStats.SubFields.FAILED
+                ((Map) segmentUploads.get(RemoteStoreStats.UploadStatsFields.TOTAL_UPLOAD_SIZE)).get(
+                    RemoteStoreStats.SubFields.FAILED_BYTES
                 ),
                 (int) segmentTransferStats.uploadBytesFailed
             );
@@ -258,19 +258,15 @@ public class RemoteStoreStatsTestHelper {
                 segmentTransferStats.uploadBytesPerSecMovingAverage
             );
             assertEquals(
-                ((Map) segmentUploads.get(RemoteStoreStats.UploadStatsFields.TOTAL_SYNCS_TO_REMOTE)).get(
-                    RemoteStoreStats.SubFields.STARTED
-                ),
+                ((Map) segmentUploads.get(RemoteStoreStats.UploadStatsFields.TOTAL_UPLOADS)).get(RemoteStoreStats.SubFields.STARTED),
                 (int) segmentTransferStats.totalUploadsStarted
             );
             assertEquals(
-                ((Map) segmentUploads.get(RemoteStoreStats.UploadStatsFields.TOTAL_SYNCS_TO_REMOTE)).get(
-                    RemoteStoreStats.SubFields.SUCCEEDED
-                ),
+                ((Map) segmentUploads.get(RemoteStoreStats.UploadStatsFields.TOTAL_UPLOADS)).get(RemoteStoreStats.SubFields.SUCCEEDED),
                 (int) segmentTransferStats.totalUploadsSucceeded
             );
             assertEquals(
-                ((Map) segmentUploads.get(RemoteStoreStats.UploadStatsFields.TOTAL_SYNCS_TO_REMOTE)).get(RemoteStoreStats.SubFields.FAILED),
+                ((Map) segmentUploads.get(RemoteStoreStats.UploadStatsFields.TOTAL_UPLOADS)).get(RemoteStoreStats.SubFields.FAILED),
                 (int) segmentTransferStats.totalUploadsFailed
             );
             assertEquals(
@@ -320,24 +316,24 @@ public class RemoteStoreStatsTestHelper {
             assertEquals(
                 translogTransferStats.uploadBytesStarted,
                 Long.parseLong(
-                    ((Map<?, ?>) tlogUploadStatsObj.get(RemoteStoreStats.UploadStatsFields.TOTAL_UPLOADS_IN_BYTES)).get(
-                        RemoteStoreStats.SubFields.STARTED
+                    ((Map<?, ?>) tlogUploadStatsObj.get(RemoteStoreStats.UploadStatsFields.TOTAL_UPLOAD_SIZE)).get(
+                        RemoteStoreStats.SubFields.STARTED_BYTES
                     ).toString()
                 )
             );
             assertEquals(
                 translogTransferStats.uploadBytesSucceeded,
                 Long.parseLong(
-                    ((Map<?, ?>) tlogUploadStatsObj.get(RemoteStoreStats.UploadStatsFields.TOTAL_UPLOADS_IN_BYTES)).get(
-                        RemoteStoreStats.SubFields.SUCCEEDED
+                    ((Map<?, ?>) tlogUploadStatsObj.get(RemoteStoreStats.UploadStatsFields.TOTAL_UPLOAD_SIZE)).get(
+                        RemoteStoreStats.SubFields.SUCCEEDED_BYTES
                     ).toString()
                 )
             );
             assertEquals(
                 translogTransferStats.uploadBytesFailed,
                 Long.parseLong(
-                    ((Map<?, ?>) tlogUploadStatsObj.get(RemoteStoreStats.UploadStatsFields.TOTAL_UPLOADS_IN_BYTES)).get(
-                        RemoteStoreStats.SubFields.FAILED
+                    ((Map<?, ?>) tlogUploadStatsObj.get(RemoteStoreStats.UploadStatsFields.TOTAL_UPLOAD_SIZE)).get(
+                        RemoteStoreStats.SubFields.FAILED_BYTES
                     ).toString()
                 )
             );
@@ -386,8 +382,8 @@ public class RemoteStoreStatsTestHelper {
             assertEquals(
                 translogTransferStats.downloadBytesSucceeded,
                 Long.parseLong(
-                    ((Map<?, ?>) tlogDownloadStatsObj.get(RemoteStoreStats.DownloadStatsFields.TOTAL_DOWNLOADS_IN_BYTES)).get(
-                        RemoteStoreStats.SubFields.SUCCEEDED
+                    ((Map<?, ?>) tlogDownloadStatsObj.get(RemoteStoreStats.DownloadStatsFields.TOTAL_DOWNLOAD_SIZE)).get(
+                        RemoteStoreStats.SubFields.SUCCEEDED_BYTES
                     ).toString()
                 )
             );
@@ -415,7 +411,7 @@ public class RemoteStoreStatsTestHelper {
                 )
             );
         } else {
-            assertNull(tlogDownloadStatsObj.get(RemoteStoreStats.DownloadStatsFields.TOTAL_DOWNLOADS_IN_BYTES));
+            assertNull(tlogDownloadStatsObj.get(RemoteStoreStats.DownloadStatsFields.TOTAL_DOWNLOAD_SIZE));
         }
     }
 }
