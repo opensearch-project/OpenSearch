@@ -136,6 +136,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `com.google.api:gax` from 2.27.0 to 2.32.0 ([#9300](https://github.com/opensearch-project/OpenSearch/pull/9300))
 - Bump `netty` from 4.1.96.Final to 4.1.97.Final ([#9553](https://github.com/opensearch-project/OpenSearch/pull/9553))
 - Bump `io.grpc:grpc-api` from 1.57.1 to 1.57.2 ([#9578](https://github.com/opensearch-project/OpenSearch/pull/9578))
+- Bump `org.apache.ant:ant` from 1.10.13 to 1.10.14 ([#9579](https://github.com/opensearch-project/OpenSearch/pull/9579))
 - Bump `com.azure:azure-storage-common` from 12.21.2 to 12.22.1 ([#9577](https://github.com/opensearch-project/OpenSearch/pull/9577))
 
 ### Changed
