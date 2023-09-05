@@ -85,6 +85,12 @@ grant codeBase "${codebase.zstd-jni}" {
   permission java.lang.RuntimePermission "loadLibrary.*";
 };
 
+grant codeBase "${codebase.bcprov-jdk15to18}" {
+  permission java.security.SecurityPermission "putProviderProperty.BC";
+  permission java.security.SecurityPermission "insertProvider.BC";
+  permission java.security.SecurityPermission "removeProviderProperty.BC";
+};
+
 //// Everything else:
 
 grant {
