@@ -8,6 +8,7 @@
 
 package org.opensearch.telemetry.tracing.noop;
 
+import org.opensearch.common.annotation.InternalApi;
 import org.opensearch.telemetry.tracing.ScopedSpan;
 import org.opensearch.telemetry.tracing.Span;
 import org.opensearch.telemetry.tracing.SpanContext;
@@ -24,6 +25,7 @@ import java.util.Map;
  *
  * @opensearch.internal
  */
+@InternalApi
 public class NoopTracer implements Tracer {
 
     /**
