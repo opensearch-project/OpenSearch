@@ -8,6 +8,7 @@
 
 package org.opensearch.node.remotestore;
 
+import org.opensearch.cluster.metadata.CryptoMetadata;
 import org.opensearch.cluster.metadata.RepositoriesMetadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -36,6 +37,9 @@ public class RemoteStoreNodeAttribute {
     public static final String REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY = "remote_store.segment.repository";
     public static final String REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY = "remote_store.translog.repository";
     public static final String REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT = "remote_store.repository.%s.type";
+    public static final String REMOTE_STORE_REPOSITORY_CRYPTO_ATTRIBUTE_KEY_FORMAT = "remote_store.repository.%s."
+        + CryptoMetadata.CRYPTO_METADATA_KEY
+        + ".";
     public static final String REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX = "remote_store.repository.%s.settings.";
     private final RepositoriesMetadata repositoriesMetadata;
 
@@ -53,6 +57,33 @@ public class RemoteStoreNodeAttribute {
         }
 
         return attributeValue;
+    }
+
+    private CryptoMetadata getCryptoMetadata(DiscoveryNode node, String repositoryName) {
+        String metadataKey = String.format(Locale.getDefault(), REMOTE_STORE_REPOSITORY_CRYPTO_ATTRIBUTE_KEY_FORMAT, repositoryName);
+        boolean encryptedRepo = node.getAttributes().keySet().stream().anyMatch(key -> key.startsWith(metadataKey));
+        if (encryptedRepo == false) {
+            return null;
+        }
+
+        String keyProviderName = node.getAttributes().get(metadataKey + CryptoMetadata.KEY_PROVIDER_NAME_KEY);
+        String keyProviderType = node.getAttributes().get(metadataKey + CryptoMetadata.KEY_PROVIDER_TYPE_KEY);
+
+        Map<String, String> settingsMap = node.getAttributes()
+            .keySet()
+            .stream()
+            .filter(key -> key.startsWith(metadataKey + CryptoMetadata.KEY_SETTINGS))
+            .collect(
+                Collectors.toMap(
+                    key -> key.replace(metadataKey + CryptoMetadata.KEY_SETTINGS + ".", ""),
+                    key -> node.getAttributes().get(key)
+                )
+            );
+
+        Settings.Builder settings = Settings.builder();
+        settingsMap.forEach(settings::put);
+
+        return new CryptoMetadata(keyProviderName, keyProviderType, settings.build());
     }
 
     private Map<String, String> validateSettingsAttributesNonNull(DiscoveryNode node, String repositoryName) {
@@ -86,10 +117,12 @@ public class RemoteStoreNodeAttribute {
         Settings.Builder settings = Settings.builder();
         settingsMap.forEach(settings::put);
 
+        CryptoMetadata cryptoMetadata = getCryptoMetadata(node, name);
+
         // Repository metadata built here will always be for a system repository.
         settings.put(BlobStoreRepository.SYSTEM_REPOSITORY_SETTING.getKey(), true);
 
-        return new RepositoryMetadata(name, type, settings.build());
+        return new RepositoryMetadata(name, type, settings.build(), cryptoMetadata);
     }
 
     private RepositoriesMetadata buildRepositoriesMetadata(DiscoveryNode node) {
