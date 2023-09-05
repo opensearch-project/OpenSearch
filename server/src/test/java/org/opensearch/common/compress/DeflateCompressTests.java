@@ -32,18 +32,15 @@
 
 package org.opensearch.common.compress;
 
-import org.opensearch.core.compress.Compressor;
-import org.opensearch.test.core.compress.AbstractCompressorTestCase;
-
 /**
  * Test streaming compression (e.g. used for recovery)
  */
-public class DeflateCompressTests extends AbstractCompressorTestCase {
+public class DeflateCompressTests extends AbstractCompressorTests {
 
     private final Compressor compressor = new DeflateCompressor();
 
     @Override
-    protected Compressor compressor() {
+    Compressor compressor() {
         return compressor;
     }
 }

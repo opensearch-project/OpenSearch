@@ -31,13 +31,19 @@
 
 package org.opensearch.index.mapper;
 
+import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertOrderedSearchHits;
+
 import com.ibm.icu.text.Collator;
 import com.ibm.icu.text.RuleBasedCollator;
 import com.ibm.icu.util.ULocale;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
-import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.plugin.analysis.icu.AnalysisICUPlugin;
 import org.opensearch.plugins.Plugin;
@@ -49,12 +55,6 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.Collection;
 import java.util.Collections;
-
-import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
-import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
-import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures;
-import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertOrderedSearchHits;
 
 public class ICUCollationKeywordFieldMapperIT extends OpenSearchIntegTestCase {
 
@@ -91,12 +91,8 @@ public class ICUCollationKeywordFieldMapperIT extends OpenSearchIntegTestCase {
         // both values should collate to same value
         indexRandom(
             true,
-            client().prepareIndex(index)
-                .setId("1")
-                .setSource("{\"id\":\"1\",\"collate\":\"" + equivalent[0] + "\"}", MediaTypeRegistry.JSON),
-            client().prepareIndex(index)
-                .setId("2")
-                .setSource("{\"id\":\"2\",\"collate\":\"" + equivalent[1] + "\"}", MediaTypeRegistry.JSON)
+            client().prepareIndex(index).setId("1").setSource("{\"id\":\"1\",\"collate\":\"" + equivalent[0] + "\"}", XContentType.JSON),
+            client().prepareIndex(index).setId("2").setSource("{\"id\":\"2\",\"collate\":\"" + equivalent[1] + "\"}", XContentType.JSON)
         );
 
         // searching for either of the terms should return both results since they collate to the same value
@@ -138,10 +134,8 @@ public class ICUCollationKeywordFieldMapperIT extends OpenSearchIntegTestCase {
             true,
             client().prepareIndex(index)
                 .setId("1")
-                .setSource("{\"id\":\"1\", \"collate\":[\"" + equivalent[0] + "\", \"" + equivalent[1] + "\"]}", MediaTypeRegistry.JSON),
-            client().prepareIndex(index)
-                .setId("2")
-                .setSource("{\"id\":\"2\",\"collate\":\"" + equivalent[2] + "\"}", MediaTypeRegistry.JSON)
+                .setSource("{\"id\":\"1\", \"collate\":[\"" + equivalent[0] + "\", \"" + equivalent[1] + "\"]}", XContentType.JSON),
+            client().prepareIndex(index).setId("2").setSource("{\"id\":\"2\",\"collate\":\"" + equivalent[2] + "\"}", XContentType.JSON)
         );
 
         // using sort mode = max, values B and C will be used for the sort
@@ -201,12 +195,8 @@ public class ICUCollationKeywordFieldMapperIT extends OpenSearchIntegTestCase {
 
         indexRandom(
             true,
-            client().prepareIndex(index)
-                .setId("1")
-                .setSource("{\"id\":\"1\",\"collate\":\"" + equivalent[0] + "\"}", MediaTypeRegistry.JSON),
-            client().prepareIndex(index)
-                .setId("2")
-                .setSource("{\"id\":\"2\",\"collate\":\"" + equivalent[1] + "\"}", MediaTypeRegistry.JSON)
+            client().prepareIndex(index).setId("1").setSource("{\"id\":\"1\",\"collate\":\"" + equivalent[0] + "\"}", XContentType.JSON),
+            client().prepareIndex(index).setId("2").setSource("{\"id\":\"2\",\"collate\":\"" + equivalent[1] + "\"}", XContentType.JSON)
         );
 
         // searching for either of the terms should return both results since they collate to the same value
@@ -250,12 +240,8 @@ public class ICUCollationKeywordFieldMapperIT extends OpenSearchIntegTestCase {
 
         indexRandom(
             true,
-            client().prepareIndex(index)
-                .setId("1")
-                .setSource("{\"id\":\"1\",\"collate\":\"" + equivalent[0] + "\"}", MediaTypeRegistry.JSON),
-            client().prepareIndex(index)
-                .setId("2")
-                .setSource("{\"id\":\"2\",\"collate\":\"" + equivalent[1] + "\"}", MediaTypeRegistry.JSON)
+            client().prepareIndex(index).setId("1").setSource("{\"id\":\"1\",\"collate\":\"" + equivalent[0] + "\"}", XContentType.JSON),
+            client().prepareIndex(index).setId("2").setSource("{\"id\":\"2\",\"collate\":\"" + equivalent[1] + "\"}", XContentType.JSON)
         );
 
         SearchRequest request = new SearchRequest().indices(index)
@@ -299,12 +285,8 @@ public class ICUCollationKeywordFieldMapperIT extends OpenSearchIntegTestCase {
 
         indexRandom(
             true,
-            client().prepareIndex(index)
-                .setId("1")
-                .setSource("{\"id\":\"1\",\"collate\":\"" + equivalent[0] + "\"}", MediaTypeRegistry.JSON),
-            client().prepareIndex(index)
-                .setId("2")
-                .setSource("{\"id\":\"2\",\"collate\":\"" + equivalent[1] + "\"}", MediaTypeRegistry.JSON)
+            client().prepareIndex(index).setId("1").setSource("{\"id\":\"1\",\"collate\":\"" + equivalent[0] + "\"}", XContentType.JSON),
+            client().prepareIndex(index).setId("2").setSource("{\"id\":\"2\",\"collate\":\"" + equivalent[1] + "\"}", XContentType.JSON)
         );
 
         SearchRequest request = new SearchRequest().indices(index)
@@ -348,9 +330,9 @@ public class ICUCollationKeywordFieldMapperIT extends OpenSearchIntegTestCase {
 
         indexRandom(
             true,
-            client().prepareIndex(index).setId("1").setSource("{\"id\":\"1\",\"collate\":\"foo bar\"}", MediaTypeRegistry.JSON),
-            client().prepareIndex(index).setId("2").setSource("{\"id\":\"2\",\"collate\":\"foobar\"}", MediaTypeRegistry.JSON),
-            client().prepareIndex(index).setId("3").setSource("{\"id\":\"3\",\"collate\":\"foo-bar\"}", MediaTypeRegistry.JSON)
+            client().prepareIndex(index).setId("1").setSource("{\"id\":\"1\",\"collate\":\"foo bar\"}", XContentType.JSON),
+            client().prepareIndex(index).setId("2").setSource("{\"id\":\"2\",\"collate\":\"foobar\"}", XContentType.JSON),
+            client().prepareIndex(index).setId("3").setSource("{\"id\":\"3\",\"collate\":\"foo-bar\"}", XContentType.JSON)
         );
 
         SearchRequest request = new SearchRequest().indices(index)
@@ -390,8 +372,8 @@ public class ICUCollationKeywordFieldMapperIT extends OpenSearchIntegTestCase {
 
         indexRandom(
             true,
-            client().prepareIndex(index).setId("1").setSource("{\"collate\":\"foobar-10\"}", MediaTypeRegistry.JSON),
-            client().prepareIndex(index).setId("2").setSource("{\"collate\":\"foobar-9\"}", MediaTypeRegistry.JSON)
+            client().prepareIndex(index).setId("1").setSource("{\"collate\":\"foobar-10\"}", XContentType.JSON),
+            client().prepareIndex(index).setId("2").setSource("{\"collate\":\"foobar-9\"}", XContentType.JSON)
         );
 
         SearchRequest request = new SearchRequest().indices(index)
@@ -429,10 +411,10 @@ public class ICUCollationKeywordFieldMapperIT extends OpenSearchIntegTestCase {
 
         indexRandom(
             true,
-            client().prepareIndex(index).setId("1").setSource("{\"id\":\"1\",\"collate\":\"résumé\"}", MediaTypeRegistry.JSON),
-            client().prepareIndex(index).setId("2").setSource("{\"id\":\"2\",\"collate\":\"Resume\"}", MediaTypeRegistry.JSON),
-            client().prepareIndex(index).setId("3").setSource("{\"id\":\"3\",\"collate\":\"resume\"}", MediaTypeRegistry.JSON),
-            client().prepareIndex(index).setId("4").setSource("{\"id\":\"4\",\"collate\":\"Résumé\"}", MediaTypeRegistry.JSON)
+            client().prepareIndex(index).setId("1").setSource("{\"id\":\"1\",\"collate\":\"résumé\"}", XContentType.JSON),
+            client().prepareIndex(index).setId("2").setSource("{\"id\":\"2\",\"collate\":\"Resume\"}", XContentType.JSON),
+            client().prepareIndex(index).setId("3").setSource("{\"id\":\"3\",\"collate\":\"resume\"}", XContentType.JSON),
+            client().prepareIndex(index).setId("4").setSource("{\"id\":\"4\",\"collate\":\"Résumé\"}", XContentType.JSON)
         );
 
         SearchRequest request = new SearchRequest().indices(index)
@@ -467,8 +449,8 @@ public class ICUCollationKeywordFieldMapperIT extends OpenSearchIntegTestCase {
 
         indexRandom(
             true,
-            client().prepareIndex(index).setId("1").setSource("{\"collate\":\"resume\"}", MediaTypeRegistry.JSON),
-            client().prepareIndex(index).setId("2").setSource("{\"collate\":\"Resume\"}", MediaTypeRegistry.JSON)
+            client().prepareIndex(index).setId("1").setSource("{\"collate\":\"resume\"}", XContentType.JSON),
+            client().prepareIndex(index).setId("2").setSource("{\"collate\":\"Resume\"}", XContentType.JSON)
         );
 
         SearchRequest request = new SearchRequest().indices(index)
@@ -515,12 +497,8 @@ public class ICUCollationKeywordFieldMapperIT extends OpenSearchIntegTestCase {
 
         indexRandom(
             true,
-            client().prepareIndex(index)
-                .setId("1")
-                .setSource("{\"id\":\"1\",\"collate\":\"" + equivalent[0] + "\"}", MediaTypeRegistry.JSON),
-            client().prepareIndex(index)
-                .setId("2")
-                .setSource("{\"id\":\"2\",\"collate\":\"" + equivalent[1] + "\"}", MediaTypeRegistry.JSON)
+            client().prepareIndex(index).setId("1").setSource("{\"id\":\"1\",\"collate\":\"" + equivalent[0] + "\"}", XContentType.JSON),
+            client().prepareIndex(index).setId("2").setSource("{\"id\":\"2\",\"collate\":\"" + equivalent[1] + "\"}", XContentType.JSON)
         );
 
         SearchRequest request = new SearchRequest().indices(index)

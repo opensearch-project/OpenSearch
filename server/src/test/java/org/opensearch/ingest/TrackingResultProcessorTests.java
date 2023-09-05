@@ -41,6 +41,7 @@ import org.opensearch.script.ScriptService;
 import org.opensearch.script.ScriptType;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
+import org.mockito.Mockito;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -48,8 +49,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
-import org.mockito.Mockito;
 
 import static org.opensearch.ingest.CompoundProcessor.ON_FAILURE_MESSAGE_FIELD;
 import static org.opensearch.ingest.CompoundProcessor.ON_FAILURE_PROCESSOR_TAG_FIELD;

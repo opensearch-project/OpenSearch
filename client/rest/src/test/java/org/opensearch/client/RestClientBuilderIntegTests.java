@@ -36,8 +36,7 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpsConfigurator;
 import com.sun.net.httpserver.HttpsServer;
-
-import org.apache.hc.core5.http.HttpHost;
+import org.apache.http.HttpHost;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -45,7 +44,6 @@ import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLHandshakeException;
 import javax.net.ssl.TrustManagerFactory;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetAddress;
@@ -119,7 +117,7 @@ public class RestClientBuilderIntegTests extends RestClientTestCase {
 
     private RestClient buildRestClient() {
         InetSocketAddress address = httpsServer.getAddress();
-        return RestClient.builder(new HttpHost("https", address.getHostString(), address.getPort())).build();
+        return RestClient.builder(new HttpHost(address.getHostString(), address.getPort(), "https")).build();
     }
 
     private static SSLContext getSslContext() throws Exception {

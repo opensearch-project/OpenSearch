@@ -41,7 +41,6 @@ import org.opensearch.env.Environment;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.AbstractTokenFilterFactory;
 import org.opensearch.index.analysis.Analysis;
-
 import org.tartarus.snowball.ext.FrenchStemmer;
 
 public class FrenchStemTokenFilterFactory extends AbstractTokenFilterFactory {

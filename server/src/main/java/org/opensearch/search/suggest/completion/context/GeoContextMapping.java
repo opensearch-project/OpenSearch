@@ -37,6 +37,7 @@ import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
 import org.opensearch.common.geo.GeoPoint;
@@ -311,14 +312,37 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
         if (fieldName != null) {
             MappedFieldType mappedFieldType = fieldResolver.apply(fieldName);
             if (mappedFieldType == null) {
-                throw new OpenSearchParseException("field [{}] referenced in context [{}] is not defined in the mapping", fieldName, name);
+                if (indexVersionCreated.before(LegacyESVersion.V_7_0_0)) {
+                    deprecationLogger.deprecate(
+                        "geo_context_mapping",
+                        "field [{}] referenced in context [{}] is not defined in the mapping",
+                        fieldName,
+                        name
+                    );
+                } else {
+                    throw new OpenSearchParseException(
+                        "field [{}] referenced in context [{}] is not defined in the mapping",
+                        fieldName,
+                        name
+                    );
+                }
             } else if (GeoPointFieldMapper.CONTENT_TYPE.equals(mappedFieldType.typeName()) == false) {
-                throw new OpenSearchParseException(
-                    "field [{}] referenced in context [{}] must be mapped to geo_point, found [{}]",
-                    fieldName,
-                    name,
-                    mappedFieldType.typeName()
-                );
+                if (indexVersionCreated.before(LegacyESVersion.V_7_0_0)) {
+                    deprecationLogger.deprecate(
+                        "geo_context_mapping",
+                        "field [{}] referenced in context [{}] must be mapped to geo_point, found [{}]",
+                        fieldName,
+                        name,
+                        mappedFieldType.typeName()
+                    );
+                } else {
+                    throw new OpenSearchParseException(
+                        "field [{}] referenced in context [{}] must be mapped to geo_point, found [{}]",
+                        fieldName,
+                        name,
+                        mappedFieldType.typeName()
+                    );
+                }
             }
         }
     }

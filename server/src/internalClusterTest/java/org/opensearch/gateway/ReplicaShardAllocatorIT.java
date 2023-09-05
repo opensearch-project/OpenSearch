@@ -32,15 +32,16 @@
 
 package org.opensearch.gateway;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.action.admin.indices.stats.ShardStats;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
+import org.opensearch.common.breaker.CircuitBreaker;
+import org.opensearch.common.breaker.CircuitBreakingException;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.common.breaker.CircuitBreaker;
-import org.opensearch.core.common.breaker.CircuitBreakingException;
 import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
@@ -53,9 +54,9 @@ import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoveryCleanFilesRequest;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.test.InternalTestCluster;
-import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.transport.TransportService;
 
@@ -511,7 +512,7 @@ public class ReplicaShardAllocatorIT extends OpenSearchIntegTestCase {
     }
 
     /**
-     * If the recovery source is on an old node (before <pre>{@code LegacyESVersion#V_7_2_0}</pre>) then the recovery target
+     * If the recovery source is on an old node (before <pre>{@link LegacyESVersion#V_7_2_0}</pre>) then the recovery target
      * won't have the safe commit after phase1 because the recovery source does not send the global checkpoint in the clean_files
      * step. And if the recovery fails and retries, then the recovery stage might not transition properly. This test simulates
      * this behavior by changing the global checkpoint in phase1 to unassigned.

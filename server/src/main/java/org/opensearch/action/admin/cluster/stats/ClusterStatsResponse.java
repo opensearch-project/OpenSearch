@@ -32,16 +32,18 @@
 
 package org.opensearch.action.admin.cluster.stats;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.support.nodes.BaseNodesResponse;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.health.ClusterHealthStatus;
-import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.util.List;
@@ -69,9 +71,11 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
         String clusterUUID = null;
         MappingStats mappingStats = null;
         AnalysisStats analysisStats = null;
-        clusterUUID = in.readOptionalString();
-        mappingStats = in.readOptionalWriteable(MappingStats::new);
-        analysisStats = in.readOptionalWriteable(AnalysisStats::new);
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_7_0)) {
+            clusterUUID = in.readOptionalString();
+            mappingStats = in.readOptionalWriteable(MappingStats::new);
+            analysisStats = in.readOptionalWriteable(AnalysisStats::new);
+        }
         this.clusterUUID = clusterUUID;
 
         // built from nodes rather than from the stream directly
@@ -128,9 +132,11 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
         super.writeTo(out);
         out.writeVLong(timestamp);
         out.writeOptionalWriteable(status);
-        out.writeOptionalString(clusterUUID);
-        out.writeOptionalWriteable(indicesStats.getMappings());
-        out.writeOptionalWriteable(indicesStats.getAnalysis());
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_7_0)) {
+            out.writeOptionalString(clusterUUID);
+            out.writeOptionalWriteable(indicesStats.getMappings());
+            out.writeOptionalWriteable(indicesStats.getAnalysis());
+        }
     }
 
     @Override
@@ -167,7 +173,7 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
             builder.startObject();
             toXContent(builder, EMPTY_PARAMS);
             builder.endObject();
-            return builder.toString();
+            return Strings.toString(builder);
         } catch (IOException e) {
             return "{ \"error\" : \"" + e.getMessage() + "\"}";
         }

@@ -32,31 +32,30 @@
 
 package org.opensearch.client;
 
-import org.apache.hc.core5.http.ClassicHttpResponse;
-import org.apache.hc.core5.http.nio.AsyncResponseConsumer;
-import org.opensearch.client.nio.HeapBufferedAsyncResponseConsumer;
+import org.apache.http.HttpResponse;
+import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
 
 import static org.opensearch.client.HttpAsyncResponseConsumerFactory.HeapBufferedResponseConsumerFactory.DEFAULT_BUFFER_LIMIT;
 
 /**
- * Factory used to create instances of {@link AsyncResponseConsumer}. Each request retry needs its own instance of the
+ * Factory used to create instances of {@link HttpAsyncResponseConsumer}. Each request retry needs its own instance of the
  * consumer object. Users can implement this interface and pass their own instance to the specialized
  * performRequest methods that accept an {@link HttpAsyncResponseConsumerFactory} instance as argument.
  */
 public interface HttpAsyncResponseConsumerFactory {
 
     /**
-     * Creates the default type of {@link AsyncResponseConsumer}, based on heap buffering with a buffer limit of 100MB.
+     * Creates the default type of {@link HttpAsyncResponseConsumer}, based on heap buffering with a buffer limit of 100MB.
      */
     HttpAsyncResponseConsumerFactory DEFAULT = new HeapBufferedResponseConsumerFactory(DEFAULT_BUFFER_LIMIT);
 
     /**
-     * Creates the {@link AsyncResponseConsumer}, called once per request attempt.
+     * Creates the {@link HttpAsyncResponseConsumer}, called once per request attempt.
      */
-    AsyncResponseConsumer<ClassicHttpResponse> createHttpAsyncResponseConsumer();
+    HttpAsyncResponseConsumer<HttpResponse> createHttpAsyncResponseConsumer();
 
     /**
-     * Default factory used to create instances of {@link AsyncResponseConsumer}.
+     * Default factory used to create instances of {@link HttpAsyncResponseConsumer}.
      * Creates one instance of {@link HeapBufferedAsyncResponseConsumer} for each request attempt, with a configurable
      * buffer limit which defaults to 100MB.
      */
@@ -76,11 +75,8 @@ public interface HttpAsyncResponseConsumerFactory {
             this.bufferLimit = bufferLimitBytes;
         }
 
-        /**
-         * Creates the {@link AsyncResponseConsumer}, called once per request attempt.
-         */
         @Override
-        public AsyncResponseConsumer<ClassicHttpResponse> createHttpAsyncResponseConsumer() {
+        public HttpAsyncResponseConsumer<HttpResponse> createHttpAsyncResponseConsumer() {
             return new HeapBufferedAsyncResponseConsumer(bufferLimit);
         }
     }

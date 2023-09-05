@@ -39,19 +39,19 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.opensearch.core.common.ParsingException;
+import org.opensearch.common.Strings;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.geo.GeoPoint;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.common.lucene.search.function.CombineFunction;
 import org.opensearch.common.lucene.search.function.FieldValueFactorFunction;
 import org.opensearch.common.lucene.search.function.FunctionScoreQuery;
 import org.opensearch.common.lucene.search.function.WeightFactorFunction;
 import org.opensearch.common.unit.DistanceUnit;
-import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.core.common.ParsingException;
-import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.core.xcontent.MediaType;
-import org.opensearch.core.xcontent.XContentHelper;
+import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.mapper.SeqNoFieldMapper;
 import org.opensearch.index.query.MatchAllQueryBuilder;
 import org.opensearch.index.query.MatchNoneQueryBuilder;
@@ -69,10 +69,10 @@ import org.opensearch.script.ScriptType;
 import org.opensearch.search.MultiValueMode;
 import org.opensearch.test.AbstractQueryTestCase;
 import org.opensearch.test.TestGeoShapeFieldMapperPlugin;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matcher;
+import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -360,7 +360,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
          * given that we copy part of the decay functions as bytes, we test that fromXContent and toXContent both work no matter what the
          * initial format was
          */
-        for (MediaType xContentType : XContentType.values()) {
+        for (XContentType xContentType : XContentType.values()) {
             assertThat(queryBuilder, instanceOf(FunctionScoreQueryBuilder.class));
             FunctionScoreQueryBuilder functionScoreQueryBuilder = (FunctionScoreQueryBuilder) queryBuilder;
             assertThat(functionScoreQueryBuilder.query(), instanceOf(TermQueryBuilder.class));
@@ -521,19 +521,20 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
     }
 
     public void testWeight1fStillProducesWeightFunction() throws IOException {
-        String queryString = jsonBuilder().startObject()
-            .startObject("function_score")
-            .startArray("functions")
-            .startObject()
-            .startObject("field_value_factor")
-            .field("field", INT_FIELD_NAME)
-            .endObject()
-            .field("weight", 1.0)
-            .endObject()
-            .endArray()
-            .endObject()
-            .endObject()
-            .toString();
+        String queryString = Strings.toString(
+            jsonBuilder().startObject()
+                .startObject("function_score")
+                .startArray("functions")
+                .startObject()
+                .startObject("field_value_factor")
+                .field("field", INT_FIELD_NAME)
+                .endObject()
+                .field("weight", 1.0)
+                .endObject()
+                .endArray()
+                .endObject()
+                .endObject()
+        );
         QueryBuilder query = parseQuery(queryString);
         assertThat(query, instanceOf(FunctionScoreQueryBuilder.class));
         FunctionScoreQueryBuilder functionScoreQueryBuilder = (FunctionScoreQueryBuilder) query;
@@ -560,34 +561,36 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
     }
 
     public void testProperErrorMessagesForMisplacedWeightsAndFunctions() throws IOException {
-        String query = jsonBuilder().startObject()
-            .startObject("function_score")
-            .startArray("functions")
-            .startObject()
-            .startObject("script_score")
-            .field("script", "3")
-            .endObject()
-            .endObject()
-            .endArray()
-            .field("weight", 2)
-            .endObject()
-            .endObject()
-            .toString();
+        String query = Strings.toString(
+            jsonBuilder().startObject()
+                .startObject("function_score")
+                .startArray("functions")
+                .startObject()
+                .startObject("script_score")
+                .field("script", "3")
+                .endObject()
+                .endObject()
+                .endArray()
+                .field("weight", 2)
+                .endObject()
+                .endObject()
+        );
         expectParsingException(
             query,
             "[you can either define [functions] array or a single function, not both. already "
                 + "found [functions] array, now encountering [weight].]"
         );
-        query = jsonBuilder().startObject()
-            .startObject("function_score")
-            .field("weight", 2)
-            .startArray("functions")
-            .startObject()
-            .endObject()
-            .endArray()
-            .endObject()
-            .endObject()
-            .toString();
+        query = Strings.toString(
+            jsonBuilder().startObject()
+                .startObject("function_score")
+                .field("weight", 2)
+                .startArray("functions")
+                .startObject()
+                .endObject()
+                .endArray()
+                .endObject()
+                .endObject()
+        );
         expectParsingException(
             query,
             "[you can either define [functions] array or a single function, not both. already found "

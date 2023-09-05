@@ -53,10 +53,10 @@ import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.network.IfConfig;
 import org.opensearch.common.settings.KeyStoreWrapper;
 import org.opensearch.common.settings.SecureSettings;
-import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.common.settings.SecureString;
-import org.opensearch.core.common.transport.BoundTransportAddress;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.transport.BoundTransportAddress;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.env.Environment;
 import org.opensearch.monitor.jvm.JvmInfo;
 import org.opensearch.monitor.os.OsProbe;
@@ -189,7 +189,7 @@ final class Bootstrap {
         }
 
         initializeNatives(
-            environment.tmpDir(),
+            environment.tmpFile(),
             BootstrapSettings.MEMORY_LOCK_SETTING.get(settings),
             BootstrapSettings.SYSTEM_CALL_FILTER_SETTING.get(settings),
             BootstrapSettings.CTRLHANDLER_SETTING.get(settings)
@@ -254,7 +254,7 @@ final class Bootstrap {
     static SecureSettings loadSecureSettings(Environment initialEnv) throws BootstrapException {
         final KeyStoreWrapper keystore;
         try {
-            keystore = KeyStoreWrapper.load(initialEnv.configDir());
+            keystore = KeyStoreWrapper.load(initialEnv.configFile());
         } catch (IOException e) {
             throw new BootstrapException(e);
         }
@@ -273,11 +273,11 @@ final class Bootstrap {
         try {
             if (keystore == null) {
                 final KeyStoreWrapper keyStoreWrapper = KeyStoreWrapper.create();
-                keyStoreWrapper.save(initialEnv.configDir(), new char[0]);
+                keyStoreWrapper.save(initialEnv.configFile(), new char[0]);
                 return keyStoreWrapper;
             } else {
                 keystore.decrypt(password.getChars());
-                KeyStoreWrapper.upgrade(keystore, initialEnv.configDir(), password.getChars());
+                KeyStoreWrapper.upgrade(keystore, initialEnv.configFile(), password.getChars());
             }
         } catch (Exception e) {
             throw new BootstrapException(e);
@@ -366,7 +366,7 @@ final class Bootstrap {
         INSTANCE = new Bootstrap();
 
         final SecureSettings keystore = loadSecureSettings(initialEnv);
-        final Environment environment = createEnvironment(pidFile, keystore, initialEnv.settings(), initialEnv.configDir());
+        final Environment environment = createEnvironment(pidFile, keystore, initialEnv.settings(), initialEnv.configFile());
 
         LogConfigurator.setNodeName(Node.NODE_NAME_SETTING.get(environment.settings()));
         try {

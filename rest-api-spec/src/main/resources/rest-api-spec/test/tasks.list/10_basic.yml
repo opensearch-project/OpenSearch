@@ -17,13 +17,8 @@
   - do:
       tasks.list:
         group_by: parents
-        detailed: true
-  - set:
-      tasks._arbitrary_key_: task_id
 
   - is_true: tasks
-  - is_true: tasks.$task_id.resource_stats
-  - is_true: tasks.$task_id.resource_stats.total
 
 ---
 "tasks_list test detailed":

@@ -8,15 +8,12 @@
 
 package org.opensearch.gradle.pluginzip;
 
-import org.apache.maven.model.Model;
-import org.apache.maven.model.io.xpp3.MavenXpp3Reader;
-import org.codehaus.plexus.util.xml.pull.XmlPullParserException;
-import org.opensearch.gradle.test.GradleUnitTestCase;
 import org.gradle.api.Project;
 import org.gradle.testfixtures.ProjectBuilder;
 import org.gradle.testkit.runner.BuildResult;
 import org.gradle.testkit.runner.GradleRunner;
 import org.gradle.testkit.runner.UnexpectedBuildFailure;
+import org.opensearch.gradle.test.GradleUnitTestCase;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -31,11 +28,16 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+
+import static org.gradle.testkit.runner.TaskOutcome.SUCCESS;
+
+import org.apache.maven.model.Model;
+import org.apache.maven.model.io.xpp3.MavenXpp3Reader;
+import org.codehaus.plexus.util.xml.pull.XmlPullParserException;
+
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
-
-import static org.gradle.testkit.runner.TaskOutcome.SUCCESS;
 
 public class PublishTests extends GradleUnitTestCase {
     private TemporaryFolder projectDir;
@@ -186,11 +188,42 @@ public class PublishTests extends GradleUnitTestCase {
         assertTrue(result.getOutput().contains("Plugin 'opensearch.pluginzip' is applied but no 'pluginZip' publication is defined."));
     }
 
+    /**
+     * In OpenSearch 3.x the `project.group` property will be mandatory.
+     * But in 2.x (2.4 and above) the `project.group` property can be empty in which case it falls back to default value.
+     */
     @Test
     public void missingGroupValue() throws IOException, URISyntaxException, XmlPullParserException {
         GradleRunner runner = prepareGradleRunnerFromTemplate("missingGroupValue.gradle", "build", ZIP_PUBLISH_TASK);
-        Exception e = assertThrows(UnexpectedBuildFailure.class, runner::build);
-        assertTrue(e.getMessage().contains("Invalid publication 'pluginZip': groupId cannot be empty."));
+        BuildResult result = runner.build();
+
+        /** Check if build and {@value ZIP_PUBLISH_TASK} tasks have run well */
+        assertEquals(SUCCESS, result.task(":" + "build").getOutcome());
+        assertEquals(SUCCESS, result.task(":" + ZIP_PUBLISH_TASK).getOutcome());
+
+        // Parse the maven file and validate default values
+        MavenXpp3Reader reader = new MavenXpp3Reader();
+        Model model = reader.read(
+            new FileReader(
+                new File(
+                    projectDir.getRoot(),
+                    String.join(
+                        File.separator,
+                        "build",
+                        "local-staging-repo",
+                        "org",
+                        "opensearch",
+                        "plugin",
+                        PROJECT_NAME,
+                        "2.0.0.0",
+                        PROJECT_NAME + "-2.0.0.0.pom"
+                    )
+                )
+            )
+        );
+        assertEquals(model.getVersion(), "2.0.0.0");
+        assertEquals(model.getGroupId(), "org.opensearch.plugin");
+        assertEquals(model.getArtifactId(), PROJECT_NAME);
     }
 
     /**

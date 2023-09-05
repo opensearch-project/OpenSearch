@@ -33,10 +33,10 @@ package org.opensearch.example.customsettings;
 
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.settings.SecureSetting;
+import org.opensearch.core.common.settings.SecureString;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.common.settings.SecureString;
 import org.opensearch.env.Environment;
 
 import java.io.IOException;
@@ -94,14 +94,9 @@ public class ExampleCustomSettingsConfig {
     private final List<Integer> list;
     private final String filtered;
 
-    /**
-     * Instantiate this object based on the specified environment.
-     *
-     * @param environment The environment including paths to custom setting configuration files
-     */
     public ExampleCustomSettingsConfig(final Environment environment) {
-        // OpenSearch config directory
-        final Path configDir = environment.configDir();
+        // Elasticsearch config directory
+        final Path configDir = environment.configFile();
 
         // Resolve the plugin's custom settings file
         final Path customSettingsYamlFile = configDir.resolve("custom-settings/custom.yml");
@@ -126,47 +121,22 @@ public class ExampleCustomSettingsConfig {
         assert secured != null;
     }
 
-    /**
-     * Gets the value of the custom.simple String setting.
-     *
-     * @return the custom.simple value
-     */
     public String getSimple() {
         return simple;
     }
 
-    /**
-     * Gets the value of the custom.bool boolean setting.
-     *
-     * @return the custom.bool value
-     */
     public Boolean getBool() {
         return bool;
     }
 
-    /**
-     * Gets the value of the custom.validated String setting.
-     *
-     * @return the custom.validated value
-     */
     public String getValidated() {
         return validated;
     }
 
-    /**
-     * Gets the value of the custom.filtered String setting.
-     *
-     * @return the custom.filtered value
-     */
     public String getFiltered() {
         return filtered;
     }
 
-    /**
-     * Gets the value of the custom.list list of integers setting.
-     *
-     * @return the custom.list value
-     */
     public List<Integer> getList() {
         return list;
     }

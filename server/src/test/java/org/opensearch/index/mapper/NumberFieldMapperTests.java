@@ -34,9 +34,10 @@ package org.opensearch.index.mapper;
 
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
+import org.opensearch.common.Strings;
 import org.opensearch.core.common.bytes.BytesArray;
-import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.mapper.NumberFieldMapper.NumberType;
 import org.opensearch.index.mapper.NumberFieldTypeTests.OutOfRangeSpec;
 import org.opensearch.index.termvectors.TermVectorsService;
@@ -94,7 +95,7 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
     public void doTestDefaults(String type) throws Exception {
         XContentBuilder mapping = fieldMapping(b -> b.field("type", type));
         DocumentMapper mapper = createDocumentMapper(mapping);
-        assertEquals(mapping.toString(), mapper.mappingSource().toString());
+        assertEquals(Strings.toString(mapping), mapper.mappingSource().toString());
 
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", 123)));
 
@@ -315,7 +316,7 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
     public void testLongIndexingOutOfRange() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "long").field("ignore_malformed", true)));
         ParsedDocument doc = mapper.parse(
-            source(b -> b.rawField("field", new BytesArray("9223372036854775808").streamInput(), MediaTypeRegistry.JSON))
+            source(b -> b.rawField("field", new BytesArray("9223372036854775808").streamInput(), XContentType.JSON))
         );
         assertEquals(0, doc.rootDoc().getFields("field").length);
     }

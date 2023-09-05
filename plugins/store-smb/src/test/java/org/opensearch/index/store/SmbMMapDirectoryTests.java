@@ -32,11 +32,10 @@
 
 package org.opensearch.index.store;
 
-import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.MMapDirectory;
-
 import java.io.IOException;
 import java.nio.file.Path;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.MMapDirectory;
 
 public class SmbMMapDirectoryTests extends OpenSearchBaseDirectoryTestCase {
 

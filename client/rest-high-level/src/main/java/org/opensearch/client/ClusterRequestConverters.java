@@ -32,10 +32,10 @@
 
 package org.opensearch.client;
 
-import org.apache.hc.client5.http.classic.methods.HttpDelete;
-import org.apache.hc.client5.http.classic.methods.HttpGet;
-import org.apache.hc.client5.http.classic.methods.HttpHead;
-import org.apache.hc.client5.http.classic.methods.HttpPut;
+import org.apache.http.client.methods.HttpDelete;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.HttpHead;
+import org.apache.http.client.methods.HttpPut;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.opensearch.action.admin.cluster.settings.ClusterGetSettingsRequest;
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
@@ -58,7 +58,7 @@ final class ClusterRequestConverters {
 
         RequestConverters.Params parameters = new RequestConverters.Params();
         parameters.withTimeout(clusterUpdateSettingsRequest.timeout());
-        parameters.withClusterManagerTimeout(clusterUpdateSettingsRequest.clusterManagerNodeTimeout());
+        parameters.withMasterTimeout(clusterUpdateSettingsRequest.clusterManagerNodeTimeout());
         request.addParameters(parameters.asMap());
         request.setEntity(RequestConverters.createEntity(clusterUpdateSettingsRequest, RequestConverters.REQUEST_BODY_CONTENT_TYPE));
         return request;
@@ -69,7 +69,7 @@ final class ClusterRequestConverters {
         RequestConverters.Params parameters = new RequestConverters.Params();
         parameters.withLocal(clusterGetSettingsRequest.local());
         parameters.withIncludeDefaults(clusterGetSettingsRequest.includeDefaults());
-        parameters.withClusterManagerTimeout(clusterGetSettingsRequest.clusterManagerNodeTimeout());
+        parameters.withMasterTimeout(clusterGetSettingsRequest.clusterManagerNodeTimeout());
         request.addParameters(parameters.asMap());
         return request;
     }
@@ -88,7 +88,7 @@ final class ClusterRequestConverters {
             .withWaitForNodes(healthRequest.waitForNodes())
             .withWaitForEvents(healthRequest.waitForEvents())
             .withTimeout(healthRequest.timeout())
-            .withClusterManagerTimeout(healthRequest.clusterManagerNodeTimeout())
+            .withMasterTimeout(healthRequest.clusterManagerNodeTimeout())
             .withLocal(healthRequest.local())
             .withLevel(healthRequest.level());
         request.addParameters(params.asMap());
@@ -105,7 +105,7 @@ final class ClusterRequestConverters {
             .build();
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);
         RequestConverters.Params params = new RequestConverters.Params();
-        params.withClusterManagerTimeout(putComponentTemplateRequest.clusterManagerNodeTimeout());
+        params.withMasterTimeout(putComponentTemplateRequest.clusterManagerNodeTimeout());
         if (putComponentTemplateRequest.create()) {
             params.putParam("create", Boolean.TRUE.toString());
         }
@@ -124,7 +124,7 @@ final class ClusterRequestConverters {
         final Request request = new Request(HttpGet.METHOD_NAME, endpoint);
         final RequestConverters.Params params = new RequestConverters.Params();
         params.withLocal(getComponentTemplatesRequest.isLocal());
-        params.withClusterManagerTimeout(getComponentTemplatesRequest.getClusterManagerNodeTimeout());
+        params.withMasterTimeout(getComponentTemplatesRequest.getMasterNodeTimeout());
         request.addParameters(params.asMap());
         return request;
     }
@@ -136,7 +136,7 @@ final class ClusterRequestConverters {
         final Request request = new Request(HttpHead.METHOD_NAME, endpoint);
         final RequestConverters.Params params = new RequestConverters.Params();
         params.withLocal(componentTemplatesRequest.isLocal());
-        params.withClusterManagerTimeout(componentTemplatesRequest.getClusterManagerNodeTimeout());
+        params.withMasterTimeout(componentTemplatesRequest.getMasterNodeTimeout());
         request.addParameters(params.asMap());
         return request;
     }
@@ -146,7 +146,7 @@ final class ClusterRequestConverters {
         String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_component_template").addPathPart(name).build();
         Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
         RequestConverters.Params params = new RequestConverters.Params();
-        params.withClusterManagerTimeout(deleteComponentTemplateRequest.clusterManagerNodeTimeout());
+        params.withMasterTimeout(deleteComponentTemplateRequest.clusterManagerNodeTimeout());
         request.addParameters(params.asMap());
         return request;
     }

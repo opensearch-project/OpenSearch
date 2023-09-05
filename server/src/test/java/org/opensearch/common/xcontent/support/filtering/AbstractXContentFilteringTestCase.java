@@ -32,15 +32,17 @@
 
 package org.opensearch.common.xcontent.support.filtering;
 
-import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.common.xcontent.support.AbstractFilteringTestCase;
+import org.junit.Assert;
+import org.opensearch.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContent;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentParser;
-import org.junit.Assert;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.common.xcontent.support.AbstractFilteringTestCase;
 
 import java.io.IOException;
 import java.util.Set;
@@ -83,11 +85,11 @@ public abstract class AbstractXContentFilteringTestCase extends AbstractFilterin
     }
 
     static void assertXContentBuilderAsString(final XContentBuilder expected, final XContentBuilder actual) {
-        Assert.assertThat(actual.toString(), is(expected.toString()));
+        Assert.assertThat(Strings.toString(actual), is(Strings.toString(expected)));
     }
 
     static void assertXContentBuilderAsBytes(final XContentBuilder expected, final XContentBuilder actual) {
-        XContent xContent = actual.contentType().xContent();
+        XContent xContent = XContentFactory.xContent(actual.contentType());
         try (
             XContentParser jsonParser = xContent.createParser(
                 NamedXContentRegistry.EMPTY,

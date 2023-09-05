@@ -72,7 +72,7 @@ public class RestCleanupRepositoryAction extends BaseRestHandler {
         cleanupRepositoryRequest.clusterManagerNodeTimeout(
             request.paramAsTime("cluster_manager_timeout", cleanupRepositoryRequest.clusterManagerNodeTimeout())
         );
-        parseDeprecatedMasterTimeoutParameter(cleanupRepositoryRequest, request, deprecationLogger, getName());
+        parseDeprecatedMasterTimeoutParameter(cleanupRepositoryRequest, request);
         return channel -> client.admin().cluster().cleanupRepository(cleanupRepositoryRequest, new RestToXContentListener<>(channel));
     }
 }

@@ -38,12 +38,12 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -51,7 +51,6 @@ import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.index.Index;
-import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.mapper.ContentPath;
 import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.IdFieldMapper;
@@ -61,7 +60,8 @@ import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.MappingLookup;
 import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.index.mapper.Uid;
-import org.opensearch.join.ParentJoinModulePlugin;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.join.ParentJoinPlugin;
 import org.opensearch.join.mapper.MetaJoinFieldMapper;
 import org.opensearch.join.mapper.ParentJoinFieldMapper;
 import org.opensearch.plugins.SearchPlugin;
@@ -350,6 +350,6 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
 
     @Override
     protected List<SearchPlugin> getSearchPlugins() {
-        return Collections.singletonList(new ParentJoinModulePlugin());
+        return Collections.singletonList(new ParentJoinPlugin());
     }
 }

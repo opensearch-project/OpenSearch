@@ -33,6 +33,7 @@
 package org.opensearch.search.aggregations.bucket.histogram;
 
 import org.opensearch.core.ParseField;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.ObjectParser;
@@ -164,8 +165,18 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
         minDocCount = in.readVLong();
         interval = in.readDouble();
         offset = in.readDouble();
-        extendedBounds = in.readOptionalWriteable(DoubleBounds::new);
-        hardBounds = in.readOptionalWriteable(DoubleBounds::new);
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
+            extendedBounds = in.readOptionalWriteable(DoubleBounds::new);
+            hardBounds = in.readOptionalWriteable(DoubleBounds::new);
+        } else {
+            double minBound = in.readDouble();
+            double maxBound = in.readDouble();
+            if (minBound == Double.POSITIVE_INFINITY && maxBound == Double.NEGATIVE_INFINITY) {
+                extendedBounds = null;
+            } else {
+                extendedBounds = new DoubleBounds(minBound, maxBound);
+            }
+        }
     }
 
     @Override
@@ -175,8 +186,18 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
         out.writeVLong(minDocCount);
         out.writeDouble(interval);
         out.writeDouble(offset);
-        out.writeOptionalWriteable(extendedBounds);
-        out.writeOptionalWriteable(hardBounds);
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
+            out.writeOptionalWriteable(extendedBounds);
+            out.writeOptionalWriteable(hardBounds);
+        } else {
+            if (extendedBounds != null) {
+                out.writeDouble(extendedBounds.getMin());
+                out.writeDouble(extendedBounds.getMax());
+            } else {
+                out.writeDouble(Double.POSITIVE_INFINITY);
+                out.writeDouble(Double.NEGATIVE_INFINITY);
+            }
+        }
     }
 
     /** Get the current interval that is set on this builder. */

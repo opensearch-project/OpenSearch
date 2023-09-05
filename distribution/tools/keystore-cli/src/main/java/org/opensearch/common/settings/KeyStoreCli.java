@@ -36,7 +36,7 @@ import org.opensearch.cli.LoggingAwareMultiCommand;
 import org.opensearch.cli.Terminal;
 
 /**
- * A CLI tool for managing secrets in the OpenSearch keystore.
+ * A cli tool for managing secrets in the opensearch keystore.
  */
 public class KeyStoreCli extends LoggingAwareMultiCommand {
 
@@ -52,12 +52,6 @@ public class KeyStoreCli extends LoggingAwareMultiCommand {
         subcommands.put("has-passwd", new HasPasswordKeyStoreCommand());
     }
 
-    /**
-     * Main entry point for the OpenSearch Keystore CLI tool.
-     *
-     * @param args  CLI commands for managing secrets.
-     * @throws Exception if an exception was encountered executing the command.
-     */
     public static void main(String[] args) throws Exception {
         exit(new KeyStoreCli().main(args, Terminal.DEFAULT));
     }

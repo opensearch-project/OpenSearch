@@ -33,6 +33,7 @@
 package org.opensearch.action.admin.indices.mapping.get;
 
 import org.opensearch.OpenSearchException;
+import org.opensearch.Version;
 import org.opensearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetadata;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.single.shard.TransportSingleShardAction;
@@ -42,18 +43,18 @@ import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.routing.ShardsIterator;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.inject.Inject;
-import org.opensearch.common.regex.Regex;
 import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.common.inject.Inject;
 import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.core.index.shard.ShardId;
-import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.common.regex.Regex;
 import org.opensearch.core.xcontent.ToXContent;
-import org.opensearch.core.xcontent.XContentHelper;
+import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.IndexService;
+import org.opensearch.index.mapper.MappingLookup;
 import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.Mapper;
-import org.opensearch.index.mapper.MappingLookup;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
@@ -119,7 +120,8 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleShardAc
     protected GetFieldMappingsResponse shardOperation(final GetFieldMappingsIndexRequest request, ShardId shardId) {
         assert shardId != null;
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
-        Predicate<String> metadataFieldPredicate = (f) -> indicesService.isMetadataField(f);
+        Version indexCreatedVersion = indexService.mapperService().getIndexSettings().getIndexVersionCreated();
+        Predicate<String> metadataFieldPredicate = (f) -> indicesService.isMetadataField(indexCreatedVersion, f);
         Predicate<String> fieldPredicate = metadataFieldPredicate.or(indicesService.getFieldFilter().apply(shardId.getIndexName()));
 
         DocumentMapper documentMapper = indexService.mapperService().documentMapper();
@@ -220,7 +222,7 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleShardAc
             try {
                 BytesReference bytes = XContentHelper.toXContent(
                     fieldMapper,
-                    MediaTypeRegistry.JSON,
+                    XContentType.JSON,
                     includeDefaults ? includeDefaultsParams : ToXContent.EMPTY_PARAMS,
                     false
                 );

@@ -33,11 +33,10 @@
 package org.opensearch.common.xcontent.cbor;
 
 import com.fasterxml.jackson.core.JsonParser;
-
-import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.common.xcontent.json.JsonXContentParser;
 import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.common.xcontent.json.JsonXContentParser;
 
 public class CborXContentParser extends JsonXContentParser {
 

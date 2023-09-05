@@ -32,6 +32,7 @@
 
 package org.opensearch.transport;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.core.common.io.stream.StreamOutput;
 
@@ -43,6 +44,8 @@ import java.io.IOException;
  * @opensearch.internal
  */
 public class TcpHeader {
+
+    public static final Version VERSION_WITH_HEADER_SIZE = LegacyESVersion.V_7_6_0;
 
     public static final int MARKER_BYTES_SIZE = 2;
 
@@ -69,7 +72,11 @@ public class TcpHeader {
     private static final int HEADER_SIZE = PRE_76_HEADER_SIZE + VARIABLE_HEADER_SIZE;
 
     public static int headerSize(Version version) {
-        return HEADER_SIZE;
+        if (version.onOrAfter(VERSION_WITH_HEADER_SIZE)) {
+            return HEADER_SIZE;
+        } else {
+            return PRE_76_HEADER_SIZE;
+        }
     }
 
     private static final byte[] PREFIX = { (byte) 'E', (byte) 'S' };
@@ -84,11 +91,17 @@ public class TcpHeader {
     ) throws IOException {
         output.writeBytes(PREFIX);
         // write the size, the size indicates the remaining message size, not including the size int
-        output.writeInt(contentSize + REQUEST_ID_SIZE + STATUS_SIZE + VERSION_ID_SIZE + VARIABLE_HEADER_SIZE);
+        if (version.onOrAfter(VERSION_WITH_HEADER_SIZE)) {
+            output.writeInt(contentSize + REQUEST_ID_SIZE + STATUS_SIZE + VERSION_ID_SIZE + VARIABLE_HEADER_SIZE);
+        } else {
+            output.writeInt(contentSize + REQUEST_ID_SIZE + STATUS_SIZE + VERSION_ID_SIZE);
+        }
         output.writeLong(requestId);
         output.writeByte(status);
         output.writeInt(version.id);
-        assert variableHeaderSize != -1 : "Variable header size not set";
-        output.writeInt(variableHeaderSize);
+        if (version.onOrAfter(VERSION_WITH_HEADER_SIZE)) {
+            assert variableHeaderSize != -1 : "Variable header size not set";
+            output.writeInt(variableHeaderSize);
+        }
     }
 }

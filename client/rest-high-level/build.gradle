@@ -107,9 +107,3 @@ testClusters.all {
   extraConfigFile pkiTrustCert.name, pkiTrustCert
 
 }
-
-thirdPartyAudit.ignoreMissingClasses(
-  'org.conscrypt.Conscrypt',
-  'org.slf4j.Logger',
-  'org.slf4j.LoggerFactory'
-)

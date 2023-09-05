@@ -32,7 +32,7 @@
 
 package org.opensearch.search.aggregations.support;
 
-import org.opensearch.core.service.ReportingService;
+import org.opensearch.node.ReportingService;
 
 import java.util.HashMap;
 import java.util.Map;

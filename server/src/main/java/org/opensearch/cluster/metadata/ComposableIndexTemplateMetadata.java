@@ -32,16 +32,17 @@
 
 package org.opensearch.cluster.metadata;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.cluster.Diff;
 import org.opensearch.cluster.DiffableUtils;
 import org.opensearch.cluster.NamedDiff;
-import org.opensearch.core.ParseField;
-import org.opensearch.core.common.Strings;
+import org.opensearch.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.ParseField;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.xcontent.ConstructingObjectParser;
-import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 
@@ -60,8 +61,6 @@ import java.util.Objects;
 public class ComposableIndexTemplateMetadata implements Metadata.Custom {
     public static final String TYPE = "index_template";
     private static final ParseField INDEX_TEMPLATE = new ParseField("index_template");
-    // minimial supported version when composable templates were introduced
-    protected static Version MINIMMAL_SUPPORTED_VERSION = Version.fromId(7070099);
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<ComposableIndexTemplateMetadata, Void> PARSER = new ConstructingObjectParser<>(
         TYPE,
@@ -119,7 +118,7 @@ public class ComposableIndexTemplateMetadata implements Metadata.Custom {
 
     @Override
     public Version getMinimalSupportedVersion() {
-        return MINIMMAL_SUPPORTED_VERSION;
+        return LegacyESVersion.V_7_7_0;
     }
 
     @Override
@@ -156,7 +155,7 @@ public class ComposableIndexTemplateMetadata implements Metadata.Custom {
 
     @Override
     public String toString() {
-        return Strings.toString(MediaTypeRegistry.JSON, this);
+        return Strings.toString(XContentType.JSON, this);
     }
 
     /**

@@ -32,6 +32,7 @@
 
 package org.opensearch.index.query;
 
+import org.apache.lucene.tests.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.Term;
@@ -60,7 +61,6 @@ import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.WildcardQuery;
-import org.apache.lucene.tests.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
@@ -68,11 +68,12 @@ import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.opensearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.Strings;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.Fuzziness;
-import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.index.mapper.FieldNamesFieldMapper;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.search.QueryStringQueryParser;
@@ -115,7 +116,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             .endObject()
             .endObject();
 
-        mapperService.merge("_doc", new CompressedXContent(mapping.toString()), MapperService.MergeReason.MAPPING_UPDATE);
+        mapperService.merge("_doc", new CompressedXContent(Strings.toString(mapping)), MapperService.MergeReason.MAPPING_UPDATE);
     }
 
     @Override
@@ -1112,7 +1113,9 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         context.getMapperService()
             .merge(
                 "_doc",
-                new CompressedXContent(PutMappingRequest.simpleMapping("foo", "type=text", "_field_names", "enabled=false").toString()),
+                new CompressedXContent(
+                    Strings.toString(PutMappingRequest.simpleMapping("foo", "type=text", "_field_names", "enabled=false"))
+                ),
                 MapperService.MergeReason.MAPPING_UPDATE
             );
 
@@ -1126,7 +1129,9 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             context.getMapperService()
                 .merge(
                     "_doc",
-                    new CompressedXContent(PutMappingRequest.simpleMapping("foo", "type=text", "_field_names", "enabled=true").toString()),
+                    new CompressedXContent(
+                        Strings.toString(PutMappingRequest.simpleMapping("foo", "type=text", "_field_names", "enabled=true"))
+                    ),
                     MapperService.MergeReason.MAPPING_UPDATE
                 );
         }

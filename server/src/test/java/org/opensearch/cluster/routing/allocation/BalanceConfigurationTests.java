@@ -38,8 +38,8 @@ import org.apache.lucene.util.ArrayUtil;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
-import org.opensearch.cluster.EmptyClusterInfoService;
 import org.opensearch.cluster.OpenSearchAllocationTestCase;
+import org.opensearch.cluster.EmptyClusterInfoService;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -363,6 +363,7 @@ public class BalanceConfigurationTests extends OpenSearchAllocationTestCase {
 
     /**
      * This test verifies global balance by creating indices iteratively and verify primary shards do not pile up on one
+     * node.
      * @throws Exception generic exception
      */
     public void testGlobalPrimaryBalance() throws Exception {

@@ -32,8 +32,8 @@
 
 package org.opensearch.search.aggregations.bucket.terms;
 
-import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.core.ParseField;
+import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.DocValueFormat;
@@ -246,7 +246,12 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
 
     @Override
     protected Aggregator createUnmapped(SearchContext searchContext, Aggregator parent, Map<String, Object> metadata) throws IOException {
-        final InternalAggregation aggregation = new UnmappedSignificantTerms(name, bucketCountThresholds, metadata);
+        final InternalAggregation aggregation = new UnmappedSignificantTerms(
+            name,
+            bucketCountThresholds.getRequiredSize(),
+            bucketCountThresholds.getMinDocCount(),
+            metadata
+        );
         return new NonCollectingAggregator(name, searchContext, parent, factories, metadata) {
             @Override
             public InternalAggregation buildEmptyAggregation() {
@@ -304,11 +309,6 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
             cardinality,
             metadata
         );
-    }
-
-    @Override
-    protected boolean supportsConcurrentSegmentSearch() {
-        return true;
     }
 
     /**

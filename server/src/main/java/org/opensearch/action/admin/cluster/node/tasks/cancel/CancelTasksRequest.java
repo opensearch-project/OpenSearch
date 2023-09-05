@@ -32,6 +32,7 @@
 
 package org.opensearch.action.admin.cluster.node.tasks.cancel;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.action.support.tasks.BaseTasksRequest;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -59,14 +60,18 @@ public class CancelTasksRequest extends BaseTasksRequest<CancelTasksRequest> {
     public CancelTasksRequest(StreamInput in) throws IOException {
         super(in);
         this.reason = in.readString();
-        waitForCompletion = in.readBoolean();
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_8_0)) {
+            waitForCompletion = in.readBoolean();
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(reason);
-        out.writeBoolean(waitForCompletion);
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_8_0)) {
+            out.writeBoolean(waitForCompletion);
+        }
     }
 
     @Override

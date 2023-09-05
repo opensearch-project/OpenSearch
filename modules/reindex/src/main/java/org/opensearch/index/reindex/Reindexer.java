@@ -32,19 +32,19 @@
 
 package org.opensearch.index.reindex;
 
-import org.apache.hc.client5.http.auth.AuthScope;
-import org.apache.hc.client5.http.auth.UsernamePasswordCredentials;
-import org.apache.hc.client5.http.impl.auth.BasicCredentialsProvider;
-import org.apache.hc.client5.http.impl.nio.PoolingAsyncClientConnectionManager;
-import org.apache.hc.client5.http.impl.nio.PoolingAsyncClientConnectionManagerBuilder;
-import org.apache.hc.core5.http.Header;
-import org.apache.hc.core5.http.HttpHost;
-import org.apache.hc.core5.http.HttpRequestInterceptor;
-import org.apache.hc.core5.http.message.BasicHeader;
-import org.apache.hc.core5.reactor.IOReactorConfig;
-import org.apache.hc.core5.util.Timeout;
+import java.util.Optional;
+import org.apache.http.Header;
+import org.apache.http.HttpHost;
+import org.apache.http.HttpRequestInterceptor;
+import org.apache.http.auth.AuthScope;
+import org.apache.http.auth.UsernamePasswordCredentials;
+import org.apache.http.client.CredentialsProvider;
+import org.apache.http.impl.client.BasicCredentialsProvider;
+import org.apache.http.impl.nio.reactor.IOReactorConfig;
+import org.apache.http.message.BasicHeader;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.action.ActionListener;
 import org.opensearch.action.DocWriteRequest;
 import org.opensearch.action.bulk.BackoffPolicy;
 import org.opensearch.action.bulk.BulkItemResponse;
@@ -54,15 +54,14 @@ import org.opensearch.client.ParentTaskAssigningClient;
 import org.opensearch.client.RestClient;
 import org.opensearch.client.RestClientBuilder;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.lucene.uid.Versions;
-import org.opensearch.core.action.ActionListener;
-import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.common.lucene.uid.Versions;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.DeprecationHandler;
-import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.mapper.VersionFieldMapper;
 import org.opensearch.index.reindex.remote.RemoteScrollableHitSource;
@@ -78,7 +77,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 
@@ -204,23 +202,21 @@ public class Reindexer {
         for (Map.Entry<String, String> header : remoteInfo.getHeaders().entrySet()) {
             clientHeaders[i++] = new BasicHeader(header.getKey(), header.getValue());
         }
-        final HttpHost httpHost = new HttpHost(remoteInfo.getScheme(), remoteInfo.getHost(), remoteInfo.getPort());
-        final RestClientBuilder builder = RestClient.builder(httpHost).setDefaultHeaders(clientHeaders).setRequestConfigCallback(c -> {
-            c.setConnectTimeout(Timeout.ofMilliseconds(Math.toIntExact(remoteInfo.getConnectTimeout().millis())));
-            c.setResponseTimeout(Timeout.ofMilliseconds(Math.toIntExact(remoteInfo.getSocketTimeout().millis())));
+        final RestClientBuilder builder = RestClient.builder(
+            new HttpHost(remoteInfo.getHost(), remoteInfo.getPort(), remoteInfo.getScheme())
+        ).setDefaultHeaders(clientHeaders).setRequestConfigCallback(c -> {
+            c.setConnectTimeout(Math.toIntExact(remoteInfo.getConnectTimeout().millis()));
+            c.setSocketTimeout(Math.toIntExact(remoteInfo.getSocketTimeout().millis()));
             return c;
         }).setHttpClientConfigCallback(c -> {
             // Enable basic auth if it is configured
             if (remoteInfo.getUsername() != null) {
-                UsernamePasswordCredentials creds = new UsernamePasswordCredentials(
-                    remoteInfo.getUsername(),
-                    remoteInfo.getPassword().toCharArray()
-                );
-                BasicCredentialsProvider credentialsProvider = new BasicCredentialsProvider();
-                credentialsProvider.setCredentials(new AuthScope(httpHost, null, "Basic"), creds);
+                UsernamePasswordCredentials creds = new UsernamePasswordCredentials(remoteInfo.getUsername(), remoteInfo.getPassword());
+                CredentialsProvider credentialsProvider = new BasicCredentialsProvider();
+                credentialsProvider.setCredentials(AuthScope.ANY, creds);
                 c.setDefaultCredentialsProvider(credentialsProvider);
             } else {
-                restInterceptor.ifPresent(interceptor -> c.addRequestInterceptorLast(interceptor));
+                restInterceptor.ifPresent(interceptor -> c.addInterceptorLast(interceptor));
             }
             // Stick the task id in the thread name so we can track down tasks from stack traces
             AtomicInteger threads = new AtomicInteger();
@@ -231,13 +227,8 @@ public class Reindexer {
                 return t;
             });
             // Limit ourselves to one reactor thread because for now the search process is single threaded.
-            c.setIOReactorConfig(IOReactorConfig.custom().setIoThreadCount(1).build());
-
-            final PoolingAsyncClientConnectionManager connectionManager = PoolingAsyncClientConnectionManagerBuilder.create()
-                .setTlsStrategy(sslConfig.getStrategy())
-                .build();
-
-            c.setConnectionManager(connectionManager);
+            c.setDefaultIOReactorConfig(IOReactorConfig.custom().setIoThreadCount(1).build());
+            c.setSSLStrategy(sslConfig.getStrategy());
             return c;
         });
         if (Strings.hasLength(remoteInfo.getPathPrefix()) && "/".equals(remoteInfo.getPathPrefix()) == false) {
@@ -377,24 +368,27 @@ public class Reindexer {
             index.id(doc.getId());
 
             // the source xcontent type and destination could be different
-            final MediaType sourceMediaType = doc.getMediaType();
-            final MediaType mainRequestMediaType = mainRequest.getDestination().getContentType();
-            if (mainRequestMediaType != null && doc.getMediaType() != mainRequestMediaType) {
+            final XContentType sourceXContentType = doc.getXContentType();
+            final XContentType mainRequestXContentType = mainRequest.getDestination().getContentType();
+            if (mainRequestXContentType != null && doc.getXContentType() != mainRequestXContentType) {
                 // we need to convert
                 try (
                     InputStream stream = doc.getSource().streamInput();
-                    XContentParser parser = sourceMediaType.xContent()
+                    XContentParser parser = sourceXContentType.xContent()
                         .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, stream);
-                    XContentBuilder builder = XContentBuilder.builder(mainRequestMediaType.xContent())
+                    XContentBuilder builder = XContentBuilder.builder(mainRequestXContentType.xContent())
                 ) {
                     parser.nextToken();
                     builder.copyCurrentStructure(parser);
                     index.source(BytesReference.bytes(builder), builder.contentType());
                 } catch (IOException e) {
-                    throw new UncheckedIOException("failed to convert hit from " + sourceMediaType + " to " + mainRequestMediaType, e);
+                    throw new UncheckedIOException(
+                        "failed to convert hit from " + sourceXContentType + " to " + mainRequestXContentType,
+                        e
+                    );
                 }
             } else {
-                index.source(doc.getSource(), doc.getMediaType());
+                index.source(doc.getSource(), doc.getXContentType());
             }
 
             /*

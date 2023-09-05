@@ -32,16 +32,13 @@
 
 package org.opensearch.client;
 
-import org.opensearch.common.annotation.PublicApi;
-
 /**
  * Administrative actions/operations against the cluster or the indices.
  *
  * @see org.opensearch.client.Client#admin()
  *
- * @opensearch.api
+ * @opensearch.internal
  */
-@PublicApi(since = "1.0.0")
 public interface AdminClient {
 
     /**

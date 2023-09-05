@@ -308,7 +308,7 @@ public abstract class AbstractTermVectorsTestCase extends OpenSearchIntegTestCas
 
         refresh();
 
-        return configs.toArray(new TestConfig[0]);
+        return configs.toArray(new TestConfig[configs.size()]);
     }
 
     protected TestFieldSetting[] getFieldSettings() {

@@ -36,7 +36,7 @@ import org.opensearch.action.admin.indices.flush.FlushResponse;
 import org.opensearch.action.admin.indices.refresh.RefreshResponse;
 import org.opensearch.action.get.GetResponse;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import static org.opensearch.client.Requests.flushRequest;
@@ -44,6 +44,7 @@ import static org.opensearch.client.Requests.getRequest;
 import static org.opensearch.client.Requests.indexRequest;
 import static org.opensearch.client.Requests.refreshRequest;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
+
 import static org.hamcrest.Matchers.equalTo;
 
 public class SimpleRecoveryIT extends OpenSearchIntegTestCase {
@@ -66,12 +67,12 @@ public class SimpleRecoveryIT extends OpenSearchIntegTestCase {
 
         NumShards numShards = getNumShards("test");
 
-        client().index(indexRequest("test").id("1").source(source("1", "test"), MediaTypeRegistry.JSON)).actionGet();
+        client().index(indexRequest("test").id("1").source(source("1", "test"), XContentType.JSON)).actionGet();
         FlushResponse flushResponse = client().admin().indices().flush(flushRequest("test")).actionGet();
         assertThat(flushResponse.getTotalShards(), equalTo(numShards.totalNumShards));
         assertThat(flushResponse.getSuccessfulShards(), equalTo(numShards.numPrimaries));
         assertThat(flushResponse.getFailedShards(), equalTo(0));
-        client().index(indexRequest("test").id("2").source(source("2", "test"), MediaTypeRegistry.JSON)).actionGet();
+        client().index(indexRequest("test").id("2").source(source("2", "test"), XContentType.JSON)).actionGet();
         RefreshResponse refreshResponse = client().admin().indices().refresh(refreshRequest("test")).actionGet();
         assertThat(refreshResponse.getTotalShards(), equalTo(numShards.totalNumShards));
         assertThat(refreshResponse.getSuccessfulShards(), equalTo(numShards.numPrimaries));

@@ -46,11 +46,11 @@ import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.common.compress.CompressorType;
 import org.opensearch.common.io.Streams;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.core.common.bytes.BytesArray;
-import org.opensearch.core.compress.CompressorRegistry;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
@@ -97,7 +97,7 @@ public abstract class OpenSearchBlobStoreRepositoryIntegTestCase extends OpenSea
         final Settings.Builder builder = Settings.builder();
         builder.put("compress", compress);
         if (compress) {
-            builder.put("compression_type", randomFrom(CompressorRegistry.registeredCompressors().keySet()));
+            builder.put("compression_type", randomFrom(CompressorType.values()));
         }
         return builder.build();
     }
@@ -160,27 +160,6 @@ public abstract class OpenSearchBlobStoreRepositoryIntegTestCase extends OpenSea
                 }
                 assertEquals(data.length, target.length());
                 assertArrayEquals(data, Arrays.copyOfRange(target.bytes(), 0, target.length()));
-            }
-            container.delete();
-        }
-    }
-
-    public void testReadRange() throws IOException {
-        try (BlobStore store = newBlobStore()) {
-            final BlobContainer container = store.blobContainer(new BlobPath());
-            final byte[] data = randomBytes(4096);
-
-            // Pick a subrange starting somewhere between position 100 and 1000
-            // and ending somewhere between 100 bytes past that position and
-            // 100 bytes before the end
-            final int startOffset = randomIntBetween(100, 1000);
-            final int endOffset = randomIntBetween(startOffset + 100, data.length - 100);
-            final byte[] subrangeData = Arrays.copyOfRange(data, startOffset, endOffset);
-
-            writeBlob(container, "foobar", new BytesArray(data), randomBoolean());
-            try (InputStream stream = container.readBlob("foobar", startOffset, subrangeData.length)) {
-                final byte[] actual = stream.readAllBytes();
-                assertArrayEquals(subrangeData, actual);
             }
             container.delete();
         }
@@ -337,7 +316,7 @@ public abstract class OpenSearchBlobStoreRepositoryIntegTestCase extends OpenSea
         List<String> deleteIndices = randomSubsetOf(randomIntBetween(0, indexCount), indexNames);
         if (deleteIndices.size() > 0) {
             logger.info("-->  delete indices {}", deleteIndices);
-            assertAcked(client().admin().indices().prepareDelete(deleteIndices.toArray(new String[0])));
+            assertAcked(client().admin().indices().prepareDelete(deleteIndices.toArray(new String[deleteIndices.size()])));
         }
 
         Set<String> closeIndices = new HashSet<>(Arrays.asList(indexNames));
@@ -363,7 +342,7 @@ public abstract class OpenSearchBlobStoreRepositoryIntegTestCase extends OpenSea
             // Wait for green so the close does not fail in the edge case of coinciding with a shard recovery that hasn't fully synced yet
             ensureGreen();
             logger.info("-->  close indices {}", closeIndices);
-            assertAcked(client().admin().indices().prepareClose(closeIndices.toArray(new String[0])));
+            assertAcked(client().admin().indices().prepareClose(closeIndices.toArray(new String[closeIndices.size()])));
         }
 
         logger.info("--> restore all indices from the snapshot");

@@ -42,9 +42,9 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.opensearch.common.lucene.Lucene;
-import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.core.common.text.Text;
-import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.common.xcontent.LoggingDeprecationHandler;
+import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.query.AbstractQueryBuilder;
 import org.opensearch.index.query.ParsedQuery;
@@ -133,7 +133,7 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
             try (TokenStream stream = tokenStream(suggestion.getAnalyzer(), suggestion.getText(), spare, suggestion.getField())) {
                 checkerResult = checker.getCorrections(
                     stream,
-                    new MultiCandidateGeneratorWrapper(suggestion.getShardSize(), gens.toArray(new CandidateGenerator[0])),
+                    new MultiCandidateGeneratorWrapper(suggestion.getShardSize(), gens.toArray(new CandidateGenerator[gens.size()])),
                     suggestion.maxErrors(),
                     suggestion.getShardSize(),
                     wordScorer,
@@ -160,8 +160,7 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
                     QueryShardContext shardContext = suggestion.getShardContext();
                     final String querySource = scriptFactory.newInstance(vars).execute();
                     try (
-                        XContentParser parser = MediaTypeRegistry.xContent(querySource)
-                            .xContent()
+                        XContentParser parser = XContentFactory.xContent(querySource)
                             .createParser(shardContext.getXContentRegistry(), LoggingDeprecationHandler.INSTANCE, querySource)
                     ) {
                         QueryBuilder innerQueryBuilder = AbstractQueryBuilder.parseInnerQueryBuilder(parser);

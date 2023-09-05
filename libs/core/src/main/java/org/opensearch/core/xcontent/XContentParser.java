@@ -48,8 +48,8 @@ import java.util.function.Supplier;
  * To obtain an instance of this class use the following pattern:
  *
  * <pre>
- *     MediaType mediaType = MediaTypeRegistry.JSON;
- *     XContentParser parser = mediaType.xContent().createParser(
+ *     XContentType xContentType = XContentType.JSON;
+ *     XContentParser parser = xContentType.xContent().createParser(
  *          NamedXContentRegistry.EMPTY, ParserField."{\"key\" : \"value\"}");
  * </pre>
  *

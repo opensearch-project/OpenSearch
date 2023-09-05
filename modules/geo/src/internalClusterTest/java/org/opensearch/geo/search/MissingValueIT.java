@@ -8,6 +8,8 @@
 
 package org.opensearch.geo.search;
 
+import org.hamcrest.MatcherAssert;
+import org.junit.Before;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.geo.GeoModulePluginIntegTestCase;
@@ -19,8 +21,6 @@ import org.opensearch.geo.tests.common.RandomGeoGeometryGenerator;
 import org.opensearch.geometry.Geometry;
 import org.opensearch.geometry.utils.WellKnownText;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.hamcrest.MatcherAssert;
-import org.junit.Before;
 
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResponse;

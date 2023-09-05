@@ -32,19 +32,18 @@
 
 package org.opensearch.repositories.s3;
 
-import software.amazon.awssdk.services.s3.S3Client;
-
+import org.hamcrest.Matchers;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.common.unit.ByteSizeUnit;
-import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.common.unit.ByteSizeUnit;
+import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.repositories.RepositoryException;
 import org.opensearch.repositories.blobstore.BlobStoreTestUtil;
 import org.opensearch.test.OpenSearchTestCase;
-import org.hamcrest.Matchers;
+import software.amazon.awssdk.services.s3.S3Client;
 
 import java.nio.file.Path;
 import java.util.Map;

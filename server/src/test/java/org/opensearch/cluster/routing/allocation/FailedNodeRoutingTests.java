@@ -53,7 +53,6 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.indices.cluster.ClusterStateChanges;
-import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.VersionUtils;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
@@ -70,7 +69,6 @@ import java.util.stream.Collectors;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
 import static org.opensearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.opensearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.hamcrest.Matchers.equalTo;
@@ -139,15 +137,7 @@ public class FailedNodeRoutingTests extends OpenSearchAllocationTestCase {
         }
     }
 
-    public void testRandomClusterPromotesOldestReplica() throws InterruptedException {
-        testRandomClusterPromotesReplica(true);
-    }
-
     public void testRandomClusterPromotesNewestReplica() throws InterruptedException {
-        testRandomClusterPromotesReplica(false);
-    }
-
-    void testRandomClusterPromotesReplica(boolean isSegmentReplicationEnabled) throws InterruptedException {
 
         ThreadPool threadPool = new TestThreadPool(getClass().getName());
         ClusterStateChanges cluster = new ClusterStateChanges(xContentRegistry(), threadPool);
@@ -174,9 +164,6 @@ public class FailedNodeRoutingTests extends OpenSearchAllocationTestCase {
             Settings.Builder settingsBuilder = Settings.builder()
                 .put(SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 4))
                 .put(SETTING_NUMBER_OF_REPLICAS, randomIntBetween(2, 4));
-            if (isSegmentReplicationEnabled) {
-                settingsBuilder.put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT);
-            }
             CreateIndexRequest request = new CreateIndexRequest(name, settingsBuilder.build()).waitForActiveShards(ActiveShardCount.NONE);
             state = cluster.createIndex(state, request);
             assertTrue(state.metadata().hasIndex(name));
@@ -219,23 +206,13 @@ public class FailedNodeRoutingTests extends OpenSearchAllocationTestCase {
                     Version candidateVer = getNodeVersion(sr, compareState);
                     if (candidateVer != null) {
                         logger.info("--> candidate on {} node; shard routing: {}", candidateVer, sr);
-                        if (isSegmentReplicationEnabled) {
-                            assertTrue(
-                                "candidate was not on the oldest version, new primary is on "
-                                    + newPrimaryVersion
-                                    + " and there is a candidate on "
-                                    + candidateVer,
-                                candidateVer.onOrAfter(newPrimaryVersion)
-                            );
-                        } else {
-                            assertTrue(
-                                "candidate was not on the newest version, new primary is on "
-                                    + newPrimaryVersion
-                                    + " and there is a candidate on "
-                                    + candidateVer,
-                                candidateVer.onOrBefore(newPrimaryVersion)
-                            );
-                        }
+                        assertTrue(
+                            "candidate was not on the newest version, new primary is on "
+                                + newPrimaryVersion
+                                + " and there is a candidate on "
+                                + candidateVer,
+                            candidateVer.onOrBefore(newPrimaryVersion)
+                        );
                     }
                 });
             });
@@ -261,7 +238,7 @@ public class FailedNodeRoutingTests extends OpenSearchAllocationTestCase {
         for (int i = 0; i < randomIntBetween(2, 5); i++) {
             allNodes.add(createNode());
         }
-        ClusterState state = ClusterStateCreationUtils.state(localNode, localNode, allNodes.toArray(new DiscoveryNode[0]));
+        ClusterState state = ClusterStateCreationUtils.state(localNode, localNode, allNodes.toArray(new DiscoveryNode[allNodes.size()]));
         return state;
     }
 

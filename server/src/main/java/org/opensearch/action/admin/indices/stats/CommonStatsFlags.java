@@ -32,11 +32,12 @@
 
 package org.opensearch.action.admin.indices.stats;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
-import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.common.Strings;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -86,9 +87,13 @@ public class CommonStatsFlags implements Writeable, Cloneable {
         fieldDataFields = in.readStringArray();
         completionDataFields = in.readStringArray();
         includeSegmentFileSizes = in.readBoolean();
-        includeUnloadedSegments = in.readBoolean();
-        includeAllShardIndexingPressureTrackers = in.readBoolean();
-        includeOnlyTopIndexingPressureMetrics = in.readBoolean();
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_2_0)) {
+            includeUnloadedSegments = in.readBoolean();
+        }
+        if (in.getVersion().onOrAfter(Version.V_1_2_0)) {
+            includeAllShardIndexingPressureTrackers = in.readBoolean();
+            includeOnlyTopIndexingPressureMetrics = in.readBoolean();
+        }
     }
 
     @Override
@@ -106,9 +111,13 @@ public class CommonStatsFlags implements Writeable, Cloneable {
         out.writeStringArrayNullable(fieldDataFields);
         out.writeStringArrayNullable(completionDataFields);
         out.writeBoolean(includeSegmentFileSizes);
-        out.writeBoolean(includeUnloadedSegments);
-        out.writeBoolean(includeAllShardIndexingPressureTrackers);
-        out.writeBoolean(includeOnlyTopIndexingPressureMetrics);
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_2_0)) {
+            out.writeBoolean(includeUnloadedSegments);
+        }
+        if (out.getVersion().onOrAfter(Version.V_1_2_0)) {
+            out.writeBoolean(includeAllShardIndexingPressureTrackers);
+            out.writeBoolean(includeOnlyTopIndexingPressureMetrics);
+        }
     }
 
     /**
@@ -146,7 +155,7 @@ public class CommonStatsFlags implements Writeable, Cloneable {
     }
 
     public Flag[] getFlags() {
-        return flags.toArray(new Flag[0]);
+        return flags.toArray(new Flag[flags.size()]);
     }
 
     /**

@@ -12,21 +12,21 @@ import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.profile.query.InternalProfileCollector;
 import org.opensearch.search.query.ReduceableSearchResult;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 
 /**
  * Common {@link CollectorManager} used by both concurrent and non-concurrent aggregation path and also for global and non-global
  * aggregation operators
- *
- * @opensearch.internal
  */
-public abstract class AggregationCollectorManager implements CollectorManager<Collector, ReduceableSearchResult> {
-    protected final SearchContext context;
+class AggregationCollectorManager implements CollectorManager<Collector, ReduceableSearchResult> {
+    private final SearchContext context;
     private final CheckedFunction<SearchContext, List<Aggregator>, IOException> aggProvider;
     private final String collectorReason;
 
@@ -42,17 +42,11 @@ public abstract class AggregationCollectorManager implements CollectorManager<Co
 
     @Override
     public Collector newCollector() throws IOException {
-        final Collector collector = createCollector(aggProvider.apply(context));
+        final Collector collector = createCollector(context, aggProvider.apply(context), collectorReason);
         // For Aggregations we should not have a NO_OP_Collector
         assert collector != BucketCollector.NO_OP_COLLECTOR;
         return collector;
     }
-
-    public String getCollectorReason() {
-        return collectorReason;
-    }
-
-    public abstract String getCollectorName();
 
     @Override
     public ReduceableSearchResult reduce(Collection<Collector> collectors) throws IOException {
@@ -68,17 +62,37 @@ public abstract class AggregationCollectorManager implements CollectorManager<Co
             }
         }
 
-        final InternalAggregations internalAggregations = InternalAggregations.from(internals);
-        return buildAggregationResult(internalAggregations);
+        // PipelineTreeSource is serialized to the coordinators on older OpenSearch versions for bwc but is deprecated in latest release
+        // To handle that we need to add it in the InternalAggregations object sent in QuerySearchResult.
+        final InternalAggregations internalAggregations = new InternalAggregations(
+            internals,
+            context.request().source().aggregations()::buildPipelineTree
+        );
+        // Reduce the aggregations across slices before sending to the coordinator. We will perform shard level reduce iff multiple slices
+        // were created to execute this request and it used concurrent segment search path
+        // TODO: Add the check for flag that the request was executed using concurrent search
+        if (collectors.size() > 1) {
+            // using topLevelReduce here as PipelineTreeSource needs to be sent to coordinator in older release of OpenSearch. The actual
+            // evaluation of pipeline aggregation though happens on the coordinator during final reduction phase
+            return new AggregationReduceableSearchResult(
+                InternalAggregations.topLevelReduce(Collections.singletonList(internalAggregations), context.partialOnShard())
+            );
+        } else {
+            return new AggregationReduceableSearchResult(internalAggregations);
+        }
     }
 
-    protected AggregationReduceableSearchResult buildAggregationResult(InternalAggregations internalAggregations) {
-        return new AggregationReduceableSearchResult(internalAggregations);
-    }
-
-    static Collector createCollector(List<Aggregator> collectors) throws IOException {
+    static Collector createCollector(SearchContext context, List<Aggregator> collectors, String reason) throws IOException {
         Collector collector = MultiBucketCollector.wrap(collectors);
         ((BucketCollector) collector).preCollection();
+        if (context.getProfilers() != null) {
+            collector = new InternalProfileCollector(
+                collector,
+                reason,
+                // TODO: report on child aggs as well
+                Collections.emptyList()
+            );
+        }
         return collector;
     }
 }

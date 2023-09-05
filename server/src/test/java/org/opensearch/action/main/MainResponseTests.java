@@ -33,12 +33,14 @@
 package org.opensearch.action.main;
 
 import org.opensearch.Build;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterName;
-import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.Strings;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.test.AbstractSerializingTestCase;
 import org.opensearch.test.VersionUtils;
@@ -56,14 +58,14 @@ public class MainResponseTests extends AbstractSerializingTestCase<MainResponse>
         ClusterName clusterName = new ClusterName(randomAlphaOfLength(10));
         String nodeName = randomAlphaOfLength(10);
         final String date = new Date(randomNonNegativeLong()).toString();
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.CURRENT);
+        Version version = VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_7_0_0, Version.CURRENT);
         Build build = new Build(
             Build.Type.UNKNOWN,
             randomAlphaOfLength(8),
             date,
             randomBoolean(),
             version.toString(),
-            randomAlphaOfLength(10)
+            version.onOrAfter(Version.V_1_0_0) ? randomAlphaOfLength(10) : ""
         );
         return new MainResponse(nodeName, version, clusterName, clusterUuid, build);
     }
@@ -132,8 +134,24 @@ public class MainResponseTests extends AbstractSerializingTestCase<MainResponse>
                 + TAGLINE
                 + "\""
                 + "}",
-            builder.toString()
+            Strings.toString(builder)
         );
+    }
+
+    public void toXContent_overrideMainResponseVersion() throws IOException {
+        String responseVersion = LegacyESVersion.V_7_10_2.toString();
+        MainResponse response = new MainResponse(
+            "nodeName",
+            Version.CURRENT,
+            new ClusterName("clusterName"),
+            randomAlphaOfLengthBetween(10, 20),
+            Build.CURRENT,
+            responseVersion
+        );
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        response.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        assertTrue(Strings.toString(builder).contains("\"number\":\"" + responseVersion + "\","));
+        assertFalse(Strings.toString(builder).contains("\"distribution\":\"" + Build.CURRENT.getDistribution() + "\","));
     }
 
     @Override

@@ -71,7 +71,7 @@ public class RestVerifyRepositoryAction extends BaseRestHandler {
         verifyRepositoryRequest.clusterManagerNodeTimeout(
             request.paramAsTime("cluster_manager_timeout", verifyRepositoryRequest.clusterManagerNodeTimeout())
         );
-        parseDeprecatedMasterTimeoutParameter(verifyRepositoryRequest, request, deprecationLogger, getName());
+        parseDeprecatedMasterTimeoutParameter(verifyRepositoryRequest, request);
         verifyRepositoryRequest.timeout(request.paramAsTime("timeout", verifyRepositoryRequest.timeout()));
         return channel -> client.admin().cluster().verifyRepository(verifyRepositoryRequest, new RestToXContentListener<>(channel));
     }

@@ -8,6 +8,8 @@
 
 package org.opensearch.search.sort.plugin;
 
+import static org.opensearch.core.xcontent.ConstructingObjectParser.constructorArg;
+
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -25,8 +27,6 @@ import org.opensearch.search.sort.SortOrder;
 
 import java.io.IOException;
 import java.util.Objects;
-
-import static org.opensearch.core.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
  * Custom sort builder that just rewrites to a basic field sort

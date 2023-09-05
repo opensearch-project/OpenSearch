@@ -34,6 +34,7 @@ package org.opensearch.client;
 
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.ActionType;
+import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.cluster.reroute.ClusterRerouteAction;
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotAction;
 import org.opensearch.action.admin.cluster.stats.ClusterStatsAction;
@@ -48,8 +49,7 @@ import org.opensearch.action.index.IndexAction;
 import org.opensearch.action.search.SearchAction;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.core.action.ActionListener;
-import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.env.Environment;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
@@ -130,7 +130,7 @@ public abstract class AbstractClientHeadersTestCase extends OpenSearchTestCase {
             .execute(new AssertingActionListener<>(DeleteStoredScriptAction.NAME, client.threadPool()));
         client.prepareIndex("idx")
             .setId("id")
-            .setSource("source", MediaTypeRegistry.JSON)
+            .setSource("source", XContentType.JSON)
             .execute(new AssertingActionListener<>(IndexAction.NAME, client.threadPool()));
 
         // choosing arbitrary cluster admin actions to test

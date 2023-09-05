@@ -33,36 +33,37 @@
 package org.opensearch.search;
 
 import org.apache.lucene.search.Explanation;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.document.DocumentField;
-import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.core.ParseField;
 import org.opensearch.core.common.ParsingException;
-import org.opensearch.core.common.Strings;
+import org.opensearch.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.common.compress.CompressorFactory;
+import org.opensearch.common.document.DocumentField;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.common.text.Text;
-import org.opensearch.core.compress.CompressorRegistry;
-import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.ParseField;
 import org.opensearch.core.xcontent.ConstructingObjectParser;
-import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.ObjectParser.ValueType;
-import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.core.xcontent.XContentParser.Token;
+import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.index.mapper.IgnoredFieldMapper;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.SourceFieldMapper;
 import org.opensearch.index.seqno.SequenceNumbers;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.search.fetch.subphase.highlight.HighlightField;
 import org.opensearch.search.lookup.SourceLookup;
 import org.opensearch.transport.RemoteClusterAware;
@@ -82,10 +83,10 @@ import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.opensearch.common.lucene.Lucene.readExplanation;
 import static org.opensearch.common.lucene.Lucene.writeExplanation;
-import static org.opensearch.core.xcontent.ConstructingObjectParser.constructorArg;
-import static org.opensearch.core.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.opensearch.core.xcontent.XContentParserUtils.ensureFieldName;
+import static org.opensearch.core.xcontent.ConstructingObjectParser.constructorArg;
+import static org.opensearch.core.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * A single search hit.
@@ -180,8 +181,20 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         if (in.readBoolean()) {
             explanation = readExplanation(in);
         }
-        documentFields = in.readMap(StreamInput::readString, DocumentField::new);
-        metaFields = in.readMap(StreamInput::readString, DocumentField::new);
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_8_0)) {
+            documentFields = in.readMap(StreamInput::readString, DocumentField::new);
+            metaFields = in.readMap(StreamInput::readString, DocumentField::new);
+        } else {
+            Map<String, DocumentField> fields = readFields(in);
+            documentFields = new HashMap<>();
+            metaFields = new HashMap<>();
+            fields.forEach(
+                (fieldName, docField) -> (MapperService.META_FIELDS_BEFORE_7DOT8.contains(fieldName) ? metaFields : documentFields).put(
+                    fieldName,
+                    docField
+                )
+            );
+        }
 
         int size = in.readVInt();
         if (size == 0) {
@@ -272,8 +285,12 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
             out.writeBoolean(true);
             writeExplanation(out, explanation);
         }
-        out.writeMap(documentFields, StreamOutput::writeString, (stream, documentField) -> documentField.writeTo(stream));
-        out.writeMap(metaFields, StreamOutput::writeString, (stream, documentField) -> documentField.writeTo(stream));
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_8_0)) {
+            out.writeMap(documentFields, StreamOutput::writeString, (stream, documentField) -> documentField.writeTo(stream));
+            out.writeMap(metaFields, StreamOutput::writeString, (stream, documentField) -> documentField.writeTo(stream));
+        } else {
+            writeFields(out, this.getFields());
+        }
         if (highlightFields == null) {
             out.writeVInt(0);
         } else {
@@ -383,7 +400,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         }
 
         try {
-            this.source = CompressorRegistry.uncompressIfNeeded(this.source);
+            this.source = CompressorFactory.uncompressIfNeeded(this.source);
             return this.source;
         } catch (IOException e) {
             throw new OpenSearchParseException("failed to decompress source", e);
@@ -1113,6 +1130,6 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
 
     @Override
     public String toString() {
-        return Strings.toString(MediaTypeRegistry.JSON, this, true, true);
+        return Strings.toString(XContentType.JSON, this, true, true);
     }
 }

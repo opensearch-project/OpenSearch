@@ -85,7 +85,7 @@ public abstract class BucketMetricsParser implements PipelineAggregator.Parser {
                         String path = parser.text();
                         paths.add(path);
                     }
-                    bucketsPaths = paths.toArray(new String[0]);
+                    bucketsPaths = paths.toArray(new String[paths.size()]);
                 } else {
                     parseToken(pipelineAggregatorName, parser, currentFieldName, token, params);
                 }

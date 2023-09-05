@@ -36,14 +36,13 @@ import org.opensearch.common.Nullable;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.xcontent.ConstructingObjectParser;
 import org.opensearch.core.xcontent.XContentParser;
-
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Objects;
-
 import static org.opensearch.core.xcontent.ConstructingObjectParser.constructorArg;
 import static org.opensearch.core.xcontent.ConstructingObjectParser.optionalConstructorArg;
+
+import java.util.Collections;
+import java.util.List;
+import java.util.Comparator;
+import java.util.Objects;
 
 public class TermVectorsResponse {
     private final String index;

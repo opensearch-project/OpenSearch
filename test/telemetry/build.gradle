@@ -13,7 +13,6 @@ apply plugin: 'opensearch.build'
 apply plugin: 'opensearch.publish'
 
 dependencies {
-  api project(":libs:opensearch-core")
   api project(":libs:opensearch-common")
   api project(":libs:opensearch-telemetry")
 }

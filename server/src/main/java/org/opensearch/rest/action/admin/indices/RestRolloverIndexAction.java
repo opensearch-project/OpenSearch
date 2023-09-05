@@ -80,7 +80,7 @@ public class RestRolloverIndexAction extends BaseRestHandler {
         rolloverIndexRequest.clusterManagerNodeTimeout(
             request.paramAsTime("cluster_manager_timeout", rolloverIndexRequest.clusterManagerNodeTimeout())
         );
-        parseDeprecatedMasterTimeoutParameter(rolloverIndexRequest, request, deprecationLogger, getName());
+        parseDeprecatedMasterTimeoutParameter(rolloverIndexRequest, request);
         rolloverIndexRequest.getCreateIndexRequest()
             .waitForActiveShards(ActiveShardCount.parseString(request.param("wait_for_active_shards")));
         return channel -> client.admin().indices().rolloverIndex(rolloverIndexRequest, new RestToXContentListener<>(channel));

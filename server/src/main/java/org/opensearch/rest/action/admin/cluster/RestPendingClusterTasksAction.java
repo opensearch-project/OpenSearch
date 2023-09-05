@@ -70,7 +70,7 @@ public class RestPendingClusterTasksAction extends BaseRestHandler {
         pendingClusterTasksRequest.clusterManagerNodeTimeout(
             request.paramAsTime("cluster_manager_timeout", pendingClusterTasksRequest.clusterManagerNodeTimeout())
         );
-        parseDeprecatedMasterTimeoutParameter(pendingClusterTasksRequest, request, deprecationLogger, getName());
+        parseDeprecatedMasterTimeoutParameter(pendingClusterTasksRequest, request);
         pendingClusterTasksRequest.local(request.paramAsBoolean("local", pendingClusterTasksRequest.local()));
         return channel -> client.admin().cluster().pendingClusterTasks(pendingClusterTasksRequest, new RestToXContentListener<>(channel));
     }

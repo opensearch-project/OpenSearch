@@ -8,10 +8,16 @@
 
 package org.opensearch.search.aggregations;
 
+import org.opensearch.action.OriginalIndices;
+import org.opensearch.action.search.SearchRequest;
+import org.opensearch.common.Strings;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.IndexService;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.test.TestSearchContext;
 
@@ -37,6 +43,24 @@ public class AggregationSetupTests extends OpenSearchSingleNodeTestCase {
         client().prepareIndex("idx").setId("1").setSource("f", 5).execute().get();
         client().admin().indices().prepareRefresh("idx").get();
         context = createSearchContext(index);
+        final AggregationBuilder dummyAggBuilder = AggregationBuilders.avg(randomAlphaOfLengthBetween(5, 20)).field("foo");
+        final SearchRequest searchRequest = new SearchRequest(
+            new String[] { index.index().getName() },
+            new SearchSourceBuilder().aggregation(dummyAggBuilder)
+        ).allowPartialSearchResults(false);
+        ((TestSearchContext) context).setShardSearchRequest(
+            new ShardSearchRequest(
+                OriginalIndices.NONE,
+                searchRequest,
+                new ShardId(index.index(), 0),
+                1,
+                null,
+                1.0f,
+                0,
+                null,
+                Strings.EMPTY_ARRAY
+            )
+        );
         ((TestSearchContext) context).setConcurrentSegmentSearchEnabled(true);
     }
 

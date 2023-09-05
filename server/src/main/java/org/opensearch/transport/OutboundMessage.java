@@ -32,13 +32,13 @@
 package org.opensearch.transport;
 
 import org.opensearch.Version;
-import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.bytes.CompositeBytesReference;
+import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.common.util.concurrent.ThreadContext;
 
 import java.io.IOException;
 import java.util.Set;
@@ -65,8 +65,11 @@ abstract class OutboundMessage extends NetworkMessage {
         BytesReference reference;
         int variableHeaderLength = -1;
         final long preHeaderPosition = bytesStream.position();
-        writeVariableHeader(bytesStream);
-        variableHeaderLength = Math.toIntExact(bytesStream.position() - preHeaderPosition);
+
+        if (version.onOrAfter(TcpHeader.VERSION_WITH_HEADER_SIZE)) {
+            writeVariableHeader(bytesStream);
+            variableHeaderLength = Math.toIntExact(bytesStream.position() - preHeaderPosition);
+        }
 
         try (CompressibleBytesOutputStream stream = new CompressibleBytesOutputStream(bytesStream, TransportStatus.isCompress(status))) {
             stream.setVersion(version);

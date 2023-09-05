@@ -35,10 +35,9 @@ import org.opensearch.Version;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.core.tasks.TaskId;
-import org.opensearch.core.transport.TransportResponse;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.tasks.TaskId;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 
@@ -190,6 +189,11 @@ public class TransportHandshakerTests extends OpenSearchTestCase {
     }
 
     private Version getMinCompatibilityVersionForHandshakeRequest() {
+        if (Version.CURRENT.onOrAfter(Version.V_1_0_0) && Version.CURRENT.major == 1) {
+            return Version.fromId(6079999);
+        } else if (Version.CURRENT.onOrAfter(Version.V_2_0_0) && Version.CURRENT.major == 2) {
+            return Version.fromId(7099999);
+        }
         return Version.CURRENT.minimumCompatibilityVersion();
     }
 }

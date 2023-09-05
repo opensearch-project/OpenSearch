@@ -35,6 +35,7 @@ import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.Version;
+import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
 import org.opensearch.action.admin.indices.stats.IndexShardStats;
 import org.opensearch.cluster.ClusterName;
@@ -44,18 +45,16 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.UUIDs;
+import org.opensearch.core.util.FileSystemUtils;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.core.action.ActionListener;
-import org.opensearch.core.index.Index;
-import org.opensearch.core.index.shard.ShardId;
-import org.opensearch.core.util.FileSystemUtils;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.env.ShardLockObtainFailedException;
 import org.opensearch.gateway.GatewayMetaState;
 import org.opensearch.gateway.LocalAllocateDangledIndices;
 import org.opensearch.gateway.MetaStateService;
+import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
@@ -67,17 +66,20 @@ import org.opensearch.index.engine.InternalEngineFactory;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.Mapper;
 import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.mapper.NestedPathFieldMapper;
 import org.opensearch.index.shard.IllegalIndexShardStateException;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardState;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.similarity.NonNegativeScoresSimilarity;
 import org.opensearch.indices.IndicesService.ShardDeletionCheckResult;
 import org.opensearch.plugins.EnginePlugin;
 import org.opensearch.plugins.MapperPlugin;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
+import org.opensearch.test.IndexSettingsModule;
+import org.opensearch.test.VersionUtils;
 import org.opensearch.test.hamcrest.RegexMatcher;
 
 import java.io.IOException;
@@ -563,9 +565,16 @@ public class IndicesServiceTests extends OpenSearchSingleNodeTestCase {
 
     public void testIsMetadataField() {
         IndicesService indicesService = getIndicesService();
-        assertFalse(indicesService.isMetadataField(randomAlphaOfLengthBetween(10, 15)));
+        final Version randVersion = VersionUtils.randomIndexCompatibleVersion(random());
+        assertFalse(indicesService.isMetadataField(randVersion, randomAlphaOfLengthBetween(10, 15)));
         for (String builtIn : IndicesModule.getBuiltInMetadataFields()) {
-            assertTrue(indicesService.isMetadataField(builtIn));
+            if (NestedPathFieldMapper.NAME.equals(builtIn) && randVersion.before(Version.V_2_0_0)) {
+                continue;   // nested field mapper does not exist prior to 2.0
+            }
+            assertTrue(
+                "Expected " + builtIn + " to be a metadata field for version " + randVersion,
+                indicesService.isMetadataField(randVersion, builtIn)
+            );
         }
     }
 
@@ -618,10 +627,5 @@ public class IndicesServiceTests extends OpenSearchSingleNodeTestCase {
         final String pattern =
             ".*multiple engine factories provided for \\[foobar/.*\\]: \\[.*FooEngineFactory\\],\\[.*BarEngineFactory\\].*";
         assertThat(e, hasToString(new RegexMatcher(pattern)));
-    }
-
-    public void testClusterRemoteTranslogBufferIntervalNull() {
-        IndicesService indicesService = getIndicesService();
-        assertNull(indicesService.getClusterRemoteTranslogBufferInterval());
     }
 }

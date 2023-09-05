@@ -35,14 +35,15 @@ package org.opensearch.index.query;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.ParsingException;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.index.mapper.ConstantFieldType;
 import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.ConstantFieldType;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -111,13 +112,17 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
      */
     public TermQueryBuilder(StreamInput in) throws IOException {
         super(in);
-        caseInsensitive = in.readBoolean();
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
+            caseInsensitive = in.readBoolean();
+        }
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         super.doWriteTo(out);
-        out.writeBoolean(caseInsensitive);
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
+            out.writeBoolean(caseInsensitive);
+        }
     }
 
     public static TermQueryBuilder fromXContent(XContentParser parser) throws IOException {

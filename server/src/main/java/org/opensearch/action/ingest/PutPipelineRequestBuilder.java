@@ -36,7 +36,7 @@ import org.opensearch.action.ActionRequestBuilder;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.client.OpenSearchClient;
 import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.common.xcontent.XContentType;
 
 /**
  * Transport request builder to put a pipeline
@@ -54,8 +54,8 @@ public class PutPipelineRequestBuilder extends ActionRequestBuilder<PutPipelineR
         PutPipelineAction action,
         String id,
         BytesReference source,
-        MediaType mediaType
+        XContentType xContentType
     ) {
-        super(client, action, new PutPipelineRequest(id, source, mediaType));
+        super(client, action, new PutPipelineRequest(id, source, xContentType));
     }
 }

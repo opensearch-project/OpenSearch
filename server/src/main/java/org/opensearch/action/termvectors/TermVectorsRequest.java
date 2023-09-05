@@ -32,6 +32,7 @@
 
 package org.opensearch.action.termvectors;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
@@ -40,18 +41,18 @@ import org.opensearch.action.ValidateActions;
 import org.opensearch.action.get.MultiGetRequest;
 import org.opensearch.action.support.single.shard.SingleShardRequest;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.lucene.uid.Versions;
-import org.opensearch.common.util.set.Sets;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.common.lucene.uid.Versions;
+import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.xcontent.MediaType;
-import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.mapper.MapperService;
 
@@ -94,7 +95,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
 
     private BytesReference doc;
 
-    private MediaType mediaType;
+    private XContentType xContentType;
 
     private String routing;
 
@@ -186,13 +187,13 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
 
         if (in.readBoolean()) {
             doc = in.readBytesReference();
-            if (in.getVersion().onOrAfter(Version.V_2_10_0)) {
-                mediaType = in.readMediaType();
-            } else {
-                mediaType = in.readEnum(XContentType.class);
-            }
+            xContentType = in.readEnum(XContentType.class);
         }
         routing = in.readOptionalString();
+
+        if (in.getVersion().before(LegacyESVersion.V_7_0_0)) {
+            in.readOptionalString(); // _parent
+        }
         preference = in.readOptionalString();
         long flags = in.readVLong();
 
@@ -239,7 +240,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
         this.id = other.id();
         if (other.doc != null) {
             this.doc = new BytesArray(other.doc().toBytesRef(), true);
-            this.mediaType = other.mediaType;
+            this.xContentType = other.xContentType;
         }
         this.flagsEnum = other.getFlags().clone();
         this.preference = other.preference();
@@ -289,8 +290,8 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
         return doc;
     }
 
-    public MediaType xContentType() {
-        return mediaType;
+    public XContentType xContentType() {
+        return xContentType;
     }
 
     /**
@@ -306,19 +307,19 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
      */
     @Deprecated
     public TermVectorsRequest doc(BytesReference doc, boolean generateRandomId) {
-        return this.doc(doc, generateRandomId, MediaTypeRegistry.xContentType(doc));
+        return this.doc(doc, generateRandomId, XContentHelper.xContentType(doc));
     }
 
     /**
      * Sets an artificial document from which term vectors are requested for.
      */
-    public TermVectorsRequest doc(BytesReference doc, boolean generateRandomId, MediaType mediaType) {
+    public TermVectorsRequest doc(BytesReference doc, boolean generateRandomId, MediaType xContentType) {
         // assign a random id to this artificial document, for routing
         if (generateRandomId) {
             this.id(String.valueOf(randomInt.getAndAdd(1)));
         }
         this.doc = doc;
-        this.mediaType = mediaType;
+        this.xContentType = XContentType.fromMediaType(xContentType);
         return this;
     }
 
@@ -538,13 +539,12 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
         out.writeBoolean(doc != null);
         if (doc != null) {
             out.writeBytesReference(doc);
-            if (out.getVersion().onOrAfter(Version.V_2_10_0)) {
-                mediaType.writeTo(out);
-            } else {
-                out.writeEnum((XContentType) mediaType);
-            }
+            out.writeEnum(xContentType);
         }
         out.writeOptionalString(routing);
+        if (out.getVersion().before(LegacyESVersion.V_7_0_0)) {
+            out.writeOptionalString(null); // _parent
+        }
         out.writeOptionalString(preference);
         long longFlags = 0;
         for (Flag flag : flagsEnum) {

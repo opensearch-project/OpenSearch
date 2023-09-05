@@ -40,7 +40,8 @@ import org.apache.lucene.search.TermQuery;
 import org.opensearch.core.common.ParsingException;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -69,7 +70,7 @@ public class WrapperQueryBuilderTests extends AbstractQueryTestCase<WrapperQuery
         QueryBuilder wrappedQuery = RandomQueryBuilder.createQuery(random());
         BytesReference bytes;
         try {
-            bytes = org.opensearch.core.xcontent.XContentHelper.toXContent(wrappedQuery, MediaTypeRegistry.JSON, false);
+            bytes = XContentHelper.toXContent(wrappedQuery, XContentType.JSON, false);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

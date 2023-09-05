@@ -32,9 +32,11 @@
 
 package org.opensearch.index.analysis;
 
-import com.ibm.icu.text.Collator;
-import com.ibm.icu.text.RuleBasedCollator;
-import com.ibm.icu.util.ULocale;
+import java.io.IOException;
+import java.nio.charset.Charset;
+import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.analysis.TokenStream;
 import org.opensearch.common.io.Streams;
@@ -42,10 +44,9 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
 import org.opensearch.index.IndexSettings;
 
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.InvalidPathException;
+import com.ibm.icu.text.Collator;
+import com.ibm.icu.text.RuleBasedCollator;
+import com.ibm.icu.util.ULocale;
 
 /**
  * An ICU based collation token filter. There are two ways to configure collation:
@@ -72,7 +73,7 @@ public class IcuCollationTokenFilterFactory extends AbstractTokenFilterFactory {
         if (rules != null) {
             Exception failureToResolve = null;
             try {
-                rules = Streams.copyToString(Files.newBufferedReader(environment.configDir().resolve(rules), StandardCharsets.UTF_8));
+                rules = Streams.copyToString(Files.newBufferedReader(environment.configFile().resolve(rules), Charset.forName("UTF-8")));
             } catch (IOException | SecurityException | InvalidPathException e) {
                 failureToResolve = e;
             }

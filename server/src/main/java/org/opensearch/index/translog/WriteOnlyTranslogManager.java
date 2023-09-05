@@ -9,9 +9,9 @@
 package org.opensearch.index.translog;
 
 import org.opensearch.common.util.concurrent.ReleasableLock;
-import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.engine.LifecycleAware;
 import org.opensearch.index.seqno.LocalCheckpointTracker;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.translog.listener.TranslogEventListener;
 
 import java.io.IOException;
@@ -70,10 +70,5 @@ public class WriteOnlyTranslogManager extends InternalTranslogManager {
     @Override
     public void skipTranslogRecovery() {
         // Do nothing.
-    }
-
-    @Override
-    public Translog.Snapshot newChangesSnapshot(long fromSeqNo, long toSeqNo, boolean requiredFullRange) throws IOException {
-        throw new UnsupportedOperationException("Translog snapshot unsupported with no-op translogs");
     }
 }

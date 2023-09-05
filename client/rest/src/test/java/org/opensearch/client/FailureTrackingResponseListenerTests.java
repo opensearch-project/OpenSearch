@@ -32,11 +32,14 @@
 
 package org.opensearch.client;
 
-import org.apache.hc.core5.http.ClassicHttpResponse;
-import org.apache.hc.core5.http.HttpHost;
-import org.apache.hc.core5.http.ProtocolVersion;
-import org.apache.hc.core5.http.message.BasicClassicHttpResponse;
-import org.apache.hc.core5.http.message.RequestLine;
+import org.apache.http.HttpHost;
+import org.apache.http.HttpResponse;
+import org.apache.http.ProtocolVersion;
+import org.apache.http.RequestLine;
+import org.apache.http.StatusLine;
+import org.apache.http.message.BasicHttpResponse;
+import org.apache.http.message.BasicRequestLine;
+import org.apache.http.message.BasicStatusLine;
 
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -113,8 +116,9 @@ public class FailureTrackingResponseListenerTests extends RestClientTestCase {
 
     private static Response mockResponse() {
         ProtocolVersion protocolVersion = new ProtocolVersion("HTTP", 1, 1);
-        RequestLine requestLine = new RequestLine("GET", "/", protocolVersion);
-        ClassicHttpResponse httpResponse = new BasicClassicHttpResponse(200, "OK");
+        RequestLine requestLine = new BasicRequestLine("GET", "/", protocolVersion);
+        StatusLine statusLine = new BasicStatusLine(protocolVersion, 200, "OK");
+        HttpResponse httpResponse = new BasicHttpResponse(statusLine);
         return new Response(requestLine, new HttpHost("localhost", 9200), httpResponse);
     }
 }

@@ -42,6 +42,7 @@ import java.util.Random;
 public class UUIDs {
 
     private static final RandomBasedUUIDGenerator RANDOM_UUID_GENERATOR = new RandomBasedUUIDGenerator();
+
     private static final UUIDGenerator TIME_UUID_GENERATOR = new TimeBasedUUIDGenerator();
 
     /** Generates a time-based UUID (similar to Flake IDs), which is preferred when generating an ID to be indexed into a Lucene index as
@@ -61,5 +62,4 @@ public class UUIDs {
     public static String randomBase64UUID() {
         return RANDOM_UUID_GENERATOR.getBase64UUID();
     }
-
 }

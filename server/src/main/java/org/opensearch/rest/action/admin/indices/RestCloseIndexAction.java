@@ -74,7 +74,7 @@ public class RestCloseIndexAction extends BaseRestHandler {
         closeIndexRequest.clusterManagerNodeTimeout(
             request.paramAsTime("cluster_manager_timeout", closeIndexRequest.clusterManagerNodeTimeout())
         );
-        parseDeprecatedMasterTimeoutParameter(closeIndexRequest, request, deprecationLogger, getName());
+        parseDeprecatedMasterTimeoutParameter(closeIndexRequest, request);
         closeIndexRequest.timeout(request.paramAsTime("timeout", closeIndexRequest.timeout()));
         closeIndexRequest.indicesOptions(IndicesOptions.fromRequest(request, closeIndexRequest.indicesOptions()));
         String waitForActiveShards = request.param("wait_for_active_shards");

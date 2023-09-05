@@ -33,7 +33,6 @@
 package org.opensearch.env;
 
 import org.opensearch.common.SuppressForbidden;
-import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
@@ -57,9 +56,8 @@ import java.util.stream.Collectors;
 /**
  * The environment of where things exists.
  *
- * @opensearch.api
+ * @opensearch.internal
  */
-@PublicApi(since = "1.0.0")
 @SuppressForbidden(reason = "configures paths for the system")
 // TODO: move PathUtils to be package-private here instead of
 // public+forbidden api!
@@ -91,29 +89,29 @@ public class Environment {
 
     private final Path[] repoFiles;
 
-    private final Path configDir;
+    private final Path configFile;
 
-    private final Path pluginsDir;
+    private final Path pluginsFile;
 
     private final Path extensionsDir;
 
-    private final Path modulesDir;
+    private final Path modulesFile;
 
-    private final Path sharedDataDir;
+    private final Path sharedDataFile;
 
     /** location of bin/, used by plugin manager */
-    private final Path binDir;
+    private final Path binFile;
 
     /** location of lib/, */
-    private final Path libDir;
+    private final Path libFile;
 
-    private final Path logsDir;
+    private final Path logsFile;
 
     /** Path to the PID file (can be null if no PID file is configured) **/
     private final Path pidFile;
 
     /** Path to the temporary file directory used by the JDK */
-    private final Path tmpDir;
+    private final Path tmpFile;
 
     public Environment(final Settings settings, final Path configPath) {
         this(settings, configPath, true);
@@ -133,14 +131,14 @@ public class Environment {
         }
 
         if (configPath != null) {
-            configDir = configPath.toAbsolutePath().normalize();
+            configFile = configPath.toAbsolutePath().normalize();
         } else {
-            configDir = homeFile.resolve("config");
+            configFile = homeFile.resolve("config");
         }
 
-        tmpDir = Objects.requireNonNull(tmpPath);
+        tmpFile = Objects.requireNonNull(tmpPath);
 
-        pluginsDir = homeFile.resolve("plugins");
+        pluginsFile = homeFile.resolve("plugins");
         extensionsDir = homeFile.resolve("extensions");
 
         List<String> dataPaths = PATH_DATA_SETTING.get(settings);
@@ -162,9 +160,9 @@ public class Environment {
             }
         }
         if (PATH_SHARED_DATA_SETTING.exists(settings)) {
-            sharedDataDir = PathUtils.get(PATH_SHARED_DATA_SETTING.get(settings)).toAbsolutePath().normalize();
+            sharedDataFile = PathUtils.get(PATH_SHARED_DATA_SETTING.get(settings)).toAbsolutePath().normalize();
         } else {
-            sharedDataDir = null;
+            sharedDataFile = null;
         }
         List<String> repoPaths = PATH_REPO_SETTING.get(settings);
         if (repoPaths.isEmpty()) {
@@ -178,9 +176,9 @@ public class Environment {
 
         // this is trappy, Setting#get(Settings) will get a fallback setting yet return false for Settings#exists(Settings)
         if (PATH_LOGS_SETTING.exists(settings)) {
-            logsDir = PathUtils.get(PATH_LOGS_SETTING.get(settings)).toAbsolutePath().normalize();
+            logsFile = PathUtils.get(PATH_LOGS_SETTING.get(settings)).toAbsolutePath().normalize();
         } else {
-            logsDir = homeFile.resolve("logs");
+            logsFile = homeFile.resolve("logs");
         }
 
         if (NODE_PIDFILE_SETTING.exists(settings) || PIDFILE_SETTING.exists(settings)) {
@@ -189,16 +187,16 @@ public class Environment {
             pidFile = null;
         }
 
-        binDir = homeFile.resolve("bin");
-        libDir = homeFile.resolve("lib");
-        modulesDir = homeFile.resolve("modules");
+        binFile = homeFile.resolve("bin");
+        libFile = homeFile.resolve("lib");
+        modulesFile = homeFile.resolve("modules");
 
         final Settings.Builder finalSettings = Settings.builder().put(settings);
         if (PATH_DATA_SETTING.exists(settings)) {
             finalSettings.putList(PATH_DATA_SETTING.getKey(), Arrays.stream(dataFiles).map(Path::toString).collect(Collectors.toList()));
         }
         finalSettings.put(PATH_HOME_SETTING.getKey(), homeFile);
-        finalSettings.put(PATH_LOGS_SETTING.getKey(), logsDir.toString());
+        finalSettings.put(PATH_LOGS_SETTING.getKey(), logsFile.toString());
         if (PATH_REPO_SETTING.exists(settings)) {
             finalSettings.putList(
                 Environment.PATH_REPO_SETTING.getKey(),
@@ -206,8 +204,8 @@ public class Environment {
             );
         }
         if (PATH_SHARED_DATA_SETTING.exists(settings)) {
-            assert sharedDataDir != null;
-            finalSettings.put(Environment.PATH_SHARED_DATA_SETTING.getKey(), sharedDataDir.toString());
+            assert sharedDataFile != null;
+            finalSettings.put(Environment.PATH_SHARED_DATA_SETTING.getKey(), sharedDataFile.toString());
         }
         if (NODE_PIDFILE_SETTING.exists(settings)) {
             assert pidFile != null;
@@ -236,8 +234,8 @@ public class Environment {
     /**
      * The shared data location
      */
-    public Path sharedDataDir() {
-        return sharedDataDir;
+    public Path sharedDataFile() {
+        return sharedDataFile;
     }
 
     /**
@@ -302,31 +300,32 @@ public class Environment {
         }
     }
 
+    // TODO: rename all these "file" methods to "dir"
     /**
      * The config directory.
      */
-    public Path configDir() {
-        return configDir;
+    public Path configFile() {
+        return configFile;
     }
 
-    public Path pluginsDir() {
-        return pluginsDir;
+    public Path pluginsFile() {
+        return pluginsFile;
     }
 
-    public Path binDir() {
-        return binDir;
+    public Path binFile() {
+        return binFile;
     }
 
-    public Path libDir() {
-        return libDir;
+    public Path libFile() {
+        return libFile;
     }
 
-    public Path modulesDir() {
-        return modulesDir;
+    public Path modulesFile() {
+        return modulesFile;
     }
 
-    public Path logsDir() {
-        return logsDir;
+    public Path logsFile() {
+        return logsFile;
     }
 
     /**
@@ -337,17 +336,17 @@ public class Environment {
     }
 
     /** Path to the default temp directory used by the JDK */
-    public Path tmpDir() {
-        return tmpDir;
+    public Path tmpFile() {
+        return tmpFile;
     }
 
     /** Ensure the configured temp directory is a valid directory */
-    public void validateTmpDir() throws IOException {
-        if (Files.exists(tmpDir) == false) {
-            throw new FileNotFoundException("Temporary file directory [" + tmpDir + "] does not exist or is not accessible");
+    public void validateTmpFile() throws IOException {
+        if (Files.exists(tmpFile) == false) {
+            throw new FileNotFoundException("Temporary file directory [" + tmpFile + "] does not exist or is not accessible");
         }
-        if (Files.isDirectory(tmpDir) == false) {
-            throw new IOException("Configured temporary file directory [" + tmpDir + "] is not a directory");
+        if (Files.isDirectory(tmpFile) == false) {
+            throw new IOException("Configured temporary file directory [" + tmpFile + "] is not a directory");
         }
     }
 
@@ -362,14 +361,14 @@ public class Environment {
     public static void assertEquivalent(Environment actual, Environment expected) {
         assertEquals(actual.dataFiles(), expected.dataFiles(), "dataFiles");
         assertEquals(actual.repoFiles(), expected.repoFiles(), "repoFiles");
-        assertEquals(actual.configDir(), expected.configDir(), "configDir");
-        assertEquals(actual.pluginsDir(), expected.pluginsDir(), "pluginsDir");
-        assertEquals(actual.binDir(), expected.binDir(), "binDir");
-        assertEquals(actual.libDir(), expected.libDir(), "libDir");
-        assertEquals(actual.modulesDir(), expected.modulesDir(), "modulesDir");
-        assertEquals(actual.logsDir(), expected.logsDir(), "logsDir");
+        assertEquals(actual.configFile(), expected.configFile(), "configFile");
+        assertEquals(actual.pluginsFile(), expected.pluginsFile(), "pluginsFile");
+        assertEquals(actual.binFile(), expected.binFile(), "binFile");
+        assertEquals(actual.libFile(), expected.libFile(), "libFile");
+        assertEquals(actual.modulesFile(), expected.modulesFile(), "modulesFile");
+        assertEquals(actual.logsFile(), expected.logsFile(), "logsFile");
         assertEquals(actual.pidFile(), expected.pidFile(), "pidFile");
-        assertEquals(actual.tmpDir(), expected.tmpDir(), "tmpDir");
+        assertEquals(actual.tmpFile(), expected.tmpFile(), "tmpFile");
     }
 
     private static void assertEquals(Object actual, Object expected, String name) {

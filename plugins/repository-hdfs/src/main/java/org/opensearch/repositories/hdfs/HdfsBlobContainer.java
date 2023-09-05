@@ -32,7 +32,6 @@
 package org.opensearch.repositories.hdfs;
 
 import org.apache.hadoop.fs.CreateFlag;
-import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileContext;
 import org.apache.hadoop.fs.FileStatus;
@@ -47,7 +46,6 @@ import org.opensearch.common.blobstore.DeleteResult;
 import org.opensearch.common.blobstore.fs.FsBlobContainer;
 import org.opensearch.common.blobstore.support.AbstractBlobContainer;
 import org.opensearch.common.blobstore.support.PlainBlobMetadata;
-import org.opensearch.common.io.Streams;
 import org.opensearch.repositories.hdfs.HdfsBlobStore.Operation;
 
 import java.io.FileNotFoundException;
@@ -127,23 +125,8 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public InputStream readBlob(String blobName, long position, long length) throws IOException {
-        return store.execute(fileContext -> {
-            final FSDataInputStream stream;
-            try {
-                stream = fileContext.open(new Path(path, blobName), bufferSize);
-            } catch (FileNotFoundException fnfe) {
-                throw new NoSuchFileException("[" + blobName + "] blob not found");
-            }
-            // Seek to the desired start position, closing the stream if any error occurs
-            try {
-                stream.seek(position);
-            } catch (Exception e) {
-                stream.close();
-                throw e;
-            }
-            return Streams.limitStream(new HDFSPrivilegedInputSteam(stream, securityContext), length);
-        });
+    public InputStream readBlob(String blobName, long position, long length) {
+        throw new UnsupportedOperationException();
     }
 
     @Override

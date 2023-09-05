@@ -32,11 +32,11 @@
 
 package org.opensearch.action.admin.indices.upgrade.get;
 
-import org.opensearch.action.support.broadcast.BroadcastResponse;
 import org.opensearch.core.action.support.DefaultShardOperationFailedException;
+import org.opensearch.action.support.broadcast.BroadcastResponse;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -94,7 +94,7 @@ public class UpgradeStatusResponse extends BroadcastResponse {
                     shards.add(shard);
                 }
             }
-            indicesUpgradeStats.put(indexName, new IndexUpgradeStatus(indexName, shards.toArray(new ShardUpgradeStatus[0])));
+            indicesUpgradeStats.put(indexName, new IndexUpgradeStatus(indexName, shards.toArray(new ShardUpgradeStatus[shards.size()])));
         }
         this.indicesUpgradeStatus = indicesUpgradeStats;
         return indicesUpgradeStats;

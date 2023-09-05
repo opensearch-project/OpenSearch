@@ -34,11 +34,12 @@ package org.opensearch.common.settings;
 
 import org.opensearch.common.inject.ModuleTestCase;
 import org.opensearch.common.settings.Setting.Property;
+import org.hamcrest.Matchers;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.search.SearchBootstrapSettings;
 import org.opensearch.search.SearchService;
 import org.opensearch.test.FeatureFlagSetter;
-import org.hamcrest.Matchers;
 
 import java.util.Arrays;
 
@@ -235,7 +236,7 @@ public class SettingsModuleTests extends ModuleTestCase {
 
     public void testOldMaxClauseCountSetting() {
         Settings settings = Settings.builder().put("index.query.bool.max_clause_count", 1024).build();
-        SettingsException ex = expectThrows(SettingsException.class, () -> new SettingsModule(settings));
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> new SettingsModule(settings));
         assertEquals(
             "unknown setting [index.query.bool.max_clause_count] did you mean [indices.query.bool.max_clause_count]?",
             ex.getMessage()
@@ -288,7 +289,7 @@ public class SettingsModuleTests extends ModuleTestCase {
     public void testConcurrentSegmentSearchClusterSettings() {
         // Test that we throw an exception without the feature flag
         Settings settings = Settings.builder().put(SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build();
-        SettingsException ex = expectThrows(SettingsException.class, () -> new SettingsModule(settings));
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> new SettingsModule(settings));
         assertEquals(
             "unknown setting ["
                 + SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey()
@@ -315,7 +316,7 @@ public class SettingsModuleTests extends ModuleTestCase {
         SettingsModule module = new SettingsModule(Settings.EMPTY);
         IndexScopedSettings indexScopedSettings = module.getIndexScopedSettings();
         expectThrows(
-            SettingsException.class,
+            IllegalArgumentException.class,
             () -> indexScopedSettings.updateDynamicSettings(
                 Settings.builder().put(IndexSettings.INDEX_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build(),
                 target,
@@ -339,32 +340,32 @@ public class SettingsModuleTests extends ModuleTestCase {
     public void testMaxSliceCountClusterSettingsForConcurrentSearch() {
         // Test that we throw an exception without the feature flag
         Settings settings = Settings.builder()
-            .put(SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING.getKey(), 2)
+            .put(SearchBootstrapSettings.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING.getKey(), true)
             .build();
-        SettingsException ex = expectThrows(SettingsException.class, () -> new SettingsModule(settings));
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> new SettingsModule(settings));
         assertTrue(
             ex.getMessage()
-                .contains("unknown setting [" + SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING.getKey() + "]")
+                .contains("unknown setting [" + SearchBootstrapSettings.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING.getKey())
         );
 
         // Test that the settings updates correctly with the feature flag
         FeatureFlagSetter.set(FeatureFlags.CONCURRENT_SEGMENT_SEARCH);
         int settingValue = randomIntBetween(0, 10);
         Settings settingsWithFeatureFlag = Settings.builder()
-            .put(SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING.getKey(), settingValue)
+            .put(SearchBootstrapSettings.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING.getKey(), settingValue)
             .build();
         SettingsModule settingsModule = new SettingsModule(settingsWithFeatureFlag);
         assertEquals(
             settingValue,
-            (int) SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING.get(settingsModule.getSettings())
+            (int) SearchBootstrapSettings.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING.get(settingsModule.getSettings())
         );
 
         // Test that negative value is not allowed
         settingValue = -1;
         final Settings settingsWithFeatureFlag_2 = Settings.builder()
-            .put(SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING.getKey(), settingValue)
+            .put(SearchBootstrapSettings.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING.getKey(), settingValue)
             .build();
-        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> new SettingsModule(settingsWithFeatureFlag_2));
-        assertTrue(iae.getMessage().contains(SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING.getKey()));
+        ex = expectThrows(IllegalArgumentException.class, () -> new SettingsModule(settingsWithFeatureFlag_2));
+        assertTrue(ex.getMessage().contains(SearchBootstrapSettings.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING.getKey()));
     }
 }

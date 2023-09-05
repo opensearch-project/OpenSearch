@@ -32,11 +32,11 @@
 package org.opensearch.cluster.coordination;
 
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.xcontent.ConstructingObjectParser;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -367,6 +367,13 @@ public class CoordinationMetadata implements Writeable, ToXContentFragment {
     public static class VotingConfiguration implements Writeable, ToXContentFragment {
 
         public static final VotingConfiguration EMPTY_CONFIG = new VotingConfiguration(Collections.emptySet());
+        /**
+         * @deprecated As of 2.0, because supporting inclusive language, replaced by {@link #MUST_JOIN_ELECTED_CLUSTER_MANAGER}
+         */
+        @Deprecated
+        public static final VotingConfiguration MUST_JOIN_ELECTED_MASTER = new VotingConfiguration(
+            Collections.singleton("_must_join_elected_master_")
+        );
         public static final VotingConfiguration MUST_JOIN_ELECTED_CLUSTER_MANAGER = new VotingConfiguration(
             Collections.singleton("_must_join_elected_cluster_manager_")
         );

@@ -32,6 +32,9 @@
 
 package org.opensearch.action.search;
 
+import org.opensearch.LegacyESVersion;
+import org.opensearch.Version;
+import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionListenerResponseHandler;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.OriginalIndices;
@@ -39,12 +42,10 @@ import org.opensearch.action.support.ChannelActionListener;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.util.concurrent.ConcurrentCollections;
-import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.core.transport.TransportResponse;
+import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.SearchService;
 import org.opensearch.search.dfs.DfsSearchResult;
@@ -66,6 +67,7 @@ import org.opensearch.transport.TransportActionProxy;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportRequestOptions;
+import org.opensearch.transport.TransportResponse;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
@@ -492,6 +494,10 @@ public class SearchTransportService {
         }
     }
 
+    static boolean keepStatesInContext(Version version) {
+        return version.before(LegacyESVersion.V_7_10_0);
+    }
+
     public static void registerRequestHandler(TransportService transportService, SearchService searchService) {
         transportService.registerRequestHandler(
             FREE_CONTEXT_SCROLL_ACTION_NAME,
@@ -545,7 +551,7 @@ public class SearchTransportService {
             ShardSearchRequest::new,
             (request, channel, task) -> searchService.executeDfsPhase(
                 request,
-                false,
+                keepStatesInContext(channel.getVersion()),
                 (SearchShardTask) task,
                 new ChannelActionListener<>(channel, DFS_ACTION_NAME, request)
             )
@@ -560,7 +566,7 @@ public class SearchTransportService {
             (request, channel, task) -> {
                 searchService.executeQueryPhase(
                     request,
-                    false,
+                    keepStatesInContext(channel.getVersion()),
                     (SearchShardTask) task,
                     new ChannelActionListener<>(channel, QUERY_ACTION_NAME, request)
                 );

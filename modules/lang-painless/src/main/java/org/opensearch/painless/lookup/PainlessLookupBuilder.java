@@ -36,13 +36,13 @@ import org.opensearch.bootstrap.BootstrapInfo;
 import org.opensearch.painless.Def;
 import org.opensearch.painless.MethodWriter;
 import org.opensearch.painless.WriterConstants;
-import org.opensearch.painless.spi.Allowlist;
-import org.opensearch.painless.spi.AllowlistClass;
-import org.opensearch.painless.spi.AllowlistClassBinding;
-import org.opensearch.painless.spi.AllowlistConstructor;
-import org.opensearch.painless.spi.AllowlistField;
-import org.opensearch.painless.spi.AllowlistInstanceBinding;
-import org.opensearch.painless.spi.AllowlistMethod;
+import org.opensearch.painless.spi.Whitelist;
+import org.opensearch.painless.spi.WhitelistClass;
+import org.opensearch.painless.spi.WhitelistClassBinding;
+import org.opensearch.painless.spi.WhitelistConstructor;
+import org.opensearch.painless.spi.WhitelistField;
+import org.opensearch.painless.spi.WhitelistInstanceBinding;
+import org.opensearch.painless.spi.WhitelistMethod;
 import org.opensearch.painless.spi.annotation.InjectConstantAnnotation;
 import org.opensearch.painless.spi.annotation.NoImportAnnotation;
 import org.objectweb.asm.ClassWriter;
@@ -126,13 +126,13 @@ public final class PainlessLookupBuilder {
         }
     }
 
-    public static PainlessLookup buildFromAllowlists(List<Allowlist> allowlists) {
+    public static PainlessLookup buildFromWhitelists(List<Whitelist> allowlists) {
         PainlessLookupBuilder painlessLookupBuilder = new PainlessLookupBuilder();
         String origin = "internal error";
 
         try {
-            for (Allowlist allowlist : allowlists) {
-                for (AllowlistClass allowlistClass : allowlist.allowlistClasses) {
+            for (Whitelist allowlist : allowlists) {
+                for (WhitelistClass allowlistClass : allowlist.whitelistClasses) {
                     origin = allowlistClass.origin;
                     painlessLookupBuilder.addPainlessClass(
                         allowlist.classLoader,
@@ -142,11 +142,11 @@ public final class PainlessLookupBuilder {
                 }
             }
 
-            for (Allowlist allowlist : allowlists) {
-                for (AllowlistClass allowlistClass : allowlist.allowlistClasses) {
+            for (Whitelist allowlist : allowlists) {
+                for (WhitelistClass allowlistClass : allowlist.whitelistClasses) {
                     String targetCanonicalClassName = allowlistClass.javaClassName.replace('$', '.');
 
-                    for (AllowlistConstructor allowlistConstructor : allowlistClass.allowlistConstructors) {
+                    for (WhitelistConstructor allowlistConstructor : allowlistClass.whitelistConstructors) {
                         origin = allowlistConstructor.origin;
                         painlessLookupBuilder.addPainlessConstructor(
                             targetCanonicalClassName,
@@ -155,7 +155,7 @@ public final class PainlessLookupBuilder {
                         );
                     }
 
-                    for (AllowlistMethod allowlistMethod : allowlistClass.allowlistMethods) {
+                    for (WhitelistMethod allowlistMethod : allowlistClass.whitelistMethods) {
                         origin = allowlistMethod.origin;
                         painlessLookupBuilder.addPainlessMethod(
                             allowlist.classLoader,
@@ -168,7 +168,7 @@ public final class PainlessLookupBuilder {
                         );
                     }
 
-                    for (AllowlistField allowlistField : allowlistClass.allowlistFields) {
+                    for (WhitelistField allowlistField : allowlistClass.whitelistFields) {
                         origin = allowlistField.origin;
                         painlessLookupBuilder.addPainlessField(
                             targetCanonicalClassName,
@@ -178,7 +178,7 @@ public final class PainlessLookupBuilder {
                     }
                 }
 
-                for (AllowlistMethod allowlistStatic : allowlist.allowlistImportedMethods) {
+                for (WhitelistMethod allowlistStatic : allowlist.whitelistImportedMethods) {
                     origin = allowlistStatic.origin;
                     painlessLookupBuilder.addImportedPainlessMethod(
                         allowlist.classLoader,
@@ -190,7 +190,7 @@ public final class PainlessLookupBuilder {
                     );
                 }
 
-                for (AllowlistClassBinding allowlistClassBinding : allowlist.allowlistClassBindings) {
+                for (WhitelistClassBinding allowlistClassBinding : allowlist.whitelistClassBindings) {
                     origin = allowlistClassBinding.origin;
                     painlessLookupBuilder.addPainlessClassBinding(
                         allowlist.classLoader,
@@ -202,7 +202,7 @@ public final class PainlessLookupBuilder {
                     );
                 }
 
-                for (AllowlistInstanceBinding allowlistInstanceBinding : allowlist.allowlistInstanceBindings) {
+                for (WhitelistInstanceBinding allowlistInstanceBinding : allowlist.whitelistInstanceBindings) {
                     origin = allowlistInstanceBinding.origin;
                     painlessLookupBuilder.addPainlessInstanceBinding(
                         allowlistInstanceBinding.targetInstance,

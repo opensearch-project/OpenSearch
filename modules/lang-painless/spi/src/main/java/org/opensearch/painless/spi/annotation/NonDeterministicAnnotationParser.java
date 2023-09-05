@@ -34,7 +34,7 @@ package org.opensearch.painless.spi.annotation;
 
 import java.util.Map;
 
-public class NonDeterministicAnnotationParser implements AllowlistAnnotationParser {
+public class NonDeterministicAnnotationParser implements WhitelistAnnotationParser {
 
     public static final NonDeterministicAnnotationParser INSTANCE = new NonDeterministicAnnotationParser();
 

@@ -34,10 +34,10 @@ package org.opensearch.ingest.useragent;
 
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentParser;
-
+import org.opensearch.common.xcontent.XContentType;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -68,7 +68,7 @@ final class UserAgentParser {
 
     private void init(InputStream regexStream) throws IOException {
         // EMPTY is safe here because we don't use namedObject
-        XContentParser yamlParser = XContentType.YAML.xContent()
+        XContentParser yamlParser = XContentFactory.xContent(XContentType.YAML)
             .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, regexStream);
 
         XContentParser.Token token = yamlParser.nextToken();

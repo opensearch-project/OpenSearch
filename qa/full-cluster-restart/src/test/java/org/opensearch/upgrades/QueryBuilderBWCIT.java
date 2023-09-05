@@ -32,20 +32,20 @@
 
 package org.opensearch.upgrades;
 
-import org.apache.hc.core5.http.ParseException;
-import org.apache.hc.core5.http.io.entity.EntityUtils;
+import org.apache.http.util.EntityUtils;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
+import org.opensearch.common.Strings;
 import org.opensearch.core.common.io.stream.InputStreamStreamInput;
 import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.Fuzziness;
-import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.json.JsonXContent;
-import org.opensearch.index.mapper.MapperService;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.query.BoolQueryBuilder;
 import org.opensearch.index.query.ConstantScoreQueryBuilder;
 import org.opensearch.index.query.DisMaxQueryBuilder;
@@ -157,7 +157,7 @@ public class QueryBuilderBWCIT extends AbstractFullClusterRestartTestCase {
     }
 
     public void testQueryBuilderBWC() throws Exception {
-        final String type = MapperService.SINGLE_MAPPING_NAME;
+        final String type = getOldClusterVersion().before(LegacyESVersion.V_7_0_0) ? "doc" : "_doc";
         String index = "queries";
         if (isRunningAgainstOldCluster()) {
             XContentBuilder mappingsAndSettings = jsonBuilder();
@@ -198,7 +198,7 @@ public class QueryBuilderBWCIT extends AbstractFullClusterRestartTestCase {
             mappingsAndSettings.endObject();
             Request request = new Request("PUT", "/" + index);
             request.setOptions(allowTypesRemovalWarnings());
-            request.setJsonEntity(mappingsAndSettings.toString());
+            request.setJsonEntity(Strings.toString(mappingsAndSettings));
             Response rsp = client().performRequest(request);
             assertEquals(200, rsp.getStatusLine().getStatusCode());
 
@@ -234,7 +234,7 @@ public class QueryBuilderBWCIT extends AbstractFullClusterRestartTestCase {
         }
     }
 
-    private static Map<String, Object> toMap(Response response) throws IOException, ParseException {
+    private static Map<String, Object> toMap(Response response) throws IOException {
         return toMap(EntityUtils.toString(response.getEntity()));
     }
 

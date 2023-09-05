@@ -32,12 +32,10 @@
 
 package org.opensearch.client.documentation;
 
+import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.cluster.node.tasks.get.GetTaskResponse;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.opensearch.client.Client;
-import org.opensearch.core.action.ActionListener;
-import org.opensearch.core.index.shard.ShardId;
-import org.opensearch.core.tasks.TaskId;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.query.QueryBuilders;
@@ -48,17 +46,19 @@ import org.opensearch.index.reindex.CancelTests;
 import org.opensearch.index.reindex.DeleteByQueryAction;
 import org.opensearch.index.reindex.DeleteByQueryRequestBuilder;
 import org.opensearch.index.reindex.ReindexAction;
-import org.opensearch.index.reindex.ReindexModulePlugin;
+import org.opensearch.index.reindex.ReindexPlugin;
 import org.opensearch.index.reindex.ReindexRequestBuilder;
 import org.opensearch.index.reindex.RethrottleAction;
 import org.opensearch.index.reindex.RethrottleRequestBuilder;
 import org.opensearch.index.reindex.UpdateByQueryAction;
 import org.opensearch.index.reindex.UpdateByQueryRequestBuilder;
 import org.opensearch.index.shard.IndexingOperationListener;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
 import org.opensearch.search.sort.SortOrder;
+import org.opensearch.tasks.TaskId;
 import org.opensearch.tasks.TaskInfo;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.hamcrest.Matcher;
@@ -88,7 +88,7 @@ public class ReindexDocumentationIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(ReindexModulePlugin.class, ReindexCancellationPlugin.class);
+        return Arrays.asList(ReindexPlugin.class, ReindexCancellationPlugin.class);
     }
 
     @Before

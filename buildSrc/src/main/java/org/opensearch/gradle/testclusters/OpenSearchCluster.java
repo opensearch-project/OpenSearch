@@ -32,6 +32,7 @@
 package org.opensearch.gradle.testclusters;
 
 import org.opensearch.gradle.FileSupplier;
+import org.opensearch.gradle.Jdk;
 import org.opensearch.gradle.PropertyNormalization;
 import org.opensearch.gradle.ReaperService;
 import org.opensearch.gradle.http.WaitForHttpResource;
@@ -74,6 +75,7 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
     private final String path;
     private final String clusterName;
     private final NamedDomainObjectContainer<OpenSearchNode> nodes;
+    private final Jdk bwcJdk;
     private final File workingDirBase;
     private final LinkedHashMap<String, Predicate<TestClusterConfiguration>> waitConditions = new LinkedHashMap<>();
     private final Project project;
@@ -81,7 +83,6 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
     private final FileSystemOperations fileSystemOperations;
     private final ArchiveOperations archiveOperations;
     private int nodeIndex = 0;
-    private int zoneCount = 1;
 
     public OpenSearchCluster(
         String clusterName,
@@ -89,7 +90,8 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
         ReaperService reaper,
         File workingDirBase,
         FileSystemOperations fileSystemOperations,
-        ArchiveOperations archiveOperations
+        ArchiveOperations archiveOperations,
+        Jdk bwcJdk
     ) {
         this.path = project.getPath();
         this.clusterName = clusterName;
@@ -99,20 +101,14 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
         this.archiveOperations = archiveOperations;
         this.workingDirBase = workingDirBase;
         this.nodes = project.container(OpenSearchNode.class);
+        this.bwcJdk = bwcJdk;
+
         // Always add the first node
-        String zone = hasZoneProperty() ? "zone-1" : "";
-        addNode(clusterName + "-0", zone);
+        addNode(clusterName + "-0");
         // configure the cluster name eagerly so all nodes know about it
         this.nodes.all((node) -> node.defaultConfig.put("cluster.name", safeName(clusterName)));
 
         addWaitForClusterHealth();
-    }
-
-    public void setNumberOfZones(int zoneCount) {
-        if (zoneCount < 1) {
-            throw new IllegalArgumentException("Number of zones should be >= 1 but was " + zoneCount + " for " + this);
-        }
-        this.zoneCount = zoneCount;
     }
 
     public void setNumberOfNodes(int numberOfNodes) {
@@ -128,31 +124,12 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
             );
         }
 
-        if (numberOfNodes < zoneCount) {
-            throw new IllegalArgumentException(
-                "Number of nodes should be >= zoneCount but was " + numberOfNodes + " for " + this.zoneCount
-            );
-        }
-
-        if (hasZoneProperty()) {
-            int currentZone;
-            for (int i = nodes.size(); i < numberOfNodes; i++) {
-                currentZone = i % zoneCount + 1;
-                String zoneName = "zone-" + currentZone;
-                addNode(clusterName + "-" + i, zoneName);
-            }
-        } else {
-            for (int i = nodes.size(); i < numberOfNodes; i++) {
-                addNode(clusterName + "-" + i, "");
-            }
+        for (int i = nodes.size(); i < numberOfNodes; i++) {
+            addNode(clusterName + "-" + i);
         }
     }
 
-    private boolean hasZoneProperty() {
-        return this.project.findProperty("numZones") != null;
-    }
-
-    private void addNode(String nodeName, String zoneName) {
+    private void addNode(String nodeName) {
         OpenSearchNode newNode = new OpenSearchNode(
             path,
             nodeName,
@@ -161,7 +138,7 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
             fileSystemOperations,
             archiveOperations,
             workingDirBase,
-            zoneName
+            bwcJdk
         );
         // configure the cluster name eagerly
         newNode.defaultConfig.put("cluster.name", safeName(clusterName));
@@ -261,11 +238,6 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
     @Override
     public void keystorePassword(String password) {
         nodes.all(each -> each.keystorePassword(password));
-    }
-
-    @Override
-    public void setSecure(boolean secure) {
-        nodes.all(each -> each.setSecure(secure));
     }
 
     @Override
@@ -370,7 +342,6 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
         } else {
             nodeNames = nodes.stream().map(OpenSearchNode::getName).map(this::safeName).collect(Collectors.joining(","));
         }
-
         OpenSearchNode firstNode = null;
         for (OpenSearchNode node : nodes) {
             // Can only configure master nodes if we have node names defined
@@ -558,25 +529,12 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
     private void addWaitForClusterHealth() {
         waitConditions.put("cluster health yellow", (node) -> {
             try {
-                WaitForHttpResource wait;
-                if (!getFirstNode().isSecure()) {
-                    wait = new WaitForHttpResource("http", getFirstNode().getHttpSocketURI(), nodes.size());
-                    List<Map<String, String>> credentials = getFirstNode().getCredentials();
-                    if (getFirstNode().getCredentials().isEmpty() == false) {
-                        wait.setUsername(credentials.get(0).get("useradd"));
-                        wait.setPassword(credentials.get(0).get("-p"));
-                    }
-                } else {
-                    wait = new WaitForHttpResource(
-                        "https",
-                        getFirstNode().getHttpSocketURI(),
-                        getFirstNode().getCredentials().get(0).get("username"),
-                        getFirstNode().getCredentials().get(0).get("password"),
-                        nodes.size()
-                    );
-                    wait.setUsername(getFirstNode().getCredentials().get(0).get("username"));
-                    wait.setPassword(getFirstNode().getCredentials().get(0).get("password"));
-                    wait.setCertificateAuthorities(getFirstNode().getExtraConfigFilesMap().get("root-ca.pem"));
+                WaitForHttpResource wait = new WaitForHttpResource("http", getFirstNode().getHttpSocketURI(), nodes.size());
+
+                List<Map<String, String>> credentials = getFirstNode().getCredentials();
+                if (getFirstNode().getCredentials().isEmpty() == false) {
+                    wait.setUsername(credentials.get(0).get("useradd"));
+                    wait.setPassword(credentials.get(0).get("-p"));
                 }
                 return wait.wait(500);
             } catch (IOException e) {

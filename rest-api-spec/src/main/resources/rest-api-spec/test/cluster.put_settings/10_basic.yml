@@ -73,6 +73,10 @@
 ---
 "Test set search backpressure mode":
 
+  - skip:
+      version: "- 2.3.99"
+      reason: "Search backpressure was added in 2.4"
+
   - do:
       cluster.put_settings:
         body:
@@ -85,8 +89,8 @@
 "Test set invalid search backpressure mode":
 
   - skip:
-      version: "- 2.99.99"
-      reason: "Parsing and validation of SearchBackpressureMode does not exist in versions < 3.0"
+      version: "- 2.7.99"
+      reason: "Parsing and validation of SearchBackpressureMode does not exist in versions < 2.8"
 
   - do:
       catch: bad_request

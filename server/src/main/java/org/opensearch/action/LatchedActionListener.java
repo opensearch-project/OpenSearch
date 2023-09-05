@@ -32,8 +32,6 @@
 
 package org.opensearch.action;
 
-import org.opensearch.core.action.ActionListener;
-
 import java.util.concurrent.CountDownLatch;
 
 /**

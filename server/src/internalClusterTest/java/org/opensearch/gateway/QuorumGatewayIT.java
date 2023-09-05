@@ -35,10 +35,10 @@ package org.opensearch.gateway;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.health.ClusterHealthStatus;
-import org.opensearch.test.InternalTestCluster.RestartCallback;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.OpenSearchIntegTestCase.Scope;
+import org.opensearch.test.InternalTestCluster.RestartCallback;
 
 import java.util.concurrent.TimeUnit;
 
@@ -92,7 +92,7 @@ public class QuorumGatewayIT extends OpenSearchIntegTestCase {
                         logger.info("--> done cluster_health, status {}", clusterHealth.getStatus());
                         assertFalse(clusterHealth.isTimedOut());
                         assertEquals(ClusterHealthStatus.YELLOW, clusterHealth.getStatus());
-                    }, 90, TimeUnit.SECONDS);
+                    }, 30, TimeUnit.SECONDS);
 
                     logger.info("--> one node is closed -- index 1 document into the remaining nodes");
                     activeClient.prepareIndex("test")

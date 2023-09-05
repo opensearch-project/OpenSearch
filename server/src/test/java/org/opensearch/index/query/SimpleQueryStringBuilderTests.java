@@ -32,6 +32,7 @@
 
 package org.opensearch.index.query;
 
+import org.apache.lucene.tests.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.spans.SpanNearQuery;
@@ -50,7 +51,6 @@ import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.tests.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.tests.util.TestUtil;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
@@ -109,7 +109,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
                 flagSet.add(randomFrom(SimpleQueryStringFlag.values()));
             }
             if (flagSet.size() > 0) {
-                result.flags(flagSet.toArray(new SimpleQueryStringFlag[0]));
+                result.flags(flagSet.toArray(new SimpleQueryStringFlag[flagSet.size()]));
             }
         }
 

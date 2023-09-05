@@ -33,9 +33,9 @@ package org.opensearch.common.util.concurrent;
 
 import org.opensearch.test.OpenSearchTestCase;
 
-import java.util.concurrent.Callable;
-
 import org.mockito.InOrder;
+
+import java.util.concurrent.Callable;
 
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;

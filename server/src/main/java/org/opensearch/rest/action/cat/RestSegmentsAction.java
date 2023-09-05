@@ -90,7 +90,7 @@ public class RestSegmentsAction extends AbstractCatAction {
         clusterStateRequest.clusterManagerNodeTimeout(
             request.paramAsTime("cluster_manager_timeout", clusterStateRequest.clusterManagerNodeTimeout())
         );
-        parseDeprecatedMasterTimeoutParameter(clusterStateRequest, request, deprecationLogger, getName());
+        parseDeprecatedMasterTimeoutParameter(clusterStateRequest, request);
         clusterStateRequest.clear().nodes(true).routingTable(true).indices(indices);
 
         return channel -> client.admin().cluster().state(clusterStateRequest, new RestActionListener<ClusterStateResponse>(channel) {

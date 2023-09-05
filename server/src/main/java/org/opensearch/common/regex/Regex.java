@@ -122,8 +122,8 @@ public class Regex {
             return false;
         }
         if (caseInsensitive) {
-            pattern = Strings.toLowercaseAscii(pattern);
-            str = Strings.toLowercaseAscii(str);
+            pattern = org.opensearch.common.Strings.toLowercaseAscii(pattern);
+            str = org.opensearch.common.Strings.toLowercaseAscii(str);
         }
         return simpleMatchWithNormalizedStrings(pattern, str);
     }

@@ -48,7 +48,6 @@ import org.gradle.api.tasks.TaskProvider;
 import org.gradle.language.base.plugins.LifecycleBasePlugin;
 
 import javax.inject.Inject;
-
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;

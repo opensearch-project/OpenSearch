@@ -32,19 +32,21 @@
 package org.opensearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.util.BytesRef;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
-import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.common.Strings;
 import org.opensearch.core.common.io.stream.InputStreamStreamInput;
 import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.io.stream.OutputStreamStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentParseException;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.SearchModule;
 import org.opensearch.search.aggregations.InternalAggregation;
@@ -55,8 +57,9 @@ import org.opensearch.search.aggregations.bucket.terms.heuristic.JLHScore;
 import org.opensearch.search.aggregations.bucket.terms.heuristic.MutualInformation;
 import org.opensearch.search.aggregations.bucket.terms.heuristic.PercentageScore;
 import org.opensearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
-import org.opensearch.test.InternalAggregationTestCase;
+import org.opensearch.search.aggregations.pipeline.PipelineAggregator;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.InternalAggregationTestCase;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -92,6 +95,9 @@ public class SignificanceHeuristicTests extends OpenSearchTestCase {
         ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
         OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
         out.setVersion(version);
+        if (version.before(LegacyESVersion.V_7_8_0)) {
+            sigTerms.mergePipelineTreeForBWCSerialization(PipelineAggregator.PipelineTree.EMPTY);
+        }
         out.writeNamedWriteable(sigTerms);
 
         // read
@@ -125,16 +131,7 @@ public class SignificanceHeuristicTests extends OpenSearchTestCase {
                 DocValueFormat.RAW,
                 randomDoubleBetween(0, 100, true)
             );
-            return new SignificantLongTerms(
-                "some_name",
-                null,
-                DocValueFormat.RAW,
-                10,
-                20,
-                heuristic,
-                singletonList(bucket),
-                new TermsAggregator.BucketCountThresholds(1, 0, 1, 0)
-            );
+            return new SignificantLongTerms("some_name", 1, 1, null, DocValueFormat.RAW, 10, 20, heuristic, singletonList(bucket));
         } else {
             SignificantStringTerms.Bucket bucket = new SignificantStringTerms.Bucket(
                 new BytesRef("someterm"),
@@ -146,16 +143,7 @@ public class SignificanceHeuristicTests extends OpenSearchTestCase {
                 DocValueFormat.RAW,
                 randomDoubleBetween(0, 100, true)
             );
-            return new SignificantStringTerms(
-                "some_name",
-                null,
-                DocValueFormat.RAW,
-                10,
-                20,
-                heuristic,
-                singletonList(bucket),
-                new TermsAggregator.BucketCountThresholds(1, 0, 1, 0)
-            );
+            return new SignificantStringTerms("some_name", 1, 1, null, DocValueFormat.RAW, 10, 20, heuristic, singletonList(bucket));
         }
     }
 
@@ -222,13 +210,14 @@ public class SignificanceHeuristicTests extends OpenSearchTestCase {
         ) {
             return new SignificantStringTerms(
                 "sig_terms",
+                2,
+                -1,
                 emptyMap(),
                 DocValueFormat.RAW,
                 subsetSize,
                 supersetSize,
                 significanceHeuristic,
-                buckets,
-                new TermsAggregator.BucketCountThresholds(-1, 0, 2, 0)
+                buckets
             );
         }
 
@@ -257,13 +246,14 @@ public class SignificanceHeuristicTests extends OpenSearchTestCase {
         ) {
             return new SignificantLongTerms(
                 "sig_terms",
+                2,
+                -1,
                 emptyMap(),
                 DocValueFormat.RAW,
                 subsetSize,
                 supersetSize,
                 significanceHeuristic,
-                buckets,
-                new TermsAggregator.BucketCountThresholds(-1, 0, 2, 0)
+                buckets
             );
         }
 
@@ -347,7 +337,7 @@ public class SignificanceHeuristicTests extends OpenSearchTestCase {
         stBuilder.significanceHeuristic(significanceHeuristic).field("text").minDocCount(200);
         XContentBuilder stXContentBuilder = XContentFactory.jsonBuilder();
         stBuilder.internalXContent(stXContentBuilder, null);
-        XContentParser stParser = createParser(JsonXContent.jsonXContent, stXContentBuilder.toString());
+        XContentParser stParser = createParser(JsonXContent.jsonXContent, Strings.toString(stXContentBuilder));
         return parseSignificanceHeuristic(stParser);
     }
 

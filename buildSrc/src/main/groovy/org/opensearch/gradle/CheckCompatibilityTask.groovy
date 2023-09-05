@@ -27,7 +27,7 @@ class CheckCompatibilityTask extends DefaultTask {
     List repositoryUrls = project.hasProperty('repositoryUrls') ? project.property('repositoryUrls').split(',') : getRepoUrls()
 
     @Input
-    String ref = project.hasProperty('ref') ? project.property('ref') : 'main'
+    String ref = project.hasProperty('ref') ? project.property('ref') : '2.x'
 
     @Internal
     List failedComponents = []
@@ -40,12 +40,9 @@ class CheckCompatibilityTask extends DefaultTask {
 
     @TaskAction
     void checkCompatibility() {
+        logger.info("Checking compatibility for: $repositoryUrls for $ref")
         repositoryUrls.parallelStream().forEach { repositoryUrl ->
-            logger.lifecycle("Checking compatibility for: $repositoryUrl with ref: $ref")
             def tempDir = File.createTempDir()
-            def stdout = new ByteArrayOutputStream()
-            def errout = new ByteArrayOutputStream()
-            def skipped = false;
             try {
                 if (cloneAndCheckout(repositoryUrl, tempDir)) {
                     if (repositoryUrl.toString().endsWithAny('notifications', 'notifications.git')) {
@@ -53,34 +50,29 @@ class CheckCompatibilityTask extends DefaultTask {
                     }
                     project.exec {
                         workingDir = tempDir
+                        def stdout = new ByteArrayOutputStream()
                         executable = (OperatingSystem.current().isWindows()) ? 'gradlew.bat' : './gradlew'
-                        args ('assemble')
+                        args 'assemble'
                         standardOutput stdout
-                        errorOutput errout
                     }
                     compatibleComponents.add(repositoryUrl)
                 } else {
-                    skipped = true
+                    logger.lifecycle("Skipping compatibility check for $repositoryUrl")
                 }
             } catch (ex) {
                 failedComponents.add(repositoryUrl)
                 logger.info("Gradle assemble failed for $repositoryUrl", ex)
             } finally {
-                if (skipped) {
-                    logger.lifecycle("Skipping compatibility check for $repositoryUrl")
-                } else {
-                    logger.lifecycle("Finished compatibility check for $repositoryUrl")
-                    logger.info("Standard output for $repositoryUrl build:\n\n" + stdout.toString())
-                    logger.error("Error output for $repositoryUrl build:\n\n" + errout.toString())
-                }
                 tempDir.deleteDir()
             }
         }
         if (!failedComponents.isEmpty()) {
             logger.lifecycle("Incompatible components: $failedComponents")
+            logger.info("Compatible components: $compatibleComponents")
         }
         if (!gitFailedComponents.isEmpty()) {
             logger.lifecycle("Components skipped due to git failures: $gitFailedComponents")
+            logger.info("Compatible components: $compatibleComponents")
         }
         if (!compatibleComponents.isEmpty()) {
             logger.lifecycle("Compatible components: $compatibleComponents")
@@ -89,16 +81,8 @@ class CheckCompatibilityTask extends DefaultTask {
 
     protected static List getRepoUrls() {
         def json = new JsonSlurper().parse(REPO_URL.toURL())
-        def repository = json.projects.values()
-        def repoUrls = replaceSshWithHttps(repository as List)
-        return repoUrls
-    }
-
-    protected static replaceSshWithHttps(List<String> repoList) {
-        repoList.replaceAll { element ->
-            element.replace("git@github.com:", "https://github.com/")
-        }
-        return repoList
+        def labels = json.projects.values()
+        return labels as List
     }
 
     protected boolean cloneAndCheckout(repoUrl, directory) {

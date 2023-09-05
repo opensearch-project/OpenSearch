@@ -32,6 +32,7 @@
 
 package org.opensearch.action.admin.indices.mapping.put;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchGenerationException;
 import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
@@ -39,19 +40,19 @@ import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.master.AcknowledgedRequest;
 import org.opensearch.action.support.master.AcknowledgedResponse;
-import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.core.common.util.CollectionUtils;
-import org.opensearch.core.index.Index;
+import org.opensearch.common.util.CollectionUtils;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.MediaType;
-import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.index.Index;
 import org.opensearch.index.mapper.MapperService;
 
 import java.io.IOException;
@@ -117,9 +118,14 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
             }
         }
         source = in.readString();
+        if (in.getVersion().before(LegacyESVersion.V_7_0_0)) {
+            in.readBoolean(); // updateAllTypes
+        }
         concreteIndex = in.readOptionalWriteable(Index::new);
         origin = in.readOptionalString();
-        writeIndexOnly = in.readBoolean();
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_9_0)) {
+            writeIndexOnly = in.readBoolean();
+        }
     }
 
     public PutMappingRequest() {}
@@ -250,7 +256,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
                     builder.startObject(fieldName);
                     String[] s1 = Strings.splitStringByCommaToArray(source[i]);
                     for (String s : s1) {
-                        String[] s2 = Strings.split(s, "=");
+                        String[] s2 = org.opensearch.common.Strings.split(s, "=");
                         if (s2.length != 2) {
                             throw new IllegalArgumentException("malformed " + s);
                         }
@@ -270,7 +276,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
                 builder.startObject(fieldName);
                 String[] s1 = Strings.splitStringByCommaToArray(source[i]);
                 for (String s : s1) {
-                    String[] s2 = Strings.split(s, "=");
+                    String[] s2 = org.opensearch.common.Strings.split(s, "=");
                     if (s2.length != 2) {
                         throw new IllegalArgumentException("malformed " + s);
                     }
@@ -298,7 +304,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
      */
     public PutMappingRequest source(Map<String, ?> mappingSource) {
         try {
-            XContentBuilder builder = MediaTypeRegistry.contentBuilder(MediaTypeRegistry.JSON);
+            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             builder.map(mappingSource);
             return source(BytesReference.bytes(builder), builder.contentType());
         } catch (IOException e) {
@@ -309,8 +315,8 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
     /**
      * The mapping source definition.
      */
-    public PutMappingRequest source(String mappingSource, MediaType mediaType) {
-        return source(new BytesArray(mappingSource), mediaType);
+    public PutMappingRequest source(String mappingSource, XContentType xContentType) {
+        return source(new BytesArray(mappingSource), xContentType);
     }
 
     /**
@@ -344,16 +350,21 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
             out.writeOptionalString(MapperService.SINGLE_MAPPING_NAME);
         }
         out.writeString(source);
+        if (out.getVersion().before(LegacyESVersion.V_7_0_0)) {
+            out.writeBoolean(true); // updateAllTypes
+        }
         out.writeOptionalWriteable(concreteIndex);
         out.writeOptionalString(origin);
-        out.writeBoolean(writeIndexOnly);
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_9_0)) {
+            out.writeBoolean(writeIndexOnly);
+        }
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         if (source != null) {
             try (InputStream stream = new BytesArray(source).streamInput()) {
-                builder.rawValue(stream, MediaTypeRegistry.JSON);
+                builder.rawValue(stream, XContentType.JSON);
             }
         } else {
             builder.startObject().endObject();

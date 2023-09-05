@@ -74,6 +74,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
     }
     systemProperty 'tests.upgrade_from_version', bwcVersionStr
     systemProperty 'tests.rest.suite', 'old_cluster'
+    systemProperty 'tests.repo_location', "${buildDir}/cluster/shared/repo/${baseName}/test"
     nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
     nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
   }
@@ -110,6 +111,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
       testClusters."${baseName}".nextNodeToNextVersion()
     }
     useCluster testClusters."${baseName}"
+    systemProperty 'tests.repo_location', "${buildDir}/cluster/shared/repo/${baseName}/test"
     systemProperty 'tests.rest.suite', 'upgraded_cluster'
     systemProperty 'tests.upgrade_from_version', bwcVersionStr
 

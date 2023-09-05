@@ -76,14 +76,15 @@ abstract class AbstractStringTermsAggregator extends TermsAggregator {
             name,
             order,
             order,
+            bucketCountThresholds.getRequiredSize(),
+            bucketCountThresholds.getMinDocCount(),
             metadata(),
             format,
             bucketCountThresholds.getShardSize(),
             showTermDocCountError,
             0,
             emptyList(),
-            0,
-            bucketCountThresholds
+            0
         );
     }
 
@@ -94,13 +95,14 @@ abstract class AbstractStringTermsAggregator extends TermsAggregator {
         int supersetSize = topReader.numDocs();
         return new SignificantStringTerms(
             name,
+            bucketCountThresholds.getRequiredSize(),
+            bucketCountThresholds.getMinDocCount(),
             metadata(),
             format,
             subsetSize,
             supersetSize,
             significanceHeuristic,
-            emptyList(),
-            bucketCountThresholds
+            emptyList()
         );
     }
 }

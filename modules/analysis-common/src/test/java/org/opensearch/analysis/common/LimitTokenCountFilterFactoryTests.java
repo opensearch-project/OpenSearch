@@ -119,7 +119,7 @@ public class LimitTokenCountFilterFactoryTests extends OpenSearchTokenStreamTest
     }
 
     private static OpenSearchTestCase.TestAnalysis createTestAnalysisFromSettings(Settings settings) throws IOException {
-        return AnalysisTestsHelper.createTestAnalysisFromSettings(settings, new CommonAnalysisModulePlugin());
+        return AnalysisTestsHelper.createTestAnalysisFromSettings(settings, new CommonAnalysisPlugin());
     }
 
 }

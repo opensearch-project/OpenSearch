@@ -32,11 +32,12 @@
 
 package org.opensearch.action.admin.cluster.state;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
 
@@ -63,12 +64,14 @@ public class ClusterStateRequestTests extends OpenSearchTestCase {
                 Version.CURRENT.minimumCompatibilityVersion(),
                 Version.CURRENT
             );
-
-            if (randomBoolean()) {
-                clusterStateRequest.waitForMetadataVersion(randomLongBetween(1, Long.MAX_VALUE));
-            }
-            if (randomBoolean()) {
-                clusterStateRequest.waitForTimeout(new TimeValue(randomNonNegativeLong()));
+            // TODO: change version to V_6_6_0 after backporting:
+            if (testVersion.onOrAfter(LegacyESVersion.V_7_0_0)) {
+                if (randomBoolean()) {
+                    clusterStateRequest.waitForMetadataVersion(randomLongBetween(1, Long.MAX_VALUE));
+                }
+                if (randomBoolean()) {
+                    clusterStateRequest.waitForTimeout(new TimeValue(randomNonNegativeLong()));
+                }
             }
 
             BytesStreamOutput output = new BytesStreamOutput();

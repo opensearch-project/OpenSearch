@@ -32,15 +32,15 @@
 
 package org.opensearch.common.settings;
 
-import org.opensearch.cli.Command;
-import org.opensearch.cli.ExitCodes;
-import org.opensearch.cli.UserException;
-import org.opensearch.env.Environment;
-
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
+
+import org.opensearch.cli.Command;
+import org.opensearch.cli.ExitCodes;
+import org.opensearch.cli.UserException;
+import org.opensearch.env.Environment;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -67,7 +67,7 @@ public class CreateKeyStoreCommandTests extends KeyStoreCommandTestCase {
 
     public void testDefaultNotPromptForPassword() throws Exception {
         execute();
-        Path configDir = env.configDir();
+        Path configDir = env.configFile();
         assertNotNull(KeyStoreWrapper.load(configDir));
     }
 
@@ -76,7 +76,7 @@ public class CreateKeyStoreCommandTests extends KeyStoreCommandTestCase {
         terminal.addSecretInput(password);
         terminal.addSecretInput(password);
         execute();
-        Path configDir = env.configDir();
+        Path configDir = env.configFile();
         assertNotNull(KeyStoreWrapper.load(configDir));
     }
 
@@ -86,13 +86,13 @@ public class CreateKeyStoreCommandTests extends KeyStoreCommandTestCase {
         terminal.addSecretInput(password);
         env = setupEnv(false, fileSystems);
         execute();
-        Path configDir = env.configDir();
+        Path configDir = env.configFile();
         assertNotNull(KeyStoreWrapper.load(configDir));
     }
 
     public void testOverwrite() throws Exception {
         String password = randomFrom("", "keystorepassword");
-        Path keystoreFile = KeyStoreWrapper.keystorePath(env.configDir());
+        Path keystoreFile = KeyStoreWrapper.keystorePath(env.configFile());
         byte[] content = "not a keystore".getBytes(StandardCharsets.UTF_8);
         Files.write(keystoreFile, content);
 
@@ -108,6 +108,6 @@ public class CreateKeyStoreCommandTests extends KeyStoreCommandTestCase {
         terminal.addSecretInput(password);
         terminal.addSecretInput(password);
         execute();
-        assertNotNull(KeyStoreWrapper.load(env.configDir()));
+        assertNotNull(KeyStoreWrapper.load(env.configFile()));
     }
 }

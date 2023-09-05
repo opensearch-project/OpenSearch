@@ -32,19 +32,17 @@
 
 package org.opensearch.index.reindex;
 
-import org.apache.hc.client5.http.ssl.ClientTlsStrategyBuilder;
-import org.apache.hc.client5.http.ssl.DefaultHostnameVerifier;
-import org.apache.hc.client5.http.ssl.NoopHostnameVerifier;
-import org.apache.hc.core5.function.Factory;
-import org.apache.hc.core5.http.nio.ssl.TlsStrategy;
-import org.apache.hc.core5.reactor.ssl.TlsDetails;
+import org.apache.http.conn.ssl.DefaultHostnameVerifier;
+import org.apache.http.conn.ssl.NoopHostnameVerifier;
+import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
+import org.opensearch.common.Strings;
 import org.opensearch.common.settings.SecureSetting;
+import org.opensearch.core.common.settings.SecureString;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.ssl.SslConfiguration;
 import org.opensearch.common.ssl.SslConfigurationKeys;
 import org.opensearch.common.ssl.SslConfigurationLoader;
-import org.opensearch.core.common.settings.SecureString;
 import org.opensearch.env.Environment;
 import org.opensearch.watcher.FileChangesListener;
 import org.opensearch.watcher.FileWatcher;
@@ -52,8 +50,6 @@ import org.opensearch.watcher.ResourceWatcherService;
 
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLEngine;
-
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
@@ -130,7 +126,7 @@ class ReindexSslConfig {
                 return settings.getAsList(key);
             }
         };
-        configuration = loader.load(environment.configDir());
+        configuration = loader.load(environment.configFile());
         reload();
 
         final FileChangesListener listener = new FileChangesListener() {
@@ -165,31 +161,16 @@ class ReindexSslConfig {
     }
 
     /**
-     * Encapsulate the loaded SSL configuration as a HTTP-client {@link TlsStrategy}.
+     * Encapsulate the loaded SSL configuration as a HTTP-client {@link SSLIOSessionStrategy}.
      * The returned strategy is immutable, but successive calls will return different objects that may have different
      * configurations if the underlying key/certificate files are modified.
      */
-    TlsStrategy getStrategy() {
+    SSLIOSessionStrategy getStrategy() {
         final HostnameVerifier hostnameVerifier = configuration.getVerificationMode().isHostnameVerificationEnabled()
             ? new DefaultHostnameVerifier()
             : new NoopHostnameVerifier();
-
-        final String[] protocols = configuration.getSupportedProtocols().toArray(new String[0]);
-        final String[] cipherSuites = configuration.getCipherSuites().toArray(new String[0]);
-
-        return ClientTlsStrategyBuilder.create()
-            .setSslContext(context)
-            .setHostnameVerifier(hostnameVerifier)
-            .setCiphers(cipherSuites)
-            .setTlsVersions(protocols)
-            // See https://issues.apache.org/jira/browse/HTTPCLIENT-2219
-            .setTlsDetailsFactory(new Factory<SSLEngine, TlsDetails>() {
-                @Override
-                public TlsDetails create(final SSLEngine sslEngine) {
-                    return new TlsDetails(sslEngine.getSession(), sslEngine.getApplicationProtocol());
-                }
-            })
-            .build();
-
+        final String[] protocols = configuration.getSupportedProtocols().toArray(Strings.EMPTY_ARRAY);
+        final String[] cipherSuites = configuration.getCipherSuites().toArray(Strings.EMPTY_ARRAY);
+        return new SSLIOSessionStrategy(context, protocols, cipherSuites, hostnameVerifier);
     }
 }

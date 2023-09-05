@@ -50,7 +50,7 @@ import java.util.Map;
 /**
  * Aggregation Builder for geotile_grid agg
  *
- * @opensearch.api
+ * @opensearch.internal
  */
 public class GeoTileGridAggregationBuilder extends GeoGridAggregationBuilder {
     public static final String NAME = "geotile_grid";

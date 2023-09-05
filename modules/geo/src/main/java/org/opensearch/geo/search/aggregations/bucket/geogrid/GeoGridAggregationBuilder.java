@@ -32,10 +32,11 @@
 
 package org.opensearch.geo.search.aggregations.bucket.geogrid;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.geo.GeoBoundingBox;
 import org.opensearch.common.geo.GeoPoint;
-import org.opensearch.core.ParseField;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.ObjectParser;
@@ -59,7 +60,7 @@ import java.util.function.Function;
 /**
  * Base Aggregation Builder for geogrid aggs
  *
- * @opensearch.api
+ * @opensearch.internal
  */
 public abstract class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<GeoGridAggregationBuilder> {
     /* recognized field names in JSON */
@@ -124,7 +125,9 @@ public abstract class GeoGridAggregationBuilder extends ValuesSourceAggregationB
         precision = in.readVInt();
         requiredSize = in.readVInt();
         shardSize = in.readVInt();
-        geoBoundingBox = new GeoBoundingBox(in);
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_6_0)) {
+            geoBoundingBox = new GeoBoundingBox(in);
+        }
     }
 
     @Override
@@ -137,7 +140,9 @@ public abstract class GeoGridAggregationBuilder extends ValuesSourceAggregationB
         out.writeVInt(precision);
         out.writeVInt(requiredSize);
         out.writeVInt(shardSize);
-        geoBoundingBox.writeTo(out);
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_6_0)) {
+            geoBoundingBox.writeTo(out);
+        }
     }
 
     /**

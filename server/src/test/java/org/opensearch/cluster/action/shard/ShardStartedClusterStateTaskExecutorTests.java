@@ -32,6 +32,7 @@
 
 package org.opensearch.cluster.action.shard;
 
+import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateTaskExecutor;
 import org.opensearch.cluster.OpenSearchAllocationTestCase;
@@ -44,7 +45,6 @@ import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.common.Priority;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.shard.ShardId;
 
 import java.util.ArrayList;

@@ -33,10 +33,9 @@
 package org.opensearch.client;
 
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
-
-import org.apache.hc.client5.http.impl.async.CloseableHttpAsyncClient;
-import org.apache.hc.core5.http.Header;
-import org.apache.hc.core5.http.HttpHost;
+import org.apache.http.Header;
+import org.apache.http.HttpHost;
+import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 import org.junit.After;
 
 import java.io.IOException;

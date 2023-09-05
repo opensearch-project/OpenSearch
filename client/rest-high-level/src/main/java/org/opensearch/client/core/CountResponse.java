@@ -34,8 +34,8 @@ package org.opensearch.client.core;
 
 import org.opensearch.action.search.ShardSearchFailure;
 import org.opensearch.core.ParseField;
-import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.core.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -233,7 +233,7 @@ public final class CountResponse {
                     parser.skipChildren();
                 }
             }
-            return new ShardStats(successfulShards, totalShards, skippedShards, failures.toArray(new ShardSearchFailure[0]));
+            return new ShardStats(successfulShards, totalShards, skippedShards, failures.toArray(new ShardSearchFailure[failures.size()]));
         }
 
         @Override

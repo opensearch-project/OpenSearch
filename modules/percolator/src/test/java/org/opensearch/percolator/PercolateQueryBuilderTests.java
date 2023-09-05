@@ -38,14 +38,15 @@ import org.opensearch.ResourceNotFoundException;
 import org.opensearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.opensearch.action.get.GetRequest;
 import org.opensearch.action.get.GetResponse;
+import org.opensearch.common.Strings;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.lucene.uid.Versions;
-import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.core.common.bytes.BytesArray;
-import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.get.GetResult;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.query.QueryBuilder;
@@ -96,7 +97,7 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Arrays.asList(PercolatorModulePlugin.class, TestGeoShapeFieldMapperPlugin.class);
+        return Arrays.asList(PercolatorPlugin.class, TestGeoShapeFieldMapperPlugin.class);
     }
 
     @Override
@@ -108,13 +109,15 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
         mapperService.merge(
             docType,
             new CompressedXContent(
-                PutMappingRequest.simpleMapping(queryField, "type=percolator", aliasField, "type=alias,path=" + queryField).toString()
+                Strings.toString(
+                    PutMappingRequest.simpleMapping(queryField, "type=percolator", aliasField, "type=alias,path=" + queryField)
+                )
             ),
             MapperService.MergeReason.MAPPING_UPDATE
         );
         mapperService.merge(
             docType,
-            new CompressedXContent(PutMappingRequest.simpleMapping(TEXT_FIELD_NAME, "type=text").toString()),
+            new CompressedXContent(Strings.toString(PutMappingRequest.simpleMapping(TEXT_FIELD_NAME, "type=text"))),
             MapperService.MergeReason.MAPPING_UPDATE
         );
     }
@@ -152,7 +155,7 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
                 indexedDocumentVersion
             );
         } else {
-            queryBuilder = new PercolateQueryBuilder(queryField, documentSource, MediaTypeRegistry.JSON);
+            queryBuilder = new PercolateQueryBuilder(queryField, documentSource, XContentType.JSON);
         }
         if (randomBoolean()) {
             queryBuilder.setName(randomAlphaOfLength(4));
@@ -221,7 +224,7 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> pqb.toQuery(createShardContext()));
         assertThat(e.getMessage(), equalTo("query builder must be rewritten first"));
         QueryBuilder rewrite = rewriteAndFetch(pqb, createShardContext());
-        PercolateQueryBuilder geoShapeQueryBuilder = new PercolateQueryBuilder(pqb.getField(), documentSource, MediaTypeRegistry.JSON);
+        PercolateQueryBuilder geoShapeQueryBuilder = new PercolateQueryBuilder(pqb.getField(), documentSource, XContentType.JSON);
         assertEquals(geoShapeQueryBuilder, rewrite);
     }
 
@@ -243,13 +246,13 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
 
     public void testRequiredParameters() {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
-            new PercolateQueryBuilder(null, new BytesArray("{}"), MediaTypeRegistry.JSON);
+            new PercolateQueryBuilder(null, new BytesArray("{}"), XContentType.JSON);
         });
         assertThat(e.getMessage(), equalTo("[field] is a required argument"));
 
         e = expectThrows(
             IllegalArgumentException.class,
-            () -> new PercolateQueryBuilder("_field", (List<BytesReference>) null, MediaTypeRegistry.JSON)
+            () -> new PercolateQueryBuilder("_field", (List<BytesReference>) null, XContentType.JSON)
         );
         assertThat(e.getMessage(), equalTo("[document] is a required argument"));
 

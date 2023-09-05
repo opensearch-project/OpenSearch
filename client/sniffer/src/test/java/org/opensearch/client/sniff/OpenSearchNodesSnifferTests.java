@@ -35,16 +35,14 @@ package org.opensearch.client.sniff;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
-
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonGenerator;
-
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
-
-import org.apache.hc.client5.http.classic.methods.HttpGet;
-import org.apache.hc.core5.http.HttpHost;
+import org.apache.http.Consts;
+import org.apache.http.HttpHost;
+import org.apache.http.client.methods.HttpGet;
 import org.opensearch.client.Node;
 import org.opensearch.client.Response;
 import org.opensearch.client.ResponseException;
@@ -58,7 +56,6 @@ import java.io.OutputStream;
 import java.io.StringWriter;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -184,7 +181,7 @@ public class OpenSearchNodesSnifferTests extends RestClientTestCase {
                     String nodesInfoBody = sniffResponse.nodesInfoBody;
                     httpExchange.sendResponseHeaders(sniffResponse.nodesInfoResponseCode, nodesInfoBody.length());
                     try (OutputStream out = httpExchange.getResponseBody()) {
-                        out.write(nodesInfoBody.getBytes(StandardCharsets.UTF_8));
+                        out.write(nodesInfoBody.getBytes(Consts.UTF_8));
                         return;
                     }
                 }
@@ -213,14 +210,14 @@ public class OpenSearchNodesSnifferTests extends RestClientTestCase {
             String nodeId = RandomStrings.randomAsciiOfLengthBetween(getRandom(), 5, 10);
             String host = "host" + i;
             int port = RandomNumbers.randomIntBetween(getRandom(), 9200, 9299);
-            HttpHost publishHost = new HttpHost(scheme.toString(), host, port);
+            HttpHost publishHost = new HttpHost(host, port, scheme.toString());
             Set<HttpHost> boundHosts = new HashSet<>();
             boundHosts.add(publishHost);
 
             if (randomBoolean()) {
                 int bound = between(1, 5);
                 for (int b = 0; b < bound; b++) {
-                    boundHosts.add(new HttpHost(scheme.toString(), host + b, port));
+                    boundHosts.add(new HttpHost(host + b, port, scheme.toString()));
                 }
             }
 

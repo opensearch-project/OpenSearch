@@ -32,6 +32,7 @@
 
 package org.opensearch.index.rankeval;
 
+import org.opensearch.action.ActionListener;
 import org.opensearch.action.search.MultiSearchRequest;
 import org.opensearch.action.search.MultiSearchResponse;
 import org.opensearch.action.search.MultiSearchResponse.Item;
@@ -39,14 +40,13 @@ import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.client.Client;
-import org.opensearch.common.inject.Inject;
-import org.opensearch.common.xcontent.LoggingDeprecationHandler;
-import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.common.inject.Inject;
 import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptService;
 import org.opensearch.script.TemplateScript;
@@ -126,7 +126,7 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
                         namedXContentRegistry,
                         LoggingDeprecationHandler.INSTANCE,
                         new BytesArray(resolvedRequest),
-                        MediaTypeRegistry.JSON
+                        XContentType.JSON
                     )
                 ) {
                     evaluationRequest = SearchSourceBuilder.fromXContent(subParser, false);
@@ -148,7 +148,7 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
             if (summaryFields.isEmpty()) {
                 evaluationRequest.fetchSource(false);
             } else {
-                evaluationRequest.fetchSource(summaryFields.toArray(new String[0]), new String[0]);
+                evaluationRequest.fetchSource(summaryFields.toArray(new String[summaryFields.size()]), new String[0]);
             }
             SearchRequest searchRequest = new SearchRequest(request.indices(), evaluationRequest);
             searchRequest.indicesOptions(request.indicesOptions());
@@ -158,7 +158,12 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
         assert ratedRequestsInSearch.size() == msearchRequest.requests().size();
         client.multiSearch(
             msearchRequest,
-            new RankEvalActionListener(listener, metric, ratedRequestsInSearch.toArray(new RatedRequest[0]), errors)
+            new RankEvalActionListener(
+                listener,
+                metric,
+                ratedRequestsInSearch.toArray(new RatedRequest[ratedRequestsInSearch.size()]),
+                errors
+            )
         );
     }
 

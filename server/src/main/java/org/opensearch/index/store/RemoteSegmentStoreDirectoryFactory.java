@@ -9,11 +9,12 @@
 package org.opensearch.index.store;
 
 import org.apache.lucene.store.Directory;
+import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.ShardPath;
-import org.opensearch.index.store.lockmanager.RemoteStoreLockManager;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManagerFactory;
+import org.opensearch.index.store.lockmanager.RemoteStoreMetadataLockManager;
 import org.opensearch.plugins.IndexStorePlugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
@@ -53,19 +54,12 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Dire
     public Directory newDirectory(String repositoryName, String indexUUID, String shardId) throws IOException {
         try (Repository repository = repositoriesService.get().repository(repositoryName)) {
             assert repository instanceof BlobStoreRepository : "repository should be instance of BlobStoreRepository";
-            BlobStoreRepository blobStoreRepository = ((BlobStoreRepository) repository);
-            BlobPath commonBlobPath = blobStoreRepository.basePath();
+            BlobPath commonBlobPath = ((BlobStoreRepository) repository).basePath();
             commonBlobPath = commonBlobPath.add(indexUUID).add(shardId).add(SEGMENTS);
 
-            RemoteDirectory dataDirectory = new RemoteDirectory(
-                blobStoreRepository.blobStore().blobContainer(commonBlobPath.add("data")),
-                blobStoreRepository::maybeRateLimitRemoteUploadTransfers,
-                blobStoreRepository::maybeRateLimitRemoteDownloadTransfers
-            );
-            RemoteDirectory metadataDirectory = new RemoteDirectory(
-                blobStoreRepository.blobStore().blobContainer(commonBlobPath.add("metadata"))
-            );
-            RemoteStoreLockManager mdLockManager = RemoteStoreLockManagerFactory.newLockManager(
+            RemoteDirectory dataDirectory = createRemoteDirectory(repository, commonBlobPath, "data");
+            RemoteDirectory metadataDirectory = createRemoteDirectory(repository, commonBlobPath, "metadata");
+            RemoteStoreMetadataLockManager mdLockManager = RemoteStoreLockManagerFactory.newLockManager(
                 repositoriesService.get(),
                 repositoryName,
                 indexUUID,
@@ -78,7 +72,9 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Dire
         }
     }
 
-    private RemoteDirectory createRemoteDirectory(BlobStoreRepository repository, BlobPath commonBlobPath, String extension) {
-        return new RemoteDirectory(repository.blobStore().blobContainer(commonBlobPath.add(extension)));
+    private RemoteDirectory createRemoteDirectory(Repository repository, BlobPath commonBlobPath, String extention) {
+        BlobPath extendedPath = commonBlobPath.add(extention);
+        BlobContainer dataBlobContainer = ((BlobStoreRepository) repository).blobStore().blobContainer(extendedPath);
+        return new RemoteDirectory(dataBlobContainer);
     }
 }

@@ -32,6 +32,7 @@
 
 package org.opensearch.action.admin.cluster.health;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.IndicesRequest;
@@ -40,9 +41,9 @@ import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeReadRequest;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.common.Priority;
-import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.common.unit.TimeValue;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -94,7 +95,11 @@ public class ClusterHealthRequest extends ClusterManagerNodeReadRequest<ClusterH
             waitForEvents = Priority.readFrom(in);
         }
         waitForNoInitializingShards = in.readBoolean();
-        indicesOptions = IndicesOptions.readIndicesOptions(in);
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_2_0)) {
+            indicesOptions = IndicesOptions.readIndicesOptions(in);
+        } else {
+            indicesOptions = IndicesOptions.lenientExpandOpen();
+        }
         if (in.getVersion().onOrAfter(Version.V_2_5_0)) {
             awarenessAttribute = in.readOptionalString();
             level = in.readEnum(Level.class);
@@ -129,7 +134,9 @@ public class ClusterHealthRequest extends ClusterManagerNodeReadRequest<ClusterH
             Priority.writeTo(waitForEvents, out);
         }
         out.writeBoolean(waitForNoInitializingShards);
-        indicesOptions.writeIndicesOptions(out);
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_2_0)) {
+            indicesOptions.writeIndicesOptions(out);
+        }
         if (out.getVersion().onOrAfter(Version.V_2_5_0)) {
             out.writeOptionalString(awarenessAttribute);
             out.writeEnum(level);

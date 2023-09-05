@@ -31,7 +31,10 @@
 
 package org.opensearch.search.aggregations.support;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
+import org.opensearch.common.joda.Joda;
+import org.opensearch.common.time.DateUtils;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -231,7 +234,11 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
         }
         format = in.readOptionalString();
         missing = in.readGenericValue();
-        timeZone = in.readOptionalZoneId();
+        if (in.getVersion().before(LegacyESVersion.V_7_0_0)) {
+            timeZone = DateUtils.dateTimeZoneToZoneId(Joda.readOptionalTimeZone(in));
+        } else {
+            timeZone = in.readOptionalZoneId();
+        }
     }
 
     @Override
@@ -253,7 +260,11 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
         }
         out.writeOptionalString(format);
         out.writeGenericValue(missing);
-        out.writeOptionalZoneId(timeZone);
+        if (out.getVersion().before(LegacyESVersion.V_7_0_0)) {
+            Joda.writeOptionalTimeZone(out, DateUtils.zoneIdToDateTimeZone(timeZone));
+        } else {
+            out.writeOptionalZoneId(timeZone);
+        }
         innerWriteTo(out);
     }
 

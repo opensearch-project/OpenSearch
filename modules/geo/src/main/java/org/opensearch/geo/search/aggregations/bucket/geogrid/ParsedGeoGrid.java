@@ -44,7 +44,7 @@ import java.util.function.Supplier;
 /**
  * A geo grid result parsed between nodes
  *
- * @opensearch.api
+ * @opensearch.internal
  */
 public abstract class ParsedGeoGrid extends ParsedMultiBucketAggregation<ParsedGeoGridBucket> implements GeoGrid {
 

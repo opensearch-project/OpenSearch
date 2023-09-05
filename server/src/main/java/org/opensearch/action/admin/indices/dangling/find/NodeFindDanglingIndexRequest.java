@@ -32,18 +32,18 @@
 
 package org.opensearch.action.admin.indices.dangling.find;
 
+import java.io.IOException;
+
+import org.opensearch.action.support.nodes.BaseNodeRequest;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.transport.TransportRequest;
-
-import java.io.IOException;
 
 /**
  * Used when querying every node in the cluster for a specific dangling index.
  *
  * @opensearch.internal
  */
-public class NodeFindDanglingIndexRequest extends TransportRequest {
+public class NodeFindDanglingIndexRequest extends BaseNodeRequest {
     private final String indexUUID;
 
     public NodeFindDanglingIndexRequest(String indexUUID) {

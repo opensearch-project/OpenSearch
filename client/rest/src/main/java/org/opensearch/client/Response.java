@@ -32,13 +32,12 @@
 
 package org.opensearch.client;
 
-import org.apache.hc.core5.http.ClassicHttpResponse;
-import org.apache.hc.core5.http.Header;
-import org.apache.hc.core5.http.HttpEntity;
-import org.apache.hc.core5.http.HttpHost;
-import org.apache.hc.core5.http.HttpResponse;
-import org.apache.hc.core5.http.message.RequestLine;
-import org.apache.hc.core5.http.message.StatusLine;
+import org.apache.http.Header;
+import org.apache.http.HttpEntity;
+import org.apache.http.HttpHost;
+import org.apache.http.HttpResponse;
+import org.apache.http.RequestLine;
+import org.apache.http.StatusLine;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -54,9 +53,9 @@ public class Response {
 
     private final RequestLine requestLine;
     private final HttpHost host;
-    private final ClassicHttpResponse response;
+    private final HttpResponse response;
 
-    Response(RequestLine requestLine, HttpHost host, ClassicHttpResponse response) {
+    Response(RequestLine requestLine, HttpHost host, HttpResponse response) {
         Objects.requireNonNull(requestLine, "requestLine cannot be null");
         Objects.requireNonNull(host, "host cannot be null");
         Objects.requireNonNull(response, "response cannot be null");
@@ -83,14 +82,14 @@ public class Response {
      * Returns the status line of the current response
      */
     public StatusLine getStatusLine() {
-        return new StatusLine(response);
+        return response.getStatusLine();
     }
 
     /**
      * Returns all the response headers
      */
     public Header[] getHeaders() {
-        return response.getHeaders();
+        return response.getAllHeaders();
     }
 
     /**
@@ -147,7 +146,7 @@ public class Response {
      * @return {@code true} if the input string matches the specification
      */
     private static boolean matchWarningHeaderPatternByPrefix(final String s) {
-        return s.startsWith("299 OpenSearch-");
+        return s.startsWith("299 OpenSearch-") || s.startsWith("299 Elasticsearch-");
     }
 
     /**
@@ -200,15 +199,12 @@ public class Response {
         return warnings != null && warnings.length > 0;
     }
 
-    ClassicHttpResponse getHttpResponse() {
+    HttpResponse getHttpResponse() {
         return response;
     }
 
-    /**
-     * Convert response to string representation
-     */
     @Override
     public String toString() {
-        return "Response{" + "requestLine=" + requestLine + ", host=" + host + ", response=" + getStatusLine() + '}';
+        return "Response{" + "requestLine=" + requestLine + ", host=" + host + ", response=" + response.getStatusLine() + '}';
     }
 }

@@ -33,7 +33,6 @@
 package org.opensearch.env;
 
 import org.opensearch.OpenSearchException;
-import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.index.shard.ShardId;
 
@@ -42,9 +41,8 @@ import java.io.IOException;
 /**
  * Exception used when the in-memory lock for a shard cannot be obtained
  *
- * @opensearch.api
+ * @opensearch.internal
  */
-@PublicApi(since = "1.0.0")
 public class ShardLockObtainFailedException extends OpenSearchException {
 
     public ShardLockObtainFailedException(ShardId shardId, String message) {

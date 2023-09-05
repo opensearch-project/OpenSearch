@@ -32,11 +32,11 @@
 
 package org.opensearch.action.admin.cluster.node.stats;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
 import org.opensearch.action.support.nodes.BaseNodesRequest;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -64,7 +64,22 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
 
         indices = new CommonStatsFlags(in);
         requestedMetrics.clear();
-        requestedMetrics.addAll(in.readStringList());
+        if (in.getVersion().before(LegacyESVersion.V_7_7_0)) {
+            optionallyAddMetric(in.readBoolean(), Metric.OS.metricName());
+            optionallyAddMetric(in.readBoolean(), Metric.PROCESS.metricName());
+            optionallyAddMetric(in.readBoolean(), Metric.JVM.metricName());
+            optionallyAddMetric(in.readBoolean(), Metric.THREAD_POOL.metricName());
+            optionallyAddMetric(in.readBoolean(), Metric.FS.metricName());
+            optionallyAddMetric(in.readBoolean(), Metric.TRANSPORT.metricName());
+            optionallyAddMetric(in.readBoolean(), Metric.HTTP.metricName());
+            optionallyAddMetric(in.readBoolean(), Metric.BREAKER.metricName());
+            optionallyAddMetric(in.readBoolean(), Metric.SCRIPT.metricName());
+            optionallyAddMetric(in.readBoolean(), Metric.DISCOVERY.metricName());
+            optionallyAddMetric(in.readBoolean(), Metric.INGEST.metricName());
+            optionallyAddMetric(in.readBoolean(), Metric.ADAPTIVE_SELECTION.metricName());
+        } else {
+            requestedMetrics.addAll(in.readStringList());
+        }
     }
 
     /**
@@ -185,7 +200,22 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         indices.writeTo(out);
-        out.writeStringArray(requestedMetrics.toArray(new String[0]));
+        if (out.getVersion().before(LegacyESVersion.V_7_7_0)) {
+            out.writeBoolean(Metric.OS.containedIn(requestedMetrics));
+            out.writeBoolean(Metric.PROCESS.containedIn(requestedMetrics));
+            out.writeBoolean(Metric.JVM.containedIn(requestedMetrics));
+            out.writeBoolean(Metric.THREAD_POOL.containedIn(requestedMetrics));
+            out.writeBoolean(Metric.FS.containedIn(requestedMetrics));
+            out.writeBoolean(Metric.TRANSPORT.containedIn(requestedMetrics));
+            out.writeBoolean(Metric.HTTP.containedIn(requestedMetrics));
+            out.writeBoolean(Metric.BREAKER.containedIn(requestedMetrics));
+            out.writeBoolean(Metric.SCRIPT.containedIn(requestedMetrics));
+            out.writeBoolean(Metric.DISCOVERY.containedIn(requestedMetrics));
+            out.writeBoolean(Metric.INGEST.containedIn(requestedMetrics));
+            out.writeBoolean(Metric.ADAPTIVE_SELECTION.containedIn(requestedMetrics));
+        } else {
+            out.writeStringArray(requestedMetrics.toArray(new String[0]));
+        }
     }
 
     /**

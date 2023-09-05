@@ -10,6 +10,8 @@ package org.opensearch.upgrade;
 
 import com.google.common.jimfs.Configuration;
 import com.google.common.jimfs.Jimfs;
+import org.junit.After;
+import org.junit.Before;
 import org.opensearch.cli.Command;
 import org.opensearch.cli.CommandTestCase;
 import org.opensearch.common.SuppressForbidden;
@@ -19,8 +21,6 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
-import org.junit.After;
-import org.junit.Before;
 
 import java.io.File;
 import java.io.IOException;
@@ -121,7 +121,7 @@ public class UpgradeCliTests extends CommandTestCase {
                 "path.logs: \"/var/log/eslogs\""
             )
         );
-        List<String> actualSettings = Files.readAllLines(env.configDir().resolve("opensearch.yml"))
+        List<String> actualSettings = Files.readAllLines(env.configFile().resolve("opensearch.yml"))
             .stream()
             .filter(Objects::nonNull)
             .filter(line -> !line.isEmpty())
@@ -132,7 +132,7 @@ public class UpgradeCliTests extends CommandTestCase {
 
     private void assertKeystoreImported(String passwd) throws IOException, GeneralSecurityException {
         // assert keystore is created
-        KeyStoreWrapper keystore = KeyStoreWrapper.load(env.configDir());
+        KeyStoreWrapper keystore = KeyStoreWrapper.load(env.configFile());
         assertNotNull(keystore);
 
         // assert all keystore settings are imported
@@ -148,13 +148,13 @@ public class UpgradeCliTests extends CommandTestCase {
     }
 
     private void assertJvmOptionsImported() throws IOException, GeneralSecurityException {
-        Path path = env.configDir().resolve("jvm.options.d");
+        Path path = env.configFile().resolve("jvm.options.d");
         assertThat(Files.exists(path), is(true));
         assertThat(Files.isDirectory(path), is(true));
         assertThat(Files.exists(path.resolve("test.options")), is(true));
     }
 
     private void assertLog4jPropertiesImported() throws IOException, GeneralSecurityException {
-        assertThat(Files.exists(env.configDir().resolve("log4j2.properties")), is(true));
+        assertThat(Files.exists(env.configFile().resolve("log4j2.properties")), is(true));
     }
 }

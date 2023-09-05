@@ -31,9 +31,10 @@
 
 package org.opensearch.action.ingest;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
-import org.opensearch.common.collect.Tuple;
 import org.opensearch.core.ParseField;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -191,13 +192,22 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
         this.processorTag = in.readString();
         this.ingestDocument = in.readOptionalWriteable(WriteableIngestDocument::new);
         this.failure = in.readException();
-        this.description = in.readOptionalString();
-        this.type = in.readString();
-        boolean hasConditional = in.readBoolean();
-        if (hasConditional) {
-            this.conditionalWithResult = new Tuple<>(in.readString(), in.readBoolean());
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_9_0)) {
+            this.description = in.readOptionalString();
         } else {
-            this.conditionalWithResult = null; // no condition exists
+            this.description = null;
+        }
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
+            this.type = in.readString();
+            boolean hasConditional = in.readBoolean();
+            if (hasConditional) {
+                this.conditionalWithResult = new Tuple<>(in.readString(), in.readBoolean());
+            } else {
+                this.conditionalWithResult = null; // no condition exists
+            }
+        } else {
+            this.conditionalWithResult = null;
+            this.type = null;
         }
     }
 
@@ -206,12 +216,16 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
         out.writeString(processorTag);
         out.writeOptionalWriteable(ingestDocument);
         out.writeException(failure);
-        out.writeOptionalString(description);
-        out.writeString(type);
-        out.writeBoolean(conditionalWithResult != null);
-        if (conditionalWithResult != null) {
-            out.writeString(conditionalWithResult.v1());
-            out.writeBoolean(conditionalWithResult.v2());
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_9_0)) {
+            out.writeOptionalString(description);
+        }
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
+            out.writeString(type);
+            out.writeBoolean(conditionalWithResult != null);
+            if (conditionalWithResult != null) {
+                out.writeString(conditionalWithResult.v1());
+                out.writeBoolean(conditionalWithResult.v2());
+            }
         }
     }
 

@@ -35,10 +35,10 @@ package org.opensearch.node;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.SecureSetting;
+import org.opensearch.core.common.settings.SecureString;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
-import org.opensearch.core.common.settings.SecureString;
 import org.opensearch.env.Environment;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.After;
@@ -85,7 +85,7 @@ public class InternalSettingsPreparerTests extends OpenSearchTestCase {
         assertNotNull(settings.get(ClusterName.CLUSTER_NAME_SETTING.getKey())); // a cluster name was set
         assertEquals(settings.toString(), size + 1 /* path.home is in the base settings */, settings.names().size());
         String home = Environment.PATH_HOME_SETTING.get(baseEnvSettings);
-        String configDir = env.configDir().toString();
+        String configDir = env.configFile().toString();
         assertTrue(configDir, configDir.startsWith(home));
     }
 

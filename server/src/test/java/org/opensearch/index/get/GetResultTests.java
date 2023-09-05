@@ -32,17 +32,16 @@
 
 package org.opensearch.index.get;
 
+import org.opensearch.common.Strings;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.document.DocumentField;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.core.common.Strings;
-import org.opensearch.core.common.bytes.BytesArray;
-import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.core.xcontent.MediaType;
-import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.IndexFieldMapper;
 import org.opensearch.index.mapper.SeqNoFieldMapper;
@@ -62,7 +61,7 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
-import static org.opensearch.core.xcontent.XContentHelper.toXContent;
+import static org.opensearch.common.xcontent.XContentHelper.toXContent;
 import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.opensearch.index.get.DocumentFieldTests.randomDocumentField;
 import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
@@ -106,7 +105,7 @@ public class GetResultTests extends OpenSearchTestCase {
                 singletonMap("field1", new DocumentField("field1", singletonList("value1"))),
                 singletonMap("field1", new DocumentField("metafield", singletonList("metavalue")))
             );
-            String output = Strings.toString(MediaTypeRegistry.JSON, getResult);
+            String output = Strings.toString(XContentType.JSON, getResult);
             assertEquals(
                 "{\"_index\":\"index\",\"_id\":\"id\",\"_version\":1,\"_seq_no\":0,\"_primary_term\":1,"
                     + "\"metafield\":\"metavalue\",\"found\":true,\"_source\":{ \"field1\" : \"value1\", \"field2\":\"value2\"},"
@@ -116,7 +115,7 @@ public class GetResultTests extends OpenSearchTestCase {
         }
         {
             GetResult getResult = new GetResult("index", "id", UNASSIGNED_SEQ_NO, 0, 1, false, null, null, null);
-            String output = Strings.toString(MediaTypeRegistry.JSON, getResult);
+            String output = Strings.toString(XContentType.JSON, getResult);
             assertEquals("{\"_index\":\"index\",\"_id\":\"id\",\"found\":false}", output);
         }
     }
@@ -174,7 +173,7 @@ public class GetResultTests extends OpenSearchTestCase {
             null
         );
 
-        BytesReference originalBytes = toXContentEmbedded(getResult, MediaTypeRegistry.JSON, false);
+        BytesReference originalBytes = toXContentEmbedded(getResult, XContentType.JSON, false);
         assertEquals(
             "{\"_seq_no\":0,\"_primary_term\":1,\"found\":true,\"_source\":{\"foo\":\"bar\",\"baz\":[\"baz_0\",\"baz_1\"]},"
                 + "\"fields\":{\"foo\":[\"bar\"],\"baz\":[\"baz_0\",\"baz_1\"]}}",
@@ -185,7 +184,7 @@ public class GetResultTests extends OpenSearchTestCase {
     public void testToXContentEmbeddedNotFound() throws IOException {
         GetResult getResult = new GetResult("index", "id", UNASSIGNED_SEQ_NO, 0, 1, false, null, null, null);
 
-        BytesReference originalBytes = toXContentEmbedded(getResult, MediaTypeRegistry.JSON, false);
+        BytesReference originalBytes = toXContentEmbedded(getResult, XContentType.JSON, false);
         assertEquals("{\"found\":false}", originalBytes.utf8ToString());
     }
 
@@ -197,7 +196,7 @@ public class GetResultTests extends OpenSearchTestCase {
         getResult.writeTo(out);
         getResult = new GetResult(out.bytes().streamInput());
 
-        BytesReference originalBytes = toXContentEmbedded(getResult, MediaTypeRegistry.JSON, false);
+        BytesReference originalBytes = toXContentEmbedded(getResult, XContentType.JSON, false);
         assertEquals("{\"found\":false}", originalBytes.utf8ToString());
     }
 
@@ -213,11 +212,7 @@ public class GetResultTests extends OpenSearchTestCase {
     }
 
     public void testEqualsAndHashcode() {
-        checkEqualsAndHashCode(
-            randomGetResult(MediaTypeRegistry.JSON).v1(),
-            GetResultTests::copyGetResult,
-            GetResultTests::mutateGetResult
-        );
+        checkEqualsAndHashCode(randomGetResult(XContentType.JSON).v1(), GetResultTests::copyGetResult, GetResultTests::mutateGetResult);
     }
 
     public static GetResult copyGetResult(GetResult getResult) {
@@ -310,14 +305,14 @@ public class GetResultTests extends OpenSearchTestCase {
                 getResult.getVersion(),
                 getResult.isExists(),
                 getResult.internalSourceRef(),
-                randomDocumentFields(MediaTypeRegistry.JSON, randomBoolean()).v1(),
+                randomDocumentFields(XContentType.JSON, randomBoolean()).v1(),
                 null
             )
         );
         return randomFrom(mutations).get();
     }
 
-    public static Tuple<GetResult, GetResult> randomGetResult(MediaType mediaType) {
+    public static Tuple<GetResult, GetResult> randomGetResult(XContentType xContentType) {
         final String index = randomAlphaOfLengthBetween(3, 10);
         final String type = randomAlphaOfLengthBetween(3, 10);
         final String id = randomAlphaOfLengthBetween(3, 10);
@@ -339,11 +334,11 @@ public class GetResultTests extends OpenSearchTestCase {
                 source = RandomObjects.randomSource(random());
             }
             if (randomBoolean()) {
-                Tuple<Map<String, DocumentField>, Map<String, DocumentField>> tuple = randomDocumentFields(mediaType, false);
+                Tuple<Map<String, DocumentField>, Map<String, DocumentField>> tuple = randomDocumentFields(xContentType, false);
                 docFields = tuple.v1();
                 expectedDocFields = tuple.v2();
 
-                tuple = randomDocumentFields(mediaType, true);
+                tuple = randomDocumentFields(xContentType, true);
                 metaFields = tuple.v1();
                 expectedMetaFields = tuple.v2();
             }
@@ -369,7 +364,7 @@ public class GetResultTests extends OpenSearchTestCase {
     }
 
     public static Tuple<Map<String, DocumentField>, Map<String, DocumentField>> randomDocumentFields(
-        MediaType mediaType,
+        XContentType xContentType,
         boolean isMetaFields
     ) {
         int numFields = isMetaFields ? randomIntBetween(1, 3) : randomIntBetween(2, 10);
@@ -383,7 +378,7 @@ public class GetResultTests extends OpenSearchTestCase {
             || field.equals(SourceFieldMapper.NAME)
             || field.equals(SeqNoFieldMapper.NAME);
         while (fields.size() < numFields) {
-            Tuple<DocumentField, DocumentField> tuple = randomDocumentField(mediaType, isMetaFields, excludeMetaFieldFilter);
+            Tuple<DocumentField, DocumentField> tuple = randomDocumentField(xContentType, isMetaFields, excludeMetaFieldFilter);
             DocumentField getField = tuple.v1();
             DocumentField expectedGetField = tuple.v2();
             if (fields.putIfAbsent(getField.getName(), getField) == null) {
@@ -393,7 +388,8 @@ public class GetResultTests extends OpenSearchTestCase {
         return Tuple.tuple(fields, expectedFields);
     }
 
-    private static BytesReference toXContentEmbedded(GetResult getResult, MediaType mediaType, boolean humanReadable) throws IOException {
-        return org.opensearch.core.xcontent.XContentHelper.toXContent(getResult::toXContentEmbedded, mediaType, humanReadable);
+    private static BytesReference toXContentEmbedded(GetResult getResult, XContentType xContentType, boolean humanReadable)
+        throws IOException {
+        return XContentHelper.toXContent(getResult::toXContentEmbedded, xContentType, humanReadable);
     }
 }

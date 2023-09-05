@@ -59,12 +59,6 @@ public class DoubleTermsTests extends InternalTermsTestCase {
         long minDocCount = 1;
         int requiredSize = 3;
         int shardSize = requiredSize + 2;
-        TermsAggregator.BucketCountThresholds bucketCountThresholds = new TermsAggregator.BucketCountThresholds(
-            minDocCount,
-            0,
-            requiredSize,
-            shardSize
-        );
         DocValueFormat format = randomNumericDocValueFormat();
         long otherDocCount = 0;
         List<DoubleTerms.Bucket> buckets = new ArrayList<>();
@@ -81,14 +75,15 @@ public class DoubleTermsTests extends InternalTermsTestCase {
             name,
             reduceOrder,
             order,
+            requiredSize,
+            minDocCount,
             metadata,
             format,
             shardSize,
             showTermDocCountError,
             otherDocCount,
             buckets,
-            docCountError,
-            bucketCountThresholds
+            docCountError
         );
     }
 
@@ -163,14 +158,15 @@ public class DoubleTermsTests extends InternalTermsTestCase {
                 name,
                 doubleTerms.reduceOrder,
                 order,
+                requiredSize,
+                minDocCount,
                 metadata,
                 format,
                 shardSize,
                 showTermDocCountError,
                 otherDocCount,
                 buckets,
-                docCountError,
-                new TermsAggregator.BucketCountThresholds(minDocCount, 0, requiredSize, shardSize)
+                docCountError
             );
         } else {
             String name = instance.getName();
@@ -199,7 +195,7 @@ public class DoubleTermsTests extends InternalTermsTestCase {
                 default:
                     throw new AssertionError("Illegal randomisation branch");
             }
-            return new UnmappedTerms(name, order, new TermsAggregator.BucketCountThresholds(minDocCount, 0, requiredSize, 0), metadata);
+            return new UnmappedTerms(name, order, requiredSize, minDocCount, metadata);
         }
     }
 

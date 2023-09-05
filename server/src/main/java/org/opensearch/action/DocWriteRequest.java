@@ -38,11 +38,11 @@ import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.update.UpdateRequest;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.index.VersionType;
+import org.opensearch.core.index.shard.ShardId;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -232,7 +232,8 @@ public interface DocWriteRequest<T> extends IndicesRequest, Accountable {
      * Read a document write (index/delete/update) request
      *
      * @param shardId shard id of the request. {@code null} when reading as part of a {@link org.opensearch.action.bulk.BulkRequest}
-     *                that does not have a unique shard id
+     *                that does not have a unique shard id or when reading from a stream of version older than
+     *                {@link org.opensearch.action.bulk.BulkShardRequest#COMPACT_SHARD_ID_VERSION}
      */
     static DocWriteRequest<?> readDocumentRequest(@Nullable ShardId shardId, StreamInput in) throws IOException {
         byte type = in.readByte();

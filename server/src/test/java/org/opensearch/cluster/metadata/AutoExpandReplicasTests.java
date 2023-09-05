@@ -31,6 +31,7 @@
 
 package org.opensearch.cluster.metadata;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.opensearch.action.admin.indices.create.CreateIndexRequest;
@@ -243,7 +244,7 @@ public class AutoExpandReplicasTests extends OpenSearchTestCase {
         try {
             List<DiscoveryNode> allNodes = new ArrayList<>();
             DiscoveryNode oldNode = createNode(
-                VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.V_2_2_1),
+                VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_7_0_0, LegacyESVersion.V_7_5_1),
                 DiscoveryNodeRole.CLUSTER_MANAGER_ROLE,
                 DiscoveryNodeRole.DATA_ROLE
             ); // local node is the cluster-manager
@@ -265,11 +266,11 @@ public class AutoExpandReplicasTests extends OpenSearchTestCase {
                 state = cluster.reroute(state, new ClusterRerouteRequest());
             }
 
-            DiscoveryNode newNode = createNode(Version.V_2_3_0, DiscoveryNodeRole.CLUSTER_MANAGER_ROLE, DiscoveryNodeRole.DATA_ROLE); // local
-                                                                                                                                      // node
-                                                                                                                                      // is
-                                                                                                                                      // the
-                                                                                                                                      // cluster_manager
+            DiscoveryNode newNode = createNode(
+                LegacyESVersion.V_7_6_0,
+                DiscoveryNodeRole.CLUSTER_MANAGER_ROLE,
+                DiscoveryNodeRole.DATA_ROLE
+            ); // local node is the cluster_manager
 
             state = cluster.addNodes(state, Collections.singletonList(newNode));
 

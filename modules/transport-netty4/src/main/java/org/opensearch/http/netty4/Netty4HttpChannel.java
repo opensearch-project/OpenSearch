@@ -32,31 +32,22 @@
 
 package org.opensearch.http.netty4;
 
-import org.opensearch.common.Nullable;
+import io.netty.channel.Channel;
+import org.opensearch.action.ActionListener;
 import org.opensearch.common.concurrent.CompletableContext;
-import org.opensearch.core.action.ActionListener;
 import org.opensearch.http.HttpChannel;
 import org.opensearch.http.HttpResponse;
 import org.opensearch.transport.netty4.Netty4TcpChannel;
 
 import java.net.InetSocketAddress;
 
-import io.netty.channel.Channel;
-import io.netty.channel.ChannelPipeline;
-
 public class Netty4HttpChannel implements HttpChannel {
 
     private final Channel channel;
     private final CompletableContext<Void> closeContext = new CompletableContext<>();
-    private final ChannelPipeline inboundPipeline;
 
     Netty4HttpChannel(Channel channel) {
-        this(channel, null);
-    }
-
-    Netty4HttpChannel(Channel channel, ChannelPipeline inboundPipeline) {
         this.channel = channel;
-        this.inboundPipeline = inboundPipeline;
         Netty4TcpChannel.addListener(this.channel.closeFuture(), closeContext);
     }
 
@@ -88,10 +79,6 @@ public class Netty4HttpChannel implements HttpChannel {
     @Override
     public void close() {
         channel.close();
-    }
-
-    public @Nullable ChannelPipeline inboundPipeline() {
-        return inboundPipeline;
     }
 
     public Channel getNettyChannel() {

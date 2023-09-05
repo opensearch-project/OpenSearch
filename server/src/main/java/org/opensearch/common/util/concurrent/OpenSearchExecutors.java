@@ -180,52 +180,6 @@ public class OpenSearchExecutors {
         );
     }
 
-    public static OpenSearchThreadPoolExecutor newResizable(
-        String name,
-        int size,
-        int queueCapacity,
-        ThreadFactory threadFactory,
-        ThreadContext contextHolder,
-        AtomicReference<RunnableTaskExecutionListener> runnableTaskListener
-    ) {
-
-        if (queueCapacity <= 0) {
-            throw new IllegalArgumentException("queue capacity for [" + name + "] executor must be positive, got: " + queueCapacity);
-        }
-
-        Function<Runnable, WrappedRunnable> runnableWrapper;
-        if (runnableTaskListener != null) {
-            runnableWrapper = (runnable) -> {
-                TaskAwareRunnable taskAwareRunnable = new TaskAwareRunnable(contextHolder, runnable, runnableTaskListener);
-                return new TimedRunnable(taskAwareRunnable);
-            };
-        } else {
-            runnableWrapper = TimedRunnable::new;
-        }
-
-        return new QueueResizableOpenSearchThreadPoolExecutor(
-            name,
-            size,
-            size,
-            0,
-            TimeUnit.MILLISECONDS,
-            new ResizableBlockingQueue<>(ConcurrentCollections.<Runnable>newBlockingQueue(), queueCapacity),
-            runnableWrapper,
-            threadFactory,
-            new OpenSearchAbortPolicy(),
-            contextHolder
-        );
-    }
-
-    /**
-     * Return a new executor that will automatically adjust the queue size based on queue throughput.
-     *
-     * @param size number of fixed threads to use for executing tasks
-     * @param initialQueueCapacity initial size of the executor queue
-     * @param minQueueSize minimum queue size that the queue can be adjusted to
-     * @param maxQueueSize maximum queue size that the queue can be adjusted to
-     * @param frameSize number of tasks during which stats are collected before adjusting queue size
-     */
     public static OpenSearchThreadPoolExecutor newAutoQueueFixed(
         String name,
         int size,
@@ -237,15 +191,63 @@ public class OpenSearchExecutors {
         ThreadFactory threadFactory,
         ThreadContext contextHolder
     ) {
+        return newAutoQueueFixed(
+            name,
+            size,
+            initialQueueCapacity,
+            minQueueSize,
+            maxQueueSize,
+            frameSize,
+            targetedResponseTime,
+            threadFactory,
+            contextHolder,
+            null
+        );
+    }
+
+    /**
+     * Return a new executor that will automatically adjust the queue size based on queue throughput.
+     *
+     * @param size number of fixed threads to use for executing tasks
+     * @param initialQueueCapacity initial size of the executor queue
+     * @param minQueueSize minimum queue size that the queue can be adjusted to
+     * @param maxQueueSize maximum queue size that the queue can be adjusted to
+     * @param frameSize number of tasks during which stats are collected before adjusting queue size
+     * @param runnableTaskListener callback listener for a TaskAwareRunnable
+     */
+    public static OpenSearchThreadPoolExecutor newAutoQueueFixed(
+        String name,
+        int size,
+        int initialQueueCapacity,
+        int minQueueSize,
+        int maxQueueSize,
+        int frameSize,
+        TimeValue targetedResponseTime,
+        ThreadFactory threadFactory,
+        ThreadContext contextHolder,
+        AtomicReference<RunnableTaskExecutionListener> runnableTaskListener
+    ) {
         if (initialQueueCapacity <= 0) {
             throw new IllegalArgumentException(
                 "initial queue capacity for [" + name + "] executor must be positive, got: " + initialQueueCapacity
             );
         }
+
         ResizableBlockingQueue<Runnable> queue = new ResizableBlockingQueue<>(
             ConcurrentCollections.<Runnable>newBlockingQueue(),
             initialQueueCapacity
         );
+
+        Function<Runnable, WrappedRunnable> runnableWrapper;
+        if (runnableTaskListener != null) {
+            runnableWrapper = (runnable) -> {
+                TaskAwareRunnable taskAwareRunnable = new TaskAwareRunnable(contextHolder, runnable, runnableTaskListener);
+                return new TimedRunnable(taskAwareRunnable);
+            };
+        } else {
+            runnableWrapper = TimedRunnable::new;
+        }
+
         return new QueueResizingOpenSearchThreadPoolExecutor(
             name,
             size,
@@ -255,7 +257,7 @@ public class OpenSearchExecutors {
             queue,
             minQueueSize,
             maxQueueSize,
-            TimedRunnable::new,
+            runnableWrapper,
             frameSize,
             targetedResponseTime,
             threadFactory,

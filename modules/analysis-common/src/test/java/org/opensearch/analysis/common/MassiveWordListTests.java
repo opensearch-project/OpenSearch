@@ -43,7 +43,7 @@ public class MassiveWordListTests extends OpenSearchSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Collections.singleton(CommonAnalysisModulePlugin.class);
+        return Collections.singleton(CommonAnalysisPlugin.class);
     }
 
     public void testCreateIndexWithMassiveWordList() {

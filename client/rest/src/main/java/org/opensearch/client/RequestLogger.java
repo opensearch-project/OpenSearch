@@ -34,16 +34,16 @@ package org.opensearch.client;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.apache.hc.client5.http.classic.methods.HttpUriRequest;
-import org.apache.hc.core5.http.ClassicHttpResponse;
-import org.apache.hc.core5.http.ContentType;
-import org.apache.hc.core5.http.Header;
-import org.apache.hc.core5.http.HttpEntity;
-import org.apache.hc.core5.http.HttpHost;
-import org.apache.hc.core5.http.ParseException;
-import org.apache.hc.core5.http.io.entity.BufferedHttpEntity;
-import org.apache.hc.core5.http.io.entity.EntityUtils;
-import org.apache.hc.core5.http.message.StatusLine;
+import org.apache.http.Header;
+import org.apache.http.HttpEntity;
+import org.apache.http.HttpEntityEnclosingRequest;
+import org.apache.http.HttpHost;
+import org.apache.http.HttpResponse;
+import org.apache.http.RequestLine;
+import org.apache.http.client.methods.HttpUriRequest;
+import org.apache.http.entity.BufferedHttpEntity;
+import org.apache.http.entity.ContentType;
+import org.apache.http.util.EntityUtils;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -66,10 +66,17 @@ final class RequestLogger {
     /**
      * Logs a request that yielded a response
      */
-    static void logResponse(Log logger, HttpUriRequest request, HttpHost host, ClassicHttpResponse httpResponse) {
+    static void logResponse(Log logger, HttpUriRequest request, HttpHost host, HttpResponse httpResponse) {
         if (logger.isDebugEnabled()) {
             logger.debug(
-                "request [" + request.getMethod() + " " + host + getUri(request) + "] returned [" + new StatusLine(httpResponse) + "]"
+                "request ["
+                    + request.getMethod()
+                    + " "
+                    + host
+                    + getUri(request.getRequestLine())
+                    + "] returned ["
+                    + httpResponse.getStatusLine()
+                    + "]"
             );
         }
         if (logger.isWarnEnabled()) {
@@ -102,7 +109,7 @@ final class RequestLogger {
      */
     static void logFailedRequest(Log logger, HttpUriRequest request, Node node, Exception e) {
         if (logger.isDebugEnabled()) {
-            logger.debug("request [" + request.getMethod() + " " + node.getHost() + getUri(request) + "] failed", e);
+            logger.debug("request [" + request.getMethod() + " " + node.getHost() + getUri(request.getRequestLine()) + "] failed", e);
         }
         if (tracer.isTraceEnabled()) {
             String traceRequest;
@@ -120,7 +127,7 @@ final class RequestLogger {
         StringBuilder message = new StringBuilder("request [").append(request.getMethod())
             .append(" ")
             .append(host)
-            .append(getUri(request))
+            .append(getUri(request.getRequestLine()))
             .append("] returned ")
             .append(warnings.length)
             .append(" warnings: ");
@@ -137,18 +144,17 @@ final class RequestLogger {
      * Creates curl output for given request
      */
     static String buildTraceRequest(HttpUriRequest request, HttpHost host) throws IOException {
-        String requestLine = "curl -iX " + request.getMethod() + " '" + host + getUri(request) + "'";
-        if (request.getEntity() != null) {
-            requestLine += " -d '";
-            HttpEntity entity = request.getEntity();
-            if (entity.isRepeatable() == false) {
-                entity = new BufferedHttpEntity(request.getEntity());
-                request.setEntity(entity);
-            }
-            try {
+        String requestLine = "curl -iX " + request.getMethod() + " '" + host + getUri(request.getRequestLine()) + "'";
+        if (request instanceof HttpEntityEnclosingRequest) {
+            HttpEntityEnclosingRequest enclosingRequest = (HttpEntityEnclosingRequest) request;
+            if (enclosingRequest.getEntity() != null) {
+                requestLine += " -d '";
+                HttpEntity entity = enclosingRequest.getEntity();
+                if (entity.isRepeatable() == false) {
+                    entity = new BufferedHttpEntity(enclosingRequest.getEntity());
+                    enclosingRequest.setEntity(entity);
+                }
                 requestLine += EntityUtils.toString(entity, StandardCharsets.UTF_8) + "'";
-            } catch (final ParseException ex) {
-                throw new IOException(ex);
             }
         }
         return requestLine;
@@ -157,10 +163,10 @@ final class RequestLogger {
     /**
      * Creates curl output for given response
      */
-    static String buildTraceResponse(ClassicHttpResponse httpResponse) throws IOException {
+    static String buildTraceResponse(HttpResponse httpResponse) throws IOException {
         StringBuilder responseLine = new StringBuilder();
-        responseLine.append("# ").append(new StatusLine(httpResponse));
-        for (Header header : httpResponse.getHeaders()) {
+        responseLine.append("# ").append(httpResponse.getStatusLine());
+        for (Header header : httpResponse.getAllHeaders()) {
             responseLine.append("\n# ").append(header.getName()).append(": ").append(header.getValue());
         }
         responseLine.append("\n#");
@@ -170,7 +176,7 @@ final class RequestLogger {
                 entity = new BufferedHttpEntity(entity);
             }
             httpResponse.setEntity(entity);
-            ContentType contentType = ContentType.parse(entity.getContentType());
+            ContentType contentType = ContentType.get(entity);
             Charset charset = StandardCharsets.UTF_8;
             if (contentType != null && contentType.getCharset() != null) {
                 charset = contentType.getCharset();
@@ -185,14 +191,10 @@ final class RequestLogger {
         return responseLine.toString();
     }
 
-    private static String getUri(HttpUriRequest request) {
-        final String uri = request.getRequestUri();
-        if (uri == null) {
-            return "/";
-        } else if (!uri.startsWith("/")) {
-            return "/" + uri;
-        } else {
-            return uri;
+    private static String getUri(RequestLine requestLine) {
+        if (requestLine.getUri().charAt(0) != '/') {
+            return "/" + requestLine.getUri();
         }
+        return requestLine.getUri();
     }
 }

@@ -32,7 +32,6 @@
 
 package org.opensearch.common.settings;
 
-import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.settings.SecureString;
 
 import java.io.Closeable;
@@ -44,9 +43,8 @@ import java.util.Set;
 /**
  * An accessor for settings which are securely stored. See {@link SecureSetting}.
  *
- * @opensearch.api
+ * @opensearch.internal
  */
-@PublicApi(since = "1.0.0")
 public interface SecureSettings extends Closeable {
 
     /** Returns true iff the settings are loaded and retrievable. */

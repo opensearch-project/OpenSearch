@@ -8,12 +8,14 @@
 
 package org.opensearch.search.pit;
 
+import org.junit.After;
+import org.junit.Assert;
+import org.junit.Before;
+import org.opensearch.action.ActionFuture;
+import org.opensearch.action.ActionListener;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.action.admin.cluster.state.ClusterStateRequest;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
-import org.opensearch.action.admin.indices.flush.FlushRequest;
-import org.opensearch.action.admin.indices.stats.IndicesStatsRequest;
-import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.opensearch.action.search.CreatePitAction;
 import org.opensearch.action.search.CreatePitRequest;
 import org.opensearch.action.search.CreatePitResponse;
@@ -25,20 +27,16 @@ import org.opensearch.action.search.GetAllPitNodesResponse;
 import org.opensearch.action.search.GetAllPitsAction;
 import org.opensearch.action.search.PitTestsUtil;
 import org.opensearch.action.search.SearchResponse;
-import org.opensearch.client.Requests;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.common.action.ActionFuture;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.core.action.ActionListener;
 import org.opensearch.search.builder.PointInTimeBuilder;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Before;
+import org.opensearch.action.admin.indices.stats.IndicesStatsRequest;
+import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -51,10 +49,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.opensearch.action.search.PitTestsUtil.assertSegments;
 import static org.opensearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.containsString;
 
 /**
  * Multi node integration tests for PIT creation and search operation with PIT ID.
@@ -338,12 +336,8 @@ public class PitMultiNodeIT extends OpenSearchIntegTestCase {
 
     public void validatePitStats(String index, long expectedPitCurrent, long expectedOpenContexts) throws ExecutionException,
         InterruptedException {
-        // Clear the index transaction log
-        FlushRequest flushRequest = Requests.flushRequest(index);
-        client().admin().indices().flush(flushRequest).get();
-        // Test stats
         IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
-        indicesStatsRequest.indices(index);
+        indicesStatsRequest.indices("index");
         indicesStatsRequest.all();
         IndicesStatsResponse indicesStatsResponse = client().admin().indices().stats(indicesStatsRequest).get();
         long pitCurrent = indicesStatsResponse.getIndex(index).getTotal().search.getTotal().getPitCurrent();

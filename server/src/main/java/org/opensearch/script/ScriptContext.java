@@ -32,7 +32,6 @@
 
 package org.opensearch.script;
 
-import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.unit.TimeValue;
 
@@ -71,9 +70,8 @@ import java.lang.reflect.Method;
  * If the variable name starts with an underscore, for example, {@code _score}, the needs method would
  * be {@code boolean needs_score()}.
  *
- * @opensearch.api
+ * @opensearch.internal
  */
-@PublicApi(since = "1.0.0")
 public final class ScriptContext<FactoryType> {
 
     /** A unique identifier for this context. */

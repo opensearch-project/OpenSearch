@@ -559,19 +559,4 @@ public abstract class FilteredSearchContext extends SearchContext {
     public BucketCollectorProcessor bucketCollectorProcessor() {
         return in.bucketCollectorProcessor();
     }
-
-    @Override
-    public boolean shouldUseConcurrentSearch() {
-        return in.shouldUseConcurrentSearch();
-    }
-
-    @Override
-    public int getTargetMaxSliceCount() {
-        return in.getTargetMaxSliceCount();
-    }
-
-    @Override
-    public boolean shouldUseTimeSeriesDescSortOptimization() {
-        return in.shouldUseTimeSeriesDescSortOptimization();
-    }
 }

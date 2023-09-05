@@ -32,8 +32,11 @@
 
 package org.opensearch.script.expression;
 
-import org.opensearch.index.fielddata.IndexNumericFieldData;
+import java.io.IOException;
+import java.text.ParseException;
+import java.util.Collections;
 import org.opensearch.index.fielddata.LeafNumericFieldData;
+import org.opensearch.index.fielddata.IndexNumericFieldData;
 import org.opensearch.index.fielddata.SortedNumericDoubleValues;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.NumberFieldMapper.NumberFieldType;
@@ -43,12 +46,8 @@ import org.opensearch.script.TermsSetQueryScript;
 import org.opensearch.search.lookup.SearchLookup;
 import org.opensearch.test.OpenSearchTestCase;
 
-import java.io.IOException;
-import java.text.ParseException;
-import java.util.Collections;
-
-import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyInt;
+import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 

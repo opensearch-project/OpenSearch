@@ -43,8 +43,8 @@ import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.common.Strings;
-import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.DynamicTemplate.XContentFieldType;
 
@@ -77,14 +77,14 @@ final class DocumentParser {
     ParsedDocument parseDocument(SourceToParse source, MetadataFieldMapper[] metadataFieldsMappers) throws MapperParsingException {
         final Mapping mapping = docMapper.mapping();
         final ParseContext.InternalParseContext context;
-        final MediaType mediaType = source.getMediaType();
+        final XContentType xContentType = source.getXContentType();
 
         try (
             XContentParser parser = XContentHelper.createParser(
                 docMapperParser.getXContentRegistry(),
                 LoggingDeprecationHandler.INSTANCE,
                 source.source(),
-                mediaType
+                xContentType
             )
         ) {
             context = new ParseContext.InternalParseContext(indexSettings, docMapperParser, docMapper, source, parser);
@@ -183,7 +183,7 @@ final class DocumentParser {
             source.routing(),
             context.docs(),
             context.sourceToParse().source(),
-            context.sourceToParse().getMediaType(),
+            context.sourceToParse().getXContentType(),
             update
         );
     }

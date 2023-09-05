@@ -19,6 +19,8 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.hamcrest.MatcherAssert;
+import org.junit.Assert;
 import org.opensearch.common.geo.GeoBoundingBox;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.geo.GeoShapeUtils;
@@ -37,8 +39,6 @@ import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.plugins.SearchPlugin;
 import org.opensearch.search.aggregations.AggregatorTestCase;
 import org.opensearch.test.OpenSearchTestCase;
-import org.hamcrest.MatcherAssert;
-import org.junit.Assert;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -68,7 +68,7 @@ public class GeoBoundsGeoShapeAggregatorTests extends AggregatorTestCase {
     /**
      * Testing Empty aggregator results.
      *
-     * @throws Exception if an error occurs accessing the index
+     * @throws Exception
      */
     public void testEmpty() throws Exception {
         try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
@@ -93,7 +93,7 @@ public class GeoBoundsGeoShapeAggregatorTests extends AggregatorTestCase {
     /**
      * Testing GeoBoundAggregator for random shapes which are indexed.
      *
-     * @throws Exception if an error occurs accessing the index
+     * @throws Exception
      */
     public void testRandom() throws Exception {
         final int numDocs = randomIntBetween(50, 100);

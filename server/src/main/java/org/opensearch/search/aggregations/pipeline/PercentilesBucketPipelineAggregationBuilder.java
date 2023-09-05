@@ -32,6 +32,7 @@
 
 package org.opensearch.search.aggregations.pipeline;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -69,13 +70,19 @@ public class PercentilesBucketPipelineAggregationBuilder extends BucketMetricsPi
     public PercentilesBucketPipelineAggregationBuilder(StreamInput in) throws IOException {
         super(in, NAME);
         percents = in.readDoubleArray();
-        keyed = in.readBoolean();
+
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
+            keyed = in.readBoolean();
+        }
     }
 
     @Override
     protected void innerWriteTo(StreamOutput out) throws IOException {
         out.writeDoubleArray(percents);
-        out.writeBoolean(keyed);
+
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
+            out.writeBoolean(keyed);
+        }
     }
 
     /**

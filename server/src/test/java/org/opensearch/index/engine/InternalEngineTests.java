@@ -33,7 +33,6 @@
 package org.opensearch.index.engine;
 
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
-
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -82,8 +81,11 @@ import org.apache.lucene.tests.store.MockDirectoryWrapper;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
+import org.hamcrest.MatcherAssert;
+import org.hamcrest.Matchers;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
+import org.opensearch.action.ActionListener;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.support.TransportActions;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -97,6 +99,8 @@ import org.opensearch.common.Randomness;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.TriFunction;
 import org.opensearch.common.UUIDs;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.logging.Loggers;
@@ -107,20 +111,15 @@ import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.lucene.uid.VersionsAndSeqNoResolver;
 import org.opensearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndSeqNo;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.util.concurrent.ReleasableLock;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.util.io.IOUtils;
-import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.Strings;
-import org.opensearch.core.common.bytes.BytesArray;
-import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.core.common.unit.ByteSizeValue;
-import org.opensearch.core.index.shard.ShardId;
-import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
-import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.codec.CodecService;
@@ -140,6 +139,7 @@ import org.opensearch.index.seqno.RetentionLease;
 import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.seqno.SequenceNumbers;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.shard.ShardUtils;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.DefaultTranslogDeletionPolicy;
@@ -151,12 +151,10 @@ import org.opensearch.index.translog.TranslogConfig;
 import org.opensearch.index.translog.TranslogDeletionPolicyFactory;
 import org.opensearch.index.translog.TranslogException;
 import org.opensearch.index.translog.listener.TranslogEventListener;
+import org.opensearch.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.VersionUtils;
 import org.opensearch.threadpool.ThreadPool;
-import org.hamcrest.MatcherAssert;
-import org.hamcrest.Matchers;
-import org.junit.Assert;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -166,7 +164,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -197,15 +194,6 @@ import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 
 import static java.util.Collections.shuffle;
-import static org.opensearch.index.engine.Engine.Operation.Origin.LOCAL_RESET;
-import static org.opensearch.index.engine.Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY;
-import static org.opensearch.index.engine.Engine.Operation.Origin.PEER_RECOVERY;
-import static org.opensearch.index.engine.Engine.Operation.Origin.PRIMARY;
-import static org.opensearch.index.engine.Engine.Operation.Origin.REPLICA;
-import static org.opensearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
-import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
-import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
-import static org.opensearch.index.translog.TranslogDeletionPolicies.createTranslogDeletionPolicy;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.sameInstance;
 import static org.hamcrest.Matchers.contains;
@@ -233,6 +221,15 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.opensearch.index.engine.Engine.Operation.Origin.LOCAL_RESET;
+import static org.opensearch.index.engine.Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY;
+import static org.opensearch.index.engine.Engine.Operation.Origin.PEER_RECOVERY;
+import static org.opensearch.index.engine.Engine.Operation.Origin.PRIMARY;
+import static org.opensearch.index.engine.Engine.Operation.Origin.REPLICA;
+import static org.opensearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
+import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
+import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
+import static org.opensearch.index.translog.TranslogDeletionPolicies.createTranslogDeletionPolicy;
 
 public class InternalEngineTests extends EngineTestCase {
 
@@ -868,7 +865,7 @@ public class InternalEngineTests extends EngineTestCase {
         } finally {
             IOUtils.close(engine);
         }
-        try (Engine recoveringEngine = new InternalEngine(engine.config())) {
+        try (InternalEngine recoveringEngine = new InternalEngine(engine.config())) {
             TranslogHandler translogHandler = createTranslogHandler(engine.config().getIndexSettings(), recoveringEngine);
             recoveringEngine.translogManager()
                 .recoverFromTranslog(translogHandler, recoveringEngine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
@@ -895,15 +892,15 @@ public class InternalEngineTests extends EngineTestCase {
             IOUtils.close(initialEngine);
         }
 
-        Engine recoveringEngine = null;
+        InternalEngine recoveringEngine = null;
         try {
             final AtomicBoolean committed = new AtomicBoolean();
             recoveringEngine = new InternalEngine(initialEngine.config()) {
 
                 @Override
-                protected void commitIndexWriter(IndexWriter writer, String translogUUID) throws IOException {
+                protected void commitIndexWriter(IndexWriter writer, Translog translog) throws IOException {
                     committed.set(true);
-                    super.commitIndexWriter(writer, translogUUID);
+                    super.commitIndexWriter(writer, translog);
                 }
             };
             assertThat(recoveringEngine.translogManager().getTranslogStats().getUncommittedOperations(), equalTo(docs));
@@ -921,7 +918,7 @@ public class InternalEngineTests extends EngineTestCase {
         final List<Long> seqNos = LongStream.range(0, docs).boxed().collect(Collectors.toList());
         Randomness.shuffle(seqNos);
         Engine initialEngine = null;
-        Engine recoveringEngine = null;
+        InternalEngine recoveringEngine = null;
         Store store = createStore();
         final AtomicInteger counter = new AtomicInteger();
         try {
@@ -3462,8 +3459,8 @@ public class InternalEngineTests extends EngineTestCase {
                 ) {
 
                     @Override
-                    protected void commitIndexWriter(IndexWriter writer, String translogUUID) throws IOException {
-                        super.commitIndexWriter(writer, translogUUID);
+                    protected void commitIndexWriter(IndexWriter writer, Translog translog) throws IOException {
+                        super.commitIndexWriter(writer, translog);
                         if (throwErrorOnCommit.get()) {
                             throw new RuntimeException("power's out");
                         }
@@ -3532,6 +3529,17 @@ public class InternalEngineTests extends EngineTestCase {
                 assertThat(topDocs.totalHits.value, equalTo(0L));
             }
         }
+    }
+
+    private Path[] filterExtraFSFiles(Path[] files) {
+        List<Path> paths = new ArrayList<>();
+        for (Path p : files) {
+            if (p.getFileName().toString().startsWith("extra")) {
+                continue;
+            }
+            paths.add(p);
+        }
+        return paths.toArray(new Path[0]);
     }
 
     public void testTranslogReplay() throws IOException {
@@ -5475,8 +5483,7 @@ public class InternalEngineTests extends EngineTestCase {
             }
             try (InternalEngine engine = new InternalEngine(engineConfig)) {
                 engine.ensureOpen();
-                final long currentTranslogGeneration = assertAndGetInternalTranslogManager(engine.translogManager()).getTranslog()
-                    .currentFileGeneration();
+                final long currentTranslogGeneration = engine.translogManager().getTranslog().currentFileGeneration();
                 TranslogHandler translogHandler = createTranslogHandler(engineConfig.getIndexSettings(), engine);
                 engine.translogManager().recoverFromTranslog(translogHandler, engine.getProcessedLocalCheckpoint(), globalCheckpoint.get());
                 engine.translogManager().restoreLocalHistoryFromTranslog(engine.getProcessedLocalCheckpoint(), translogHandler);
@@ -5715,7 +5722,7 @@ public class InternalEngineTests extends EngineTestCase {
                 "routing",
                 Collections.singletonList(document),
                 source,
-                MediaTypeRegistry.JSON,
+                XContentType.JSON,
                 null
             );
 
@@ -5790,14 +5797,14 @@ public class InternalEngineTests extends EngineTestCase {
         final AtomicLong lastSyncedGlobalCheckpointBeforeCommit = new AtomicLong(Translog.readGlobalCheckpoint(translogPath, translogUUID));
         try (InternalEngine engine = new InternalEngine(engineConfig) {
             @Override
-            protected void commitIndexWriter(IndexWriter writer, String translogUUID) throws IOException {
+            protected void commitIndexWriter(IndexWriter writer, Translog translog) throws IOException {
                 lastSyncedGlobalCheckpointBeforeCommit.set(Translog.readGlobalCheckpoint(translogPath, translogUUID));
                 // Advance the global checkpoint during the flush to create a lag between a persisted global checkpoint in the translog
                 // (this value is visible to the deletion policy) and an in memory global checkpoint in the SequenceNumbersService.
                 if (rarely()) {
                     globalCheckpoint.set(randomLongBetween(globalCheckpoint.get(), getPersistedLocalCheckpoint()));
                 }
-                super.commitIndexWriter(writer, translogUUID);
+                super.commitIndexWriter(writer, translog);
             }
         }) {
             engine.translogManager().recoverFromTranslog(translogHandler, engine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
@@ -6459,8 +6466,28 @@ public class InternalEngineTests extends EngineTestCase {
                 }
             }
             List<Translog.Operation> luceneOps = readAllOperationsBasedOnSource(engine);
+            // todo remove in next release
+            List<Translog.Operation> translogOps = readAllOperationsBasedOnTranslog(engine);
             assertThat(luceneOps.stream().map(o -> o.seqNo()).collect(Collectors.toList()), containsInAnyOrder(expectedSeqNos.toArray()));
+            assertThat(translogOps.stream().map(o -> o.seqNo()).collect(Collectors.toList()), containsInAnyOrder(expectedSeqNos.toArray()));
         }
+    }
+
+    /**
+     * Test creating new snapshot from translog file
+     *
+     * @deprecated reading history operations from the translog file is deprecated and will be removed in the next release
+     */
+    @Deprecated
+    private static List<Translog.Operation> readAllOperationsBasedOnTranslog(Engine engine) throws IOException {
+        final List<Translog.Operation> operations = new ArrayList<>();
+        try (Translog.Snapshot snapshot = engine.newChangesSnapshotFromTranslogFile("test", 0, Long.MAX_VALUE, false)) {
+            Translog.Operation op;
+            while ((op = snapshot.next()) != null) {
+                operations.add(op);
+            }
+        }
+        return operations;
     }
 
     public void testLuceneHistoryOnPrimary() throws Exception {
@@ -7532,86 +7559,16 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
-    public void testGetSegmentInfosSnapshot_AllSnapshotFilesPreservedAcrossCommit() throws Exception {
+    public void testGetSegmentInfosSnapshot() throws IOException {
         IOUtils.close(store, engine);
-        store = createStore();
-        engine = createEngine(store, createTempDir());
-        List<Engine.Operation> operations = generateHistoryOnReplica(
-            randomIntBetween(1, 100),
-            randomBoolean(),
-            randomBoolean(),
-            randomBoolean()
-        );
-        for (Engine.Operation op : operations) {
-            applyOperation(engine, op);
-        }
-        engine.refresh("test");
-        try (GatedCloseable<SegmentInfos> snapshot = engine.getSegmentInfosSnapshot()) {
-            Collection<String> files = snapshot.get().files(true);
-            Set<String> localFiles = Set.of(store.directory().listAll());
-            for (String file : files) {
-                assertTrue("Local directory contains file " + file, localFiles.contains(file));
-            }
-
-            engine.flush(true, true);
-
-            try (
-                final GatedCloseable<SegmentInfos> snapshotAfterFlush = engine.getSegmentInfosSnapshot();
-                final GatedCloseable<IndexCommit> commit = engine.acquireLastIndexCommit(false)
-            ) {
-                final SegmentInfos segmentInfos = snapshotAfterFlush.get();
-                assertNotEquals(segmentInfos.getSegmentsFileName(), snapshot.get().getSegmentsFileName());
-                assertEquals(commit.get().getSegmentsFileName(), segmentInfos.getSegmentsFileName());
-            }
-
-            // original files are preserved.
-            localFiles = Set.of(store.directory().listAll());
-            for (String file : files) {
-                assertTrue("Local directory contains file " + file, localFiles.contains(file));
-            }
-        }
-    }
-
-    public void testGetSegmentInfosSnapshot_LatestCommitOnDiskHasHigherGenThanReader() throws Exception {
-        IOUtils.close(store, engine);
-        store = createStore();
-        engine = createEngine(store, createTempDir());
-        // to simulate this we need concurrent flush/refresh.
-        AtomicBoolean run = new AtomicBoolean(true);
-        AtomicInteger docId = new AtomicInteger(0);
-        Thread refresher = new Thread(() -> {
-            while (run.get()) {
-                try {
-                    engine.index(indexForDoc(createParsedDoc(Integer.toString(docId.getAndIncrement()), null)));
-                    engine.refresh("test");
-                    getSnapshotAndAssertFilesExistLocally();
-                } catch (Exception e) {
-                    Assert.fail();
-                }
-            }
-        });
-        refresher.start();
-        try {
-            for (int i = 0; i < 10; i++) {
-                engine.flush(true, true);
-                getSnapshotAndAssertFilesExistLocally();
-            }
-        } catch (Exception e) {
-            Assert.fail();
-        } finally {
-            run.set(false);
-            refresher.join();
-        }
-    }
-
-    private void getSnapshotAndAssertFilesExistLocally() throws IOException {
-        try (GatedCloseable<SegmentInfos> snapshot = engine.getSegmentInfosSnapshot()) {
-            Collection<String> files = snapshot.get().files(true);
-            Set<String> localFiles = Set.of(store.directory().listAll());
-            for (String file : files) {
-                assertTrue("Local directory contains file " + file, localFiles.contains(file));
-            }
-        }
+        Store store = createStore();
+        InternalEngine engine = spy(createEngine(store, createTempDir()));
+        GatedCloseable<SegmentInfos> segmentInfosSnapshot = engine.getSegmentInfosSnapshot();
+        assertNotNull(segmentInfosSnapshot);
+        assertNotNull(segmentInfosSnapshot.get());
+        verify(engine, times(1)).getLatestSegmentInfos();
+        store.close();
+        engine.close();
     }
 
     public void testGetProcessedLocalCheckpoint() throws IOException {

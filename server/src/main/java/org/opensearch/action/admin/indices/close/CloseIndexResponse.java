@@ -31,24 +31,26 @@
 
 package org.opensearch.action.admin.indices.close;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
+import org.opensearch.core.action.support.DefaultShardOperationFailedException;
 import org.opensearch.action.support.master.ShardsAcknowledgedResponse;
 import org.opensearch.common.Nullable;
-import org.opensearch.core.action.support.DefaultShardOperationFailedException;
-import org.opensearch.core.common.Strings;
+import org.opensearch.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.core.common.util.CollectionUtils;
-import org.opensearch.core.index.Index;
-import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.common.util.CollectionUtils;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.index.Index;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
+import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableList;
 
 /**
@@ -61,8 +63,12 @@ public class CloseIndexResponse extends ShardsAcknowledgedResponse {
     private final List<IndexResult> indices;
 
     CloseIndexResponse(StreamInput in) throws IOException {
-        super(in, true);
-        indices = unmodifiableList(in.readList(IndexResult::new));
+        super(in, in.getVersion().onOrAfter(LegacyESVersion.V_7_2_0));
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_3_0)) {
+            indices = unmodifiableList(in.readList(IndexResult::new));
+        } else {
+            indices = unmodifiableList(emptyList());
+        }
     }
 
     public CloseIndexResponse(final boolean acknowledged, final boolean shardsAcknowledged, final List<IndexResult> indices) {
@@ -77,8 +83,12 @@ public class CloseIndexResponse extends ShardsAcknowledgedResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        writeShardsAcknowledged(out);
-        out.writeList(indices);
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_2_0)) {
+            writeShardsAcknowledged(out);
+        }
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_3_0)) {
+            out.writeList(indices);
+        }
     }
 
     @Override
@@ -93,7 +103,7 @@ public class CloseIndexResponse extends ShardsAcknowledgedResponse {
 
     @Override
     public String toString() {
-        return Strings.toString(MediaTypeRegistry.JSON, this);
+        return Strings.toString(XContentType.JSON, this);
     }
 
     /**
@@ -192,7 +202,7 @@ public class CloseIndexResponse extends ShardsAcknowledgedResponse {
 
         @Override
         public String toString() {
-            return Strings.toString(MediaTypeRegistry.JSON, this);
+            return Strings.toString(XContentType.JSON, this);
         }
     }
 
@@ -251,7 +261,7 @@ public class CloseIndexResponse extends ShardsAcknowledgedResponse {
 
         @Override
         public String toString() {
-            return Strings.toString(MediaTypeRegistry.JSON, this);
+            return Strings.toString(XContentType.JSON, this);
         }
 
         /**
@@ -297,7 +307,7 @@ public class CloseIndexResponse extends ShardsAcknowledgedResponse {
 
             @Override
             public String toString() {
-                return Strings.toString(MediaTypeRegistry.JSON, this);
+                return Strings.toString(XContentType.JSON, this);
             }
 
             static Failure readFailure(final StreamInput in) throws IOException {

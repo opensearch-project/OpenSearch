@@ -32,14 +32,13 @@
 
 package org.opensearch.action.admin.cluster.storedscripts;
 
-import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.script.StoredScriptSource;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -53,17 +52,17 @@ public class PutStoredScriptRequestTests extends OpenSearchTestCase {
             "bar",
             "context",
             new BytesArray("{}"),
-            MediaTypeRegistry.JSON,
+            XContentType.JSON,
             new StoredScriptSource("foo", "bar", Collections.emptyMap())
         );
 
-        assertEquals(MediaTypeRegistry.JSON, storedScriptRequest.mediaType());
+        assertEquals(XContentType.JSON, storedScriptRequest.xContentType());
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             storedScriptRequest.writeTo(output);
 
             try (StreamInput in = output.bytes().streamInput()) {
                 PutStoredScriptRequest serialized = new PutStoredScriptRequest(in);
-                assertEquals(MediaTypeRegistry.JSON, serialized.mediaType());
+                assertEquals(XContentType.JSON, serialized.xContentType());
                 assertEquals(storedScriptRequest.id(), serialized.id());
                 assertEquals(storedScriptRequest.context(), serialized.context());
             }

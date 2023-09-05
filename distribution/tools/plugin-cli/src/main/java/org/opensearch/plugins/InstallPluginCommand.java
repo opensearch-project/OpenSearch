@@ -270,8 +270,8 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
                 final List<Path> deleteOnFailure = new ArrayList<>();
                 deleteOnFailures.put(pluginId, deleteOnFailure);
 
-                final Path pluginZip = download(terminal, pluginId, env.tmpDir(), isBatch);
-                final Path extractedZip = unzip(pluginZip, env.pluginsDir());
+                final Path pluginZip = download(terminal, pluginId, env.tmpFile(), isBatch);
+                final Path extractedZip = unzip(pluginZip, env.pluginsFile());
                 deleteOnFailure.add(extractedZip);
                 final PluginInfo pluginInfo = installPlugin(terminal, isBatch, extractedZip, env, deleteOnFailure);
                 terminal.println("-> Installed " + pluginInfo.getName() + " with folder name " + pluginInfo.getTargetFolderName());
@@ -820,14 +820,14 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         PluginsService.verifyCompatibility(info);
 
         // checking for existing version of the plugin
-        verifyPluginName(env.pluginsDir(), info.getName());
+        verifyPluginName(env.pluginsFile(), info.getName());
 
-        PluginsService.checkForFailedPluginRemovals(env.pluginsDir());
+        PluginsService.checkForFailedPluginRemovals(env.pluginsFile());
 
         terminal.println(VERBOSE, info.toString());
 
         // check for jar hell before any copying
-        jarHellCheck(info, pluginRoot, env.pluginsDir(), env.modulesDir());
+        jarHellCheck(info, pluginRoot, env.pluginsFile(), env.modulesFile());
 
         return info;
     }
@@ -877,21 +877,21 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         Path policy = tmpRoot.resolve(PluginInfo.OPENSEARCH_PLUGIN_POLICY);
         final Set<String> permissions;
         if (Files.exists(policy)) {
-            permissions = PluginSecurity.parsePermissions(policy, env.tmpDir());
+            permissions = PluginSecurity.parsePermissions(policy, env.tmpFile());
         } else {
             permissions = Collections.emptySet();
         }
         PluginSecurity.confirmPolicyExceptions(terminal, permissions, isBatch);
 
         String targetFolderName = info.getTargetFolderName();
-        final Path destination = env.pluginsDir().resolve(targetFolderName);
+        final Path destination = env.pluginsFile().resolve(targetFolderName);
         deleteOnFailure.add(destination);
 
         installPluginSupportFiles(
             info,
             tmpRoot,
-            env.binDir().resolve(targetFolderName),
-            env.configDir().resolve(targetFolderName),
+            env.binFile().resolve(targetFolderName),
+            env.configFile().resolve(targetFolderName),
             deleteOnFailure
         );
         movePlugin(tmpRoot, destination);
@@ -1028,7 +1028,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
 
     @Override
     public void close() throws IOException {
-        IOUtils.rm(pathsToDeleteOnShutdown.toArray(new Path[0]));
+        IOUtils.rm(pathsToDeleteOnShutdown.toArray(new Path[pathsToDeleteOnShutdown.size()]));
     }
 
 }

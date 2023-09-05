@@ -28,11 +28,9 @@
  * under the License.
  */
 
-import org.opensearch.gradle.JavaPackageType 
-
 apply plugin: 'opensearch.internal-distribution-archive-setup'
 
-CopySpec archiveFiles(CopySpec modulesFiles, String distributionType, String platform, String architecture, JavaPackageType java) {
+CopySpec archiveFiles(CopySpec modulesFiles, String distributionType, String platform, String architecture, boolean jdk) {
   return copySpec {
     into("opensearch-${version}") {
       into('lib') {
@@ -41,22 +39,18 @@ CopySpec archiveFiles(CopySpec modulesFiles, String distributionType, String pla
       into('config') {
         dirMode 0750
         fileMode 0660
-        with configFiles(distributionType, java)
+        with configFiles(distributionType, jdk)
         from {
           dirMode 0750
           jvmOptionsDir.getParent()
         }
       }
       into('bin') {
-        with binFiles(distributionType, java)
+        with binFiles(distributionType, jdk)
       }
-      if (java == JavaPackageType.JDK) {
+      if (jdk) {
         into("darwin".equals(platform) ? 'jdk.app' : 'jdk') {
           with jdkFiles(project, platform, architecture)
-        }
-      } else if (java == JavaPackageType.JRE) {
-        into("darwin".equals(platform) ? 'jre.app' : 'jre') {
-          with jreFiles(project, platform, architecture)
         }
       }
       into('') {
@@ -79,7 +73,7 @@ CopySpec archiveFiles(CopySpec modulesFiles, String distributionType, String pla
         rename { 'LICENSE.txt' }
       }
 
-      with noticeFile(java)
+      with noticeFile(jdk)
       into('modules') {
         with modulesFiles
       }
@@ -90,84 +84,77 @@ CopySpec archiveFiles(CopySpec modulesFiles, String distributionType, String pla
 distribution_archives {
   integTestZip {
     content {
-      archiveFiles(transportModulesFiles, 'zip', null, 'x64', JavaPackageType.NONE)
+      archiveFiles(transportModulesFiles, 'zip', null, 'x64', false)
     }
   }
 
   darwinTar {
     archiveClassifier = 'darwin-x64'
     content {
-      archiveFiles(modulesFiles('darwin-x64'), 'tar', 'darwin', 'x64', JavaPackageType.JDK)
+      archiveFiles(modulesFiles('darwin-x64'), 'tar', 'darwin', 'x64', true)
     }
   }
 
   darwinArm64Tar {
     archiveClassifier = 'darwin-arm64'
     content {
-      archiveFiles(modulesFiles('darwin-arm64'), 'tar', 'darwin', 'arm64', JavaPackageType.JDK)
+      archiveFiles(modulesFiles('darwin-arm64'), 'tar', 'darwin', 'arm64', true)
     }
   }
 
   noJdkDarwinTar {
     archiveClassifier = 'no-jdk-darwin-x64'
     content {
-      archiveFiles(modulesFiles('darwin-x64'), 'tar', 'darwin', 'x64', JavaPackageType.NONE)
+      archiveFiles(modulesFiles('darwin-x64'), 'tar', 'darwin', 'x64', false)
     }
   }
 
   noJdkDarwinArm64Tar {
     archiveClassifier = 'no-jdk-darwin-arm64'
     content {
-      archiveFiles(modulesFiles('darwin-arm64'), 'tar', 'darwin', 'arm64', JavaPackageType.NONE)
+      archiveFiles(modulesFiles('darwin-arm64'), 'tar', 'darwin', 'arm64', false)
     }
   }
 
   freebsdTar {
     archiveClassifier = 'freebsd-x64'
     content {
-      archiveFiles(modulesFiles('freebsd-x64'), 'tar', 'freebsd', 'x64', JavaPackageType.NONE)
+      archiveFiles(modulesFiles('freebsd-x64'), 'tar', 'freebsd', 'x64', false)
     }
   }
 
   noJdkFreebsdTar {
     archiveClassifier = 'no-jdk-freebsd-x64'
     content {
-      archiveFiles(modulesFiles('freebsd-x64'), 'tar', 'freebsd', 'x64', JavaPackageType.NONE)
+      archiveFiles(modulesFiles('freebsd-x64'), 'tar', 'freebsd', 'x64', false)
     }
   }
 
   linuxArm64Tar {
     archiveClassifier = 'linux-arm64'
     content {
-      archiveFiles(modulesFiles('linux-arm64'), 'tar', 'linux', 'arm64', JavaPackageType.JDK)
+      archiveFiles(modulesFiles('linux-arm64'), 'tar', 'linux', 'arm64', true)
     }
   }
 
   noJdkLinuxArm64Tar {
     archiveClassifier = 'no-jdk-linux-arm64'
     content {
-      archiveFiles(modulesFiles('linux-arm64'), 'tar', 'linux', 'arm64', JavaPackageType.NONE)
+      archiveFiles(modulesFiles('linux-arm64'), 'tar', 'linux', 'arm64', false)
     }
   }
 
   linuxTar {
     archiveClassifier = 'linux-x64'
     content {
-      archiveFiles(modulesFiles('linux-x64'), 'tar', 'linux', 'x64', JavaPackageType.JDK)
+      archiveFiles(modulesFiles('linux-x64'), 'tar', 'linux', 'x64', true)
     }
   }
 
   noJdkLinuxTar {
     archiveClassifier = 'no-jdk-linux-x64'
     content {
-      archiveFiles(modulesFiles('linux-x64'), 'tar', 'linux', 'x64', JavaPackageType.NONE)
-    }
-  }
-
-  jreLinuxTar {
-    archiveClassifier = 'jre-linux-x64'
-    content {
-      archiveFiles(modulesFiles('linux-x64'), 'tar', 'linux', 'x64', JavaPackageType.JRE)
+      archiveFiles(modulesFiles('linux-x64'), 'tar', 'linux', 'x64', false)
     }
   }
 
@@ -176,7 +163,7 @@ distribution_archives {
   linuxS390xTar {
     archiveClassifier = 'linux-s390x'
     content {
-      archiveFiles(modulesFiles('linux-s390x'), 'tar', 'linux', 's390x', JavaPackageType.NONE)
+      archiveFiles(modulesFiles('linux-s390x'), 'tar', 'linux', 's390x', false)
     }
   }
 
@@ -184,28 +171,28 @@ distribution_archives {
   linuxPpc64leTar {
     archiveClassifier = 'linux-ppc64le'
     content {
-      archiveFiles(modulesFiles('linux-ppc64le'), 'tar', 'linux', 'ppc64le', JavaPackageType.JDK)
+      archiveFiles(modulesFiles('linux-ppc64le'), 'tar', 'linux', 'ppc64le', true)
     }
   }
 
  noJdkLinuxPpc64leTar {
     archiveClassifier = 'no-jdk-linux-ppc64le'
     content {
-      archiveFiles(modulesFiles('linux-ppc64le'), 'tar', 'linux', 'ppc64le', JavaPackageType.NONE)
+      archiveFiles(modulesFiles('linux-ppc64le'), 'tar', 'linux', 'ppc64le', false)
     }
   }
 
   windowsZip {
     archiveClassifier = 'windows-x64'
     content {
-      archiveFiles(modulesFiles('windows-x64'), 'zip', 'windows', 'x64', JavaPackageType.JDK)
+      archiveFiles(modulesFiles('windows-x64'), 'zip', 'windows', 'x64', true)
     }
   }
 
   noJdkWindowsZip {
     archiveClassifier = 'no-jdk-windows-x64'
     content {
-      archiveFiles(modulesFiles('windows-x64'), 'zip', 'windows', 'x64', JavaPackageType.NONE)
+      archiveFiles(modulesFiles('windows-x64'), 'zip', 'windows', 'x64', false)
     }
   }
 }

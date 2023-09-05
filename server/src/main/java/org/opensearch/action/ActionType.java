@@ -32,16 +32,15 @@
 
 package org.opensearch.action;
 
-import org.opensearch.common.settings.Settings;
-import org.opensearch.core.action.ActionResponse;
-import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.transport.TransportRequestOptions;
 
 /**
  * A generic action. Should strive to make it a singleton.
  *
- * @opensearch.api
+ * @opensearch.internal
  */
 public class ActionType<Response extends ActionResponse> {
 

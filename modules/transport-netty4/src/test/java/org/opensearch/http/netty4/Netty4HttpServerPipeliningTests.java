@@ -32,19 +32,28 @@
 
 package org.opensearch.http.netty4;
 
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelHandler;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelPromise;
+import io.netty.channel.SimpleChannelInboundHandler;
+import io.netty.handler.codec.http.FullHttpResponse;
+import io.netty.util.ReferenceCounted;
+import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.util.MockBigArrays;
 import org.opensearch.common.util.MockPageCacheRecycler;
-import org.opensearch.core.common.bytes.BytesArray;
-import org.opensearch.core.common.transport.TransportAddress;
-import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
-import org.opensearch.core.rest.RestStatus;
 import org.opensearch.http.HttpPipelinedRequest;
 import org.opensearch.http.HttpResponse;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.http.NullDispatcher;
+import org.opensearch.indices.breaker.NoneCircuitBreakerService;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
@@ -59,16 +68,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-
-import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
-import io.netty.channel.Channel;
-import io.netty.channel.ChannelHandler;
-import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.ChannelPromise;
-import io.netty.channel.SimpleChannelInboundHandler;
-import io.netty.handler.codec.http.FullHttpResponse;
-import io.netty.util.ReferenceCounted;
 
 import static org.hamcrest.Matchers.contains;
 
@@ -110,7 +109,7 @@ public class Netty4HttpServerPipeliningTests extends OpenSearchTestCase {
                 }
             }
 
-            try (Netty4HttpClient nettyHttpClient = Netty4HttpClient.http()) {
+            try (Netty4HttpClient nettyHttpClient = new Netty4HttpClient()) {
                 Collection<FullHttpResponse> responses = nettyHttpClient.get(transportAddress.address(), requests.toArray(new String[] {}));
                 try {
                     Collection<String> responseBodies = Netty4HttpClient.returnHttpResponseBodies(responses);
@@ -164,12 +163,9 @@ public class Netty4HttpServerPipeliningTests extends OpenSearchTestCase {
         @Override
         protected void initChannel(Channel ch) throws Exception {
             super.initChannel(ch);
+            ch.pipeline().replace("handler", "handler", new PossiblySlowUpstreamHandler(executorService));
         }
 
-        @Override
-        public ChannelHandler getRequestHandler() {
-            return new PossiblySlowUpstreamHandler(executorService);
-        }
     }
 
     class PossiblySlowUpstreamHandler extends SimpleChannelInboundHandler<HttpPipelinedRequest> {

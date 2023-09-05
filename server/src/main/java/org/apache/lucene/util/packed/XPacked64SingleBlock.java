@@ -16,11 +16,10 @@
  */
 package org.apache.lucene.util.packed;
 
-import org.apache.lucene.store.DataInput;
-import org.apache.lucene.util.RamUsageEstimator;
-
 import java.io.IOException;
 import java.util.Arrays;
+import org.apache.lucene.store.DataInput;
+import org.apache.lucene.util.RamUsageEstimator;
 
 /**
  * Forked from Lucene 8.x; removed in Lucene 9.0

@@ -33,7 +33,6 @@
 package org.opensearch.common.ssl;
 
 import javax.net.ssl.TrustManagerFactory;
-
 import java.security.KeyStore;
 import java.util.Arrays;
 import java.util.HashSet;

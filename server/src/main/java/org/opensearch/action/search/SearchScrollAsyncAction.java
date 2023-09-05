@@ -34,12 +34,12 @@ package org.opensearch.action.search;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.util.concurrent.AtomicArray;
 import org.opensearch.common.util.concurrent.CountDown;
-import org.opensearch.core.action.ActionListener;
 import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.internal.InternalScrollSearchRequest;
@@ -243,7 +243,7 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
         if (shardFailures.isEmpty()) {
             return ShardSearchFailure.EMPTY_ARRAY;
         }
-        return shardFailures.toArray(new ShardSearchFailure[0]);
+        return shardFailures.toArray(new ShardSearchFailure[shardFailures.size()]);
     }
 
     // we do our best to return the shard failures, but its ok if its not fully concurrently safe

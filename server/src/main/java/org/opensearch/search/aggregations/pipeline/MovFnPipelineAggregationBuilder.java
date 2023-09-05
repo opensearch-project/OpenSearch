@@ -32,10 +32,11 @@
 
 package org.opensearch.search.aggregations.pipeline;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.core.ParseField;
-import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.ConstructingObjectParser;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -113,7 +114,11 @@ public class MovFnPipelineAggregationBuilder extends AbstractPipelineAggregation
         format = in.readOptionalString();
         gapPolicy = GapPolicy.readFrom(in);
         window = in.readInt();
-        shift = in.readInt();
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_4_0)) {
+            shift = in.readInt();
+        } else {
+            shift = 0;
+        }
     }
 
     @Override
@@ -123,7 +128,9 @@ public class MovFnPipelineAggregationBuilder extends AbstractPipelineAggregation
         out.writeOptionalString(format);
         gapPolicy.writeTo(out);
         out.writeInt(window);
-        out.writeInt(shift);
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_4_0)) {
+            out.writeInt(shift);
+        }
     }
 
     /**

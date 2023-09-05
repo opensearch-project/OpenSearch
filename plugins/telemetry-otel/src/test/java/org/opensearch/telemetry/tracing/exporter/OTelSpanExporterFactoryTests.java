@@ -8,12 +8,11 @@
 
 package org.opensearch.telemetry.tracing.exporter;
 
+import io.opentelemetry.exporter.logging.LoggingSpanExporter;
+import io.opentelemetry.sdk.trace.export.SpanExporter;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.telemetry.OTelTelemetrySettings;
 import org.opensearch.test.OpenSearchTestCase;
-
-import io.opentelemetry.exporter.logging.LoggingSpanExporter;
-import io.opentelemetry.sdk.trace.export.SpanExporter;
 
 public class OTelSpanExporterFactoryTests extends OpenSearchTestCase {
 

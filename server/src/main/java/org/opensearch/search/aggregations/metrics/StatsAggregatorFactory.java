@@ -90,9 +90,4 @@ class StatsAggregatorFactory extends ValuesSourceAggregatorFactory {
             .getAggregator(StatsAggregationBuilder.REGISTRY_KEY, config)
             .build(name, config, searchContext, parent, metadata);
     }
-
-    @Override
-    protected boolean supportsConcurrentSegmentSearch() {
-        return true;
-    }
 }

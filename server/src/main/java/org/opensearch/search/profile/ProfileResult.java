@@ -32,12 +32,13 @@
 
 package org.opensearch.search.profile;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
-import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.xcontent.InstantiatingObjectParser;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -46,9 +47,9 @@ import org.opensearch.core.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Iterator;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.LinkedHashMap;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
@@ -132,7 +133,11 @@ public final class ProfileResult implements Writeable, ToXContentObject {
         this.description = in.readString();
         this.nodeTime = in.readLong();
         breakdown = in.readMap(StreamInput::readString, StreamInput::readLong);
-        debug = in.readMap(StreamInput::readString, StreamInput::readGenericValue);
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_9_0)) {
+            debug = in.readMap(StreamInput::readString, StreamInput::readGenericValue);
+        } else {
+            debug = Map.of();
+        }
         children = in.readList(ProfileResult::new);
         if (in.getVersion().onOrAfter(Version.V_2_10_0)) {
             this.maxSliceNodeTime = in.readOptionalLong();
@@ -151,7 +156,9 @@ public final class ProfileResult implements Writeable, ToXContentObject {
         out.writeString(description);
         out.writeLong(nodeTime);            // not Vlong because can be negative
         out.writeMap(breakdown, StreamOutput::writeString, StreamOutput::writeLong);
-        out.writeMap(debug, StreamOutput::writeString, StreamOutput::writeGenericValue);
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_9_0)) {
+            out.writeMap(debug, StreamOutput::writeString, StreamOutput::writeGenericValue);
+        }
         out.writeList(children);
         if (out.getVersion().onOrAfter(Version.V_2_10_0)) {
             out.writeOptionalLong(maxSliceNodeTime);

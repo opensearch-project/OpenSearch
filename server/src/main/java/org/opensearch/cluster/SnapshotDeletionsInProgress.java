@@ -34,14 +34,17 @@ package org.opensearch.cluster;
 
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterState.Custom;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.UUIDs;
-import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.repositories.RepositoryOperation;
+import org.opensearch.snapshots.Snapshot;
 import org.opensearch.snapshots.SnapshotId;
+import org.opensearch.snapshots.SnapshotsService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -242,12 +245,23 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
         }
 
         public Entry(StreamInput in) throws IOException {
-            this.repoName = in.readString();
-            this.snapshots = in.readList(SnapshotId::new);
+            if (in.getVersion().onOrAfter(SnapshotsService.MULTI_DELETE_VERSION)) {
+                this.repoName = in.readString();
+                this.snapshots = in.readList(SnapshotId::new);
+            } else {
+                final Snapshot snapshot = new Snapshot(in);
+                this.snapshots = Collections.singletonList(snapshot.getSnapshotId());
+                this.repoName = snapshot.getRepository();
+            }
             this.startTime = in.readVLong();
             this.repositoryStateId = in.readLong();
-            this.state = State.readFrom(in);
-            this.uuid = in.readString();
+            if (in.getVersion().onOrAfter(SnapshotsService.FULL_CONCURRENCY_VERSION)) {
+                this.state = State.readFrom(in);
+                this.uuid = in.readString();
+            } else {
+                this.state = State.STARTED;
+                this.uuid = IndexMetadata.INDEX_UUID_NA_VALUE;
+            }
         }
 
         public Entry started() {
@@ -329,12 +343,22 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(repoName);
-            out.writeCollection(snapshots);
+            if (out.getVersion().onOrAfter(SnapshotsService.MULTI_DELETE_VERSION)) {
+                out.writeString(repoName);
+                out.writeCollection(snapshots);
+            } else {
+                assert snapshots.size() == 1 : "Only single deletion allowed in mixed version cluster containing ["
+                    + out.getVersion()
+                    + "] but saw "
+                    + snapshots;
+                new Snapshot(repoName, snapshots.get(0)).writeTo(out);
+            }
             out.writeVLong(startTime);
             out.writeLong(repositoryStateId);
-            state.writeTo(out);
-            out.writeString(uuid);
+            if (out.getVersion().onOrAfter(SnapshotsService.FULL_CONCURRENCY_VERSION)) {
+                state.writeTo(out);
+                out.writeString(uuid);
+            }
         }
 
         @Override

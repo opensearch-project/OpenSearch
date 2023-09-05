@@ -32,13 +32,12 @@
 
 package org.opensearch.discovery.ec2;
 
-import software.amazon.awssdk.core.SdkSystemSetting;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.network.NetworkService.CustomNameResolver;
 import org.opensearch.common.util.io.IOUtils;
+import software.amazon.awssdk.core.SdkSystemSetting;
 
 import java.io.BufferedReader;
 import java.io.IOException;

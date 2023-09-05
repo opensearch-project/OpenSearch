@@ -51,7 +51,7 @@ import static org.opensearch.test.OpenSearchIntegTestCase.Scope.SUITE;
 public abstract class ReindexTestCase extends OpenSearchIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(ReindexModulePlugin.class);
+        return Arrays.asList(ReindexPlugin.class);
     }
 
     protected ReindexRequestBuilder reindex() {

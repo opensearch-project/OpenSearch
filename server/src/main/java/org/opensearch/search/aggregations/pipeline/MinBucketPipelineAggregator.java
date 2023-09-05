@@ -32,10 +32,12 @@
 
 package org.opensearch.search.aggregations.pipeline;
 
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -57,6 +59,18 @@ public class MinBucketPipelineAggregator extends BucketMetricsPipelineAggregator
         Map<String, Object> metadata
     ) {
         super(name, bucketsPaths, gapPolicy, formatter, metadata);
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public MinBucketPipelineAggregator(StreamInput in) throws IOException {
+        super(in);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return MinBucketPipelineAggregationBuilder.NAME;
     }
 
     @Override

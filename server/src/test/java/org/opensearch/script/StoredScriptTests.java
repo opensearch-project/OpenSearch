@@ -34,11 +34,13 @@ package org.opensearch.script;
 
 import org.opensearch.ResourceNotFoundException;
 import org.opensearch.core.common.ParsingException;
+import org.opensearch.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
@@ -71,17 +73,17 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
 
     public void testSourceParsing() throws Exception {
         // simple script value string
-        try (XContentBuilder builder = MediaTypeRegistry.contentBuilder(MediaTypeRegistry.JSON)) {
+        try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
             builder.startObject().startObject("script").field("lang", "lang").field("source", "code").endObject().endObject();
 
-            StoredScriptSource parsed = StoredScriptSource.parse(BytesReference.bytes(builder), MediaTypeRegistry.JSON);
+            StoredScriptSource parsed = StoredScriptSource.parse(BytesReference.bytes(builder), XContentType.JSON);
             StoredScriptSource source = new StoredScriptSource("lang", "code", Collections.emptyMap());
 
             assertThat(parsed, equalTo(source));
         }
 
         // complex template using script as the field name
-        try (XContentBuilder builder = MediaTypeRegistry.contentBuilder(MediaTypeRegistry.JSON)) {
+        try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
             builder.startObject()
                 .startObject("script")
                 .field("lang", "mustache")
@@ -92,11 +94,11 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
                 .endObject();
             String code;
 
-            try (XContentBuilder cb = MediaTypeRegistry.contentBuilder(builder.contentType())) {
-                code = cb.startObject().field("query", "code").endObject().toString();
+            try (XContentBuilder cb = XContentFactory.contentBuilder(builder.contentType())) {
+                code = Strings.toString(cb.startObject().field("query", "code").endObject());
             }
 
-            StoredScriptSource parsed = StoredScriptSource.parse(BytesReference.bytes(builder), MediaTypeRegistry.JSON);
+            StoredScriptSource parsed = StoredScriptSource.parse(BytesReference.bytes(builder), XContentType.JSON);
             StoredScriptSource source = new StoredScriptSource(
                 "mustache",
                 code,
@@ -107,20 +109,20 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
         }
 
         // complex script with script object
-        try (XContentBuilder builder = MediaTypeRegistry.contentBuilder(MediaTypeRegistry.JSON)) {
+        try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
             builder.startObject().field("script").startObject().field("lang", "lang").field("source", "code").endObject().endObject();
 
-            StoredScriptSource parsed = StoredScriptSource.parse(BytesReference.bytes(builder), MediaTypeRegistry.JSON);
+            StoredScriptSource parsed = StoredScriptSource.parse(BytesReference.bytes(builder), XContentType.JSON);
             StoredScriptSource source = new StoredScriptSource("lang", "code", Collections.emptyMap());
 
             assertThat(parsed, equalTo(source));
         }
 
         // complex script using "code" backcompat
-        try (XContentBuilder builder = MediaTypeRegistry.contentBuilder(MediaTypeRegistry.JSON)) {
+        try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
             builder.startObject().field("script").startObject().field("lang", "lang").field("code", "code").endObject().endObject();
 
-            StoredScriptSource parsed = StoredScriptSource.parse(BytesReference.bytes(builder), MediaTypeRegistry.JSON);
+            StoredScriptSource parsed = StoredScriptSource.parse(BytesReference.bytes(builder), XContentType.JSON);
             StoredScriptSource source = new StoredScriptSource("lang", "code", Collections.emptyMap());
 
             assertThat(parsed, equalTo(source));
@@ -128,7 +130,7 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
         assertWarnings("Deprecated field [code] used, expected [source] instead");
 
         // complex script with script object and empty options
-        try (XContentBuilder builder = MediaTypeRegistry.contentBuilder(MediaTypeRegistry.JSON)) {
+        try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
             builder.startObject()
                 .field("script")
                 .startObject()
@@ -140,33 +142,34 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
                 .endObject()
                 .endObject();
 
-            StoredScriptSource parsed = StoredScriptSource.parse(BytesReference.bytes(builder), MediaTypeRegistry.JSON);
+            StoredScriptSource parsed = StoredScriptSource.parse(BytesReference.bytes(builder), XContentType.JSON);
             StoredScriptSource source = new StoredScriptSource("lang", "code", Collections.emptyMap());
 
             assertThat(parsed, equalTo(source));
         }
 
         // complex script with embedded template
-        try (XContentBuilder builder = MediaTypeRegistry.contentBuilder(MediaTypeRegistry.JSON)) {
-            builder.startObject()
-                .field("script")
-                .startObject()
-                .field("lang", "lang")
-                .startObject("source")
-                .field("query", "code")
-                .endObject()
-                .startObject("options")
-                .endObject()
-                .endObject()
-                .endObject()
-                .toString();
+        try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
+            Strings.toString(
+                builder.startObject()
+                    .field("script")
+                    .startObject()
+                    .field("lang", "lang")
+                    .startObject("source")
+                    .field("query", "code")
+                    .endObject()
+                    .startObject("options")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            );
             String code;
 
-            try (XContentBuilder cb = MediaTypeRegistry.contentBuilder(builder.contentType())) {
-                code = cb.startObject().field("query", "code").endObject().toString();
+            try (XContentBuilder cb = XContentFactory.contentBuilder(builder.contentType())) {
+                code = Strings.toString(cb.startObject().field("query", "code").endObject());
             }
 
-            StoredScriptSource parsed = StoredScriptSource.parse(BytesReference.bytes(builder), MediaTypeRegistry.JSON);
+            StoredScriptSource parsed = StoredScriptSource.parse(BytesReference.bytes(builder), XContentType.JSON);
             StoredScriptSource source = new StoredScriptSource(
                 "lang",
                 code,
@@ -179,29 +182,29 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
 
     public void testSourceParsingErrors() throws Exception {
         // check for missing lang parameter when parsing a script
-        try (XContentBuilder builder = MediaTypeRegistry.contentBuilder(MediaTypeRegistry.JSON)) {
+        try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
             builder.startObject().field("script").startObject().field("source", "code").endObject().endObject();
 
             IllegalArgumentException iae = expectThrows(
                 IllegalArgumentException.class,
-                () -> StoredScriptSource.parse(BytesReference.bytes(builder), MediaTypeRegistry.JSON)
+                () -> StoredScriptSource.parse(BytesReference.bytes(builder), XContentType.JSON)
             );
             assertThat(iae.getMessage(), equalTo("must specify lang for stored script"));
         }
 
         // check for missing source parameter when parsing a script
-        try (XContentBuilder builder = MediaTypeRegistry.contentBuilder(MediaTypeRegistry.JSON)) {
+        try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
             builder.startObject().field("script").startObject().field("lang", "lang").endObject().endObject();
 
             IllegalArgumentException iae = expectThrows(
                 IllegalArgumentException.class,
-                () -> StoredScriptSource.parse(BytesReference.bytes(builder), MediaTypeRegistry.JSON)
+                () -> StoredScriptSource.parse(BytesReference.bytes(builder), XContentType.JSON)
             );
             assertThat(iae.getMessage(), equalTo("must specify source for stored script"));
         }
 
         // check for illegal options parameter when parsing a script
-        try (XContentBuilder builder = MediaTypeRegistry.contentBuilder(MediaTypeRegistry.JSON)) {
+        try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
             builder.startObject()
                 .field("script")
                 .startObject()
@@ -215,17 +218,17 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
 
             IllegalArgumentException iae = expectThrows(
                 IllegalArgumentException.class,
-                () -> StoredScriptSource.parse(BytesReference.bytes(builder), MediaTypeRegistry.JSON)
+                () -> StoredScriptSource.parse(BytesReference.bytes(builder), XContentType.JSON)
             );
             assertThat(iae.getMessage(), equalTo("illegal compiler options [{option=option}] specified"));
         }
 
         // check for unsupported template context
-        try (XContentBuilder builder = MediaTypeRegistry.contentBuilder(MediaTypeRegistry.JSON)) {
+        try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
             builder.startObject().field("template", "code").endObject();
             ParsingException pEx = expectThrows(
                 ParsingException.class,
-                () -> StoredScriptSource.parse(BytesReference.bytes(builder), MediaTypeRegistry.JSON)
+                () -> StoredScriptSource.parse(BytesReference.bytes(builder), XContentType.JSON)
             );
             assertThat(
                 pEx.getMessage(),
@@ -235,20 +238,20 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
     }
 
     public void testEmptyTemplateDeprecations() throws IOException {
-        try (XContentBuilder builder = MediaTypeRegistry.contentBuilder(MediaTypeRegistry.JSON)) {
+        try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
             builder.startObject().endObject();
 
-            StoredScriptSource parsed = StoredScriptSource.parse(BytesReference.bytes(builder), MediaTypeRegistry.JSON);
+            StoredScriptSource parsed = StoredScriptSource.parse(BytesReference.bytes(builder), XContentType.JSON);
             StoredScriptSource source = new StoredScriptSource(Script.DEFAULT_TEMPLATE_LANG, "", Collections.emptyMap());
 
             assertThat(parsed, equalTo(source));
             assertWarnings("empty templates should no longer be used");
         }
 
-        try (XContentBuilder builder = MediaTypeRegistry.contentBuilder(MediaTypeRegistry.JSON)) {
+        try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
             builder.startObject().field("script").startObject().field("lang", "mustache").field("source", "").endObject().endObject();
 
-            StoredScriptSource parsed = StoredScriptSource.parse(BytesReference.bytes(builder), MediaTypeRegistry.JSON);
+            StoredScriptSource parsed = StoredScriptSource.parse(BytesReference.bytes(builder), XContentType.JSON);
             StoredScriptSource source = new StoredScriptSource(Script.DEFAULT_TEMPLATE_LANG, "", Collections.emptyMap());
 
             assertThat(parsed, equalTo(source));

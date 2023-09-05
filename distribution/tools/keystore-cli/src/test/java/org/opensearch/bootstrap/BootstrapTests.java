@@ -31,12 +31,12 @@
 
 package org.opensearch.bootstrap;
 
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.common.settings.KeyStoreCommandTestCase;
 import org.opensearch.common.settings.KeyStoreWrapper;
 import org.opensearch.common.settings.SecureSettings;
-import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.common.settings.SecureString;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.After;
@@ -71,7 +71,7 @@ public class BootstrapTests extends OpenSearchTestCase {
     }
 
     public void testLoadSecureSettings() throws Exception {
-        final Path configPath = env.configDir();
+        final Path configPath = env.configFile();
         final SecureString seed;
         try (KeyStoreWrapper keyStoreWrapper = KeyStoreWrapper.create()) {
             seed = KeyStoreWrapper.SEED_SETTING.get(Settings.builder().setSecureSettings(keyStoreWrapper).build());

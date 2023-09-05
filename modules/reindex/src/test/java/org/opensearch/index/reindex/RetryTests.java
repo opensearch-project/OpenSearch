@@ -32,6 +32,7 @@
 
 package org.opensearch.index.reindex;
 
+import org.opensearch.action.ActionFuture;
 import org.opensearch.action.admin.cluster.node.info.NodeInfo;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.opensearch.action.bulk.BackoffPolicy;
@@ -39,17 +40,16 @@ import org.opensearch.action.bulk.BulkRequestBuilder;
 import org.opensearch.action.bulk.BulkResponse;
 import org.opensearch.action.bulk.Retry;
 import org.opensearch.client.Client;
-import org.opensearch.common.action.ActionFuture;
-import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.bytes.BytesArray;
-import org.opensearch.core.common.transport.TransportAddress;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.http.HttpInfo;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.transport.Netty4ModulePlugin;
+import org.opensearch.transport.Netty4Plugin;
 import org.junit.After;
 
 import java.util.ArrayList;
@@ -84,7 +84,7 @@ public class RetryTests extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(ReindexModulePlugin.class, Netty4ModulePlugin.class);
+        return Arrays.asList(ReindexPlugin.class, Netty4Plugin.class);
     }
 
     /**

@@ -34,7 +34,7 @@ package org.opensearch.client.indices;
 
 import org.opensearch.client.core.BroadcastResponse;
 import org.opensearch.core.ParseField;
-import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.ConstructingObjectParser;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.XContentParser;

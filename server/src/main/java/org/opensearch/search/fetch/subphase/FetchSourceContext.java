@@ -33,16 +33,16 @@
 package org.opensearch.search.fetch.subphase;
 
 import org.opensearch.common.Booleans;
-import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.ParsingException;
-import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.rest.RestRequest;
 
 import java.io.IOException;
@@ -150,7 +150,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
             while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                 list.add(parser.text());
             }
-            includes = list.toArray(new String[0]);
+            includes = list.toArray(new String[list.size()]);
         } else if (token == XContentParser.Token.START_OBJECT) {
             String currentFieldName = null;
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -170,7 +170,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
                                 );
                             }
                         }
-                        includes = includesList.toArray(new String[0]);
+                        includes = includesList.toArray(new String[includesList.size()]);
                     } else if (EXCLUDES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                         List<String> excludesList = new ArrayList<>();
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
@@ -184,7 +184,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
                                 );
                             }
                         }
-                        excludes = excludesList.toArray(new String[0]);
+                        excludes = excludesList.toArray(new String[excludesList.size()]);
                     } else {
                         throw new ParsingException(
                             parser.getTokenLocation(),

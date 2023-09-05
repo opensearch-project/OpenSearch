@@ -33,6 +33,8 @@
 package org.opensearch.search.aggregations.bucket.composite;
 
 import org.apache.lucene.util.BytesRef;
+import org.opensearch.LegacyESVersion;
+import org.opensearch.Version;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -107,10 +109,15 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
             formats.add(in.readNamedWriteable(DocValueFormat.class));
         }
         this.reverseMuls = in.readIntArray();
-        this.missingOrders = in.readArray(MissingOrder::readFromStream, MissingOrder[]::new);
+        if (in.getVersion().onOrAfter(Version.V_1_3_0)) {
+            this.missingOrders = in.readArray(MissingOrder::readFromStream, MissingOrder[]::new);
+        } else {
+            this.missingOrders = new MissingOrder[reverseMuls.length];
+            Arrays.fill(this.missingOrders, MissingOrder.DEFAULT);
+        }
         this.buckets = in.readList((input) -> new InternalBucket(input, sourceNames, formats, reverseMuls, missingOrders));
         this.afterKey = in.readBoolean() ? new CompositeKey(in) : null;
-        this.earlyTerminated = in.readBoolean();
+        this.earlyTerminated = in.getVersion().onOrAfter(LegacyESVersion.V_7_6_0) ? in.readBoolean() : false;
     }
 
     @Override
@@ -121,13 +128,18 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
             out.writeNamedWriteable(format);
         }
         out.writeIntArray(reverseMuls);
-        out.writeArray((output, order) -> order.writeTo(output), missingOrders);
+        if (out.getVersion().onOrAfter(Version.V_1_3_0)) {
+            out.writeArray((output, order) -> order.writeTo(output), missingOrders);
+        }
         out.writeList(buckets);
         out.writeBoolean(afterKey != null);
         if (afterKey != null) {
             afterKey.writeTo(out);
         }
-        out.writeBoolean(earlyTerminated);
+
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_6_0)) {
+            out.writeBoolean(earlyTerminated);
+        }
     }
 
     @Override

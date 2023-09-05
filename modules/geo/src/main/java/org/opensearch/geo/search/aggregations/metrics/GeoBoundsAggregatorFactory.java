@@ -89,9 +89,4 @@ class GeoBoundsAggregatorFactory extends ValuesSourceAggregatorFactory {
         builder.register(GeoBoundsAggregationBuilder.REGISTRY_KEY, CoreValuesSourceType.GEOPOINT, GeoBoundsAggregator::new, true);
         builder.register(GeoBoundsAggregationBuilder.REGISTRY_KEY, CoreValuesSourceType.GEO_SHAPE, GeoBoundsGeoShapeAggregator::new, true);
     }
-
-    @Override
-    protected boolean supportsConcurrentSegmentSearch() {
-        return true;
-    }
 }

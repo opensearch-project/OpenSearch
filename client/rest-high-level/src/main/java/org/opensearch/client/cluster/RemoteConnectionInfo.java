@@ -142,22 +142,6 @@ public final class RemoteConnectionInfo {
         return Objects.hash(modeInfo, initialConnectionTimeoutString, clusterAlias, skipUnavailable);
     }
 
-    @Override
-    public String toString() {
-        return "RemoteConnectionInfo{"
-            + "modeInfo="
-            + modeInfo
-            + ", initialConnectionTimeoutString='"
-            + initialConnectionTimeoutString
-            + '\''
-            + ", clusterAlias='"
-            + clusterAlias
-            + '\''
-            + ", skipUnavailable="
-            + skipUnavailable
-            + '}';
-    }
-
     public interface ModeInfo {
 
         boolean isConnected();

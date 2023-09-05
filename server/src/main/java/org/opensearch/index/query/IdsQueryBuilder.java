@@ -34,12 +34,12 @@ package org.opensearch.index.query;
 
 import org.apache.lucene.search.Query;
 import org.opensearch.Version;
-import org.opensearch.common.logging.DeprecationLogger;
-import org.opensearch.core.ParseField;
 import org.opensearch.core.common.ParsingException;
-import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.common.logging.DeprecationLogger;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.ParseField;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
@@ -99,7 +99,7 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
             // types not supported so send an empty array to previous versions
             out.writeStringArray(Strings.EMPTY_ARRAY);
         }
-        out.writeStringArray(ids.toArray(new String[0]));
+        out.writeStringArray(ids.toArray(new String[ids.size()]));
     }
 
     /**

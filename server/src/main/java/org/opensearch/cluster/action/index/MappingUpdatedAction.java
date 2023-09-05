@@ -32,7 +32,9 @@
 
 package org.opensearch.cluster.action.index;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
+import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.indices.mapping.put.AutoPutMappingAction;
 import org.opensearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
@@ -47,9 +49,8 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.RunOnce;
 import org.opensearch.common.util.concurrent.UncategorizedExecutionException;
-import org.opensearch.core.action.ActionListener;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.index.Index;
-import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.mapper.Mapping;
 
 import java.util.concurrent.Semaphore;
@@ -153,14 +154,21 @@ public class MappingUpdatedAction {
     protected void sendUpdateMapping(Index index, Mapping mappingUpdate, ActionListener<Void> listener) {
         PutMappingRequest putMappingRequest = new PutMappingRequest();
         putMappingRequest.setConcreteIndex(index);
-        putMappingRequest.source(mappingUpdate.toString(), MediaTypeRegistry.JSON);
+        putMappingRequest.source(mappingUpdate.toString(), XContentType.JSON);
         putMappingRequest.clusterManagerNodeTimeout(dynamicMappingUpdateTimeout);
         putMappingRequest.timeout(TimeValue.ZERO);
-        client.execute(
-            AutoPutMappingAction.INSTANCE,
-            putMappingRequest,
-            ActionListener.wrap(r -> listener.onResponse(null), listener::onFailure)
-        );
+        if (clusterService.state().nodes().getMinNodeVersion().onOrAfter(LegacyESVersion.V_7_9_0)) {
+            client.execute(
+                AutoPutMappingAction.INSTANCE,
+                putMappingRequest,
+                ActionListener.wrap(r -> listener.onResponse(null), listener::onFailure)
+            );
+        } else {
+            client.putMapping(
+                putMappingRequest,
+                ActionListener.wrap(r -> listener.onResponse(null), e -> listener.onFailure(unwrapException(e)))
+            );
+        }
     }
 
     // todo: this explicit unwrap should not be necessary, but is until guessRootCause is fixed to allow wrapped non-es exception.

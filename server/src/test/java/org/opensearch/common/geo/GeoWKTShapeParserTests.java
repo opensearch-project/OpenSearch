@@ -50,8 +50,8 @@ import org.opensearch.common.geo.builders.ShapeBuilder;
 import org.opensearch.common.geo.parsers.GeoWKTParser;
 import org.opensearch.common.geo.parsers.ShapeParser;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.geometry.Geometry;
 import org.opensearch.geometry.GeometryCollection;
@@ -64,14 +64,6 @@ import org.opensearch.index.mapper.GeoShapeIndexer;
 import org.opensearch.index.mapper.LegacyGeoShapeFieldMapper;
 import org.opensearch.index.mapper.Mapper;
 import org.opensearch.test.geo.RandomShapeGenerator;
-
-import java.io.IOException;
-import java.text.ParseException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.LineString;
 import org.locationtech.jts.geom.LinearRing;
@@ -83,6 +75,13 @@ import org.locationtech.spatial4j.shape.Rectangle;
 import org.locationtech.spatial4j.shape.Shape;
 import org.locationtech.spatial4j.shape.ShapeCollection;
 import org.locationtech.spatial4j.shape.jts.JtsPoint;
+
+import java.io.IOException;
+import java.text.ParseException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 
 import static org.opensearch.common.geo.builders.ShapeBuilder.SPATIAL_CONTEXT;
 import static org.hamcrest.Matchers.containsString;
@@ -181,7 +180,7 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
     @Override
     public void testParseLineString() throws IOException, ParseException {
         List<Coordinate> coordinates = randomLineStringCoords();
-        LineString expected = GEOMETRY_FACTORY.createLineString(coordinates.toArray(new Coordinate[0]));
+        LineString expected = GEOMETRY_FACTORY.createLineString(coordinates.toArray(new Coordinate[coordinates.size()]));
         assertExpected(jtsGeom(expected), new LineStringBuilder(coordinates), true);
 
         double[] lats = new double[coordinates.size()];
@@ -200,7 +199,7 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
         MultiLineStringBuilder builder = new MultiLineStringBuilder();
         for (int j = 0; j < numLineStrings; ++j) {
             List<Coordinate> lsc = randomLineStringCoords();
-            Coordinate[] coords = lsc.toArray(new Coordinate[0]);
+            Coordinate[] coords = lsc.toArray(new Coordinate[lsc.size()]);
             lineStrings.add(GEOMETRY_FACTORY.createLineString(coords));
             builder.linestring(new LineStringBuilder(lsc));
         }
@@ -221,7 +220,7 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
         assertExpected(expectedGeom, builder, false);
         assertMalformed(builder);
 
-        MultiLineString expected = GEOMETRY_FACTORY.createMultiLineString(lineStrings.toArray(new LineString[0]));
+        MultiLineString expected = GEOMETRY_FACTORY.createMultiLineString(lineStrings.toArray(new LineString[lineStrings.size()]));
         assumeTrue("JTS test path cannot handle empty multilinestrings", numLineStrings > 1);
         assertExpected(jtsGeom(expected), builder, true);
     }
@@ -279,9 +278,9 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
         PolygonBuilder polygonWithHole = new PolygonBuilder(new CoordinatesBuilder().coordinates(shellCoordinates));
         polygonWithHole.hole(new LineStringBuilder(holeCoordinates));
 
-        LinearRing shell = GEOMETRY_FACTORY.createLinearRing(shellCoordinates.toArray(new Coordinate[0]));
+        LinearRing shell = GEOMETRY_FACTORY.createLinearRing(shellCoordinates.toArray(new Coordinate[shellCoordinates.size()]));
         LinearRing[] holes = new LinearRing[1];
-        holes[0] = GEOMETRY_FACTORY.createLinearRing(holeCoordinates.toArray(new Coordinate[0]));
+        holes[0] = GEOMETRY_FACTORY.createLinearRing(holeCoordinates.toArray(new Coordinate[holeCoordinates.size()]));
         Polygon expected = GEOMETRY_FACTORY.createPolygon(shell, holes);
         assertExpected(jtsGeom(expected), polygonWithHole, true);
 

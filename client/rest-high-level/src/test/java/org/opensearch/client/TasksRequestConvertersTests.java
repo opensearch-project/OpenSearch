@@ -32,11 +32,11 @@
 
 package org.opensearch.client;
 
-import org.apache.hc.client5.http.classic.methods.HttpGet;
-import org.apache.hc.client5.http.classic.methods.HttpPost;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.HttpPost;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.opensearch.client.tasks.CancelTasksRequest;
-import org.opensearch.core.tasks.TaskId;
+import org.opensearch.tasks.TaskId;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.HashMap;

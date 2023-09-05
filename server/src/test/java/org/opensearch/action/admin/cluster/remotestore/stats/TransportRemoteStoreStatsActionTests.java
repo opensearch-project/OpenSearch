@@ -8,6 +8,7 @@
 
 package org.opensearch.action.admin.cluster.remotestore.stats;
 
+import org.mockito.Mockito;
 import org.opensearch.Version;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.cluster.ClusterName;
@@ -27,11 +28,10 @@ import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.index.remote.RemoteSegmentTransferTracker;
-import org.opensearch.index.remote.RemoteStoreStatsTrackerFactory;
+import org.opensearch.index.remote.RemoteRefreshSegmentPressureService;
+import org.opensearch.index.remote.RemoteRefreshSegmentTracker;
 import org.opensearch.index.shard.IndexShardTestCase;
 import org.opensearch.indices.IndicesService;
-import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.FeatureFlagSetter;
 import org.opensearch.test.transport.MockTransport;
 import org.opensearch.transport.TransportService;
@@ -39,21 +39,18 @@ import org.opensearch.transport.TransportService;
 import java.util.Collections;
 import java.util.stream.Collectors;
 
-import org.mockito.Mockito;
-
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUID;
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY;
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_ENABLED;
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUID;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_ENABLED;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY;
 
 public class TransportRemoteStoreStatsActionTests extends IndexShardTestCase {
     private IndicesService indicesService;
-    private RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory;
+    private RemoteRefreshSegmentPressureService pressureService;
     private IndexMetadata remoteStoreIndexMetadata;
     private TransportService transportService;
     private ClusterService clusterService;
@@ -67,13 +64,12 @@ public class TransportRemoteStoreStatsActionTests extends IndexShardTestCase {
         indicesService = mock(IndicesService.class);
         IndexService indexService = mock(IndexService.class);
         clusterService = mock(ClusterService.class);
-        remoteStoreStatsTrackerFactory = mock(RemoteStoreStatsTrackerFactory.class);
+        pressureService = mock(RemoteRefreshSegmentPressureService.class);
         MockTransport mockTransport = new MockTransport();
         localNode = new DiscoveryNode("node0", buildNewFakeTransportAddress(), Version.CURRENT);
         remoteStoreIndexMetadata = IndexMetadata.builder(INDEX.getName())
             .settings(
                 settings(Version.CURRENT).put(SETTING_INDEX_UUID, INDEX.getUUID())
-                    .put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
                     .put(SETTING_REMOTE_STORE_ENABLED, true)
                     .put(SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, "my-test-repo")
                     .build()
@@ -90,7 +86,7 @@ public class TransportRemoteStoreStatsActionTests extends IndexShardTestCase {
             Collections.emptySet()
         );
 
-        when(remoteStoreStatsTrackerFactory.getRemoteSegmentTransferTracker(any())).thenReturn(mock(RemoteSegmentTransferTracker.class));
+        when(pressureService.getRemoteRefreshSegmentTracker(any())).thenReturn(mock(RemoteRefreshSegmentTracker.class));
         when(indicesService.indexService(INDEX)).thenReturn(indexService);
         when(indexService.getIndexSettings()).thenReturn(new IndexSettings(remoteStoreIndexMetadata, Settings.EMPTY));
         statsAction = new TransportRemoteStoreStatsAction(
@@ -99,7 +95,7 @@ public class TransportRemoteStoreStatsActionTests extends IndexShardTestCase {
             indicesService,
             mock(ActionFilters.class),
             mock(IndexNameExpressionResolver.class),
-            remoteStoreStatsTrackerFactory
+            pressureService
         );
 
     }
@@ -112,7 +108,7 @@ public class TransportRemoteStoreStatsActionTests extends IndexShardTestCase {
         clusterService.close();
     }
 
-    public void testAllShardCopies() throws Exception {
+    public void testOnlyPrimaryShards() throws Exception {
         FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
         RoutingTable routingTable = RoutingTable.builder().addAsNew(remoteStoreIndexMetadata).build();
         Metadata metadata = Metadata.builder().put(remoteStoreIndexMetadata, false).build();
@@ -129,7 +125,7 @@ public class TransportRemoteStoreStatsActionTests extends IndexShardTestCase {
             new String[] { INDEX.getName() }
         );
 
-        assertEquals(shardsIterator.size(), 4);
+        assertEquals(shardsIterator.size(), 2);
     }
 
     public void testOnlyLocalShards() throws Exception {
@@ -157,10 +153,10 @@ public class TransportRemoteStoreStatsActionTests extends IndexShardTestCase {
         remoteStoreStatsRequest.local(true);
         ShardsIterator shardsIterator = statsAction.shards(clusterService.state(), remoteStoreStatsRequest, concreteIndices);
 
-        assertEquals(shardsIterator.size(), 2);
+        assertEquals(shardsIterator.size(), 1);
     }
 
-    public void testOnlyRemoteStoreEnabledShardCopies() throws Exception {
+    public void testOnlyRemoteStoreEnabledShards() throws Exception {
         FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
         Index NEW_INDEX = new Index("newIndex", "newUUID");
         IndexMetadata indexMetadataWithoutRemoteStore = IndexMetadata.builder(NEW_INDEX.getName())
@@ -193,6 +189,6 @@ public class TransportRemoteStoreStatsActionTests extends IndexShardTestCase {
             new String[] { INDEX.getName() }
         );
 
-        assertEquals(shardsIterator.size(), 4);
+        assertEquals(shardsIterator.size(), 2);
     }
 }

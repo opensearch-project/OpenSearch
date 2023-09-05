@@ -90,9 +90,4 @@ class MaxAggregatorFactory extends ValuesSourceAggregatorFactory {
             .getAggregator(MaxAggregationBuilder.REGISTRY_KEY, config)
             .build(name, config, searchContext, parent, metadata);
     }
-
-    @Override
-    protected boolean supportsConcurrentSegmentSearch() {
-        return true;
-    }
 }

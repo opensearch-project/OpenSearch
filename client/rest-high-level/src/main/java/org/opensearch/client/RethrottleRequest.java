@@ -32,7 +32,7 @@
 
 package org.opensearch.client;
 
-import org.opensearch.core.tasks.TaskId;
+import org.opensearch.tasks.TaskId;
 
 import java.util.Objects;
 

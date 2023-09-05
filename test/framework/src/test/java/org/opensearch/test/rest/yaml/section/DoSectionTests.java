@@ -32,15 +32,15 @@
 
 package org.opensearch.test.rest.yaml.section;
 
-import org.apache.hc.core5.http.HttpHost;
+import org.apache.http.HttpHost;
 import org.opensearch.Version;
 import org.opensearch.client.Node;
 import org.opensearch.client.NodeSelector;
-import org.opensearch.common.logging.HeaderWarning;
-import org.opensearch.common.xcontent.yaml.YamlXContent;
 import org.opensearch.core.common.ParsingException;
+import org.opensearch.common.logging.HeaderWarning;
 import org.opensearch.core.xcontent.XContentLocation;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.common.xcontent.yaml.YamlXContent;
 import org.opensearch.test.rest.yaml.ClientYamlTestExecutionContext;
 import org.opensearch.test.rest.yaml.ClientYamlTestResponse;
 import org.hamcrest.MatcherAssert;

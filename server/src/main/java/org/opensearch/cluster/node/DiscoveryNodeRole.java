@@ -35,7 +35,6 @@ package org.opensearch.cluster.node;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.common.Booleans;
-import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
@@ -53,9 +52,8 @@ import java.util.TreeSet;
 /**
  * Represents a node role.
  *
- * @opensearch.api
+ * @opensearch.internal
  */
-@PublicApi(since = "1.0.0")
 public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole> {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DiscoveryNodeRole.class);

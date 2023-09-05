@@ -1,3 +1,10 @@
 ## Reporting a Vulnerability
 
-If you discover a potential security issue in this project we ask that you notify AWS/Amazon Security via our [vulnerability reporting page](http://aws.amazon.com/security/vulnerability-reporting/) or directly via email to aws-security@amazon.com. Please do **not** create a public GitHub issue.
+To report a possible vulnerability or security issue you can:
+- Send us an email to security@khulnasoft.com.
+- Open a new security report under the security tab on this repository.
+
+**PLEASE DO NOT OPEN A PUBLIC ISSUE ABOUT SECURITY**
+
+We want to protect our community, so please give us time to fix a vulnerability
+before publishing it.

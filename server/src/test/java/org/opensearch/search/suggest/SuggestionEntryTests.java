@@ -32,12 +32,11 @@
 
 package org.opensearch.search.suggest;
 
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.text.Text;
-import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.search.suggest.Suggest.Suggestion.Entry;
 import org.opensearch.search.suggest.Suggest.Suggestion.Entry.Option;
 import org.opensearch.search.suggest.completion.CompletionSuggestion;
@@ -53,7 +52,7 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
-import static org.opensearch.core.xcontent.XContentHelper.toXContent;
+import static org.opensearch.common.xcontent.XContentHelper.toXContent;
 import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.opensearch.test.XContentTestUtils.insertRandomFields;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertToXContentEquivalent;
@@ -157,7 +156,7 @@ public class SuggestionEntryTests extends OpenSearchTestCase {
         );
         PhraseSuggestion.Entry phraseEntry = new PhraseSuggestion.Entry(new Text("entryText"), 42, 313);
         phraseEntry.addOption(phraseOption);
-        BytesReference xContent = toXContent(phraseEntry, MediaTypeRegistry.JSON, randomBoolean());
+        BytesReference xContent = toXContent(phraseEntry, XContentType.JSON, randomBoolean());
         assertEquals(
             "{\"text\":\"entryText\","
                 + "\"offset\":42,"
@@ -174,7 +173,7 @@ public class SuggestionEntryTests extends OpenSearchTestCase {
         TermSuggestion.Entry.Option termOption = new TermSuggestion.Entry.Option(new Text("termSuggestOption"), 42, 3.13f);
         TermSuggestion.Entry termEntry = new TermSuggestion.Entry(new Text("entryText"), 42, 313);
         termEntry.addOption(termOption);
-        xContent = toXContent(termEntry, MediaTypeRegistry.JSON, randomBoolean());
+        xContent = toXContent(termEntry, XContentType.JSON, randomBoolean());
         assertEquals(
             "{\"text\":\"entryText\","
                 + "\"offset\":42,"
@@ -195,7 +194,7 @@ public class SuggestionEntryTests extends OpenSearchTestCase {
         );
         CompletionSuggestion.Entry completionEntry = new CompletionSuggestion.Entry(new Text("entryText"), 42, 313);
         completionEntry.addOption(completionOption);
-        xContent = toXContent(completionEntry, MediaTypeRegistry.JSON, randomBoolean());
+        xContent = toXContent(completionEntry, XContentType.JSON, randomBoolean());
         assertEquals(
             "{\"text\":\"entryText\","
                 + "\"offset\":42,"

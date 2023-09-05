@@ -37,9 +37,9 @@ import org.opensearch.cluster.Diff;
 import org.opensearch.cluster.DiffableUtils;
 import org.opensearch.cluster.DiffableUtils.MapDiff;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.common.util.set.Sets;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -114,7 +114,10 @@ public class DiffableTests extends OpenSearchTestCase {
         protected final Set<Integer> keysToRemove = new HashSet<>(randomSubsetOf(randomInt(keys.size()), keys.toArray(new Integer[0])));
         protected final Set<Integer> keysThatAreNotRemoved = Sets.difference(keys, keysToRemove);
         protected final Set<Integer> keysToOverride = new HashSet<>(
-            randomSubsetOf(randomInt(keysThatAreNotRemoved.size()), keysThatAreNotRemoved.toArray(new Integer[0]))
+            randomSubsetOf(
+                randomInt(keysThatAreNotRemoved.size()),
+                keysThatAreNotRemoved.toArray(new Integer[keysThatAreNotRemoved.size()])
+            )
         );
         // make sure keysToAdd does not contain elements in keys
         protected final Set<Integer> keysToAdd = Sets.difference(randomPositiveIntSet(), keys);

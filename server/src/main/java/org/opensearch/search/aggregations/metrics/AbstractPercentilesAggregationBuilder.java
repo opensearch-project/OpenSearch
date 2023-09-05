@@ -31,9 +31,10 @@
 
 package org.opensearch.search.aggregations.metrics;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.TriFunction;
 import org.opensearch.core.ParseField;
+import org.opensearch.common.TriFunction;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -168,7 +169,14 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
         super(in);
         values = in.readDoubleArray();
         keyed = in.readBoolean();
-        percentilesConfig = (PercentilesConfig) in.readOptionalWriteable((Reader<Writeable>) PercentilesConfig::fromStream);
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_8_0)) {
+            percentilesConfig = (PercentilesConfig) in.readOptionalWriteable((Reader<Writeable>) PercentilesConfig::fromStream);
+        } else {
+            int numberOfSignificantValueDigits = in.readVInt();
+            double compression = in.readDouble();
+            PercentilesMethod method = PercentilesMethod.readFromStream(in);
+            percentilesConfig = PercentilesConfig.fromLegacy(method, compression, numberOfSignificantValueDigits);
+        }
         this.valuesField = valuesField;
     }
 
@@ -176,7 +184,23 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
     protected void innerWriteTo(StreamOutput out) throws IOException {
         out.writeDoubleArray(values);
         out.writeBoolean(keyed);
-        out.writeOptionalWriteable(percentilesConfig);
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_8_0)) {
+            out.writeOptionalWriteable(percentilesConfig);
+        } else {
+            // Legacy method serialized both SigFigs and compression, even though we only need one. So we need
+            // to serialize the default for the unused method
+            int numberOfSignificantValueDigits = percentilesConfig.getMethod().equals(PercentilesMethod.HDR)
+                ? ((PercentilesConfig.Hdr) percentilesConfig).getNumberOfSignificantValueDigits()
+                : PercentilesConfig.Hdr.DEFAULT_NUMBER_SIG_FIGS;
+
+            double compression = percentilesConfig.getMethod().equals(PercentilesMethod.TDIGEST)
+                ? ((PercentilesConfig.TDigest) percentilesConfig).getCompression()
+                : PercentilesConfig.TDigest.DEFAULT_COMPRESSION;
+
+            out.writeVInt(numberOfSignificantValueDigits);
+            out.writeDouble(compression);
+            percentilesConfig.getMethod().writeTo(out);
+        }
     }
 
     /**

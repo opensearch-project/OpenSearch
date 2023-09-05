@@ -69,7 +69,7 @@ public class RestDeleteComponentTemplateAction extends BaseRestHandler {
 
         DeleteComponentTemplateAction.Request deleteReq = new DeleteComponentTemplateAction.Request(request.param("name"));
         deleteReq.clusterManagerNodeTimeout(request.paramAsTime("cluster_manager_timeout", deleteReq.clusterManagerNodeTimeout()));
-        parseDeprecatedMasterTimeoutParameter(deleteReq, request, deprecationLogger, getName());
+        parseDeprecatedMasterTimeoutParameter(deleteReq, request);
 
         return channel -> client.execute(DeleteComponentTemplateAction.INSTANCE, deleteReq, new RestToXContentListener<>(channel));
     }

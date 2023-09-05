@@ -32,9 +32,8 @@
 
 package org.opensearch.discovery.ec2;
 
-import software.amazon.awssdk.services.ec2.Ec2Client;
-
 import org.opensearch.common.concurrent.RefCountedReleasable;
+import software.amazon.awssdk.services.ec2.Ec2Client;
 
 /**
  * Handles the shutdown of the wrapped {@link Ec2Client} using reference

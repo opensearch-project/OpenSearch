@@ -32,7 +32,7 @@
 
 package org.opensearch.node;
 
-import org.opensearch.core.common.transport.BoundTransportAddress;
+import org.opensearch.common.transport.BoundTransportAddress;
 
 import java.util.List;
 

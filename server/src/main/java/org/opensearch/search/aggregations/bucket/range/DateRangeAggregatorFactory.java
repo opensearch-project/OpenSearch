@@ -72,8 +72,4 @@ public class DateRangeAggregatorFactory extends AbstractRangeAggregatorFactory<R
         );
     }
 
-    @Override
-    protected boolean supportsConcurrentSegmentSearch() {
-        return true;
-    }
 }

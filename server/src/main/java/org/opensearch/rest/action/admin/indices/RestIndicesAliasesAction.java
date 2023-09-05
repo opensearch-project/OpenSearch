@@ -71,7 +71,7 @@ public class RestIndicesAliasesAction extends BaseRestHandler {
         indicesAliasesRequest.clusterManagerNodeTimeout(
             request.paramAsTime("cluster_manager_timeout", indicesAliasesRequest.clusterManagerNodeTimeout())
         );
-        parseDeprecatedMasterTimeoutParameter(indicesAliasesRequest, request, deprecationLogger, getName());
+        parseDeprecatedMasterTimeoutParameter(indicesAliasesRequest, request);
         indicesAliasesRequest.timeout(request.paramAsTime("timeout", indicesAliasesRequest.timeout()));
         try (XContentParser parser = request.contentParser()) {
             IndicesAliasesRequest.PARSER.parse(parser, indicesAliasesRequest, null);

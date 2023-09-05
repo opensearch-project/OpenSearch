@@ -33,14 +33,14 @@ package org.opensearch.index.shard;
 
 import org.apache.lucene.index.IndexCommit;
 import org.opensearch.Version;
+import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
-import org.opensearch.core.action.ActionListener;
+import org.opensearch.common.component.AbstractLifecycleComponent;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
@@ -57,6 +57,7 @@ import org.opensearch.snapshots.SnapshotInfo;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -118,6 +119,9 @@ public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent i
     }
 
     @Override
+    public void initializeSnapshot(SnapshotId snapshotId, List<IndexId> indices, Metadata metadata) {}
+
+    @Override
     public void finalizeSnapshot(
         ShardGenerations shardGenerations,
         long repositoryStateId,
@@ -147,16 +151,6 @@ public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent i
 
     @Override
     public long getRestoreThrottleTimeInNanos() {
-        return 0;
-    }
-
-    @Override
-    public long getRemoteUploadThrottleTimeInNanos() {
-        return 0;
-    }
-
-    @Override
-    public long getRemoteDownloadThrottleTimeInNanos() {
         return 0;
     }
 

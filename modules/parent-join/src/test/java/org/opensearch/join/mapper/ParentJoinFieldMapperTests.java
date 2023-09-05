@@ -32,10 +32,11 @@
 
 package org.opensearch.join.mapper;
 
+import org.opensearch.common.Strings;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.MapperException;
@@ -43,7 +44,7 @@ import org.opensearch.index.mapper.MapperParsingException;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.ParsedDocument;
 import org.opensearch.index.mapper.SourceToParse;
-import org.opensearch.join.ParentJoinModulePlugin;
+import org.opensearch.join.ParentJoinPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
@@ -55,22 +56,23 @@ import static org.hamcrest.Matchers.containsString;
 public class ParentJoinFieldMapperTests extends OpenSearchSingleNodeTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Collections.singletonList(ParentJoinModulePlugin.class);
+        return Collections.singletonList(ParentJoinPlugin.class);
     }
 
     public void testSingleLevel() throws Exception {
-        String mapping = XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("properties")
-            .startObject("join_field")
-            .field("type", "join")
-            .startObject("relations")
-            .field("parent", "child")
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject()
-            .toString();
+        String mapping = Strings.toString(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("properties")
+                .startObject("join_field")
+                .field("type", "join")
+                .startObject("relations")
+                .field("parent", "child")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+        );
         IndexService service = createIndex("test");
         DocumentMapper docMapper = service.mapperService()
             .merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
@@ -78,12 +80,7 @@ public class ParentJoinFieldMapperTests extends OpenSearchSingleNodeTestCase {
 
         // Doc without join
         ParsedDocument doc = docMapper.parse(
-            new SourceToParse(
-                "test",
-                "0",
-                BytesReference.bytes(MediaTypeRegistry.JSON.contentBuilder().startObject().endObject()),
-                MediaTypeRegistry.JSON
-            )
+            new SourceToParse("test", "0", BytesReference.bytes(XContentFactory.jsonBuilder().startObject().endObject()), XContentType.JSON)
         );
         assertNull(doc.rootDoc().getBinaryValue("join_field"));
 
@@ -93,7 +90,7 @@ public class ParentJoinFieldMapperTests extends OpenSearchSingleNodeTestCase {
                 "test",
                 "1",
                 BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("join_field", "parent").endObject()),
-                MediaTypeRegistry.JSON
+                XContentType.JSON
             )
         );
         assertEquals("1", doc.rootDoc().getBinaryValue("join_field#parent").utf8ToString());
@@ -113,7 +110,7 @@ public class ParentJoinFieldMapperTests extends OpenSearchSingleNodeTestCase {
                         .endObject()
                         .endObject()
                 ),
-                MediaTypeRegistry.JSON,
+                XContentType.JSON,
                 "1"
             )
         );
@@ -128,7 +125,7 @@ public class ParentJoinFieldMapperTests extends OpenSearchSingleNodeTestCase {
                     "test",
                     "1",
                     BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("join_field", "unknown").endObject()),
-                    MediaTypeRegistry.JSON
+                    XContentType.JSON
                 )
             )
         );
@@ -136,18 +133,19 @@ public class ParentJoinFieldMapperTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testParentIdSpecifiedAsNumber() throws Exception {
-        String mapping = XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("properties")
-            .startObject("join_field")
-            .field("type", "join")
-            .startObject("relations")
-            .field("parent", "child")
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject()
-            .toString();
+        String mapping = Strings.toString(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("properties")
+                .startObject("join_field")
+                .field("type", "join")
+                .startObject("relations")
+                .field("parent", "child")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+        );
         IndexService service = createIndex("test");
         DocumentMapper docMapper = service.mapperService()
             .merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
@@ -164,7 +162,7 @@ public class ParentJoinFieldMapperTests extends OpenSearchSingleNodeTestCase {
                         .endObject()
                         .endObject()
                 ),
-                MediaTypeRegistry.JSON,
+                XContentType.JSON,
                 "1"
             )
         );
@@ -183,7 +181,7 @@ public class ParentJoinFieldMapperTests extends OpenSearchSingleNodeTestCase {
                         .endObject()
                         .endObject()
                 ),
-                MediaTypeRegistry.JSON,
+                XContentType.JSON,
                 "1"
             )
         );
@@ -192,19 +190,20 @@ public class ParentJoinFieldMapperTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testMultipleLevels() throws Exception {
-        String mapping = XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("properties")
-            .startObject("join_field")
-            .field("type", "join")
-            .startObject("relations")
-            .field("parent", "child")
-            .field("child", "grand_child")
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject()
-            .toString();
+        String mapping = Strings.toString(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("properties")
+                .startObject("join_field")
+                .field("type", "join")
+                .startObject("relations")
+                .field("parent", "child")
+                .field("child", "grand_child")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+        );
         IndexService service = createIndex("test");
         DocumentMapper docMapper = service.mapperService()
             .merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
@@ -212,12 +211,7 @@ public class ParentJoinFieldMapperTests extends OpenSearchSingleNodeTestCase {
 
         // Doc without join
         ParsedDocument doc = docMapper.parse(
-            new SourceToParse(
-                "test",
-                "0",
-                BytesReference.bytes(XContentFactory.jsonBuilder().startObject().endObject()),
-                MediaTypeRegistry.JSON
-            )
+            new SourceToParse("test", "0", BytesReference.bytes(XContentFactory.jsonBuilder().startObject().endObject()), XContentType.JSON)
         );
         assertNull(doc.rootDoc().getBinaryValue("join_field"));
 
@@ -227,7 +221,7 @@ public class ParentJoinFieldMapperTests extends OpenSearchSingleNodeTestCase {
                 "test",
                 "1",
                 BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("join_field", "parent").endObject()),
-                MediaTypeRegistry.JSON
+                XContentType.JSON
             )
         );
         assertEquals("1", doc.rootDoc().getBinaryValue("join_field#parent").utf8ToString());
@@ -247,7 +241,7 @@ public class ParentJoinFieldMapperTests extends OpenSearchSingleNodeTestCase {
                         .endObject()
                         .endObject()
                 ),
-                MediaTypeRegistry.JSON,
+                XContentType.JSON,
                 "1"
             )
         );
@@ -263,7 +257,7 @@ public class ParentJoinFieldMapperTests extends OpenSearchSingleNodeTestCase {
                     "test",
                     "2",
                     BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("join_field", "child").endObject()),
-                    MediaTypeRegistry.JSON,
+                    XContentType.JSON,
                     "1"
                 )
             )
@@ -286,7 +280,7 @@ public class ParentJoinFieldMapperTests extends OpenSearchSingleNodeTestCase {
                             .endObject()
                             .endObject()
                     ),
-                    MediaTypeRegistry.JSON
+                    XContentType.JSON
                 )
             )
         );
@@ -306,7 +300,7 @@ public class ParentJoinFieldMapperTests extends OpenSearchSingleNodeTestCase {
                         .endObject()
                         .endObject()
                 ),
-                MediaTypeRegistry.JSON,
+                XContentType.JSON,
                 "1"
             )
         );
@@ -321,7 +315,7 @@ public class ParentJoinFieldMapperTests extends OpenSearchSingleNodeTestCase {
                     "test",
                     "1",
                     BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("join_field", "unknown").endObject()),
-                    MediaTypeRegistry.JSON
+                    XContentType.JSON
                 )
             )
         );
@@ -329,37 +323,39 @@ public class ParentJoinFieldMapperTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testUpdateRelations() throws Exception {
-        String mapping = XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("properties")
-            .startObject("join_field")
-            .field("type", "join")
-            .startObject("relations")
-            .field("parent", "child")
-            .array("child", "grand_child1", "grand_child2")
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject()
-            .toString();
+        String mapping = Strings.toString(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("properties")
+                .startObject("join_field")
+                .field("type", "join")
+                .startObject("relations")
+                .field("parent", "child")
+                .array("child", "grand_child1", "grand_child2")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+        );
         IndexService indexService = createIndex("test");
         DocumentMapper docMapper = indexService.mapperService()
             .merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
         assertTrue(docMapper.mappers().getMapper("join_field") == ParentJoinFieldMapper.getMapper(indexService.mapperService()));
 
         {
-            final String updateMapping = XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("properties")
-                .startObject("join_field")
-                .field("type", "join")
-                .startObject("relations")
-                .array("child", "grand_child1", "grand_child2")
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-                .toString();
+            final String updateMapping = Strings.toString(
+                XContentFactory.jsonBuilder()
+                    .startObject()
+                    .startObject("properties")
+                    .startObject("join_field")
+                    .field("type", "join")
+                    .startObject("relations")
+                    .array("child", "grand_child1", "grand_child2")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            );
             IllegalArgumentException exc = expectThrows(
                 IllegalArgumentException.class,
                 () -> indexService.mapperService()
@@ -369,19 +365,20 @@ public class ParentJoinFieldMapperTests extends OpenSearchSingleNodeTestCase {
         }
 
         {
-            final String updateMapping = XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("properties")
-                .startObject("join_field")
-                .field("type", "join")
-                .startObject("relations")
-                .field("parent", "child")
-                .field("child", "grand_child1")
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-                .toString();
+            final String updateMapping = Strings.toString(
+                XContentFactory.jsonBuilder()
+                    .startObject()
+                    .startObject("properties")
+                    .startObject("join_field")
+                    .field("type", "join")
+                    .startObject("relations")
+                    .field("parent", "child")
+                    .field("child", "grand_child1")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            );
             IllegalArgumentException exc = expectThrows(
                 IllegalArgumentException.class,
                 () -> indexService.mapperService()
@@ -391,20 +388,21 @@ public class ParentJoinFieldMapperTests extends OpenSearchSingleNodeTestCase {
         }
 
         {
-            final String updateMapping = XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("properties")
-                .startObject("join_field")
-                .field("type", "join")
-                .startObject("relations")
-                .field("uber_parent", "parent")
-                .field("parent", "child")
-                .array("child", "grand_child1", "grand_child2")
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-                .toString();
+            final String updateMapping = Strings.toString(
+                XContentFactory.jsonBuilder()
+                    .startObject()
+                    .startObject("properties")
+                    .startObject("join_field")
+                    .field("type", "join")
+                    .startObject("relations")
+                    .field("uber_parent", "parent")
+                    .field("parent", "child")
+                    .array("child", "grand_child1", "grand_child2")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            );
             IllegalArgumentException exc = expectThrows(
                 IllegalArgumentException.class,
                 () -> indexService.mapperService()
@@ -414,20 +412,21 @@ public class ParentJoinFieldMapperTests extends OpenSearchSingleNodeTestCase {
         }
 
         {
-            final String updateMapping = XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("properties")
-                .startObject("join_field")
-                .field("type", "join")
-                .startObject("relations")
-                .field("parent", "child")
-                .array("child", "grand_child1", "grand_child2")
-                .field("grand_child2", "grand_grand_child")
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-                .toString();
+            final String updateMapping = Strings.toString(
+                XContentFactory.jsonBuilder()
+                    .startObject()
+                    .startObject("properties")
+                    .startObject("join_field")
+                    .field("type", "join")
+                    .startObject("relations")
+                    .field("parent", "child")
+                    .array("child", "grand_child1", "grand_child2")
+                    .field("grand_child2", "grand_grand_child")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            );
             IllegalArgumentException exc = expectThrows(
                 IllegalArgumentException.class,
                 () -> indexService.mapperService()
@@ -437,19 +436,20 @@ public class ParentJoinFieldMapperTests extends OpenSearchSingleNodeTestCase {
         }
 
         {
-            final String updateMapping = XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("properties")
-                .startObject("join_field")
-                .field("type", "join")
-                .startObject("relations")
-                .array("parent", "child", "child2")
-                .array("child", "grand_child1", "grand_child2")
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-                .toString();
+            final String updateMapping = Strings.toString(
+                XContentFactory.jsonBuilder()
+                    .startObject()
+                    .startObject("properties")
+                    .startObject("join_field")
+                    .field("type", "join")
+                    .startObject("relations")
+                    .array("parent", "child", "child2")
+                    .array("child", "grand_child1", "grand_child2")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            );
             docMapper = indexService.mapperService()
                 .merge("type", new CompressedXContent(updateMapping), MapperService.MergeReason.MAPPING_UPDATE);
             ParentJoinFieldMapper mapper = ParentJoinFieldMapper.getMapper(indexService.mapperService());
@@ -462,20 +462,21 @@ public class ParentJoinFieldMapperTests extends OpenSearchSingleNodeTestCase {
         }
 
         {
-            final String updateMapping = XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("properties")
-                .startObject("join_field")
-                .field("type", "join")
-                .startObject("relations")
-                .array("parent", "child", "child2")
-                .array("child", "grand_child1", "grand_child2")
-                .array("other", "child_other1", "child_other2")
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-                .toString();
+            final String updateMapping = Strings.toString(
+                XContentFactory.jsonBuilder()
+                    .startObject()
+                    .startObject("properties")
+                    .startObject("join_field")
+                    .field("type", "join")
+                    .startObject("relations")
+                    .array("parent", "child", "child2")
+                    .array("child", "grand_child1", "grand_child2")
+                    .array("other", "child_other1", "child_other2")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            );
             docMapper = indexService.mapperService()
                 .merge("type", new CompressedXContent(updateMapping), MapperService.MergeReason.MAPPING_UPDATE);
             ParentJoinFieldMapper mapper = ParentJoinFieldMapper.getMapper(indexService.mapperService());
@@ -491,22 +492,23 @@ public class ParentJoinFieldMapperTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testInvalidJoinFieldInsideObject() throws Exception {
-        String mapping = XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("properties")
-            .startObject("object")
-            .startObject("properties")
-            .startObject("join_field")
-            .field("type", "join")
-            .startObject("relations")
-            .field("parent", "child")
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject()
-            .toString();
+        String mapping = Strings.toString(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("properties")
+                .startObject("object")
+                .startObject("properties")
+                .startObject("join_field")
+                .field("type", "join")
+                .startObject("relations")
+                .field("parent", "child")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+        );
         IndexService indexService = createIndex("test");
         MapperParsingException exc = expectThrows(
             MapperParsingException.class,
@@ -519,23 +521,24 @@ public class ParentJoinFieldMapperTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testInvalidJoinFieldInsideMultiFields() throws Exception {
-        String mapping = XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("properties")
-            .startObject("number")
-            .field("type", "integer")
-            .startObject("fields")
-            .startObject("join_field")
-            .field("type", "join")
-            .startObject("relations")
-            .field("parent", "child")
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject()
-            .toString();
+        String mapping = Strings.toString(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("properties")
+                .startObject("number")
+                .field("type", "integer")
+                .startObject("fields")
+                .startObject("join_field")
+                .field("type", "join")
+                .startObject("relations")
+                .field("parent", "child")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+        );
         IndexService indexService = createIndex("test");
         MapperParsingException exc = expectThrows(
             MapperParsingException.class,
@@ -550,25 +553,26 @@ public class ParentJoinFieldMapperTests extends OpenSearchSingleNodeTestCase {
     public void testMultipleJoinFields() throws Exception {
         IndexService indexService = createIndex("test");
         {
-            String mapping = XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("properties")
-                .startObject("join_field")
-                .field("type", "join")
-                .startObject("relations")
-                .field("parent", "child")
-                .field("child", "grand_child")
-                .endObject()
-                .endObject()
-                .startObject("another_join_field")
-                .field("type", "join")
-                .startObject("relations")
-                .field("product", "item")
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-                .toString();
+            String mapping = Strings.toString(
+                XContentFactory.jsonBuilder()
+                    .startObject()
+                    .startObject("properties")
+                    .startObject("join_field")
+                    .field("type", "join")
+                    .startObject("relations")
+                    .field("parent", "child")
+                    .field("child", "grand_child")
+                    .endObject()
+                    .endObject()
+                    .startObject("another_join_field")
+                    .field("type", "join")
+                    .startObject("relations")
+                    .field("product", "item")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            );
             MapperParsingException exc = expectThrows(
                 MapperParsingException.class,
                 () -> indexService.mapperService().merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE)
@@ -577,29 +581,31 @@ public class ParentJoinFieldMapperTests extends OpenSearchSingleNodeTestCase {
         }
 
         {
-            String mapping = XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("properties")
-                .startObject("join_field")
-                .field("type", "join")
-                .startObject("relations")
-                .field("parent", "child")
-                .field("child", "grand_child")
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-                .toString();
+            String mapping = Strings.toString(
+                XContentFactory.jsonBuilder()
+                    .startObject()
+                    .startObject("properties")
+                    .startObject("join_field")
+                    .field("type", "join")
+                    .startObject("relations")
+                    .field("parent", "child")
+                    .field("child", "grand_child")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            );
             indexService.mapperService().merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
-            String updateMapping = XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("properties")
-                .startObject("another_join_field")
-                .field("type", "join")
-                .endObject()
-                .endObject()
-                .endObject()
-                .toString();
+            String updateMapping = Strings.toString(
+                XContentFactory.jsonBuilder()
+                    .startObject()
+                    .startObject("properties")
+                    .startObject("another_join_field")
+                    .field("type", "join")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            );
             MapperParsingException exc = expectThrows(
                 MapperParsingException.class,
                 () -> indexService.mapperService()
@@ -610,19 +616,20 @@ public class ParentJoinFieldMapperTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testEagerGlobalOrdinals() throws Exception {
-        String mapping = XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("properties")
-            .startObject("join_field")
-            .field("type", "join")
-            .startObject("relations")
-            .field("parent", "child")
-            .field("child", "grand_child")
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject()
-            .toString();
+        String mapping = Strings.toString(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("properties")
+                .startObject("join_field")
+                .field("type", "join")
+                .startObject("relations")
+                .field("parent", "child")
+                .field("child", "grand_child")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+        );
         IndexService service = createIndex("test");
         DocumentMapper docMapper = service.mapperService()
             .merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
@@ -633,20 +640,21 @@ public class ParentJoinFieldMapperTests extends OpenSearchSingleNodeTestCase {
         assertNotNull(service.mapperService().fieldType("join_field#child"));
         assertTrue(service.mapperService().fieldType("join_field#child").eagerGlobalOrdinals());
 
-        mapping = XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("properties")
-            .startObject("join_field")
-            .field("type", "join")
-            .field("eager_global_ordinals", false)
-            .startObject("relations")
-            .field("parent", "child")
-            .field("child", "grand_child")
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject()
-            .toString();
+        mapping = Strings.toString(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("properties")
+                .startObject("join_field")
+                .field("type", "join")
+                .field("eager_global_ordinals", false)
+                .startObject("relations")
+                .field("parent", "child")
+                .field("child", "grand_child")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+        );
         service.mapperService().merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
         assertFalse(service.mapperService().fieldType("join_field").eagerGlobalOrdinals());
         assertNotNull(service.mapperService().fieldType("join_field#parent"));

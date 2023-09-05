@@ -68,7 +68,7 @@ public class RestGetStoredScriptAction extends BaseRestHandler {
         String id = request.param("id");
         GetStoredScriptRequest getRequest = new GetStoredScriptRequest(id);
         getRequest.clusterManagerNodeTimeout(request.paramAsTime("cluster_manager_timeout", getRequest.clusterManagerNodeTimeout()));
-        parseDeprecatedMasterTimeoutParameter(getRequest, request, deprecationLogger, getName());
+        parseDeprecatedMasterTimeoutParameter(getRequest, request);
         return channel -> client.admin().cluster().getStoredScript(getRequest, new RestStatusToXContentListener<>(channel));
     }
 }

@@ -149,9 +149,4 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
             metadata
         );
     }
-
-    @Override
-    protected boolean supportsConcurrentSegmentSearch() {
-        return true;
-    }
 }

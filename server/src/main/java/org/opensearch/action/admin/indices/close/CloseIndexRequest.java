@@ -32,6 +32,7 @@
 
 package org.opensearch.action.admin.indices.close;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.support.ActiveShardCount;
@@ -39,7 +40,7 @@ import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.master.AcknowledgedRequest;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.core.common.util.CollectionUtils;
+import org.opensearch.common.util.CollectionUtils;
 
 import java.io.IOException;
 
@@ -60,7 +61,11 @@ public class CloseIndexRequest extends AcknowledgedRequest<CloseIndexRequest> im
         super(in);
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
-        waitForActiveShards = ActiveShardCount.readFrom(in);
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_2_0)) {
+            waitForActiveShards = ActiveShardCount.readFrom(in);
+        } else {
+            waitForActiveShards = ActiveShardCount.NONE;
+        }
     }
 
     public CloseIndexRequest() {}
@@ -138,6 +143,8 @@ public class CloseIndexRequest extends AcknowledgedRequest<CloseIndexRequest> im
         super.writeTo(out);
         out.writeStringArray(indices);
         indicesOptions.writeIndicesOptions(out);
-        waitForActiveShards.writeTo(out);
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_2_0)) {
+            waitForActiveShards.writeTo(out);
+        }
     }
 }

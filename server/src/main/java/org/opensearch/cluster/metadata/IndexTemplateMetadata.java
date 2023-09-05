@@ -35,20 +35,20 @@ import org.opensearch.OpenSearchParseException;
 import org.opensearch.cluster.AbstractDiffable;
 import org.opensearch.cluster.Diff;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.Strings;
 import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.common.compress.CompressedXContent;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.set.Sets;
-import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.json.JsonXContent;
-import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.index.mapper.MapperService;
 
 import java.io.IOException;
@@ -64,9 +64,8 @@ import java.util.Set;
 /**
  * Metadata for Index Templates
  *
- * @opensearch.api
+ * @opensearch.internal
  */
-@PublicApi(since = "1.0.0")
 public class IndexTemplateMetadata extends AbstractDiffable<IndexTemplateMetadata> {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(IndexTemplateMetadata.class);
@@ -264,7 +263,7 @@ public class IndexTemplateMetadata extends AbstractDiffable<IndexTemplateMetadat
             builder.startObject();
             Builder.toXContentWithTypes(this, builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
-            return builder.toString();
+            return Strings.toString(builder);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -481,7 +480,7 @@ public class IndexTemplateMetadata extends AbstractDiffable<IndexTemplateMetadat
                                 Map<String, Object> mappingSource = MapBuilder.<String, Object>newMapBuilder()
                                     .put(mappingType, parser.mapOrdered())
                                     .map();
-                                builder.putMapping(mappingType, XContentFactory.jsonBuilder().map(mappingSource).toString());
+                                builder.putMapping(mappingType, Strings.toString(XContentFactory.jsonBuilder().map(mappingSource)));
                             }
                         }
                     } else if ("aliases".equals(currentFieldName)) {
@@ -497,7 +496,7 @@ public class IndexTemplateMetadata extends AbstractDiffable<IndexTemplateMetadat
                             Map<String, Object> mapping = parser.mapOrdered();
                             if (mapping.size() == 1) {
                                 String mappingType = mapping.keySet().iterator().next();
-                                String mappingSource = XContentFactory.jsonBuilder().map(mapping).toString();
+                                String mappingSource = Strings.toString(XContentFactory.jsonBuilder().map(mapping));
 
                                 if (mappingSource == null) {
                                     // crap, no mapping source, warn?

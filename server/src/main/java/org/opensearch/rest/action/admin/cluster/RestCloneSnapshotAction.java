@@ -79,7 +79,7 @@ public class RestCloneSnapshotAction extends BaseRestHandler {
         cloneSnapshotRequest.clusterManagerNodeTimeout(
             request.paramAsTime("cluster_manager_timeout", cloneSnapshotRequest.clusterManagerNodeTimeout())
         );
-        parseDeprecatedMasterTimeoutParameter(cloneSnapshotRequest, request, deprecationLogger, getName());
+        parseDeprecatedMasterTimeoutParameter(cloneSnapshotRequest, request);
         cloneSnapshotRequest.indicesOptions(IndicesOptions.fromMap(source, cloneSnapshotRequest.indicesOptions()));
         return channel -> client.admin().cluster().cloneSnapshot(cloneSnapshotRequest, new RestToXContentListener<>(channel));
     }

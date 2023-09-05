@@ -50,13 +50,13 @@ import org.opensearch.test.VersionUtils;
 import java.io.IOException;
 import java.io.StringReader;
 
+import static com.carrotsearch.randomizedtesting.RandomizedTest.scaledRandomIntBetween;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 import static org.hamcrest.Matchers.instanceOf;
-import static com.carrotsearch.randomizedtesting.RandomizedTest.scaledRandomIntBetween;
 
 public class StemmerTokenFilterFactoryTests extends OpenSearchTokenStreamTestCase {
 
-    private static final CommonAnalysisModulePlugin PLUGIN = new CommonAnalysisModulePlugin();
+    private static final CommonAnalysisPlugin PLUGIN = new CommonAnalysisPlugin();
 
     public void testEnglishFilterFactory() throws IOException {
         int iters = scaledRandomIntBetween(20, 100);

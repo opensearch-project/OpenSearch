@@ -148,9 +148,4 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
             metadata
         );
     }
-
-    @Override
-    protected boolean supportsConcurrentSegmentSearch() {
-        return true;
-    }
 }

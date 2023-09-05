@@ -32,10 +32,9 @@
 
 package org.opensearch.client;
 
-import org.apache.hc.core5.http.HttpEntity;
-import org.apache.hc.core5.http.ParseException;
-import org.apache.hc.core5.http.io.entity.BufferedHttpEntity;
-import org.apache.hc.core5.http.io.entity.EntityUtils;
+import org.apache.http.HttpEntity;
+import org.apache.http.entity.BufferedHttpEntity;
+import org.apache.http.util.EntityUtils;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -78,11 +77,7 @@ public final class ResponseException extends IOException {
                 entity = new BufferedHttpEntity(entity);
                 response.getHttpResponse().setEntity(entity);
             }
-            try {
-                message += "\n" + EntityUtils.toString(entity);
-            } catch (final ParseException ex) {
-                throw new IOException(ex);
-            }
+            message += "\n" + EntityUtils.toString(entity);
         }
         return message;
     }

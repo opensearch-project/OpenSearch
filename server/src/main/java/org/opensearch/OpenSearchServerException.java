@@ -8,18 +8,15 @@
 
 package org.opensearch;
 
-import org.opensearch.core.index.snapshots.IndexShardSnapshotException;
-import org.opensearch.crypto.CryptoRegistryException;
-
 import static org.opensearch.OpenSearchException.OpenSearchExceptionHandle;
 import static org.opensearch.OpenSearchException.OpenSearchExceptionHandleRegistry.registerExceptionHandle;
 import static org.opensearch.OpenSearchException.UNKNOWN_VERSION_ADDED;
 import static org.opensearch.Version.V_2_1_0;
+import static org.opensearch.Version.V_2_3_0;
 import static org.opensearch.Version.V_2_4_0;
 import static org.opensearch.Version.V_2_5_0;
 import static org.opensearch.Version.V_2_6_0;
 import static org.opensearch.Version.V_2_7_0;
-import static org.opensearch.Version.V_3_0_0;
 
 /**
  * Utility class to register server exceptions
@@ -286,6 +283,14 @@ public final class OpenSearchServerException {
                 org.opensearch.transport.TransportException.class,
                 org.opensearch.transport.TransportException::new,
                 34,
+                UNKNOWN_VERSION_ADDED
+            )
+        );
+        registerExceptionHandle(
+            new OpenSearchExceptionHandle(
+                org.opensearch.OpenSearchParseException.class,
+                org.opensearch.OpenSearchParseException::new,
+                35,
                 UNKNOWN_VERSION_ADDED
             )
         );
@@ -677,7 +682,12 @@ public final class OpenSearchServerException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(IndexShardSnapshotException.class, IndexShardSnapshotException::new, 98, UNKNOWN_VERSION_ADDED)
+            new OpenSearchExceptionHandle(
+                org.opensearch.core.index.snapshots.IndexShardSnapshotException.class,
+                org.opensearch.core.index.snapshots.IndexShardSnapshotException::new,
+                98,
+                UNKNOWN_VERSION_ADDED
+            )
         );
         registerExceptionHandle(
             new OpenSearchExceptionHandle(
@@ -910,6 +920,14 @@ public final class OpenSearchServerException {
         );
         registerExceptionHandle(
             new OpenSearchExceptionHandle(
+                org.opensearch.common.breaker.CircuitBreakingException.class,
+                org.opensearch.common.breaker.CircuitBreakingException::new,
+                133,
+                UNKNOWN_VERSION_ADDED
+            )
+        );
+        registerExceptionHandle(
+            new OpenSearchExceptionHandle(
                 org.opensearch.transport.NodeNotConnectedException.class,
                 org.opensearch.transport.NodeNotConnectedException::new,
                 134,
@@ -985,6 +1003,14 @@ public final class OpenSearchServerException {
                 org.opensearch.OpenSearchStatusException.class,
                 org.opensearch.OpenSearchStatusException::new,
                 145,
+                UNKNOWN_VERSION_ADDED
+            )
+        );
+        registerExceptionHandle(
+            new OpenSearchExceptionHandle(
+                org.opensearch.tasks.TaskCancelledException.class,
+                org.opensearch.tasks.TaskCancelledException::new,
+                146,
                 UNKNOWN_VERSION_ADDED
             )
         );
@@ -1106,7 +1132,7 @@ public final class OpenSearchServerException {
                 org.opensearch.index.shard.PrimaryShardClosedException.class,
                 org.opensearch.index.shard.PrimaryShardClosedException::new,
                 162,
-                V_3_0_0
+                V_2_3_0
             )
         );
         registerExceptionHandle(
@@ -1122,7 +1148,7 @@ public final class OpenSearchServerException {
                 org.opensearch.cluster.decommission.NodeDecommissionedException.class,
                 org.opensearch.cluster.decommission.NodeDecommissionedException::new,
                 164,
-                V_3_0_0
+                V_2_4_0
             )
         );
         registerExceptionHandle(
@@ -1173,13 +1199,12 @@ public final class OpenSearchServerException {
                 V_2_7_0
             )
         );
-        registerExceptionHandle(new OpenSearchExceptionHandle(CryptoRegistryException.class, CryptoRegistryException::new, 171, V_3_0_0));
         registerExceptionHandle(
             new OpenSearchExceptionHandle(
                 org.opensearch.cluster.block.IndexCreateBlockException.class,
                 org.opensearch.cluster.block.IndexCreateBlockException::new,
                 CUSTOM_ELASTICSEARCH_EXCEPTIONS_BASE_ID + 1,
-                V_3_0_0
+                V_2_6_0
             )
         );
     }

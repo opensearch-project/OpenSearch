@@ -37,7 +37,6 @@ import org.opensearch.gradle.BwcVersions;
 import org.opensearch.gradle.DistributionDependency;
 import org.opensearch.gradle.DistributionDownloadPlugin;
 import org.opensearch.gradle.DistributionResolution;
-import org.opensearch.gradle.JavaPackageType;
 import org.opensearch.gradle.OpenSearchDistribution;
 import org.opensearch.gradle.Version;
 import org.opensearch.gradle.VersionProperties;
@@ -100,7 +99,7 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
         resolutions.register("bwc", distributionResolution -> distributionResolution.setResolver((project, distribution) -> {
             BwcVersions.UnreleasedVersionInfo unreleasedInfo = bwcVersions.unreleasedInfo(Version.fromString(distribution.getVersion()));
             if (unreleasedInfo != null) {
-                if (distribution.getBundledJdk() == JavaPackageType.NONE) {
+                if (!distribution.getBundledJdk()) {
                     throw new GradleException(
                         "Configuring a snapshot bwc distribution ('"
                             + distribution.getName()
@@ -168,10 +167,8 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
             ? ""
             : "-" + architecture.toString().toLowerCase();
 
-        if (distribution.getBundledJdk() == JavaPackageType.NONE) {
+        if (distribution.getBundledJdk() == false) {
             projectName += "no-jdk-";
-        } else if (distribution.getBundledJdk() == JavaPackageType.JRE) {
-            projectName += "jre-";
         }
         switch (distribution.getType()) {
             case ARCHIVE:

@@ -33,7 +33,6 @@
 package org.opensearch.search.aggregations.bucket;
 
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
-
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;

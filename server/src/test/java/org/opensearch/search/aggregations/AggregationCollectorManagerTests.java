@@ -10,7 +10,6 @@ package org.opensearch.search.aggregations;
 
 import org.apache.lucene.search.Collector;
 import org.opensearch.search.aggregations.bucket.global.GlobalAggregator;
-import org.opensearch.search.profile.query.CollectorResult;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -32,12 +31,9 @@ public class AggregationCollectorManagerTests extends AggregationSetupTests {
         assertTrue(aggCollector instanceof MultiBucketCollector);
         assertEquals(expectedAggCount, ((MultiBucketCollector) aggCollector).getCollectors().length);
         testCollectorManagerCommon(testAggCollectorManager);
-        assertEquals(CollectorResult.REASON_AGGREGATION, testAggCollectorManager.getCollectorReason());
 
         // test NonGlobalCollectorManager which will be used in concurrent segment search case
-        final NonGlobalAggCollectorManager testNonGlobalAggCollectorManager = new NonGlobalAggCollectorManager(context);
-        testCollectorManagerCommon(testNonGlobalAggCollectorManager);
-        assertEquals(CollectorResult.REASON_AGGREGATION, testAggCollectorManager.getCollectorReason());
+        testCollectorManagerCommon(new NonGlobalAggCollectorManager(context));
     }
 
     public void testGlobalCollectorManagers() throws Exception {
@@ -49,14 +45,11 @@ public class AggregationCollectorManagerTests extends AggregationSetupTests {
         context.aggregations(contextAggregations);
         final AggregationCollectorManager testAggCollectorManager = new GlobalAggCollectorManagerWithSingleCollector(context);
         testCollectorManagerCommon(testAggCollectorManager);
-        assertEquals(CollectorResult.REASON_AGGREGATION_GLOBAL, testAggCollectorManager.getCollectorReason());
         Collector aggCollector = testAggCollectorManager.newCollector();
         assertTrue(aggCollector instanceof BucketCollector);
 
         // test GlobalAggCollectorManager which will be used in concurrent segment search case
-        final GlobalAggCollectorManager testGlobalAggCollectorManager = new GlobalAggCollectorManager(context);
-        testCollectorManagerCommon(testGlobalAggCollectorManager);
-        assertEquals(CollectorResult.REASON_AGGREGATION_GLOBAL, testAggCollectorManager.getCollectorReason());
+        testCollectorManagerCommon(new GlobalAggCollectorManager(context));
     }
 
     public void testAggCollectorManagersWithBothGlobalNonGlobalAggregators() throws Exception {
@@ -77,9 +70,7 @@ public class AggregationCollectorManagerTests extends AggregationSetupTests {
         assertTrue(globalAggCollector instanceof GlobalAggregator);
 
         testCollectorManagerCommon(testAggCollectorManager);
-        assertEquals(CollectorResult.REASON_AGGREGATION, testAggCollectorManager.getCollectorReason());
         testCollectorManagerCommon(testGlobalAggCollectorManager);
-        assertEquals(CollectorResult.REASON_AGGREGATION_GLOBAL, testGlobalAggCollectorManager.getCollectorReason());
     }
 
     public void testAssertionWhenCollectorManagerCreatesNoOPCollector() throws Exception {

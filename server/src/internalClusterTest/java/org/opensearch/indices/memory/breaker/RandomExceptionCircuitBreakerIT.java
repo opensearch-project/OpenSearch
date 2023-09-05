@@ -35,6 +35,7 @@ package org.opensearch.indices.memory.breaker;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.LeafReader;
+
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.admin.cluster.node.stats.NodeStats;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -42,12 +43,13 @@ import org.opensearch.action.admin.indices.create.CreateIndexResponse;
 import org.opensearch.action.admin.indices.refresh.RefreshResponse;
 import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.SearchRequestBuilder;
+import org.opensearch.common.Strings;
+import org.opensearch.common.breaker.CircuitBreaker;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.index.MockEngineFactoryPlugin;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.indices.IndicesService;
@@ -68,6 +70,7 @@ import java.util.concurrent.ExecutionException;
 
 import static org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest.Metric.BREAKER;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAllSuccessful;
+
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -96,20 +99,22 @@ public class RandomExceptionCircuitBreakerIT extends OpenSearchIntegTestCase {
             assertThat("Breaker is not set to 0", node.getBreaker().getStats(CircuitBreaker.FIELDDATA).getEstimated(), equalTo(0L));
         }
 
-        String mapping = XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("properties")
-            .startObject("test-str")
-            .field("type", "keyword")
-            .field("doc_values", randomBoolean())
-            .endObject() // test-str
-            .startObject("test-num")
-            // I don't use randomNumericType() here because I don't want "byte", and I want "float" and "double"
-            .field("type", randomFrom(Arrays.asList("float", "long", "double", "short", "integer")))
-            .endObject() // test-num
-            .endObject() // properties
-            .endObject()
-            .toString();
+        String mapping = Strings // {}
+            .toString(
+                XContentFactory.jsonBuilder()
+                    .startObject()
+                    .startObject("properties")
+                    .startObject("test-str")
+                    .field("type", "keyword")
+                    .field("doc_values", randomBoolean())
+                    .endObject() // test-str
+                    .startObject("test-num")
+                    // I don't use randomNumericType() here because I don't want "byte", and I want "float" and "double"
+                    .field("type", randomFrom(Arrays.asList("float", "long", "double", "short", "integer")))
+                    .endObject() // test-num
+                    .endObject() // properties
+                    .endObject()
+            );
         final double topLevelRate;
         final double lowLevelRate;
         if (frequently()) {

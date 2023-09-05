@@ -72,7 +72,7 @@ public class RestSimulateIndexTemplateAction extends BaseRestHandler {
         simulateIndexTemplateRequest.clusterManagerNodeTimeout(
             request.paramAsTime("cluster_manager_timeout", simulateIndexTemplateRequest.clusterManagerNodeTimeout())
         );
-        parseDeprecatedMasterTimeoutParameter(simulateIndexTemplateRequest, request, deprecationLogger, getName());
+        parseDeprecatedMasterTimeoutParameter(simulateIndexTemplateRequest, request);
         if (request.hasContent()) {
             PutComposableIndexTemplateAction.Request indexTemplateRequest = new PutComposableIndexTemplateAction.Request(
                 "simulating_template"

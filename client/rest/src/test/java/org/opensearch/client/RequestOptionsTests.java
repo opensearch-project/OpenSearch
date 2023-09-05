@@ -32,9 +32,8 @@
 
 package org.opensearch.client;
 
-import org.apache.hc.client5.http.config.RequestConfig;
-import org.apache.hc.core5.http.Header;
-import org.apache.hc.core5.util.Timeout;
+import org.apache.http.Header;
+import org.apache.http.client.config.RequestConfig;
 import org.opensearch.client.HttpAsyncResponseConsumerFactory.HeapBufferedResponseConsumerFactory;
 
 import java.util.ArrayList;
@@ -109,15 +108,15 @@ public class RequestOptionsTests extends RestClientTestCase {
         RequestOptions.Builder builder = RequestOptions.DEFAULT.toBuilder();
 
         RequestConfig.Builder requestConfigBuilder = RequestConfig.custom();
-        Timeout responseTimeout = Timeout.ofMilliseconds(10000);
-        Timeout connectTimeout = Timeout.ofMilliseconds(100);
-        requestConfigBuilder.setResponseTimeout(responseTimeout).setConnectTimeout(connectTimeout);
+        int socketTimeout = 10000;
+        int connectTimeout = 100;
+        requestConfigBuilder.setSocketTimeout(socketTimeout).setConnectTimeout(connectTimeout);
         RequestConfig requestConfig = requestConfigBuilder.build();
 
         builder.setRequestConfig(requestConfig);
         RequestOptions options = builder.build();
         assertSame(options.getRequestConfig(), requestConfig);
-        assertEquals(options.getRequestConfig().getResponseTimeout(), responseTimeout);
+        assertEquals(options.getRequestConfig().getSocketTimeout(), socketTimeout);
         assertEquals(options.getRequestConfig().getConnectTimeout(), connectTimeout);
     }
 

@@ -36,7 +36,6 @@ import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.cluster.metadata.DataStreamTests;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.test.AbstractWireSerializingTestCase;
-
 import java.util.ArrayList;
 import java.util.List;
 

@@ -33,6 +33,8 @@
 package org.opensearch.snapshots;
 
 import org.opensearch.Version;
+import org.opensearch.action.ActionFuture;
+import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.opensearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
@@ -42,6 +44,7 @@ import org.opensearch.action.admin.cluster.snapshots.status.SnapshotsStatusRespo
 import org.opensearch.action.admin.indices.stats.ShardStats;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.support.ActiveShardCount;
+import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.client.Client;
 import org.opensearch.client.node.NodeClient;
@@ -53,26 +56,24 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.CheckedFunction;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.Priority;
-import org.opensearch.common.action.ActionFuture;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.set.Sets;
-import org.opensearch.core.ParseField;
-import org.opensearch.core.common.Strings;
-import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.core.index.shard.ShardId;
-import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.env.Environment;
 import org.opensearch.index.seqno.RetentionLeaseActions;
 import org.opensearch.index.seqno.RetentionLeases;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.node.Node;
@@ -82,12 +83,13 @@ import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.rest.AbstractRestChannel;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.rest.action.admin.cluster.RestClusterStateAction;
 import org.opensearch.rest.action.admin.cluster.RestGetRepositoriesAction;
 import org.opensearch.snapshots.mockstore.MockRepository;
-import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.OpenSearchIntegTestCase.Scope;
+import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.TestCustomMetadata;
 import org.opensearch.test.disruption.BusyClusterManagerServiceDisruption;
 import org.opensearch.test.disruption.ServiceDisruptionScheme;
@@ -1381,6 +1383,44 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         ensureStableCluster(1);
         final CreateSnapshotResponse createSnapshotResponse = startFullSnapshot(repoName, "test-snap", true).get();
         assertThat(createSnapshotResponse.getSnapshotInfo().state(), is(SnapshotState.PARTIAL));
+    }
+
+    /**
+     * Tests for the legacy snapshot path that is normally executed if the cluster contains any nodes older than
+     * {@link SnapshotsService#NO_REPO_INITIALIZE_VERSION}.
+     * Makes sure that blocking as well as non-blocking snapshot create paths execute cleanly as well as that error handling works out
+     * correctly by testing a snapshot name collision.
+     */
+    public void testCreateSnapshotLegacyPath() throws Exception {
+        final String clusterManagerNode = internalCluster().startClusterManagerOnlyNode();
+        internalCluster().startDataOnlyNode();
+        final String repoName = "test-repo";
+        createRepository(repoName, "fs");
+        createIndex("some-index");
+
+        final SnapshotsService snapshotsService = internalCluster().getClusterManagerNodeInstance(SnapshotsService.class);
+        final Snapshot snapshot1 = PlainActionFuture.get(
+            f -> snapshotsService.createSnapshotLegacy(new CreateSnapshotRequest(repoName, "snap-1"), f)
+        );
+        awaitNoMoreRunningOperations(clusterManagerNode);
+
+        final InvalidSnapshotNameException sne = expectThrows(
+            InvalidSnapshotNameException.class,
+            () -> PlainActionFuture.<SnapshotInfo, Exception>get(
+                f -> snapshotsService.executeSnapshotLegacy(new CreateSnapshotRequest(repoName, snapshot1.getSnapshotId().getName()), f)
+            )
+        );
+
+        assertThat(sne.getMessage(), containsString("snapshot with the same name already exists"));
+        final SnapshotInfo snapshot2 = PlainActionFuture.get(
+            f -> snapshotsService.executeSnapshotLegacy(new CreateSnapshotRequest(repoName, "snap-2"), f)
+        );
+        assertThat(snapshot2.state(), is(SnapshotState.SUCCESS));
+
+        final SnapshotInfo snapshot3 = PlainActionFuture.get(
+            f -> snapshotsService.executeSnapshotLegacy(new CreateSnapshotRequest(repoName, "snap-3").indices("does-not-exist-*"), f)
+        );
+        assertThat(snapshot3.state(), is(SnapshotState.SUCCESS));
     }
 
     public void testSnapshotDeleteRelocatingPrimaryIndex() throws Exception {

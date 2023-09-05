@@ -105,7 +105,7 @@ public class RestBulkAction extends BaseRestHandler {
             defaultPipeline,
             defaultRequireAlias,
             allowExplicitIndex,
-            request.getMediaType()
+            request.getXContentType()
         );
 
         return channel -> client.bulk(bulkRequest, new RestStatusToXContentListener<>(channel));

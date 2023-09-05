@@ -235,7 +235,7 @@ public class LocalCheckpointTrackerTests extends OpenSearchTestCase {
             seqNoPerThread[t] = randomSubsetOf(size, seqNos).toArray(new Integer[size]);
             seqNos.removeAll(Arrays.asList(seqNoPerThread[t]));
         }
-        seqNoPerThread[threads.length - 1] = seqNos.toArray(new Integer[0]);
+        seqNoPerThread[threads.length - 1] = seqNos.toArray(new Integer[seqNos.size()]);
         logger.info("--> will run [{}] threads, maxOps [{}], unfinished seq no [{}]", threads.length, maxOps, unFinishedSeq);
         final CyclicBarrier barrier = new CyclicBarrier(threads.length);
         for (int t = 0; t < threads.length; t++) {
@@ -350,4 +350,5 @@ public class LocalCheckpointTrackerTests extends OpenSearchTestCase {
         assertThat(tracker.getProcessedCheckpoint(), equalTo(0L));
         assertThat(tracker.hasProcessed(0L), equalTo(true));
     }
+
 }

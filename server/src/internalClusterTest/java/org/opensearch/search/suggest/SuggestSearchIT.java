@@ -38,9 +38,10 @@ import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.SearchRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
+import org.opensearch.common.Strings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.ScriptPlugin;
@@ -1304,13 +1305,14 @@ public class SuggestSearchIT extends OpenSearchIntegTestCase {
         assertSuggestionSize(searchSuggest, 0, 10, "title");
 
         // suggest with collate
-        String filterString = XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("match_phrase")
-            .field("{{field}}", "{{suggestion}}")
-            .endObject()
-            .endObject()
-            .toString();
+        String filterString = Strings.toString(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("match_phrase")
+                .field("{{field}}", "{{suggestion}}")
+                .endObject()
+                .endObject()
+        );
         PhraseSuggestionBuilder filteredQuerySuggest = suggest.collateQuery(filterString);
         filteredQuerySuggest.collateParams(Collections.singletonMap("field", "title"));
         searchSuggest = searchSuggest("united states house of representatives elections in washington 2006", "title", filteredQuerySuggest);
@@ -1323,13 +1325,9 @@ public class SuggestSearchIT extends OpenSearchIntegTestCase {
         NumShards numShards = getNumShards("test");
 
         // collate suggest with bad query
-        String incorrectFilterString = XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("test")
-            .field("title", "{{suggestion}}")
-            .endObject()
-            .endObject()
-            .toString();
+        String incorrectFilterString = Strings.toString(
+            XContentFactory.jsonBuilder().startObject().startObject("test").field("title", "{{suggestion}}").endObject().endObject()
+        );
         PhraseSuggestionBuilder incorrectFilteredSuggest = suggest.collateQuery(incorrectFilterString);
         Map<String, SuggestionBuilder<?>> namedSuggestion = new HashMap<>();
         namedSuggestion.put("my_title_suggestion", incorrectFilteredSuggest);
@@ -1341,13 +1339,9 @@ public class SuggestSearchIT extends OpenSearchIntegTestCase {
         }
 
         // suggest with collation
-        String filterStringAsFilter = XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("match_phrase")
-            .field("title", "{{suggestion}}")
-            .endObject()
-            .endObject()
-            .toString();
+        String filterStringAsFilter = Strings.toString(
+            XContentFactory.jsonBuilder().startObject().startObject("match_phrase").field("title", "{{suggestion}}").endObject().endObject()
+        );
 
         PhraseSuggestionBuilder filteredFilterSuggest = suggest.collateQuery(filterStringAsFilter);
         searchSuggest = searchSuggest(
@@ -1358,13 +1352,9 @@ public class SuggestSearchIT extends OpenSearchIntegTestCase {
         assertSuggestionSize(searchSuggest, 0, 2, "title");
 
         // collate suggest with bad query
-        String filterStr = XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("pprefix")
-            .field("title", "{{suggestion}}")
-            .endObject()
-            .endObject()
-            .toString();
+        String filterStr = Strings.toString(
+            XContentFactory.jsonBuilder().startObject().startObject("pprefix").field("title", "{{suggestion}}").endObject().endObject()
+        );
 
         suggest.collateQuery(filterStr);
         try {
@@ -1375,13 +1365,14 @@ public class SuggestSearchIT extends OpenSearchIntegTestCase {
         }
 
         // collate script failure due to no additional params
-        String collateWithParams = XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("{{query_type}}")
-            .field("{{query_field}}", "{{suggestion}}")
-            .endObject()
-            .endObject()
-            .toString();
+        String collateWithParams = Strings.toString(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("{{query_type}}")
+                .field("{{query_field}}", "{{suggestion}}")
+                .endObject()
+                .endObject()
+        );
 
         try {
             searchSuggest("united states house of representatives elections in washington 2006", numShards.numPrimaries, namedSuggestion);

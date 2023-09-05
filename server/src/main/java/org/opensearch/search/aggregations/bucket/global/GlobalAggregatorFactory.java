@@ -82,9 +82,4 @@ public class GlobalAggregatorFactory extends AggregatorFactory {
         }
         return new GlobalAggregator(name, factories, searchContext, metadata);
     }
-
-    @Override
-    protected boolean supportsConcurrentSegmentSearch() {
-        return true;
-    }
 }

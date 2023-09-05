@@ -8,56 +8,18 @@
 
 package org.opensearch.extensions;
 
-import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
-import org.opensearch.OpenSearchException;
-import org.opensearch.Version;
-import org.opensearch.action.ActionModule;
-import org.opensearch.action.ActionModule.DynamicActionRegistry;
-import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
-import org.opensearch.client.node.NodeClient;
-import org.opensearch.cluster.ClusterSettingsResponse;
-import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.common.network.NetworkService;
-import org.opensearch.common.settings.Setting;
-import org.opensearch.common.settings.Setting.Property;
-import org.opensearch.common.settings.Settings;
-import org.opensearch.common.settings.SettingsModule;
-import org.opensearch.common.settings.WriteableSetting;
-import org.opensearch.common.settings.WriteableSetting.SettingType;
-import org.opensearch.common.util.FeatureFlags;
-import org.opensearch.common.util.PageCacheRecycler;
-import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.core.common.io.stream.BytesStreamInput;
-import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.core.common.transport.TransportAddress;
-import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
-import org.opensearch.core.transport.TransportResponse;
-import org.opensearch.env.Environment;
-import org.opensearch.env.EnvironmentSettingsResponse;
-import org.opensearch.extensions.ExtensionsSettings.Extension;
-import org.opensearch.extensions.proto.ExtensionRequestProto;
-import org.opensearch.extensions.rest.RegisterRestActionsRequest;
-import org.opensearch.extensions.settings.RegisterCustomSettingsRequest;
-import org.opensearch.identity.IdentityService;
-import org.opensearch.plugins.ExtensionAwarePlugin;
-import org.opensearch.rest.RestController;
-import org.opensearch.test.FeatureFlagSetter;
-import org.opensearch.test.MockLogAppender;
-import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.test.client.NoOpNodeClient;
-import org.opensearch.test.transport.MockTransportService;
-import org.opensearch.threadpool.TestThreadPool;
-import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.transport.Transport;
-import org.opensearch.transport.TransportService;
-import org.opensearch.transport.nio.MockNioTransport;
-import org.opensearch.usage.UsageService;
-import org.junit.After;
-import org.junit.Before;
+import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.mock;
+import static org.opensearch.test.ClusterServiceUtils.createClusterService;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -69,18 +31,56 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-import static java.util.Collections.emptyList;
-import static java.util.Collections.emptyMap;
-import static java.util.Collections.emptySet;
-import static org.opensearch.test.ClusterServiceUtils.createClusterService;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyBoolean;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.junit.After;
+import org.junit.Before;
+import org.opensearch.OpenSearchException;
+import org.opensearch.Version;
+import org.opensearch.action.ActionModule;
+import org.opensearch.action.ActionModule.DynamicActionRegistry;
+import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
+import org.opensearch.client.node.NodeClient;
+import org.opensearch.cluster.ClusterSettingsResponse;
+import org.opensearch.common.util.FeatureFlags;
+import org.opensearch.env.EnvironmentSettingsResponse;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.network.NetworkService;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.WriteableSetting;
+import org.opensearch.common.settings.Setting.Property;
+import org.opensearch.common.settings.WriteableSetting.SettingType;
+import org.opensearch.common.settings.SettingsModule;
+import org.opensearch.common.transport.TransportAddress;
+import org.opensearch.common.util.PageCacheRecycler;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.BytesStreamInput;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.env.Environment;
+import org.opensearch.extensions.proto.ExtensionRequestProto;
+import org.opensearch.extensions.rest.RegisterRestActionsRequest;
+import org.opensearch.extensions.settings.RegisterCustomSettingsRequest;
+import org.opensearch.extensions.ExtensionsSettings.Extension;
+import org.opensearch.identity.IdentityService;
+import org.opensearch.indices.breaker.NoneCircuitBreakerService;
+import org.opensearch.plugins.ExtensionAwarePlugin;
+import org.opensearch.rest.RestController;
+import org.opensearch.test.FeatureFlagSetter;
+import org.opensearch.test.MockLogAppender;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.client.NoOpNodeClient;
+import org.opensearch.test.transport.MockTransportService;
+import org.opensearch.threadpool.TestThreadPool;
+import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.Transport;
+import org.opensearch.transport.TransportResponse;
+import org.opensearch.transport.TransportService;
+import org.opensearch.transport.nio.MockNioTransport;
+import org.opensearch.usage.UsageService;
 
 public class ExtensionsManagerTests extends OpenSearchTestCase {
     private TransportService transportService;
@@ -93,8 +93,6 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
     private Setting customSetting = Setting.simpleString("custom_extension_setting", "none", Property.ExtensionScope);
     private NodeClient client;
     private MockNioTransport transport;
-    private IdentityService identityService;
-
     private final ThreadPool threadPool = new TestThreadPool(ExtensionsManagerTests.class.getSimpleName());
     private final Settings settings = Settings.builder()
         .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
@@ -161,12 +159,11 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             "uniqueid1",
             new TransportAddress(InetAddress.getByName("127.0.0.0"), 9300),
             new HashMap<String, String>(),
-            Version.fromString("3.0.0"),
-            Version.fromString("3.0.0"),
+            Version.CURRENT,
+            Version.CURRENT,
             Collections.emptyList()
         );
         client = new NoOpNodeClient(this.getTestName());
-        identityService = new IdentityService(Settings.EMPTY, List.of());
     }
 
     @Override
@@ -191,8 +188,8 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             "127.0.0.1",
             "9300",
             "0.0.7",
-            "3.0.0",
-            "3.0.0",
+            Version.CURRENT.toString(),
+            "2.0.0",
             Collections.emptyList(),
             extensionScopedSettings
         );
@@ -202,7 +199,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             "127.0.0.1",
             "9301",
             "0.0.7",
-            "2.0.0",
+            Version.CURRENT.toString(),
             "2.0.0",
             List.of(dependentExtension),
             extensionScopedSettings
@@ -222,8 +219,8 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
                 "uniqueid1",
                 new TransportAddress(InetAddress.getByName("127.0.0.1"), 9300),
                 new HashMap<String, String>(),
-                Version.fromString("3.0.0"),
-                Version.fromString("3.0.0"),
+                Version.CURRENT,
+                Version.fromString("2.0.0"),
                 Collections.emptyList()
             )
         );
@@ -234,7 +231,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
                 "uniqueid2",
                 new TransportAddress(InetAddress.getByName("127.0.0.1"), 9301),
                 new HashMap<String, String>(),
-                Version.fromString("2.0.0"),
+                Version.CURRENT,
                 Version.fromString("2.0.0"),
                 List.of(expectedDependency)
             )
@@ -262,8 +259,8 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             "127.0.0.0",
             "9300",
             "0.0.7",
-            "3.0.0",
-            "3.0.0",
+            Version.CURRENT.toString(),
+            "2.0.0",
             Collections.emptyList(),
             null
         );
@@ -273,8 +270,8 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             "127.0.0.0",
             "9300",
             "0.0.7",
-            "3.0.0",
-            "3.0.0",
+            Version.CURRENT.toString(),
+            "2.0.0",
             null,
             null
         );
@@ -282,7 +279,9 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         extensionsManager.loadExtension(firstExtension);
         IOException exception = expectThrows(IOException.class, () -> extensionsManager.loadExtension(secondExtension));
         assertEquals(
-            "Duplicate uniqueId [uniqueid1]. Did not load extension: Extension [name=secondExtension, uniqueId=uniqueid1, hostAddress=127.0.0.0, port=9300, version=0.0.7, opensearchVersion=3.0.0, minimumCompatibleVersion=3.0.0]",
+            "Duplicate uniqueId [uniqueid1]. Did not load extension: Extension [name=secondExtension, uniqueId=uniqueid1, hostAddress=127.0.0.0, port=9300, version=0.0.7, opensearchVersion="
+                + Version.CURRENT
+                + ", minimumCompatibleVersion=2.0.0]",
             exception.getMessage()
         );
 
@@ -294,8 +293,8 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
                 "uniqueid1",
                 new TransportAddress(InetAddress.getByName("127.0.0.0"), 9300),
                 new HashMap<String, String>(),
-                Version.fromString("3.0.0"),
-                Version.fromString("3.0.0"),
+                Version.CURRENT,
+                Version.fromString("2.0.0."),
                 Collections.emptyList()
             )
         );
@@ -335,8 +334,8 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             "uniqueid1",
             new TransportAddress(InetAddress.getByName("127.0.0.0"), 9300),
             new HashMap<String, String>(),
-            Version.fromString("3.0.0"),
-            Version.fromString("3.0.0"),
+            Version.CURRENT,
+            Version.CURRENT,
             List.of(expectedDependency)
         );
 
@@ -355,7 +354,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
 
     public void testExtensionDependency() throws Exception {
         String expectedUniqueId = "Test uniqueId";
-        Version expectedVersion = Version.fromString("3.0.0");
+        Version expectedVersion = Version.CURRENT;
 
         ExtensionDependency dependency = new ExtensionDependency(expectedUniqueId, expectedVersion);
 
@@ -575,8 +574,8 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
                 "uniqueid1",
                 new TransportAddress(InetAddress.getByName("127.0.0.0"), 9300),
                 new HashMap<String, String>(),
-                Version.fromString("3.0.0"),
-                Version.fromString("3.0.0"),
+                Version.CURRENT,
+                Version.CURRENT,
                 List.of(expectedDependency)
             )
         );
@@ -770,8 +769,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             mockTransportService,
             clusterService,
             settings,
-            client,
-            identityService
+            client
         );
         verify(mockTransportService, times(9)).registerRequestHandler(anyString(), anyString(), anyBoolean(), anyBoolean(), any(), any());
 
@@ -813,8 +811,8 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             "127.0.0.0",
             "9300",
             "0.0.7",
-            "3.0.0",
-            "3.0.0",
+            Version.CURRENT.toString(),
+            "2.0.0",
             List.of(),
             extensionScopedSettings
         );
@@ -827,8 +825,8 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             "uniqueid1",
             new TransportAddress(InetAddress.getByName("127.0.0.1"), 9300),
             new HashMap<String, String>(),
-            Version.fromString("3.0.0"),
-            Version.fromString("3.0.0"),
+            Version.CURRENT,
+            Version.fromString("2.0.0"),
             List.of()
         );
         DiscoveryExtensionNode initializedExtension = extensionsManager.getExtensionIdMap().get(extension.getId());
@@ -888,8 +886,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             transportService,
             clusterService,
             settings,
-            client,
-            identityService
+            client
         );
     }
 }

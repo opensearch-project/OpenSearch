@@ -32,20 +32,21 @@
 
 package org.opensearch.action.support;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.support.IndicesOptions.Option;
 import org.opensearch.action.support.IndicesOptions.WildcardStates;
-import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContent.MapParams;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.test.EqualsHashCodeTestUtils;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.EqualsHashCodeTestUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -59,13 +60,14 @@ import java.util.Map;
 
 import static org.opensearch.test.VersionUtils.randomVersionBetween;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class IndicesOptionsTests extends OpenSearchTestCase {
 
     public void testSerialization() throws Exception {
         int iterations = randomIntBetween(5, 20);
         for (int i = 0; i < iterations; i++) {
-            Version version = randomVersionBetween(random(), Version.V_2_0_0, null);
+            Version version = randomVersionBetween(random(), LegacyESVersion.V_7_0_0, null);
             IndicesOptions indicesOptions = IndicesOptions.fromOptions(
                 randomBoolean(),
                 randomBoolean(),
@@ -90,9 +92,15 @@ public class IndicesOptionsTests extends OpenSearchTestCase {
             assertThat(indicesOptions2.allowNoIndices(), equalTo(indicesOptions.allowNoIndices()));
             assertThat(indicesOptions2.expandWildcardsOpen(), equalTo(indicesOptions.expandWildcardsOpen()));
             assertThat(indicesOptions2.expandWildcardsClosed(), equalTo(indicesOptions.expandWildcardsClosed()));
-            assertThat(indicesOptions2.expandWildcardsHidden(), equalTo(indicesOptions.expandWildcardsHidden()));
+            if (version.before(LegacyESVersion.V_7_7_0)) {
+                assertThat(indicesOptions2.expandWildcardsHidden(), is(true));
+            } else {
+                assertThat(indicesOptions2.expandWildcardsHidden(), equalTo(indicesOptions.expandWildcardsHidden()));
+            }
+
             assertThat(indicesOptions2.forbidClosedIndices(), equalTo(indicesOptions.forbidClosedIndices()));
             assertThat(indicesOptions2.allowAliasesToMultipleIndices(), equalTo(indicesOptions.allowAliasesToMultipleIndices()));
+
             assertEquals(indicesOptions2.ignoreAliases(), indicesOptions.ignoreAliases());
         }
     }
@@ -422,7 +430,7 @@ public class IndicesOptionsTests extends OpenSearchTestCase {
         final boolean allowNoIndices = randomBoolean();
 
         BytesReference xContentBytes;
-        try (XContentBuilder builder = MediaTypeRegistry.contentBuilder(type)) {
+        try (XContentBuilder builder = XContentFactory.contentBuilder(type)) {
             builder.startObject();
             builder.field("expand_wildcards", "all");
             builder.field("ignore_unavailable", ignoreUnavailable);
@@ -441,7 +449,7 @@ public class IndicesOptionsTests extends OpenSearchTestCase {
         assertTrue(fromXContentOptions.expandWildcardsHidden());
         assertTrue(fromXContentOptions.expandWildcardsOpen());
 
-        try (XContentBuilder builder = MediaTypeRegistry.contentBuilder(type)) {
+        try (XContentBuilder builder = XContentFactory.contentBuilder(type)) {
             builder.startObject();
             builder.field("expand_wildcards", "none");
             builder.field("ignore_unavailable", ignoreUnavailable);
@@ -461,7 +469,7 @@ public class IndicesOptionsTests extends OpenSearchTestCase {
     }
 
     private BytesReference toXContentBytes(IndicesOptions indicesOptions, XContentType type) throws IOException {
-        try (XContentBuilder builder = MediaTypeRegistry.contentBuilder(type)) {
+        try (XContentBuilder builder = XContentFactory.contentBuilder(type)) {
             builder.startObject();
             indicesOptions.toXContent(builder, new MapParams(Collections.emptyMap()));
             builder.endObject();

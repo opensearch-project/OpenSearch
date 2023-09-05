@@ -17,7 +17,6 @@ import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Objects;
 
 import static org.opensearch.core.xcontent.ConstructingObjectParser.constructorArg;
 
@@ -79,19 +78,6 @@ public class ListPitInfo implements ToXContentFragment, Writeable {
         builder.field(KEEP_ALIVE.getPreferredName(), keepAlive);
         builder.endObject();
         return builder;
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        ListPitInfo that = (ListPitInfo) o;
-        return pitId.equals(that.pitId) && creationTime == that.creationTime && keepAlive == that.keepAlive;
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(pitId, creationTime, keepAlive);
     }
 
 }

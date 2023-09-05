@@ -95,9 +95,4 @@ class WeightedAvgAggregatorFactory extends MultiValuesSourceAggregatorFactory {
     public String getStatsSubtype() {
         return configs.get(VALUE_FIELD.getPreferredName()).valueSourceType().typeName();
     }
-
-    @Override
-    protected boolean supportsConcurrentSegmentSearch() {
-        return true;
-    }
 }

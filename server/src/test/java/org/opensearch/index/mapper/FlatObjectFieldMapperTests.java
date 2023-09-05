@@ -15,10 +15,11 @@ import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
-import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.common.Strings;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.index.query.QueryShardContext;
 
 import java.io.IOException;
@@ -91,22 +92,18 @@ public class FlatObjectFieldMapperTests extends MapperTestCase {
         XContentBuilder parsedFromOrig = JsonXContent.contentBuilder().startObject();
         createMapperService(orig).documentMapper().mapping().toXContent(parsedFromOrig, ToXContent.EMPTY_PARAMS);
         parsedFromOrig.endObject();
-        assertEquals(orig.toString(), parsedFromOrig.toString());
+        assertEquals(Strings.toString(orig), Strings.toString(parsedFromOrig));
         assertParseMaximalWarnings();
     }
 
     public void testDefaults() throws Exception {
         XContentBuilder mapping = fieldMapping(this::minimalMapping);
         DocumentMapper mapper = createDocumentMapper(mapping);
-        assertEquals(mapping.toString(), mapper.mappingSource().toString());
+        assertEquals(Strings.toString(mapping), mapper.mappingSource().toString());
 
-        String json = XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("field")
-            .field("foo", "bar")
-            .endObject()
-            .endObject()
-            .toString();
+        String json = Strings.toString(
+            XContentFactory.jsonBuilder().startObject().startObject("field").field("foo", "bar").endObject().endObject()
+        );
 
         ParsedDocument doc = mapper.parse(source(json));
         IndexableField[] fields = doc.rootDoc().getFields("field");

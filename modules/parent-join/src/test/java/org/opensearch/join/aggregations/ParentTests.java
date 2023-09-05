@@ -32,19 +32,19 @@
 
 package org.opensearch.join.aggregations;
 
-import org.opensearch.join.ParentJoinModulePlugin;
+import java.util.Arrays;
+import java.util.Collection;
+
+import org.opensearch.join.ParentJoinPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.search.aggregations.BaseAggregationTestCase;
 import org.opensearch.test.TestGeoShapeFieldMapperPlugin;
-
-import java.util.Arrays;
-import java.util.Collection;
 
 public class ParentTests extends BaseAggregationTestCase<ParentAggregationBuilder> {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Arrays.asList(ParentJoinModulePlugin.class, TestGeoShapeFieldMapperPlugin.class);
+        return Arrays.asList(ParentJoinPlugin.class, TestGeoShapeFieldMapperPlugin.class);
     }
 
     @Override

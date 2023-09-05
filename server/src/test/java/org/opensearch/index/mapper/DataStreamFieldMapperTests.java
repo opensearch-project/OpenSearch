@@ -8,10 +8,11 @@
 
 package org.opensearch.index.mapper;
 
+import org.opensearch.common.Strings;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
 import static org.hamcrest.Matchers.containsString;
@@ -20,15 +21,16 @@ import static org.hamcrest.Matchers.equalTo;
 public class DataStreamFieldMapperTests extends OpenSearchSingleNodeTestCase {
 
     public void testDefaultTimestampField() throws Exception {
-        String mapping = XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("_doc")
-            .startObject("_data_stream_timestamp")
-            .field("enabled", true)
-            .endObject()
-            .endObject()
-            .endObject()
-            .toString();
+        String mapping = Strings.toString(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("_doc")
+                .startObject("_data_stream_timestamp")
+                .field("enabled", true)
+                .endObject()
+                .endObject()
+                .endObject()
+        );
 
         assertDataStreamFieldMapper(mapping, "@timestamp");
     }
@@ -36,35 +38,37 @@ public class DataStreamFieldMapperTests extends OpenSearchSingleNodeTestCase {
     public void testCustomTimestampField() throws Exception {
         String timestampFieldName = "timestamp_" + randomAlphaOfLength(5);
 
-        String mapping = XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("_doc")
-            .startObject("_data_stream_timestamp")
-            .field("enabled", true)
-            .startObject("timestamp_field")
-            .field("name", timestampFieldName)
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject()
-            .toString();
+        String mapping = Strings.toString(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("_doc")
+                .startObject("_data_stream_timestamp")
+                .field("enabled", true)
+                .startObject("timestamp_field")
+                .field("name", timestampFieldName)
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+        );
 
         assertDataStreamFieldMapper(mapping, timestampFieldName);
     }
 
     public void testDeeplyNestedCustomTimestampField() throws Exception {
-        String mapping = XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("_doc")
-            .startObject("_data_stream_timestamp")
-            .field("enabled", true)
-            .startObject("timestamp_field")
-            .field("name", "event.meta.created_at")
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject()
-            .toString();
+        String mapping = Strings.toString(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("_doc")
+                .startObject("_data_stream_timestamp")
+                .field("enabled", true)
+                .startObject("timestamp_field")
+                .field("name", "event.meta.created_at")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+        );
 
         DocumentMapper mapper = createIndex("test").mapperService()
             .merge("_doc", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
@@ -83,7 +87,7 @@ public class DataStreamFieldMapperTests extends OpenSearchSingleNodeTestCase {
                         .endObject()
                         .endObject()
                 ),
-                MediaTypeRegistry.JSON
+                XContentType.JSON
             )
         );
         assertThat(doc.rootDoc().getFields("event.meta.created_at").length, equalTo(2));
@@ -103,7 +107,7 @@ public class DataStreamFieldMapperTests extends OpenSearchSingleNodeTestCase {
                             .endObject()
                             .endObject()
                     ),
-                    MediaTypeRegistry.JSON
+                    XContentType.JSON
                 )
             );
         });
@@ -125,7 +129,7 @@ public class DataStreamFieldMapperTests extends OpenSearchSingleNodeTestCase {
                 BytesReference.bytes(
                     XContentFactory.jsonBuilder().startObject().field(timestampFieldName, "2020-12-06T11:04:05.000Z").endObject()
                 ),
-                MediaTypeRegistry.JSON
+                XContentType.JSON
             )
         );
 
@@ -143,7 +147,7 @@ public class DataStreamFieldMapperTests extends OpenSearchSingleNodeTestCase {
                     BytesReference.bytes(
                         XContentFactory.jsonBuilder().startObject().field("invalid-field-name", "2020-12-06T11:04:05.000Z").endObject()
                     ),
-                    MediaTypeRegistry.JSON
+                    XContentType.JSON
                 )
             );
         });
@@ -164,7 +168,7 @@ public class DataStreamFieldMapperTests extends OpenSearchSingleNodeTestCase {
                             .array(timestampFieldName, "2020-12-06T11:04:05.000Z", "2020-12-07T11:04:05.000Z")
                             .endObject()
                     ),
-                    MediaTypeRegistry.JSON
+                    XContentType.JSON
                 )
             );
         });

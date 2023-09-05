@@ -31,8 +31,6 @@
 
 package org.opensearch.gradle;
 
-import org.apache.commons.lang3.StringUtils;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.HashMap;
@@ -56,7 +54,7 @@ public class VersionProperties {
         return lucene;
     }
 
-    public static String getBundledJdk(final String platform, final String arch) {
+    public static String getBundledJdk(final String platform) {
         switch (platform) {
             case "darwin": // fall trough
             case "mac":
@@ -64,20 +62,12 @@ public class VersionProperties {
             case "freebsd":
                 return bundledJdkFreeBSD;
             case "linux":
-                return getBundledJdkLinux(arch);
+                return bundledJdkLinux;
             case "windows":
                 return bundledJdkWindows;
             default:
                 throw new IllegalArgumentException("unknown platform [" + platform + "]");
         }
-    }
-
-    public static String getBundledJdk(final String platform) {
-        return getBundledJdk(platform, null);
-    }
-
-    public static String getBundledJre(final String platform, final String arch) {
-        return getBundledJdk(platform, arch);
     }
 
     public static String getBundledJdkVendor() {
@@ -94,10 +84,6 @@ public class VersionProperties {
     private static final String bundledJdkFreeBSD;
     private static final String bundledJdkLinux;
     private static final String bundledJdkWindows;
-    private static final String bundledJdkLinux_arm64;
-    private static final String bundledJdkLinux_x64;
-    private static final String bundledJdkLinux_s390x;
-    private static final String bundledJdkLinux_ppc64le;
     private static final String bundledJdkVendor;
     private static final Map<String, String> versions = new HashMap<String, String>();
 
@@ -111,12 +97,6 @@ public class VersionProperties {
         bundledJdkFreeBSD = props.getProperty("bundled_jdk_freebsd", bundledJdk);
         bundledJdkLinux = props.getProperty("bundled_jdk_linux", bundledJdk);
         bundledJdkWindows = props.getProperty("bundled_jdk_windows", bundledJdk);
-
-        // Bundled JDKs per architecture (linux platform)
-        bundledJdkLinux_arm64 = props.getProperty("bundled_jdk_linux_arm64", bundledJdkLinux);
-        bundledJdkLinux_x64 = props.getProperty("bundled_jdk_linux_x64", bundledJdkLinux);
-        bundledJdkLinux_s390x = props.getProperty("bundled_jdk_linux_s390x", bundledJdkLinux);
-        bundledJdkLinux_ppc64le = props.getProperty("bundled_jdk_linux_ppc64le", bundledJdkLinux);
 
         for (String property : props.stringPropertyNames()) {
             versions.put(property, props.getProperty(property));
@@ -138,25 +118,5 @@ public class VersionProperties {
 
     public static boolean isOpenSearchSnapshot() {
         return opensearch.endsWith("-SNAPSHOT");
-    }
-
-    private static String getBundledJdkLinux(String arch) {
-        if (StringUtils.isBlank(arch)) {
-            return bundledJdkLinux;
-        }
-
-        switch (arch) {
-            case "aarch64":
-            case "arm64":
-                return bundledJdkLinux_arm64;
-            case "x64":
-                return bundledJdkLinux_x64;
-            case "s390x":
-                return bundledJdkLinux_s390x;
-            case "ppc64le":
-                return bundledJdkLinux_ppc64le;
-            default:
-                throw new IllegalArgumentException("unknown platform [" + arch + "] for 'linux' platform");
-        }
     }
 }

@@ -32,6 +32,7 @@
 
 package org.opensearch.cluster.metadata;
 
+import org.opensearch.core.Assertions;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.admin.indices.rollover.RolloverInfo;
@@ -46,27 +47,26 @@ import org.opensearch.cluster.routing.allocation.IndexMetadataUpdater;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.common.compress.CompressedXContent;
-import org.opensearch.common.settings.Setting;
-import org.opensearch.common.settings.Setting.Property;
-import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.core.Assertions;
-import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.core.index.Index;
-import org.opensearch.core.index.shard.ShardId;
-import org.opensearch.core.rest.RestStatus;
-import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Setting.Property;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.gateway.MetadataStateFormat;
+import org.opensearch.core.index.Index;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.seqno.SequenceNumbers;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.indices.replication.common.ReplicationType;
+import org.opensearch.core.rest.RestStatus;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -82,7 +82,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 
@@ -286,32 +285,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         SETTING_REPLICATION_TYPE,
         ReplicationType.DOCUMENT.toString(),
         ReplicationType::parseString,
-        new Setting.Validator<>() {
-
-            @Override
-            public void validate(final ReplicationType value) {}
-
-            @Override
-            public void validate(final ReplicationType value, final Map<Setting<?>, Object> settings) {
-                final Object remoteStoreEnabled = settings.get(INDEX_REMOTE_STORE_ENABLED_SETTING);
-                if (ReplicationType.SEGMENT.equals(value) == false && Objects.equals(remoteStoreEnabled, true)) {
-                    throw new IllegalArgumentException(
-                        "To enable "
-                            + INDEX_REMOTE_STORE_ENABLED_SETTING.getKey()
-                            + ", "
-                            + INDEX_REPLICATION_TYPE_SETTING.getKey()
-                            + " should be set to "
-                            + ReplicationType.SEGMENT
-                    );
-                }
-            }
-
-            @Override
-            public Iterator<Setting<?>> settings() {
-                final List<Setting<?>> settings = List.of(INDEX_REMOTE_STORE_ENABLED_SETTING);
-                return settings.iterator();
-            }
-        },
         Property.IndexScope,
         Property.Final
     );
@@ -355,14 +328,13 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             }
         },
         Property.IndexScope,
-        Property.PrivateIndex,
-        Property.Dynamic
+        Property.Final
     );
 
     /**
      * Used to specify remote store repository to use for this index.
      */
-    public static final Setting<String> INDEX_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING = Setting.simpleString(
+    public static final Setting<String> INDEX_REMOTE_STORE_REPOSITORY_SETTING = Setting.simpleString(
         SETTING_REMOTE_SEGMENT_STORE_REPOSITORY,
         new Setting.Validator<>() {
 
@@ -373,12 +345,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             public void validate(final String value, final Map<Setting<?>, Object> settings) {
                 if (value == null || value.isEmpty()) {
                     throw new IllegalArgumentException(
-                        "Setting "
-                            + INDEX_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING.getKey()
-                            + " should be provided with non-empty repository ID"
+                        "Setting " + INDEX_REMOTE_STORE_REPOSITORY_SETTING.getKey() + " should be provided with non-empty repository ID"
                     );
                 } else {
-                    validateRemoteStoreSettingEnabled(settings, INDEX_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING);
+                    validateRemoteStoreSettingEnabled(settings, INDEX_REMOTE_STORE_REPOSITORY_SETTING);
                 }
             }
 
@@ -389,8 +359,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             }
         },
         Property.IndexScope,
-        Property.PrivateIndex,
-        Property.Dynamic
+        Property.Final
     );
 
     private static void validateRemoteStoreSettingEnabled(final Map<Setting<?>, Object> settings, Setting<?> setting) {
@@ -440,8 +409,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             }
         },
         Property.IndexScope,
-        Property.PrivateIndex,
-        Property.Dynamic
+        Property.Final
     );
 
     public static final String SETTING_AUTO_EXPAND_REPLICAS = "index.auto_expand_replicas";
@@ -633,6 +601,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     public static final String KEY_PRIMARY_TERMS = "primary_terms";
 
     public static final String INDEX_STATE_FILE_PREFIX = "state-";
+
+    static final Version SYSTEM_INDEX_FLAG_ADDED = LegacyESVersion.V_7_10_0;
 
     private final int routingNumShards;
     private final int routingFactor;
@@ -1062,7 +1032,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             version = in.readLong();
             mappingVersion = in.readVLong();
             settingsVersion = in.readVLong();
-            aliasesVersion = in.readVLong();
+            if (in.getVersion().onOrAfter(LegacyESVersion.V_7_2_0)) {
+                aliasesVersion = in.readVLong();
+            } else {
+                aliasesVersion = 1;
+            }
             state = State.fromId(in.readByte());
             settings = Settings.readSettingsFromStream(in);
             primaryTerms = in.readVLongArray();
@@ -1075,7 +1049,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 DiffableUtils.StringSetValueSerializer.getInstance()
             );
             rolloverInfos = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), ROLLOVER_INFO_DIFF_VALUE_READER);
-            isSystem = in.readBoolean();
+            if (in.getVersion().onOrAfter(SYSTEM_INDEX_FLAG_ADDED)) {
+                isSystem = in.readBoolean();
+            } else {
+                isSystem = false;
+            }
         }
 
         @Override
@@ -1085,7 +1063,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             out.writeLong(version);
             out.writeVLong(mappingVersion);
             out.writeVLong(settingsVersion);
-            out.writeVLong(aliasesVersion);
+            if (out.getVersion().onOrAfter(LegacyESVersion.V_7_2_0)) {
+                out.writeVLong(aliasesVersion);
+            }
             out.writeByte(state.id);
             Settings.writeSettingsToStream(settings, out);
             out.writeVLongArray(primaryTerms);
@@ -1094,7 +1074,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             customData.writeTo(out);
             inSyncAllocationIds.writeTo(out);
             rolloverInfos.writeTo(out);
-            out.writeBoolean(isSystem);
+            if (out.getVersion().onOrAfter(SYSTEM_INDEX_FLAG_ADDED)) {
+                out.writeBoolean(isSystem);
+            }
         }
 
         @Override
@@ -1123,7 +1105,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         builder.version(in.readLong());
         builder.mappingVersion(in.readVLong());
         builder.settingsVersion(in.readVLong());
-        builder.aliasesVersion(in.readVLong());
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_2_0)) {
+            builder.aliasesVersion(in.readVLong());
+        } else {
+            builder.aliasesVersion(1);
+        }
         builder.setRoutingNumShards(in.readInt());
         builder.state(State.fromId(in.readByte()));
         builder.settings(readSettingsFromStream(in));
@@ -1154,7 +1140,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         for (int i = 0; i < rolloverAliasesSize; i++) {
             builder.putRolloverInfo(new RolloverInfo(in));
         }
-        builder.system(in.readBoolean());
+        if (in.getVersion().onOrAfter(SYSTEM_INDEX_FLAG_ADDED)) {
+            builder.system(in.readBoolean());
+        }
         return builder.build();
     }
 
@@ -1164,7 +1152,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         out.writeLong(version);
         out.writeVLong(mappingVersion);
         out.writeVLong(settingsVersion);
-        out.writeVLong(aliasesVersion);
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_2_0)) {
+            out.writeVLong(aliasesVersion);
+        }
         out.writeInt(routingNumShards);
         out.writeByte(state.id());
         writeSettingsToStream(settings, out);
@@ -1191,7 +1181,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         for (final RolloverInfo cursor : rolloverInfos.values()) {
             cursor.writeTo(out);
         }
-        out.writeBoolean(isSystem);
+        if (out.getVersion().onOrAfter(SYSTEM_INDEX_FLAG_ADDED)) {
+            out.writeBoolean(isSystem);
+        }
     }
 
     public boolean isSystem() {
@@ -1328,7 +1320,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             putMapping(
                 new MappingMetadata(
                     MapperService.SINGLE_MAPPING_NAME,
-                    XContentHelper.convertToMap(MediaTypeRegistry.xContent(source).xContent(), source, true)
+                    XContentHelper.convertToMap(XContentFactory.xContent(source), source, true)
                 )
             );
             return this;
@@ -1835,18 +1827,15 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                     throw new IllegalArgumentException("Unexpected token " + token);
                 }
             }
-
-            final Version indexCreatedVersion = indexCreated(builder.settings);
             // Reference:
             // https://github.com/opensearch-project/OpenSearch/blob/4dde0f2a3b445b2fc61dab29c5a2178967f4a3e3/server/src/main/java/org/opensearch/cluster/metadata/IndexMetadata.java#L1620-L1628
-            if (Assertions.ENABLED && indexCreatedVersion.onOrAfter(LegacyESVersion.V_6_5_0)) {
+            Version legacyVersion = LegacyESVersion.fromId(6050099);
+            if (Assertions.ENABLED && indexCreated(builder.settings).onOrAfter(legacyVersion)) {
                 assert mappingVersion : "mapping version should be present for indices";
                 assert settingsVersion : "settings version should be present for indices";
             }
-            // Reference:
-            // https://github.com/opensearch-project/OpenSearch/blob/2e4b27b243d8bd2c515f66cf86c6d1d6a601307f/server/src/main/java/org/opensearch/cluster/metadata/IndexMetadata.java#L1824
-            if (Assertions.ENABLED && indexCreatedVersion.onOrAfter(LegacyESVersion.V_7_2_0)) {
-                assert aliasesVersion : "aliases version should be present for indices";
+            if (Assertions.ENABLED && indexCreated(builder.settings).onOrAfter(LegacyESVersion.V_7_2_0)) {
+                assert aliasesVersion : "aliases version should be present for indices created on or after 7.2.0";
             }
             return builder.build();
         }

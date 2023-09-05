@@ -360,13 +360,13 @@ public class Analysis {
     }
 
     public static Path resolveAnalyzerPath(Environment env, String wordListPath) {
-        return env.configDir().resolve(wordListPath).normalize();
+        return env.configFile().resolve(wordListPath).normalize();
     }
 
     private static boolean isUnderConfig(Environment env, String wordListPath) {
         try {
-            final Path path = env.configDir().resolve(wordListPath).normalize();
-            return path.startsWith(env.configDir().toAbsolutePath());
+            final Path path = env.configFile().resolve(wordListPath).normalize();
+            return path.startsWith(env.configFile().toAbsolutePath());
         } catch (Exception ex) {
             return false;
         }

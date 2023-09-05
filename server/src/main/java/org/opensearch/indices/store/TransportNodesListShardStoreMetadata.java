@@ -33,10 +33,13 @@
 package org.opensearch.indices.store;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
+import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.support.ActionFilters;
+import org.opensearch.action.support.nodes.BaseNodeRequest;
 import org.opensearch.action.support.nodes.BaseNodeResponse;
 import org.opensearch.action.support.nodes.BaseNodesRequest;
 import org.opensearch.action.support.nodes.BaseNodesResponse;
@@ -47,13 +50,11 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.inject.Inject;
-import org.opensearch.common.settings.Settings;
-import org.opensearch.common.unit.TimeValue;
-import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.gateway.AsyncShardFetch;
 import org.opensearch.index.IndexService;
@@ -61,12 +62,12 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.seqno.ReplicationTracker;
 import org.opensearch.index.seqno.RetentionLease;
 import org.opensearch.index.shard.IndexShard;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
@@ -252,14 +253,20 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
         public StoreFilesMetadata(StreamInput in) throws IOException {
             this.shardId = new ShardId(in);
             this.metadataSnapshot = new Store.MetadataSnapshot(in);
-            this.peerRecoveryRetentionLeases = in.readList(RetentionLease::new);
+            if (in.getVersion().onOrAfter(LegacyESVersion.V_7_5_0)) {
+                this.peerRecoveryRetentionLeases = in.readList(RetentionLease::new);
+            } else {
+                this.peerRecoveryRetentionLeases = Collections.emptyList();
+            }
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             shardId.writeTo(out);
             metadataSnapshot.writeTo(out);
-            out.writeList(peerRecoveryRetentionLeases);
+            if (out.getVersion().onOrAfter(LegacyESVersion.V_7_5_0)) {
+                out.writeList(peerRecoveryRetentionLeases);
+            }
         }
 
         public ShardId shardId() {
@@ -335,7 +342,11 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
         public Request(StreamInput in) throws IOException {
             super(in);
             shardId = new ShardId(in);
-            customDataPath = in.readString();
+            if (in.getVersion().onOrAfter(LegacyESVersion.V_7_6_0)) {
+                customDataPath = in.readString();
+            } else {
+                customDataPath = null;
+            }
         }
 
         public Request(ShardId shardId, String customDataPath, DiscoveryNode[] nodes) {
@@ -362,7 +373,9 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             shardId.writeTo(out);
-            out.writeString(customDataPath);
+            if (out.getVersion().onOrAfter(LegacyESVersion.V_7_6_0)) {
+                out.writeString(customDataPath);
+            }
         }
     }
 
@@ -397,7 +410,7 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
      *
      * @opensearch.internal
      */
-    public static class NodeRequest extends TransportRequest {
+    public static class NodeRequest extends BaseNodeRequest {
 
         private final ShardId shardId;
         @Nullable
@@ -406,7 +419,11 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
         public NodeRequest(StreamInput in) throws IOException {
             super(in);
             shardId = new ShardId(in);
-            customDataPath = in.readString();
+            if (in.getVersion().onOrAfter(LegacyESVersion.V_7_6_0)) {
+                customDataPath = in.readString();
+            } else {
+                customDataPath = null;
+            }
         }
 
         public NodeRequest(Request request) {
@@ -418,8 +435,10 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             shardId.writeTo(out);
-            assert customDataPath != null;
-            out.writeString(customDataPath);
+            if (out.getVersion().onOrAfter(LegacyESVersion.V_7_6_0)) {
+                assert customDataPath != null;
+                out.writeString(customDataPath);
+            }
         }
 
         public ShardId getShardId() {

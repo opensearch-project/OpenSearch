@@ -32,6 +32,7 @@
 
 package org.opensearch.search.internal;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.OriginalIndices;
@@ -43,22 +44,21 @@ import org.opensearch.cluster.metadata.AliasMetadata;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.common.unit.TimeValue;
-import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.core.index.Index;
-import org.opensearch.core.index.shard.ShardId;
-import org.opensearch.core.tasks.TaskId;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.index.Index;
 import org.opensearch.index.query.BoolQueryBuilder;
 import org.opensearch.index.query.MatchNoneQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryRewriteContext;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.Rewriteable;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.indices.AliasFilterParsingException;
 import org.opensearch.indices.InvalidAliasNameException;
 import org.opensearch.search.Scroll;
@@ -67,11 +67,12 @@ import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.search.sort.FieldSortBuilder;
 import org.opensearch.tasks.Task;
+import org.opensearch.tasks.TaskId;
 import org.opensearch.transport.TransportRequest;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collections;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -256,13 +257,27 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             outboundNetworkTime = in.readVLong();
         }
         clusterAlias = in.readOptionalString();
-        allowPartialSearchResults = in.readBoolean();
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
+            allowPartialSearchResults = in.readBoolean();
+        } else {
+            allowPartialSearchResults = false;
+        }
         indexRoutings = in.readStringArray();
         preference = in.readOptionalString();
-        canReturnNullResponseIfMatchNoDocs = in.readBoolean();
-        bottomSortValues = in.readOptionalWriteable(SearchSortValuesAndFormats::new);
-        readerId = in.readOptionalWriteable(ShardSearchContextId::new);
-        keepAlive = in.readOptionalTimeValue();
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_7_0)) {
+            canReturnNullResponseIfMatchNoDocs = in.readBoolean();
+            bottomSortValues = in.readOptionalWriteable(SearchSortValuesAndFormats::new);
+        } else {
+            canReturnNullResponseIfMatchNoDocs = false;
+            bottomSortValues = null;
+        }
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
+            this.readerId = in.readOptionalWriteable(ShardSearchContextId::new);
+            this.keepAlive = in.readOptionalTimeValue();
+        } else {
+            this.readerId = null;
+            this.keepAlive = null;
+        }
         originalIndices = OriginalIndices.readOriginalIndices(in);
         assert keepAlive == null || readerId != null : "readerId: " + readerId + " keepAlive: " + keepAlive;
     }
@@ -320,16 +335,18 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             out.writeVLong(outboundNetworkTime);
         }
         out.writeOptionalString(clusterAlias);
-        out.writeBoolean(allowPartialSearchResults);
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
+            out.writeBoolean(allowPartialSearchResults);
+        }
         if (asKey == false) {
             out.writeStringArray(indexRoutings);
             out.writeOptionalString(preference);
         }
-        if (asKey == false) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_7_0) && asKey == false) {
             out.writeBoolean(canReturnNullResponseIfMatchNoDocs);
             out.writeOptionalWriteable(bottomSortValues);
         }
-        if (asKey == false) {
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_10_0) && asKey == false) {
             out.writeOptionalWriteable(readerId);
             out.writeOptionalTimeValue(keepAlive);
         }

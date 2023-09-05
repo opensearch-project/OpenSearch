@@ -35,8 +35,7 @@ package org.opensearch.client;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
-
-import org.apache.hc.core5.http.HttpHost;
+import org.apache.http.HttpHost;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -57,7 +56,6 @@ import java.util.concurrent.TimeUnit;
 import static org.opensearch.client.RestClientTestUtil.getAllStatusCodes;
 import static org.opensearch.client.RestClientTestUtil.randomErrorNoRetryStatusCode;
 import static org.opensearch.client.RestClientTestUtil.randomOkStatusCode;
-import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
@@ -65,7 +63,7 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 /**
- * Integration test to check interaction between {@link RestClient} and {@link org.apache.hc.client5.http.classic.HttpClient}.
+ * Integration test to check interaction between {@link RestClient} and {@link org.apache.http.client.HttpClient}.
  * Works against real http servers, multiple hosts. Also tests failover by randomly shutting down hosts.
  */
 public class RestClientMultipleHostsIntegTests extends RestClientTestCase {
@@ -301,7 +299,7 @@ public class RestClientMultipleHostsIntegTests extends RestClientTestCase {
                     } catch (ConnectException e) {
                         // Windows isn't consistent here. Sometimes the message is even null!
                         if (false == System.getProperty("os.name").startsWith("Windows")) {
-                            assertThat(e.getMessage(), containsString("Connection refused"));
+                            assertEquals("Connection refused", e.getMessage());
                         }
                     }
                 } else {

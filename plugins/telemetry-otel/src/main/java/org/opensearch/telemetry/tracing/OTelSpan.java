@@ -19,12 +19,6 @@ class OTelSpan extends AbstractSpan {
 
     private final Span delegateSpan;
 
-    /**
-     * Constructor
-     * @param spanName
-     * @param span
-     * @param parentSpan
-     */
     public OTelSpan(String spanName, Span span, org.opensearch.telemetry.tracing.Span parentSpan) {
         super(spanName, parentSpan);
         this.delegateSpan = span;

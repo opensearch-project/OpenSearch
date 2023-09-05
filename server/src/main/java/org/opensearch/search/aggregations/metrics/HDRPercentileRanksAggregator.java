@@ -31,6 +31,7 @@
 
 package org.opensearch.search.aggregations.metrics;
 
+import org.HdrHistogram.DoubleHistogram;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.InternalAggregation;
@@ -39,8 +40,6 @@ import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
-
-import org.HdrHistogram.DoubleHistogram;
 
 /**
  * Aggregate all docs into an HDR percentile ranks values

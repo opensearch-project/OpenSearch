@@ -33,6 +33,8 @@ package org.opensearch.action.admin.indices.close;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.LegacyESVersion;
+import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.replication.ReplicationOperation;
@@ -44,15 +46,14 @@ import org.opensearch.cluster.block.ClusterBlock;
 import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
-import org.opensearch.common.lease.Releasable;
-import org.opensearch.common.settings.Settings;
-import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.core.index.shard.ShardId;
-import org.opensearch.core.tasks.TaskId;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.lease.Releasable;
 import org.opensearch.index.shard.IndexShard;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.tasks.TaskId;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -204,7 +205,11 @@ public class TransportVerifyShardBeforeCloseAction extends TransportReplicationA
         ShardRequest(StreamInput in) throws IOException {
             super(in);
             clusterBlock = new ClusterBlock(in);
-            phase1 = in.readBoolean();
+            if (in.getVersion().onOrAfter(LegacyESVersion.V_7_3_0)) {
+                phase1 = in.readBoolean();
+            } else {
+                phase1 = false;
+            }
         }
 
         public ShardRequest(final ShardId shardId, final ClusterBlock clusterBlock, final boolean phase1, final TaskId parentTaskId) {
@@ -223,7 +228,9 @@ public class TransportVerifyShardBeforeCloseAction extends TransportReplicationA
         public void writeTo(final StreamOutput out) throws IOException {
             super.writeTo(out);
             clusterBlock.writeTo(out);
-            out.writeBoolean(phase1);
+            if (out.getVersion().onOrAfter(LegacyESVersion.V_7_3_0)) {
+                out.writeBoolean(phase1);
+            }
         }
 
         public ClusterBlock clusterBlock() {

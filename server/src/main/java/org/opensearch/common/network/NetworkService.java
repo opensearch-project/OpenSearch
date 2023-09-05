@@ -34,8 +34,8 @@ package org.opensearch.common.network;
 
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
+import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.core.common.unit.ByteSizeValue;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -205,7 +205,7 @@ public final class NetworkService {
         // 1. single wildcard address, probably set by network.host: expand to all interface addresses.
         if (addresses.length == 1 && addresses[0].isAnyLocalAddress()) {
             HashSet<InetAddress> all = new HashSet<>(Arrays.asList(NetworkUtils.getAllAddresses()));
-            addresses = all.toArray(new InetAddress[0]);
+            addresses = all.toArray(new InetAddress[all.size()]);
         }
 
         // 2. try to deal with some (mis)configuration
@@ -248,7 +248,7 @@ public final class NetworkService {
         for (String host : hosts) {
             set.addAll(Arrays.asList(resolveInternal(host)));
         }
-        return set.toArray(new InetAddress[0]);
+        return set.toArray(new InetAddress[set.size()]);
     }
 
     /** resolves a single host specification */

@@ -35,11 +35,10 @@ package org.opensearch.cluster.coordination;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
-import org.opensearch.cluster.coordination.PersistedStateRegistry.PersistedStateType;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.common.lease.Releasable;
-import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.lease.Releasable;
 import org.opensearch.monitor.StatusInfo;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.MockTransport;
@@ -291,16 +290,10 @@ public class PreVoteCollectorTests extends OpenSearchTestCase {
         DiscoveryNode[] votingNodes = votingNodesSet.toArray(new DiscoveryNode[0]);
         startAndRunCollector(votingNodes);
 
-        PersistedStateRegistry persistedStateRegistry = persistedStateRegistry();
-        persistedStateRegistry.addPersistedState(
-            PersistedStateType.LOCAL,
-            new InMemoryPersistedState(currentTerm, makeClusterState(votingNodes))
-        );
         final CoordinationState coordinationState = new CoordinationState(
             localNode,
-            persistedStateRegistry,
-            ElectionStrategy.DEFAULT_INSTANCE,
-            Settings.EMPTY
+            new InMemoryPersistedState(currentTerm, makeClusterState(votingNodes)),
+            ElectionStrategy.DEFAULT_INSTANCE
         );
 
         final long newTerm = randomLongBetween(currentTerm + 1, Long.MAX_VALUE);

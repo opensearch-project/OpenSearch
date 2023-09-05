@@ -8,17 +8,11 @@
 
 package org.opensearch.test.telemetry.tracing;
 
-import org.opensearch.core.common.Strings;
-import org.opensearch.telemetry.tracing.Span;
-import org.opensearch.telemetry.tracing.TracingContextPropagator;
-import org.opensearch.telemetry.tracing.attributes.Attributes;
-
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
 import java.util.function.BiConsumer;
-import java.util.stream.Collectors;
+import org.opensearch.telemetry.tracing.Span;
+import org.opensearch.telemetry.tracing.TracingContextPropagator;
 
 /**
  * Mock {@link TracingContextPropagator} to persist the span for internode communication.
@@ -38,29 +32,16 @@ public class MockTracingContextPropagator implements TracingContextPropagator {
     }
 
     @Override
-    public Optional<Span> extract(Map<String, String> props) {
+    public Span extract(Map<String, String> props) {
         String value = props.get(TRACE_PARENT);
         if (value != null) {
             String[] values = value.split(SEPARATOR);
             String traceId = values[0];
             String spanId = values[1];
-            return Optional.of(new MockSpan(null, null, traceId, spanId, spanProcessor, Attributes.EMPTY));
+            return new MockSpan(null, null, traceId, spanId, spanProcessor);
         } else {
-            return Optional.empty();
+            return null;
         }
-    }
-
-    @Override
-    public Optional<Span> extractFromHeaders(Map<String, List<String>> headers) {
-        if (headers != null) {
-            Map<String, String> convertedHeader = headers.entrySet()
-                .stream()
-                .collect(Collectors.toMap(Map.Entry::getKey, e -> Strings.collectionToCommaDelimitedString(e.getValue())));
-            return extract(convertedHeader);
-        } else {
-            return Optional.empty();
-        }
-
     }
 
     @Override

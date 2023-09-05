@@ -35,8 +35,8 @@ package org.opensearch.action;
 import org.opensearch.common.ValidationException;
 
 /**
- * Base exception for an action request validation extendable by plugins
+ * Base exception for an action request validation
  *
- * @opensearch.api
+ * @opensearch.internal
  */
 public class ActionRequestValidationException extends ValidationException {}

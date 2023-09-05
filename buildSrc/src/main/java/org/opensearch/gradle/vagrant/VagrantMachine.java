@@ -43,7 +43,6 @@ import org.gradle.internal.logging.progress.ProgressLogger;
 import org.gradle.internal.logging.progress.ProgressLoggerFactory;
 
 import javax.inject.Inject;
-
 import java.io.File;
 import java.io.OutputStream;
 import java.nio.file.Paths;

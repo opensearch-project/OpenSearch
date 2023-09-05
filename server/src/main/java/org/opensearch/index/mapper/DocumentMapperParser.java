@@ -37,9 +37,11 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.time.DateFormatter;
+import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.similarity.SimilarityService;
@@ -89,7 +91,7 @@ public class DocumentMapperParser {
         this.scriptService = scriptService;
         this.typeParsers = mapperRegistry.getMapperParsers();
         this.indexVersionCreated = indexSettings.getIndexVersionCreated();
-        this.rootTypeParsers = mapperRegistry.getMetadataMapperParsers();
+        this.rootTypeParsers = mapperRegistry.getMetadataMapperParsers(indexVersionCreated);
     }
 
     public Mapper.TypeParser.ParserContext parserContext() {
@@ -119,7 +121,7 @@ public class DocumentMapperParser {
     public DocumentMapper parse(@Nullable String type, CompressedXContent source) throws MapperParsingException {
         Map<String, Object> mapping = null;
         if (source != null) {
-            Map<String, Object> root = XContentHelper.convertToMap(source.compressedReference(), true, MediaTypeRegistry.JSON).v2();
+            Map<String, Object> root = XContentHelper.convertToMap(source.compressedReference(), true, XContentType.JSON).v2();
             Tuple<String, Map<String, Object>> t = extractMapping(type, root);
             type = t.v1();
             mapping = t.v2();
@@ -193,6 +195,18 @@ public class DocumentMapperParser {
             remainingFields.append(" [").append(key).append(" : ").append(map.get(key)).append("]");
         }
         return remainingFields.toString();
+    }
+
+    private Tuple<String, Map<String, Object>> extractMapping(String type, String source) throws MapperParsingException {
+        Map<String, Object> root;
+        try (
+            XContentParser parser = XContentType.JSON.xContent().createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, source)
+        ) {
+            root = parser.mapOrdered();
+        } catch (Exception e) {
+            throw new MapperParsingException("failed to parse mapping definition", e);
+        }
+        return extractMapping(type, root);
     }
 
     /**

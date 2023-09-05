@@ -32,13 +32,15 @@
 
 package org.opensearch.script;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
-import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.core.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -102,7 +104,11 @@ public class ScriptException extends OpenSearchException {
         scriptStack = Arrays.asList(in.readStringArray());
         script = in.readString();
         lang = in.readString();
-        pos = Position.readFromOptional(in);
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_7_0) && in.readBoolean()) {
+            pos = new Position(in);
+        } else {
+            pos = null;
+        }
     }
 
     @Override
@@ -111,7 +117,14 @@ public class ScriptException extends OpenSearchException {
         out.writeStringArray(scriptStack.toArray(new String[0]));
         out.writeString(script);
         out.writeString(lang);
-        Position.writeToOptional(out, pos);
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_7_0)) {
+            if (pos == null) {
+                out.writeBoolean(false);
+            } else {
+                out.writeBoolean(true);
+                pos.writeTo(out);
+            }
+        }
     }
 
     @Override
@@ -164,7 +177,7 @@ public class ScriptException extends OpenSearchException {
             json.startObject();
             toXContent(json, ToXContent.EMPTY_PARAMS);
             json.endObject();
-            return json.toString();
+            return Strings.toString(json);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -197,25 +210,10 @@ public class ScriptException extends OpenSearchException {
             end = in.readInt();
         }
 
-        public static Position readFromOptional(StreamInput in) throws IOException {
-            if (in.readBoolean() == true) {
-                return new Position(in);
-            }
-            return null;
-        }
-
         void writeTo(StreamOutput out) throws IOException {
             out.writeInt(offset);
             out.writeInt(start);
             out.writeInt(end);
-        }
-
-        public static void writeToOptional(StreamOutput out, Position object) throws IOException {
-            boolean present = object != null;
-            out.writeBoolean(present);
-            if (present == true) {
-                object.writeTo(out);
-            }
         }
 
         void toXContent(XContentBuilder builder, Params params) throws IOException {

@@ -32,14 +32,14 @@
 
 package org.opensearch.action.bulk;
 
-import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.xcontent.StatusToXContentObject;
-import org.opensearch.core.action.ActionResponse;
+import org.opensearch.action.ActionResponse;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.core.rest.RestStatus;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.xcontent.StatusToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.core.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -214,6 +214,6 @@ public class BulkResponse extends ActionResponse implements Iterable<BulkItemRes
                 throwUnknownToken(token, parser.getTokenLocation());
             }
         }
-        return new BulkResponse(items.toArray(new BulkItemResponse[0]), took, ingestTook);
+        return new BulkResponse(items.toArray(new BulkItemResponse[items.size()]), took, ingestTook);
     }
 }

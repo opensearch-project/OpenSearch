@@ -41,7 +41,7 @@ import java.io.IOException;
  *
  * @opensearch.internal
  */
-class ParsedGeoHashGridBucket extends ParsedGeoGridBucket {
+public class ParsedGeoHashGridBucket extends ParsedGeoGridBucket {
 
     @Override
     public GeoPoint getKey() {

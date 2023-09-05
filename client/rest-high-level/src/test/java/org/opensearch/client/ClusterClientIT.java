@@ -32,8 +32,7 @@
 
 package org.opensearch.client;
 
-import org.apache.hc.core5.http.ParseException;
-import org.apache.hc.core5.http.io.entity.EntityUtils;
+import org.apache.http.util.EntityUtils;
 import org.opensearch.OpenSearchException;
 import org.opensearch.OpenSearchStatusException;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
@@ -61,12 +60,12 @@ import org.opensearch.cluster.metadata.Template;
 import org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.support.XContentMapValues;
-import org.opensearch.core.common.unit.ByteSizeUnit;
-import org.opensearch.core.rest.RestStatus;
-import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.indices.recovery.RecoverySettings;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.transport.RemoteClusterService;
 import org.opensearch.transport.SniffConnectionStrategy;
 
@@ -125,7 +124,7 @@ public class ClusterClientIT extends OpenSearchRestHighLevelClientTestCase {
 
         ClusterUpdateSettingsRequest resetRequest = new ClusterUpdateSettingsRequest();
         resetRequest.transientSettings(Settings.builder().putNull(transientSettingKey));
-        resetRequest.persistentSettings("{\"" + persistentSettingKey + "\": null }", MediaTypeRegistry.JSON);
+        resetRequest.persistentSettings("{\"" + persistentSettingKey + "\": null }", XContentType.JSON);
 
         ClusterUpdateSettingsResponse resetResponse = execute(
             resetRequest,
@@ -162,7 +161,7 @@ public class ClusterClientIT extends OpenSearchRestHighLevelClientTestCase {
         assertThat(exception.status(), equalTo(RestStatus.BAD_REQUEST));
         assertThat(
             exception.getMessage(),
-            equalTo("OpenSearch exception [type=settings_exception, reason=transient setting [" + setting + "], not recognized]")
+            equalTo("OpenSearch exception [type=illegal_argument_exception, reason=transient setting [" + setting + "], not recognized]")
         );
     }
 
@@ -221,7 +220,7 @@ public class ClusterClientIT extends OpenSearchRestHighLevelClientTestCase {
         assertThat(response.getStatus(), equalTo(ClusterHealthStatus.GREEN));
     }
 
-    public void testClusterHealthYellowClusterLevel() throws IOException, ParseException {
+    public void testClusterHealthYellowClusterLevel() throws IOException {
         createIndex("index", Settings.EMPTY);
         createIndex("index2", Settings.EMPTY);
         ClusterHealthRequest request = new ClusterHealthRequest();
@@ -232,7 +231,7 @@ public class ClusterClientIT extends OpenSearchRestHighLevelClientTestCase {
         assertThat(response.getIndices().size(), equalTo(0));
     }
 
-    public void testClusterHealthYellowIndicesLevel() throws IOException, ParseException {
+    public void testClusterHealthYellowIndicesLevel() throws IOException {
         String firstIndex = "index";
         String secondIndex = "index2";
         // including another index that we do not assert on, to ensure that we are not

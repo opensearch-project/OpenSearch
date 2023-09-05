@@ -32,6 +32,7 @@
 
 package org.opensearch.action.admin.cluster.node.stats;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.support.nodes.BaseNodeResponse;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -41,7 +42,6 @@ import org.opensearch.cluster.service.ClusterManagerThrottlingStats;
 import org.opensearch.common.Nullable;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.core.indices.breaker.AllCircuitBreakerStats;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.discovery.DiscoveryStats;
@@ -50,6 +50,7 @@ import org.opensearch.index.stats.IndexingPressureStats;
 import org.opensearch.index.stats.ShardIndexingPressureStats;
 import org.opensearch.index.store.remote.filecache.FileCacheStats;
 import org.opensearch.indices.NodeIndicesStats;
+import org.opensearch.indices.breaker.AllCircuitBreakerStats;
 import org.opensearch.ingest.IngestStats;
 import org.opensearch.monitor.fs.FsInfo;
 import org.opensearch.monitor.jvm.JvmStats;
@@ -161,11 +162,23 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         ingestStats = in.readOptionalWriteable(IngestStats::new);
         adaptiveSelectionStats = in.readOptionalWriteable(AdaptiveSelectionStats::new);
         scriptCacheStats = null;
-        if (scriptStats != null) {
-            scriptCacheStats = scriptStats.toScriptCacheStats();
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_8_0)) {
+            if (in.getVersion().before(LegacyESVersion.V_7_9_0)) {
+                scriptCacheStats = in.readOptionalWriteable(ScriptCacheStats::new);
+            } else if (scriptStats != null) {
+                scriptCacheStats = scriptStats.toScriptCacheStats();
+            }
         }
-        indexingPressureStats = in.readOptionalWriteable(IndexingPressureStats::new);
-        shardIndexingPressureStats = in.readOptionalWriteable(ShardIndexingPressureStats::new);
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_9_0)) {
+            indexingPressureStats = in.readOptionalWriteable(IndexingPressureStats::new);
+        } else {
+            indexingPressureStats = null;
+        }
+        if (in.getVersion().onOrAfter(Version.V_1_2_0)) {
+            shardIndexingPressureStats = in.readOptionalWriteable(ShardIndexingPressureStats::new);
+        } else {
+            shardIndexingPressureStats = null;
+        }
 
         if (in.getVersion().onOrAfter(Version.V_2_4_0)) {
             searchBackpressureStats = in.readOptionalWriteable(SearchBackpressureStats::new);
@@ -409,9 +422,15 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         out.writeOptionalWriteable(discoveryStats);
         out.writeOptionalWriteable(ingestStats);
         out.writeOptionalWriteable(adaptiveSelectionStats);
-        out.writeOptionalWriteable(indexingPressureStats);
-        out.writeOptionalWriteable(shardIndexingPressureStats);
-
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_8_0) && out.getVersion().before(LegacyESVersion.V_7_9_0)) {
+            out.writeOptionalWriteable(scriptCacheStats);
+        }
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_9_0)) {
+            out.writeOptionalWriteable(indexingPressureStats);
+        }
+        if (out.getVersion().onOrAfter(Version.V_1_2_0)) {
+            out.writeOptionalWriteable(shardIndexingPressureStats);
+        }
         if (out.getVersion().onOrAfter(Version.V_2_4_0)) {
             out.writeOptionalWriteable(searchBackpressureStats);
         }

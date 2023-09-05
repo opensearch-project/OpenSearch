@@ -11,11 +11,10 @@ package org.opensearch.search.aggregations;
 import org.apache.lucene.search.Query;
 import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.search.internal.SearchContext;
-import org.opensearch.search.profile.query.InternalProfileCollector;
+import org.opensearch.search.profile.query.InternalProfileComponent;
 import org.opensearch.search.query.QueryPhaseExecutionException;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 
 /**
@@ -75,13 +74,7 @@ public class DefaultAggregationProcessor implements AggregationProcessor {
                     if (context.getProfilers() != null) {
                         context.getProfilers()
                             .addQueryProfiler()
-                            .setCollector(
-                                new InternalProfileCollector(
-                                    globalCollectorManager.newCollector(),
-                                    globalCollectorManager.getCollectorReason(),
-                                    Collections.emptyList()
-                                )
-                            );
+                            .setCollector((InternalProfileComponent) globalCollectorManager.newCollector());
                     }
                     context.searcher().search(query, globalCollectorManager.newCollector());
                     globalCollectorManager.reduce(List.of()).reduce(context.queryResult());

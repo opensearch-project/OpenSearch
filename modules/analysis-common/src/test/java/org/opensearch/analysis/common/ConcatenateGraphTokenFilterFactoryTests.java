@@ -8,12 +8,15 @@
 
 package org.opensearch.analysis.common;
 
+import org.apache.lucene.tests.analysis.CannedTokenStream;
+import org.apache.lucene.tests.analysis.Token;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
-import org.apache.lucene.tests.analysis.CannedTokenStream;
-import org.apache.lucene.tests.analysis.Token;
+import org.apache.lucene.analysis.miscellaneous.ConcatenateGraphFilter;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
+import org.opensearch.LegacyESVersion;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
 import org.opensearch.index.analysis.AnalysisTestsHelper;
@@ -21,6 +24,7 @@ import org.opensearch.index.analysis.NamedAnalyzer;
 import org.opensearch.index.analysis.TokenFilterFactory;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.OpenSearchTokenStreamTestCase;
+import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.io.StringReader;
@@ -29,7 +33,7 @@ public class ConcatenateGraphTokenFilterFactoryTests extends OpenSearchTokenStre
     public void testSimpleTokenizerAndConcatenate() throws IOException {
         OpenSearchTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(
             Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build(),
-            new CommonAnalysisModulePlugin()
+            new CommonAnalysisPlugin()
         );
 
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("concatenate_graph");
@@ -47,7 +51,7 @@ public class ConcatenateGraphTokenFilterFactoryTests extends OpenSearchTokenStre
                 .put("index.analysis.filter.my_concatenate_graph.type", "concatenate_graph")
                 .put("index.analysis.filter.my_concatenate_graph.token_separator", "+")
                 .build(),
-            new CommonAnalysisModulePlugin()
+            new CommonAnalysisPlugin()
         );
 
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_concatenate_graph");
@@ -58,6 +62,61 @@ public class ConcatenateGraphTokenFilterFactoryTests extends OpenSearchTokenStre
         assertTokenStreamContents(tokenFilter.create(tokenizer), new String[] { "PowerShot+Is+AweSome" });
     }
 
+    public void testOldLuceneVersionSeparator() throws IOException {
+        OpenSearchTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(
+            Settings.builder()
+                .put(
+                    IndexMetadata.SETTING_VERSION_CREATED,
+                    VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_7_0_0, LegacyESVersion.V_7_5_2)
+                )
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+                .put("index.analysis.filter.my_concatenate_graph.type", "concatenate_graph")
+                .put("index.analysis.filter.my_concatenate_graph.token_separator", "+") // this will be ignored
+                .build(),
+            new CommonAnalysisPlugin()
+        );
+
+        TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_concatenate_graph");
+        String source = "PowerShot Is AweSome";
+        Tokenizer tokenizer = new WhitespaceTokenizer();
+        tokenizer.setReader(new StringReader(source));
+
+        // earlier Lucene version will only use Lucene's default separator
+        assertTokenStreamContents(
+            tokenFilter.create(tokenizer),
+            new String[] {
+                "PowerShot"
+                    + ConcatenateGraphFilter.DEFAULT_TOKEN_SEPARATOR
+                    + "Is"
+                    + ConcatenateGraphFilter.DEFAULT_TOKEN_SEPARATOR
+                    + "AweSome" }
+        );
+    }
+
+    public void testOldLuceneVersionNoSeparator() throws IOException {
+        OpenSearchTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(
+            Settings.builder()
+                .put(
+                    IndexMetadata.SETTING_VERSION_CREATED,
+                    VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_7_0_0, LegacyESVersion.V_7_5_2)
+                )
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+                .put("index.analysis.filter.my_concatenate_graph.type", "concatenate_graph")
+                .put("index.analysis.filter.my_concatenate_graph.token_separator", "+") // this will be ignored
+                .put("index.analysis.filter.my_concatenate_graph.preserve_separator", "false")
+                .build(),
+            new CommonAnalysisPlugin()
+        );
+
+        TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_concatenate_graph");
+        String source = "PowerShot Is AweSome";
+        Tokenizer tokenizer = new WhitespaceTokenizer();
+        tokenizer.setReader(new StringReader(source));
+
+        // earlier Lucene version will not add separator if preserve_separator is false
+        assertTokenStreamContents(tokenFilter.create(tokenizer), new String[] { "PowerShotIsAweSome" });
+    }
+
     public void testTokenizerEmptySeparator() throws IOException {
         OpenSearchTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(
             Settings.builder()
@@ -65,7 +124,7 @@ public class ConcatenateGraphTokenFilterFactoryTests extends OpenSearchTokenStre
                 .put("index.analysis.filter.my_concatenate_graph.type", "concatenate_graph")
                 .put("index.analysis.filter.my_concatenate_graph.token_separator", "")
                 .build(),
-            new CommonAnalysisModulePlugin()
+            new CommonAnalysisPlugin()
         );
 
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_concatenate_graph");
@@ -83,7 +142,7 @@ public class ConcatenateGraphTokenFilterFactoryTests extends OpenSearchTokenStre
                 .put("index.analysis.filter.my_concatenate_graph.type", "concatenate_graph")
                 .put("index.analysis.filter.my_concatenate_graph.token_separator", "+")
                 .build(),
-            new CommonAnalysisModulePlugin()
+            new CommonAnalysisPlugin()
         );
 
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_concatenate_graph");
@@ -106,7 +165,7 @@ public class ConcatenateGraphTokenFilterFactoryTests extends OpenSearchTokenStre
                 .put("index.analysis.filter.my_concatenate_graph.token_separator", "+")
                 .put("index.analysis.filter.my_concatenate_graph.preserve_position_increments", "true")
                 .build(),
-            new CommonAnalysisModulePlugin()
+            new CommonAnalysisPlugin()
         );
 
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_concatenate_graph");
@@ -132,7 +191,7 @@ public class ConcatenateGraphTokenFilterFactoryTests extends OpenSearchTokenStre
                 .put("index.analysis.analyzer.my_analyzer.tokenizer", "whitespace")
                 .put("index.analysis.analyzer.my_analyzer.filter", "my_word_delimiter, my_concatenate_graph")
                 .build(),
-            new CommonAnalysisModulePlugin()
+            new CommonAnalysisPlugin()
         );
 
         String source = "PowerShot Is AweSome";
@@ -166,7 +225,7 @@ public class ConcatenateGraphTokenFilterFactoryTests extends OpenSearchTokenStre
                     .put("index.analysis.filter.my_concatenate_graph.type", "concatenate_graph")
                     .put("index.analysis.filter.my_concatenate_graph.token_separator", "11")
                     .build(),
-                new CommonAnalysisModulePlugin()
+                new CommonAnalysisPlugin()
             )
         );
     }
@@ -187,7 +246,7 @@ public class ConcatenateGraphTokenFilterFactoryTests extends OpenSearchTokenStre
                 .put("index.analysis.analyzer.my_analyzer.tokenizer", "whitespace")
                 .put("index.analysis.analyzer.my_analyzer.filter", "my_word_delimiter, my_concatenate_graph")
                 .build(),
-            new CommonAnalysisModulePlugin()
+            new CommonAnalysisPlugin()
         );
 
         String source = "PowerShot Is AweSome";

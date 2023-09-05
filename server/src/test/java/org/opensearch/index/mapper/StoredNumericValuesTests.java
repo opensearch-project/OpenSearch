@@ -37,12 +37,13 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.ByteBuffersDirectory;
+import org.opensearch.common.Strings;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.fieldvisitor.CustomFieldsVisitor;
 import org.opensearch.index.mapper.MapperService.MergeReason;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
@@ -56,58 +57,59 @@ public class StoredNumericValuesTests extends OpenSearchSingleNodeTestCase {
     public void testBytesAndNumericRepresentation() throws Exception {
         IndexWriter writer = new IndexWriter(new ByteBuffersDirectory(), new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
 
-        String mapping = XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("type")
-            .startObject("properties")
-            .startObject("field1")
-            .field("type", "byte")
-            .field("store", true)
-            .endObject()
-            .startObject("field2")
-            .field("type", "short")
-            .field("store", true)
-            .endObject()
-            .startObject("field3")
-            .field("type", "integer")
-            .field("store", true)
-            .endObject()
-            .startObject("field4")
-            .field("type", "float")
-            .field("store", true)
-            .endObject()
-            .startObject("field5")
-            .field("type", "long")
-            .field("store", true)
-            .endObject()
-            .startObject("field6")
-            .field("type", "double")
-            .field("store", true)
-            .endObject()
-            .startObject("field7")
-            .field("type", "ip")
-            .field("store", true)
-            .endObject()
-            .startObject("field8")
-            .field("type", "ip")
-            .field("store", true)
-            .endObject()
-            .startObject("field9")
-            .field("type", "date")
-            .field("store", true)
-            .endObject()
-            .startObject("field10")
-            .field("type", "boolean")
-            .field("store", true)
-            .endObject()
-            .startObject("field11")
-            .field("type", "unsigned_long")
-            .field("store", true)
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject()
-            .toString();
+        String mapping = Strings.toString(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("type")
+                .startObject("properties")
+                .startObject("field1")
+                .field("type", "byte")
+                .field("store", true)
+                .endObject()
+                .startObject("field2")
+                .field("type", "short")
+                .field("store", true)
+                .endObject()
+                .startObject("field3")
+                .field("type", "integer")
+                .field("store", true)
+                .endObject()
+                .startObject("field4")
+                .field("type", "float")
+                .field("store", true)
+                .endObject()
+                .startObject("field5")
+                .field("type", "long")
+                .field("store", true)
+                .endObject()
+                .startObject("field6")
+                .field("type", "double")
+                .field("store", true)
+                .endObject()
+                .startObject("field7")
+                .field("type", "ip")
+                .field("store", true)
+                .endObject()
+                .startObject("field8")
+                .field("type", "ip")
+                .field("store", true)
+                .endObject()
+                .startObject("field9")
+                .field("type", "date")
+                .field("store", true)
+                .endObject()
+                .startObject("field10")
+                .field("type", "boolean")
+                .field("store", true)
+                .endObject()
+                .startObject("field11")
+                .field("type", "unsigned_long")
+                .field("store", true)
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+        );
         MapperService mapperService = createIndex("test").mapperService();
         DocumentMapper mapper = mapperService.merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
 
@@ -135,7 +137,7 @@ public class StoredNumericValuesTests extends OpenSearchSingleNodeTestCase {
                         .field("field11", "1")
                         .endObject()
                 ),
-                MediaTypeRegistry.JSON
+                XContentType.JSON
             )
         );
 

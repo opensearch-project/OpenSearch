@@ -34,16 +34,17 @@ package org.opensearch.index.mapper;
 
 import org.opensearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.Strings;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.mapper.MapperService.MergeReason;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
+import org.opensearch.test.InternalSettingsPlugin;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -127,7 +128,7 @@ public class UpdateMappingTests extends OpenSearchSingleNodeTestCase {
             IllegalArgumentException.class,
             () -> mapperService.merge(
                 MapperService.SINGLE_MAPPING_NAME,
-                new CompressedXContent(update.toString()),
+                new CompressedXContent(Strings.toString(update)),
                 MapperService.MergeReason.MAPPING_UPDATE
             )
         );
@@ -137,7 +138,7 @@ public class UpdateMappingTests extends OpenSearchSingleNodeTestCase {
             IllegalArgumentException.class,
             () -> mapperService.merge(
                 MapperService.SINGLE_MAPPING_NAME,
-                new CompressedXContent(update.toString()),
+                new CompressedXContent(Strings.toString(update)),
                 MapperService.MergeReason.MAPPING_UPDATE
             )
         );
@@ -174,7 +175,7 @@ public class UpdateMappingTests extends OpenSearchSingleNodeTestCase {
             IllegalArgumentException.class,
             () -> mapperService.merge(
                 MapperService.SINGLE_MAPPING_NAME,
-                new CompressedXContent(update.toString()),
+                new CompressedXContent(Strings.toString(update)),
                 MapperService.MergeReason.MAPPING_UPDATE
             )
         );
@@ -201,7 +202,7 @@ public class UpdateMappingTests extends OpenSearchSingleNodeTestCase {
             MapperParsingException.class,
             () -> mapperService.merge(
                 MapperService.SINGLE_MAPPING_NAME,
-                new CompressedXContent(mapping.toString()),
+                new CompressedXContent(Strings.toString(mapping)),
                 MapperService.MergeReason.MAPPING_UPDATE
             )
         );
@@ -211,7 +212,7 @@ public class UpdateMappingTests extends OpenSearchSingleNodeTestCase {
             MapperParsingException.class,
             () -> mapperService.merge(
                 MapperService.SINGLE_MAPPING_NAME,
-                new CompressedXContent(mapping.toString()),
+                new CompressedXContent(Strings.toString(mapping)),
                 MapperService.MergeReason.MAPPING_UPDATE
             )
         );
@@ -219,24 +220,26 @@ public class UpdateMappingTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testRejectFieldDefinedTwice() throws IOException {
-        String mapping1 = XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("properties")
-            .startObject("foo")
-            .field("type", "object")
-            .endObject()
-            .endObject()
-            .endObject()
-            .toString();
-        String mapping2 = XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("properties")
-            .startObject("foo")
-            .field("type", "long")
-            .endObject()
-            .endObject()
-            .endObject()
-            .toString();
+        String mapping1 = Strings.toString(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("properties")
+                .startObject("foo")
+                .field("type", "object")
+                .endObject()
+                .endObject()
+                .endObject()
+        );
+        String mapping2 = Strings.toString(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("properties")
+                .startObject("foo")
+                .field("type", "long")
+                .endObject()
+                .endObject()
+                .endObject()
+        );
 
         MapperService mapperService1 = createIndex("test1").mapperService();
         mapperService1.merge(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(mapping1), MergeReason.MAPPING_UPDATE);

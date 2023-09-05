@@ -45,12 +45,6 @@ public class InternalMultiTermsTests extends InternalTermsTestCase {
         int requiredSize = 3;
         int shardSize = requiredSize + 2;
         long otherDocCount = 0;
-        TermsAggregator.BucketCountThresholds bucketCountThresholds = new TermsAggregator.BucketCountThresholds(
-            minDocCount,
-            0,
-            requiredSize,
-            shardSize
-        );
 
         final int numBuckets = randomNumberOfBuckets();
 
@@ -76,14 +70,15 @@ public class InternalMultiTermsTests extends InternalTermsTestCase {
             name,
             reduceOrder,
             order,
+            requiredSize,
+            minDocCount,
             metadata,
             shardSize,
             showTermDocCountError,
             otherDocCount,
             docCountError,
             formats,
-            buckets,
-            bucketCountThresholds
+            buckets
         );
     }
 

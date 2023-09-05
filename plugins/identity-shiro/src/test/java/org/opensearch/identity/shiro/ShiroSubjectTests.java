@@ -9,17 +9,18 @@
 package org.opensearch.identity.shiro;
 
 import org.opensearch.test.OpenSearchTestCase;
-import org.junit.After;
+
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
 import org.junit.Before;
+import org.junit.After;
 
 import java.security.Principal;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.when;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.equalTo;
 
 public class ShiroSubjectTests extends OpenSearchTestCase {
 

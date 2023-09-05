@@ -39,5 +39,5 @@ import java.util.Map;
 
 public interface PainlessExtension {
 
-    Map<ScriptContext<?>, List<Allowlist>> getContextAllowlists();
+    Map<ScriptContext<?>, List<Whitelist>> getContextWhitelists();
 }

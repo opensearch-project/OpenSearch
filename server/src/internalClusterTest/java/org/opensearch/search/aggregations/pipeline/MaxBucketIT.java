@@ -35,10 +35,10 @@ package org.opensearch.search.aggregations.pipeline;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.support.WriteRequest;
-import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.search.aggregations.AggregationBuilders;
 import org.opensearch.search.aggregations.BucketOrder;
 import org.opensearch.search.aggregations.PipelineAggregatorBuilders;
@@ -162,7 +162,7 @@ public class MaxBucketIT extends OpenSearchIntegTestCase {
         assertThat(maxBucketValue, notNullValue());
         assertThat(maxBucketValue.getName(), equalTo("max_bucket"));
         assertThat(maxBucketValue.value(), equalTo(maxValue));
-        assertThat(maxBucketValue.keys(), equalTo(maxKeys.toArray(new String[0])));
+        assertThat(maxBucketValue.keys(), equalTo(maxKeys.toArray(new String[maxKeys.size()])));
     }
 
     public void testDocCountAsSubAgg() throws Exception {
@@ -214,7 +214,7 @@ public class MaxBucketIT extends OpenSearchIntegTestCase {
             assertThat(maxBucketValue, notNullValue());
             assertThat(maxBucketValue.getName(), equalTo("max_bucket"));
             assertThat(maxBucketValue.value(), equalTo(maxValue));
-            assertThat(maxBucketValue.keys(), equalTo(maxKeys.toArray(new String[0])));
+            assertThat(maxBucketValue.keys(), equalTo(maxKeys.toArray(new String[maxKeys.size()])));
         }
     }
 
@@ -254,7 +254,7 @@ public class MaxBucketIT extends OpenSearchIntegTestCase {
         assertThat(maxBucketValue, notNullValue());
         assertThat(maxBucketValue.getName(), equalTo("max_bucket"));
         assertThat(maxBucketValue.value(), equalTo(maxValue));
-        assertThat(maxBucketValue.keys(), equalTo(maxKeys.toArray(new String[0])));
+        assertThat(maxBucketValue.keys(), equalTo(maxKeys.toArray(new String[maxKeys.size()])));
     }
 
     public void testMetricAsSubAgg() throws Exception {
@@ -313,7 +313,7 @@ public class MaxBucketIT extends OpenSearchIntegTestCase {
             assertThat(maxBucketValue, notNullValue());
             assertThat(maxBucketValue.getName(), equalTo("max_bucket"));
             assertThat(maxBucketValue.value(), equalTo(maxValue));
-            assertThat(maxBucketValue.keys(), equalTo(maxKeys.toArray(new String[0])));
+            assertThat(maxBucketValue.keys(), equalTo(maxKeys.toArray(new String[maxKeys.size()])));
         }
     }
 
@@ -362,7 +362,7 @@ public class MaxBucketIT extends OpenSearchIntegTestCase {
         assertThat(maxBucketValue, notNullValue());
         assertThat(maxBucketValue.getName(), equalTo("max_bucket"));
         assertThat(maxBucketValue.value(), equalTo(maxValue));
-        assertThat(maxBucketValue.keys(), equalTo(maxKeys.toArray(new String[0])));
+        assertThat(maxBucketValue.keys(), equalTo(maxKeys.toArray(new String[maxKeys.size()])));
     }
 
     public void testMetricAsSubAggWithInsertZeros() throws Exception {
@@ -419,7 +419,7 @@ public class MaxBucketIT extends OpenSearchIntegTestCase {
             assertThat(maxBucketValue, notNullValue());
             assertThat(maxBucketValue.getName(), equalTo("max_bucket"));
             assertThat(maxBucketValue.value(), equalTo(maxValue));
-            assertThat(maxBucketValue.keys(), equalTo(maxKeys.toArray(new String[0])));
+            assertThat(maxBucketValue.keys(), equalTo(maxKeys.toArray(new String[maxKeys.size()])));
         }
     }
 
@@ -500,7 +500,7 @@ public class MaxBucketIT extends OpenSearchIntegTestCase {
             assertThat(maxBucketValue, notNullValue());
             assertThat(maxBucketValue.getName(), equalTo("max_histo_bucket"));
             assertThat(maxBucketValue.value(), equalTo(maxHistoValue));
-            assertThat(maxBucketValue.keys(), equalTo(maxHistoKeys.toArray(new String[0])));
+            assertThat(maxBucketValue.keys(), equalTo(maxHistoKeys.toArray(new String[maxHistoKeys.size()])));
             if (maxHistoValue > maxTermsValue) {
                 maxTermsValue = maxHistoValue;
                 maxTermsKeys = new ArrayList<>();
@@ -514,7 +514,7 @@ public class MaxBucketIT extends OpenSearchIntegTestCase {
         assertThat(maxBucketValue, notNullValue());
         assertThat(maxBucketValue.getName(), equalTo("max_terms_bucket"));
         assertThat(maxBucketValue.value(), equalTo(maxTermsValue));
-        assertThat(maxBucketValue.keys(), equalTo(maxTermsKeys.toArray(new String[0])));
+        assertThat(maxBucketValue.keys(), equalTo(maxTermsKeys.toArray(new String[maxTermsKeys.size()])));
     }
 
     /**
@@ -585,7 +585,7 @@ public class MaxBucketIT extends OpenSearchIntegTestCase {
         groupByLicenseAgg.subAggregation(peakPipelineAggBuilder);
 
         SearchResponse response = client().prepareSearch("foo_*").setSize(0).addAggregation(groupByLicenseAgg).get();
-        BytesReference bytes = org.opensearch.core.xcontent.XContentHelper.toXContent(response, MediaTypeRegistry.JSON, false);
-        XContentHelper.convertToMap(bytes, false, MediaTypeRegistry.JSON);
+        BytesReference bytes = XContentHelper.toXContent(response, XContentType.JSON, false);
+        XContentHelper.convertToMap(bytes, false, XContentType.JSON);
     }
 }

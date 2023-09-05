@@ -31,14 +31,6 @@
 
 package org.opensearch.repositories.hdfs;
 
-import org.apache.hadoop.security.UserGroupInformation;
-import org.opensearch.SpecialPermission;
-import org.opensearch.env.Environment;
-
-import javax.security.auth.AuthPermission;
-import javax.security.auth.PrivateCredentialPermission;
-import javax.security.auth.kerberos.ServicePermission;
-
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.lang.reflect.ReflectPermission;
@@ -50,6 +42,13 @@ import java.security.Permission;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 import java.util.Arrays;
+import javax.security.auth.AuthPermission;
+import javax.security.auth.PrivateCredentialPermission;
+import javax.security.auth.kerberos.ServicePermission;
+
+import org.apache.hadoop.security.UserGroupInformation;
+import org.opensearch.SpecialPermission;
+import org.opensearch.env.Environment;
 
 /**
  * Oversees all the security specific logic for the HDFS Repository plugin.
@@ -103,7 +102,7 @@ class HdfsSecurityContext {
      * Expects keytab file to exist at {@code $CONFIG_DIR$/repository-hdfs/krb5.keytab}
      */
     static Path locateKeytabFile(Environment environment) {
-        Path keytabPath = environment.configDir().resolve("repository-hdfs").resolve("krb5.keytab");
+        Path keytabPath = environment.configFile().resolve("repository-hdfs").resolve("krb5.keytab");
         try {
             if (Files.exists(keytabPath) == false) {
                 throw new RuntimeException("Could not locate keytab at [" + keytabPath + "].");

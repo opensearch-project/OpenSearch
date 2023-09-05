@@ -32,13 +32,11 @@
 package org.opensearch.test.rest.yaml;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
-
-import org.apache.hc.client5.http.classic.methods.HttpGet;
-import org.apache.hc.core5.http.ContentType;
-import org.apache.hc.core5.http.HttpEntity;
-import org.apache.hc.core5.http.HttpHost;
-import org.apache.hc.core5.http.ParseException;
-import org.apache.hc.core5.http.io.entity.EntityUtils;
+import org.apache.http.HttpEntity;
+import org.apache.http.HttpHost;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.entity.ContentType;
+import org.apache.http.util.EntityUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.Version;
@@ -192,20 +190,16 @@ public class ClientYamlTestClient implements Closeable {
             if (false == restApi.isBodySupported()) {
                 throw new IllegalArgumentException("body is not supported by [" + restApi.getName() + "] api");
             }
-            String contentType = entity.getContentType();
+            String contentType = entity.getContentType().getValue();
             // randomly test the GET with source param instead of GET/POST with body
-            try {
-                if (sendBodyAsSourceParam(supportedMethods, contentType, entity)) {
-                    logger.debug("sending the request body as source param with GET method");
-                    queryStringParams.put("source", EntityUtils.toString(entity));
-                    queryStringParams.put("source_content_type", contentType);
-                    requestMethod = HttpGet.METHOD_NAME;
-                    entity = null;
-                } else {
-                    requestMethod = RandomizedTest.randomFrom(supportedMethods);
-                }
-            } catch (final ParseException ex) {
-                throw new IOException(ex);
+            if (sendBodyAsSourceParam(supportedMethods, contentType, entity)) {
+                logger.debug("sending the request body as source param with GET method");
+                queryStringParams.put("source", EntityUtils.toString(entity));
+                queryStringParams.put("source_content_type", contentType);
+                requestMethod = HttpGet.METHOD_NAME;
+                entity = null;
+            } else {
+                requestMethod = RandomizedTest.randomFrom(supportedMethods);
             }
         } else {
             if (restApi.isBodyRequired()) {
@@ -255,8 +249,7 @@ public class ClientYamlTestClient implements Closeable {
         request.setOptions(options);
     }
 
-    private static boolean sendBodyAsSourceParam(List<String> supportedMethods, String contentType, HttpEntity entity) throws IOException,
-        ParseException {
+    private static boolean sendBodyAsSourceParam(List<String> supportedMethods, String contentType, HttpEntity entity) throws IOException {
         if (false == supportedMethods.contains(HttpGet.METHOD_NAME)) {
             // The API doesn't claim to support GET anyway
             return false;
@@ -284,7 +277,7 @@ public class ClientYamlTestClient implements Closeable {
      * We check if the length of the url-encoded source parameter is less than 3000, leaving remaining for
      * url and other params.
      */
-    private static boolean isUrlEncodedLengthUnderLimit(HttpEntity entity) throws IOException, ParseException {
+    private static boolean isUrlEncodedLengthUnderLimit(HttpEntity entity) throws IOException {
         String encoded = URLEncoder.encode(EntityUtils.toString(entity), StandardCharsets.UTF_8);
         return encoded.length() < 3000;
     }

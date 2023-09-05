@@ -37,17 +37,16 @@ import org.opensearch.common.geo.parsers.ShapeParser;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.geometry.Line;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.LineString;
 import org.locationtech.spatial4j.shape.jts.JtsGeometry;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 /**
  * Builds a line string geometry
@@ -122,7 +121,7 @@ public class LineStringBuilder extends ShapeBuilder<JtsGeometry, org.opensearch.
 
     @Override
     public JtsGeometry buildS4J() {
-        Coordinate[] coordinates = this.coordinates.toArray(new Coordinate[0]);
+        Coordinate[] coordinates = this.coordinates.toArray(new Coordinate[this.coordinates.size()]);
         Geometry geometry;
         if (wrapdateline) {
             ArrayList<LineString> strings = decomposeS4J(FACTORY, coordinates, new ArrayList<LineString>());
@@ -130,7 +129,7 @@ public class LineStringBuilder extends ShapeBuilder<JtsGeometry, org.opensearch.
             if (strings.size() == 1) {
                 geometry = strings.get(0);
             } else {
-                LineString[] linestrings = strings.toArray(new LineString[0]);
+                LineString[] linestrings = strings.toArray(new LineString[strings.size()]);
                 geometry = FACTORY.createMultiLineString(linestrings);
             }
 

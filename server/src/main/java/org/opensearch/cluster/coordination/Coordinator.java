@@ -35,6 +35,8 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.LegacyESVersion;
+import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
@@ -60,22 +62,20 @@ import org.opensearch.common.Booleans;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
 import org.opensearch.common.SetOnce;
-import org.opensearch.common.lease.Releasable;
-import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
+import org.opensearch.common.Strings;
+import org.opensearch.common.component.AbstractLifecycleComponent;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.concurrent.ListenableFuture;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
+import org.opensearch.common.util.concurrent.ListenableFuture;
 import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
-import org.opensearch.core.action.ActionListener;
-import org.opensearch.core.common.Strings;
-import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.core.common.transport.TransportAddress;
-import org.opensearch.core.transport.TransportResponse.Empty;
-import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.common.lease.Releasable;
 import org.opensearch.discovery.Discovery;
 import org.opensearch.discovery.DiscoveryModule;
 import org.opensearch.discovery.DiscoveryStats;
@@ -87,6 +87,7 @@ import org.opensearch.monitor.NodeHealthService;
 import org.opensearch.monitor.StatusInfo;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool.Names;
+import org.opensearch.transport.TransportResponse.Empty;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
@@ -181,7 +182,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     private JoinHelper.JoinAccumulator joinAccumulator;
     private Optional<CoordinatorPublication> currentPublication = Optional.empty();
     private final NodeHealthService nodeHealthService;
-    private final PersistedStateRegistry persistedStateRegistry;
 
     /**
      * @param nodeName The name of the node, used to name the {@link java.util.concurrent.ExecutorService} of the {@link SeedHostsResolver}.
@@ -202,8 +202,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         Random random,
         RerouteService rerouteService,
         ElectionStrategy electionStrategy,
-        NodeHealthService nodeHealthService,
-        PersistedStateRegistry persistedStateRegistry
+        NodeHealthService nodeHealthService
     ) {
         this.settings = settings;
         this.transportService = transportService;
@@ -288,7 +287,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             joinHelper::logLastFailedJoinAttempt
         );
         this.nodeHealthService = nodeHealthService;
-        this.persistedStateRegistry = persistedStateRegistry;
         this.localNodeCommissioned = true;
     }
 
@@ -823,7 +821,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     @Override
     protected void doStart() {
         synchronized (mutex) {
-            coordinationState.set(new CoordinationState(getLocalNode(), persistedStateRegistry, electionStrategy, settings));
+            CoordinationState.PersistedState persistedState = persistedStateSupplier.get();
+            coordinationState.set(new CoordinationState(getLocalNode(), persistedState, electionStrategy));
             peerFinder.setCurrentTerm(getCurrentTerm());
             configuredHostsResolver.start();
             final ClusterState lastAcceptedState = coordinationState.get().getLastAcceptedState();
@@ -923,7 +922,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
                 final boolean activePublication = currentPublication.map(CoordinatorPublication::isActiveForCurrentLeader).orElse(false);
                 if (becomingClusterManager && activePublication == false) {
-                    // cluster state update task to become cluster-manager is submitted to ClusterManagerService,
+                    // cluster state update task to become cluster-manager is submitted to MasterService,
                     // but publication has not started yet
                     assert followersChecker.getKnownFollowers().isEmpty() : followersChecker.getKnownFollowers();
                 } else {
@@ -1310,7 +1309,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 leaderChecker.setCurrentNodes(publishNodes);
                 followersChecker.setCurrentNodes(publishNodes);
                 lagDetector.setTrackedNodes(publishNodes);
-                coordinationState.get().handlePrePublish(clusterState);
                 publication.start(followersChecker.getFaultyNodes());
             }
         } catch (Exception e) {
@@ -1323,24 +1321,20 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     // deserialized from the resulting JSON
     private boolean assertPreviousStateConsistency(ClusterChangedEvent event) {
         assert event.previousState() == coordinationState.get().getLastAcceptedState()
-            || XContentHelper.convertToMap(
-                JsonXContent.jsonXContent,
-                Strings.toString(MediaTypeRegistry.JSON, event.previousState()),
-                false
-            )
+            || XContentHelper.convertToMap(JsonXContent.jsonXContent, Strings.toString(XContentType.JSON, event.previousState()), false)
                 .equals(
                     XContentHelper.convertToMap(
                         JsonXContent.jsonXContent,
                         Strings.toString(
-                            MediaTypeRegistry.JSON,
+                            XContentType.JSON,
                             clusterStateWithNoClusterManagerBlock(coordinationState.get().getLastAcceptedState())
                         ),
                         false
                     )
-                ) : Strings.toString(MediaTypeRegistry.JSON, event.previousState())
+                ) : Strings.toString(XContentType.JSON, event.previousState())
                     + " vs "
                     + Strings.toString(
-                        MediaTypeRegistry.JSON,
+                        XContentType.JSON,
                         clusterStateWithNoClusterManagerBlock(coordinationState.get().getLastAcceptedState())
                     );
         return true;
@@ -1811,7 +1805,13 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     }
 
     // TODO: only here temporarily for BWC development, remove once complete
+    public static Settings.Builder addZen1Attribute(boolean isZen1Node, Settings.Builder builder) {
+        return builder.put("node.attr.zen1", isZen1Node);
+    }
+
+    // TODO: only here temporarily for BWC development, remove once complete
     public static boolean isZen1Node(DiscoveryNode discoveryNode) {
-        return Booleans.isTrue(discoveryNode.getAttributes().getOrDefault("zen1", "false"));
+        return discoveryNode.getVersion().before(LegacyESVersion.V_7_0_0)
+            || (Booleans.isTrue(discoveryNode.getAttributes().getOrDefault("zen1", "false")));
     }
 }

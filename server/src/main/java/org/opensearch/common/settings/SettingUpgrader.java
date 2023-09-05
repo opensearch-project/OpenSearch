@@ -32,8 +32,6 @@
 
 package org.opensearch.common.settings;
 
-import org.opensearch.common.annotation.PublicApi;
-
 import java.util.List;
 
 /**
@@ -41,9 +39,8 @@ import java.util.List;
  *
  * @param <T> the type of the underlying setting
  *
- * @opensearch.api
+ * @opensearch.internal
  */
-@PublicApi(since = "1.0.0")
 public interface SettingUpgrader<T> {
 
     /**

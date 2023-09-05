@@ -8,6 +8,8 @@
 
 package org.opensearch.search.sort;
 
+import static org.hamcrest.Matchers.equalTo;
+
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.plugins.Plugin;
@@ -19,8 +21,6 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.Arrays;
 import java.util.Collection;
-
-import static org.hamcrest.Matchers.equalTo;
 
 public class SortFromPluginIT extends OpenSearchIntegTestCase {
 

@@ -33,11 +33,12 @@
 package org.opensearch.index.query.functionscore;
 
 import org.apache.lucene.search.Query;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
-import org.opensearch.common.lucene.search.function.ScriptScoreQuery;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.common.lucene.search.function.ScriptScoreQuery;
 import org.opensearch.core.xcontent.ConstructingObjectParser;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
@@ -122,14 +123,22 @@ public class ScriptScoreQueryBuilder extends AbstractQueryBuilder<ScriptScoreQue
     public ScriptScoreQueryBuilder(StreamInput in) throws IOException {
         super(in);
         query = in.readNamedWriteable(QueryBuilder.class);
-        script = new Script(in);
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_5_0)) {
+            script = new Script(in);
+        } else {
+            script = in.readNamedWriteable(ScriptScoreFunctionBuilder.class).getScript();
+        }
         minScore = in.readOptionalFloat();
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeNamedWriteable(query);
-        script.writeTo(out);
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_5_0)) {
+            script.writeTo(out);
+        } else {
+            out.writeNamedWriteable(new ScriptScoreFunctionBuilder(script));
+        }
         out.writeOptionalFloat(minScore);
     }
 
@@ -187,7 +196,7 @@ public class ScriptScoreQueryBuilder extends AbstractQueryBuilder<ScriptScoreQue
             );
         }
         ScoreScript.Factory factory = context.compile(script, ScoreScript.CONTEXT);
-        ScoreScript.LeafFactory scoreScriptFactory = factory.newFactory(script.getParams(), context.lookup(), context.searcher());
+        ScoreScript.LeafFactory scoreScriptFactory = factory.newFactory(script.getParams(), context.lookup());
         final QueryBuilder queryBuilder = this.query;
         Query query = queryBuilder.toQuery(context);
         return new ScriptScoreQuery(

@@ -57,13 +57,13 @@ class ListPluginsCommand extends EnvironmentAwareCommand {
 
     @Override
     protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
-        if (Files.exists(env.pluginsDir()) == false) {
-            throw new IOException("Plugins directory missing: " + env.pluginsDir());
+        if (Files.exists(env.pluginsFile()) == false) {
+            throw new IOException("Plugins directory missing: " + env.pluginsFile());
         }
 
-        terminal.println(Terminal.Verbosity.VERBOSE, "Plugins directory: " + env.pluginsDir());
+        terminal.println(Terminal.Verbosity.VERBOSE, "Plugins directory: " + env.pluginsFile());
         final List<Path> plugins = new ArrayList<>();
-        try (DirectoryStream<Path> paths = Files.newDirectoryStream(env.pluginsDir())) {
+        try (DirectoryStream<Path> paths = Files.newDirectoryStream(env.pluginsFile())) {
             for (Path plugin : paths) {
                 plugins.add(plugin);
             }
@@ -75,7 +75,7 @@ class ListPluginsCommand extends EnvironmentAwareCommand {
     }
 
     private void printPlugin(Environment env, Terminal terminal, Path plugin, String prefix) throws IOException {
-        PluginInfo info = PluginInfo.readFromProperties(env.pluginsDir().resolve(plugin));
+        PluginInfo info = PluginInfo.readFromProperties(env.pluginsFile().resolve(plugin));
         terminal.println(Terminal.Verbosity.SILENT, prefix + info.getName());
         terminal.println(Terminal.Verbosity.VERBOSE, info.toString(prefix));
         if (info.getOpenSearchVersion().equals(Version.CURRENT) == false) {

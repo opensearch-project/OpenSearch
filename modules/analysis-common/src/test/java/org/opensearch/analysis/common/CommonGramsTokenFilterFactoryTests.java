@@ -58,7 +58,7 @@ public class CommonGramsTokenFilterFactoryTests extends OpenSearchTokenStreamTes
             .build();
 
         try {
-            AnalysisTestsHelper.createTestAnalysisFromSettings(settings, new CommonAnalysisModulePlugin());
+            AnalysisTestsHelper.createTestAnalysisFromSettings(settings, new CommonAnalysisPlugin());
             Assert.fail("[common_words] or [common_words_path] is set");
         } catch (IllegalArgumentException e) {} catch (IOException e) {
             fail("expected IAE");
@@ -333,7 +333,7 @@ public class CommonGramsTokenFilterFactoryTests extends OpenSearchTokenStreamTes
     }
 
     private static OpenSearchTestCase.TestAnalysis createTestAnalysisFromSettings(Settings settings) throws IOException {
-        return AnalysisTestsHelper.createTestAnalysisFromSettings(settings, new CommonAnalysisModulePlugin());
+        return AnalysisTestsHelper.createTestAnalysisFromSettings(settings, new CommonAnalysisPlugin());
     }
 
 }

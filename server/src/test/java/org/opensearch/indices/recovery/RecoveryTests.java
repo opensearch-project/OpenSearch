@@ -33,7 +33,6 @@
 package org.opensearch.indices.recovery;
 
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
-
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexWriter;
@@ -42,17 +41,17 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.ExceptionsHelper;
+import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.bulk.BulkShardRequest;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.UUIDs;
+import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.action.ActionListener;
-import org.opensearch.core.common.bytes.BytesArray;
-import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.MergePolicyConfig;
 import org.opensearch.index.VersionType;
@@ -189,7 +188,7 @@ public class RecoveryTests extends OpenSearchIndexLevelReplicationTestCase {
                 1,
                 IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
                 false,
-                new SourceToParse(indexName, "id", new BytesArray("{}"), MediaTypeRegistry.JSON)
+                new SourceToParse(indexName, "id", new BytesArray("{}"), XContentType.JSON)
             );
             // index #3
             orgReplica.applyIndexOperationOnReplica(
@@ -199,7 +198,7 @@ public class RecoveryTests extends OpenSearchIndexLevelReplicationTestCase {
                 1,
                 IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
                 false,
-                new SourceToParse(indexName, "id-3", new BytesArray("{}"), MediaTypeRegistry.JSON)
+                new SourceToParse(indexName, "id-3", new BytesArray("{}"), XContentType.JSON)
             );
             // Flushing a new commit with local checkpoint=1 allows to delete the translog gen #1.
             orgReplica.flush(new FlushRequest().force(true).waitIfOngoing(true));
@@ -211,7 +210,7 @@ public class RecoveryTests extends OpenSearchIndexLevelReplicationTestCase {
                 1,
                 IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
                 false,
-                new SourceToParse(indexName, "id-2", new BytesArray("{}"), MediaTypeRegistry.JSON)
+                new SourceToParse(indexName, "id-2", new BytesArray("{}"), XContentType.JSON)
             );
             orgReplica.sync(); // advance local checkpoint
             orgReplica.updateGlobalCheckpointOnReplica(3L, "test");
@@ -223,7 +222,7 @@ public class RecoveryTests extends OpenSearchIndexLevelReplicationTestCase {
                 1,
                 IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
                 false,
-                new SourceToParse(indexName, "id-5", new BytesArray("{}"), MediaTypeRegistry.JSON)
+                new SourceToParse(indexName, "id-5", new BytesArray("{}"), XContentType.JSON)
             );
 
             if (randomBoolean()) {
@@ -332,7 +331,7 @@ public class RecoveryTests extends OpenSearchIndexLevelReplicationTestCase {
             Engine.IndexResult result = primaryShard.applyIndexOperationOnPrimary(
                 Versions.MATCH_ANY,
                 VersionType.INTERNAL,
-                new SourceToParse(primaryShard.shardId().getIndexName(), Integer.toString(i), new BytesArray("{}"), MediaTypeRegistry.JSON),
+                new SourceToParse(primaryShard.shardId().getIndexName(), Integer.toString(i), new BytesArray("{}"), XContentType.JSON),
                 SequenceNumbers.UNASSIGNED_SEQ_NO,
                 0,
                 IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
@@ -499,7 +498,7 @@ public class RecoveryTests extends OpenSearchIndexLevelReplicationTestCase {
             }
             int inflightDocs = scaledRandomIntBetween(1, 100);
             for (int i = 0; i < inflightDocs; i++) {
-                final IndexRequest indexRequest = new IndexRequest(index.getName()).id("extra_" + i).source("{}", MediaTypeRegistry.JSON);
+                final IndexRequest indexRequest = new IndexRequest(index.getName()).id("extra_" + i).source("{}", XContentType.JSON);
                 final BulkShardRequest bulkShardRequest = indexOnPrimary(indexRequest, oldPrimary);
                 for (IndexShard replica : randomSubsetOf(shards.getReplicas())) {
                     indexOnReplica(bulkShardRequest, shards, replica);

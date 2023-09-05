@@ -32,6 +32,7 @@
 
 package org.opensearch.ingest;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.common.metrics.OperationMetrics;
 import org.opensearch.common.metrics.OperationStats;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -87,7 +88,9 @@ public class IngestStats implements Writeable, ToXContentFragment {
             for (int j = 0; j < processorsSize; j++) {
                 String processorName = in.readString();
                 String processorType = "_NOT_AVAILABLE";
-                processorType = in.readString();
+                if (in.getVersion().onOrAfter(LegacyESVersion.V_7_6_0)) {
+                    processorType = in.readString();
+                }
                 OperationStats processorStat = new OperationStats(in);
                 processorStatsPerPipeline.add(new ProcessorStat(processorName, processorType, processorStat));
             }
@@ -109,7 +112,9 @@ public class IngestStats implements Writeable, ToXContentFragment {
                 out.writeVInt(processorStatsForPipeline.size());
                 for (ProcessorStat processorStat : processorStatsForPipeline) {
                     out.writeString(processorStat.getName());
-                    out.writeString(processorStat.getType());
+                    if (out.getVersion().onOrAfter(LegacyESVersion.V_7_6_0)) {
+                        out.writeString(processorStat.getType());
+                    }
                     processorStat.getStats().writeTo(out);
                 }
             }

@@ -36,7 +36,6 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Assert;
 
 import javax.net.ssl.X509ExtendedTrustManager;
-
 import java.security.cert.X509Certificate;
 import java.util.Locale;
 import java.util.Optional;

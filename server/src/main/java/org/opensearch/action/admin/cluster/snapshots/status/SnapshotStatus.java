@@ -32,16 +32,17 @@
 
 package org.opensearch.action.admin.cluster.snapshots.status;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.cluster.SnapshotsInProgress;
 import org.opensearch.cluster.SnapshotsInProgress.State;
 import org.opensearch.common.Nullable;
-import org.opensearch.core.ParseField;
-import org.opensearch.core.common.Strings;
+import org.opensearch.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.ParseField;
 import org.opensearch.core.xcontent.ConstructingObjectParser;
-import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -92,8 +93,15 @@ public class SnapshotStatus implements ToXContentObject, Writeable {
         state = State.fromValue(in.readByte());
         shards = Collections.unmodifiableList(in.readList(SnapshotIndexShardStatus::new));
         includeGlobalState = in.readOptionalBoolean();
-        final long startTime = in.readLong();
-        final long time = in.readLong();
+        final long startTime;
+        final long time;
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_4_0)) {
+            startTime = in.readLong();
+            time = in.readLong();
+        } else {
+            startTime = 0L;
+            time = 0L;
+        }
         updateShardStats(startTime, time);
     }
 
@@ -200,13 +208,15 @@ public class SnapshotStatus implements ToXContentObject, Writeable {
         out.writeByte(state.value());
         out.writeList(shards);
         out.writeOptionalBoolean(includeGlobalState);
-        out.writeLong(stats.getStartTime());
-        out.writeLong(stats.getTime());
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_4_0)) {
+            out.writeLong(stats.getStartTime());
+            out.writeLong(stats.getTime());
+        }
     }
 
     @Override
     public String toString() {
-        return Strings.toString(MediaTypeRegistry.JSON, this, true, false);
+        return Strings.toString(XContentType.JSON, this, true, false);
     }
 
     /**

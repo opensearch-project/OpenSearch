@@ -54,7 +54,7 @@ plugins {
   id 'lifecycle-base'
   id 'opensearch.docker-support'
   id 'opensearch.global-build-info'
-  id "com.diffplug.spotless" version "6.20.0" apply false
+  id "com.diffplug.spotless" version "6.19.0" apply false
   id "org.gradle.test-retry" version "1.5.4" apply false
   id "test-report-aggregation"
   id 'jacoco-report-aggregation'
@@ -226,16 +226,8 @@ tasks.register("verifyVersions") {
  */
 
 boolean bwc_tests_enabled = true
-
 /* place an issue link here when committing bwc changes */
-String bwc_tests_disabled_issue = ""
-
-/* there's no existing MacOS release, therefore disable bcw tests */
-if (Os.isFamily(Os.FAMILY_MAC)) {
-  bwc_tests_enabled = false
-  bwc_tests_disabled_issue = "https://github.com/opensearch-project/OpenSearch/issues/4173"
-}
-
+final String bwc_tests_disabled_issue = ""
 if (bwc_tests_enabled == false) {
   if (bwc_tests_disabled_issue.isEmpty()) {
     throw new GradleException("bwc_tests_disabled_issue must be set when bwc_tests_enabled == false")
@@ -424,9 +416,6 @@ gradle.projectsEvaluated {
         if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_17) {
           task.jvmArgs += ["-Djava.security.manager=allow"]
         }
-        if (BuildParams.runtimeJavaVersion >= JavaVersion.VERSION_20) {
-          task.jvmArgs += ["--add-modules=jdk.incubator.vector"]
-        }
       }
     }
 
@@ -501,7 +490,6 @@ subprojects {
         includeClasses.add("org.opensearch.index.reindex.DeleteByQueryBasicTests")
         includeClasses.add("org.opensearch.index.reindex.UpdateByQueryBasicTests")
         includeClasses.add("org.opensearch.index.shard.IndexShardIT")
-        includeClasses.add("org.opensearch.index.shard.RemoteIndexShardTests")
         includeClasses.add("org.opensearch.index.shard.RemoteStoreRefreshListenerTests")
         includeClasses.add("org.opensearch.index.translog.RemoteFSTranslogTests")
         includeClasses.add("org.opensearch.indices.DateMathIndexExpressionsIntegrationIT")

@@ -33,26 +33,26 @@
 package org.opensearch.cluster.metadata;
 
 import org.opensearch.Version;
+import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.MetadataIndexTemplateService.PutRequest;
 import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.Strings;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
-import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.core.action.ActionListener;
-import org.opensearch.core.index.Index;
-import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.env.Environment;
+import org.opensearch.core.index.Index;
 import org.opensearch.index.mapper.MapperParsingException;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.indices.IndexTemplateMissingException;
@@ -76,10 +76,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonList;
-import static org.opensearch.common.settings.Settings.builder;
-import static org.opensearch.env.Environment.PATH_HOME_SETTING;
-import static org.opensearch.index.mapper.DataStreamFieldMapper.Defaults.TIMESTAMP_FIELD;
-import static org.opensearch.indices.ShardLimitValidatorTests.createTestShardLimitService;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.containsStringIgnoringCase;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -92,6 +88,10 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.matchesRegex;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.opensearch.common.settings.Settings.builder;
+import static org.opensearch.env.Environment.PATH_HOME_SETTING;
+import static org.opensearch.index.mapper.DataStreamFieldMapper.Defaults.TIMESTAMP_FIELD;
+import static org.opensearch.indices.ShardLimitValidatorTests.createTestShardLimitService;
 
 public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestCase {
 
@@ -190,16 +190,17 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
         PutRequest request = new PutRequest("api", "validate_template");
         request.patterns(singletonList("te*"));
         request.mappings(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("properties")
-                .startObject("field2")
-                .field("type", "text")
-                .field("analyzer", "custom_1")
-                .endObject()
-                .endObject()
-                .endObject()
-                .toString()
+            Strings.toString(
+                XContentFactory.jsonBuilder()
+                    .startObject()
+                    .startObject("properties")
+                    .startObject("field2")
+                    .field("type", "text")
+                    .field("analyzer", "custom_1")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
         );
 
         List<Throwable> errors = putTemplateDetail(request);
@@ -414,7 +415,7 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
         );
         ComponentTemplate componentTemplate4 = new ComponentTemplate(template, 1L, new HashMap<>());
         expectThrows(
-            SettingsException.class,
+            IllegalArgumentException.class,
             () -> metadataIndexTemplateService.addComponentTemplate(throwState, true, "foo2", componentTemplate4)
         );
     }
@@ -2146,7 +2147,7 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
                 Map<String, Object> actualMappings;
                 Map<String, Object> expectedMappings;
                 try (
-                    XContentParser parser = MediaTypeRegistry.JSON.xContent()
+                    XContentParser parser = XContentType.JSON.xContent()
                         .createParser(
                             new NamedXContentRegistry(Collections.emptyList()),
                             LoggingDeprecationHandler.INSTANCE,
@@ -2158,7 +2159,7 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
                     throw new AssertionError(e);
                 }
                 try (
-                    XContentParser parser = MediaTypeRegistry.JSON.xContent()
+                    XContentParser parser = XContentType.JSON.xContent()
                         .createParser(
                             new NamedXContentRegistry(Collections.emptyList()),
                             LoggingDeprecationHandler.INSTANCE,

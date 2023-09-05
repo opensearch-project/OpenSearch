@@ -34,14 +34,15 @@ package org.opensearch.common;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.ArrayUtil;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.LocalTimeOffset.Gap;
 import org.opensearch.common.LocalTimeOffset.Overlap;
-import org.opensearch.common.time.DateUtils;
-import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.common.time.DateUtils;
+import org.opensearch.common.unit.TimeValue;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -458,13 +459,20 @@ public abstract class Rounding implements Writeable {
         }
 
         TimeUnitRounding(StreamInput in) throws IOException {
-            this(DateTimeUnit.resolve(in.readByte()), in.readZoneId());
+            this(
+                DateTimeUnit.resolve(in.readByte()),
+                in.getVersion().onOrAfter(LegacyESVersion.V_7_0_0) ? in.readZoneId() : DateUtils.of(in.readString())
+            );
         }
 
         @Override
         public void innerWriteTo(StreamOutput out) throws IOException {
             out.writeByte(unit.getId());
-            out.writeZoneId(timeZone);
+            if (out.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
+                out.writeZoneId(timeZone);
+            } else {
+                out.writeString(DateUtils.zoneIdToDateTimeZone(timeZone).getID());
+            }
         }
 
         @Override
@@ -916,13 +924,17 @@ public abstract class Rounding implements Writeable {
         }
 
         TimeIntervalRounding(StreamInput in) throws IOException {
-            this(in.readVLong(), in.readZoneId());
+            this(in.readVLong(), in.getVersion().onOrAfter(LegacyESVersion.V_7_0_0) ? in.readZoneId() : DateUtils.of(in.readString()));
         }
 
         @Override
         public void innerWriteTo(StreamOutput out) throws IOException {
             out.writeVLong(interval);
-            out.writeZoneId(timeZone);
+            if (out.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
+                out.writeZoneId(timeZone);
+            } else {
+                out.writeString(DateUtils.zoneIdToDateTimeZone(timeZone).getID());
+            }
         }
 
         @Override
@@ -1240,6 +1252,9 @@ public abstract class Rounding implements Writeable {
 
         @Override
         public void innerWriteTo(StreamOutput out) throws IOException {
+            if (out.getVersion().before(LegacyESVersion.V_7_6_0)) {
+                throw new IllegalArgumentException("Offset rounding not supported before 7.6.0");
+            }
             delegate.writeTo(out);
             out.writeZLong(offset);
         }

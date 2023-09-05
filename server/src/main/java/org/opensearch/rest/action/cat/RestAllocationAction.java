@@ -43,8 +43,8 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.Table;
 import org.opensearch.common.logging.DeprecationLogger;
+import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.core.common.Strings;
-import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.action.RestActionListener;
@@ -91,7 +91,7 @@ public class RestAllocationAction extends AbstractCatAction {
         clusterStateRequest.clusterManagerNodeTimeout(
             request.paramAsTime("cluster_manager_timeout", clusterStateRequest.clusterManagerNodeTimeout())
         );
-        parseDeprecatedMasterTimeoutParameter(clusterStateRequest, request, deprecationLogger, getName());
+        parseDeprecatedMasterTimeoutParameter(clusterStateRequest, request);
 
         return channel -> client.admin().cluster().state(clusterStateRequest, new RestActionListener<ClusterStateResponse>(channel) {
             @Override

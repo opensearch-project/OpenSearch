@@ -32,17 +32,18 @@
 
 package org.opensearch.cluster.node;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.cluster.AbstractDiffable;
 import org.opensearch.cluster.Diff;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.regex.Regex;
-import org.opensearch.common.util.set.Sets;
-import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.core.common.transport.TransportAddress;
+import org.opensearch.common.regex.Regex;
+import org.opensearch.common.transport.TransportAddress;
+import org.opensearch.common.util.set.Sets;
+import org.opensearch.core.common.Strings;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -277,6 +278,18 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
     public boolean nodeExistsWithSameRoles(DiscoveryNode discoveryNode) {
         final DiscoveryNode existing = nodes.get(discoveryNode.getId());
         return existing != null && existing.equals(discoveryNode) && existing.getRoles().equals(discoveryNode.getRoles());
+    }
+
+    /**
+     * Determine if the given node exists and has the right version. During upgrade from Elasticsearch version as OpenSearch node run in
+     * BWC mode and can have the version as 7.10.2 in cluster state from older cluster-manager to OpenSearch cluster-manager.
+     */
+    public boolean nodeExistsWithBWCVersion(DiscoveryNode discoveryNode) {
+        final DiscoveryNode existing = nodes.get(discoveryNode.getId());
+        return existing != null
+            && existing.equals(discoveryNode)
+            && existing.getVersion().equals(LegacyESVersion.V_7_10_2)
+            && discoveryNode.getVersion().onOrAfter(Version.V_1_0_0);
     }
 
     /**

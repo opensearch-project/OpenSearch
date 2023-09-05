@@ -29,7 +29,7 @@ public class MappingCharFilterFactoryTests extends OpenSearchTestCase {
                 .put("index.analysis.char_filter.my_mappings_char_filter.type", "mapping")
                 .putList("index.analysis.char_filter.my_mappings_char_filter.mappings", rules)
                 .build(),
-            new CommonAnalysisModulePlugin()
+            new CommonAnalysisPlugin()
         );
 
         return analysis.charFilter.get("my_mappings_char_filter");

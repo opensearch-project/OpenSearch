@@ -32,12 +32,11 @@
 
 package org.opensearch.action.search;
 
+import org.mockito.Mockito;
 import org.opensearch.client.OpenSearchClient;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.test.OpenSearchTestCase;
-
-import org.mockito.Mockito;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 

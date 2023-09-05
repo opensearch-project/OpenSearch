@@ -32,14 +32,13 @@
 package org.opensearch.action.admin.indices.template.put;
 
 import org.opensearch.action.admin.indices.alias.Alias;
-import org.opensearch.action.support.clustermanager.ClusterManagerNodeOperationRequestBuilder;
 import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
-import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentType;
 
 import java.util.List;
 import java.util.Map;
@@ -114,8 +113,8 @@ public class PutIndexTemplateRequestBuilder extends ClusterManagerNodeOperationR
     /**
      * The settings to crete the index template with (either json or yaml format)
      */
-    public PutIndexTemplateRequestBuilder setSettings(String source, MediaType mediaType) {
-        request.settings(source, mediaType);
+    public PutIndexTemplateRequestBuilder setSettings(String source, XContentType xContentType) {
+        request.settings(source, xContentType);
         return this;
     }
 
@@ -131,10 +130,10 @@ public class PutIndexTemplateRequestBuilder extends ClusterManagerNodeOperationR
      * Adds mapping that will be added when the index template gets created.
      *
      * @param source The mapping source
-     * @param mediaType The type/format of the source
+     * @param xContentType The type/format of the source
      */
-    public PutIndexTemplateRequestBuilder setMapping(String source, MediaType mediaType) {
-        request.mapping(source, mediaType);
+    public PutIndexTemplateRequestBuilder setMapping(String source, XContentType xContentType) {
+        request.mapping(source, xContentType);
         return this;
     }
 
@@ -227,16 +226,16 @@ public class PutIndexTemplateRequestBuilder extends ClusterManagerNodeOperationR
     /**
      * The template source definition.
      */
-    public PutIndexTemplateRequestBuilder setSource(BytesReference templateSource, MediaType mediaType) {
-        request.source(templateSource, mediaType);
+    public PutIndexTemplateRequestBuilder setSource(BytesReference templateSource, XContentType xContentType) {
+        request.source(templateSource, xContentType);
         return this;
     }
 
     /**
      * The template source definition.
      */
-    public PutIndexTemplateRequestBuilder setSource(byte[] templateSource, MediaType mediaType) {
-        request.source(templateSource, mediaType);
+    public PutIndexTemplateRequestBuilder setSource(byte[] templateSource, XContentType xContentType) {
+        request.source(templateSource, xContentType);
         return this;
     }
 

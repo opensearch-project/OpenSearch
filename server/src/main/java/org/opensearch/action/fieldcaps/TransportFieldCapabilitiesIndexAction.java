@@ -35,6 +35,7 @@ package org.opensearch.action.fieldcaps;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.NoShardAvailableActionException;
@@ -54,14 +55,13 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.inject.Inject;
-import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.logging.LoggerMessageFormat;
-import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.ObjectMapper;
 import org.opensearch.index.query.MatchAllQueryBuilder;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.search.SearchService;
 import org.opensearch.search.builder.SearchSourceBuilder;
@@ -154,7 +154,8 @@ public class TransportFieldCapabilitiesIndexAction extends HandledTransportActio
         for (String field : fieldNames) {
             MappedFieldType ft = mapperService.fieldType(field);
             if (ft != null) {
-                if (indicesService.isMetadataField(field) || fieldPredicate.test(ft.name())) {
+                if (indicesService.isMetadataField(mapperService.getIndexSettings().getIndexVersionCreated(), field)
+                    || fieldPredicate.test(ft.name())) {
                     IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(
                         field,
                         ft.familyTypeName(),

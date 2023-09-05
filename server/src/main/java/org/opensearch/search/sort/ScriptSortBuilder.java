@@ -38,17 +38,17 @@ import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
-import org.opensearch.common.logging.DeprecationLogger;
-import org.opensearch.common.util.BigArrays;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.common.logging.DeprecationLogger;
+import org.opensearch.common.util.BigArrays;
 import org.opensearch.core.xcontent.ConstructingObjectParser;
 import org.opensearch.core.xcontent.ObjectParser.ValueType;
-import org.opensearch.core.xcontent.XContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContent;
 import org.opensearch.index.fielddata.AbstractBinaryDocValues;
 import org.opensearch.index.fielddata.FieldData;
 import org.opensearch.index.fielddata.IndexFieldData;
@@ -69,11 +69,8 @@ import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.MultiValueMode;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.ConcurrentHashMap;
 
 import static org.opensearch.core.xcontent.ConstructingObjectParser.constructorArg;
 import static org.opensearch.search.sort.FieldSortBuilder.validateMaxChildrenExistOnlyInTopLevelNestedSort;
@@ -358,19 +355,11 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                 final StringSortScript.Factory factory = context.compile(script, StringSortScript.CONTEXT);
                 final StringSortScript.LeafFactory searchScript = factory.newFactory(script.getParams(), context.lookup());
                 return new BytesRefFieldComparatorSource(null, null, valueMode, nested) {
-                    // introducing a map to keep a mapping between the leaf reader context and leaf script
-                    // such that the functions of the class are thread safe in case of concurrent search
-                    final Map<LeafReaderContext, StringSortScript> leafContextSortScriptMap = new ConcurrentHashMap<>();
+                    StringSortScript leafScript;
 
                     @Override
                     protected SortedBinaryDocValues getValues(LeafReaderContext context) throws IOException {
-                        final StringSortScript leafScript = leafContextSortScriptMap.computeIfAbsent(context, ctx -> {
-                            try {
-                                return searchScript.newInstance(ctx);
-                            } catch (IOException e) {
-                                throw new UncheckedIOException(e);
-                            }
-                        });
+                        leafScript = searchScript.newInstance(context);
                         final BinaryDocValues values = new AbstractBinaryDocValues() {
                             final BytesRefBuilder spare = new BytesRefBuilder();
 
@@ -390,8 +379,8 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                     }
 
                     @Override
-                    protected void setScorer(Scorable scorer, LeafReaderContext context) {
-                        leafContextSortScriptMap.get(context).setScorer(scorer);
+                    protected void setScorer(Scorable scorer) {
+                        leafScript.setScorer(scorer);
                     }
 
                     @Override
@@ -414,19 +403,11 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                 final NumberSortScript.Factory numberSortFactory = context.compile(script, NumberSortScript.CONTEXT);
                 final NumberSortScript.LeafFactory numberSortScript = numberSortFactory.newFactory(script.getParams(), context.lookup());
                 return new DoubleValuesComparatorSource(null, Double.MAX_VALUE, valueMode, nested) {
-                    // introducing a map to keep a mapping between the leaf reader context and leaf script
-                    // such that the functions of the class are thread safe in case of concurrent search
-                    final Map<LeafReaderContext, NumberSortScript> leafContextSortScriptMap = new ConcurrentHashMap<>();
+                    NumberSortScript leafScript;
 
                     @Override
                     protected SortedNumericDoubleValues getValues(LeafReaderContext context) throws IOException {
-                        final NumberSortScript leafScript = leafContextSortScriptMap.computeIfAbsent(context, ctx -> {
-                            try {
-                                return numberSortScript.newInstance(ctx);
-                            } catch (IOException e) {
-                                throw new UncheckedIOException(e);
-                            }
-                        });
+                        leafScript = numberSortScript.newInstance(context);
                         final NumericDoubleValues values = new NumericDoubleValues() {
                             @Override
                             public boolean advanceExact(int doc) throws IOException {
@@ -443,8 +424,8 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                     }
 
                     @Override
-                    protected void setScorer(Scorable scorer, LeafReaderContext context) {
-                        leafContextSortScriptMap.get(context).setScorer(scorer);
+                    protected void setScorer(Scorable scorer) {
+                        leafScript.setScorer(scorer);
                     }
                 };
             default:

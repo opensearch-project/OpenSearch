@@ -31,14 +31,15 @@
 
 package org.opensearch.index.query;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.common.Nullable;
-import org.opensearch.core.ParseField;
 import org.opensearch.core.common.ParsingException;
-import org.opensearch.core.common.Strings;
+import org.opensearch.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.ParseField;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -207,8 +208,11 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
         }
         highlightBuilder = in.readOptionalWriteable(HighlightBuilder::new);
         this.innerCollapseBuilder = in.readOptionalWriteable(CollapseBuilder::new);
-        if (in.readBoolean()) {
-            fetchFields = in.readList(FieldAndFormat::new);
+
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
+            if (in.readBoolean()) {
+                fetchFields = in.readList(FieldAndFormat::new);
+            }
         }
     }
 
@@ -248,9 +252,12 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
         }
         out.writeOptionalWriteable(highlightBuilder);
         out.writeOptionalWriteable(innerCollapseBuilder);
-        out.writeBoolean(fetchFields != null);
-        if (fetchFields != null) {
-            out.writeList(fetchFields);
+
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
+            out.writeBoolean(fetchFields != null);
+            if (fetchFields != null) {
+                out.writeList(fetchFields);
+            }
         }
     }
 
@@ -598,6 +605,6 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
 
     @Override
     public String toString() {
-        return Strings.toString(MediaTypeRegistry.JSON, this, true, true);
+        return Strings.toString(XContentType.JSON, this, true, true);
     }
 }

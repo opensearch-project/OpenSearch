@@ -41,8 +41,8 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.IndexAnalyzers;
 import org.opensearch.index.analysis.NamedAnalyzer;
 import org.opensearch.indices.analysis.AnalysisModule;
-import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.OpenSearchTokenStreamTestCase;
+import org.opensearch.test.IndexSettingsModule;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -65,7 +65,7 @@ public class MultiplexerTokenFilterTests extends OpenSearchTokenStreamTestCase {
 
         IndexAnalyzers indexAnalyzers = new AnalysisModule(
             TestEnvironment.newEnvironment(settings),
-            Collections.singletonList(new CommonAnalysisModulePlugin())
+            Collections.singletonList(new CommonAnalysisPlugin())
         ).getAnalysisRegistry().build(idxSettings);
 
         try (NamedAnalyzer analyzer = indexAnalyzers.get("myAnalyzer")) {
@@ -99,7 +99,7 @@ public class MultiplexerTokenFilterTests extends OpenSearchTokenStreamTestCase {
 
         IndexAnalyzers indexAnalyzers = new AnalysisModule(
             TestEnvironment.newEnvironment(settings),
-            Collections.singletonList(new CommonAnalysisModulePlugin())
+            Collections.singletonList(new CommonAnalysisPlugin())
         ).getAnalysisRegistry().build(idxSettings);
 
         try (NamedAnalyzer analyzer = indexAnalyzers.get("myAnalyzer")) {

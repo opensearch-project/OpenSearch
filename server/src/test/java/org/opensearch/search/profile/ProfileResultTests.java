@@ -32,12 +32,13 @@
 
 package org.opensearch.search.profile;
 
-import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -48,7 +49,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
 
-import static org.opensearch.core.xcontent.XContentHelper.toXContent;
+import static org.opensearch.common.xcontent.XContentHelper.toXContent;
 import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.opensearch.test.XContentTestUtils.insertRandomFields;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertToXContentEquivalent;
@@ -182,7 +183,7 @@ public class ProfileResultTests extends OpenSearchTestCase {
                 + "    }\n"
                 + "  ]\n"
                 + "}",
-            builder.toString()
+            Strings.toString(builder)
         );
 
         builder = XContentFactory.jsonBuilder().prettyPrint().humanReadable(true);
@@ -222,7 +223,7 @@ public class ProfileResultTests extends OpenSearchTestCase {
                 + "    }\n"
                 + "  ]\n"
                 + "}",
-            builder.toString()
+            Strings.toString(builder)
         );
 
         result = new ProfileResult("profileName", "some description", Map.of("key1", 12345678L), Map.of(), 12345678L, List.of());
@@ -238,7 +239,7 @@ public class ProfileResultTests extends OpenSearchTestCase {
                 + "    \"key1\" : 12345678\n"
                 + "  }\n"
                 + "}",
-            builder.toString()
+            Strings.toString(builder)
         );
 
         result = new ProfileResult("profileName", "some description", Map.of("key1", 1234567890L), Map.of(), 1234567890L, List.of());
@@ -254,7 +255,7 @@ public class ProfileResultTests extends OpenSearchTestCase {
                 + "    \"key1\" : 1234567890\n"
                 + "  }\n"
                 + "}",
-            builder.toString()
+            Strings.toString(builder)
         );
 
         result = new ProfileResult("profileName", "some description", Map.of("key1", 1234L), Map.of(), 1234L, List.of(), 321L, 123L, 222L);
@@ -272,7 +273,7 @@ public class ProfileResultTests extends OpenSearchTestCase {
                 + "    \"key1\" : 1234\n"
                 + "  }\n"
                 + "}",
-            builder.toString()
+            Strings.toString(builder)
         );
 
         result = new ProfileResult(
@@ -304,7 +305,7 @@ public class ProfileResultTests extends OpenSearchTestCase {
                 + "    \"key1\" : 1234567890\n"
                 + "  }\n"
                 + "}",
-            builder.toString()
+            Strings.toString(builder)
         );
 
     }

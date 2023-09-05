@@ -57,7 +57,6 @@ import org.gradle.api.tasks.util.PatternSet;
 import org.gradle.internal.Factory;
 
 import javax.inject.Inject;
-
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;

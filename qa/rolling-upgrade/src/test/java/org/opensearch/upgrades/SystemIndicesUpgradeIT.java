@@ -32,6 +32,8 @@
 
 package org.opensearch.upgrades;
 
+import org.opensearch.LegacyESVersion;
+import org.opensearch.Version;
 import org.hamcrest.MatcherAssert;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
@@ -41,6 +43,7 @@ import org.opensearch.test.XContentTestUtils.JsonMapView;
 import java.io.IOException;
 import java.util.Map;
 
+import static org.opensearch.cluster.metadata.IndexNameExpressionResolver.SYSTEM_INDEX_ENFORCEMENT_VERSION;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
@@ -60,8 +63,13 @@ public class SystemIndicesUpgradeIT extends AbstractRollingTestCase {
 
             Request bulk = new Request("POST", "/_bulk");
             bulk.addParameter("refresh", "true");
-            bulk.setJsonEntity("{\"index\": {\"_index\": \"test_index_old\"}\n" +
-                "{\"f1\": \"v1\", \"f2\": \"v2\"}\n");
+            if (UPGRADE_FROM_VERSION.before(LegacyESVersion.V_7_0_0)) {
+                bulk.setJsonEntity("{\"index\": {\"_index\": \"test_index_old\", \"_type\" : \"_doc\"}}\n" +
+                    "{\"f1\": \"v1\", \"f2\": \"v2\"}\n");
+            } else {
+                bulk.setJsonEntity("{\"index\": {\"_index\": \"test_index_old\"}\n" +
+                    "{\"f1\": \"v1\", \"f2\": \"v2\"}\n");
+            }
             client().performRequest(bulk);
 
             createAndVerifyStoredTask();
@@ -69,6 +77,10 @@ public class SystemIndicesUpgradeIT extends AbstractRollingTestCase {
             // make sure .tasks index exists
             Request getTasksIndex = new Request("GET", "/.tasks");
             getTasksIndex.addParameter("allow_no_indices", "false");
+            if (UPGRADE_FROM_VERSION.before(LegacyESVersion.V_7_0_0)) {
+                getTasksIndex.addParameter("include_type_name", "false");
+            }
+
             getTasksIndex.setOptions(expectVersionSpecificWarnings(v -> {
                 v.current(systemIndexWarning);
                 v.compatible(systemIndexWarning);
@@ -80,6 +92,20 @@ public class SystemIndicesUpgradeIT extends AbstractRollingTestCase {
                     throw new AssertionError(".tasks index does not exist yet");
                 }
             });
+
+            // If we are on 7.x create an alias that includes both a system index and a non-system index so we can be sure it gets
+            // upgraded properly. If we're already on 8.x, skip this part of the test.
+            if (minimumNodeVersion().before(SYSTEM_INDEX_ENFORCEMENT_VERSION)) {
+                // Create an alias to make sure it gets upgraded properly
+                Request putAliasRequest = new Request("POST", "/_aliases");
+                putAliasRequest.setJsonEntity("{\n" +
+                    "  \"actions\": [\n" +
+                    "    {\"add\":  {\"index\":  \".tasks\", \"alias\": \"test-system-alias\"}},\n" +
+                    "    {\"add\":  {\"index\":  \"test_index_reindex\", \"alias\": \"test-system-alias\"}}\n" +
+                    "  ]\n" +
+                    "}");
+                assertThat(client().performRequest(putAliasRequest).getStatusLine().getStatusCode(), is(200));
+            }
         } else if (CLUSTER_TYPE == ClusterType.UPGRADED) {
             createAndVerifyStoredTask();
 
@@ -96,8 +122,21 @@ public class SystemIndicesUpgradeIT extends AbstractRollingTestCase {
                 JsonMapView tasksIndex = new JsonMapView((Map<String, Object>) indices.get(".tasks"));
                 assertThat(tasksIndex.get("system"), is(true));
 
+                // If .tasks was created in a 7.x version, it should have an alias on it that we need to make sure got upgraded properly.
                 final String tasksCreatedVersionString = tasksIndex.get("settings.index.version.created");
                 assertThat(tasksCreatedVersionString, notNullValue());
+                final Version tasksCreatedVersion = Version.fromId(Integer.parseInt(tasksCreatedVersionString));
+                if (tasksCreatedVersion.before(SYSTEM_INDEX_ENFORCEMENT_VERSION)) {
+                    // Verify that the alias survived the upgrade
+                    Request getAliasRequest = new Request("GET", "/_alias/test-system-alias");
+                    getAliasRequest.setOptions(expectVersionSpecificWarnings(v -> {
+                        v.current(systemIndexWarning);
+                        v.compatible(systemIndexWarning);
+                    }));
+                    Map<String, Object> aliasResponse = entityAsMap(client().performRequest(getAliasRequest));
+                    assertThat(aliasResponse, hasKey(".tasks"));
+                    assertThat(aliasResponse, hasKey("test_index_reindex"));
+                }
             });
         }
     }

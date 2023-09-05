@@ -32,29 +32,27 @@
 
 package org.opensearch.client;
 
-import org.apache.hc.client5.http.classic.methods.HttpDelete;
-import org.apache.hc.client5.http.classic.methods.HttpGet;
-import org.apache.hc.client5.http.classic.methods.HttpHead;
-import org.apache.hc.client5.http.classic.methods.HttpOptions;
-import org.apache.hc.client5.http.classic.methods.HttpPatch;
-import org.apache.hc.client5.http.classic.methods.HttpPost;
-import org.apache.hc.client5.http.classic.methods.HttpPut;
-import org.apache.hc.client5.http.classic.methods.HttpTrace;
-import org.apache.hc.client5.http.classic.methods.HttpUriRequest;
-import org.apache.hc.core5.http.ClassicHttpResponse;
-import org.apache.hc.core5.http.ContentType;
-import org.apache.hc.core5.http.Header;
-import org.apache.hc.core5.http.HttpEntity;
-import org.apache.hc.core5.http.HttpHost;
-import org.apache.hc.core5.http.ParseException;
-import org.apache.hc.core5.http.ProtocolVersion;
-import org.apache.hc.core5.http.io.entity.ByteArrayEntity;
-import org.apache.hc.core5.http.io.entity.EntityUtils;
-import org.apache.hc.core5.http.io.entity.InputStreamEntity;
-import org.apache.hc.core5.http.io.entity.StringEntity;
-import org.apache.hc.core5.http.message.BasicClassicHttpResponse;
-import org.apache.hc.core5.http.message.BasicHeader;
-import org.apache.hc.core5.http.message.StatusLine;
+import org.apache.http.Header;
+import org.apache.http.HttpEntity;
+import org.apache.http.HttpEntityEnclosingRequest;
+import org.apache.http.HttpHost;
+import org.apache.http.ProtocolVersion;
+import org.apache.http.client.methods.HttpHead;
+import org.apache.http.client.methods.HttpOptions;
+import org.apache.http.client.methods.HttpPatch;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.methods.HttpPut;
+import org.apache.http.client.methods.HttpTrace;
+import org.apache.http.client.methods.HttpUriRequest;
+import org.apache.http.entity.ContentType;
+import org.apache.http.entity.InputStreamEntity;
+import org.apache.http.entity.StringEntity;
+import org.apache.http.message.BasicHeader;
+import org.apache.http.message.BasicHttpResponse;
+import org.apache.http.message.BasicStatusLine;
+import org.apache.http.nio.entity.NByteArrayEntity;
+import org.apache.http.nio.entity.NStringEntity;
+import org.apache.http.util.EntityUtils;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -68,8 +66,8 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 
 public class RequestLoggerTests extends RestClientTestCase {
-    public void testTraceRequest() throws IOException, URISyntaxException, ParseException {
-        HttpHost host = new HttpHost(randomBoolean() ? "http" : "https", "localhost", 9200);
+    public void testTraceRequest() throws IOException, URISyntaxException {
+        HttpHost host = new HttpHost("localhost", 9200, randomBoolean() ? "http" : "https");
         String expectedEndpoint = "/index/type/_api";
         URI uri;
         if (randomBoolean()) {
@@ -79,10 +77,11 @@ public class RequestLoggerTests extends RestClientTestCase {
         }
         HttpUriRequest request = randomHttpRequest(uri);
         String expected = "curl -iX " + request.getMethod() + " '" + host + expectedEndpoint + "'";
-        boolean hasBody = !(request instanceof HttpTrace) && randomBoolean();
+        boolean hasBody = request instanceof HttpEntityEnclosingRequest && randomBoolean();
         String requestBody = "{ \"field\": \"value\" }";
         if (hasBody) {
             expected += " -d '" + requestBody + "'";
+            HttpEntityEnclosingRequest enclosingRequest = (HttpEntityEnclosingRequest) request;
             HttpEntity entity;
             switch (randomIntBetween(0, 4)) {
                 case 0:
@@ -95,10 +94,10 @@ public class RequestLoggerTests extends RestClientTestCase {
                     );
                     break;
                 case 2:
-                    entity = new StringEntity(requestBody, ContentType.APPLICATION_JSON);
+                    entity = new NStringEntity(requestBody, ContentType.APPLICATION_JSON);
                     break;
                 case 3:
-                    entity = new ByteArrayEntity(requestBody.getBytes(StandardCharsets.UTF_8), ContentType.APPLICATION_JSON);
+                    entity = new NByteArrayEntity(requestBody.getBytes(StandardCharsets.UTF_8), ContentType.APPLICATION_JSON);
                     break;
                 case 4:
                     // Evil entity without a charset
@@ -107,24 +106,24 @@ public class RequestLoggerTests extends RestClientTestCase {
                 default:
                     throw new UnsupportedOperationException();
             }
-            request.setEntity(entity);
+            enclosingRequest.setEntity(entity);
         }
         String traceRequest = RequestLogger.buildTraceRequest(request, host);
         assertThat(traceRequest, equalTo(expected));
         if (hasBody) {
             // check that the body is still readable as most entities are not repeatable
-            String body = EntityUtils.toString(request.getEntity(), StandardCharsets.UTF_8);
+            String body = EntityUtils.toString(((HttpEntityEnclosingRequest) request).getEntity(), StandardCharsets.UTF_8);
             assertThat(body, equalTo(requestBody));
         }
     }
 
-    public void testTraceResponse() throws IOException, ParseException {
+    public void testTraceResponse() throws IOException {
         ProtocolVersion protocolVersion = new ProtocolVersion("HTTP", 1, 1);
         int statusCode = randomIntBetween(200, 599);
         String reasonPhrase = "REASON";
-        StatusLine statusLine = new StatusLine(protocolVersion, statusCode, reasonPhrase);
+        BasicStatusLine statusLine = new BasicStatusLine(protocolVersion, statusCode, reasonPhrase);
         String expected = "# " + statusLine.toString();
-        ClassicHttpResponse httpResponse = new BasicClassicHttpResponse(statusCode, reasonPhrase);
+        BasicHttpResponse httpResponse = new BasicHttpResponse(statusLine);
         int numHeaders = randomIntBetween(0, 3);
         for (int i = 0; i < numHeaders; i++) {
             httpResponse.setHeader("header" + i, "value");
@@ -193,13 +192,13 @@ public class RequestLoggerTests extends RestClientTestCase {
         int requestType = randomIntBetween(0, 7);
         switch (requestType) {
             case 0:
-                return new HttpGet(uri);
+                return new HttpGetWithEntity(uri);
             case 1:
                 return new HttpPost(uri);
             case 2:
                 return new HttpPut(uri);
             case 3:
-                return new HttpDelete(uri);
+                return new HttpDeleteWithEntity(uri);
             case 4:
                 return new HttpHead(uri);
             case 5:

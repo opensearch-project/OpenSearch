@@ -101,8 +101,4 @@ public class FilterAggregatorFactory extends AggregatorFactory {
         return new FilterAggregator(name, () -> this.getWeight(), factories, searchContext, parent, cardinality, metadata);
     }
 
-    @Override
-    protected boolean supportsConcurrentSegmentSearch() {
-        return true;
-    }
 }

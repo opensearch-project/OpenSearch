@@ -32,16 +32,16 @@
 package org.opensearch.join.query;
 
 import org.opensearch.action.index.IndexRequestBuilder;
+import org.opensearch.common.Strings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.json.JsonXContent;
-import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexModule;
-import org.opensearch.join.ParentJoinModulePlugin;
+import org.opensearch.join.ParentJoinPlugin;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.InternalSettingsPlugin;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -51,11 +51,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE)
-public abstract class ParentChildTestCase extends ParameterizedOpenSearchIntegTestCase {
-
-    public ParentChildTestCase(Settings dynamicSettings) {
-        super(dynamicSettings);
-    }
+public abstract class ParentChildTestCase extends OpenSearchIntegTestCase {
 
     @Override
     protected boolean ignoreExternalCluster() {
@@ -64,7 +60,7 @@ public abstract class ParentChildTestCase extends ParameterizedOpenSearchIntegTe
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(InternalSettingsPlugin.class, ParentJoinModulePlugin.class);
+        return Arrays.asList(InternalSettingsPlugin.class, ParentJoinPlugin.class);
     }
 
     @Override
@@ -89,7 +85,7 @@ public abstract class ParentChildTestCase extends ParameterizedOpenSearchIntegTe
 
     protected IndexRequestBuilder createIndexRequest(String index, String type, String id, String parentId, XContentBuilder builder)
         throws IOException {
-        Map<String, Object> source = XContentHelper.convertToMap(JsonXContent.jsonXContent, builder.toString(), false);
+        Map<String, Object> source = XContentHelper.convertToMap(JsonXContent.jsonXContent, Strings.toString(builder), false);
         return createIndexRequest(index, type, id, parentId, source);
     }
 

@@ -32,15 +32,27 @@
 
 package org.opensearch.geo.search.aggregations.bucket;
 
+import org.opensearch.LegacyESVersion;
+import org.opensearch.Version;
+import org.opensearch.common.geo.GeoBoundingBox;
+import org.opensearch.common.geo.GeoPoint;
+import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.search.aggregations.BaseAggregationTestCase;
+import org.opensearch.test.VersionUtils;
+
+import java.util.Collections;
+
+import static org.hamcrest.Matchers.equalTo;
 import org.opensearch.geo.GeoModulePlugin;
 import org.opensearch.geo.search.aggregations.bucket.geogrid.GeoGridAggregationBuilder;
 import org.opensearch.geo.search.aggregations.bucket.geogrid.GeoHashGridAggregationBuilder;
 import org.opensearch.geo.tests.common.RandomGeoGenerator;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.search.aggregations.BaseAggregationTestCase;
 
 import java.util.Collection;
-import java.util.Collections;
 
 public class GeoHashGridAggregationBuilderTests extends BaseAggregationTestCase<GeoGridAggregationBuilder> {
 
@@ -67,5 +79,27 @@ public class GeoHashGridAggregationBuilderTests extends BaseAggregationTestCase<
             factory.setGeoBoundingBox(RandomGeoGenerator.randomBBox());
         }
         return factory;
+    }
+
+    public void testSerializationPreBounds() throws Exception {
+        Version noBoundsSupportVersion = VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_7_0_0, LegacyESVersion.V_7_5_0);
+        GeoHashGridAggregationBuilder builder = createTestAggregatorBuilder();
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            output.setVersion(LegacyESVersion.V_7_6_0);
+            builder.writeTo(output);
+            try (
+                StreamInput in = new NamedWriteableAwareStreamInput(
+                    output.bytes().streamInput(),
+                    new NamedWriteableRegistry(Collections.emptyList())
+                )
+            ) {
+                in.setVersion(noBoundsSupportVersion);
+                GeoHashGridAggregationBuilder readBuilder = new GeoHashGridAggregationBuilder(in);
+                assertThat(
+                    readBuilder.geoBoundingBox(),
+                    equalTo(new GeoBoundingBox(new GeoPoint(Double.NaN, Double.NaN), new GeoPoint(Double.NaN, Double.NaN)))
+                );
+            }
+        }
     }
 }

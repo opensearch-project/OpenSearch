@@ -80,7 +80,7 @@ public class RestInitializeExtensionAction extends BaseRestHandler {
         Tuple<? extends MediaType, Map<String, Object>> unreadExtensionTuple = XContentHelper.convertToMap(
             request.content(),
             false,
-            request.getMediaType().xContent().mediaType()
+            request.getXContentType().xContent().mediaType()
         );
         Map<String, Object> extensionMap = unreadExtensionTuple.v2();
 

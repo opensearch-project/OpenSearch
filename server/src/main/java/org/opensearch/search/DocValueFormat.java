@@ -34,15 +34,18 @@ package org.opensearch.search;
 
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.common.Numbers;
+import org.opensearch.core.common.io.stream.NamedWriteable;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.common.joda.Joda;
+import org.opensearch.common.joda.JodaDateFormatter;
 import org.opensearch.common.network.InetAddresses;
 import org.opensearch.common.network.NetworkAddress;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.time.DateMathParser;
-import org.opensearch.core.common.io.stream.NamedWriteable;
-import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.common.time.DateUtils;
 import org.opensearch.geometry.utils.Geohash;
 import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.search.aggregations.bucket.GeoTileUtils;
@@ -243,14 +246,35 @@ public interface DocValueFormat extends NamedWriteable {
         }
 
         public DateTime(StreamInput in) throws IOException {
-            this.formatter = DateFormatter.forPattern(in.readString());
-            this.parser = formatter.toDateMathParser();
+            String datePattern = in.readString();
+
             String zoneId = in.readString();
-            this.timeZone = ZoneId.of(zoneId);
-            this.resolution = DateFieldMapper.Resolution.ofOrdinal(in.readVInt());
-            if (in.getVersion().before(Version.V_3_0_0)) {
-                in.readBoolean(); // ignore deprecated joda
+            if (in.getVersion().before(LegacyESVersion.V_7_0_0)) {
+                this.timeZone = DateUtils.of(zoneId);
+                this.resolution = DateFieldMapper.Resolution.MILLISECONDS;
+            } else {
+                this.timeZone = ZoneId.of(zoneId);
+                this.resolution = DateFieldMapper.Resolution.ofOrdinal(in.readVInt());
             }
+            final boolean isJoda;
+            if (in.getVersion().onOrAfter(LegacyESVersion.V_7_7_0)) {
+                // if stream is from 7.7 Node it will have a flag indicating if format is joda
+                isJoda = in.readBoolean();
+            } else {
+                /*
+                 When received a stream from 6.0-6.latest Node it can be java if starts with 8 otherwise joda.
+
+                 If a stream is from [7.0 - 7.7) the boolean indicating that this is joda is not present.
+                 This means that if an index was created in 6.x using joda pattern and then cluster was upgraded to
+                 7.x but earlier then 7.0, there is no information that can tell that the index is using joda style pattern.
+                 It will be assumed that clusters upgrading from [7.0 - 7.7) are using java style patterns.
+                 */
+                isJoda = Joda.isJodaPattern(in.getVersion(), datePattern);
+            }
+            this.formatter = isJoda ? Joda.forPattern(datePattern) : DateFormatter.forPattern(datePattern);
+
+            this.parser = formatter.toDateMathParser();
+
         }
 
         @Override
@@ -261,10 +285,15 @@ public interface DocValueFormat extends NamedWriteable {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(formatter.pattern());
-            out.writeString(timeZone.getId());
-            out.writeVInt(resolution.ordinal());
-            if (out.getVersion().before(Version.V_3_0_0)) {
-                out.writeBoolean(false); // ignore deprecated joda flag
+            if (out.getVersion().before(LegacyESVersion.V_7_0_0)) {
+                out.writeString(DateUtils.zoneIdToDateTimeZone(timeZone).getID());
+            } else {
+                out.writeString(timeZone.getId());
+                out.writeVInt(resolution.ordinal());
+            }
+            if (out.getVersion().onOrAfter(LegacyESVersion.V_7_7_0)) {
+                // in order not to loose information if the formatter is a joda we send a flag
+                out.writeBoolean(formatter instanceof JodaDateFormatter);// todo pg consider refactor to isJoda method..
             }
         }
 

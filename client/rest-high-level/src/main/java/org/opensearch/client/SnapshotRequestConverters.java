@@ -32,10 +32,10 @@
 
 package org.opensearch.client;
 
-import org.apache.hc.client5.http.classic.methods.HttpDelete;
-import org.apache.hc.client5.http.classic.methods.HttpGet;
-import org.apache.hc.client5.http.classic.methods.HttpPost;
-import org.apache.hc.client5.http.classic.methods.HttpPut;
+import org.apache.http.client.methods.HttpDelete;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.methods.HttpPut;
 import org.opensearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryRequest;
 import org.opensearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
 import org.opensearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
@@ -63,7 +63,7 @@ final class SnapshotRequestConverters {
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
 
         RequestConverters.Params parameters = new RequestConverters.Params();
-        parameters.withClusterManagerTimeout(getRepositoriesRequest.clusterManagerNodeTimeout());
+        parameters.withMasterTimeout(getRepositoriesRequest.clusterManagerNodeTimeout());
         parameters.withLocal(getRepositoriesRequest.local());
         request.addParameters(parameters.asMap());
         return request;
@@ -74,7 +74,7 @@ final class SnapshotRequestConverters {
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);
 
         RequestConverters.Params parameters = new RequestConverters.Params();
-        parameters.withClusterManagerTimeout(putRepositoryRequest.clusterManagerNodeTimeout());
+        parameters.withMasterTimeout(putRepositoryRequest.clusterManagerNodeTimeout());
         parameters.withTimeout(putRepositoryRequest.timeout());
         if (putRepositoryRequest.verify() == false) {
             parameters.putParam("verify", "false");
@@ -91,7 +91,7 @@ final class SnapshotRequestConverters {
         Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
 
         RequestConverters.Params parameters = new RequestConverters.Params();
-        parameters.withClusterManagerTimeout(deleteRepositoryRequest.clusterManagerNodeTimeout());
+        parameters.withMasterTimeout(deleteRepositoryRequest.clusterManagerNodeTimeout());
         parameters.withTimeout(deleteRepositoryRequest.timeout());
         request.addParameters(parameters.asMap());
         return request;
@@ -105,7 +105,7 @@ final class SnapshotRequestConverters {
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
 
         RequestConverters.Params parameters = new RequestConverters.Params();
-        parameters.withClusterManagerTimeout(verifyRepositoryRequest.clusterManagerNodeTimeout());
+        parameters.withMasterTimeout(verifyRepositoryRequest.clusterManagerNodeTimeout());
         parameters.withTimeout(verifyRepositoryRequest.timeout());
         request.addParameters(parameters.asMap());
         return request;
@@ -119,7 +119,7 @@ final class SnapshotRequestConverters {
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
 
         RequestConverters.Params parameters = new RequestConverters.Params();
-        parameters.withClusterManagerTimeout(cleanupRepositoryRequest.clusterManagerNodeTimeout());
+        parameters.withMasterTimeout(cleanupRepositoryRequest.clusterManagerNodeTimeout());
         parameters.withTimeout(cleanupRepositoryRequest.timeout());
         request.addParameters(parameters.asMap());
         return request;
@@ -132,7 +132,7 @@ final class SnapshotRequestConverters {
             .build();
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);
         RequestConverters.Params params = new RequestConverters.Params();
-        params.withClusterManagerTimeout(createSnapshotRequest.clusterManagerNodeTimeout());
+        params.withMasterTimeout(createSnapshotRequest.clusterManagerNodeTimeout());
         params.withWaitForCompletion(createSnapshotRequest.waitForCompletion());
         request.addParameters(params.asMap());
         request.setEntity(RequestConverters.createEntity(createSnapshotRequest, RequestConverters.REQUEST_BODY_CONTENT_TYPE));
@@ -148,7 +148,7 @@ final class SnapshotRequestConverters {
             .build();
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);
         RequestConverters.Params params = new RequestConverters.Params();
-        params.withClusterManagerTimeout(cloneSnapshotRequest.clusterManagerNodeTimeout());
+        params.withMasterTimeout(cloneSnapshotRequest.clusterManagerNodeTimeout());
         request.addParameters(params.asMap());
         request.setEntity(RequestConverters.createEntity(cloneSnapshotRequest, RequestConverters.REQUEST_BODY_CONTENT_TYPE));
         return request;
@@ -167,7 +167,7 @@ final class SnapshotRequestConverters {
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
 
         RequestConverters.Params parameters = new RequestConverters.Params();
-        parameters.withClusterManagerTimeout(getSnapshotsRequest.clusterManagerNodeTimeout());
+        parameters.withMasterTimeout(getSnapshotsRequest.clusterManagerNodeTimeout());
         parameters.putParam("ignore_unavailable", Boolean.toString(getSnapshotsRequest.ignoreUnavailable()));
         parameters.putParam("verbose", Boolean.toString(getSnapshotsRequest.verbose()));
         request.addParameters(parameters.asMap());
@@ -183,7 +183,7 @@ final class SnapshotRequestConverters {
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
 
         RequestConverters.Params parameters = new RequestConverters.Params();
-        parameters.withClusterManagerTimeout(snapshotsStatusRequest.clusterManagerNodeTimeout());
+        parameters.withMasterTimeout(snapshotsStatusRequest.clusterManagerNodeTimeout());
         parameters.withIgnoreUnavailable(snapshotsStatusRequest.ignoreUnavailable());
         request.addParameters(parameters.asMap());
         return request;
@@ -197,7 +197,7 @@ final class SnapshotRequestConverters {
             .build();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
         RequestConverters.Params parameters = new RequestConverters.Params();
-        parameters.withClusterManagerTimeout(restoreSnapshotRequest.clusterManagerNodeTimeout());
+        parameters.withMasterTimeout(restoreSnapshotRequest.clusterManagerNodeTimeout());
         parameters.withWaitForCompletion(restoreSnapshotRequest.waitForCompletion());
         request.addParameters(parameters.asMap());
         request.setEntity(RequestConverters.createEntity(restoreSnapshotRequest, RequestConverters.REQUEST_BODY_CONTENT_TYPE));
@@ -212,7 +212,7 @@ final class SnapshotRequestConverters {
         Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
 
         RequestConverters.Params parameters = new RequestConverters.Params();
-        parameters.withClusterManagerTimeout(deleteSnapshotRequest.clusterManagerNodeTimeout());
+        parameters.withMasterTimeout(deleteSnapshotRequest.clusterManagerNodeTimeout());
         request.addParameters(parameters.asMap());
         return request;
     }

@@ -33,13 +33,13 @@
 package org.opensearch.analysis.common;
 
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.MultiPhraseQuery;
-import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.PhraseQuery;
+import org.apache.lucene.search.MultiPhraseQuery;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.query.MatchPhraseQueryBuilder;
@@ -74,7 +74,7 @@ public class DisableGraphQueryTests extends OpenSearchSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Collections.singleton(CommonAnalysisModulePlugin.class);
+        return Collections.singleton(CommonAnalysisPlugin.class);
     }
 
     @Before

@@ -9,7 +9,6 @@
 package org.opensearch.upgrade;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-
 import org.opensearch.Version;
 import org.opensearch.cli.Terminal;
 import org.opensearch.common.SuppressForbidden;

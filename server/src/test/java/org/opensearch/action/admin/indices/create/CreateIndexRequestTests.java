@@ -34,15 +34,16 @@ package org.opensearch.action.admin.indices.create;
 
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.action.admin.indices.alias.Alias;
+import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.common.xcontent.LoggingDeprecationHandler;
-import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -56,12 +57,9 @@ public class CreateIndexRequestTests extends OpenSearchTestCase {
 
     public void testSerialization() throws IOException {
         CreateIndexRequest request = new CreateIndexRequest("foo");
-        String mapping = JsonXContent.contentBuilder()
-            .startObject()
-            .startObject(MapperService.SINGLE_MAPPING_NAME)
-            .endObject()
-            .endObject()
-            .toString();
+        String mapping = Strings.toString(
+            JsonXContent.contentBuilder().startObject().startObject(MapperService.SINGLE_MAPPING_NAME).endObject().endObject()
+        );
         request.mapping(mapping);
 
         try (BytesStreamOutput output = new BytesStreamOutput()) {
@@ -94,7 +92,7 @@ public class CreateIndexRequestTests extends OpenSearchTestCase {
         CreateIndexRequest request = new CreateIndexRequest();
         OpenSearchParseException e = expectThrows(
             OpenSearchParseException.class,
-            () -> { request.source(createIndex, MediaTypeRegistry.JSON); }
+            () -> { request.source(createIndex, XContentType.JSON); }
         );
         assertEquals("unknown key [FOO_SHOULD_BE_ILLEGAL_HERE] for create index", e.getMessage());
     }
@@ -103,7 +101,7 @@ public class CreateIndexRequestTests extends OpenSearchTestCase {
         CreateIndexRequest request1 = new CreateIndexRequest("foo");
         CreateIndexRequest request2 = new CreateIndexRequest("bar");
         {
-            XContentBuilder builder = MediaTypeRegistry.contentBuilder(randomFrom(XContentType.values()));
+            XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
             builder.startObject()
                 .startObject("properties")
                 .startObject("field1")
@@ -119,7 +117,7 @@ public class CreateIndexRequestTests extends OpenSearchTestCase {
                 .endObject()
                 .endObject();
             request1.mapping(builder);
-            builder = MediaTypeRegistry.contentBuilder(randomFrom(XContentType.values()));
+            builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
             builder.startObject()
                 .startObject(MapperService.SINGLE_MAPPING_NAME)
                 .startObject("properties")
@@ -142,7 +140,7 @@ public class CreateIndexRequestTests extends OpenSearchTestCase {
     }
 
     public void testSettingsType() throws IOException {
-        XContentBuilder builder = MediaTypeRegistry.contentBuilder(randomFrom(XContentType.values()));
+        XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
         builder.startObject().startArray("settings").endArray().endObject();
 
         CreateIndexRequest parsedCreateIndexRequest = new CreateIndexRequest();

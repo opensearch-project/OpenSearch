@@ -41,12 +41,6 @@ public class GetAllPitNodesResponse extends BaseNodesResponse<GetAllPitNodeRespo
 
     public GetAllPitNodesResponse(StreamInput in) throws IOException {
         super(in);
-        Set<String> uniquePitIds = new HashSet<>();
-        pitInfos.addAll(
-            getNodes().stream()
-                .flatMap(p -> p.getPitInfos().stream().filter(t -> uniquePitIds.add(t.getPitId())))
-                .collect(Collectors.toList())
-        );
     }
 
     public GetAllPitNodesResponse(

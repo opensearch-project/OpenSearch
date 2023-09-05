@@ -41,8 +41,8 @@ import org.opensearch.cluster.routing.RecoverySource.EmptyStoreRecoverySource;
 import org.opensearch.cluster.routing.RecoverySource.ExistingStoreRecoverySource;
 import org.opensearch.cluster.routing.RecoverySource.LocalShardsRecoverySource;
 import org.opensearch.cluster.routing.RecoverySource.PeerRecoverySource;
-import org.opensearch.cluster.routing.RecoverySource.RemoteStoreRecoverySource;
 import org.opensearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
+import org.opensearch.cluster.routing.RecoverySource.RemoteStoreRecoverySource;
 import org.opensearch.common.Randomness;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -453,8 +453,7 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
         public Builder initializeAsRemoteStoreRestore(
             IndexMetadata indexMetadata,
             RemoteStoreRecoverySource recoverySource,
-            Map<ShardId, IndexShardRoutingTable> indexShardRoutingTableMap,
-            boolean restoreAllShards
+            Map<ShardId, ShardRouting> activeInitializingShards
         ) {
             final UnassignedInfo unassignedInfo = new UnassignedInfo(
                 UnassignedInfo.Reason.EXISTING_INDEX_RESTORED,
@@ -466,34 +465,11 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
             }
             for (int shardNumber = 0; shardNumber < indexMetadata.getNumberOfShards(); shardNumber++) {
                 ShardId shardId = new ShardId(index, shardNumber);
-                if (indexShardRoutingTableMap.containsKey(shardId) == false) {
-                    throw new IllegalStateException("IndexShardRoutingTable is not present for shardId: " + shardId);
-                }
                 IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(shardId);
-                IndexShardRoutingTable indexShardRoutingTable = indexShardRoutingTableMap.get(shardId);
-                if (restoreAllShards || indexShardRoutingTable.primaryShard().unassigned()) {
-                    // Primary shard to be recovered from remote store.
-                    indexShardRoutingBuilder.addShard(ShardRouting.newUnassigned(shardId, true, recoverySource, unassignedInfo));
-                    // All the replica shards to be recovered from peer recovery.
-                    indexShardRoutingTable.replicaShards()
-                        .forEach(
-                            shardRouting -> indexShardRoutingBuilder.addShard(
-                                ShardRouting.newUnassigned(shardId, false, PeerRecoverySource.INSTANCE, unassignedInfo)
-                            )
-                        );
+                if (activeInitializingShards.containsKey(shardId)) {
+                    indexShardRoutingBuilder.addShard(activeInitializingShards.get(shardId));
                 } else {
-                    // Primary is either active or initializing. Do not trigger restore.
-                    indexShardRoutingBuilder.addShard(indexShardRoutingTable.primaryShard());
-                    // Replica, if unassigned, trigger peer recovery else no action.
-                    for (ShardRouting shardRouting : indexShardRoutingTable.replicaShards()) {
-                        if (shardRouting.unassigned()) {
-                            indexShardRoutingBuilder.addShard(
-                                ShardRouting.newUnassigned(shardId, false, PeerRecoverySource.INSTANCE, unassignedInfo)
-                            );
-                        } else {
-                            indexShardRoutingBuilder.addShard(shardRouting);
-                        }
-                    }
+                    indexShardRoutingBuilder.addShard(ShardRouting.newUnassigned(shardId, true, recoverySource, unassignedInfo));
                 }
                 shards.put(shardNumber, indexShardRoutingBuilder.build());
             }

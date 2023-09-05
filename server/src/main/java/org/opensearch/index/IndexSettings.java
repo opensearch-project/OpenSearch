@@ -34,19 +34,19 @@ package org.opensearch.index;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.sandbox.index.MergeOnFlushMergePolicy;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.ByteSizeUnit;
+import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.Strings;
-import org.opensearch.core.common.unit.ByteSizeUnit;
-import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.Index;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.replication.common.ReplicationType;
@@ -78,9 +78,8 @@ import static org.opensearch.index.store.remote.directory.RemoteSnapshotDirector
  * a settings consumer at index creation via {@link IndexModule#addSettingsUpdateConsumer(Setting, Consumer)} that will
  * be called for each settings update.
  *
- * @opensearch.api
+ * @opensearch.internal
  */
-@PublicApi(since = "1.0.0")
 public final class IndexSettings {
     private static final String MERGE_ON_FLUSH_DEFAULT_POLICY = "default";
     private static final String MERGE_ON_FLUSH_MERGE_POLICY = "merge-on-flush";
@@ -301,11 +300,10 @@ public final class IndexSettings {
         Property.Deprecated
     );
     public static final TimeValue DEFAULT_REFRESH_INTERVAL = new TimeValue(1, TimeUnit.SECONDS);
-    public static final TimeValue MINIMUM_REFRESH_INTERVAL = new TimeValue(-1, TimeUnit.MILLISECONDS);
     public static final Setting<TimeValue> INDEX_REFRESH_INTERVAL_SETTING = Setting.timeSetting(
         "index.refresh_interval",
         DEFAULT_REFRESH_INTERVAL,
-        MINIMUM_REFRESH_INTERVAL,
+        new TimeValue(-1, TimeUnit.MILLISECONDS),
         Property.Dynamic,
         Property.IndexScope
     );
@@ -620,7 +618,6 @@ public final class IndexSettings {
     private final String remoteStoreRepository;
     private final boolean isRemoteSnapshot;
     private Version extendedCompatibilitySnapshotVersion;
-
     // volatile fields are updated via #updateIndexMetadata(IndexMetadata) under lock
     private volatile Settings settings;
     private volatile IndexMetadata indexMetadata;
@@ -793,7 +790,6 @@ public final class IndexSettings {
         } else {
             extendedCompatibilitySnapshotVersion = Version.CURRENT.minimumIndexCompatibilityVersion();
         }
-
         this.searchThrottled = INDEX_SEARCH_THROTTLED.get(settings);
         this.queryStringLenient = QUERY_STRING_LENIENT_SETTING.get(settings);
         this.queryStringAnalyzeWildcard = QUERY_STRING_ANALYZE_WILDCARD.get(nodeSettings);
@@ -1063,23 +1059,19 @@ public final class IndexSettings {
     }
 
     /**
+     * Returns remote store repository configured for this index.
+     */
+    public String getRemoteStoreRepository() {
+        return remoteStoreRepository;
+    }
+
+    /**
      * Returns if remote translog store is enabled for this index.
      */
     public boolean isRemoteTranslogStoreEnabled() {
         // Today enabling remote store automatically enables remote translog as well.
         // which is why isRemoteStoreEnabled is used to represent isRemoteTranslogStoreEnabled
         return isRemoteStoreEnabled;
-    }
-
-    /**
-     * Returns if remote store is enabled for this index.
-     */
-    public String getRemoteStoreRepository() {
-        return remoteStoreRepository;
-    }
-
-    public String getRemoteStoreTranslogRepository() {
-        return remoteStoreTranslogRepository;
     }
 
     /**
@@ -1097,6 +1089,10 @@ public final class IndexSettings {
      */
     public Version getExtendedCompatibilitySnapshotVersion() {
         return extendedCompatibilitySnapshotVersion;
+    }
+
+    public String getRemoteStoreTranslogRepository() {
+        return remoteStoreTranslogRepository;
     }
 
     /**
@@ -1149,9 +1145,7 @@ public final class IndexSettings {
      */
     public static boolean same(final Settings left, final Settings right) {
         return left.filter(IndexScopedSettings.INDEX_SETTINGS_KEY_PREDICATE)
-            .equals(right.filter(IndexScopedSettings.INDEX_SETTINGS_KEY_PREDICATE))
-            && left.filter(IndexScopedSettings.ARCHIVED_SETTINGS_KEY_PREDICATE)
-                .equals(right.filter(IndexScopedSettings.ARCHIVED_SETTINGS_KEY_PREDICATE));
+            .equals(right.filter(IndexScopedSettings.INDEX_SETTINGS_KEY_PREDICATE));
     }
 
     /**
@@ -1195,13 +1189,6 @@ public final class IndexSettings {
      */
     public TimeValue getRemoteTranslogUploadBufferInterval() {
         return remoteTranslogUploadBufferInterval;
-    }
-
-    /**
-     * Returns true iff the remote translog buffer interval setting exists or in other words is explicitly set.
-     */
-    public boolean isRemoteTranslogBufferIntervalExplicit() {
-        return INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.exists(settings);
     }
 
     public void setRemoteTranslogUploadBufferInterval(TimeValue remoteTranslogUploadBufferInterval) {
@@ -1255,7 +1242,8 @@ public final class IndexSettings {
     }
 
     private static boolean shouldDisableTranslogRetention(Settings settings) {
-        return INDEX_SOFT_DELETES_SETTING.get(settings);
+        return INDEX_SOFT_DELETES_SETTING.get(settings)
+            && IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings).onOrAfter(LegacyESVersion.V_7_4_0);
     }
 
     /**

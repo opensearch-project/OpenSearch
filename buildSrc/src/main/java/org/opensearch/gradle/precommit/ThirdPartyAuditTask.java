@@ -32,7 +32,6 @@
 package org.opensearch.gradle.precommit;
 
 import de.thetaphi.forbiddenapis.cli.CliMain;
-
 import org.apache.commons.io.output.NullOutputStream;
 import org.opensearch.gradle.LoggedExec;
 import org.opensearch.gradle.OS;
@@ -268,6 +267,7 @@ public class ThirdPartyAuditTask extends DefaultTask {
         if (missingClasses.isEmpty() && violationsClasses.isEmpty()) {
             getLogger().info("Third party audit passed successfully");
         } else {
+            logForbiddenAPIsOutput(forbiddenApisOutput);
             if (missingClasses.isEmpty() == false) {
                 getLogger().error("Missing classes:\n{}", formatClassList(missingClasses));
             }

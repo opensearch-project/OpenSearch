@@ -90,9 +90,4 @@ class AvgAggregatorFactory extends ValuesSourceAggregatorFactory {
             .getAggregator(AvgAggregationBuilder.REGISTRY_KEY, config)
             .build(name, config, searchContext, parent, metadata);
     }
-
-    @Override
-    protected boolean supportsConcurrentSegmentSearch() {
-        return true;
-    }
 }

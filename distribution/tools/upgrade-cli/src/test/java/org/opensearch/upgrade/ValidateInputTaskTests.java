@@ -8,6 +8,7 @@
 
 package org.opensearch.upgrade;
 
+import org.junit.Before;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.cli.MockTerminal;
 import org.opensearch.common.collect.Tuple;
@@ -16,7 +17,6 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
 import org.opensearch.test.OpenSearchTestCase;
-import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.Map;
@@ -39,7 +39,7 @@ public class ValidateInputTaskTests extends OpenSearchTestCase {
 
     public void testUnsupportedEsVersion() {
         TaskInput taskInput = new TaskInput(env);
-        taskInput.setVersion(LegacyESVersion.fromId(7100199));
+        taskInput.setVersion(LegacyESVersion.V_7_10_1);
 
         final RuntimeException e = expectThrows(RuntimeException.class, () -> task.accept(new Tuple<>(taskInput, terminal)));
 
@@ -51,7 +51,7 @@ public class ValidateInputTaskTests extends OpenSearchTestCase {
         taskInput.setEsConfig(PathUtils.get("es_home"));
         taskInput.setCluster("some-cluster");
         taskInput.setNode("some-node");
-        taskInput.setVersion(LegacyESVersion.fromId(7100299));
+        taskInput.setVersion(LegacyESVersion.V_7_10_2);
         taskInput.setBaseUrl("some-url");
         taskInput.setPlugins(Arrays.asList("plugin-1", "plugin-2"));
 
@@ -64,6 +64,6 @@ public class ValidateInputTaskTests extends OpenSearchTestCase {
         assertThat(summary.get("Elasticsearch Version"), is("7.10.2"));
         assertThat(summary.get("Elasticsearch Plugins"), is("[plugin-1, plugin-2]"));
         assertThat(summary.get("Elasticsearch Config"), is("es_home"));
-        assertThat(summary.get("OpenSearch Config"), is(env.configDir().toString()));
+        assertThat(summary.get("OpenSearch Config"), is(env.configFile().toString()));
     }
 }

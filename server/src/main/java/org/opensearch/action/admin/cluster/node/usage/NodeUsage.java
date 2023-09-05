@@ -32,6 +32,7 @@
 
 package org.opensearch.action.admin.cluster.node.usage;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.action.support.nodes.BaseNodeResponse;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -60,7 +61,11 @@ public class NodeUsage extends BaseNodeResponse implements ToXContentFragment {
         timestamp = in.readLong();
         sinceTime = in.readLong();
         restUsage = (Map<String, Long>) in.readGenericValue();
-        aggregationUsage = (Map<String, Object>) in.readGenericValue();
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_8_0)) {
+            aggregationUsage = (Map<String, Object>) in.readGenericValue();
+        } else {
+            aggregationUsage = null;
+        }
     }
 
     /**
@@ -139,7 +144,9 @@ public class NodeUsage extends BaseNodeResponse implements ToXContentFragment {
         out.writeLong(timestamp);
         out.writeLong(sinceTime);
         out.writeGenericValue(restUsage);
-        out.writeGenericValue(aggregationUsage);
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_8_0)) {
+            out.writeGenericValue(aggregationUsage);
+        }
     }
 
 }

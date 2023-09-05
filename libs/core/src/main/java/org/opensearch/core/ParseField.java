@@ -31,7 +31,6 @@
 
 package org.opensearch.core;
 
-import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.XContentLocation;
 
@@ -44,11 +43,7 @@ import java.util.function.Supplier;
 /**
  * Holds a field that can be found in a request while parsing and its different
  * variants, which may be deprecated.
- *
- * @opensearch.api
- *
  */
-@PublicApi(since = "1.0.0")
 public class ParseField {
     private final String name;
     private final String[] deprecatedNames;
@@ -73,12 +68,12 @@ public class ParseField {
         } else {
             final HashSet<String> set = new HashSet<>();
             Collections.addAll(set, deprecatedNames);
-            this.deprecatedNames = set.toArray(new String[0]);
+            this.deprecatedNames = set.toArray(new String[set.size()]);
         }
         Set<String> allNames = new HashSet<>();
         allNames.add(name);
         Collections.addAll(allNames, this.deprecatedNames);
-        this.allNames = allNames.toArray(new String[0]);
+        this.allNames = allNames.toArray(new String[allNames.size()]);
     }
 
     /**
@@ -209,6 +204,5 @@ public class ParseField {
         public static final ParseField FORMAT = new ParseField("format");
         public static final ParseField MISSING = new ParseField("missing");
         public static final ParseField TIME_ZONE = new ParseField("time_zone");
-        public static final ParseField _META = new ParseField("_meta");
     }
 }

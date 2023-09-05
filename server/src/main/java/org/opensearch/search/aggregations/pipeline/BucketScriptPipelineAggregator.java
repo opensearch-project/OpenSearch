@@ -32,6 +32,8 @@
 
 package org.opensearch.search.aggregations.pipeline;
 
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.script.BucketAggregationScript;
 import org.opensearch.script.Script;
 import org.opensearch.search.DocValueFormat;
@@ -41,6 +43,7 @@ import org.opensearch.search.aggregations.InternalAggregations;
 import org.opensearch.search.aggregations.InternalMultiBucketAggregation;
 import org.opensearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -74,6 +77,31 @@ public class BucketScriptPipelineAggregator extends PipelineAggregator {
         this.script = script;
         this.formatter = formatter;
         this.gapPolicy = gapPolicy;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    @SuppressWarnings("unchecked")
+    public BucketScriptPipelineAggregator(StreamInput in) throws IOException {
+        super(in);
+        script = new Script(in);
+        formatter = in.readNamedWriteable(DocValueFormat.class);
+        gapPolicy = GapPolicy.readFrom(in);
+        bucketsPathsMap = (Map<String, String>) in.readGenericValue();
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        script.writeTo(out);
+        out.writeNamedWriteable(formatter);
+        gapPolicy.writeTo(out);
+        out.writeGenericValue(bucketsPathsMap);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return BucketScriptPipelineAggregationBuilder.NAME;
     }
 
     @Override

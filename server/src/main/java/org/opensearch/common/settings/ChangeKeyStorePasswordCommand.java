@@ -54,7 +54,7 @@ class ChangeKeyStorePasswordCommand extends BaseKeyStoreCommand {
     protected void executeCommand(Terminal terminal, OptionSet options, Environment env) throws Exception {
         try (SecureString newPassword = readPassword(terminal, true)) {
             final KeyStoreWrapper keyStore = getKeyStore();
-            keyStore.save(env.configDir(), newPassword.getChars());
+            keyStore.save(env.configFile(), newPassword.getChars());
             terminal.println("OpenSearch keystore password changed successfully.");
         } catch (SecurityException e) {
             throw new UserException(ExitCodes.DATA_ERROR, e.getMessage());

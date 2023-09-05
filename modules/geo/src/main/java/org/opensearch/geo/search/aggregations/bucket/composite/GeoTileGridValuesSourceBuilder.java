@@ -33,24 +33,25 @@
 package org.opensearch.geo.search.aggregations.bucket.composite;
 
 import org.apache.lucene.index.IndexReader;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.common.geo.GeoBoundingBox;
 import org.opensearch.common.geo.GeoPoint;
-import org.opensearch.common.util.BigArrays;
-import org.opensearch.core.ParseField;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.common.util.BigArrays;
+import org.opensearch.core.ParseField;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.geo.search.aggregations.bucket.geogrid.GeoTileGridAggregationBuilder;
 import org.opensearch.geo.search.aggregations.bucket.geogrid.cells.CellIdSource;
+import org.opensearch.geo.search.aggregations.bucket.geogrid.GeoTileGridAggregationBuilder;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.DocValueFormat;
-import org.opensearch.search.aggregations.bucket.GeoTileUtils;
 import org.opensearch.search.aggregations.bucket.composite.CompositeValuesSourceBuilder;
 import org.opensearch.search.aggregations.bucket.composite.CompositeValuesSourceConfig;
 import org.opensearch.search.aggregations.bucket.composite.CompositeValuesSourceParserHelper;
+import org.opensearch.search.aggregations.bucket.GeoTileUtils;
 import org.opensearch.search.aggregations.bucket.missing.MissingOrder;
 import org.opensearch.search.aggregations.support.CoreValuesSourceType;
 import org.opensearch.search.aggregations.support.ValuesSource;
@@ -174,7 +175,9 @@ public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder
     public GeoTileGridValuesSourceBuilder(StreamInput in) throws IOException {
         super(in);
         this.precision = in.readInt();
-        this.geoBoundingBox = new GeoBoundingBox(in);
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_6_0)) {
+            this.geoBoundingBox = new GeoBoundingBox(in);
+        }
     }
 
     public GeoTileGridValuesSourceBuilder precision(int precision) {
@@ -195,7 +198,9 @@ public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder
     @Override
     protected void innerWriteTo(StreamOutput out) throws IOException {
         out.writeInt(precision);
-        geoBoundingBox.writeTo(out);
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_6_0)) {
+            geoBoundingBox.writeTo(out);
+        }
     }
 
     @Override

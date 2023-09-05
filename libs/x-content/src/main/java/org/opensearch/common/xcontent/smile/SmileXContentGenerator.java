@@ -33,7 +33,6 @@
 package org.opensearch.common.xcontent.smile;
 
 import com.fasterxml.jackson.core.JsonGenerator;
-
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContentGenerator;
 

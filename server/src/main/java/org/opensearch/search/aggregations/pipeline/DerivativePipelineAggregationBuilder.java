@@ -32,12 +32,12 @@
 
 package org.opensearch.search.aggregations.pipeline;
 
-import org.opensearch.common.Rounding;
-import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.ParsingException;
+import org.opensearch.common.Rounding;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.search.DocValueFormat;
@@ -223,7 +223,7 @@ public class DerivativePipelineAggregationBuilder extends AbstractPipelineAggreg
                         String path = parser.text();
                         paths.add(path);
                     }
-                    bucketsPaths = paths.toArray(new String[0]);
+                    bucketsPaths = paths.toArray(new String[paths.size()]);
                 } else {
                     throw new ParsingException(
                         parser.getTokenLocation(),

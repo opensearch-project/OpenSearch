@@ -32,10 +32,10 @@
 
 package org.opensearch.client;
 
-import org.apache.hc.client5.http.classic.methods.HttpDelete;
-import org.apache.hc.client5.http.classic.methods.HttpGet;
-import org.apache.hc.client5.http.classic.methods.HttpPost;
-import org.apache.hc.client5.http.classic.methods.HttpPut;
+import org.apache.http.client.methods.HttpDelete;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.methods.HttpPut;
 import org.opensearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
 import org.opensearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
 import org.opensearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
@@ -48,7 +48,7 @@ import org.opensearch.action.admin.cluster.snapshots.status.SnapshotsStatusReque
 import org.opensearch.action.support.master.AcknowledgedRequest;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -70,7 +70,7 @@ public class SnapshotRequestConvertersTests extends OpenSearchTestCase {
         StringBuilder endpoint = new StringBuilder("/_snapshot");
 
         GetRepositoriesRequest getRepositoriesRequest = new GetRepositoriesRequest();
-        RequestConvertersTests.setRandomClusterManagerTimeout(getRepositoriesRequest, expectedParams);
+        RequestConvertersTests.setRandomMasterTimeout(getRepositoriesRequest, expectedParams);
         RequestConvertersTests.setRandomLocal(getRepositoriesRequest::local, expectedParams);
 
         if (randomBoolean()) {
@@ -121,7 +121,7 @@ public class SnapshotRequestConvertersTests extends OpenSearchTestCase {
 
         DeleteRepositoryRequest deleteRepositoryRequest = new DeleteRepositoryRequest();
         deleteRepositoryRequest.name(repository);
-        RequestConvertersTests.setRandomClusterManagerTimeout(deleteRepositoryRequest, expectedParams);
+        RequestConvertersTests.setRandomMasterTimeout(deleteRepositoryRequest, expectedParams);
         RequestConvertersTests.setRandomTimeout(deleteRepositoryRequest::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
 
         Request request = SnapshotRequestConverters.deleteRepository(deleteRepositoryRequest);
@@ -137,7 +137,7 @@ public class SnapshotRequestConvertersTests extends OpenSearchTestCase {
         String endpoint = "/_snapshot/" + repository + "/_verify";
 
         VerifyRepositoryRequest verifyRepositoryRequest = new VerifyRepositoryRequest(repository);
-        RequestConvertersTests.setRandomClusterManagerTimeout(verifyRepositoryRequest, expectedParams);
+        RequestConvertersTests.setRandomMasterTimeout(verifyRepositoryRequest, expectedParams);
         RequestConvertersTests.setRandomTimeout(verifyRepositoryRequest::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
 
         Request request = SnapshotRequestConverters.verifyRepository(verifyRepositoryRequest);
@@ -153,7 +153,7 @@ public class SnapshotRequestConvertersTests extends OpenSearchTestCase {
         String endpoint = "/_snapshot/" + repository + "/" + snapshot;
 
         CreateSnapshotRequest createSnapshotRequest = new CreateSnapshotRequest(repository, snapshot);
-        RequestConvertersTests.setRandomClusterManagerTimeout(createSnapshotRequest, expectedParams);
+        RequestConvertersTests.setRandomMasterTimeout(createSnapshotRequest, expectedParams);
         Boolean waitForCompletion = randomBoolean();
         createSnapshotRequest.waitForCompletion(waitForCompletion);
 
@@ -177,7 +177,7 @@ public class SnapshotRequestConvertersTests extends OpenSearchTestCase {
         GetSnapshotsRequest getSnapshotsRequest = new GetSnapshotsRequest();
         getSnapshotsRequest.repository(repository);
         getSnapshotsRequest.snapshots(Arrays.asList(snapshot1, snapshot2).toArray(new String[0]));
-        RequestConvertersTests.setRandomClusterManagerTimeout(getSnapshotsRequest, expectedParams);
+        RequestConvertersTests.setRandomMasterTimeout(getSnapshotsRequest, expectedParams);
 
         if (randomBoolean()) {
             boolean ignoreUnavailable = randomBoolean();
@@ -209,7 +209,7 @@ public class SnapshotRequestConvertersTests extends OpenSearchTestCase {
         String endpoint = String.format(Locale.ROOT, "/_snapshot/%s/_all", repository);
 
         GetSnapshotsRequest getSnapshotsRequest = new GetSnapshotsRequest(repository);
-        RequestConvertersTests.setRandomClusterManagerTimeout(getSnapshotsRequest, expectedParams);
+        RequestConvertersTests.setRandomMasterTimeout(getSnapshotsRequest, expectedParams);
 
         boolean ignoreUnavailable = randomBoolean();
         getSnapshotsRequest.ignoreUnavailable(ignoreUnavailable);
@@ -238,7 +238,7 @@ public class SnapshotRequestConvertersTests extends OpenSearchTestCase {
         String endpoint = "/_snapshot/" + repository + "/" + snapshotNames.toString() + "/_status";
 
         SnapshotsStatusRequest snapshotsStatusRequest = new SnapshotsStatusRequest(repository, snapshots);
-        RequestConvertersTests.setRandomClusterManagerTimeout(snapshotsStatusRequest, expectedParams);
+        RequestConvertersTests.setRandomMasterTimeout(snapshotsStatusRequest, expectedParams);
         snapshotsStatusRequest.ignoreUnavailable(ignoreUnavailable);
         expectedParams.put("ignore_unavailable", Boolean.toString(ignoreUnavailable));
 
@@ -256,7 +256,7 @@ public class SnapshotRequestConvertersTests extends OpenSearchTestCase {
         String endpoint = String.format(Locale.ROOT, "/_snapshot/%s/%s/_restore", repository, snapshot);
 
         RestoreSnapshotRequest restoreSnapshotRequest = new RestoreSnapshotRequest(repository, snapshot);
-        RequestConvertersTests.setRandomClusterManagerTimeout(restoreSnapshotRequest, expectedParams);
+        RequestConvertersTests.setRandomMasterTimeout(restoreSnapshotRequest, expectedParams);
         boolean waitForCompletion = randomBoolean();
         restoreSnapshotRequest.waitForCompletion(waitForCompletion);
         expectedParams.put("wait_for_completion", Boolean.toString(waitForCompletion));
@@ -264,7 +264,7 @@ public class SnapshotRequestConvertersTests extends OpenSearchTestCase {
         if (randomBoolean()) {
             String timeout = randomTimeValue();
             restoreSnapshotRequest.clusterManagerNodeTimeout(timeout);
-            expectedParams.put("cluster_manager_timeout", timeout);
+            expectedParams.put("master_timeout", timeout);
         }
 
         Request request = SnapshotRequestConverters.restoreSnapshot(restoreSnapshotRequest);
@@ -284,7 +284,7 @@ public class SnapshotRequestConvertersTests extends OpenSearchTestCase {
         DeleteSnapshotRequest deleteSnapshotRequest = new DeleteSnapshotRequest();
         deleteSnapshotRequest.repository(repository);
         deleteSnapshotRequest.snapshots(snapshot);
-        RequestConvertersTests.setRandomClusterManagerTimeout(deleteSnapshotRequest, expectedParams);
+        RequestConvertersTests.setRandomMasterTimeout(deleteSnapshotRequest, expectedParams);
 
         Request request = SnapshotRequestConverters.deleteSnapshot(deleteSnapshotRequest);
         assertThat(request.getEndpoint(), equalTo(endpoint));

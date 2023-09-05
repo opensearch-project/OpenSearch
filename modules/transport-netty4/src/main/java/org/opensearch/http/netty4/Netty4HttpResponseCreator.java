@@ -32,11 +32,6 @@
 
 package org.opensearch.http.netty4;
 
-import org.opensearch.common.Booleans;
-import org.opensearch.transport.NettyAllocator;
-
-import java.util.List;
-
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
@@ -46,6 +41,10 @@ import io.netty.handler.codec.http.DefaultHttpContent;
 import io.netty.handler.codec.http.DefaultHttpResponse;
 import io.netty.handler.codec.http.DefaultLastHttpContent;
 import io.netty.handler.codec.http.HttpResponse;
+import org.opensearch.common.Booleans;
+import org.opensearch.transport.NettyAllocator;
+
+import java.util.List;
 
 /**
  * Split up large responses to prevent batch compression {@link JdkZlibEncoder} down the pipeline.

@@ -17,10 +17,12 @@ import org.apache.shiro.authc.UnknownAccountException;
 import org.apache.shiro.authc.UsernamePasswordToken;
 import org.apache.shiro.authc.pam.UnsupportedTokenException;
 import org.apache.shiro.realm.AuthenticatingRealm;
+import org.apache.shiro.authc.UsernamePasswordToken;
+
 import org.opensearch.identity.NamedPrincipal;
 
-import java.util.Map;
 import java.util.Objects;
+import java.util.Map;
 import java.util.Optional;
 
 /**

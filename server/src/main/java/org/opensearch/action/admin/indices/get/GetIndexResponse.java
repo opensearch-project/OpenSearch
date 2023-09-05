@@ -32,15 +32,16 @@
 
 package org.opensearch.action.admin.indices.get;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
+import org.opensearch.action.ActionResponse;
 import org.opensearch.cluster.metadata.AliasMetadata;
 import org.opensearch.cluster.metadata.MappingMetadata;
-import org.opensearch.common.settings.Settings;
-import org.opensearch.core.action.ActionResponse;
-import org.opensearch.core.common.Strings;
+import org.opensearch.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.mapper.MapperService;
@@ -152,12 +153,14 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
         }
         defaultSettings = Collections.unmodifiableMap(defaultSettingsMapBuilder);
 
-        final Map<String, String> dataStreamsMapBuilder = new HashMap<>();
-        int dataStreamsSize = in.readVInt();
-        for (int i = 0; i < dataStreamsSize; i++) {
-            dataStreamsMapBuilder.put(in.readString(), in.readOptionalString());
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_8_0)) {
+            final Map<String, String> dataStreamsMapBuilder = new HashMap<>();
+            int dataStreamsSize = in.readVInt();
+            for (int i = 0; i < dataStreamsSize; i++) {
+                dataStreamsMapBuilder.put(in.readString(), in.readOptionalString());
+            }
+            dataStreams = Collections.unmodifiableMap(dataStreamsMapBuilder);
         }
-        dataStreams = Collections.unmodifiableMap(dataStreamsMapBuilder);
     }
 
     public String[] indices() {
@@ -270,10 +273,12 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
             out.writeString(indexEntry.getKey());
             Settings.writeSettingsToStream(indexEntry.getValue(), out);
         }
-        out.writeVInt(dataStreams.size());
-        for (final Map.Entry<String, String> indexEntry : dataStreams.entrySet()) {
-            out.writeString(indexEntry.getKey());
-            out.writeOptionalString(indexEntry.getValue());
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_8_0)) {
+            out.writeVInt(dataStreams.size());
+            for (final Map.Entry<String, String> indexEntry : dataStreams.entrySet()) {
+                out.writeString(indexEntry.getKey());
+                out.writeOptionalString(indexEntry.getValue());
+            }
         }
     }
 
@@ -328,7 +333,7 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
 
     @Override
     public String toString() {
-        return Strings.toString(MediaTypeRegistry.JSON, this);
+        return Strings.toString(XContentType.JSON, this);
     }
 
     @Override

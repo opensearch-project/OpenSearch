@@ -32,8 +32,8 @@
 
 package org.opensearch.client;
 
-import org.apache.hc.client5.http.classic.methods.HttpPost;
-import org.apache.hc.client5.http.classic.methods.HttpPut;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.methods.HttpPut;
 import org.opensearch.OpenSearchException;
 import org.opensearch.OpenSearchStatusException;
 import org.opensearch.action.explain.ExplainRequest;
@@ -54,12 +54,12 @@ import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.SearchScrollRequest;
 import org.opensearch.client.core.CountRequest;
 import org.opensearch.client.core.CountResponse;
-import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.core.rest.RestStatus;
-import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.query.MatchQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
@@ -67,6 +67,7 @@ import org.opensearch.index.query.ScriptQueryBuilder;
 import org.opensearch.index.query.TermsQueryBuilder;
 import org.opensearch.join.aggregations.Children;
 import org.opensearch.join.aggregations.ChildrenAggregationBuilder;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
 import org.opensearch.script.mustache.MultiSearchTemplateRequest;
@@ -768,7 +769,7 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
         for (int i = 0; i < 100; i++) {
             XContentBuilder builder = jsonBuilder().startObject().field("field", i).endObject();
             Request doc = new Request(HttpPut.METHOD_NAME, "/test/_doc/" + Integer.toString(i));
-            doc.setJsonEntity(builder.toString());
+            doc.setJsonEntity(Strings.toString(builder));
             client().performRequest(doc);
         }
         client().performRequest(new Request(HttpPost.METHOD_NAME, "/test/_refresh"));
@@ -836,7 +837,7 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
         for (int i = 0; i < 100; i++) {
             XContentBuilder builder = jsonBuilder().startObject().field("field", i).endObject();
             Request doc = new Request(HttpPut.METHOD_NAME, "/test/_doc/" + Integer.toString(i));
-            doc.setJsonEntity(builder.toString());
+            doc.setJsonEntity(Strings.toString(builder));
             client().performRequest(doc);
         }
         client().performRequest(new Request(HttpPost.METHOD_NAME, "/test/_refresh"));
@@ -1200,7 +1201,7 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
         BytesReference actualSource = searchTemplateResponse.getSource();
         assertNotNull(actualSource);
 
-        assertToXContentEquivalent(expectedSource, actualSource, MediaTypeRegistry.JSON);
+        assertToXContentEquivalent(expectedSource, actualSource, XContentType.JSON);
     }
 
     public void testMultiSearchTemplate() throws Exception {

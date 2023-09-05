@@ -34,21 +34,20 @@ package org.opensearch.action.search;
 
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.ParsingException;
 import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.core.index.Index;
-import org.opensearch.core.index.shard.ShardId;
-import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.index.Index;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
 
-import static org.opensearch.core.xcontent.XContentHelper.toXContent;
+import static org.opensearch.common.xcontent.XContentHelper.toXContent;
 import static org.opensearch.test.XContentTestUtils.insertRandomFields;
 
 public class ShardSearchFailureTests extends OpenSearchTestCase {
@@ -125,7 +124,7 @@ public class ShardSearchFailureTests extends OpenSearchTestCase {
             new ParsingException(0, 0, "some message", null),
             new SearchShardTarget("nodeId", new ShardId(new Index("indexName", "indexUuid"), 123), null, OriginalIndices.NONE)
         );
-        BytesReference xContent = toXContent(failure, MediaTypeRegistry.JSON, randomBoolean());
+        BytesReference xContent = toXContent(failure, XContentType.JSON, randomBoolean());
         assertEquals(
             "{\"shard\":123,"
                 + "\"index\":\"indexName\","
@@ -146,7 +145,7 @@ public class ShardSearchFailureTests extends OpenSearchTestCase {
             new ParsingException(0, 0, "some message", null),
             new SearchShardTarget("nodeId", new ShardId(new Index("indexName", "indexUuid"), 123), "cluster1", OriginalIndices.NONE)
         );
-        BytesReference xContent = toXContent(failure, MediaTypeRegistry.JSON, randomBoolean());
+        BytesReference xContent = toXContent(failure, XContentType.JSON, randomBoolean());
         assertEquals(
             "{\"shard\":123,"
                 + "\"index\":\"cluster1:indexName\","

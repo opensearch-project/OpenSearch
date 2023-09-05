@@ -34,12 +34,12 @@ package org.opensearch.rest;
 
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.CheckedConsumer;
-import org.opensearch.common.collect.MapBuilder;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.http.HttpChannel;
 import org.opensearch.http.HttpRequest;
 import org.opensearch.test.OpenSearchTestCase;
@@ -203,12 +203,12 @@ public class RestRequestTests extends OpenSearchTestCase {
             Map<String, List<String>> map = new HashMap<>();
             map.put("Content-Type", Collections.singletonList(xContentType.mediaType()));
             RestRequest restRequest = contentRestRequest("", Collections.emptyMap(), map);
-            assertEquals(xContentType, restRequest.getMediaType());
+            assertEquals(xContentType, restRequest.getXContentType());
 
             map = new HashMap<>();
             map.put("Content-Type", Collections.singletonList(xContentType.mediaTypeWithoutParameters()));
             restRequest = contentRestRequest("", Collections.emptyMap(), map);
-            assertEquals(xContentType, restRequest.getMediaType());
+            assertEquals(xContentType, restRequest.getXContentType());
         }
     }
 
@@ -221,7 +221,7 @@ public class RestRequestTests extends OpenSearchTestCase {
                 Collections.singletonList(randomFrom("text/plain", "text/plain; charset=utf-8", "text/plain;charset=utf-8"))
             )
         );
-        assertNull(restRequest.getMediaType());
+        assertNull(restRequest.getXContentType());
     }
 
     public void testMalformedContentTypeHeader() {
@@ -237,7 +237,7 @@ public class RestRequestTests extends OpenSearchTestCase {
 
     public void testNoContentTypeHeader() {
         RestRequest contentRestRequest = contentRestRequest("", Collections.emptyMap(), Collections.emptyMap());
-        assertNull(contentRestRequest.getMediaType());
+        assertNull(contentRestRequest.getXContentType());
     }
 
     public void testMultipleContentTypeHeaders() {

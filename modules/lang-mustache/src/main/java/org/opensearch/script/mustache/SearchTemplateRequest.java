@@ -35,17 +35,16 @@ package org.opensearch.script.mustache;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.CompositeIndicesRequest;
-import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.search.SearchRequest;
-import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.ParsingException;
+import org.opensearch.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.script.ScriptType;
 
@@ -58,7 +57,7 @@ import static org.opensearch.action.ValidateActions.addValidationError;
 /**
  * A request to execute a search based on a search template.
  */
-public class SearchTemplateRequest extends ActionRequest implements IndicesRequest.Replaceable, CompositeIndicesRequest, ToXContentObject {
+public class SearchTemplateRequest extends ActionRequest implements CompositeIndicesRequest, ToXContentObject {
 
     private SearchRequest request;
     private boolean simulate = false;
@@ -208,8 +207,8 @@ public class SearchTemplateRequest extends ActionRequest implements IndicesReque
             request.setScriptType(ScriptType.INLINE);
             if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
                 // convert the template to json which is the only supported XContentType (see CustomMustacheFactory#createEncoder)
-                try (XContentBuilder builder = MediaTypeRegistry.JSON.contentBuilder()) {
-                    request.setScript(builder.copyCurrentStructure(parser).toString());
+                try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+                    request.setScript(Strings.toString(builder.copyCurrentStructure(parser)));
                 } catch (IOException e) {
                     throw new ParsingException(parser.getTokenLocation(), "Could not parse inline template", e);
                 }
@@ -255,20 +254,5 @@ public class SearchTemplateRequest extends ActionRequest implements IndicesReque
         if (hasParams) {
             out.writeMap(scriptParams);
         }
-    }
-
-    @Override
-    public String[] indices() {
-        return request.indices();
-    }
-
-    @Override
-    public IndicesOptions indicesOptions() {
-        return request.indicesOptions();
-    }
-
-    @Override
-    public IndicesRequest indices(String... indices) {
-        return request.indices(indices);
     }
 }

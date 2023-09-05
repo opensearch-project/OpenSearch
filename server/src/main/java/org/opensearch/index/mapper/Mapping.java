@@ -33,11 +33,12 @@
 package org.opensearch.index.mapper;
 
 import org.opensearch.Version;
-import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.common.Strings;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.index.mapper.MapperService.MergeReason;
 
 import java.io.IOException;
@@ -184,7 +185,7 @@ public final class Mapping implements ToXContentFragment {
         try {
             XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
             toXContent(builder, new ToXContent.MapParams(emptyMap()));
-            return builder.endObject().toString();
+            return Strings.toString(builder.endObject());
         } catch (IOException bogus) {
             throw new UncheckedIOException(bogus);
         }

@@ -38,11 +38,11 @@ import org.apache.lucene.analysis.hunspell.Dictionary;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.opensearch.OpenSearchException;
+import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.core.util.FileSystemUtils;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.io.IOUtils;
-import org.opensearch.core.util.FileSystemUtils;
 import org.opensearch.env.Environment;
 
 import java.io.IOException;
@@ -147,7 +147,7 @@ public class HunspellService {
     }
 
     private Path resolveHunspellDirectory(Environment env) {
-        return env.configDir().resolve("hunspell");
+        return env.configFile().resolve("hunspell");
     }
 
     /**
@@ -221,7 +221,7 @@ public class HunspellService {
 
             affixStream = Files.newInputStream(affixFiles[0]);
 
-            try (Directory tmp = new NIOFSDirectory(env.tmpDir())) {
+            try (Directory tmp = new NIOFSDirectory(env.tmpFile())) {
                 return new Dictionary(tmp, "hunspell", affixStream, dicStreams, ignoreCase);
             }
 

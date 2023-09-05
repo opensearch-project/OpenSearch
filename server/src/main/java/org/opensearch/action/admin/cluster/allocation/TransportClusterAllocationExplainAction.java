@@ -34,6 +34,7 @@ package org.opensearch.action.admin.cluster.allocation;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.cluster.ClusterInfo;
@@ -49,10 +50,10 @@ import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation.DebugMode;
 import org.opensearch.cluster.routing.allocation.ShardAllocationDecision;
+import org.opensearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.opensearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
-import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.snapshots.SnapshotsInfoService;
 import org.opensearch.threadpool.ThreadPool;
@@ -76,6 +77,7 @@ public class TransportClusterAllocationExplainAction extends TransportClusterMan
     private final ClusterInfoService clusterInfoService;
     private final SnapshotsInfoService snapshotsInfoService;
     private final AllocationDeciders allocationDeciders;
+    private final ShardsAllocator shardAllocator;
     private final AllocationService allocationService;
 
     @Inject
@@ -88,6 +90,7 @@ public class TransportClusterAllocationExplainAction extends TransportClusterMan
         ClusterInfoService clusterInfoService,
         SnapshotsInfoService snapshotsInfoService,
         AllocationDeciders allocationDeciders,
+        ShardsAllocator shardAllocator,
         AllocationService allocationService
     ) {
         super(
@@ -102,6 +105,7 @@ public class TransportClusterAllocationExplainAction extends TransportClusterMan
         this.clusterInfoService = clusterInfoService;
         this.snapshotsInfoService = snapshotsInfoService;
         this.allocationDeciders = allocationDeciders;
+        this.shardAllocator = shardAllocator;
         this.allocationService = allocationService;
     }
 

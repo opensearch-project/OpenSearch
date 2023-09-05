@@ -51,16 +51,16 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.action.termvectors.TermVectorsRequest.Flag;
-import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.InputStreamStreamInput;
 import org.opensearch.core.common.io.stream.OutputStreamStreamOutput;
-import org.opensearch.core.index.shard.ShardId;
-import org.opensearch.core.tasks.TaskId;
-import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.rest.action.document.RestTermVectorsAction;
+import org.opensearch.tasks.TaskId;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.StreamsUtils;
 import org.hamcrest.Matchers;
@@ -247,7 +247,7 @@ public class TermVectorsUnitTests extends OpenSearchTestCase {
             request.termStatistics(random().nextBoolean());
             String pref = random().nextBoolean() ? "somePreference" : null;
             request.preference(pref);
-            request.doc(new BytesArray("{}"), randomBoolean(), MediaTypeRegistry.JSON);
+            request.doc(new BytesArray("{}"), randomBoolean(), XContentType.JSON);
 
             // write
             ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
@@ -267,7 +267,7 @@ public class TermVectorsUnitTests extends OpenSearchTestCase {
             assertThat(request.preference(), equalTo(pref));
             assertThat(request.routing(), equalTo(null));
             assertEquals(new BytesArray("{}"), request.doc());
-            assertEquals(MediaTypeRegistry.JSON, request.xContentType());
+            assertEquals(XContentType.JSON, request.xContentType());
         }
     }
 
@@ -281,12 +281,12 @@ public class TermVectorsUnitTests extends OpenSearchTestCase {
             request.termStatistics(random().nextBoolean());
             String pref = random().nextBoolean() ? "somePreference" : null;
             request.preference(pref);
-            request.doc(new BytesArray("{}"), randomBoolean(), MediaTypeRegistry.JSON);
+            request.doc(new BytesArray("{}"), randomBoolean(), XContentType.JSON);
 
             // write using older version which contains types
             ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
             OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
-            out.setVersion(LegacyESVersion.fromId(7000099));
+            out.setVersion(LegacyESVersion.V_7_2_0);
             request.writeTo(out);
 
             // First check the type on the stream was written as "_doc" by manually parsing the stream until the type
@@ -302,7 +302,7 @@ public class TermVectorsUnitTests extends OpenSearchTestCase {
             // now read the stream as normal to check it is parsed correct if received from an older node
             opensearchInBuffer = new ByteArrayInputStream(outBuffer.toByteArray());
             opensearchBuffer = new InputStreamStreamInput(opensearchInBuffer);
-            opensearchBuffer.setVersion(LegacyESVersion.fromId(7000099));
+            opensearchBuffer.setVersion(LegacyESVersion.V_7_2_0);
             TermVectorsRequest req2 = new TermVectorsRequest(opensearchBuffer);
 
             assertThat(request.offsets(), equalTo(req2.offsets()));
@@ -313,7 +313,7 @@ public class TermVectorsUnitTests extends OpenSearchTestCase {
             assertThat(request.preference(), equalTo(pref));
             assertThat(request.routing(), equalTo(null));
             assertEquals(new BytesArray("{}"), request.doc());
-            assertEquals(MediaTypeRegistry.JSON, request.xContentType());
+            assertEquals(XContentType.JSON, request.xContentType());
         }
     }
 

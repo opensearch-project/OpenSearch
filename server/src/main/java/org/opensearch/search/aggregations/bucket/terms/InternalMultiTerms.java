@@ -233,16 +233,17 @@ public class InternalMultiTerms extends InternalTerms<InternalMultiTerms, Intern
         String name,
         BucketOrder reduceOrder,
         BucketOrder order,
+        int requiredSize,
+        long minDocCount,
         Map<String, Object> metadata,
         int shardSize,
         boolean showTermDocCountError,
         long otherDocCount,
         long docCountError,
         List<DocValueFormat> formats,
-        List<Bucket> buckets,
-        TermsAggregator.BucketCountThresholds bucketCountThresholds
+        List<Bucket> buckets
     ) {
-        super(name, reduceOrder, order, bucketCountThresholds, metadata);
+        super(name, reduceOrder, order, requiredSize, minDocCount, metadata);
         this.shardSize = shardSize;
         this.showTermDocCountError = showTermDocCountError;
         this.otherDocCount = otherDocCount;
@@ -277,14 +278,15 @@ public class InternalMultiTerms extends InternalTerms<InternalMultiTerms, Intern
             name,
             reduceOrder,
             order,
+            requiredSize,
+            minDocCount,
             metadata,
             shardSize,
             showTermDocCountError,
             otherDocCount,
             docCountError,
             termFormats,
-            buckets,
-            bucketCountThresholds
+            buckets
         );
     }
 
@@ -355,14 +357,15 @@ public class InternalMultiTerms extends InternalTerms<InternalMultiTerms, Intern
             name,
             reduceOrder,
             order,
+            requiredSize,
+            minDocCount,
             metadata,
             shardSize,
             showTermDocCountError,
             otherDocCount,
             docCountError,
             termFormats,
-            buckets,
-            bucketCountThresholds
+            buckets
         );
     }
 

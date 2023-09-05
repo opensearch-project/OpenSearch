@@ -80,7 +80,7 @@ public class RestGetIndicesAction extends BaseRestHandler {
         getIndexRequest.clusterManagerNodeTimeout(
             request.paramAsTime("cluster_manager_timeout", getIndexRequest.clusterManagerNodeTimeout())
         );
-        parseDeprecatedMasterTimeoutParameter(getIndexRequest, request, deprecationLogger, getName());
+        parseDeprecatedMasterTimeoutParameter(getIndexRequest, request);
         getIndexRequest.humanReadable(request.paramAsBoolean("human", false));
         getIndexRequest.includeDefaults(request.paramAsBoolean("include_defaults", false));
         return channel -> client.admin().indices().getIndex(getIndexRequest, new RestToXContentListener<>(channel));

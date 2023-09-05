@@ -33,6 +33,7 @@ package org.opensearch.repositories;
 
 import org.apache.lucene.index.IndexCommit;
 import org.opensearch.Version;
+import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.SnapshotsInProgress;
@@ -41,10 +42,9 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.lifecycle.LifecycleComponent;
-import org.opensearch.core.action.ActionListener;
-import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.common.component.LifecycleComponent;
 import org.opensearch.index.mapper.MapperService;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
 import org.opensearch.index.snapshots.blobstore.RemoteStoreShardShallowCopySnapshot;
 import org.opensearch.index.store.Store;
@@ -55,6 +55,7 @@ import org.opensearch.snapshots.SnapshotInfo;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -131,6 +132,19 @@ public interface Repository extends LifecycleComponent {
     void getRepositoryData(ActionListener<RepositoryData> listener);
 
     /**
+     * Starts snapshotting process
+     *
+     * @param snapshotId snapshot id
+     * @param indices    list of indices to be snapshotted
+     * @param metadata   cluster metadata
+     *
+     * @deprecated this method is only used when taking snapshots in a mixed version cluster where a cluster-manager node older than
+     *             {@link org.opensearch.snapshots.SnapshotsService#NO_REPO_INITIALIZE_VERSION} is present.
+     */
+    @Deprecated
+    void initializeSnapshot(SnapshotId snapshotId, List<IndexId> indices, Metadata metadata);
+
+    /**
      * Finalizes snapshotting process
      * <p>
      * This method is called on cluster-manager after all shards are snapshotted.
@@ -197,16 +211,6 @@ public interface Repository extends LifecycleComponent {
      * Returns restore throttle time in nanoseconds
      */
     long getRestoreThrottleTimeInNanos();
-
-    /**
-     * Returns restore throttle time in nanoseconds
-     */
-    long getRemoteUploadThrottleTimeInNanos();
-
-    /**
-     * Returns restore throttle time in nanoseconds
-     */
-    long getRemoteDownloadThrottleTimeInNanos();
 
     /**
      * Returns stats on the repository usage

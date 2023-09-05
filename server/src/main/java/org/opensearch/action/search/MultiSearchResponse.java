@@ -32,18 +32,20 @@
 
 package org.opensearch.action.search;
 
+import org.opensearch.LegacyESVersion;
+import org.opensearch.OpenSearchException;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
+import org.opensearch.action.ActionResponse;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.unit.TimeValue;
-import org.opensearch.core.ParseField;
-import org.opensearch.core.action.ActionResponse;
-import org.opensearch.core.common.Strings;
+import org.opensearch.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.ParseField;
 import org.opensearch.core.xcontent.ConstructingObjectParser;
-import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
@@ -147,7 +149,11 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
         for (int i = 0; i < items.length; i++) {
             items[i] = new Item(in);
         }
-        tookInMillis = in.readVLong();
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
+            tookInMillis = in.readVLong();
+        } else {
+            tookInMillis = 0L;
+        }
     }
 
     public MultiSearchResponse(Item[] items, long tookInMillis) {
@@ -180,7 +186,9 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
         for (Item item : items) {
             item.writeTo(out);
         }
-        out.writeVLong(tookInMillis);
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
+            out.writeVLong(tookInMillis);
+        }
     }
 
     @Override
@@ -255,6 +263,6 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
 
     @Override
     public String toString() {
-        return Strings.toString(MediaTypeRegistry.JSON, this);
+        return Strings.toString(XContentType.JSON, this);
     }
 }

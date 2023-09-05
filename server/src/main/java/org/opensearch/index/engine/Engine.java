@@ -59,9 +59,8 @@ import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SetOnce;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.concurrent.GatedCloseable;
-import org.opensearch.common.lease.Releasable;
-import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
@@ -70,11 +69,11 @@ import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.lucene.uid.VersionsAndSeqNoResolver;
 import org.opensearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVersion;
 import org.opensearch.common.metrics.CounterMetric;
+import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ReleasableLock;
-import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.core.common.unit.ByteSizeValue;
-import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.lease.Releasables;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.Mapping;
@@ -85,11 +84,12 @@ import org.opensearch.index.merge.MergeStats;
 import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.DocsStats;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.DefaultTranslogDeletionPolicy;
 import org.opensearch.index.translog.Translog;
+import org.opensearch.index.translog.TranslogStats;
 import org.opensearch.index.translog.TranslogDeletionPolicy;
-import org.opensearch.index.translog.TranslogManager;
 import org.opensearch.search.suggest.completion.CompletionStats;
 
 import java.io.Closeable;
@@ -116,6 +116,7 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.stream.Stream;
 
 import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
@@ -125,7 +126,7 @@ import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
  *
  * @opensearch.internal
  */
-public abstract class Engine implements LifecycleAware, Closeable {
+public abstract class Engine implements Closeable {
 
     public static final String SYNC_COMMIT_ID = "sync_id";  // TODO: remove sync_id in 3.0
     public static final String HISTORY_UUID_KEY = "history_uuid";
@@ -175,16 +176,16 @@ public abstract class Engine implements LifecycleAware, Closeable {
         return engineConfig;
     }
 
-    public abstract TranslogManager translogManager();
-
     protected abstract SegmentInfos getLastCommittedSegmentInfos();
 
     /**
      * Return the latest active SegmentInfos from the engine.
      * @return {@link SegmentInfos}
      */
-    @Nullable
-    protected abstract SegmentInfos getLatestSegmentInfos();
+    protected SegmentInfos getLatestSegmentInfos() {
+        // Default Implementation.
+        return null;
+    };
 
     /**
      * In contrast to {@link #getLatestSegmentInfos()}, which returns a {@link SegmentInfos}
@@ -307,7 +308,7 @@ public abstract class Engine implements LifecycleAware, Closeable {
         if (docs.length == 0) {
             return SequenceNumbers.NO_OPS_PERFORMED;
         }
-        org.apache.lucene.document.Document document = searcher.storedFields().document(docs[0].doc);
+        org.apache.lucene.document.Document document = searcher.doc(docs[0].doc);
         Term uidTerm = new Term(IdFieldMapper.NAME, document.getField(IdFieldMapper.NAME).binaryValue());
         VersionsAndSeqNoResolver.DocIdAndVersion docIdAndVersion = VersionsAndSeqNoResolver.loadDocIdAndVersion(
             searcher.getIndexReader(),
@@ -391,6 +392,12 @@ public abstract class Engine implements LifecycleAware, Closeable {
      * @see #getIndexThrottleTimeInMillis()
      */
     public abstract boolean isThrottled();
+
+    /**
+     * Trims translog for terms below <code>belowTerm</code> and seq# above <code>aboveSeqNo</code>
+     * @see Translog#trimOperations(long, long)
+     */
+    public abstract void trimOperationsFromTranslog(long belowTerm, long aboveSeqNo) throws EngineException;
 
     /**
      * A Lock implementation that always allows the lock to be acquired
@@ -825,6 +832,18 @@ public abstract class Engine implements LifecycleAware, Closeable {
     }
 
     /**
+     * Checks if the underlying storage sync is required.
+     */
+    public abstract boolean isTranslogSyncNeeded();
+
+    /**
+     * Ensures that all locations in the given stream have been written to the underlying storage.
+     */
+    public abstract boolean ensureTranslogSynced(Stream<Translog.Location> locations) throws IOException;
+
+    public abstract void syncTranslog() throws IOException;
+
+    /**
      * Acquires a lock on the translog files and Lucene soft-deleted documents to prevent them from being trimmed
      */
     public abstract Closeable acquireHistoryRetentionLock();
@@ -839,6 +858,19 @@ public abstract class Engine implements LifecycleAware, Closeable {
         long toSeqNo,
         boolean requiredFullRange,
         boolean accurateCount
+    ) throws IOException;
+
+    /**
+     * Reads history operations from the translog file instead of the lucene index
+     *
+     * @deprecated reading history operations from the translog file is deprecated and will be removed in the next release
+     */
+    @Deprecated
+    public abstract Translog.Snapshot newChangesSnapshotFromTranslogFile(
+        String source,
+        long fromSeqNo,
+        long toSeqNo,
+        boolean requiredFullRange
     ) throws IOException;
 
     /**
@@ -858,6 +890,13 @@ public abstract class Engine implements LifecycleAware, Closeable {
      * @return the minimum retained sequence number
      */
     public abstract long getMinRetainedSeqNo();
+
+    public abstract TranslogStats getTranslogStats();
+
+    /**
+     * Returns the last location that the translog of this engine has written into.
+     */
+    public abstract Translog.Location getTranslogLastWriteLocation();
 
     protected final void ensureOpen(Exception suppressed) {
         if (isClosed.get()) {
@@ -882,12 +921,6 @@ public abstract class Engine implements LifecycleAware, Closeable {
      * @return the persisted local checkpoint for this Engine
      */
     public abstract long getPersistedLocalCheckpoint();
-
-    /**
-     * @return the latest checkpoint that has been processed but not necessarily persisted.
-     * Also see {@link #getPersistedLocalCheckpoint()}
-     */
-    public abstract long getProcessedLocalCheckpoint();
 
     /**
      * @return a {@link SeqNoStats} object, using local state and the supplied global checkpoint
@@ -1090,7 +1123,7 @@ public abstract class Engine implements LifecycleAware, Closeable {
             }
         }
 
-        Segment[] segmentsArr = segments.values().toArray(new Segment[0]);
+        Segment[] segmentsArr = segments.values().toArray(new Segment[segments.values().size()]);
         Arrays.sort(segmentsArr, Comparator.comparingLong(Segment::getGeneration));
         return segmentsArr;
     }
@@ -1190,6 +1223,25 @@ public abstract class Engine implements LifecycleAware, Closeable {
     }
 
     /**
+     * checks and removes translog files that no longer need to be retained. See
+     * {@link org.opensearch.index.translog.TranslogDeletionPolicy} for details
+     */
+    public abstract void trimUnreferencedTranslogFiles() throws EngineException;
+
+    /**
+     * Tests whether or not the translog generation should be rolled to a new generation.
+     * This test is based on the size of the current generation compared to the configured generation threshold size.
+     *
+     * @return {@code true} if the current generation should be rolled to a new generation
+     */
+    public abstract boolean shouldRollTranslogGeneration();
+
+    /**
+     * Rolls the translog generation and cleans unneeded.
+     */
+    public abstract void rollTranslogGeneration() throws EngineException;
+
+    /**
      * Triggers a forced merge on this engine
      */
     public abstract void forceMerge(
@@ -1198,7 +1250,7 @@ public abstract class Engine implements LifecycleAware, Closeable {
         boolean onlyExpungeDeletes,
         boolean upgrade,
         boolean upgradeOnlyAncientSegments,
-        String forceMergeUUID
+        @Nullable String forceMergeUUID
     ) throws EngineException, IOException;
 
     /**
@@ -2001,12 +2053,34 @@ public abstract class Engine implements LifecycleAware, Closeable {
     public abstract void deactivateThrottling();
 
     /**
+     * This method replays translog to restore the Lucene index which might be reverted previously.
+     * This ensures that all acknowledged writes are restored correctly when this engine is promoted.
+     *
+     * @return the number of translog operations have been recovered
+     */
+    public abstract int restoreLocalHistoryFromTranslog(TranslogRecoveryRunner translogRecoveryRunner) throws IOException;
+
+    /**
      * Fills up the local checkpoints history with no-ops until the local checkpoint
      * and the max seen sequence ID are identical.
      * @param primaryTerm the shards primary term this engine was created for
      * @return the number of no-ops added
      */
     public abstract int fillSeqNoGaps(long primaryTerm) throws IOException;
+
+    /**
+     * Performs recovery from the transaction log up to {@code recoverUpToSeqNo} (inclusive).
+     * This operation will close the engine if the recovery fails.
+     *
+     * @param translogRecoveryRunner the translog recovery runner
+     * @param recoverUpToSeqNo       the upper bound, inclusive, of sequence number to be recovered
+     */
+    public abstract Engine recoverFromTranslog(TranslogRecoveryRunner translogRecoveryRunner, long recoverUpToSeqNo) throws IOException;
+
+    /**
+     * Do not replay translog operations, but make the engine be ready.
+     */
+    public abstract void skipTranslogRecovery();
 
     /**
      * Tries to prune buffered deletes from the version map.
@@ -2027,6 +2101,16 @@ public abstract class Engine implements LifecycleAware, Closeable {
      * The engine will disable optimization for all append-only whose timestamp at most {@code newTimestamp}.
      */
     public abstract void updateMaxUnsafeAutoIdTimestamp(long newTimestamp);
+
+    /**
+     * The runner for translog recovery
+     *
+     * @opensearch.internal
+     */
+    @FunctionalInterface
+    public interface TranslogRecoveryRunner {
+        int run(Engine engine, Translog.Snapshot snapshot) throws IOException;
+    }
 
     /**
      * Returns the maximum sequence number of either update or delete operations have been processed in this engine

@@ -45,9 +45,9 @@ import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.SearchType;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.search.sort.NestedSortBuilder;
 import org.opensearch.search.sort.SortBuilders;
@@ -64,6 +64,7 @@ import static org.opensearch.index.query.QueryBuilders.termQuery;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures;
+
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
@@ -782,7 +783,7 @@ public class SimpleNestedIT extends OpenSearchIntegTestCase {
                     + "    }\n"
                     + "  ]\n"
                     + "}",
-                MediaTypeRegistry.JSON
+                XContentType.JSON
             )
             .get();
 
@@ -834,7 +835,7 @@ public class SimpleNestedIT extends OpenSearchIntegTestCase {
                     + "    }\n"
                     + "  ]\n"
                     + "}",
-                MediaTypeRegistry.JSON
+                XContentType.JSON
             )
             .get();
         refresh();
@@ -986,7 +987,7 @@ public class SimpleNestedIT extends OpenSearchIntegTestCase {
                     + "    }\n"
                     + " ]\n"
                     + "}",
-                MediaTypeRegistry.JSON
+                XContentType.JSON
             )
             .get();
 
@@ -1005,7 +1006,7 @@ public class SimpleNestedIT extends OpenSearchIntegTestCase {
                     + "    } \n"
                     + "  ]\n"
                     + "}",
-                MediaTypeRegistry.JSON
+                XContentType.JSON
             )
             .get();
 

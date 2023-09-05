@@ -31,6 +31,7 @@
 
 package org.opensearch.index.seqno;
 
+import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.replication.ReplicationResponse;
 import org.opensearch.cluster.routing.AllocationId;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
@@ -38,10 +39,9 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.core.action.ActionListener;
-import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.SafeCommitInfo;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.test.IndexSettingsModule;
 import org.junit.Before;
 

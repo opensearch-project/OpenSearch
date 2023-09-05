@@ -32,12 +32,11 @@
 
 package org.opensearch.client;
 
-import org.apache.hc.client5.http.config.RequestConfig;
-import org.apache.hc.client5.http.impl.async.HttpAsyncClientBuilder;
-import org.apache.hc.core5.http.Header;
-import org.apache.hc.core5.http.HttpHost;
-import org.apache.hc.core5.http.message.BasicHeader;
-import org.apache.hc.core5.util.Timeout;
+import org.apache.http.Header;
+import org.apache.http.HttpHost;
+import org.apache.http.client.config.RequestConfig;
+import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
+import org.apache.http.message.BasicHeader;
 
 import java.io.IOException;
 import java.util.Base64;
@@ -272,7 +271,7 @@ public class RestClientBuilderTests extends RestClientTestCase {
                 RequestConfig requestConfig = requestConfigBuilder.build();
                 assertEquals(RequestConfig.DEFAULT.getConnectionRequestTimeout(), requestConfig.getConnectionRequestTimeout());
                 // this way we get notified if the default ever changes
-                assertEquals(Timeout.ofMinutes(3), requestConfig.getConnectionRequestTimeout());
+                assertEquals(-1, requestConfig.getConnectionRequestTimeout());
                 return requestConfigBuilder;
             }
         });

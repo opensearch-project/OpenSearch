@@ -31,11 +31,14 @@
 
 package org.opensearch.upgrades;
 
-import org.apache.hc.core5.http.ParseException;
-import org.apache.hc.core5.http.io.entity.EntityUtils;
+import org.apache.http.util.EntityUtils;
+import org.apache.http.ParseException;
+
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
+import org.opensearch.client.ResponseException;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.io.Streams;
@@ -43,20 +46,20 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.indices.replication.common.ReplicationType;
-import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.rest.yaml.ObjectPath;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.opensearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
 import static org.opensearch.rest.action.search.RestSearchAction.TOTAL_HITS_AS_INT_PARAM;
-import static org.opensearch.test.OpenSearchIntegTestCase.CODECS;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.either;
+
 
 /**
  * Basic test that indexed documents survive the rolling restart. See
@@ -106,25 +109,14 @@ public class IndexingIT extends AbstractRollingTestCase {
             Request segrepStatsRequest = new Request("GET", "/_cat/segments/" + index + "?s=shard,segment,primaryOrReplica");
             segrepStatsRequest.addParameter("h", "index,shard,primaryOrReplica,segment,docs.count");
             Response segrepStatsResponse = client().performRequest(segrepStatsRequest);
+            logger.info("--> _cat/segments response\n {}", EntityUtils.toString(client().performRequest(segrepStatsRequest).getEntity()));
             List<String> responseList = Streams.readAllLines(segrepStatsResponse.getEntity().getContent());
-            logger.info("--> _cat/segments response\n {}", responseList.toString().replace(',', '\n'));
-            // Filter response for rows with zero doc count
-            List<String> filteredList = new ArrayList<>();
-            for(String row: responseList) {
-                String count = row.split(" +")[4];
-                if (count.equals("0") == false) {
-                    filteredList.add(row);
-                }
-            }
-            // Ensure there is result for replica copies before processing the result. This results in retry when there
-            // are not enough number of rows vs failing with IndexOutOfBoundsException
-            assertEquals(0, filteredList.size() % (replicaCount + 1));
-            for (int segmentsIndex=0; segmentsIndex < filteredList.size();) {
-                String[] primaryRow = filteredList.get(segmentsIndex++).split(" +");
+            for (int segmentsIndex=0; segmentsIndex < responseList.size();) {
+                String[] primaryRow = responseList.get(segmentsIndex++).split(" +");
                 String shardId = primaryRow[0] + primaryRow[1];
                 assertTrue(primaryRow[2].equals("p"));
                 for(int replicaIndex = 1; replicaIndex <= replicaCount; replicaIndex++) {
-                    String[] replicaRow = filteredList.get(segmentsIndex).split(" +");
+                    String[] replicaRow = responseList.get(segmentsIndex).split(" +");
                     String replicaShardId = replicaRow[0] + replicaRow[1];
                     // When segment has 0 doc count, not all replica copies posses that segment. Skip to next segment
                     if (replicaRow[2].equals("p")) {
@@ -168,7 +160,7 @@ public class IndexingIT extends AbstractRollingTestCase {
         }, 1, TimeUnit.MINUTES);
     }
 
-    public void testIndexing() throws Exception {
+    public void testIndexing() throws IOException, ParseException {
         switch (CLUSTER_TYPE) {
         case OLD:
             break;
@@ -261,7 +253,6 @@ public class IndexingIT extends AbstractRollingTestCase {
      *
      * @throws Exception
      */
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/7679")
     public void testIndexingWithSegRep() throws Exception {
         if (UPGRADE_FROM_VERSION.before(Version.V_2_4_0)) {
             logger.info("--> Skip test for version {} where segment replication feature is not available", UPGRADE_FROM_VERSION);
@@ -281,11 +272,7 @@ public class IndexingIT extends AbstractRollingTestCase {
                     .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
                     .put(
                         EngineConfig.INDEX_CODEC_SETTING.getKey(),
-                        randomFrom(new ArrayList<>(CODECS) {
-                            {
-                                add(CodecService.LUCENE_DEFAULT_CODEC);
-                            }
-                        })
+                        randomFrom(CodecService.DEFAULT_CODEC, CodecService.BEST_COMPRESSION_CODEC, CodecService.LUCENE_DEFAULT_CODEC)
                     )
                     .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms");
                 createIndex(indexName, settings.build());
@@ -378,7 +365,18 @@ public class IndexingIT extends AbstractRollingTestCase {
                     }
                 }
 
-                client().performRequest(bulk);
+                if (minNodeVersion.before(LegacyESVersion.V_7_5_0)) {
+                    ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(bulk));
+                    assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
+                    assertThat(e.getMessage(),
+                        // if request goes to 7.5+ node
+                        either(containsString("optype create not supported for indexing requests without explicit id until"))
+                            // if request goes to < 7.5 node
+                            .or(containsString("an id must be provided if version type or value are set")
+                            ));
+                } else {
+                    client().performRequest(bulk);
+                }
                 break;
             case UPGRADED:
                 client().performRequest(bulk);
@@ -400,14 +398,12 @@ public class IndexingIT extends AbstractRollingTestCase {
         client().performRequest(bulk);
     }
 
-    private void assertCount(String index, int count) throws Exception {
-        assertBusy(() -> {
-            Request searchTestIndexRequest = new Request("POST", "/" + index + "/_search");
-            searchTestIndexRequest.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");
-            searchTestIndexRequest.addParameter("filter_path", "hits.total");
-            Response searchTestIndexResponse = client().performRequest(searchTestIndexRequest);
-            assertEquals("{\"hits\":{\"total\":" + count + "}}",
+    private void assertCount(String index, int count) throws IOException {
+        Request searchTestIndexRequest = new Request("POST", "/" + index + "/_search");
+        searchTestIndexRequest.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");
+        searchTestIndexRequest.addParameter("filter_path", "hits.total");
+        Response searchTestIndexResponse = client().performRequest(searchTestIndexRequest);
+        assertEquals("{\"hits\":{\"total\":" + count + "}}",
                 EntityUtils.toString(searchTestIndexResponse.getEntity(), StandardCharsets.UTF_8));
-        }, 30, TimeUnit.SECONDS);
     }
 }

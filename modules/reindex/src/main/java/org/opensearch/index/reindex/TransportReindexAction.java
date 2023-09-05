@@ -32,6 +32,8 @@
 
 package org.opensearch.index.reindex;
 
+import java.util.Optional;
+import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.AutoCreateIndex;
 import org.opensearch.action.support.HandledTransportAction;
@@ -42,7 +44,6 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.action.ActionListener;
 import org.opensearch.index.reindex.spi.RemoteReindexExtension;
 import org.opensearch.script.ScriptService;
 import org.opensearch.tasks.Task;
@@ -50,7 +51,6 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
 import java.util.List;
-import java.util.Optional;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyList;

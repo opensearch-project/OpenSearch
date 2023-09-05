@@ -35,7 +35,7 @@ package org.opensearch.action.ingest;
 import org.opensearch.action.ActionRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.common.xcontent.XContentType;
 
 /**
  * Transport request builder to simulate a pipeline
@@ -58,9 +58,9 @@ public class SimulatePipelineRequestBuilder extends ActionRequestBuilder<Simulat
         OpenSearchClient client,
         SimulatePipelineAction action,
         BytesReference source,
-        MediaType mediaType
+        XContentType xContentType
     ) {
-        super(client, action, new SimulatePipelineRequest(source, mediaType));
+        super(client, action, new SimulatePipelineRequest(source, xContentType));
     }
 
     /**

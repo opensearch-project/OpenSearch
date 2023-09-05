@@ -83,7 +83,7 @@ public class RestGetRepositoriesAction extends BaseRestHandler {
         getRepositoriesRequest.clusterManagerNodeTimeout(
             request.paramAsTime("cluster_manager_timeout", getRepositoriesRequest.clusterManagerNodeTimeout())
         );
-        parseDeprecatedMasterTimeoutParameter(getRepositoriesRequest, request, deprecationLogger, getName());
+        parseDeprecatedMasterTimeoutParameter(getRepositoriesRequest, request);
         getRepositoriesRequest.local(request.paramAsBoolean("local", getRepositoriesRequest.local()));
         settingsFilter.addFilterSettingParams(request);
         return channel -> client.admin().cluster().getRepositories(getRepositoriesRequest, new RestToXContentListener<>(channel));

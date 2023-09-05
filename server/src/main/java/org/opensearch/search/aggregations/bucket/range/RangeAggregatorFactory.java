@@ -73,9 +73,4 @@ public class RangeAggregatorFactory extends AbstractRangeAggregatorFactory<Range
             metadata
         );
     }
-
-    @Override
-    protected boolean supportsConcurrentSegmentSearch() {
-        return true;
-    }
 }

@@ -101,12 +101,10 @@ dependencies {
 
   api project(':libs:opensearch-common')
   api project(':libs:opensearch-core')
-  api project(":libs:opensearch-compress")
   api project(':libs:opensearch-secure-sm')
   api project(':libs:opensearch-x-content')
   api project(":libs:opensearch-geo")
   api project(":libs:opensearch-telemetry")
-  api project(":libs:opensearch-encryption-sdk")
 
 
   compileOnly project(':libs:opensearch-plugin-classloader')
@@ -135,7 +133,7 @@ dependencies {
   api "joda-time:joda-time:${versions.joda}"
 
   // percentiles aggregation
-  api 'com.tdunning:t-digest:3.3'
+  api 'com.tdunning:t-digest:3.2'
   // precentil ranks aggregation
   api 'org.hdrhistogram:HdrHistogram:2.1.12'
 
@@ -158,6 +156,9 @@ dependencies {
   // protobuf
   api "com.google.protobuf:protobuf-java:${versions.protobuf}"
   api "jakarta.annotation:jakarta.annotation-api:${versions.jakarta_annotation}"
+
+  //zstd
+  api "com.github.luben:zstd-jni:${versions.zstd}"
 
   testImplementation(project(":test:framework")) {
     // tests use the locally compiled version of server
@@ -254,7 +255,6 @@ tasks.named("processResources").configure {
 
 tasks.named("thirdPartyAudit").configure {
     ignoreMissingClasses(
-        *[
             // from com.fasterxml.jackson.dataformat.yaml.YAMLMapper (jackson-dataformat-yaml)
             'com.fasterxml.jackson.databind.ObjectMapper',
 
@@ -290,7 +290,9 @@ tasks.named("thirdPartyAudit").configure {
             'com.lmax.disruptor.LifecycleAware',
             'com.lmax.disruptor.RingBuffer',
             'com.lmax.disruptor.Sequence',
+            'com.lmax.disruptor.SequenceBarrier',
             'com.lmax.disruptor.SequenceReportingEventHandler',
+            'com.lmax.disruptor.TimeoutException',
             'com.lmax.disruptor.WaitStrategy',
             'com.lmax.disruptor.dsl.Disruptor',
             'com.lmax.disruptor.dsl.ProducerType',
@@ -319,6 +321,7 @@ tasks.named("thirdPartyAudit").configure {
             'org.apache.commons.csv.QuoteMode',
             'org.apache.kafka.clients.producer.Producer',
             'org.apache.kafka.clients.producer.RecordMetadata',
+            'org.apache.kafka.common.serialization.ByteArraySerializer',
             'org.codehaus.stax2.XMLStreamWriter2',
             'org.jctools.queues.MpscArrayQueue',
             'org.osgi.framework.Bundle',
@@ -327,6 +330,7 @@ tasks.named("thirdPartyAudit").configure {
             'org.osgi.framework.BundleEvent',
             'org.osgi.framework.BundleReference',
             'org.osgi.framework.FrameworkUtil',
+            'org.osgi.framework.ServiceReference',
             'org.osgi.framework.ServiceRegistration',
             'org.osgi.framework.SynchronousBundleListener',
             'org.osgi.framework.wiring.BundleWire',
@@ -348,15 +352,6 @@ tasks.named("thirdPartyAudit").configure {
             'com.google.common.geometry.S2Point',
             'com.google.common.geometry.S2$Metric',
             'com.google.common.geometry.S2LatLng'
-        ] + (BuildParams.runtimeJavaVersion < JavaVersion.VERSION_20) ? [] : [
-            'jdk.incubator.vector.ByteVector',
-            'jdk.incubator.vector.FloatVector',
-            'jdk.incubator.vector.IntVector',
-            'jdk.incubator.vector.ShortVector',
-            'jdk.incubator.vector.Vector',
-            'jdk.incubator.vector.VectorOperators',
-            'jdk.incubator.vector.VectorSpecies'
-        ]
     )
     ignoreViolations(
             'com.google.protobuf.MessageSchema',

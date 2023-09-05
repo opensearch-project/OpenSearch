@@ -37,11 +37,16 @@ import org.opensearch.search.aggregations.InternalAggregations;
 import java.util.List;
 import java.util.Map;
 
-public class GeoHashGridTests extends GeoGridTestCase<InternalGeoHashGridBucket, GeoHashGrid> {
+public class GeoHashGridTests extends GeoGridTestCase<InternalGeoHashGridBucket, InternalGeoHashGrid> {
 
     @Override
-    protected GeoHashGrid createInternalGeoGrid(String name, int size, List<BaseGeoGridBucket> buckets, Map<String, Object> metadata) {
-        return new GeoHashGrid(name, size, buckets, metadata);
+    protected InternalGeoHashGrid createInternalGeoGrid(
+        String name,
+        int size,
+        List<InternalGeoGridBucket> buckets,
+        Map<String, Object> metadata
+    ) {
+        return new InternalGeoHashGrid(name, size, buckets, metadata);
     }
 
     @Override

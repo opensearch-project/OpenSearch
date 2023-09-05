@@ -8,6 +8,13 @@
 
 package org.opensearch.mockito.plugin;
 
+import org.mockito.Incubating;
+import org.mockito.MockedConstruction;
+import org.mockito.internal.creation.bytebuddy.ByteBuddyMockMaker;
+import org.mockito.internal.util.reflection.LenientCopyTool;
+import org.mockito.invocation.MockHandler;
+import org.mockito.mock.MockCreationSettings;
+import org.mockito.plugins.MockMaker;
 import org.opensearch.common.SuppressForbidden;
 
 import java.security.AccessControlContext;
@@ -18,14 +25,6 @@ import java.security.ProtectionDomain;
 import java.util.Arrays;
 import java.util.Optional;
 import java.util.function.Function;
-
-import org.mockito.Incubating;
-import org.mockito.MockedConstruction;
-import org.mockito.internal.creation.bytebuddy.ByteBuddyMockMaker;
-import org.mockito.internal.util.reflection.LenientCopyTool;
-import org.mockito.invocation.MockHandler;
-import org.mockito.mock.MockCreationSettings;
-import org.mockito.plugins.MockMaker;
 
 /**
  * Mockito plugin which wraps the Mockito calls into priviledged execution blocks and respects

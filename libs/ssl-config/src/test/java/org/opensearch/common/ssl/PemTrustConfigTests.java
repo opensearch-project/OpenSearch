@@ -35,8 +35,6 @@ package org.opensearch.common.ssl;
 import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.Matchers;
 
-import javax.net.ssl.X509ExtendedTrustManager;
-
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
@@ -50,6 +48,8 @@ import java.util.Collections;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import javax.net.ssl.X509ExtendedTrustManager;
 
 public class PemTrustConfigTests extends OpenSearchTestCase {
 

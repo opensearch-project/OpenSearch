@@ -32,16 +32,17 @@
 
 package org.opensearch.action.admin.indices.analyze;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.ActionResponse;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.support.single.shard.SingleShardRequest;
-import org.opensearch.core.ParseField;
-import org.opensearch.core.action.ActionResponse;
-import org.opensearch.core.common.Strings;
+import org.opensearch.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.ParseField;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.ToXContentObject;
@@ -324,8 +325,20 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
         }
 
         public Response(StreamInput in) throws IOException {
-            AnalyzeToken[] tokenArray = in.readOptionalArray(AnalyzeToken::new, AnalyzeToken[]::new);
-            tokens = tokenArray != null ? Arrays.asList(tokenArray) : null;
+            if (in.getVersion().onOrAfter(LegacyESVersion.V_7_3_0)) {
+                AnalyzeToken[] tokenArray = in.readOptionalArray(AnalyzeToken::new, AnalyzeToken[]::new);
+                tokens = tokenArray != null ? Arrays.asList(tokenArray) : null;
+            } else {
+                int size = in.readVInt();
+                if (size > 0) {
+                    tokens = new ArrayList<>(size);
+                    for (int i = 0; i < size; i++) {
+                        tokens.add(new AnalyzeToken(in));
+                    }
+                } else {
+                    tokens = null;
+                }
+            }
             detail = in.readOptionalWriteable(DetailAnalyzeResponse::new);
         }
 
@@ -359,11 +372,22 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            AnalyzeToken[] tokenArray = null;
-            if (tokens != null) {
-                tokenArray = tokens.toArray(new AnalyzeToken[0]);
+            if (out.getVersion().onOrAfter(LegacyESVersion.V_7_3_0)) {
+                AnalyzeToken[] tokenArray = null;
+                if (tokens != null) {
+                    tokenArray = tokens.toArray(new AnalyzeToken[0]);
+                }
+                out.writeOptionalArray(tokenArray);
+            } else {
+                if (tokens != null) {
+                    out.writeVInt(tokens.size());
+                    for (AnalyzeToken token : tokens) {
+                        token.writeTo(out);
+                    }
+                } else {
+                    out.writeVInt(0);
+                }
             }
-            out.writeOptionalArray(tokenArray);
             out.writeOptionalWriteable(detail);
         }
 
@@ -386,7 +410,7 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
 
         @Override
         public String toString() {
-            return Strings.toString(MediaTypeRegistry.JSON, this, true, true);
+            return Strings.toString(XContentType.JSON, this, true, true);
         }
 
         /**
@@ -743,7 +767,19 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
 
         AnalyzeTokenList(StreamInput in) throws IOException {
             name = in.readString();
-            tokens = in.readOptionalArray(AnalyzeToken::new, AnalyzeToken[]::new);
+            if (in.getVersion().onOrAfter(LegacyESVersion.V_7_3_0)) {
+                tokens = in.readOptionalArray(AnalyzeToken::new, AnalyzeToken[]::new);
+            } else {
+                int size = in.readVInt();
+                if (size > 0) {
+                    tokens = new AnalyzeToken[size];
+                    for (int i = 0; i < size; i++) {
+                        tokens[i] = new AnalyzeToken(in);
+                    }
+                } else {
+                    tokens = null;
+                }
+            }
         }
 
         public String getName() {
@@ -776,7 +812,18 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(name);
-            out.writeOptionalArray(tokens);
+            if (out.getVersion().onOrAfter(LegacyESVersion.V_7_3_0)) {
+                out.writeOptionalArray(tokens);
+            } else {
+                if (tokens != null) {
+                    out.writeVInt(tokens.length);
+                    for (AnalyzeToken token : tokens) {
+                        token.writeTo(out);
+                    }
+                } else {
+                    out.writeVInt(0);
+                }
+            }
         }
     }
 

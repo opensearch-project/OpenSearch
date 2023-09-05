@@ -33,7 +33,6 @@
 package org.opensearch.ingest.geoip;
 
 import com.maxmind.geoip2.DatabaseReader;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.common.CheckedSupplier;

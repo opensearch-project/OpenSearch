@@ -32,18 +32,19 @@
 
 package org.opensearch.script.mustache;
 
+import org.opensearch.action.ActionListener;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.client.node.NodeClient;
+import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
-import org.opensearch.core.action.ActionListener;
-import org.opensearch.core.common.bytes.BytesArray;
-import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.rest.action.search.RestSearchAction;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptService;
@@ -131,7 +132,7 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
         }
 
         try (
-            XContentParser parser = MediaTypeRegistry.JSON.xContent()
+            XContentParser parser = XContentFactory.xContent(XContentType.JSON)
                 .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, source)
         ) {
             SearchSourceBuilder builder = SearchSourceBuilder.searchSource();

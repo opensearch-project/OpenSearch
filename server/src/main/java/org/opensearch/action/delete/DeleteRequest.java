@@ -33,19 +33,20 @@
 package org.opensearch.action.delete;
 
 import org.apache.lucene.util.RamUsageEstimator;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.CompositeIndicesRequest;
 import org.opensearch.action.DocWriteRequest;
 import org.opensearch.action.support.replication.ReplicatedWriteRequest;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.lucene.uid.Versions;
-import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.common.lucene.uid.Versions;
+import org.opensearch.core.common.Strings;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.mapper.MapperService;
+import org.opensearch.core.index.shard.ShardId;
 
 import java.io.IOException;
 
@@ -95,6 +96,9 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
         }
         id = in.readString();
         routing = in.readOptionalString();
+        if (in.getVersion().before(LegacyESVersion.V_7_0_0)) {
+            in.readOptionalString(); // _parent
+        }
         version = in.readLong();
         versionType = VersionType.fromValue(in.readByte());
         ifSeqNo = in.readZLong();
@@ -276,6 +280,9 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
         }
         out.writeString(id);
         out.writeOptionalString(routing());
+        if (out.getVersion().before(LegacyESVersion.V_7_0_0)) {
+            out.writeOptionalString(null); // _parent
+        }
         out.writeLong(version);
         out.writeByte(versionType.getValue());
         out.writeZLong(ifSeqNo);

@@ -34,6 +34,7 @@ package org.opensearch.cluster.routing;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
+import org.opensearch.core.Assertions;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
@@ -43,7 +44,6 @@ import org.opensearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Randomness;
 import org.opensearch.common.collect.Tuple;
-import org.opensearch.core.Assertions;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 
@@ -82,7 +82,6 @@ import java.util.stream.Stream;
  * @opensearch.internal
  */
 public class RoutingNodes implements Iterable<RoutingNode> {
-    private final Metadata metadata;
 
     private final Map<String, RoutingNode> nodesToShards = new HashMap<>();
 
@@ -108,7 +107,6 @@ public class RoutingNodes implements Iterable<RoutingNode> {
     }
 
     public RoutingNodes(ClusterState clusterState, boolean readOnly) {
-        this.metadata = clusterState.getMetadata();
         this.readOnly = readOnly;
         final RoutingTable routingTable = clusterState.routingTable();
         this.nodesPerAttributeNames = Collections.synchronizedMap(new HashMap<>());
@@ -370,9 +368,9 @@ public class RoutingNodes implements Iterable<RoutingNode> {
      * Returns one active replica shard for the given shard id or <code>null</code> if
      * no active replica is found.
      *
-     * Since replicas could possibly be on nodes with an older version of OpenSearch than
-     * the primary is, this will return replicas on the highest version of OpenSearch when document
-     * replication is enabled.
+     * Since replicas could possibly be on nodes with a older version of OpenSearch than
+     * the primary is, this will return replicas on the highest version of OpenSearch.
+     *
      */
     public ShardRouting activeReplicaWithHighestVersion(ShardId shardId) {
         // It's possible for replicaNodeVersion to be null, when disassociating dead nodes
@@ -384,30 +382,6 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             .filter(shr -> !shr.primary() && shr.active())
             .filter(shr -> node(shr.currentNodeId()) != null)
             .max(
-                Comparator.comparing(
-                    shr -> node(shr.currentNodeId()).node(),
-                    Comparator.nullsFirst(Comparator.comparing(DiscoveryNode::getVersion))
-                )
-            )
-            .orElse(null);
-    }
-
-    /**
-     * Returns one active replica shard for the given shard id or <code>null</code> if
-     * no active replica is found.
-     *
-     * Since replicas could possibly be on nodes with a higher version of OpenSearch than
-     * the primary is, this will return replicas on the oldest version of OpenSearch when segment
-     * replication is enabled to allow for replica to read segments from primary.
-     *
-     */
-    public ShardRouting activeReplicaWithOldestVersion(ShardId shardId) {
-        // It's possible for replicaNodeVersion to be null. Therefore, we need to protect against the version being null
-        // (meaning the node will be going away).
-        return assignedShards(shardId).stream()
-            .filter(shr -> !shr.primary() && shr.active())
-            .filter(shr -> node(shr.currentNodeId()) != null)
-            .min(
                 Comparator.comparing(
                     shr -> node(shr.currentNodeId()).node(),
                     Comparator.nullsFirst(Comparator.comparing(DiscoveryNode::getVersion))
@@ -750,12 +724,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         RoutingChangesObserver routingChangesObserver
     ) {
         assert failedShard.primary();
-        ShardRouting activeReplica;
-        if (metadata.isSegmentReplicationEnabled(failedShard.getIndexName())) {
-            activeReplica = activeReplicaWithOldestVersion(failedShard.shardId());
-        } else {
-            activeReplica = activeReplicaWithHighestVersion(failedShard.shardId());
-        }
+        ShardRouting activeReplica = activeReplicaWithHighestVersion(failedShard.shardId());
         if (activeReplica == null) {
             moveToUnassigned(failedShard, unassignedInfo);
         } else {
@@ -1169,7 +1138,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
          */
         public ShardRouting[] drain() {
             nodes.ensureMutable();
-            ShardRouting[] mutableShardRoutings = unassigned.toArray(new ShardRouting[0]);
+            ShardRouting[] mutableShardRoutings = unassigned.toArray(new ShardRouting[unassigned.size()]);
             unassigned.clear();
             primaries = 0;
             return mutableShardRoutings;
@@ -1181,7 +1150,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
          */
         public ShardRouting[] drainIgnored() {
             nodes.ensureMutable();
-            ShardRouting[] mutableShardRoutings = ignored.toArray(new ShardRouting[0]);
+            ShardRouting[] mutableShardRoutings = ignored.toArray(new ShardRouting[ignored.size()]);
             ignored.clear();
             ignoredPrimaries = 0;
             return mutableShardRoutings;
@@ -1341,131 +1310,100 @@ public class RoutingNodes implements Iterable<RoutingNode> {
     }
 
     /**
-     * Returns iterator of shard routings used by {@link #nodeInterleavedShardIterator(ShardMovementStrategy)}
-     * @param primaryFirst true when ShardMovementStrategy = ShardMovementStrategy.PRIMARY_FIRST, false when it is ShardMovementStrategy.REPLICA_FIRST
+     * Creates an iterator over shards interleaving between nodes: The iterator returns the first shard from
+     * the first node, then the first shard of the second node, etc. until one shard from each node has been returned.
+     * The iterator then resumes on the first node by returning the second shard and continues until all shards from
+     * all the nodes have been returned.
+     * @param movePrimaryFirst if true, all primary shards are iterated over before iterating replica for any node
+     * @return iterator of shard routings
      */
-    private Iterator<ShardRouting> buildIteratorForMovementStrategy(boolean primaryFirst) {
+    public Iterator<ShardRouting> nodeInterleavedShardIterator(boolean movePrimaryFirst) {
         final Queue<Iterator<ShardRouting>> queue = new ArrayDeque<>();
         for (Map.Entry<String, RoutingNode> entry : nodesToShards.entrySet()) {
             queue.add(entry.getValue().copyShards().iterator());
         }
-        return new Iterator<ShardRouting>() {
-            private Queue<ShardRouting> shardRoutings = new ArrayDeque<>();
-            private Queue<Iterator<ShardRouting>> shardIterators = new ArrayDeque<>();
+        if (movePrimaryFirst) {
+            return new Iterator<ShardRouting>() {
+                private Queue<ShardRouting> replicaShards = new ArrayDeque<>();
+                private Queue<Iterator<ShardRouting>> replicaIterators = new ArrayDeque<>();
 
-            public boolean hasNext() {
-                while (queue.isEmpty() == false) {
-                    if (queue.peek().hasNext()) {
+                public boolean hasNext() {
+                    while (!queue.isEmpty()) {
+                        if (queue.peek().hasNext()) {
+                            return true;
+                        }
+                        queue.poll();
+                    }
+                    if (!replicaShards.isEmpty()) {
                         return true;
                     }
-                    queue.poll();
-                }
-                if (!shardRoutings.isEmpty()) {
-                    return true;
-                }
-                while (!shardIterators.isEmpty()) {
-                    if (shardIterators.peek().hasNext()) {
-                        return true;
+                    while (!replicaIterators.isEmpty()) {
+                        if (replicaIterators.peek().hasNext()) {
+                            return true;
+                        }
+                        replicaIterators.poll();
                     }
-                    shardIterators.poll();
+                    return false;
                 }
-                return false;
-            }
 
-            public ShardRouting next() {
-                if (hasNext() == false) {
-                    throw new NoSuchElementException();
-                }
-                while (!queue.isEmpty()) {
-                    Iterator<ShardRouting> iter = queue.poll();
-                    if (primaryFirst) {
+                public ShardRouting next() {
+                    if (hasNext() == false) {
+                        throw new NoSuchElementException();
+                    }
+                    while (!queue.isEmpty()) {
+                        Iterator<ShardRouting> iter = queue.poll();
                         if (iter.hasNext()) {
                             ShardRouting result = iter.next();
                             if (result.primary()) {
                                 queue.offer(iter);
                                 return result;
                             }
-                            shardRoutings.offer(result);
-                            shardIterators.offer(iter);
-                        }
-                    } else {
-                        while (iter.hasNext()) {
-                            ShardRouting result = iter.next();
-                            if (result.primary() == false) {
-                                queue.offer(iter);
-                                return result;
-                            }
-                            shardRoutings.offer(result);
-                            shardIterators.offer(iter);
+                            replicaShards.offer(result);
+                            replicaIterators.offer(iter);
                         }
                     }
+                    if (!replicaShards.isEmpty()) {
+                        return replicaShards.poll();
+                    }
+                    Iterator<ShardRouting> replicaIterator = replicaIterators.poll();
+                    ShardRouting replicaShard = replicaIterator.next();
+                    replicaIterators.offer(replicaIterator);
+
+                    assert !replicaShard.primary();
+                    return replicaShard;
                 }
-                if (!shardRoutings.isEmpty()) {
-                    return shardRoutings.poll();
+
+                public void remove() {
+                    throw new UnsupportedOperationException();
                 }
-                Iterator<ShardRouting> replicaIterator = shardIterators.poll();
-                ShardRouting replicaShard = replicaIterator.next();
-                shardIterators.offer(replicaIterator);
-
-                assert replicaShard.primary() != primaryFirst;
-                return replicaShard;
-            }
-
-            public void remove() {
-                throw new UnsupportedOperationException();
-            }
-
-        };
-    }
-
-    /**
-     * Creates an iterator over shards interleaving between nodes: The iterator returns the first shard from
-     * the first node, then the first shard of the second node, etc. until one shard from each node has been returned.
-     * The iterator then resumes on the first node by returning the second shard and continues until all shards from
-     * all the nodes have been returned.
-     * @param shardMovementStrategy if ShardMovementStrategy.PRIMARY_FIRST, all primary shards are iterated over before iterating replica for any node
-     *                              if ShardMovementStrategy.REPLICA_FIRST, all replica shards are iterated over before iterating primary for any node
-     *                              if ShardMovementStrategy.NO_PREFERENCE, order of replica and primary shards doesn't matter in iteration
-     * @return iterator of shard routings
-     */
-    public Iterator<ShardRouting> nodeInterleavedShardIterator(ShardMovementStrategy shardMovementStrategy) {
-        final Queue<Iterator<ShardRouting>> queue = new ArrayDeque<>();
-        for (Map.Entry<String, RoutingNode> entry : nodesToShards.entrySet()) {
-            queue.add(entry.getValue().copyShards().iterator());
-        }
-        if (shardMovementStrategy == ShardMovementStrategy.PRIMARY_FIRST) {
-            return buildIteratorForMovementStrategy(true);
+            };
         } else {
-            if (shardMovementStrategy == ShardMovementStrategy.REPLICA_FIRST) {
-                return buildIteratorForMovementStrategy(false);
-            } else {
-                return new Iterator<ShardRouting>() {
-                    @Override
-                    public boolean hasNext() {
-                        while (!queue.isEmpty()) {
-                            if (queue.peek().hasNext()) {
-                                return true;
-                            }
-                            queue.poll();
+            return new Iterator<ShardRouting>() {
+                @Override
+                public boolean hasNext() {
+                    while (!queue.isEmpty()) {
+                        if (queue.peek().hasNext()) {
+                            return true;
                         }
-                        return false;
+                        queue.poll();
                     }
+                    return false;
+                }
 
-                    @Override
-                    public ShardRouting next() {
-                        if (hasNext() == false) {
-                            throw new NoSuchElementException();
-                        }
-                        Iterator<ShardRouting> iter = queue.poll();
-                        queue.offer(iter);
-                        return iter.next();
+                @Override
+                public ShardRouting next() {
+                    if (hasNext() == false) {
+                        throw new NoSuchElementException();
                     }
+                    Iterator<ShardRouting> iter = queue.poll();
+                    queue.offer(iter);
+                    return iter.next();
+                }
 
-                    public void remove() {
-                        throw new UnsupportedOperationException();
-                    }
-                };
-            }
+                public void remove() {
+                    throw new UnsupportedOperationException();
+                }
+            };
         }
     }
 

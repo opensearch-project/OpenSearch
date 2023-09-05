@@ -130,27 +130,29 @@ public class DoubleTerms extends InternalMappedTerms<DoubleTerms, DoubleTerms.Bu
         String name,
         BucketOrder reduceOrder,
         BucketOrder order,
+        int requiredSize,
+        long minDocCount,
         Map<String, Object> metadata,
         DocValueFormat format,
         int shardSize,
         boolean showTermDocCountError,
         long otherDocCount,
         List<Bucket> buckets,
-        long docCountError,
-        TermsAggregator.BucketCountThresholds bucketCountThresholds
+        long docCountError
     ) {
         super(
             name,
             reduceOrder,
             order,
+            requiredSize,
+            minDocCount,
             metadata,
             format,
             shardSize,
             showTermDocCountError,
             otherDocCount,
             buckets,
-            docCountError,
-            bucketCountThresholds
+            docCountError
         );
     }
 
@@ -172,14 +174,15 @@ public class DoubleTerms extends InternalMappedTerms<DoubleTerms, DoubleTerms.Bu
             name,
             reduceOrder,
             order,
+            requiredSize,
+            minDocCount,
             metadata,
             format,
             shardSize,
             showTermDocCountError,
             otherDocCount,
             buckets,
-            docCountError,
-            bucketCountThresholds
+            docCountError
         );
     }
 
@@ -201,14 +204,15 @@ public class DoubleTerms extends InternalMappedTerms<DoubleTerms, DoubleTerms.Bu
             name,
             reduceOrder,
             order,
+            requiredSize,
+            minDocCount,
             getMetadata(),
             format,
             shardSize,
             showTermDocCountError,
             otherDocCount,
             buckets,
-            docCountError,
-            bucketCountThresholds
+            docCountError
         );
     }
 

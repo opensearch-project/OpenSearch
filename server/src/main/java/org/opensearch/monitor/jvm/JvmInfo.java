@@ -33,15 +33,16 @@
 package org.opensearch.monitor.jvm;
 
 import org.apache.lucene.util.Constants;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.core.common.unit.ByteSizeValue;
-import org.opensearch.core.service.ReportingService;
+import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.node.ReportingService;
 
 import java.io.IOException;
 import java.lang.management.GarbageCollectorMXBean;
@@ -80,7 +81,7 @@ public class JvmInfo implements ReportingService.Info {
         } catch (Exception t) {
             // ignore
         }
-        String[] inputArguments = runtimeMXBean.getInputArguments().toArray(new String[0]);
+        String[] inputArguments = runtimeMXBean.getInputArguments().toArray(new String[runtimeMXBean.getInputArguments().size()]);
         Mem mem = new Mem(heapInit, heapMax, nonHeapInit, nonHeapMax, directMemoryMax);
 
         String bootClassPath;
@@ -171,7 +172,7 @@ public class JvmInfo implements ReportingService.Info {
         }
 
         final boolean bundledJdk = Booleans.parseBoolean(System.getProperty("opensearch.bundled_jdk", Boolean.FALSE.toString()));
-        final Boolean usingBundledJdkOrJre = bundledJdk ? usingBundledJdkOrJre() : null;
+        final Boolean usingBundledJdk = bundledJdk ? usingBundledJdk() : null;
 
         INSTANCE = new JvmInfo(
             JvmPid.getPid(),
@@ -180,7 +181,7 @@ public class JvmInfo implements ReportingService.Info {
             runtimeMXBean.getVmVersion(),
             runtimeMXBean.getVmVendor(),
             bundledJdk,
-            usingBundledJdkOrJre,
+            usingBundledJdk,
             runtimeMXBean.getStartTime(),
             configuredInitialHeapSize,
             configuredMaxHeapSize,
@@ -201,7 +202,7 @@ public class JvmInfo implements ReportingService.Info {
     }
 
     @SuppressForbidden(reason = "PathUtils#get")
-    private static boolean usingBundledJdkOrJre() {
+    private static boolean usingBundledJdk() {
         /*
          * We are using the bundled JDK if java.home is the jdk sub-directory of our working directory. This is because we always set
          * the working directory of Elasticsearch to home, and the bundled JDK is in the jdk sub-directory there.
@@ -211,8 +212,7 @@ public class JvmInfo implements ReportingService.Info {
         if (Constants.MAC_OS_X) {
             return PathUtils.get(javaHome).equals(PathUtils.get(userDir).resolve("jdk.app/Contents/Home").toAbsolutePath());
         } else {
-            return PathUtils.get(javaHome).equals(PathUtils.get(userDir).resolve("jre").toAbsolutePath())
-                || PathUtils.get(javaHome).equals(PathUtils.get(userDir).resolve("jdk").toAbsolutePath());
+            return PathUtils.get(javaHome).equals(PathUtils.get(userDir).resolve("jdk").toAbsolutePath());
         }
     }
 
@@ -305,8 +305,13 @@ public class JvmInfo implements ReportingService.Info {
         vmName = in.readString();
         vmVersion = in.readString();
         vmVendor = in.readString();
-        bundledJdk = in.readBoolean();
-        usingBundledJdk = in.readOptionalBoolean();
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
+            bundledJdk = in.readBoolean();
+            usingBundledJdk = in.readOptionalBoolean();
+        } else {
+            bundledJdk = false;
+            usingBundledJdk = null;
+        }
         startTime = in.readLong();
         inputArguments = new String[in.readInt()];
         for (int i = 0; i < inputArguments.length; i++) {
@@ -336,8 +341,10 @@ public class JvmInfo implements ReportingService.Info {
         out.writeString(vmName);
         out.writeString(vmVersion);
         out.writeString(vmVendor);
-        out.writeBoolean(bundledJdk);
-        out.writeOptionalBoolean(usingBundledJdk);
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
+            out.writeBoolean(bundledJdk);
+            out.writeOptionalBoolean(usingBundledJdk);
+        }
         out.writeLong(startTime);
         out.writeInt(inputArguments.length);
         for (String inputArgument : inputArguments) {

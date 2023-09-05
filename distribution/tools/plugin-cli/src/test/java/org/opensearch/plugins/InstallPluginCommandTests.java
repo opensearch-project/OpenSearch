@@ -33,7 +33,6 @@
 package org.opensearch.plugins;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-
 import com.google.common.jimfs.Configuration;
 import com.google.common.jimfs.Jimfs;
 import org.apache.lucene.tests.util.LuceneTestCase;
@@ -64,10 +63,10 @@ import org.opensearch.cli.UserException;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.hash.MessageDigests;
+import org.opensearch.core.util.FileSystemUtils;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.io.PathUtilsForTesting;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.util.FileSystemUtils;
 import org.opensearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
 import org.opensearch.test.OpenSearchTestCase;
@@ -318,7 +317,7 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
     }
 
     void assertPlugin(String name, Path original, Environment env) throws IOException {
-        assertPluginInternal(name, env.pluginsDir(), original);
+        assertPluginInternal(name, env.pluginsFile(), original);
         assertConfigAndBin(name, original, env);
         assertInstallCleaned(env);
     }
@@ -354,12 +353,12 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
 
     void assertConfigAndBin(String name, Path original, Environment env) throws IOException {
         if (Files.exists(original.resolve("bin"))) {
-            Path binDir = env.binDir().resolve(name);
+            Path binDir = env.binFile().resolve(name);
             assertTrue("bin dir exists", Files.exists(binDir));
             assertTrue("bin is a dir", Files.isDirectory(binDir));
             PosixFileAttributes binAttributes = null;
             if (isPosix) {
-                binAttributes = Files.readAttributes(env.binDir(), PosixFileAttributes.class);
+                binAttributes = Files.readAttributes(env.binFile(), PosixFileAttributes.class);
             }
             try (DirectoryStream<Path> stream = Files.newDirectoryStream(binDir)) {
                 for (Path file : stream) {
@@ -372,7 +371,7 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
             }
         }
         if (Files.exists(original.resolve("config"))) {
-            Path configDir = env.configDir().resolve(name);
+            Path configDir = env.configFile().resolve(name);
             assertTrue("config dir exists", Files.exists(configDir));
             assertTrue("config is a dir", Files.isDirectory(configDir));
 
@@ -380,7 +379,7 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
             GroupPrincipal group = null;
 
             if (isPosix) {
-                PosixFileAttributes configAttributes = Files.getFileAttributeView(env.configDir(), PosixFileAttributeView.class)
+                PosixFileAttributes configAttributes = Files.getFileAttributeView(env.configFile(), PosixFileAttributeView.class)
                     .readAttributes();
                 user = configAttributes.owner();
                 group = configAttributes.group();
@@ -409,7 +408,7 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
     }
 
     void assertInstallCleaned(Environment env) throws IOException {
-        try (DirectoryStream<Path> stream = Files.newDirectoryStream(env.pluginsDir())) {
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(env.pluginsFile())) {
             for (Path file : stream) {
                 if (file.getFileName().toString().startsWith(".installing")) {
                     fail("Installation dir still exists, " + file);
@@ -459,7 +458,7 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
             () -> installPlugins(Arrays.asList(pluginZip, pluginZip + "does-not-exist"), env.v1())
         );
         assertThat(e, hasToString(containsString("does-not-exist")));
-        final Path fakeInstallPath = env.v2().pluginsDir().resolve("fake");
+        final Path fakeInstallPath = env.v2().pluginsFile().resolve("fake");
         // fake should have been removed when the file not found exception occurred
         assertFalse(Files.exists(fakeInstallPath));
         assertInstallCleaned(env.v2());
@@ -469,7 +468,7 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
         Tuple<Path, Environment> env = createEnv(fs, temp);
         Path pluginDir = createPluginDir(temp);
         String pluginZip = createPluginUrl("fake", pluginDir);
-        final Path removing = env.v2().pluginsDir().resolve(".removing-failed");
+        final Path removing = env.v2().pluginsFile().resolve(".removing-failed");
         Files.createDirectory(removing);
         final IllegalStateException e = expectThrows(IllegalStateException.class, () -> installPlugin(pluginZip, env.v1()));
         final String expected = String.format(
@@ -521,11 +520,11 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
         assumeTrue("posix and filesystem", isPosix && isReal);
         Tuple<Path, Environment> env = createEnv(fs, temp);
         Path pluginDir = createPluginDir(temp);
-        try (PosixPermissionsResetter pluginsAttrs = new PosixPermissionsResetter(env.v2().pluginsDir())) {
+        try (PosixPermissionsResetter pluginsAttrs = new PosixPermissionsResetter(env.v2().pluginsFile())) {
             pluginsAttrs.setPermissions(new HashSet<>());
             String pluginZip = createPluginUrl("fake", pluginDir);
             IOException e = expectThrows(IOException.class, () -> installPlugin(pluginZip, env.v1()));
-            assertTrue(e.getMessage(), e.getMessage().contains(env.v2().pluginsDir().toString()));
+            assertTrue(e.getMessage(), e.getMessage().contains(env.v2().pluginsFile().toString()));
         }
         assertInstallCleaned(env.v2());
     }
@@ -630,7 +629,7 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
         Files.createFile(binDir.resolve("somescript"));
         String pluginZip = createPluginUrl("opensearch", pluginDir);
         FileAlreadyExistsException e = expectThrows(FileAlreadyExistsException.class, () -> installPlugin(pluginZip, env.v1()));
-        assertTrue(e.getMessage(), e.getMessage().contains(env.v2().binDir().resolve("opensearch").toString()));
+        assertTrue(e.getMessage(), e.getMessage().contains(env.v2().binFile().resolve("opensearch").toString()));
         assertInstallCleaned(env.v2());
     }
 
@@ -642,7 +641,7 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
         Files.createDirectory(binDir);
         Files.createFile(binDir.resolve("somescript"));
         String pluginZip = createPluginUrl("fake", pluginDir);
-        try (PosixPermissionsResetter binAttrs = new PosixPermissionsResetter(env.v2().binDir())) {
+        try (PosixPermissionsResetter binAttrs = new PosixPermissionsResetter(env.v2().binFile())) {
             Set<PosixFilePermission> perms = binAttrs.getCopyPermissions();
             // make sure at least one execute perm is missing, so we know we forced it during installation
             perms.remove(PosixFilePermission.GROUP_EXECUTE);
@@ -673,7 +672,7 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
         installPlugin(pluginZip, env.v1());
         assertPlugin("fake", pluginDir, env.v2());
 
-        final Path fake = env.v2().pluginsDir().resolve("fake");
+        final Path fake = env.v2().pluginsFile().resolve("fake");
         final Path resources = fake.resolve("resources");
         final Path platform = fake.resolve("platform");
         final Path platformName = platform.resolve("linux-x64");
@@ -726,7 +725,7 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
 
     public void testExistingConfig() throws Exception {
         Tuple<Path, Environment> env = createEnv(fs, temp);
-        Path envConfigDir = env.v2().configDir().resolve("fake");
+        Path envConfigDir = env.v2().configFile().resolve("fake");
         Files.createDirectories(envConfigDir);
         Files.write(envConfigDir.resolve("custom.yml"), "existing config".getBytes(StandardCharsets.UTF_8));
         Path pluginDir = createPluginDir(temp);
@@ -903,7 +902,7 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
             e.getMessage(),
             equalTo(
                 "plugin directory ["
-                    + env.v2().pluginsDir().resolve("fake")
+                    + env.v2().pluginsFile().resolve("fake")
                     + "] already exists; "
                     + "if you need to update the plugin, uninstall it first using command 'remove fake'"
             )
@@ -1494,7 +1493,7 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
             assertEquals("installation aborted by user", e.getMessage());
 
             assertThat(terminal.getErrorOutput(), containsString("WARNING: " + warning));
-            try (Stream<Path> fileStream = Files.list(env.v2().pluginsDir())) {
+            try (Stream<Path> fileStream = Files.list(env.v2().pluginsFile())) {
                 assertThat(fileStream.collect(Collectors.toList()), empty());
             }
 
@@ -1507,7 +1506,7 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
             e = expectThrows(UserException.class, () -> installPlugin(pluginZip, env.v1()));
             assertEquals("installation aborted by user", e.getMessage());
             assertThat(terminal.getErrorOutput(), containsString("WARNING: " + warning));
-            try (Stream<Path> fileStream = Files.list(env.v2().pluginsDir())) {
+            try (Stream<Path> fileStream = Files.list(env.v2().pluginsFile())) {
                 assertThat(fileStream.collect(Collectors.toList()), empty());
             }
         }

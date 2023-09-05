@@ -44,8 +44,8 @@ import org.opensearch.indices.analysis.AnalysisModule;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptContext;
 import org.opensearch.script.ScriptService;
-import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.OpenSearchTokenStreamTestCase;
+import org.opensearch.test.IndexSettingsModule;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -81,7 +81,7 @@ public class PredicateTokenScriptFilterTests extends OpenSearchTokenStreamTestCa
             }
         };
 
-        CommonAnalysisModulePlugin plugin = new CommonAnalysisModulePlugin();
+        CommonAnalysisPlugin plugin = new CommonAnalysisPlugin();
         plugin.createComponents(null, null, null, null, scriptService, null, null, null, null, null, null);
         AnalysisModule module = new AnalysisModule(TestEnvironment.newEnvironment(settings), Collections.singletonList(plugin));
 

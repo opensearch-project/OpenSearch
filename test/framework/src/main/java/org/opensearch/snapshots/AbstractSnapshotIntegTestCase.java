@@ -32,6 +32,7 @@
 package org.opensearch.snapshots;
 
 import org.opensearch.Version;
+import org.opensearch.action.ActionFuture;
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.action.index.IndexRequestBuilder;
@@ -48,21 +49,20 @@ import org.opensearch.cluster.metadata.RepositoriesMetadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.Strings;
 import org.opensearch.common.UUIDs;
-import org.opensearch.common.action.ActionFuture;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
+import org.opensearch.common.compress.CompressorType;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.json.JsonXContent;
-import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.core.common.unit.ByteSizeUnit;
-import org.opensearch.core.compress.CompressorRegistry;
 import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.store.RemoteBufferedOutputDirectory;
 import org.opensearch.indices.replication.common.ReplicationType;
@@ -417,7 +417,7 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
         final boolean compress = randomBoolean();
         settings.put("location", randomRepoPath()).put("compress", compress);
         if (compress) {
-            settings.put("compression_type", randomFrom(CompressorRegistry.registeredCompressors().keySet()));
+            settings.put("compression_type", randomFrom(CompressorType.values()));
         }
         if (rarely()) {
             settings.put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES);
@@ -466,9 +466,10 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
             JsonXContent.jsonXContent.createParser(
                 NamedXContentRegistry.EMPTY,
                 DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                jsonBuilder.toString().replace(Version.CURRENT.toString(), version.toString())
+                Strings.toString(jsonBuilder).replace(Version.CURRENT.toString(), version.toString())
             ),
-            repositoryData.getGenId()
+            repositoryData.getGenId(),
+            randomBoolean()
         );
         Files.write(
             repoPath.resolve(BlobStoreRepository.INDEX_FILE_PREFIX + repositoryData.getGenId()),
@@ -523,7 +524,7 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
         assertDocCount(index, numdocs);
     }
 
-    protected Settings getRemoteStoreBackedIndexSettings() {
+    protected Settings getRemoteStoreBackedIndexSettings(String remoteStoreRepo) {
         return Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "1")
             .put("index.refresh_interval", "300s")
@@ -531,6 +532,9 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
             .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.FS.getSettingsKey())
             .put(IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING.getKey(), false)
             .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
+            .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, remoteStoreRepo)
+            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, remoteStoreRepo)
             .build();
     }
 
@@ -557,11 +561,6 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
             .prepareGetSettings(remoteStoreIndex)
             .get()
             .getSetting(remoteStoreIndex, IndexMetadata.SETTING_INDEX_UUID);
-        return getLockFilesInRemoteStore(remoteStoreIndex, remoteStoreRepositoryName, indexUUID);
-    }
-
-    protected String[] getLockFilesInRemoteStore(String remoteStoreIndex, String remoteStoreRepositoryName, String indexUUID)
-        throws IOException {
         final RepositoriesService repositoriesService = internalCluster().getCurrentClusterManagerNodeInstance(RepositoriesService.class);
         final BlobStoreRepository remoteStoreRepository = (BlobStoreRepository) repositoriesService.repository(remoteStoreRepositoryName);
         BlobPath shardLevelBlobPath = remoteStoreRepository.basePath().add(indexUUID).add("0").add("segments").add("lock_files");
@@ -598,7 +597,7 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
             Collections.emptyList(),
             SnapshotState.FAILED,
             "failed on purpose",
-            Version.V_2_0_0,
+            SnapshotsService.OLD_SNAPSHOT_FORMAT,
             0L,
             0L,
             0,
@@ -614,7 +613,7 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
                 getRepositoryData(repoName).getGenId(),
                 state.metadata(),
                 snapshotInfo,
-                Version.V_2_0_0,
+                SnapshotsService.OLD_SNAPSHOT_FORMAT,
                 Function.identity(),
                 f
             )

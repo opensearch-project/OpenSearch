@@ -33,17 +33,15 @@
 package org.opensearch;
 
 import com.fasterxml.jackson.core.JsonParseException;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
+import org.opensearch.core.action.ShardOperationFailedException;
 import org.opensearch.common.CheckedRunnable;
 import org.opensearch.common.CheckedSupplier;
 import org.opensearch.common.Nullable;
-import org.opensearch.core.action.ShardOperationFailedException;
-import org.opensearch.core.compress.NotXContentException;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.rest.RestStatus;
@@ -102,8 +100,6 @@ public final class ExceptionsHelper {
                 return RestStatus.BAD_REQUEST;
             } else if (t instanceof OpenSearchRejectedExecutionException) {
                 return RestStatus.TOO_MANY_REQUESTS;
-            } else if (t instanceof NotXContentException) {
-                return RestStatus.BAD_REQUEST;
             }
         }
         return RestStatus.INTERNAL_SERVER_ERROR;

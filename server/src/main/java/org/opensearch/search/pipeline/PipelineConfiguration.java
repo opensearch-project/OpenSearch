@@ -8,19 +8,17 @@
 
 package org.opensearch.search.pipeline;
 
-import org.opensearch.Version;
 import org.opensearch.cluster.AbstractDiffable;
 import org.opensearch.cluster.Diff;
-import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.core.ParseField;
-import org.opensearch.core.common.Strings;
+import org.opensearch.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.ParseField;
 import org.opensearch.core.xcontent.ContextParser;
 import org.opensearch.core.xcontent.MediaType;
-import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -58,7 +56,7 @@ public class PipelineConfiguration extends AbstractDiffable<PipelineConfiguratio
 
         private String id;
         private BytesReference config;
-        private MediaType mediaType;
+        private XContentType xContentType;
 
         void setId(String id) {
             this.id = id;
@@ -69,11 +67,11 @@ public class PipelineConfiguration extends AbstractDiffable<PipelineConfiguratio
                 throw new IllegalArgumentException("PipelineConfiguration does not support media type [" + mediaType.getClass() + "]");
             }
             this.config = config;
-            this.mediaType = mediaType;
+            this.xContentType = XContentType.fromMediaType(mediaType);
         }
 
         PipelineConfiguration build() {
-            return new PipelineConfiguration(id, config, mediaType);
+            return new PipelineConfiguration(id, config, xContentType);
         }
     }
 
@@ -82,12 +80,16 @@ public class PipelineConfiguration extends AbstractDiffable<PipelineConfiguratio
     // and the way the map of maps config is read requires a deep copy (it removes instead of gets entries to check for unused options)
     // also the get pipeline api just directly returns this to the caller
     private final BytesReference config;
-    private final MediaType mediaType;
+    private final XContentType xContentType;
 
-    public PipelineConfiguration(String id, BytesReference config, MediaType mediaType) {
+    public PipelineConfiguration(String id, BytesReference config, XContentType xContentType) {
         this.id = Objects.requireNonNull(id);
         this.config = Objects.requireNonNull(config);
-        this.mediaType = Objects.requireNonNull(mediaType);
+        this.xContentType = Objects.requireNonNull(xContentType);
+    }
+
+    public PipelineConfiguration(String id, BytesReference config, MediaType mediaType) {
+        this(id, config, XContentType.fromMediaType(mediaType));
     }
 
     public String getId() {
@@ -95,12 +97,12 @@ public class PipelineConfiguration extends AbstractDiffable<PipelineConfiguratio
     }
 
     public Map<String, Object> getConfigAsMap() {
-        return XContentHelper.convertToMap(config, true, mediaType).v2();
+        return XContentHelper.convertToMap(config, true, xContentType).v2();
     }
 
     // pkg-private for tests
-    MediaType getMediaType() {
-        return mediaType;
+    XContentType getXContentType() {
+        return xContentType;
     }
 
     // pkg-private for tests
@@ -118,11 +120,7 @@ public class PipelineConfiguration extends AbstractDiffable<PipelineConfiguratio
     }
 
     public static PipelineConfiguration readFrom(StreamInput in) throws IOException {
-        return new PipelineConfiguration(
-            in.readString(),
-            in.readBytesReference(),
-            in.getVersion().onOrAfter(Version.V_2_10_0) ? in.readMediaType() : in.readEnum(XContentType.class)
-        );
+        return new PipelineConfiguration(in.readString(), in.readBytesReference(), in.readEnum(XContentType.class));
     }
 
     public static Diff<PipelineConfiguration> readDiffFrom(StreamInput in) throws IOException {
@@ -131,18 +129,14 @@ public class PipelineConfiguration extends AbstractDiffable<PipelineConfiguratio
 
     @Override
     public String toString() {
-        return Strings.toString(MediaTypeRegistry.JSON, this);
+        return Strings.toString(XContentType.JSON, this);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(id);
         out.writeBytesReference(config);
-        if (out.getVersion().onOrAfter(Version.V_2_10_0)) {
-            mediaType.writeTo(out);
-        } else {
-            out.writeEnum((XContentType) mediaType);
-        }
+        out.writeEnum(xContentType);
     }
 
     @Override

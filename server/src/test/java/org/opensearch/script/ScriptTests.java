@@ -33,17 +33,16 @@
 package org.opensearch.script;
 
 import org.opensearch.OpenSearchParseException;
-import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.core.common.Strings;
+import org.opensearch.common.Strings;
 import org.opensearch.core.common.io.stream.InputStreamStreamInput;
 import org.opensearch.core.common.io.stream.OutputStreamStreamOutput;
-import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.ByteArrayInputStream;
@@ -59,7 +58,7 @@ public class ScriptTests extends OpenSearchTestCase {
 
     public void testScriptParsing() throws IOException {
         Script expectedScript = createScript();
-        try (XContentBuilder builder = MediaTypeRegistry.contentBuilder(randomFrom(XContentType.values()))) {
+        try (XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()))) {
             expectedScript.toXContent(builder, ToXContent.EMPTY_PARAMS);
             try (XContentParser parser = createParser(builder)) {
                 Script actualScript = Script.parse(parser);
@@ -88,7 +87,7 @@ public class ScriptTests extends OpenSearchTestCase {
                 builder.startObject();
                 builder.field("field", randomAlphaOfLengthBetween(1, 5));
                 builder.endObject();
-                script = builder.toString();
+                script = Strings.toString(builder);
             }
         } else {
             script = randomAlphaOfLengthBetween(1, 5);
@@ -97,16 +96,14 @@ public class ScriptTests extends OpenSearchTestCase {
             scriptType,
             scriptType == ScriptType.STORED ? null : randomFrom("_lang1", "_lang2", "_lang3"),
             script,
-            scriptType == ScriptType.INLINE
-                ? Collections.singletonMap(Script.CONTENT_TYPE_OPTION, MediaTypeRegistry.JSON.mediaType())
-                : null,
+            scriptType == ScriptType.INLINE ? Collections.singletonMap(Script.CONTENT_TYPE_OPTION, XContentType.JSON.mediaType()) : null,
             params
         );
     }
 
     public void testParse() throws IOException {
         Script expectedScript = createScript();
-        try (XContentBuilder builder = MediaTypeRegistry.contentBuilder(randomFrom(XContentType.values()))) {
+        try (XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()))) {
             expectedScript.toXContent(builder, ToXContent.EMPTY_PARAMS);
             try (XContentParser xParser = createParser(builder)) {
                 Settings settings = Settings.fromXContent(xParser);
@@ -170,8 +167,8 @@ public class ScriptTests extends OpenSearchTestCase {
         }
         Script script = new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, "doc['field']", options, params);
         Map<String, Object> scriptObject = XContentHelper.convertToMap(
-            MediaTypeRegistry.JSON.xContent(),
-            Strings.toString(MediaTypeRegistry.JSON, script),
+            XContentType.JSON.xContent(),
+            Strings.toString(XContentType.JSON, script),
             false
         );
         Script parsedScript = Script.parse(scriptObject);

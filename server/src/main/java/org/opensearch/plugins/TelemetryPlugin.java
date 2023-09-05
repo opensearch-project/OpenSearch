@@ -18,7 +18,7 @@ import java.util.Optional;
  */
 public interface TelemetryPlugin {
 
-    Optional<Telemetry> getTelemetry(TelemetrySettings telemetrySettings);
+    Optional<Telemetry> getTelemetry(TelemetrySettings settings);
 
     String getName();
 

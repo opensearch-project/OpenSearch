@@ -35,7 +35,6 @@ package org.opensearch.example.expertscript;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.IndexSearcher;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.ScriptPlugin;
@@ -58,11 +57,6 @@ import java.util.Set;
  * implementing expert scoring.
  */
 public class ExpertScriptPlugin extends Plugin implements ScriptPlugin {
-
-    /**
-     * Instantiate this plugin.
-     */
-    public ExpertScriptPlugin() {}
 
     @Override
     public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
@@ -121,22 +115,20 @@ public class ExpertScriptPlugin extends Plugin implements ScriptPlugin {
             @Override
             public LeafFactory newFactory(
                 Map<String, Object> params,
-                SearchLookup lookup,
-                IndexSearcher indexSearcher
+                SearchLookup lookup
             ) {
-                return new PureDfLeafFactory(params, lookup, indexSearcher);
+                return new PureDfLeafFactory(params, lookup);
             }
         }
 
         private static class PureDfLeafFactory implements LeafFactory {
             private final Map<String, Object> params;
             private final SearchLookup lookup;
-            private final IndexSearcher indexSearcher;
             private final String field;
             private final String term;
 
             private PureDfLeafFactory(
-                        Map<String, Object> params, SearchLookup lookup, IndexSearcher indexSearcher) {
+                        Map<String, Object> params, SearchLookup lookup) {
                 if (params.containsKey("field") == false) {
                     throw new IllegalArgumentException(
                             "Missing parameter [field]");
@@ -147,7 +139,6 @@ public class ExpertScriptPlugin extends Plugin implements ScriptPlugin {
                 }
                 this.params = params;
                 this.lookup = lookup;
-                this.indexSearcher = indexSearcher;
                 field = params.get("field").toString();
                 term = params.get("term").toString();
             }
@@ -167,7 +158,7 @@ public class ExpertScriptPlugin extends Plugin implements ScriptPlugin {
                      * the field and/or term don't exist in this segment,
                      * so always return 0
                      */
-                    return new ScoreScript(params, lookup, indexSearcher, context) {
+                    return new ScoreScript(params, lookup, context) {
                         @Override
                         public double execute(
                             ExplanationHolder explanation
@@ -176,7 +167,7 @@ public class ExpertScriptPlugin extends Plugin implements ScriptPlugin {
                         }
                     };
                 }
-                return new ScoreScript(params, lookup, indexSearcher, context) {
+                return new ScoreScript(params, lookup, context) {
                     int currentDocid = -1;
                     @Override
                     public void setDocument(int docid) {

@@ -32,8 +32,7 @@
 
 package org.opensearch.transport;
 
-import org.opensearch.core.action.ActionListener;
-import org.opensearch.core.transport.TransportResponse;
+import org.opensearch.action.ActionListener;
 
 public class TestTransportChannel implements TransportChannel {
 

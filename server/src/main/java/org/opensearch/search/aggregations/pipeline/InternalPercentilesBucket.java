@@ -32,13 +32,14 @@
 
 package org.opensearch.search.aggregations.pipeline;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.InternalAggregation;
-import org.opensearch.search.aggregations.metrics.InternalMax;
 import org.opensearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
+import org.opensearch.search.aggregations.metrics.InternalMax;
 import org.opensearch.search.aggregations.metrics.Percentile;
 
 import java.io.IOException;
@@ -98,7 +99,11 @@ public class InternalPercentilesBucket extends InternalNumericMetricsAggregation
         format = in.readNamedWriteable(DocValueFormat.class);
         percentiles = in.readDoubleArray();
         percents = in.readDoubleArray();
-        keyed = in.readBoolean();
+
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
+            keyed = in.readBoolean();
+        }
+
         computeLookup();
     }
 
@@ -107,7 +112,10 @@ public class InternalPercentilesBucket extends InternalNumericMetricsAggregation
         out.writeNamedWriteable(format);
         out.writeDoubleArray(percentiles);
         out.writeDoubleArray(percents);
-        out.writeBoolean(keyed);
+
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
+            out.writeBoolean(keyed);
+        }
     }
 
     @Override

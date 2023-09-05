@@ -38,6 +38,7 @@ import org.apache.lucene.document.FeatureField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.opensearch.common.Strings;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.plugins.Plugin;
 
@@ -71,7 +72,7 @@ public class RankFeatureFieldMapperTests extends MapperTestCase {
 
     @Override
     protected Collection<? extends Plugin> getPlugins() {
-        return List.of(new MapperExtrasModulePlugin());
+        return List.of(new MapperExtrasPlugin());
     }
 
     static int getFrequency(TokenStream tk) throws IOException {
@@ -90,7 +91,7 @@ public class RankFeatureFieldMapperTests extends MapperTestCase {
 
     public void testDefaults() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
-        assertEquals(fieldMapping(this::minimalMapping).toString(), mapper.mappingSource().toString());
+        assertEquals(Strings.toString(fieldMapping(this::minimalMapping)), mapper.mappingSource().toString());
 
         ParsedDocument doc1 = mapper.parse(source(b -> b.field("field", 10)));
         IndexableField[] fields = doc1.rootDoc().getFields("_feature");

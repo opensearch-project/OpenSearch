@@ -32,9 +32,9 @@
 
 package org.opensearch.action.admin.indices.dangling.list;
 
+import org.opensearch.action.support.nodes.BaseNodeRequest;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.transport.TransportRequest;
 
 import java.io.IOException;
 
@@ -43,7 +43,7 @@ import java.io.IOException;
  *
  * @opensearch.internal
  */
-public class NodeListDanglingIndicesRequest extends TransportRequest {
+public class NodeListDanglingIndicesRequest extends BaseNodeRequest {
     /**
      * Filter the response by index UUID. Leave as null to find all indices.
      */

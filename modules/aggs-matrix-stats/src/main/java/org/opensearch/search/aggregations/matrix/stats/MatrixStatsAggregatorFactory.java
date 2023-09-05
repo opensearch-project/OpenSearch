@@ -89,9 +89,4 @@ final class MatrixStatsAggregatorFactory extends ArrayValuesSourceAggregatorFact
         }
         return new MatrixStatsAggregator(name, typedValuesSources, searchContext, parent, multiValueMode, metadata);
     }
-
-    @Override
-    protected boolean supportsConcurrentSegmentSearch() {
-        return true;
-    }
 }

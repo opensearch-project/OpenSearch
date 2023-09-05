@@ -135,7 +135,7 @@ public class RestIndexPutAliasAction extends BaseRestHandler {
         indicesAliasesRequest.clusterManagerNodeTimeout(
             request.paramAsTime("cluster_manager_timeout", indicesAliasesRequest.clusterManagerNodeTimeout())
         );
-        parseDeprecatedMasterTimeoutParameter(indicesAliasesRequest, request, deprecationLogger, getName());
+        parseDeprecatedMasterTimeoutParameter(indicesAliasesRequest, request);
 
         IndicesAliasesRequest.AliasActions aliasAction = AliasActions.add().indices(indices).alias(alias);
         if (routing != null) {

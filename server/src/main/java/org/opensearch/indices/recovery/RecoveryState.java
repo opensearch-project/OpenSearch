@@ -32,20 +32,21 @@
 
 package org.opensearch.indices.recovery;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.shard.IndexShard;
-import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.indices.replication.common.ReplicationState;
+import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
 import org.opensearch.indices.replication.common.ReplicationTimer;
 
 import java.io.IOException;
@@ -429,7 +430,9 @@ public class RecoveryState implements ReplicationState, ToXContentFragment, Writ
             recovered = in.readVInt();
             total = in.readVInt();
             totalOnStart = in.readVInt();
-            totalLocal = in.readVInt();
+            if (in.getVersion().onOrAfter(LegacyESVersion.V_7_4_0)) {
+                totalLocal = in.readVInt();
+            }
         }
 
         @Override
@@ -438,7 +441,9 @@ public class RecoveryState implements ReplicationState, ToXContentFragment, Writ
             out.writeVInt(recovered);
             out.writeVInt(total);
             out.writeVInt(totalOnStart);
-            out.writeVInt(totalLocal);
+            if (out.getVersion().onOrAfter(LegacyESVersion.V_7_4_0)) {
+                out.writeVInt(totalLocal);
+            }
         }
 
         public synchronized void reset() {

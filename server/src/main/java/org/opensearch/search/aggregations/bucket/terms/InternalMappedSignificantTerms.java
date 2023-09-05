@@ -64,15 +64,16 @@ public abstract class InternalMappedSignificantTerms<
 
     protected InternalMappedSignificantTerms(
         String name,
+        int requiredSize,
+        long minDocCount,
         Map<String, Object> metadata,
         DocValueFormat format,
         long subsetSize,
         long supersetSize,
         SignificanceHeuristic significanceHeuristic,
-        List<B> buckets,
-        TermsAggregator.BucketCountThresholds bucketCountThresholds
+        List<B> buckets
     ) {
-        super(name, bucketCountThresholds, metadata);
+        super(name, requiredSize, minDocCount, metadata);
         this.format = format;
         this.buckets = buckets;
         this.subsetSize = subsetSize;

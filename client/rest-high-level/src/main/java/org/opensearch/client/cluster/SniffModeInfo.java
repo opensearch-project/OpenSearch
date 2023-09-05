@@ -86,16 +86,4 @@ public class SniffModeInfo implements RemoteConnectionInfo.ModeInfo {
     public int hashCode() {
         return Objects.hash(seedNodes, maxConnectionsPerCluster, numNodesConnected);
     }
-
-    @Override
-    public String toString() {
-        return "SniffModeInfo{"
-            + "seedNodes="
-            + seedNodes
-            + ", maxConnectionsPerCluster="
-            + maxConnectionsPerCluster
-            + ", numNodesConnected="
-            + numNodesConnected
-            + '}';
-    }
 }

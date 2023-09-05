@@ -34,7 +34,7 @@ package org.opensearch.join.aggregations;
 
 import org.opensearch.core.ParseField;
 import org.opensearch.core.xcontent.NamedXContentRegistry.Entry;
-import org.opensearch.join.ParentJoinModulePlugin;
+import org.opensearch.join.ParentJoinPlugin;
 import org.opensearch.plugins.SearchPlugin;
 import org.opensearch.search.aggregations.Aggregation;
 import org.opensearch.search.aggregations.InternalAggregations;
@@ -49,7 +49,7 @@ public class InternalParentTests extends InternalSingleBucketAggregationTestCase
 
     @Override
     protected SearchPlugin registerPlugin() {
-        return new ParentJoinModulePlugin();
+        return new ParentJoinPlugin();
     }
 
     @Override

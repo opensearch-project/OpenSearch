@@ -71,7 +71,7 @@ public class RestPutComposableIndexTemplateAction extends BaseRestHandler {
 
         PutComposableIndexTemplateAction.Request putRequest = new PutComposableIndexTemplateAction.Request(request.param("name"));
         putRequest.clusterManagerNodeTimeout(request.paramAsTime("cluster_manager_timeout", putRequest.clusterManagerNodeTimeout()));
-        parseDeprecatedMasterTimeoutParameter(putRequest, request, deprecationLogger, getName());
+        parseDeprecatedMasterTimeoutParameter(putRequest, request);
         putRequest.create(request.paramAsBoolean("create", false));
         putRequest.cause(request.param("cause", "api"));
         putRequest.indexTemplate(ComposableIndexTemplate.parse(request.contentParser()));

@@ -4,7 +4,7 @@
       "url": "https://opensearch.org/docs/latest/opensearch/rest-api/weighted-routing/get",
       "description": "Fetches weighted shard routing weights"
     },
-    "stability": "stable",
+    "stability": "experimental",
     "url": {
       "paths": [
         {

@@ -10,7 +10,7 @@ package org.opensearch.extensions;
 
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
-import org.opensearch.core.common.transport.TransportAddress;
+import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.net.InetAddress;
@@ -26,9 +26,9 @@ public class DiscoveryExtensionNodeTests extends OpenSearchTestCase {
             "extensionUniqueId1",
             new TransportAddress(InetAddress.getByName("127.0.0.0"), 9300),
             new HashMap<String, String>(),
-            Version.fromString("3.0.0"),
+            Version.CURRENT,
             // minimum compatible version
-            Version.fromString("3.0.0"),
+            Version.CURRENT,
             Collections.emptyList()
         );
         assertTrue(Version.CURRENT.onOrAfter(extensionNode.getMinimumCompatibleVersion()));

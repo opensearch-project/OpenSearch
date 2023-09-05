@@ -37,7 +37,6 @@ import org.hamcrest.Matchers;
 
 import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509ExtendedTrustManager;
-
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;

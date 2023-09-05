@@ -44,6 +44,7 @@ import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
+
 import static org.hamcrest.Matchers.equalTo;
 
 /**

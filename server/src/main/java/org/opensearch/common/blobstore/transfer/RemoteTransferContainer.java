@@ -8,6 +8,7 @@
 
 package org.opensearch.common.blobstore.transfer;
 
+import com.jcraft.jzlib.JZlib;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CorruptIndexException;
@@ -24,8 +25,6 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Objects;
-
-import com.jcraft.jzlib.JZlib;
 
 /**
  * RemoteTransferContainer is an encapsulation for managing file transfers.

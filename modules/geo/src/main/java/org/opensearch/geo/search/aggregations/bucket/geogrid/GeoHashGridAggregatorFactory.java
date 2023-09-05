@@ -61,7 +61,7 @@ import static java.util.Collections.emptyList;
  *
  * @opensearch.internal
  */
-class GeoHashGridAggregatorFactory extends ValuesSourceAggregatorFactory {
+public class GeoHashGridAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     private final int precision;
     private final int requiredSize;
@@ -89,7 +89,7 @@ class GeoHashGridAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     @Override
     protected Aggregator createUnmapped(SearchContext searchContext, Aggregator parent, Map<String, Object> metadata) throws IOException {
-        final InternalAggregation aggregation = new GeoHashGrid(name, requiredSize, emptyList(), metadata);
+        final InternalAggregation aggregation = new InternalGeoHashGrid(name, requiredSize, emptyList(), metadata);
         return new NonCollectingAggregator(name, searchContext, parent, factories, metadata) {
             @Override
             public InternalAggregation buildEmptyAggregation() {
@@ -195,10 +195,5 @@ class GeoHashGridAggregatorFactory extends ValuesSourceAggregatorFactory {
             },
             true
         );
-    }
-
-    @Override
-    protected boolean supportsConcurrentSegmentSearch() {
-        return true;
     }
 }

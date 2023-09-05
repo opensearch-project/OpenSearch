@@ -34,26 +34,26 @@ package org.opensearch.action.admin.cluster.node.reload;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
-import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
+import org.opensearch.ExceptionsHelper;
+import org.opensearch.action.ActionListener;
 import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.support.ActionFilters;
+import org.opensearch.action.support.nodes.BaseNodeRequest;
 import org.opensearch.action.support.nodes.TransportNodesAction;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
-import org.opensearch.common.settings.KeyStoreWrapper;
-import org.opensearch.common.settings.Settings;
-import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.common.settings.KeyStoreWrapper;
 import org.opensearch.core.common.settings.SecureString;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.plugins.ReloadablePlugin;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
@@ -149,7 +149,7 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
         final SecureString secureSettingsPassword = request.hasPassword()
             ? request.getSecureSettingsPassword()
             : new SecureString(new char[0]);
-        try (KeyStoreWrapper keystore = KeyStoreWrapper.load(environment.configDir())) {
+        try (KeyStoreWrapper keystore = KeyStoreWrapper.load(environment.configFile())) {
             // reread keystore from config file
             if (keystore == null) {
                 return new NodesReloadSecureSettingsResponse.NodeResponse(
@@ -188,7 +188,7 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
      *
      * @opensearch.internal
      */
-    public static class NodeRequest extends TransportRequest {
+    public static class NodeRequest extends BaseNodeRequest {
 
         NodesReloadSecureSettingsRequest request;
 

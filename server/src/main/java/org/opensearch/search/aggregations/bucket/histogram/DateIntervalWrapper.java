@@ -32,15 +32,16 @@
 
 package org.opensearch.search.aggregations.bucket.histogram;
 
+import org.opensearch.core.ParseField;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.common.Rounding;
 import org.opensearch.common.Rounding.DateTimeUnit;
-import org.opensearch.common.logging.DeprecationLogger;
-import org.opensearch.common.unit.TimeValue;
-import org.opensearch.core.ParseField;
-import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.common.logging.DeprecationLogger;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -142,8 +143,21 @@ public class DateIntervalWrapper implements ToXContentFragment, Writeable {
     public DateIntervalWrapper() {}
 
     public DateIntervalWrapper(StreamInput in) throws IOException {
-        dateHistogramInterval = in.readOptionalWriteable(DateHistogramInterval::new);
-        intervalType = IntervalTypeEnum.fromStream(in);
+        if (in.getVersion().before(LegacyESVersion.V_7_2_0)) {
+            long interval = in.readLong();
+            DateHistogramInterval histoInterval = in.readOptionalWriteable(DateHistogramInterval::new);
+
+            if (histoInterval != null) {
+                dateHistogramInterval = histoInterval;
+                intervalType = IntervalTypeEnum.LEGACY_DATE_HISTO;
+            } else {
+                dateHistogramInterval = new DateHistogramInterval(interval + "ms");
+                intervalType = IntervalTypeEnum.LEGACY_INTERVAL;
+            }
+        } else {
+            dateHistogramInterval = in.readOptionalWriteable(DateHistogramInterval::new);
+            intervalType = IntervalTypeEnum.fromStream(in);
+        }
     }
 
     public IntervalTypeEnum getIntervalType() {
@@ -388,8 +402,20 @@ public class DateIntervalWrapper implements ToXContentFragment, Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalWriteable(dateHistogramInterval);
-        intervalType.writeTo(out);
+        if (out.getVersion().before(LegacyESVersion.V_7_2_0)) {
+            if (intervalType.equals(IntervalTypeEnum.LEGACY_INTERVAL)) {
+                out.writeLong(
+                    TimeValue.parseTimeValue(dateHistogramInterval.toString(), DateHistogramAggregationBuilder.NAME + ".innerWriteTo")
+                        .getMillis()
+                );
+            } else {
+                out.writeLong(0L);
+            }
+            out.writeOptionalWriteable(dateHistogramInterval);
+        } else {
+            out.writeOptionalWriteable(dateHistogramInterval);
+            intervalType.writeTo(out);
+        }
     }
 
     @Override

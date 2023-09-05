@@ -32,13 +32,12 @@
 
 package org.opensearch.script;
 
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.Writeable.Reader;
-import org.opensearch.core.xcontent.MediaType;
-import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
@@ -49,9 +48,9 @@ public class StoredScriptSourceTests extends AbstractSerializingTestCase<StoredS
 
     @Override
     protected StoredScriptSource createTestInstance() {
-        MediaType mediaType = randomFrom(MediaTypeRegistry.JSON, XContentType.YAML);
+        XContentType xContentType = randomFrom(XContentType.JSON, XContentType.YAML);
         try {
-            XContentBuilder template = XContentBuilder.builder(mediaType.xContent());
+            XContentBuilder template = XContentBuilder.builder(xContentType.xContent());
             template.startObject();
             template.startObject("script");
             {
@@ -65,9 +64,9 @@ public class StoredScriptSourceTests extends AbstractSerializingTestCase<StoredS
             template.endObject();
             Map<String, String> options = new HashMap<>();
             if (randomBoolean()) {
-                options.put(Script.CONTENT_TYPE_OPTION, mediaType.mediaType());
+                options.put(Script.CONTENT_TYPE_OPTION, xContentType.mediaType());
             }
-            return StoredScriptSource.parse(BytesReference.bytes(template), mediaType);
+            return StoredScriptSource.parse(BytesReference.bytes(template), xContentType);
         } catch (IOException e) {
             throw new AssertionError("Failed to create test instance", e);
         }
@@ -89,7 +88,7 @@ public class StoredScriptSourceTests extends AbstractSerializingTestCase<StoredS
         String lang = instance.getLang();
         Map<String, String> options = instance.getOptions();
 
-        MediaType newXContentType = randomFrom(MediaTypeRegistry.JSON, XContentType.YAML);
+        XContentType newXContentType = randomFrom(XContentType.JSON, XContentType.YAML);
         XContentBuilder newTemplate = XContentBuilder.builder(newXContentType.xContent());
         newTemplate.startObject();
         newTemplate.startObject("query");
@@ -101,7 +100,7 @@ public class StoredScriptSourceTests extends AbstractSerializingTestCase<StoredS
 
         switch (between(0, 2)) {
             case 0:
-                source = newTemplate.toString();
+                source = Strings.toString(newTemplate);
                 break;
             case 1:
                 lang = randomAlphaOfLengthBetween(1, 20);

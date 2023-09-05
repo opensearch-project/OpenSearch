@@ -8,11 +8,10 @@
 
 package org.opensearch.telemetry.tracing.exporter;
 
-import java.util.Collection;
-
 import io.opentelemetry.sdk.common.CompletableResultCode;
 import io.opentelemetry.sdk.trace.data.SpanData;
 import io.opentelemetry.sdk.trace.export.SpanExporter;
+import java.util.Collection;
 
 public class DummySpanExporter implements SpanExporter {
     @Override

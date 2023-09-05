@@ -35,11 +35,12 @@ import org.opensearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
+import org.opensearch.common.Strings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.index.query.TermQueryBuilder;
@@ -207,7 +208,7 @@ public class SignificantTermsSignificanceScoreIT extends OpenSearchIntegTestCase
             + "\"score\":0.75,"
             + "\"bg_count\":4"
             + "}]}}]}}";
-        assertThat(responseBuilder.toString(), equalTo(result));
+        assertThat(Strings.toString(responseBuilder), equalTo(result));
 
     }
 
@@ -242,7 +243,7 @@ public class SignificantTermsSignificanceScoreIT extends OpenSearchIntegTestCase
     public void testPopularTermManyDeletedDocs() throws Exception {
         String settings = "{\"index.number_of_shards\": 1, \"index.number_of_replicas\": 0}";
         assertAcked(
-            prepareCreate(INDEX_NAME).setSettings(settings, MediaTypeRegistry.JSON)
+            prepareCreate(INDEX_NAME).setSettings(settings, XContentType.JSON)
                 .setMapping("text", "type=keyword", CLASS_FIELD, "type=keyword")
         );
         String[] cat1v1 = { "constant", "one" };

@@ -33,16 +33,16 @@
 package org.opensearch.index.reindex;
 
 import org.opensearch.Version;
-import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.common.lucene.uid.Versions;
-import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.core.tasks.TaskId;
+import org.opensearch.common.lucene.uid.Versions;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
+import org.opensearch.tasks.TaskId;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -50,8 +50,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.opensearch.common.unit.TimeValue.parseTimeValue;
 import static org.apache.lucene.tests.util.TestUtil.randomSimpleString;
+import static org.opensearch.common.unit.TimeValue.parseTimeValue;
 
 /**
  * Round trip tests for all {@link Writeable} things declared in this plugin.
@@ -150,6 +150,25 @@ public class RoundTripTests extends OpenSearchTestCase {
     private void randomRequest(AbstractBulkIndexByScrollRequest<?> request) {
         randomRequest((AbstractBulkByScrollRequest<?>) request);
         request.setScript(random().nextBoolean() ? null : randomScript());
+    }
+
+    private void assertRequestEquals(Version version, ReindexRequest request, ReindexRequest tripped) {
+        assertRequestEquals((AbstractBulkIndexByScrollRequest<?>) request, (AbstractBulkIndexByScrollRequest<?>) tripped);
+        assertEquals(request.getDestination().version(), tripped.getDestination().version());
+        assertEquals(request.getDestination().index(), tripped.getDestination().index());
+        if (request.getRemoteInfo() == null) {
+            assertNull(tripped.getRemoteInfo());
+        } else {
+            assertNotNull(tripped.getRemoteInfo());
+            assertEquals(request.getRemoteInfo().getScheme(), tripped.getRemoteInfo().getScheme());
+            assertEquals(request.getRemoteInfo().getHost(), tripped.getRemoteInfo().getHost());
+            assertEquals(request.getRemoteInfo().getQuery(), tripped.getRemoteInfo().getQuery());
+            assertEquals(request.getRemoteInfo().getUsername(), tripped.getRemoteInfo().getUsername());
+            assertEquals(request.getRemoteInfo().getPassword(), tripped.getRemoteInfo().getPassword());
+            assertEquals(request.getRemoteInfo().getHeaders(), tripped.getRemoteInfo().getHeaders());
+            assertEquals(request.getRemoteInfo().getSocketTimeout(), tripped.getRemoteInfo().getSocketTimeout());
+            assertEquals(request.getRemoteInfo().getConnectTimeout(), tripped.getRemoteInfo().getConnectTimeout());
+        }
     }
 
     private void assertRequestEquals(AbstractBulkIndexByScrollRequest<?> request, AbstractBulkIndexByScrollRequest<?> tripped) {

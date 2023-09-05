@@ -83,7 +83,7 @@ public class RestSnapshotAction extends AbstractCatAction {
         getSnapshotsRequest.clusterManagerNodeTimeout(
             request.paramAsTime("cluster_manager_timeout", getSnapshotsRequest.clusterManagerNodeTimeout())
         );
-        parseDeprecatedMasterTimeoutParameter(getSnapshotsRequest, request, deprecationLogger, getName());
+        parseDeprecatedMasterTimeoutParameter(getSnapshotsRequest, request);
 
         return channel -> client.admin()
             .cluster()

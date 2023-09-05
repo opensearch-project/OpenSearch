@@ -77,9 +77,4 @@ class CompositeAggregationFactory extends AggregatorFactory {
     ) throws IOException {
         return new CompositeAggregator(name, factories, searchContext, parent, metadata, size, sources, afterKey);
     }
-
-    @Override
-    protected boolean supportsConcurrentSegmentSearch() {
-        return true;
-    }
 }

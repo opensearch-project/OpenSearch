@@ -84,11 +84,11 @@ public class RestPutIndexTemplateAction extends BaseRestHandler {
         }
         putRequest.order(request.paramAsInt("order", putRequest.order()));
         putRequest.clusterManagerNodeTimeout(request.paramAsTime("cluster_manager_timeout", putRequest.clusterManagerNodeTimeout()));
-        parseDeprecatedMasterTimeoutParameter(putRequest, request, deprecationLogger, getName());
+        parseDeprecatedMasterTimeoutParameter(putRequest, request);
         putRequest.create(request.paramAsBoolean("create", false));
         putRequest.cause(request.param("cause", ""));
 
-        Map<String, Object> sourceAsMap = XContentHelper.convertToMap(request.requiredContent(), false, request.getMediaType()).v2();
+        Map<String, Object> sourceAsMap = XContentHelper.convertToMap(request.requiredContent(), false, request.getXContentType()).v2();
         sourceAsMap = RestCreateIndexAction.prepareMappings(sourceAsMap);
         putRequest.source(sourceAsMap);
 

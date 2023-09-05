@@ -31,6 +31,8 @@
 
 package org.opensearch.search.aggregations.pipeline;
 
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.opensearch.search.aggregations.InternalMultiBucketAggregation;
@@ -39,6 +41,7 @@ import org.opensearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.opensearch.search.sort.FieldSortBuilder;
 import org.opensearch.search.sort.SortOrder;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -70,6 +73,30 @@ public class BucketSortPipelineAggregator extends PipelineAggregator {
         this.from = from;
         this.size = size;
         this.gapPolicy = gapPolicy;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public BucketSortPipelineAggregator(StreamInput in) throws IOException {
+        super(in);
+        sorts = in.readList(FieldSortBuilder::new);
+        from = in.readVInt();
+        size = in.readOptionalVInt();
+        gapPolicy = GapPolicy.readFrom(in);
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeList(sorts);
+        out.writeVInt(from);
+        out.writeOptionalVInt(size);
+        gapPolicy.writeTo(out);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return BucketSortPipelineAggregationBuilder.NAME;
     }
 
     @Override

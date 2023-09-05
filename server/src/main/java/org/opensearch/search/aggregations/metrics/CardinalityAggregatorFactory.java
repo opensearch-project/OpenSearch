@@ -89,11 +89,6 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
             .build(name, config, precision(), searchContext, parent, metadata);
     }
 
-    @Override
-    protected boolean supportsConcurrentSegmentSearch() {
-        return true;
-    }
-
     private int precision() {
         return precisionThreshold == null
             ? HyperLogLogPlusPlus.DEFAULT_PRECISION

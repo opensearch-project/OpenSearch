@@ -42,7 +42,6 @@ import org.opensearch.core.index.Index;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
-
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;

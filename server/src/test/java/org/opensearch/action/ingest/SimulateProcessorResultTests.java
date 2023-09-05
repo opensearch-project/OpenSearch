@@ -32,12 +32,14 @@
 
 package org.opensearch.action.ingest;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.ingest.IngestDocument;
 import org.opensearch.test.AbstractXContentTestCase;
+import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.StringJoiner;
@@ -81,6 +83,21 @@ public class SimulateProcessorResultTests extends AbstractXContentTestCase<Simul
             IllegalArgumentException e = (IllegalArgumentException) otherSimulateProcessorResult.getFailure();
             assertThat(e.getMessage(), equalTo("test"));
         }
+    }
+
+    public void testBWCDescription() throws IOException {
+        boolean isSuccessful = randomBoolean();
+        boolean isIgnoredException = randomBoolean();
+        boolean hasCondition = randomBoolean();
+        SimulateProcessorResult simulateProcessorResult = createTestInstance(isSuccessful, isIgnoredException, hasCondition);
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.setVersion(VersionUtils.getPreviousVersion(LegacyESVersion.V_7_9_0));
+        simulateProcessorResult.writeTo(out);
+        StreamInput in = out.bytes().streamInput();
+        in.setVersion(VersionUtils.getPreviousVersion(LegacyESVersion.V_7_9_0));
+        SimulateProcessorResult otherSimulateProcessorResult = new SimulateProcessorResult(in);
+        assertNull(otherSimulateProcessorResult.getDescription());
     }
 
     static SimulateProcessorResult createTestInstance(boolean isSuccessful, boolean isIgnoredException, boolean hasCondition) {

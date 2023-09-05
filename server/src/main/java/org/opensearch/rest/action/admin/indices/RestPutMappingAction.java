@@ -83,7 +83,7 @@ public class RestPutMappingAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
 
         PutMappingRequest putMappingRequest = putMappingRequest(Strings.splitStringByCommaToArray(request.param("index")));
-        Map<String, Object> sourceAsMap = XContentHelper.convertToMap(request.requiredContent(), false, request.getMediaType()).v2();
+        Map<String, Object> sourceAsMap = XContentHelper.convertToMap(request.requiredContent(), false, request.getXContentType()).v2();
 
         if (MapperService.isMappingSourceTyped(MapperService.SINGLE_MAPPING_NAME, sourceAsMap)) {
             throw new IllegalArgumentException("Types cannot be provided in put mapping requests");
@@ -94,7 +94,7 @@ public class RestPutMappingAction extends BaseRestHandler {
         putMappingRequest.clusterManagerNodeTimeout(
             request.paramAsTime("cluster_manager_timeout", putMappingRequest.clusterManagerNodeTimeout())
         );
-        parseDeprecatedMasterTimeoutParameter(putMappingRequest, request, deprecationLogger, getName());
+        parseDeprecatedMasterTimeoutParameter(putMappingRequest, request);
         putMappingRequest.indicesOptions(IndicesOptions.fromRequest(request, putMappingRequest.indicesOptions()));
         putMappingRequest.writeIndexOnly(request.paramAsBoolean("write_index_only", false));
         return channel -> client.admin().indices().putMapping(putMappingRequest, new RestToXContentListener<>(channel));

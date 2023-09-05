@@ -49,9 +49,6 @@ import java.util.stream.Stream;
 
 /** Utilities for selecting versions in tests */
 public class VersionUtils {
-    // version 1.0 is removed; this is used purely to retain consistent logic for migrations
-    @Deprecated
-    public static Version V_1_0_0 = Version.fromId(1000099 ^ Version.MASK);
 
     /**
      * Sort versions that have backwards compatibility guarantees from
@@ -107,15 +104,13 @@ public class VersionUtils {
 
         // remove last minor unless it's the first OpenSearch version.
         // all Legacy ES versions are released, so we don't exclude any.
-        if (current.equals(V_1_0_0) == false) {
+        if (current.equals(Version.V_1_0_0) == false) {
             List<Version> lastMinorLine = stableVersions.get(stableVersions.size() - 1);
             if (lastMinorLine.get(lastMinorLine.size() - 1) instanceof LegacyESVersion == false) {
                 // if the last minor line is Legacy there are no more staged releases; do nothing
-                // otherwise the last minor line is (by definition) staged and unreleased
                 Version lastMinor = moveLastToUnreleased(stableVersions, unreleasedVersions);
-                // no more staged legacy bugfixes so skip;
                 if (lastMinor instanceof LegacyESVersion == false && lastMinor.revision == 0) {
-                    // this is not a legacy version; remove the staged bugfix
+                    // no more staged legacy versions
                     if (stableVersions.get(stableVersions.size() - 1).size() == 1) {
                         // a minor is being staged, which is also unreleased
                         moveLastToUnreleased(stableVersions, unreleasedVersions);
@@ -215,11 +210,11 @@ public class VersionUtils {
     }
 
     /**
-     * Get the version before {@code version}.
+     * Get the released version before {@code version}.
      */
     public static Version getPreviousVersion(Version version) {
-        for (int i = ALL_VERSIONS.size() - 1; i >= 0; i--) {
-            Version v = ALL_VERSIONS.get(i);
+        for (int i = RELEASED_VERSIONS.size() - 1; i >= 0; i--) {
+            Version v = RELEASED_VERSIONS.get(i);
             if (v.before(version)) {
                 return v;
             }
@@ -228,7 +223,7 @@ public class VersionUtils {
     }
 
     /**
-     * Get the version before {@link Version#CURRENT}.
+     * Get the released version before {@link Version#CURRENT}.
      */
     public static Version getPreviousVersion() {
         Version version = getPreviousVersion(Version.CURRENT);

@@ -35,13 +35,12 @@ package org.opensearch.repositories;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
 import org.opensearch.common.UUIDs;
-import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.snapshots.SnapshotState;
 import org.opensearch.test.OpenSearchTestCase;
@@ -96,7 +95,7 @@ public class RepositoryDataTests extends OpenSearchTestCase {
         repositoryData.snapshotsToXContent(builder, Version.CURRENT);
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
             long gen = (long) randomIntBetween(0, 500);
-            RepositoryData fromXContent = RepositoryData.snapshotsFromXContent(parser, gen);
+            RepositoryData fromXContent = RepositoryData.snapshotsFromXContent(parser, gen, randomBoolean());
             assertEquals(repositoryData, fromXContent);
             assertEquals(gen, fromXContent.getGenId());
         }
@@ -235,7 +234,7 @@ public class RepositoryDataTests extends OpenSearchTestCase {
         repositoryData.snapshotsToXContent(builder, Version.CURRENT);
         RepositoryData parsedRepositoryData;
         try (XContentParser xParser = createParser(builder)) {
-            parsedRepositoryData = RepositoryData.snapshotsFromXContent(xParser, repositoryData.getGenId());
+            parsedRepositoryData = RepositoryData.snapshotsFromXContent(xParser, repositoryData.getGenId(), randomBoolean());
         }
         assertEquals(repositoryData, parsedRepositoryData);
 
@@ -282,7 +281,7 @@ public class RepositoryDataTests extends OpenSearchTestCase {
         try (XContentParser xParser = createParser(corruptedBuilder)) {
             OpenSearchParseException e = expectThrows(
                 OpenSearchParseException.class,
-                () -> RepositoryData.snapshotsFromXContent(xParser, corruptedRepositoryData.getGenId())
+                () -> RepositoryData.snapshotsFromXContent(xParser, corruptedRepositoryData.getGenId(), randomBoolean())
             );
             assertThat(
                 e.getMessage(),
@@ -297,7 +296,7 @@ public class RepositoryDataTests extends OpenSearchTestCase {
     }
 
     public void testIndexThatReferenceANullSnapshot() throws IOException {
-        final XContentBuilder builder = MediaTypeRegistry.JSON.contentBuilder();
+        final XContentBuilder builder = XContentBuilder.builder(randomFrom(XContentType.JSON).xContent());
         builder.startObject();
         {
             builder.startArray("snapshots");
@@ -328,7 +327,7 @@ public class RepositoryDataTests extends OpenSearchTestCase {
         try (XContentParser xParser = createParser(builder)) {
             OpenSearchParseException e = expectThrows(
                 OpenSearchParseException.class,
-                () -> RepositoryData.snapshotsFromXContent(xParser, randomNonNegativeLong())
+                () -> RepositoryData.snapshotsFromXContent(xParser, randomNonNegativeLong(), randomBoolean())
             );
             assertThat(
                 e.getMessage(),

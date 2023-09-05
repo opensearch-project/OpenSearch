@@ -31,17 +31,23 @@
 
 package org.opensearch.repositories.azure;
 
-import com.sun.net.httpserver.HttpExchange;
-import com.sun.net.httpserver.HttpServer;
-
 import com.azure.storage.blob.BlobClient;
 import com.azure.storage.blob.models.ParallelTransferOptions;
 import com.azure.storage.common.policy.RequestRetryOptions;
 import com.azure.storage.common.policy.RetryPolicyType;
+import com.sun.net.httpserver.HttpExchange;
+import com.sun.net.httpserver.HttpServer;
+import fixture.azure.AzureHttpHandler;
+import org.opensearch.core.common.Strings;
+import reactor.core.scheduler.Schedulers;
+
+import org.apache.http.HttpStatus;
+
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.Streams;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
@@ -49,16 +55,15 @@ import org.opensearch.common.lucene.store.InputStreamIndexInput;
 import org.opensearch.common.network.InetAddresses;
 import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.CountDown;
-import org.opensearch.core.common.Strings;
-import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.rest.RestUtils;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
+
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -85,9 +90,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-
-import fixture.azure.AzureHttpHandler;
-import reactor.core.scheduler.Schedulers;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.opensearch.repositories.azure.AzureRepository.Repository.CONTAINER_SETTING;
@@ -488,4 +490,28 @@ public class AzureBlobContainerRetriesTests extends OpenSearchTestCase {
         return Optional.of(Math.toIntExact(rangeEnd));
     }
 
+    private static void sendIncompleteContent(HttpExchange exchange, byte[] bytes) throws IOException {
+        final int rangeStart = getRangeStart(exchange);
+        assertThat(rangeStart, lessThan(bytes.length));
+        final Optional<Integer> rangeEnd = getRangeEnd(exchange);
+        final int length;
+        if (rangeEnd.isPresent()) {
+            // adapt range end to be compliant to https://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html#sec14.35
+            final int effectiveRangeEnd = Math.min(rangeEnd.get(), bytes.length - 1);
+            length = effectiveRangeEnd - rangeStart;
+        } else {
+            length = bytes.length - rangeStart - 1;
+        }
+        exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
+        exchange.getResponseHeaders().add("x-ms-blob-content-length", String.valueOf(length));
+        exchange.getResponseHeaders().add("x-ms-blob-type", "blockblob");
+        exchange.sendResponseHeaders(HttpStatus.SC_OK, length);
+        final int bytesToSend = randomIntBetween(0, length - 1);
+        if (bytesToSend > 0) {
+            exchange.getResponseBody().write(bytes, rangeStart, bytesToSend);
+        }
+        if (randomBoolean()) {
+            exchange.getResponseBody().flush();
+        }
+    }
 }

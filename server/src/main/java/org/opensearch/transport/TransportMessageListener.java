@@ -32,7 +32,6 @@
 package org.opensearch.transport;
 
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.core.transport.TransportResponse;
 
 /**
  * Listens for transport messages

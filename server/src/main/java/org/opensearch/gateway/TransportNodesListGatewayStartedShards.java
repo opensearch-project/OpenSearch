@@ -33,11 +33,14 @@
 package org.opensearch.gateway;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
+import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.support.ActionFilters;
+import org.opensearch.action.support.nodes.BaseNodeRequest;
 import org.opensearch.action.support.nodes.BaseNodeResponse;
 import org.opensearch.action.support.nodes.BaseNodesRequest;
 import org.opensearch.action.support.nodes.BaseNodesResponse;
@@ -48,22 +51,20 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.inject.Inject;
-import org.opensearch.common.settings.Settings;
-import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.IndexShard;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.shard.ShardStateMetadata;
 import org.opensearch.index.store.Store;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
@@ -235,7 +236,11 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
         public Request(StreamInput in) throws IOException {
             super(in);
             shardId = new ShardId(in);
-            customDataPath = in.readString();
+            if (in.getVersion().onOrAfter(LegacyESVersion.V_7_6_0)) {
+                customDataPath = in.readString();
+            } else {
+                customDataPath = null;
+            }
         }
 
         public Request(ShardId shardId, String customDataPath, DiscoveryNode[] nodes) {
@@ -262,7 +267,9 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             shardId.writeTo(out);
-            out.writeString(customDataPath);
+            if (out.getVersion().onOrAfter(LegacyESVersion.V_7_6_0)) {
+                out.writeString(customDataPath);
+            }
         }
     }
 
@@ -301,7 +308,7 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
      *
      * @opensearch.internal
      */
-    public static class NodeRequest extends TransportRequest {
+    public static class NodeRequest extends BaseNodeRequest {
 
         private final ShardId shardId;
         @Nullable
@@ -310,7 +317,11 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
         public NodeRequest(StreamInput in) throws IOException {
             super(in);
             shardId = new ShardId(in);
-            customDataPath = in.readString();
+            if (in.getVersion().onOrAfter(LegacyESVersion.V_7_6_0)) {
+                customDataPath = in.readString();
+            } else {
+                customDataPath = null;
+            }
         }
 
         public NodeRequest(Request request) {
@@ -322,8 +333,10 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             shardId.writeTo(out);
-            assert customDataPath != null;
-            out.writeString(customDataPath);
+            if (out.getVersion().onOrAfter(LegacyESVersion.V_7_6_0)) {
+                assert customDataPath != null;
+                out.writeString(customDataPath);
+            }
         }
 
         public ShardId getShardId() {

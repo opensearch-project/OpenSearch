@@ -264,10 +264,7 @@ This repository is split into many top level directories. The most important one
 
 ### `distribution`
 
-Builds our tar and zip archives and our rpm and deb packages. There are several flavors of the distributions, with the classifier included in the name of the final deliverable (archive or package):
- - default (no classifier), the distribution with bundled JDK
- - `-no-jdk-` - the distribution without bundled JDK/JRE, assumes the JDK/JRE is going to be pre-installed on the target systems
- - `-jre-` - the distribution bundled with JRE (smaller footprint), supported as experimental feature for some platforms
+Builds our tar and zip archives and our rpm and deb packages.
 
 ### `libs`
 
@@ -569,19 +566,13 @@ use Version checks accordingly (e.g., `Version.onOrAfter`, `Version.before`) to 
 
 #### Developer API
 
-The Developer API consists of interfaces and foundation software implementations that enable external users to develop new OpenSearch features. This includes obvious
-components such as the Plugin and Extension frameworks and less obvious components such as REST Action Handlers. When developing a new feature of OpenSearch it is
-important to explicitly mark which implementation components may, or may not, be extended by external implementations. For example, all new API classes with
-`@PublicApi` annotation (or documented as `@opensearch.api`) signal that the new component may be extended by an external implementation and therefore provide
-backwards compatibility guarantees. Similarly, any class explicitly marked with the `@InternalApi` (or documented as `@opensearch.internal`) annotation, or not
-explicitly marked by an annotation should not be extended by external implementation components as it does not guarantee backwards compatibility and may change at
-any time. The `@DeprecatedApi` annotation could also be added to any classes annotated with `@PublicApi` (or documented as `@opensearch.api`) or their methods that
-are either changed (with replacement) or planned to be removed across major versions.
-
-The APIs which are designated to be public but have not been stabilized yet should be marked with `@ExperimentalApi` (or documented as `@opensearch.experimental`) 
-annotation. The presence of this annotation signals that API may change at any time (major, minor or even patch releases). In general, the classes annotated with
-`@PublicApi` may expose other classes or methods annotated with `@ExperimentalApi`, in such cases the backward compatibility guarantees would not apply to latter
-(see please [Experimental Development](#experimental-development) for more details).
+The Developer API consists of interfaces and foundation software implementations that enable external users to develop new OpenSearch features. This includes
+obvious components such as the Plugin framework and less obvious components such as REST Action Handlers. When developing a new feature of OpenSearch it is important
+to explicitly mark which implementation components may, or may not, be extended by external implementations. For example, all new API classes with `@opensearch.api`
+signal that the new component may be extended by an external implementation and therefore provide backwards compatibility guarantees. Similarly, any class explicitly
+marked with the `@opensearch.internal` annotation, or not explicitly marked by an annotation should not be extended by external implementation components as it does not
+guarantee backwards compatibility and may change at any time. The `@deprecated` annotation should also be added to any `@opensearch.api` classes or methods that are
+either changed or planned to be removed across minor versions.
 
 #### User API
 
@@ -598,8 +589,8 @@ and a log message to the OpenSearch deprecation log files using the `Deprecation
 Rapidly developing new features often benefit from several release cycles before committing to an official and long term supported (LTS) API. To enable this cycle OpenSearch
 uses an Experimental Development process leveraging [Feature Flags](https://featureflags.io/feature-flags/). This allows a feature to be developed using the same process as
 a LTS feature but with additional guard rails and communication mechanisms to signal to the users and development community the feature is not yet stable, may change in a future
-release, or be removed altogether. Any Developer or User APIs implemented along with the experimental feature should be marked with `@ExperimentalApi` (or documented as
-`@opensearch.experimental`) annotation to signal the implementation is not subject to LTS and does not follow backwards compatibility guidelines.
+release, or be removed altogether. Any Developer or User APIs implemented along with the experimental feature should be marked with the `@opensearch.experimental` annotation to
+signal the implementation is not subject to LTS and does not follow backwards compatibility guidelines.
 
 ### Backports
 
@@ -623,9 +614,8 @@ Pass a list of files or directories to limit your search.
 
 ### Lucene Snapshots
 
-The Github workflow in [lucene-snapshots.yml](.github/workflows/lucene-snapshots.yml) is a GitHub workflow executable by maintainers to build a top-down snapshot build of Lucene.
+The Github workflow in [lucene-snapshots.yml](.github/workflows/lucene-snapshots.yml) is a Github worfklow executable by maintainers to build a top-down snapshot build of lucene.
 These snapshots are available to test compatibility with upcoming changes to Lucene by updating the version at [version.properties](buildsrc/version.properties) with the `version-snapshot-sha` version. Example: `lucene = 10.0.0-snapshot-2e941fc`.
-Note that these snapshots do not follow the Maven [naming convention](https://maven.apache.org/guides/getting-started/index.html#what-is-a-snapshot-version) with a (case sensitive) SNAPSHOT suffix, so these artifacts are considered "releases" by build systems such as the `mavenContent` repository filter in Gradle or `releases` artifact policies in Maven.
 
 ### Flaky Tests
 
@@ -636,6 +626,6 @@ If you encounter a build/test failure in CI that is unrelated to the change in y
 1. Follow failed CI links, and locate the failing test(s).
 2. Copy-paste the failure into a comment of your PR.
 3. Search through [issues](https://github.com/opensearch-project/OpenSearch/issues?q=is%3Aopen+is%3Aissue+label%3A%22flaky-test%22) using the name of the failed test for whether this is a known flaky test.
-4. If an existing issue is found, paste a link to the known issue in a comment to your PR.
-5. If no existing issue is found, open one.
-6. Retry CI via the GitHub UX or by pushing an update to your PR.
+5. If an existing issue is found, paste a link to the known issue in a comment to your PR.
+6. If no existing issue is found, open one.
+7. Retry CI via the GitHub UX or by pushing an update to your PR.

@@ -35,7 +35,6 @@ package org.opensearch.common.ssl;
 import org.opensearch.common.Nullable;
 
 import javax.net.ssl.SSLSession;
-
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.CertificateParsingException;
 import java.security.cert.X509Certificate;

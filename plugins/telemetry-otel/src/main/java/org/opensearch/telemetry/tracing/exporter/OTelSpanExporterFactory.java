@@ -8,19 +8,17 @@
 
 package org.opensearch.telemetry.tracing.exporter;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.opensearch.SpecialPermission;
-import org.opensearch.common.settings.Settings;
-import org.opensearch.telemetry.OTelTelemetrySettings;
-
+import io.opentelemetry.sdk.trace.export.SpanExporter;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.security.AccessController;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
-
-import io.opentelemetry.sdk.trace.export.SpanExporter;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.opensearch.SpecialPermission;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.telemetry.OTelTelemetrySettings;
 
 /**
  * Factory class to create the {@link SpanExporter} instance.

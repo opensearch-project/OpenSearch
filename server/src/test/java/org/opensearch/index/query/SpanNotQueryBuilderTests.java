@@ -34,9 +34,10 @@ package org.opensearch.index.query;
 
 import org.apache.lucene.queries.spans.SpanNotQuery;
 import org.apache.lucene.search.Query;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.common.ParsingException;
+import org.opensearch.common.Strings;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -125,7 +126,7 @@ public class SpanNotQueryBuilderTests extends AbstractQueryTestCase<SpanNotQuery
         builder.field("dist", 3);
         builder.endObject();
         builder.endObject();
-        SpanNotQueryBuilder query = (SpanNotQueryBuilder) parseQuery(builder.toString());
+        SpanNotQueryBuilder query = (SpanNotQueryBuilder) parseQuery(Strings.toString(builder));
         assertThat(query.pre(), equalTo(3));
         assertThat(query.post(), equalTo(3));
         assertNotNull(query.includeQuery());
@@ -146,7 +147,7 @@ public class SpanNotQueryBuilderTests extends AbstractQueryTestCase<SpanNotQuery
             builder.endObject();
             builder.endObject();
 
-            ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(builder.toString()));
+            ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(Strings.toString(builder)));
             assertThat(e.getDetailedMessage(), containsString("span_not must have [include]"));
         }
         {
@@ -161,7 +162,7 @@ public class SpanNotQueryBuilderTests extends AbstractQueryTestCase<SpanNotQuery
             builder.endObject();
             builder.endObject();
 
-            ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(builder.toString()));
+            ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(Strings.toString(builder)));
             assertThat(e.getDetailedMessage(), containsString("span_not must have [exclude]"));
         }
         {
@@ -179,7 +180,7 @@ public class SpanNotQueryBuilderTests extends AbstractQueryTestCase<SpanNotQuery
             builder.endObject();
             builder.endObject();
 
-            ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(builder.toString()));
+            ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(Strings.toString(builder)));
             assertThat(e.getDetailedMessage(), containsString("span_not can either use [dist] or [pre] & [post] (or none)"));
         }
     }

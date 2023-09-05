@@ -43,9 +43,10 @@ import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.support.WriteRequest.RefreshPolicy;
 import org.opensearch.cluster.health.ClusterHealthStatus;
-import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.common.Strings;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.hamcrest.OpenSearchAssertions;
 
@@ -58,6 +59,7 @@ import static org.opensearch.client.Requests.indexRequest;
 import static org.opensearch.client.Requests.refreshRequest;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures;
+
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -115,10 +117,10 @@ public class DocumentActionsIT extends OpenSearchIntegTestCase {
         for (int i = 0; i < 5; i++) {
             getResult = client().prepareGet("test", "1").execute().actionGet();
             assertThat(getResult.getIndex(), equalTo(getConcreteIndexName()));
-            assertThat("cycle #" + i, getResult.getSourceAsString(), equalTo(source("1", "test").toString()));
+            assertThat("cycle #" + i, getResult.getSourceAsString(), equalTo(Strings.toString(source("1", "test"))));
             assertThat("cycle(map) #" + i, (String) getResult.getSourceAsMap().get("name"), equalTo("test"));
             getResult = client().get(getRequest("test").id("1")).actionGet();
-            assertThat("cycle #" + i, getResult.getSourceAsString(), equalTo(source("1", "test").toString()));
+            assertThat("cycle #" + i, getResult.getSourceAsString(), equalTo(Strings.toString(source("1", "test"))));
             assertThat(getResult.getIndex(), equalTo(getConcreteIndexName()));
         }
 
@@ -166,10 +168,10 @@ public class DocumentActionsIT extends OpenSearchIntegTestCase {
         for (int i = 0; i < 5; i++) {
             getResult = client().get(getRequest("test").id("1")).actionGet();
             assertThat(getResult.getIndex(), equalTo(getConcreteIndexName()));
-            assertThat("cycle #" + i, getResult.getSourceAsString(), equalTo(source("1", "test").toString()));
+            assertThat("cycle #" + i, getResult.getSourceAsString(), equalTo(Strings.toString(source("1", "test"))));
             getResult = client().get(getRequest("test").id("2")).actionGet();
             String ste1 = getResult.getSourceAsString();
-            String ste2 = source("2", "test2").toString();
+            String ste2 = Strings.toString(source("2", "test2"));
             assertThat("cycle #" + i, ste1, equalTo(ste2));
             assertThat(getResult.getIndex(), equalTo(getConcreteIndexName()));
         }
@@ -209,7 +211,7 @@ public class DocumentActionsIT extends OpenSearchIntegTestCase {
             .add(client().prepareIndex().setIndex("test").setSource(source("3", "test")))
             .add(client().prepareIndex().setIndex("test").setCreate(true).setSource(source("4", "test")))
             .add(client().prepareDelete().setIndex("test").setId("1"))
-            .add(client().prepareIndex().setIndex("test").setSource("{ xxx }", MediaTypeRegistry.JSON)) // failure
+            .add(client().prepareIndex().setIndex("test").setSource("{ xxx }", XContentType.JSON)) // failure
             .execute()
             .actionGet();
 
@@ -256,15 +258,15 @@ public class DocumentActionsIT extends OpenSearchIntegTestCase {
             assertThat("cycle #" + i, getResult.isExists(), equalTo(false));
 
             getResult = client().get(getRequest("test").id("2")).actionGet();
-            assertThat("cycle #" + i, getResult.getSourceAsString(), equalTo(source("2", "test").toString()));
+            assertThat("cycle #" + i, getResult.getSourceAsString(), equalTo(Strings.toString(source("2", "test"))));
             assertThat(getResult.getIndex(), equalTo(getConcreteIndexName()));
 
             getResult = client().get(getRequest("test").id(generatedId3)).actionGet();
-            assertThat("cycle #" + i, getResult.getSourceAsString(), equalTo(source("3", "test").toString()));
+            assertThat("cycle #" + i, getResult.getSourceAsString(), equalTo(Strings.toString(source("3", "test"))));
             assertThat(getResult.getIndex(), equalTo(getConcreteIndexName()));
 
             getResult = client().get(getRequest("test").id(generatedId4)).actionGet();
-            assertThat("cycle #" + i, getResult.getSourceAsString(), equalTo(source("4", "test").toString()));
+            assertThat("cycle #" + i, getResult.getSourceAsString(), equalTo(Strings.toString(source("4", "test"))));
             assertThat(getResult.getIndex(), equalTo(getConcreteIndexName()));
         }
     }

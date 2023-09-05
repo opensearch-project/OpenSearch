@@ -91,7 +91,7 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
         return indexFieldData.load(context).getBytesValues();
     }
 
-    protected void setScorer(Scorable scorer, LeafReaderContext context) {}
+    protected void setScorer(Scorable scorer) {}
 
     @Override
     public FieldComparator<?> newComparator(String fieldname, int numHits, boolean enableSkipping, boolean reversed) {
@@ -107,7 +107,6 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
                 reversed,
                 enableSkipping
             ) {
-
                 @Override
                 protected SortedDocValues getSortedDocValues(LeafReaderContext context, String field) throws IOException {
                     final SortedSetDocValues values = ((IndexOrdinalsFieldData) indexFieldData).load(context).getOrdinalsValues();
@@ -134,11 +133,9 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
         }
 
         return new FieldComparator.TermValComparator(numHits, null, sortMissingLast) {
-            LeafReaderContext leafReaderContext;
 
             @Override
             protected BinaryDocValues getBinaryDocValues(LeafReaderContext context, String field) throws IOException {
-                leafReaderContext = context;
                 final SortedBinaryDocValues values = getValues(context);
                 final BinaryDocValues selectedValues;
                 if (nested == null) {
@@ -154,7 +151,7 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
 
             @Override
             public void setScorer(Scorable scorer) {
-                BytesRefFieldComparatorSource.this.setScorer(scorer, leafReaderContext);
+                BytesRefFieldComparatorSource.this.setScorer(scorer);
             }
 
         };

@@ -32,6 +32,7 @@
 
 package org.opensearch.script;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -88,16 +89,20 @@ public class ScriptStats implements Writeable, ToXContentFragment {
     public ScriptStats(StreamInput in) throws IOException {
         compilations = in.readVLong();
         cacheEvictions = in.readVLong();
-        compilationLimitTriggered = in.readVLong();
-        contextStats = in.readList(ScriptContextStats::new);
+        compilationLimitTriggered = in.getVersion().onOrAfter(LegacyESVersion.V_7_0_0) ? in.readVLong() : 0;
+        contextStats = in.getVersion().onOrAfter(LegacyESVersion.V_7_9_0) ? in.readList(ScriptContextStats::new) : Collections.emptyList();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(compilations);
         out.writeVLong(cacheEvictions);
-        out.writeVLong(compilationLimitTriggered);
-        out.writeList(contextStats);
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
+            out.writeVLong(compilationLimitTriggered);
+        }
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_9_0)) {
+            out.writeList(contextStats);
+        }
     }
 
     public List<ScriptContextStats> getContextStats() {

@@ -36,6 +36,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.util.BytesRef;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.search.SearchPhaseResult;
@@ -78,7 +79,9 @@ public class DfsSearchResult extends SearchPhaseResult {
         this.fieldStatistics = readFieldStats(in);
 
         maxDoc = in.readVInt();
-        setShardSearchRequest(in.readOptionalWriteable(ShardSearchRequest::new));
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
+            setShardSearchRequest(in.readOptionalWriteable(ShardSearchRequest::new));
+        }
     }
 
     public DfsSearchResult(ShardSearchContextId contextId, SearchShardTarget shardTarget, ShardSearchRequest shardSearchRequest) {
@@ -130,7 +133,9 @@ public class DfsSearchResult extends SearchPhaseResult {
         writeTermStats(out, termStatistics);
         writeFieldStats(out, fieldStatistics);
         out.writeVInt(maxDoc);
-        out.writeOptionalWriteable(getShardSearchRequest());
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
+            out.writeOptionalWriteable(getShardSearchRequest());
+        }
     }
 
     public static void writeFieldStats(StreamOutput out, final Map<String, CollectionStatistics> fieldStatistics) throws IOException {
@@ -141,10 +146,16 @@ public class DfsSearchResult extends SearchPhaseResult {
             CollectionStatistics statistics = c.getValue();
             assert statistics.maxDoc() >= 0;
             out.writeVLong(statistics.maxDoc());
-            // stats are always positive numbers
-            out.writeVLong(statistics.docCount());
-            out.writeVLong(statistics.sumTotalTermFreq());
-            out.writeVLong(statistics.sumDocFreq());
+            if (out.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
+                // stats are always positive numbers
+                out.writeVLong(statistics.docCount());
+                out.writeVLong(statistics.sumTotalTermFreq());
+                out.writeVLong(statistics.sumDocFreq());
+            } else {
+                out.writeVLong(addOne(statistics.docCount()));
+                out.writeVLong(addOne(statistics.sumTotalTermFreq()));
+                out.writeVLong(addOne(statistics.sumDocFreq()));
+            }
         }
     }
 
@@ -176,10 +187,16 @@ public class DfsSearchResult extends SearchPhaseResult {
             final long docCount;
             final long sumTotalTermFreq;
             final long sumDocFreq;
-            // stats are always positive numbers
-            docCount = in.readVLong();
-            sumTotalTermFreq = in.readVLong();
-            sumDocFreq = in.readVLong();
+            if (in.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
+                // stats are always positive numbers
+                docCount = in.readVLong();
+                sumTotalTermFreq = in.readVLong();
+                sumDocFreq = in.readVLong();
+            } else {
+                docCount = subOne(in.readVLong());
+                sumTotalTermFreq = subOne(in.readVLong());
+                sumDocFreq = subOne(in.readVLong());
+            }
             CollectionStatistics stats = new CollectionStatistics(field, maxDoc, docCount, sumTotalTermFreq, sumDocFreq);
             fieldStatistics.put(field, stats);
         }

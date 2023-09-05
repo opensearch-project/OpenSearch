@@ -32,17 +32,15 @@
 
 package org.opensearch.client;
 
-import org.apache.hc.core5.http.ContentType;
-import org.apache.hc.core5.http.HttpEntity;
-import org.apache.hc.core5.http.io.entity.ByteArrayEntity;
-import org.apache.hc.core5.http.io.entity.InputStreamEntity;
-import org.apache.hc.core5.http.io.entity.StringEntity;
+import org.apache.http.HttpEntity;
+import org.apache.http.entity.ByteArrayEntity;
+import org.apache.http.entity.ContentType;
+import org.apache.http.entity.StringEntity;
+import org.apache.http.nio.entity.NStringEntity;
 import org.opensearch.client.HttpAsyncResponseConsumerFactory.HeapBufferedResponseConsumerFactory;
 
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -135,7 +133,7 @@ public class RequestTests extends RestClientTestCase {
 
         final String json = randomAsciiLettersOfLengthBetween(1, 100);
         request.setJsonEntity(json);
-        assertEquals(ContentType.APPLICATION_JSON.toString(), request.getEntity().getContentType());
+        assertEquals(ContentType.APPLICATION_JSON.toString(), request.getEntity().getContentType().getValue());
         ByteArrayOutputStream os = new ByteArrayOutputStream();
         request.getEntity().writeTo(os);
         assertEquals(json, new String(os.toByteArray(), ContentType.APPLICATION_JSON.getCharset()));
@@ -203,10 +201,7 @@ public class RequestTests extends RestClientTestCase {
                     randomFrom(
                         new HttpEntity[] {
                             new StringEntity(randomAsciiAlphanumOfLength(10), ContentType.APPLICATION_JSON),
-                            new InputStreamEntity(
-                                new ByteArrayInputStream(randomAsciiAlphanumOfLength(10).getBytes(StandardCharsets.UTF_8)),
-                                ContentType.APPLICATION_JSON
-                            ),
+                            new NStringEntity(randomAsciiAlphanumOfLength(10), ContentType.APPLICATION_JSON),
                             new ByteArrayEntity(randomBytesOfLength(40), ContentType.APPLICATION_JSON) }
                     )
                 );

@@ -32,6 +32,8 @@
 
 package org.opensearch.search.aggregations.pipeline;
 
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.script.BucketAggregationSelectorScript;
 import org.opensearch.script.Script;
 import org.opensearch.search.aggregations.InternalAggregation;
@@ -39,6 +41,7 @@ import org.opensearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.opensearch.search.aggregations.InternalMultiBucketAggregation;
 import org.opensearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -67,6 +70,29 @@ public class BucketSelectorPipelineAggregator extends PipelineAggregator {
         this.bucketsPathsMap = bucketsPathsMap;
         this.script = script;
         this.gapPolicy = gapPolicy;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    @SuppressWarnings("unchecked")
+    public BucketSelectorPipelineAggregator(StreamInput in) throws IOException {
+        super(in);
+        script = new Script(in);
+        gapPolicy = GapPolicy.readFrom(in);
+        bucketsPathsMap = (Map<String, String>) in.readGenericValue();
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        script.writeTo(out);
+        gapPolicy.writeTo(out);
+        out.writeGenericValue(bucketsPathsMap);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return BucketSelectorPipelineAggregationBuilder.NAME;
     }
 
     @Override

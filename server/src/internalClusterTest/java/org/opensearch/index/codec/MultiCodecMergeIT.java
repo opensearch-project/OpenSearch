@@ -28,6 +28,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static java.util.stream.Collectors.toList;
+import static org.hamcrest.Matchers.is;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_METADATA;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_READ;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_WRITE;
@@ -35,7 +36,6 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures;
-import static org.hamcrest.Matchers.is;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST)
 public class MultiCodecMergeIT extends OpenSearchIntegTestCase {
@@ -45,15 +45,11 @@ public class MultiCodecMergeIT extends OpenSearchIntegTestCase {
         Map<String, String> codecMap = Map.of(
             "best_compression",
             "BEST_COMPRESSION",
-            "zlib",
-            "BEST_COMPRESSION",
             "zstd_no_dict",
             "ZSTD_NO_DICT",
             "zstd",
             "ZSTD",
             "default",
-            "BEST_SPEED",
-            "lz4",
             "BEST_SPEED"
         );
 

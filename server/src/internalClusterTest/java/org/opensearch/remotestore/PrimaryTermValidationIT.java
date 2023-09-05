@@ -21,7 +21,7 @@ import org.opensearch.cluster.health.ClusterIndexHealth;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.shard.ShardNotFoundException;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -35,10 +35,10 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures;
-import static org.hamcrest.Matchers.equalTo;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 
@@ -61,7 +61,6 @@ public class PrimaryTermValidationIT extends RemoteStoreBaseIntegTestCase {
             .put(FollowersChecker.FOLLOWER_CHECK_TIMEOUT_SETTING.getKey(), "1s")
             .put(FollowersChecker.FOLLOWER_CHECK_INTERVAL_SETTING.getKey(), "1s")
             .put(FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING.getKey(), 1)
-            .put(remoteStoreClusterSettings(REPOSITORY_NAME, REPOSITORY_2_NAME, true))
             .build();
         internalCluster().startClusterManagerOnlyNode(clusterSettings);
 
@@ -163,7 +162,7 @@ public class PrimaryTermValidationIT extends RemoteStoreBaseIntegTestCase {
     private IndexResponse indexSameDoc(String nodeName, String indexName) {
         return client(nodeName).prepareIndex(indexName)
             .setId(UUIDs.randomBase64UUID())
-            .setSource("{\"foo\" : \"bar\"}", MediaTypeRegistry.JSON)
+            .setSource("{\"foo\" : \"bar\"}", XContentType.JSON)
             .get();
     }
 }

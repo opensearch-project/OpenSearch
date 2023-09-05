@@ -12,12 +12,12 @@ import org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStats;
 import org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStatsResponse;
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.ByteSizeUnit;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
-import org.opensearch.core.xcontent.MediaTypeRegistry;
-import org.opensearch.index.remote.RemoteSegmentTransferTracker;
+import org.opensearch.index.remote.RemoteRefreshSegmentTracker;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.snapshots.mockstore.MockRepository;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -29,8 +29,8 @@ import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-import static org.opensearch.index.remote.RemoteStorePressureSettings.MIN_CONSECUTIVE_FAILURES_LIMIT;
-import static org.opensearch.index.remote.RemoteStorePressureSettings.REMOTE_REFRESH_SEGMENT_PRESSURE_ENABLED;
+import static org.opensearch.index.remote.RemoteRefreshSegmentPressureSettings.MIN_CONSECUTIVE_FAILURES_LIMIT;
+import static org.opensearch.index.remote.RemoteRefreshSegmentPressureSettings.REMOTE_REFRESH_SEGMENT_PRESSURE_ENABLED;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class RemoteStoreBackpressureIT extends AbstractRemoteStoreMockRepositoryIntegTestCase {
@@ -92,7 +92,7 @@ public class RemoteStoreBackpressureIT extends AbstractRemoteStoreMockRepository
         assertTrue(ex.getMessage().contains("rejected execution on primary shard"));
         assertTrue(ex.getMessage().contains(breachMode));
 
-        RemoteSegmentTransferTracker.Stats stats = stats();
+        RemoteRefreshSegmentTracker.Stats stats = stats();
         assertTrue(stats.bytesLag > 0);
         assertTrue(stats.refreshTimeLagMs > 0);
         assertTrue(stats.localRefreshNumber - stats.remoteRefreshNumber > 0);
@@ -102,7 +102,7 @@ public class RemoteStoreBackpressureIT extends AbstractRemoteStoreMockRepository
             .setRandomControlIOExceptionRate(0d);
 
         assertBusy(() -> {
-            RemoteSegmentTransferTracker.Stats finalStats = stats();
+            RemoteRefreshSegmentTracker.Stats finalStats = stats();
             assertEquals(0, finalStats.bytesLag);
             assertEquals(0, finalStats.refreshTimeLagMs);
             assertEquals(0, finalStats.localRefreshNumber - finalStats.remoteRefreshNumber);
@@ -115,20 +115,20 @@ public class RemoteStoreBackpressureIT extends AbstractRemoteStoreMockRepository
         deleteRepo();
     }
 
-    private RemoteSegmentTransferTracker.Stats stats() {
+    private RemoteRefreshSegmentTracker.Stats stats() {
         String shardId = "0";
         RemoteStoreStatsResponse response = client().admin().cluster().prepareRemoteStoreStats(INDEX_NAME, shardId).get();
         final String indexShardId = String.format(Locale.ROOT, "[%s][%s]", INDEX_NAME, shardId);
-        List<RemoteStoreStats> matches = Arrays.stream(response.getRemoteStoreStats())
-            .filter(stat -> indexShardId.equals(stat.getSegmentStats().shardId.toString()))
+        List<RemoteStoreStats> matches = Arrays.stream(response.getShards())
+            .filter(stat -> indexShardId.equals(stat.getStats().shardId.toString()))
             .collect(Collectors.toList());
         assertEquals(1, matches.size());
-        return matches.get(0).getSegmentStats();
+        return matches.get(0).getStats();
     }
 
     private void indexDocAndRefresh(BytesReference source, int iterations) {
         for (int i = 0; i < iterations; i++) {
-            client().prepareIndex(INDEX_NAME).setSource(source, MediaTypeRegistry.JSON).get();
+            client().prepareIndex(INDEX_NAME).setSource(source, XContentType.JSON).get();
             refresh(INDEX_NAME);
         }
     }

@@ -32,9 +32,10 @@
 
 package org.opensearch.cluster.metadata;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.util.CollectionUtil;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.action.AliasesRequest;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterState.FeatureAware;
@@ -49,25 +50,24 @@ import org.opensearch.cluster.coordination.CoordinationMetadata;
 import org.opensearch.cluster.decommission.DecommissionAttributeMetadata;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.UUIDs;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.common.Strings;
-import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.core.index.Index;
-import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.NamedObjectNotFoundException;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.gateway.MetadataStateFormat;
+import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexNotFoundException;
-import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.plugins.MapperPlugin;
+import org.opensearch.core.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -107,22 +107,6 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
     public static final String ALL = "_all";
     public static final String UNKNOWN_CLUSTER_UUID = Strings.UNKNOWN_UUID_VALUE;
     public static final Pattern NUMBER_PATTERN = Pattern.compile("[0-9]+$");
-
-    /**
-     * Utility to identify whether input index uses SEGMENT replication strategy in established cluster state metadata.
-     * Note: Method intended for use by other plugins as well.
-     *
-     * @param indexName Index name
-     * @return true if index uses SEGMENT replication, false otherwise
-     */
-    public boolean isSegmentReplicationEnabled(String indexName) {
-        return Optional.ofNullable(index(indexName))
-            .map(
-                indexMetadata -> ReplicationType.parseString(indexMetadata.getSettings().get(IndexMetadata.SETTING_REPLICATION_TYPE))
-                    .equals(ReplicationType.SEGMENT)
-            )
-            .orElse(false);
-    }
 
     /**
      * Context of the XContent.
@@ -1012,12 +996,22 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
 
         MetadataDiff(StreamInput in) throws IOException {
             clusterUUID = in.readString();
-            clusterUUIDCommitted = in.readBoolean();
+            if (in.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
+                clusterUUIDCommitted = in.readBoolean();
+            }
             version = in.readLong();
-            coordinationMetadata = new CoordinationMetadata(in);
+            if (in.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
+                coordinationMetadata = new CoordinationMetadata(in);
+            } else {
+                coordinationMetadata = CoordinationMetadata.EMPTY_METADATA;
+            }
             transientSettings = Settings.readSettingsFromStream(in);
             persistentSettings = Settings.readSettingsFromStream(in);
-            hashesOfConsistentSettings = DiffableStringMap.readDiffFrom(in);
+            if (in.getVersion().onOrAfter(LegacyESVersion.V_7_3_0)) {
+                hashesOfConsistentSettings = DiffableStringMap.readDiffFrom(in);
+            } else {
+                hashesOfConsistentSettings = DiffableStringMap.DiffableStringMapDiff.EMPTY;
+            }
             indices = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), INDEX_METADATA_DIFF_VALUE_READER);
             templates = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), TEMPLATES_DIFF_VALUE_READER);
             customs = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), CUSTOM_VALUE_SERIALIZER);
@@ -1026,12 +1020,18 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(clusterUUID);
-            out.writeBoolean(clusterUUIDCommitted);
+            if (out.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
+                out.writeBoolean(clusterUUIDCommitted);
+            }
             out.writeLong(version);
-            coordinationMetadata.writeTo(out);
+            if (out.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
+                coordinationMetadata.writeTo(out);
+            }
             Settings.writeSettingsToStream(transientSettings, out);
             Settings.writeSettingsToStream(persistentSettings, out);
-            hashesOfConsistentSettings.writeTo(out);
+            if (out.getVersion().onOrAfter(LegacyESVersion.V_7_3_0)) {
+                hashesOfConsistentSettings.writeTo(out);
+            }
             indices.writeTo(out);
             templates.writeTo(out);
             customs.writeTo(out);
@@ -1058,11 +1058,17 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         Builder builder = new Builder();
         builder.version = in.readLong();
         builder.clusterUUID = in.readString();
-        builder.clusterUUIDCommitted = in.readBoolean();
-        builder.coordinationMetadata(new CoordinationMetadata(in));
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
+            builder.clusterUUIDCommitted = in.readBoolean();
+        }
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
+            builder.coordinationMetadata(new CoordinationMetadata(in));
+        }
         builder.transientSettings(readSettingsFromStream(in));
         builder.persistentSettings(readSettingsFromStream(in));
-        builder.hashesOfConsistentSettings(DiffableStringMap.readFrom(in));
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_3_0)) {
+            builder.hashesOfConsistentSettings(DiffableStringMap.readFrom(in));
+        }
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
             builder.put(IndexMetadata.readFrom(in), false);
@@ -1083,11 +1089,17 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
     public void writeTo(StreamOutput out) throws IOException {
         out.writeLong(version);
         out.writeString(clusterUUID);
-        out.writeBoolean(clusterUUIDCommitted);
-        coordinationMetadata.writeTo(out);
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
+            out.writeBoolean(clusterUUIDCommitted);
+        }
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
+            coordinationMetadata.writeTo(out);
+        }
         writeSettingsToStream(transientSettings, out);
         writeSettingsToStream(persistentSettings, out);
-        hashesOfConsistentSettings.writeTo(out);
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_3_0)) {
+            hashesOfConsistentSettings.writeTo(out);
+        }
         out.writeVInt(indices.size());
         for (IndexMetadata indexMetadata : this) {
             indexMetadata.writeTo(out);

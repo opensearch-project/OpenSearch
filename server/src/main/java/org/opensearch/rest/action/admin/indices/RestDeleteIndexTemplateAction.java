@@ -69,7 +69,7 @@ public class RestDeleteIndexTemplateAction extends BaseRestHandler {
         deleteIndexTemplateRequest.clusterManagerNodeTimeout(
             request.paramAsTime("cluster_manager_timeout", deleteIndexTemplateRequest.clusterManagerNodeTimeout())
         );
-        parseDeprecatedMasterTimeoutParameter(deleteIndexTemplateRequest, request, deprecationLogger, getName());
+        parseDeprecatedMasterTimeoutParameter(deleteIndexTemplateRequest, request);
         return channel -> client.admin().indices().deleteTemplate(deleteIndexTemplateRequest, new RestToXContentListener<>(channel));
     }
 }

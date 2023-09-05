@@ -8,68 +8,65 @@
 
 package org.opensearch.telemetry.tracing;
 
-import java.util.Objects;
+import java.util.function.Consumer;
 
 /**
- * Default implementation for {@link SpanScope}
+ * Default implementation of Scope
+ *
+ * @opensearch.internal
  */
-public class DefaultSpanScope implements SpanScope {
+final class DefaultSpanScope implements SpanScope {
+
     private final Span span;
-    private final SpanScope previousSpanScope;
-    private static final ThreadLocal<SpanScope> spanScopeThreadLocal = new ThreadLocal<>();
-    private final TracerContextStorage<String, Span> tracerContextStorage;
+
+    private final Consumer<Span> onCloseConsumer;
 
     /**
-     * Constructor
-     * @param span span
-     * @param previousSpanScope before attached span scope.
+     * Creates Scope instance for the given span
+     *
+     * @param span underlying span
+     * @param onCloseConsumer consumer to execute on scope close
      */
-    private DefaultSpanScope(Span span, SpanScope previousSpanScope, TracerContextStorage<String, Span> tracerContextStorage) {
-        this.span = Objects.requireNonNull(span);
-        this.previousSpanScope = previousSpanScope;
-        this.tracerContextStorage = tracerContextStorage;
+    public DefaultSpanScope(Span span, Consumer<Span> onCloseConsumer) {
+        this.span = span;
+        this.onCloseConsumer = onCloseConsumer;
+    }
+
+    @Override
+    public void addSpanAttribute(String key, String value) {
+        span.addAttribute(key, value);
+    }
+
+    @Override
+    public void addSpanAttribute(String key, long value) {
+        span.addAttribute(key, value);
+    }
+
+    @Override
+    public void addSpanAttribute(String key, double value) {
+        span.addAttribute(key, value);
+    }
+
+    @Override
+    public void addSpanAttribute(String key, boolean value) {
+        span.addAttribute(key, value);
+    }
+
+    @Override
+    public void addSpanEvent(String event) {
+        span.addEvent(event);
+    }
+
+    @Override
+    public void setError(Exception exception) {
+        span.setError(exception);
     }
 
     /**
-     * Creates the SpanScope object.
-     * @param span span.
-     * @param tracerContextStorage tracer context storage.
-     * @return SpanScope spanScope
+     * Executes the runnable to end the scope
      */
-    public static SpanScope create(Span span, TracerContextStorage<String, Span> tracerContextStorage) {
-        final SpanScope beforeSpanScope = spanScopeThreadLocal.get();
-        SpanScope newSpanScope = new DefaultSpanScope(span, beforeSpanScope, tracerContextStorage);
-        spanScopeThreadLocal.set(newSpanScope);
-        return newSpanScope;
-    }
-
     @Override
     public void close() {
-        detach();
-        spanScopeThreadLocal.set(previousSpanScope);
+        onCloseConsumer.accept(span);
     }
-
-    @Override
-    public SpanScope attach() {
-        tracerContextStorage.put(TracerContextStorage.CURRENT_SPAN, this.span);
-        return this;
-    }
-
-    private void detach() {
-        if (previousSpanScope != null) {
-            tracerContextStorage.put(TracerContextStorage.CURRENT_SPAN, previousSpanScope.getSpan());
-        } else {
-            tracerContextStorage.put(TracerContextStorage.CURRENT_SPAN, null);
-        }
-    }
-
-    @Override
-    public Span getSpan() {
-        return span;
-    }
-
-    static SpanScope getCurrentSpanScope() {
-        return spanScopeThreadLocal.get();
-    }
-
 }

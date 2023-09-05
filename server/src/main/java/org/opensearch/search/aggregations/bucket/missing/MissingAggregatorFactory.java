@@ -85,9 +85,4 @@ public class MissingAggregatorFactory extends ValuesSourceAggregatorFactory {
             .getAggregator(MissingAggregationBuilder.REGISTRY_KEY, config)
             .build(name, factories, config, searchContext, parent, cardinality, metadata);
     }
-
-    @Override
-    protected boolean supportsConcurrentSegmentSearch() {
-        return true;
-    }
 }

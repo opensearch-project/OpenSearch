@@ -31,6 +31,7 @@
 
 package org.opensearch.action.admin.indices.shrink;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.IndicesRequest;
@@ -43,11 +44,13 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.core.ParseField;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.common.unit.ByteSizeValue;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -180,6 +183,9 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
         super.writeTo(out);
         targetIndexRequest.writeTo(out);
         out.writeString(sourceIndex);
+        if (type == ResizeType.CLONE && out.getVersion().before(LegacyESVersion.V_7_4_0)) {
+            throw new IllegalArgumentException("can't send clone request to a node that's older than " + LegacyESVersion.V_7_4_0);
+        }
         out.writeEnum(type);
         out.writeOptionalBoolean(copySettings);
         if (out.getVersion().onOrAfter(Version.V_2_5_0)) {

@@ -460,7 +460,7 @@ public class ClusterStateCreationUtils {
     }
 
     private static String selectAndRemove(Set<String> strings) {
-        String selection = randomFrom(strings.toArray(new String[0]));
+        String selection = randomFrom(strings.toArray(new String[strings.size()]));
         strings.remove(selection);
         return selection;
     }

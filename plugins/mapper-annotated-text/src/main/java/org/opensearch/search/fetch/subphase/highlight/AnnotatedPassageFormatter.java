@@ -237,7 +237,7 @@ public class AnnotatedPassageFormatter extends PassageFormatter {
             // add 1 for the fieldvalue separator character
             fieldValueOffset += fieldValueAnnotations.textMinusMarkup.length() + 1;
         }
-        return intersectingAnnotations.toArray(new AnnotationToken[0]);
+        return intersectingAnnotations.toArray(new AnnotationToken[intersectingAnnotations.size()]);
     }
 
     private void append(StringBuilder dest, String content, int start, int end) {

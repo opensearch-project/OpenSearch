@@ -36,9 +36,9 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.PriorityQueue;
+import org.opensearch.common.util.LongArray;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
-import org.opensearch.common.util.LongArray;
 import org.opensearch.index.fielddata.SortedBinaryDocValues;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.Aggregator;
@@ -50,7 +50,6 @@ import org.opensearch.search.aggregations.InternalMultiBucketAggregation;
 import org.opensearch.search.aggregations.InternalOrder;
 import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.LeafBucketCollectorBase;
-import org.opensearch.search.aggregations.bucket.LocalBucketCountThresholds;
 import org.opensearch.search.aggregations.bucket.terms.SignificanceLookup.BackgroundFrequencyForBytes;
 import org.opensearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
 import org.opensearch.search.aggregations.support.ValuesSource;
@@ -245,12 +244,11 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
             Releasable {
 
         private InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
-            LocalBucketCountThresholds localBucketCountThresholds = context.asLocalBucketCountThresholds(bucketCountThresholds);
             B[][] topBucketsPerOrd = buildTopBucketsPerOrd(owningBucketOrds.length);
             long[] otherDocCounts = new long[owningBucketOrds.length];
             for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
                 collectZeroDocEntriesIfNeeded(owningBucketOrds[ordIdx]);
-                int size = (int) Math.min(bucketOrds.size(), localBucketCountThresholds.getRequiredSize());
+                int size = (int) Math.min(bucketOrds.size(), bucketCountThresholds.getShardSize());
 
                 PriorityQueue<B> ordered = buildPriorityQueue(size);
                 B spare = null;
@@ -259,7 +257,7 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
                 while (ordsEnum.next()) {
                     long docCount = bucketDocCount(ordsEnum.ord());
                     otherDocCounts[ordIdx] += docCount;
-                    if (docCount < localBucketCountThresholds.getMinDocCount()) {
+                    if (docCount < bucketCountThresholds.getShardMinDocCount()) {
                         continue;
                     }
                     if (spare == null) {
@@ -456,14 +454,15 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
                 name,
                 reduceOrder,
                 order,
+                bucketCountThresholds.getRequiredSize(),
+                bucketCountThresholds.getMinDocCount(),
                 metadata(),
                 format,
                 bucketCountThresholds.getShardSize(),
                 showTermDocCountError,
                 otherDocCount,
                 Arrays.asList(topBuckets),
-                0,
-                bucketCountThresholds
+                0
             );
         }
 
@@ -573,13 +572,14 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
         SignificantStringTerms buildResult(long owningBucketOrd, long otherDocCount, SignificantStringTerms.Bucket[] topBuckets) {
             return new SignificantStringTerms(
                 name,
+                bucketCountThresholds.getRequiredSize(),
+                bucketCountThresholds.getMinDocCount(),
                 metadata(),
                 format,
                 subsetSizes.get(owningBucketOrd),
                 supersetSize,
                 significanceHeuristic,
-                Arrays.asList(topBuckets),
-                bucketCountThresholds
+                Arrays.asList(topBuckets)
             );
         }
 

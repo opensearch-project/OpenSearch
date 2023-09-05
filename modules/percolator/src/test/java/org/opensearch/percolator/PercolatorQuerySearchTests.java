@@ -35,11 +35,11 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.ScoreMode;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.support.WriteRequest;
-import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.cache.bitset.BitsetFilterCache;
 import org.opensearch.index.engine.Engine;
@@ -78,7 +78,7 @@ public class PercolatorQuerySearchTests extends OpenSearchSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Arrays.asList(PercolatorModulePlugin.class, CustomScriptPlugin.class);
+        return Arrays.asList(PercolatorPlugin.class, CustomScriptPlugin.class);
     }
 
     public static class CustomScriptPlugin extends MockScriptPlugin {
@@ -115,7 +115,7 @@ public class PercolatorQuerySearchTests extends OpenSearchSingleNodeTestCase {
                 new PercolateQueryBuilder(
                     "query",
                     BytesReference.bytes(jsonBuilder().startObject().field("field1", "b").endObject()),
-                    MediaTypeRegistry.JSON
+                    XContentType.JSON
                 )
             )
             .get();
@@ -188,7 +188,7 @@ public class PercolatorQuerySearchTests extends OpenSearchSingleNodeTestCase {
                                 .endArray()
                                 .endObject()
                         ),
-                        MediaTypeRegistry.JSON
+                        XContentType.JSON
                     )
                 )
                 .addSort("_doc", SortOrder.ASC)
@@ -269,7 +269,7 @@ public class PercolatorQuerySearchTests extends OpenSearchSingleNodeTestCase {
         doc.endObject();
         for (int i = 0; i < 32; i++) {
             SearchResponse response = client().prepareSearch()
-                .setQuery(new PercolateQueryBuilder("query", BytesReference.bytes(doc), MediaTypeRegistry.JSON))
+                .setQuery(new PercolateQueryBuilder("query", BytesReference.bytes(doc), XContentType.JSON))
                 .addSort("_doc", SortOrder.ASC)
                 .get();
             assertHitCount(response, 1);
@@ -293,7 +293,7 @@ public class PercolatorQuerySearchTests extends OpenSearchSingleNodeTestCase {
                 new PercolateQueryBuilder(
                     "query",
                     BytesReference.bytes(jsonBuilder().startObject().field("field1", "value").endObject()),
-                    MediaTypeRegistry.JSON
+                    XContentType.JSON
                 )
             )
             .get();
@@ -348,13 +348,13 @@ public class PercolatorQuerySearchTests extends OpenSearchSingleNodeTestCase {
             BytesReference source = BytesReference.bytes(
                 jsonBuilder().startObject().field("field1", "value").field("field2", currentTime[0]).endObject()
             );
-            QueryBuilder queryBuilder = new PercolateQueryBuilder("query", source, MediaTypeRegistry.JSON);
+            QueryBuilder queryBuilder = new PercolateQueryBuilder("query", source, XContentType.JSON);
             Query query = queryBuilder.toQuery(queryShardContext);
             assertThat(searcher.count(query), equalTo(3));
 
             currentTime[0] = currentTime[0] + 10800000; // + 3 hours
             source = BytesReference.bytes(jsonBuilder().startObject().field("field1", "value").field("field2", currentTime[0]).endObject());
-            queryBuilder = new PercolateQueryBuilder("query", source, MediaTypeRegistry.JSON);
+            queryBuilder = new PercolateQueryBuilder("query", source, XContentType.JSON);
             query = queryBuilder.toQuery(queryShardContext);
             assertThat(searcher.count(query), equalTo(3));
         }

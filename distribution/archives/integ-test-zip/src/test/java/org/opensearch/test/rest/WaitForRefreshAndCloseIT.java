@@ -32,14 +32,13 @@
 
 package org.opensearch.test.rest;
 
-import org.opensearch.common.action.ActionFuture;
+import org.apache.http.util.EntityUtils;
+import org.opensearch.action.ActionFuture;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 import org.opensearch.client.ResponseException;
 import org.opensearch.client.ResponseListener;
-import org.apache.hc.core5.http.ParseException;
-import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.junit.After;
 import org.junit.Before;
 
@@ -145,8 +144,6 @@ public class WaitForRefreshAndCloseIT extends OpenSearchRestTestCase {
                 try {
                     future.onResponse(EntityUtils.toString(response.getEntity()));
                 } catch (IOException e) {
-                    future.onFailure(e);
-                } catch (ParseException e) {
                     future.onFailure(e);
                 }
             }

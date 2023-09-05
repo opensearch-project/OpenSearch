@@ -32,15 +32,12 @@
 
 package org.opensearch.search.sort;
 
-import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.ShardSearchFailure;
+import org.opensearch.common.Strings;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.geo.GeoUtils;
-import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.fielddata.ScriptDocValues;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.script.MockScriptPlugin;
@@ -48,8 +45,8 @@ import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.sort.ScriptSortBuilder.ScriptSortType;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.InternalSettingsPlugin;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -65,7 +62,6 @@ import java.util.function.Function;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
 import static org.opensearch.index.query.QueryBuilders.termQuery;
-import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.search.sort.SortBuilders.scriptSort;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
@@ -75,26 +71,9 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
-public class SimpleSortIT extends ParameterizedOpenSearchIntegTestCase {
+public class SimpleSortIT extends OpenSearchIntegTestCase {
 
     private static final String DOUBLE_APOSTROPHE = "\u0027\u0027";
-
-    public SimpleSortIT(Settings dynamicSettings) {
-        super(dynamicSettings);
-    }
-
-    @ParametersFactory
-    public static Collection<Object[]> parameters() {
-        return Arrays.asList(
-            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
-            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
-        );
-    }
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
-    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -258,23 +237,24 @@ public class SimpleSortIT extends ParameterizedOpenSearchIntegTestCase {
     }
 
     public void testSortMinValueScript() throws IOException {
-        String mapping = jsonBuilder().startObject()
-            .startObject("properties")
-            .startObject("lvalue")
-            .field("type", "long")
-            .endObject()
-            .startObject("dvalue")
-            .field("type", "double")
-            .endObject()
-            .startObject("svalue")
-            .field("type", "keyword")
-            .endObject()
-            .startObject("gvalue")
-            .field("type", "geo_point")
-            .endObject()
-            .endObject()
-            .endObject()
-            .toString();
+        String mapping = Strings.toString(
+            jsonBuilder().startObject()
+                .startObject("properties")
+                .startObject("lvalue")
+                .field("type", "long")
+                .endObject()
+                .startObject("dvalue")
+                .field("type", "double")
+                .endObject()
+                .startObject("svalue")
+                .field("type", "keyword")
+                .endObject()
+                .startObject("gvalue")
+                .field("type", "geo_point")
+                .endObject()
+                .endObject()
+                .endObject()
+        );
 
         assertAcked(prepareCreate("test").setMapping(mapping));
         ensureGreen();
@@ -371,17 +351,18 @@ public class SimpleSortIT extends ParameterizedOpenSearchIntegTestCase {
         // TODO: sort shouldn't fail when sort field is mapped dynamically
         // We have to specify mapping explicitly because by the time search is performed dynamic mapping might not
         // be propagated to all nodes yet and sort operation fail when the sort field is not defined
-        String mapping = jsonBuilder().startObject()
-            .startObject("properties")
-            .startObject("id")
-            .field("type", "keyword")
-            .endObject()
-            .startObject("svalue")
-            .field("type", "keyword")
-            .endObject()
-            .endObject()
-            .endObject()
-            .toString();
+        String mapping = Strings.toString(
+            jsonBuilder().startObject()
+                .startObject("properties")
+                .startObject("id")
+                .field("type", "keyword")
+                .endObject()
+                .startObject("svalue")
+                .field("type", "keyword")
+                .endObject()
+                .endObject()
+                .endObject()
+        );
         assertAcked(prepareCreate("test").setMapping(mapping));
         ensureGreen();
 

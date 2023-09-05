@@ -35,7 +35,6 @@ package org.opensearch.indices.settings;
 import org.opensearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.opensearch.common.ValidationException;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.settings.SettingsException;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
@@ -65,8 +64,8 @@ public class PrivateSettingsIT extends OpenSearchIntegTestCase {
     public void testUpdatePrivateIndexSettingViaSettingsAPI() {
         createIndex("test");
         // we can not update the setting via the update settings API
-        final SettingsException e = expectThrows(
-            SettingsException.class,
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
             () -> client().admin()
                 .indices()
                 .prepareUpdateSettings("test")

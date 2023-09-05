@@ -45,7 +45,7 @@ import java.util.Map;
  */
 public class MapXContentParser extends AbstractXContentParser {
 
-    private MediaType mediaType;
+    private MediaType xContentType;
     private TokenIterator iterator;
     private boolean closed;
 
@@ -53,10 +53,10 @@ public class MapXContentParser extends AbstractXContentParser {
         NamedXContentRegistry xContentRegistry,
         DeprecationHandler deprecationHandler,
         Map<String, Object> map,
-        MediaType mediaType
+        MediaType xContentType
     ) {
         super(xContentRegistry, deprecationHandler);
-        this.mediaType = mediaType;
+        this.xContentType = xContentType;
         this.iterator = new MapIterator(null, null, map);
     }
 
@@ -105,7 +105,7 @@ public class MapXContentParser extends AbstractXContentParser {
 
     @Override
     public MediaType contentType() {
-        return mediaType;
+        return xContentType;
     }
 
     @Override

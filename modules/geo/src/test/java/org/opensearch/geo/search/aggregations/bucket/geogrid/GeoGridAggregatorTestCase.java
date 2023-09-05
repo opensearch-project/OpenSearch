@@ -37,11 +37,11 @@ import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.geo.GeoBoundingBox;
@@ -73,7 +73,7 @@ import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public abstract class GeoGridAggregatorTestCase<T extends BaseGeoGridBucket> extends AggregatorTestCase {
+public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket> extends AggregatorTestCase {
 
     private static final String FIELD_NAME = "location";
     protected static final double GEOHASH_TOLERANCE = 1E-5D;
@@ -203,9 +203,9 @@ public abstract class GeoGridAggregatorTestCase<T extends BaseGeoGridBucket> ext
         Consumer<StringTerms> verify = (terms) -> {
             Map<String, Map<String, Long>> actual = new TreeMap<>();
             for (StringTerms.Bucket tb : terms.getBuckets()) {
-                BaseGeoGrid<?> gg = tb.getAggregations().get("gg");
+                InternalGeoGrid<?> gg = tb.getAggregations().get("gg");
                 Map<String, Long> sub = new TreeMap<>();
-                for (BaseGeoGridBucket<?> ggb : gg.getBuckets()) {
+                for (InternalGeoGridBucket<?> ggb : gg.getBuckets()) {
                     sub.put(ggb.getKeyAsString(), ggb.getDocCount());
                 }
                 actual.put(tb.getKeyAsString(), sub);
@@ -301,7 +301,7 @@ public abstract class GeoGridAggregatorTestCase<T extends BaseGeoGridBucket> ext
         String field,
         int precision,
         GeoBoundingBox geoBoundingBox,
-        Consumer<BaseGeoGrid<T>> verify,
+        Consumer<InternalGeoGrid<T>> verify,
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex
     ) throws IOException {
         testCase(query, precision, geoBoundingBox, verify, buildIndex, createBuilder("_name").field(field));
@@ -311,7 +311,7 @@ public abstract class GeoGridAggregatorTestCase<T extends BaseGeoGridBucket> ext
         Query query,
         int precision,
         GeoBoundingBox geoBoundingBox,
-        Consumer<BaseGeoGrid<T>> verify,
+        Consumer<InternalGeoGrid<T>> verify,
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
         GeoGridAggregationBuilder aggregationBuilder
     ) throws IOException {
@@ -335,7 +335,7 @@ public abstract class GeoGridAggregatorTestCase<T extends BaseGeoGridBucket> ext
         aggregator.preCollection();
         indexSearcher.search(query, aggregator);
         aggregator.postCollection();
-        verify.accept((BaseGeoGrid<T>) aggregator.buildTopLevel());
+        verify.accept((InternalGeoGrid<T>) aggregator.buildTopLevel());
 
         indexReader.close();
         directory.close();

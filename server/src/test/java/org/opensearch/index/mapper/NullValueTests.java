@@ -32,9 +32,10 @@
 
 package org.opensearch.index.mapper;
 
-import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.common.Strings;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.json.JsonXContent;
 
 import java.util.Collections;
 
@@ -55,7 +56,7 @@ public class NullValueTests extends MapperServiceTestCase {
             XContentBuilder b = JsonXContent.contentBuilder().startObject();
             mapper.mapping().toXContent(b, params);
             b.endObject();
-            assertThat(b.toString(), containsString("\"null_value\":null"));
+            assertThat(Strings.toString(b), containsString("\"null_value\":null"));
         }
     }
 }

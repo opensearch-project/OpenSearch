@@ -33,19 +33,20 @@
 package org.opensearch.cluster.routing;
 
 import org.opensearch.ExceptionsHelper;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
 import org.opensearch.cluster.routing.allocation.decider.Decision;
 import org.opensearch.common.Nullable;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 
@@ -313,11 +314,19 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
         this.failure = in.readException();
         this.failedAllocations = in.readVInt();
         this.lastAllocationStatus = AllocationStatus.readFrom(in);
-        this.failedNodeIds = Collections.unmodifiableSet(in.readSet(StreamInput::readString));
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_5_0)) {
+            this.failedNodeIds = Collections.unmodifiableSet(in.readSet(StreamInput::readString));
+        } else {
+            this.failedNodeIds = Collections.emptySet();
+        }
     }
 
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeByte((byte) reason.ordinal());
+        if (out.getVersion().before(LegacyESVersion.V_7_0_0) && reason == Reason.INDEX_CLOSED) {
+            out.writeByte((byte) Reason.REINITIALIZED.ordinal());
+        } else {
+            out.writeByte((byte) reason.ordinal());
+        }
         out.writeLong(unassignedTimeMillis);
         // Do not serialize unassignedTimeNanos as System.nanoTime() cannot be compared across different JVMs
         out.writeBoolean(delayed);
@@ -325,7 +334,9 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
         out.writeException(failure);
         out.writeVInt(failedAllocations);
         lastAllocationStatus.writeTo(out);
-        out.writeCollection(failedNodeIds, StreamOutput::writeString);
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_5_0)) {
+            out.writeCollection(failedNodeIds, StreamOutput::writeString);
+        }
     }
 
     /**

@@ -172,11 +172,6 @@ public class GeoDistanceRangeAggregatorFactory extends ValuesSourceAggregatorFac
             );
     }
 
-    @Override
-    protected boolean supportsConcurrentSegmentSearch() {
-        return true;
-    }
-
     /**
      * The source location for the distance calculation
      *

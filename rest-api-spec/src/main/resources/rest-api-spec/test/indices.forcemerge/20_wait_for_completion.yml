@@ -4,8 +4,8 @@
   # will return a task immediately and the merge process will run in background.
 
   - skip:
-      version: " - 2.99.99"
-      reason: "only available in 3.0+"
+      version: " - 2.6.99"
+      reason: "only available in 2.7+"
       features: allowed_warnings
 
   - do:

@@ -37,6 +37,7 @@ import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
+
 import org.junit.After;
 
 import java.util.Arrays;

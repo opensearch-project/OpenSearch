@@ -32,8 +32,8 @@
 
 package org.opensearch.search.aggregations.bucket.terms;
 
-import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.core.ParseField;
+import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.Aggregator;
@@ -235,11 +235,6 @@ public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 cardinality,
                 metadata
             );
-    }
-
-    @Override
-    protected boolean supportsConcurrentSegmentSearch() {
-        return true;
     }
 
     /**

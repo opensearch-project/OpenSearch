@@ -86,7 +86,7 @@ public class RestSnapshotsStatusAction extends BaseRestHandler {
         snapshotsStatusRequest.clusterManagerNodeTimeout(
             request.paramAsTime("cluster_manager_timeout", snapshotsStatusRequest.clusterManagerNodeTimeout())
         );
-        parseDeprecatedMasterTimeoutParameter(snapshotsStatusRequest, request, deprecationLogger, getName());
+        parseDeprecatedMasterTimeoutParameter(snapshotsStatusRequest, request);
         return channel -> client.admin().cluster().snapshotsStatus(snapshotsStatusRequest, new RestToXContentListener<>(channel));
     }
 }

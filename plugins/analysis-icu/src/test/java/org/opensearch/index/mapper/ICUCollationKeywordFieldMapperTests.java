@@ -39,6 +39,7 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.util.BytesRef;
+import org.opensearch.common.Strings;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.plugin.analysis.icu.AnalysisICUPlugin;
 import org.opensearch.plugins.Plugin;
@@ -95,7 +96,7 @@ public class ICUCollationKeywordFieldMapperTests extends FieldMapperTestCase2<IC
 
     public void testDefaults() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
-        assertEquals(fieldMapping(this::minimalMapping).toString(), mapper.mappingSource().toString());
+        assertEquals(Strings.toString(fieldMapping(this::minimalMapping)), mapper.mappingSource().toString());
 
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1234")));
         IndexableField[] fields = doc.rootDoc().getFields("field");

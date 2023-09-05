@@ -33,6 +33,7 @@
 package org.opensearch.search.basic;
 
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
+
 import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.ClusterState;
@@ -43,6 +44,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.search.SearchService;
 import org.opensearch.test.OpenSearchIntegTestCase;
+
 import org.junit.After;
 
 import java.util.List;

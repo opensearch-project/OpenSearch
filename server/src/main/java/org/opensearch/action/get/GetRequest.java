@@ -32,15 +32,16 @@
 
 package org.opensearch.action.get;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.RealtimeRequest;
 import org.opensearch.action.ValidateActions;
 import org.opensearch.action.support.single.shard.SingleShardRequest;
-import org.opensearch.common.lucene.uid.Versions;
-import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.common.lucene.uid.Versions;
+import org.opensearch.core.common.Strings;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
@@ -88,6 +89,9 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
         }
         id = in.readString();
         routing = in.readOptionalString();
+        if (in.getVersion().before(LegacyESVersion.V_7_0_0)) {
+            in.readOptionalString();
+        }
         preference = in.readOptionalString();
         refresh = in.readBoolean();
         storedFields = in.readOptionalStringArray();
@@ -257,6 +261,9 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
         }
         out.writeString(id);
         out.writeOptionalString(routing);
+        if (out.getVersion().before(LegacyESVersion.V_7_0_0)) {
+            out.writeOptionalString(null);
+        }
         out.writeOptionalString(preference);
 
         out.writeBoolean(refresh);

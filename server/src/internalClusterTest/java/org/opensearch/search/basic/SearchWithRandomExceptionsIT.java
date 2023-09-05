@@ -36,12 +36,14 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.tests.util.English;
+
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.DocWriteResponse;
 import org.opensearch.action.admin.indices.refresh.RefreshResponse;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.SearchResponse;
+import org.opensearch.common.Strings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
@@ -79,15 +81,16 @@ public class SearchWithRandomExceptionsIT extends OpenSearchIntegTestCase {
     }
 
     public void testRandomExceptions() throws IOException, InterruptedException, ExecutionException {
-        String mapping = XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("properties")
-            .startObject("test")
-            .field("type", "keyword")
-            .endObject()
-            .endObject()
-            .endObject()
-            .toString();
+        String mapping = Strings.toString(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("properties")
+                .startObject("test")
+                .field("type", "keyword")
+                .endObject()
+                .endObject()
+                .endObject()
+        );
         final double lowLevelRate;
         final double topLevelRate;
         if (frequently()) {

@@ -83,11 +83,11 @@ class TaskInput {
     }
 
     public Path getOpenSearchConfig() {
-        return openSearchEnv.configDir();
+        return openSearchEnv.configFile();
     }
 
     public Path getOpenSearchBin() {
-        return openSearchEnv.binDir();
+        return openSearchEnv.binFile();
     }
 
     public boolean isRunning() {

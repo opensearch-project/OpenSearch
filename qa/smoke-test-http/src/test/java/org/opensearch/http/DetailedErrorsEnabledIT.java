@@ -32,8 +32,7 @@
 
 package org.opensearch.http;
 
-import org.apache.hc.core5.http.ParseException;
-import org.apache.hc.core5.http.io.entity.EntityUtils;
+import org.apache.http.util.EntityUtils;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 import org.opensearch.client.ResponseException;
@@ -48,7 +47,7 @@ import static org.hamcrest.Matchers.not;
  */
 public class DetailedErrorsEnabledIT extends HttpSmokeTestCase {
 
-    public void testThatErrorTraceWorksByDefault() throws IOException, ParseException {
+    public void testThatErrorTraceWorksByDefault() throws IOException {
         try {
             Request request = new Request("DELETE", "/");
             request.addParameter("error_trace", "true");

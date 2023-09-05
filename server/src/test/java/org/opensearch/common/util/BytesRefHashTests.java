@@ -32,12 +32,11 @@
 
 package org.opensearch.common.util;
 
-import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
-import org.opensearch.common.hash.T1ha1;
+import org.apache.lucene.tests.util.TestUtil;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
+import org.opensearch.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.HashMap;
@@ -45,7 +44,6 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
-import java.util.stream.Stream;
 
 public class BytesRefHashTests extends OpenSearchTestCase {
 
@@ -59,13 +57,9 @@ public class BytesRefHashTests extends OpenSearchTestCase {
         if (hash != null) {
             hash.close();
         }
-        long seed = randomLong();
-        hash = new BytesRefHash(
-            randomIntBetween(1, 100),      // random capacity
-            0.6f + randomFloat() * 0.39f,  // random load factor to verify collision resolution
-            key -> T1ha1.hash(key.bytes, key.offset, key.length, seed),
-            randomBigArrays()
-        );
+        // Test high load factors to make sure that collision resolution works fine
+        final float maxLoadFactor = 0.6f + randomFloat() * 0.39f;
+        hash = new BytesRefHash(randomIntBetween(0, 100), maxLoadFactor, randomBigArrays());
     }
 
     @Override
@@ -74,34 +68,39 @@ public class BytesRefHashTests extends OpenSearchTestCase {
         newHash();
     }
 
-    public void testFuzzy() {
-        Map<BytesRef, Long> reference = new HashMap<>();
-        BytesRef[] keys = Stream.generate(() -> new BytesRef(randomAlphaOfLength(20)))
-            .limit(randomIntBetween(1000, 2000))
-            .toArray(BytesRef[]::new);
-
-        // Verify the behaviour of "add" and "find".
-        for (int i = 0; i < keys.length * 10; i++) {
-            BytesRef key = keys[i % keys.length];
-            if (reference.containsKey(key)) {
-                long expectedOrdinal = reference.get(key);
-                assertEquals(-1 - expectedOrdinal, hash.add(key));
-                assertEquals(expectedOrdinal, hash.find(key));
+    public void testDuel() {
+        final int len = randomIntBetween(1, 100000);
+        final BytesRef[] values = new BytesRef[len];
+        for (int i = 0; i < values.length; ++i) {
+            values[i] = new BytesRef(randomAlphaOfLength(5));
+        }
+        final Map<BytesRef, Integer> valueToId = new HashMap<>();
+        final BytesRef[] idToValue = new BytesRef[values.length];
+        final int iters = randomInt(1000000);
+        for (int i = 0; i < iters; ++i) {
+            final BytesRef value = randomFrom(values);
+            if (valueToId.containsKey(value)) {
+                assertEquals(-1 - valueToId.get(value), hash.add(value, value.hashCode()));
             } else {
-                assertEquals(-1, hash.find(key));
-                reference.put(key, (long) reference.size());
-                assertEquals((long) reference.get(key), hash.add(key));
+                assertEquals(valueToId.size(), hash.add(value, value.hashCode()));
+                idToValue[valueToId.size()] = value;
+                valueToId.put(value, valueToId.size());
             }
         }
 
-        // Verify the behaviour of "get".
-        BytesRef scratch = new BytesRef();
-        for (Map.Entry<BytesRef, Long> entry : reference.entrySet()) {
-            assertEquals(entry.getKey(), hash.get(entry.getValue(), scratch));
+        assertEquals(valueToId.size(), hash.size());
+        for (final var next : valueToId.entrySet()) {
+            assertEquals(next.getValue().longValue(), hash.find(next.getKey(), next.getKey().hashCode()));
         }
 
-        // Verify the behaviour of "size".
-        assertEquals(reference.size(), hash.size());
+        for (long i = 0; i < hash.capacity(); ++i) {
+            final long id = hash.id(i);
+            BytesRef spare = new BytesRef();
+            if (id >= 0) {
+                hash.get(id, spare);
+                assertEquals(idToValue[(int) id], spare);
+            }
+        }
         hash.close();
     }
 

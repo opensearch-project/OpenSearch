@@ -40,17 +40,16 @@ import org.opensearch.cluster.metadata.IndexAbstraction;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.common.Strings;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.common.xcontent.json.JsonXContent;
-import org.opensearch.core.common.Strings;
-import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.core.index.Index;
-import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.index.Index;
 import org.opensearch.index.RandomCreateIndexGenerator;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -73,12 +72,12 @@ public class PutMappingRequestTests extends OpenSearchTestCase {
         assertNotNull("source validation should fail", ex);
         assertTrue(ex.getMessage().contains("source is missing"));
 
-        r.source("", MediaTypeRegistry.JSON);
+        r.source("", XContentType.JSON);
         ex = r.validate();
         assertNotNull("source validation should fail", ex);
         assertTrue(ex.getMessage().contains("source is empty"));
 
-        r.source("somevalidmapping", MediaTypeRegistry.JSON);
+        r.source("somevalidmapping", XContentType.JSON);
         ex = r.validate();
         assertNull("validation should succeed", ex);
 
@@ -114,7 +113,7 @@ public class PutMappingRequestTests extends OpenSearchTestCase {
         mapping.endObject();
         request.source(mapping);
 
-        String actualRequestBody = Strings.toString(MediaTypeRegistry.JSON, request);
+        String actualRequestBody = Strings.toString(XContentType.JSON, request);
         String expectedRequestBody = "{\"properties\":{\"email\":{\"type\":\"text\"}}}";
         assertEquals(expectedRequestBody, actualRequestBody);
     }
@@ -122,7 +121,7 @@ public class PutMappingRequestTests extends OpenSearchTestCase {
     public void testToXContentWithEmptySource() throws IOException {
         PutMappingRequest request = new PutMappingRequest("foo");
 
-        String actualRequestBody = Strings.toString(MediaTypeRegistry.JSON, request);
+        String actualRequestBody = Strings.toString(XContentType.JSON, request);
         String expectedRequestBody = "{}";
         assertEquals(expectedRequestBody, actualRequestBody);
     }
@@ -144,8 +143,8 @@ public class PutMappingRequestTests extends OpenSearchTestCase {
     private void assertMappingsEqual(String expected, String actual) throws IOException {
 
         try (
-            XContentParser expectedJson = createParser(MediaTypeRegistry.JSON.xContent(), expected);
-            XContentParser actualJson = createParser(MediaTypeRegistry.JSON.xContent(), actual)
+            XContentParser expectedJson = createParser(XContentType.JSON.xContent(), expected);
+            XContentParser actualJson = createParser(XContentType.JSON.xContent(), actual)
         ) {
             assertEquals(expectedJson.mapOrdered(), actualJson.mapOrdered());
         }

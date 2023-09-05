@@ -36,26 +36,22 @@ import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
-
-import org.apache.hc.client5.http.auth.AuthScope;
-import org.apache.hc.client5.http.auth.UsernamePasswordCredentials;
-import org.apache.hc.client5.http.classic.methods.HttpUriRequestBase;
-import org.apache.hc.client5.http.impl.DefaultAuthenticationStrategy;
-import org.apache.hc.client5.http.impl.async.CloseableHttpAsyncClient;
-import org.apache.hc.client5.http.impl.async.HttpAsyncClientBuilder;
-import org.apache.hc.client5.http.impl.auth.BasicCredentialsProvider;
-import org.apache.hc.core5.http.ClassicHttpResponse;
-import org.apache.hc.core5.http.ContentType;
-import org.apache.hc.core5.http.Header;
-import org.apache.hc.core5.http.HttpHost;
-import org.apache.hc.core5.http.HttpResponse;
-import org.apache.hc.core5.http.io.entity.EntityUtils;
-import org.apache.hc.core5.http.io.entity.StringEntity;
-import org.apache.hc.core5.http.message.BasicHeader;
-import org.apache.hc.core5.http.nio.AsyncResponseConsumer;
-import org.apache.hc.core5.net.URIBuilder;
-import org.opensearch.client.http.HttpUriRequestProducer;
-import org.opensearch.client.nio.HeapBufferedAsyncResponseConsumer;
+import org.apache.http.Consts;
+import org.apache.http.Header;
+import org.apache.http.HttpHost;
+import org.apache.http.HttpResponse;
+import org.apache.http.auth.AuthScope;
+import org.apache.http.auth.UsernamePasswordCredentials;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.HttpRequestBase;
+import org.apache.http.entity.ContentType;
+import org.apache.http.impl.client.BasicCredentialsProvider;
+import org.apache.http.impl.client.TargetAuthenticationStrategy;
+import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
+import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
+import org.apache.http.message.BasicHeader;
+import org.apache.http.nio.entity.NStringEntity;
+import org.apache.http.util.EntityUtils;
 import org.junit.After;
 import org.junit.Before;
 
@@ -64,7 +60,6 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
@@ -74,7 +69,6 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
-import java.util.concurrent.Phaser;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -92,7 +86,7 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 /**
- * Integration test to check interaction between {@link RestClient} and {@link org.apache.hc.client5.http.classic.HttpClient}.
+ * Integration test to check interaction between {@link RestClient} and {@link org.apache.http.client.HttpClient}.
  * Works against a real http server, one single host.
  */
 public class RestClientSingleHostIntegTests extends RestClientTestCase {
@@ -153,7 +147,7 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
         public void handle(HttpExchange httpExchange) throws IOException {
             // copy request body to response body so we can verify it was sent
             StringBuilder body = new StringBuilder();
-            try (InputStreamReader reader = new InputStreamReader(httpExchange.getRequestBody(), StandardCharsets.UTF_8)) {
+            try (InputStreamReader reader = new InputStreamReader(httpExchange.getRequestBody(), Consts.UTF_8)) {
                 char[] buffer = new char[256];
                 int read;
                 while ((read = reader.read(buffer)) != -1) {
@@ -170,7 +164,7 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
             httpExchange.sendResponseHeaders(statusCode, body.length() == 0 ? -1 : body.length());
             if (body.length() > 0) {
                 try (OutputStream out = httpExchange.getResponseBody()) {
-                    out.write(body.toString().getBytes(StandardCharsets.UTF_8));
+                    out.write(body.toString().getBytes(Consts.UTF_8));
                 }
             }
             httpExchange.close();
@@ -178,20 +172,18 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
     }
 
     private RestClient createRestClient(final boolean useAuth, final boolean usePreemptiveAuth) {
-        final HttpHost httpHost = new HttpHost(httpServer.getAddress().getHostString(), httpServer.getAddress().getPort());
-        final RestClientBuilder restClientBuilder = RestClient.builder(httpHost).setDefaultHeaders(defaultHeaders);
+        // provide the username/password for every request
+        final BasicCredentialsProvider credentialsProvider = new BasicCredentialsProvider();
+        credentialsProvider.setCredentials(AuthScope.ANY, new UsernamePasswordCredentials("user", "pass"));
+
+        final RestClientBuilder restClientBuilder = RestClient.builder(
+            new HttpHost(httpServer.getAddress().getHostString(), httpServer.getAddress().getPort())
+        ).setDefaultHeaders(defaultHeaders);
         if (pathPrefix.length() > 0) {
             restClientBuilder.setPathPrefix(pathPrefix);
         }
 
         if (useAuth) {
-            // provide the username/password for every request
-            final BasicCredentialsProvider credentialsProvider = new BasicCredentialsProvider();
-            credentialsProvider.setCredentials(
-                new AuthScope(httpHost, null, "Basic"),
-                new UsernamePasswordCredentials("user", "pass".toCharArray())
-            );
-
             restClientBuilder.setHttpClientConfigCallback(new RestClientBuilder.HttpClientConfigCallback() {
                 @Override
                 public HttpAsyncClientBuilder customizeHttpClient(final HttpAsyncClientBuilder httpClientBuilder) {
@@ -199,7 +191,7 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
                         // disable preemptive auth by ignoring any authcache
                         httpClientBuilder.disableAuthCaching();
                         // don't use the "persistent credentials strategy"
-                        httpClientBuilder.setTargetAuthenticationStrategy(DefaultAuthenticationStrategy.INSTANCE);
+                        httpClientBuilder.setTargetAuthenticationStrategy(new TargetAuthenticationStrategy());
                     }
 
                     return httpClientBuilder.setDefaultCredentialsProvider(credentialsProvider);
@@ -228,7 +220,7 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
         final List<Exception> exceptions = new CopyOnWriteArrayList<>();
         for (int i = 0; i < iters; i++) {
             Request request = new Request("PUT", "/200");
-            request.setEntity(new StringEntity("{}", ContentType.APPLICATION_JSON));
+            request.setEntity(new NStringEntity("{}", ContentType.APPLICATION_JSON));
             restClient.performRequestAsync(request, new ResponseListener() {
                 @Override
                 public void onSuccess(Response response) {
@@ -279,7 +271,7 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
 
     /**
      * This test verifies some assumptions that we rely upon around the way the async http client works when reusing the same request
-     * throughout multiple retries, and the use of the {@link HttpUriRequestBase#abort()} method.
+     * throughout multiple retries, and the use of the {@link HttpRequestBase#abort()} method.
      * In fact the low-level REST client reuses the same request instance throughout multiple retries, and relies on the http client
      * to set the future ref to the request properly so that when abort is called, the proper future gets cancelled.
      */
@@ -287,10 +279,7 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
         try (CloseableHttpAsyncClient client = HttpAsyncClientBuilder.create().build()) {
             client.start();
             HttpHost httpHost = new HttpHost(httpServer.getAddress().getHostString(), httpServer.getAddress().getPort());
-            HttpUriRequestBase httpGet = new HttpUriRequestBase(
-                "GET",
-                new URIBuilder().setHttpHost(httpHost).setPath(pathPrefix + "/200").build()
-            );
+            HttpGet httpGet = new HttpGet(pathPrefix + "/200");
 
             // calling abort before the request is sent is a no-op
             httpGet.abort();
@@ -299,73 +288,36 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
             {
                 httpGet.reset();
                 assertFalse(httpGet.isAborted());
-
-                final Phaser phaser = new Phaser(2);
-                phaser.register();
-
+                httpGet.abort();
+                Future<HttpResponse> future = client.execute(httpHost, httpGet, null);
                 try {
-                    Future<ClassicHttpResponse> future = client.execute(
-                        getRequestProducer(httpGet, httpHost),
-                        getResponseConsumer(phaser),
-                        null
-                    );
-                    httpGet.setDependency((org.apache.hc.core5.concurrent.Cancellable) future);
-                    httpGet.abort();
-
-                    try {
-                        phaser.arriveAndDeregister();
-                        future.get();
-                        fail("expected cancellation exception");
-                    } catch (CancellationException e) {
-                        // expected
-                    }
-                    assertTrue(future.isCancelled());
-                } finally {
-                    // Forcing termination since the AsyncResponseConsumer may not be reached,
-                    // the request is aborted right before
-                    phaser.forceTermination();
+                    future.get();
+                    fail("expected cancellation exception");
+                } catch (CancellationException e) {
+                    // expected
                 }
+                assertTrue(future.isCancelled());
             }
             {
-                final Phaser phaser = new Phaser(2);
-                phaser.register();
-
+                httpGet.reset();
+                Future<HttpResponse> future = client.execute(httpHost, httpGet, null);
+                assertFalse(httpGet.isAborted());
+                httpGet.abort();
+                assertTrue(httpGet.isAborted());
                 try {
-                    httpGet.reset();
-                    Future<ClassicHttpResponse> future = client.execute(
-                        getRequestProducer(httpGet, httpHost),
-                        getResponseConsumer(phaser),
-                        null
-                    );
-                    assertFalse(httpGet.isAborted());
-                    httpGet.setDependency((org.apache.hc.core5.concurrent.Cancellable) future);
-                    httpGet.abort();
-                    assertTrue(httpGet.isAborted());
-                    try {
-                        phaser.arriveAndDeregister();
-                        assertTrue(future.isCancelled());
-                        future.get();
-                        throw new AssertionError("exception should have been thrown");
-                    } catch (CancellationException e) {
-                        // expected
-                    }
-                } finally {
-                    // Forcing termination since the AsyncResponseConsumer may not be reached,
-                    // the request is aborted right before
-                    phaser.forceTermination();
+                    assertTrue(future.isCancelled());
+                    future.get();
+                    throw new AssertionError("exception should have been thrown");
+                } catch (CancellationException e) {
+                    // expected
                 }
             }
             {
                 httpGet.reset();
                 assertFalse(httpGet.isAborted());
-                final Phaser phaser = new Phaser(0);
-                Future<ClassicHttpResponse> future = client.execute(
-                    getRequestProducer(httpGet, httpHost),
-                    getResponseConsumer(phaser),
-                    null
-                );
+                Future<HttpResponse> future = client.execute(httpHost, httpGet, null);
                 assertFalse(httpGet.isAborted());
-                assertEquals(200, future.get().getCode());
+                assertEquals(200, future.get().getStatusLine().getStatusCode());
                 assertFalse(future.isCancelled());
             }
         }
@@ -373,7 +325,7 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
 
     /**
      * End to end test for headers. We test it explicitly against a real http client as there are different ways
-     * to set/add headers to the {@link org.apache.hc.client5.http.classic.HttpClient}.
+     * to set/add headers to the {@link org.apache.http.client.HttpClient}.
      * Exercises the test http server ability to send back whatever headers it received.
      */
     public void testHeaders() throws Exception {
@@ -413,7 +365,7 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
 
     /**
      * End to end test for delete with body. We test it explicitly as it is not supported
-     * out of the box by {@link org.apache.hc.client5.http.classic.HttpClient}.
+     * out of the box by {@link org.apache.http.client.HttpClient}.
      * Exercises the test http server ability to send back whatever body it received.
      */
     public void testDeleteWithBody() throws Exception {
@@ -422,7 +374,7 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
 
     /**
      * End to end test for get with body. We test it explicitly as it is not supported
-     * out of the box by {@link org.apache.hc.client5.http.classic.HttpClient}.
+     * out of the box by {@link org.apache.http.client.HttpClient}.
      * Exercises the test http server ability to send back whatever body it received.
      */
     public void testGetWithBody() throws Exception {
@@ -458,7 +410,7 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
             Request request = new Request("PUT", "/200");
             request.addParameter("routing", "foo bar");
             Response response = RestClientSingleHostTests.performRequestSyncOrAsync(restClient, request);
-            assertEquals(pathPrefix + "/200?routing=foo%20bar", response.getRequestLine().getUri());
+            assertEquals(pathPrefix + "/200?routing=foo+bar", response.getRequestLine().getUri());
         }
         {
             Request request = new Request("PUT", "/200");
@@ -587,21 +539,5 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
         assertEquals(requestBody, EntityUtils.toString(esResponse.getEntity()));
 
         return esResponse;
-    }
-
-    private AsyncResponseConsumer<ClassicHttpResponse> getResponseConsumer(Phaser phaser) {
-        phaser.register();
-        return new HeapBufferedAsyncResponseConsumer(1024) {
-            @Override
-            protected ClassicHttpResponse buildResult(HttpResponse response, byte[] entity, ContentType contentType) {
-                phaser.arriveAndAwaitAdvance();
-                return super.buildResult(response, entity, contentType);
-            }
-        };
-    }
-
-    private HttpUriRequestProducer getRequestProducer(HttpUriRequestBase request, HttpHost host) {
-        return HttpUriRequestProducer.create(request, host);
-
     }
 }

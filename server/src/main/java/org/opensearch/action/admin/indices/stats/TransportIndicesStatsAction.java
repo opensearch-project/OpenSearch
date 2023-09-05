@@ -34,6 +34,7 @@ package org.opensearch.action.admin.indices.stats;
 
 import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.action.support.ActionFilters;
+import org.opensearch.core.action.support.DefaultShardOperationFailedException;
 import org.opensearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
@@ -43,7 +44,6 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardsIterator;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
-import org.opensearch.core.action.support.DefaultShardOperationFailedException;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.engine.CommitStats;
@@ -120,7 +120,13 @@ public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<
         List<DefaultShardOperationFailedException> shardFailures,
         ClusterState clusterState
     ) {
-        return new IndicesStatsResponse(responses.toArray(new ShardStats[0]), totalShards, successfulShards, failedShards, shardFailures);
+        return new IndicesStatsResponse(
+            responses.toArray(new ShardStats[responses.size()]),
+            totalShards,
+            successfulShards,
+            failedShards,
+            shardFailures
+        );
     }
 
     @Override

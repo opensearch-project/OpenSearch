@@ -34,10 +34,9 @@ package org.opensearch.gradle.test;
 
 import org.opensearch.gradle.Architecture;
 import org.opensearch.gradle.DistributionDownloadPlugin;
-import org.opensearch.gradle.JavaPackageType;
+import org.opensearch.gradle.OpenSearchDistribution;
 import org.opensearch.gradle.Jdk;
 import org.opensearch.gradle.JdkDownloadPlugin;
-import org.opensearch.gradle.OpenSearchDistribution;
 import org.opensearch.gradle.SystemPropertyCommandLineArgumentProvider;
 import org.opensearch.gradle.Version;
 import org.opensearch.gradle.VersionProperties;
@@ -49,7 +48,6 @@ import org.opensearch.gradle.util.GradleUtils;
 import org.opensearch.gradle.util.Util;
 import org.opensearch.gradle.vagrant.VagrantBasePlugin;
 import org.opensearch.gradle.vagrant.VagrantExtension;
-import org.opensearch.gradle.vagrant.VagrantMachine;
 import org.gradle.api.Action;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
@@ -63,6 +61,7 @@ import org.gradle.api.specs.Specs;
 import org.gradle.api.tasks.Copy;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.testing.Test;
+import org.opensearch.gradle.vagrant.VagrantMachine;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -72,7 +71,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
@@ -139,7 +137,7 @@ public class DistroTestPlugin implements Plugin<Project> {
             }
 
             if ((distribution.getType() == OpenSearchDistribution.Type.DEB || distribution.getType() == OpenSearchDistribution.Type.RPM)
-                && distribution.getBundledJdk() != JavaPackageType.NONE) {
+                && distribution.getBundledJdk()) {
                 for (Version version : BuildParams.getBwcVersions().getIndexCompatible()) {
                     if (version.before("6.3.0")) {
                         continue; // before opening xpack
@@ -381,8 +379,8 @@ public class DistroTestPlugin implements Plugin<Project> {
                 OpenSearchDistribution.Type.RPM,
                 OpenSearchDistribution.Type.DOCKER
             )) {
-                for (JavaPackageType bundledJdk : Set.of(JavaPackageType.NONE, JavaPackageType.JDK)) {
-                    if (bundledJdk == JavaPackageType.NONE) {
+                for (boolean bundledJdk : Arrays.asList(true, false)) {
+                    if (bundledJdk == false) {
                         // We'll never publish an ARM (arm64) build without a bundled JDK.
                         if (architecture == Architecture.ARM64) {
                             continue;
@@ -405,8 +403,8 @@ public class DistroTestPlugin implements Plugin<Project> {
                 OpenSearchDistribution.Platform.LINUX,
                 OpenSearchDistribution.Platform.WINDOWS
             )) {
-                for (JavaPackageType bundledJdk : Set.of(JavaPackageType.NONE, JavaPackageType.JDK)) {
-                    if (bundledJdk == JavaPackageType.NONE && architecture != Architecture.X64) {
+                for (boolean bundledJdk : Arrays.asList(true, false)) {
+                    if (bundledJdk == false && architecture != Architecture.X64) {
                         // We will never publish distributions for non-x86 (amd64) platforms
                         // without a bundled JDK
                         continue;
@@ -434,7 +432,7 @@ public class DistroTestPlugin implements Plugin<Project> {
         Architecture architecture,
         OpenSearchDistribution.Type type,
         OpenSearchDistribution.Platform platform,
-        JavaPackageType bundledJdk,
+        boolean bundledJdk,
         String version
     ) {
         String name = distroId(type, platform, bundledJdk, architecture) + "-" + version;
@@ -468,12 +466,11 @@ public class DistroTestPlugin implements Plugin<Project> {
     private static String distroId(
         OpenSearchDistribution.Type type,
         OpenSearchDistribution.Platform platform,
-        JavaPackageType bundledJdk,
+        boolean bundledJdk,
         Architecture architecture
     ) {
-        return (type == OpenSearchDistribution.Type.ARCHIVE ? platform + "-" : "") + type + (bundledJdk != JavaPackageType.NONE
-            ? (bundledJdk == JavaPackageType.JDK ? "" : "-jre")
-            : "-no-jdk") + (architecture == Architecture.X64 ? "" : "-" + architecture.toString().toLowerCase());
+        return (type == OpenSearchDistribution.Type.ARCHIVE ? platform + "-" : "") + type + (bundledJdk ? "" : "-no-jdk")
+            + (architecture == Architecture.X64 ? "" : "-" + architecture.toString().toLowerCase());
     }
 
     private static String destructiveDistroTestTaskName(OpenSearchDistribution distro) {

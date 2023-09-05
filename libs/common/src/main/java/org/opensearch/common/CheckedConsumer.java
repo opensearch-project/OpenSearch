@@ -32,8 +32,6 @@
 
 package org.opensearch.common;
 
-import org.opensearch.common.annotation.PublicApi;
-
 import java.util.function.Consumer;
 
 /**
@@ -41,7 +39,6 @@ import java.util.function.Consumer;
  *
  * @opensearch.api
  */
-@PublicApi(since = "1.0.0")
 @FunctionalInterface
 public interface CheckedConsumer<T, E extends Exception> {
     void accept(T t) throws E;

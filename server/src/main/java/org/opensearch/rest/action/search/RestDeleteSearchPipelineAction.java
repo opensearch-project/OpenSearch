@@ -39,6 +39,7 @@ public class RestDeleteSearchPipelineAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         DeleteSearchPipelineRequest request = new DeleteSearchPipelineRequest(restRequest.param("id"));
         request.clusterManagerNodeTimeout(restRequest.paramAsTime("cluster_manager_timeout", request.clusterManagerNodeTimeout()));
+        parseDeprecatedMasterTimeoutParameter(request, restRequest);
         request.timeout(restRequest.paramAsTime("timeout", request.timeout()));
         return channel -> client.admin().cluster().deleteSearchPipeline(request, new RestToXContentListener<>(channel));
     }

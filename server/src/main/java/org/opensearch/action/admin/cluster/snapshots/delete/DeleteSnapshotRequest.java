@@ -36,6 +36,7 @@ import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.snapshots.SnapshotsService;
 
 import java.io.IOException;
 
@@ -83,14 +84,27 @@ public class DeleteSnapshotRequest extends ClusterManagerNodeRequest<DeleteSnaps
     public DeleteSnapshotRequest(StreamInput in) throws IOException {
         super(in);
         repository = in.readString();
-        snapshots = in.readStringArray();
+        if (in.getVersion().onOrAfter(SnapshotsService.MULTI_DELETE_VERSION)) {
+            snapshots = in.readStringArray();
+        } else {
+            snapshots = new String[] { in.readString() };
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(repository);
-        out.writeStringArray(snapshots);
+        if (out.getVersion().onOrAfter(SnapshotsService.MULTI_DELETE_VERSION)) {
+            out.writeStringArray(snapshots);
+        } else {
+            if (snapshots.length != 1) {
+                throw new IllegalArgumentException(
+                    "Can't write snapshot delete with more than one snapshot to version [" + out.getVersion() + "]"
+                );
+            }
+            out.writeString(snapshots[0]);
+        }
     }
 
     @Override

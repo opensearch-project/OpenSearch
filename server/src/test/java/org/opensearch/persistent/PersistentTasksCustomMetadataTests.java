@@ -41,11 +41,10 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.Metadata.Custom;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
-import org.opensearch.common.UUIDs;
-import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.ParseField;
+import org.opensearch.common.UUIDs;
 import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry.Entry;
@@ -55,7 +54,9 @@ import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.persistent.PersistentTasksCustomMetadata.Assignment;
 import org.opensearch.persistent.PersistentTasksCustomMetadata.Builder;
 import org.opensearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
@@ -63,7 +64,6 @@ import org.opensearch.persistent.TestPersistentTasksPlugin.State;
 import org.opensearch.persistent.TestPersistentTasksPlugin.TestParams;
 import org.opensearch.persistent.TestPersistentTasksPlugin.TestPersistentTasksExecutor;
 import org.opensearch.test.AbstractDiffableSerializationTestCase;
-import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -79,6 +79,7 @@ import static org.opensearch.cluster.metadata.Metadata.CONTEXT_MODE_SNAPSHOT;
 import static org.opensearch.persistent.PersistentTasksExecutor.NO_NODE_FOUND;
 import static org.opensearch.test.VersionUtils.allReleasedVersions;
 import static org.opensearch.test.VersionUtils.compatibleFutureVersion;
+import static org.opensearch.test.VersionUtils.getPreviousVersion;
 import static org.opensearch.test.VersionUtils.randomVersionBetween;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -203,7 +204,7 @@ public class PersistentTasksCustomMetadataTests extends AbstractDiffableSerializ
         BytesReference shuffled = toShuffledXContent(testInstance, xContentType, params, false);
 
         PersistentTasksCustomMetadata newInstance;
-        try (XContentParser parser = createParser(xContentType.xContent(), shuffled)) {
+        try (XContentParser parser = createParser(XContentFactory.xContent(xContentType), shuffled)) {
             newInstance = doParseInstance(parser);
         }
         assertNotSame(newInstance, testInstance);
@@ -280,7 +281,7 @@ public class PersistentTasksCustomMetadataTests extends AbstractDiffableSerializ
         PersistentTasksCustomMetadata.Builder tasks = PersistentTasksCustomMetadata.builder();
 
         Version minVersion = allReleasedVersions().stream().filter(Version::isRelease).findFirst().orElseThrow(NoSuchElementException::new);
-        final Version streamVersion = randomVersionBetween(random(), minVersion, VersionUtils.getPreviousVersion(Version.CURRENT));
+        final Version streamVersion = randomVersionBetween(random(), minVersion, getPreviousVersion(Version.CURRENT));
         tasks.addTask(
             "test_compatible_version",
             TestPersistentTasksExecutor.NAME,

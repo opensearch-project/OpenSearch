@@ -9,6 +9,7 @@
 package org.opensearch.indices.replication;
 
 import org.opensearch.OpenSearchCorruptionException;
+import org.opensearch.action.ActionFuture;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.cluster.reroute.ClusterRerouteResponse;
 import org.opensearch.action.admin.indices.replication.SegmentReplicationStatsResponse;
@@ -19,7 +20,6 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.opensearch.common.Priority;
-import org.opensearch.common.action.ActionFuture;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.index.SegmentReplicationShardStats;
@@ -74,7 +74,7 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationBaseIT {
         }
 
         logger.info("--> start another node");
-        final String newPrimary = internalCluster().startNode();
+        final String newPrimary = internalCluster().startNode(featureFlagSettings());
         ClusterHealthResponse clusterHealthResponse = client().admin()
             .cluster()
             .prepareHealth()
@@ -151,7 +151,7 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationBaseIT {
         }
 
         logger.info("--> start another node");
-        final String newPrimary = internalCluster().startNode();
+        final String newPrimary = internalCluster().startNode(featureFlagSettings());
         ClusterHealthResponse clusterHealthResponse = client().admin()
             .cluster()
             .prepareHealth()

@@ -32,6 +32,8 @@
 package org.opensearch.cloud.gce;
 
 import org.apache.http.client.methods.HttpGet;
+
+import org.opensearch.common.Strings;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.common.path.PathTrie;
@@ -137,12 +139,13 @@ public class GCEFixture extends AbstractHttpFixture {
         handlers.insert(
             nonAuthPath(HttpGet.METHOD_NAME, "/computeMetadata/v1/instance/service-accounts/default/token"),
             request -> jsonValue.apply(
-                jsonBuilder().startObject()
-                    .field("access_token", TOKEN)
-                    .field("expires_in", TimeUnit.HOURS.toSeconds(1))
-                    .field("token_type", TOKEN_TYPE)
-                    .endObject()
-                    .toString()
+                Strings.toString(
+                    jsonBuilder().startObject()
+                        .field("access_token", TOKEN)
+                        .field("expires_in", TimeUnit.HOURS.toSeconds(1))
+                        .field("token_type", TOKEN_TYPE)
+                        .endObject()
+                )
             )
         );
 
@@ -176,7 +179,9 @@ public class GCEFixture extends AbstractHttpFixture {
                 );
             }
 
-            final String json = jsonBuilder().startObject().field("id", "test-instances").field("items", items).endObject().toString();
+            final String json = Strings.toString(
+                jsonBuilder().startObject().field("id", "test-instances").field("items", items).endObject()
+            );
 
             final byte[] responseAsBytes = json.getBytes(StandardCharsets.UTF_8);
             final Map<String, String> headers = new HashMap<>(JSON_CONTENT_TYPE);
@@ -208,28 +213,29 @@ public class GCEFixture extends AbstractHttpFixture {
     }
 
     private static Response newError(final RestStatus status, final String code, final String message) throws IOException {
-        final String response = jsonBuilder().startObject()
-            .field(
-                "error",
-                MapBuilder.<String, Object>newMapBuilder()
-                    .put(
-                        "errors",
-                        Collections.singletonList(
-                            MapBuilder.<String, Object>newMapBuilder()
-                                .put("domain", "global")
-                                .put("reason", "required")
-                                .put("message", message)
-                                .put("locationType", "header")
-                                .put("location", code)
-                                .immutableMap()
+        final String response = Strings.toString(
+            jsonBuilder().startObject()
+                .field(
+                    "error",
+                    MapBuilder.<String, Object>newMapBuilder()
+                        .put(
+                            "errors",
+                            Collections.singletonList(
+                                MapBuilder.<String, Object>newMapBuilder()
+                                    .put("domain", "global")
+                                    .put("reason", "required")
+                                    .put("message", message)
+                                    .put("locationType", "header")
+                                    .put("location", code)
+                                    .immutableMap()
+                            )
                         )
-                    )
-                    .put("code", status.getStatus())
-                    .put("message", message)
-                    .immutableMap()
-            )
-            .endObject()
-            .toString();
+                        .put("code", status.getStatus())
+                        .put("message", message)
+                        .immutableMap()
+                )
+                .endObject()
+        );
 
         return new Response(status.getStatus(), JSON_CONTENT_TYPE, response.getBytes(UTF_8));
     }

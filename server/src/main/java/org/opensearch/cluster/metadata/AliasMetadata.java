@@ -32,19 +32,20 @@
 
 package org.opensearch.cluster.metadata;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchGenerationException;
 import org.opensearch.cluster.AbstractDiffable;
 import org.opensearch.cluster.Diff;
 import org.opensearch.common.Nullable;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressedXContent;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.Strings;
-import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -227,7 +228,10 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
         }
 
         out.writeOptionalBoolean(writeIndex());
-        out.writeOptionalBoolean(isHidden());
+
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_7_0)) {
+            out.writeOptionalBoolean(isHidden());
+        }
     }
 
     public AliasMetadata(StreamInput in) throws IOException {
@@ -250,7 +254,12 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
             searchRoutingValues = emptySet();
         }
         writeIndex = in.readOptionalBoolean();
-        isHidden = in.readOptionalBoolean();
+
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_7_0)) {
+            isHidden = in.readOptionalBoolean();
+        } else {
+            isHidden = null;
+        }
     }
 
     public static Diff<AliasMetadata> readDiffFrom(StreamInput in) throws IOException {
@@ -259,7 +268,7 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
 
     @Override
     public String toString() {
-        return Strings.toString(MediaTypeRegistry.JSON, this, true, true);
+        return org.opensearch.common.Strings.toString(XContentType.JSON, this, true, true);
     }
 
     @Override
@@ -307,7 +316,7 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
                 this.filter = null;
                 return this;
             }
-            return filter(XContentHelper.convertToMap(MediaTypeRegistry.xContent(filter).xContent(), filter, true));
+            return filter(XContentHelper.convertToMap(XContentFactory.xContent(filter), filter, true));
         }
 
         public Builder filter(Map<String, Object> filter) {

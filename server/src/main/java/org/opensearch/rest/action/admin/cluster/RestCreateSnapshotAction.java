@@ -76,7 +76,7 @@ public class RestCreateSnapshotAction extends BaseRestHandler {
         createSnapshotRequest.clusterManagerNodeTimeout(
             request.paramAsTime("cluster_manager_timeout", createSnapshotRequest.clusterManagerNodeTimeout())
         );
-        parseDeprecatedMasterTimeoutParameter(createSnapshotRequest, request, deprecationLogger, getName());
+        parseDeprecatedMasterTimeoutParameter(createSnapshotRequest, request);
         createSnapshotRequest.waitForCompletion(request.paramAsBoolean("wait_for_completion", false));
         return channel -> client.admin().cluster().createSnapshot(createSnapshotRequest, new RestToXContentListener<>(channel));
     }

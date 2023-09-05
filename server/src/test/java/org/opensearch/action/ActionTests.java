@@ -32,7 +32,6 @@
 
 package org.opensearch.action;
 
-import org.opensearch.core.action.ActionResponse;
 import org.opensearch.test.OpenSearchTestCase;
 
 public class ActionTests extends OpenSearchTestCase {

@@ -36,34 +36,35 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.OpenSearchServerException;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
+import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionListenerResponseHandler;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.component.AbstractLifecycleComponent;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Streamables;
-import org.opensearch.common.lease.Releasable;
-import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.transport.BoundTransportAddress;
+import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.io.IOUtils;
-import org.opensearch.core.action.ActionListener;
+import org.opensearch.common.lease.Releasable;
 import org.opensearch.core.common.Strings;
-import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.core.common.transport.BoundTransportAddress;
-import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
-import org.opensearch.core.service.ReportingService;
-import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.node.NodeClosedException;
+import org.opensearch.node.ReportingService;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskManager;
 import org.opensearch.threadpool.Scheduler;
@@ -74,6 +75,7 @@ import java.io.UncheckedIOException;
 import java.net.UnknownHostException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -170,7 +172,6 @@ public class TransportService extends AbstractLifecycleComponent
          * over the {@link StreamOutput} and {@link StreamInput} wire
          */
         Streamables.registerStreamables();
-        /** Registers OpenSearch server specific exceptions (exceptions outside of core library) */
         OpenSearchServerException.registerExceptions();
     }
 
@@ -735,14 +736,22 @@ public class TransportService extends AbstractLifecycleComponent
             super(in);
             discoveryNode = in.readOptionalWriteable(DiscoveryNode::new);
             clusterName = new ClusterName(in);
-            version = in.readVersion();
+            Version tmpVersion = in.readVersion();
+            if (in.getVersion().onOrBefore(LegacyESVersion.V_7_10_2)) {
+                tmpVersion = LegacyESVersion.V_7_10_2;
+            }
+            version = tmpVersion;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeOptionalWriteable(discoveryNode);
             clusterName.writeTo(out);
-            out.writeVersion(version);
+            if (out.getVersion().before(Version.V_1_0_0)) {
+                out.writeVersion(LegacyESVersion.V_7_10_2);
+            } else {
+                out.writeVersion(version);
+            }
         }
 
         public DiscoveryNode getDiscoveryNode() {
@@ -916,6 +925,18 @@ public class TransportService extends AbstractLifecycleComponent
         } else {
             return connectionManager.getConnection(node);
         }
+    }
+
+    public Map<String, Version> getChannelVersion(DiscoveryNodes nodes) {
+        Map<String, Version> nodeChannelVersions = new HashMap<>(nodes.getSize());
+        for (DiscoveryNode node : nodes) {
+            try {
+                nodeChannelVersions.putIfAbsent(node.getId(), connectionManager.getConnection(node).getVersion());
+            } catch (Exception e) {
+                // ignore in case node is not connected
+            }
+        }
+        return nodeChannelVersions;
     }
 
     public final <T extends TransportResponse> void sendChildRequest(

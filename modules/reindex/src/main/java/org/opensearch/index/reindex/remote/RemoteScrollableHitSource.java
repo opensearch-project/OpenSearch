@@ -32,11 +32,10 @@
 
 package org.opensearch.index.reindex.remote;
 
-import org.apache.hc.core5.http.ContentTooLongException;
-import org.apache.hc.core5.http.ContentType;
-import org.apache.hc.core5.http.HttpEntity;
-import org.apache.hc.core5.http.ParseException;
-import org.apache.hc.core5.http.io.entity.EntityUtils;
+import org.apache.http.ContentTooLongException;
+import org.apache.http.HttpEntity;
+import org.apache.http.entity.ContentType;
+import org.apache.http.util.EntityUtils;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
@@ -50,18 +49,18 @@ import org.opensearch.client.ResponseException;
 import org.opensearch.client.ResponseListener;
 import org.opensearch.client.RestClient;
 import org.opensearch.common.Nullable;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.core.common.Strings;
-import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.core.rest.RestStatus;
-import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentParseException;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.reindex.RejectAwareActionListener;
 import org.opensearch.index.reindex.ScrollableHitSource;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -182,7 +181,7 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
 
     private <T> void execute(
         Request request,
-        BiFunction<XContentParser, MediaType, T> parser,
+        BiFunction<XContentParser, XContentType, T> parser,
         RejectAwareActionListener<? super T> listener
     ) {
         // Preserve the thread context so headers survive after the call
@@ -198,12 +197,12 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
                         try {
                             HttpEntity responseEntity = response.getEntity();
                             InputStream content = responseEntity.getContent();
-                            MediaType mediaType = null;
+                            XContentType xContentType = null;
                             if (responseEntity.getContentType() != null) {
-                                final String mimeType = ContentType.parse(responseEntity.getContentType()).getMimeType();
-                                mediaType = MediaType.fromMediaType(mimeType);
+                                final String mimeType = ContentType.parse(responseEntity.getContentType().getValue()).getMimeType();
+                                xContentType = XContentType.fromMediaType(mimeType);
                             }
-                            if (mediaType == null) {
+                            if (xContentType == null) {
                                 try {
                                     logger.debug("Response didn't include Content-Type: " + bodyMessage(response.getEntity()));
                                     throw new OpenSearchException(
@@ -217,10 +216,10 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
                             }
                             // EMPTY is safe here because we don't call namedObject
                             try (
-                                XContentParser xContentParser = mediaType.xContent()
+                                XContentParser xContentParser = xContentType.xContent()
                                     .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, content)
                             ) {
-                                parsedResponse = parser.apply(xContentParser, mediaType);
+                                parsedResponse = parser.apply(xContentParser, xContentType);
                             } catch (XContentParseException e) {
                                 /* Because we're streaming the response we can't get a copy of it here. The best we can do is hint that it
                                  * is totally wrong and we're probably not talking to Elasticsearch. */
@@ -285,11 +284,7 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
         if (entity == null) {
             return "No error body.";
         } else {
-            try {
-                return "body=" + EntityUtils.toString(entity);
-            } catch (final ParseException ex) {
-                throw new IOException(ex);
-            }
+            return "body=" + EntityUtils.toString(entity);
         }
     }
 }

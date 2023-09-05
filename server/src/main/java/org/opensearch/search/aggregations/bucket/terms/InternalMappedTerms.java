@@ -64,16 +64,17 @@ public abstract class InternalMappedTerms<A extends InternalTerms<A, B>, B exten
         String name,
         BucketOrder reduceOrder,
         BucketOrder order,
+        int requiredSize,
+        long minDocCount,
         Map<String, Object> metadata,
         DocValueFormat format,
         int shardSize,
         boolean showTermDocCountError,
         long otherDocCount,
         List<B> buckets,
-        long docCountError,
-        TermsAggregator.BucketCountThresholds bucketCountThresholds
+        long docCountError
     ) {
-        super(name, reduceOrder, order, bucketCountThresholds, metadata);
+        super(name, reduceOrder, order, requiredSize, minDocCount, metadata);
         this.format = format;
         this.shardSize = shardSize;
         this.showTermDocCountError = showTermDocCountError;

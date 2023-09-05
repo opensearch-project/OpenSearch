@@ -40,17 +40,16 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.geometry.Line;
 import org.opensearch.geometry.MultiLine;
+import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.geom.Geometry;
+import org.locationtech.jts.geom.LineString;
+import org.locationtech.spatial4j.shape.jts.JtsGeometry;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
-
-import org.locationtech.jts.geom.Coordinate;
-import org.locationtech.jts.geom.Geometry;
-import org.locationtech.jts.geom.LineString;
-import org.locationtech.spatial4j.shape.jts.JtsGeometry;
 
 /**
  * Builds a multi line string geometry
@@ -154,7 +153,7 @@ public class MultiLineStringBuilder extends ShapeBuilder<JtsGeometry, org.opense
             if (parts.size() == 1) {
                 geometry = parts.get(0);
             } else {
-                LineString[] lineStrings = parts.toArray(new LineString[0]);
+                LineString[] lineStrings = parts.toArray(new LineString[parts.size()]);
                 geometry = FACTORY.createMultiLineString(lineStrings);
             }
         } else {

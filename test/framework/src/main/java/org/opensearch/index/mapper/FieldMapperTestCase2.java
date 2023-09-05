@@ -35,6 +35,7 @@ package org.opensearch.index.mapper;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.opensearch.common.Strings;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.analysis.AnalyzerScope;
@@ -232,8 +233,8 @@ public abstract class FieldMapperTestCase2<T extends FieldMapper.Builder<?>> ext
         XContentBuilder reparsed = mappingsToJson(rebuilt, false);
         XContentBuilder reparsedWithDefault = mappingsToJson(rebuilt, true);
 
-        assertThat(reparsed.toString(), equalTo(mappings.toString()));
-        assertThat(reparsedWithDefault.toString(), equalTo(mappingsWithDefault.toString()));
+        assertThat(Strings.toString(reparsed), equalTo(Strings.toString(mappings)));
+        assertThat(Strings.toString(reparsedWithDefault), equalTo(Strings.toString(mappingsWithDefault)));
     }
 
     private XContentBuilder mappingsToJson(ToXContent builder, boolean includeDefaults) throws IOException {

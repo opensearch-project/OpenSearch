@@ -32,6 +32,7 @@
 
 package org.opensearch.rest.action.document;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.DocWriteRequest;
 import org.opensearch.action.index.IndexRequest;
@@ -41,10 +42,11 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.SetOnce;
 import org.opensearch.core.common.bytes.BytesArray;
-import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.document.RestIndexAction.AutoIdHandler;
 import org.opensearch.rest.action.document.RestIndexAction.CreateHandler;
+import org.opensearch.test.VersionUtils;
 import org.opensearch.test.rest.FakeRestRequest;
 import org.opensearch.test.rest.RestActionTestCase;
 import org.junit.Before;
@@ -94,6 +96,13 @@ public class RestIndexActionTests extends RestActionTestCase {
         checkAutoIdOpType(Version.CURRENT, DocWriteRequest.OpType.CREATE);
     }
 
+    public void testAutoIdDefaultsToOptypeIndexForOlderVersions() {
+        checkAutoIdOpType(
+            VersionUtils.randomVersionBetween(random(), null, VersionUtils.getPreviousVersion(LegacyESVersion.V_7_5_0)),
+            DocWriteRequest.OpType.INDEX
+        );
+    }
+
     private void checkAutoIdOpType(Version minClusterVersion, DocWriteRequest.OpType expectedOpType) {
         SetOnce<Boolean> executeCalled = new SetOnce<>();
         verifyingClient.setExecuteVerifier((actionType, request) -> {
@@ -104,7 +113,7 @@ public class RestIndexActionTests extends RestActionTestCase {
         });
         RestRequest autoIdRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
             .withPath("/some_index/_doc")
-            .withContent(new BytesArray("{}"), MediaTypeRegistry.JSON)
+            .withContent(new BytesArray("{}"), XContentType.JSON)
             .build();
         clusterStateSupplier.set(
             ClusterState.builder(ClusterName.DEFAULT)

@@ -33,8 +33,6 @@
 package org.opensearch.percolator;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.BooleanClause.Occur;
-import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
@@ -46,11 +44,13 @@ import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
+import org.apache.lucene.search.BooleanClause.Occur;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Bits;
 import org.opensearch.common.CheckedFunction;
-import org.opensearch.common.lucene.Lucene;
 import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.common.lucene.Lucene;
 
 import java.io.IOException;
 import java.util.List;

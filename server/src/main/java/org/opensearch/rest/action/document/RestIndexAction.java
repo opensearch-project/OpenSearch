@@ -32,6 +32,7 @@
 
 package org.opensearch.rest.action.document;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.action.DocWriteRequest;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.support.ActiveShardCount;
@@ -127,7 +128,7 @@ public class RestIndexAction extends BaseRestHandler {
         @Override
         public RestChannelConsumer prepareRequest(RestRequest request, final NodeClient client) throws IOException {
             assert request.params().get("id") == null : "non-null id: " + request.params().get("id");
-            if (request.params().get("op_type") == null) {
+            if (request.params().get("op_type") == null && nodesInCluster.get().getMinNodeVersion().onOrAfter(LegacyESVersion.V_7_5_0)) {
                 // default to op_type create
                 request.params().put("op_type", "create");
             }
@@ -141,7 +142,7 @@ public class RestIndexAction extends BaseRestHandler {
         indexRequest.id(request.param("id"));
         indexRequest.routing(request.param("routing"));
         indexRequest.setPipeline(request.param("pipeline"));
-        indexRequest.source(request.requiredContent(), request.getMediaType());
+        indexRequest.source(request.requiredContent(), request.getXContentType());
         indexRequest.timeout(request.paramAsTime("timeout", IndexRequest.DEFAULT_TIMEOUT));
         indexRequest.setRefreshPolicy(request.param("refresh"));
         indexRequest.version(RestActions.parseVersion(request));

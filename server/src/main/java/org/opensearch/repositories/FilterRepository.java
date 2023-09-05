@@ -33,17 +33,17 @@ package org.opensearch.repositories;
 
 import org.apache.lucene.index.IndexCommit;
 import org.opensearch.Version;
+import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.common.lifecycle.Lifecycle;
-import org.opensearch.common.lifecycle.LifecycleListener;
-import org.opensearch.core.action.ActionListener;
-import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.common.component.Lifecycle;
+import org.opensearch.common.component.LifecycleListener;
 import org.opensearch.index.mapper.MapperService;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
 import org.opensearch.index.snapshots.blobstore.RemoteStoreShardShallowCopySnapshot;
 import org.opensearch.index.store.Store;
@@ -54,6 +54,7 @@ import org.opensearch.snapshots.SnapshotInfo;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -97,6 +98,11 @@ public class FilterRepository implements Repository {
     }
 
     @Override
+    public void initializeSnapshot(SnapshotId snapshotId, List<IndexId> indices, Metadata metadata) {
+        in.initializeSnapshot(snapshotId, indices, metadata);
+    }
+
+    @Override
     public void finalizeSnapshot(
         ShardGenerations shardGenerations,
         long repositoryStateId,
@@ -135,16 +141,6 @@ public class FilterRepository implements Repository {
     @Override
     public long getRestoreThrottleTimeInNanos() {
         return in.getRestoreThrottleTimeInNanos();
-    }
-
-    @Override
-    public long getRemoteUploadThrottleTimeInNanos() {
-        return in.getRemoteUploadThrottleTimeInNanos();
-    }
-
-    @Override
-    public long getRemoteDownloadThrottleTimeInNanos() {
-        return in.getRemoteDownloadThrottleTimeInNanos();
     }
 
     @Override

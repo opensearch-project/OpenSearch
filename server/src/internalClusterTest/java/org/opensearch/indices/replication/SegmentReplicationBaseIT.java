@@ -8,6 +8,7 @@
 
 package org.opensearch.indices.replication;
 
+import org.opensearch.action.admin.indices.replication.SegmentReplicationStatsResponse;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -16,13 +17,14 @@ import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexService;
+import org.opensearch.index.SegmentReplicationPerGroupStats;
 import org.opensearch.index.SegmentReplicationShardStats;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.shard.IndexShard;
@@ -130,6 +132,24 @@ public class SegmentReplicationBaseIT extends OpenSearchIntegTestCase {
 
     protected void waitForSearchableDocs(long docCount, String... nodes) throws Exception {
         waitForSearchableDocs(docCount, Arrays.stream(nodes).collect(Collectors.toList()));
+    }
+
+    protected void waitForSegmentReplication(String node) throws Exception {
+        assertBusy(() -> {
+            SegmentReplicationStatsResponse segmentReplicationStatsResponse = client(node).admin()
+                .indices()
+                .prepareSegmentReplicationStats(INDEX_NAME)
+                .setDetailed(true)
+                .execute()
+                .actionGet();
+            final SegmentReplicationPerGroupStats perGroupStats = segmentReplicationStatsResponse.getReplicationStats()
+                .get(INDEX_NAME)
+                .get(0);
+            assertEquals(
+                perGroupStats.getReplicaStats().stream().findFirst().get().getCurrentReplicationState().getStage(),
+                SegmentReplicationState.Stage.DONE
+            );
+        }, 1, TimeUnit.MINUTES);
     }
 
     protected void verifyStoreContent() throws Exception {
@@ -241,7 +261,7 @@ public class SegmentReplicationBaseIT extends OpenSearchIntegTestCase {
 
     protected void assertReplicaCheckpointUpdated(IndexShard primaryShard) throws Exception {
         assertBusy(() -> {
-            Set<SegmentReplicationShardStats> groupStats = primaryShard.getReplicationStatsForTrackedReplicas();
+            Set<SegmentReplicationShardStats> groupStats = primaryShard.getReplicationStats();
             assertEquals(primaryShard.indexSettings().getNumberOfReplicas(), groupStats.size());
             for (SegmentReplicationShardStats shardStat : groupStats) {
                 assertEquals(0, shardStat.getCheckpointsBehindCount());

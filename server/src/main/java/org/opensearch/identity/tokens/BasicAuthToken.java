@@ -51,13 +51,4 @@ public final class BasicAuthToken implements AuthToken {
         this.password = "";
         this.user = "";
     }
-
-    @Override
-    public String asAuthHeaderValue() {
-        if (user == null || password == null) {
-            return null;
-        }
-        String usernamepassword = user + ":" + password;
-        return Base64.getEncoder().encodeToString(usernamepassword.getBytes(StandardCharsets.UTF_8));
-    }
 }

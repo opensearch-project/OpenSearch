@@ -36,8 +36,8 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSortField;
-import org.opensearch.action.support.broadcast.BroadcastResponse;
 import org.opensearch.core.action.support.DefaultShardOperationFailedException;
+import org.opensearch.action.support.broadcast.BroadcastResponse;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -97,7 +97,7 @@ public class IndicesSegmentResponse extends BroadcastResponse {
                     shards.add(shard);
                 }
             }
-            indicesSegments.put(indexName, new IndexSegments(indexName, shards.toArray(new ShardSegments[0])));
+            indicesSegments.put(indexName, new IndexSegments(indexName, shards.toArray(new ShardSegments[shards.size()])));
         }
         this.indicesSegments = indicesSegments;
         return indicesSegments;

@@ -37,6 +37,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.IndexCommit;
 import org.opensearch.Version;
+import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterStateListener;
 import org.opensearch.cluster.SnapshotsInProgress;
@@ -46,26 +47,26 @@ import org.opensearch.cluster.SnapshotsInProgress.State;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.component.AbstractLifecycleComponent;
 import org.opensearch.common.concurrent.GatedCloseable;
-import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
-import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.io.IOUtils;
-import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.core.index.shard.ShardId;
-import org.opensearch.core.index.snapshots.IndexShardSnapshotFailedException;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexService;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardState;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.index.snapshots.IndexShardSnapshotFailedException;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus.Stage;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
+import org.opensearch.repositories.ShardGenerations;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportRequestDeduplicator;
@@ -279,6 +280,11 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                     // then no need to snapshot the shard and can immediately notify success.
                     notifySuccessfulSnapshotShard(snapshot, shardId, snapshotStatus.generation());
                 } else {
+                    assert SnapshotsService.useShardGenerations(entry.version())
+                        || ShardGenerations.fixShardGeneration(snapshotStatus.generation()) == null
+                        : "Found non-null, non-numeric shard generation ["
+                            + snapshotStatus.generation()
+                            + "] for snapshot with old-format compatibility";
                     snapshot(
                         shardId,
                         snapshot,
@@ -378,12 +384,6 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
             final IndexShard indexShard = indicesService.indexServiceSafe(shardId.getIndex()).getShardOrNull(shardId.id());
             if (indexShard.routingEntry().primary() == false) {
                 throw new IndexShardSnapshotFailedException(shardId, "snapshot should be performed only on primary");
-            }
-            if (indexShard.indexSettings().isSegRepEnabled() && indexShard.isPrimaryMode() == false) {
-                throw new IndexShardSnapshotFailedException(
-                    shardId,
-                    "snapshot triggered on a new primary following failover and cannot proceed until promotion is complete"
-                );
             }
             if (indexShard.routingEntry().relocating()) {
                 // do not snapshot when in the process of relocation of primaries so we won't get conflicts
@@ -526,7 +526,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                                 // but we think the shard is done - we need to make new cluster-manager know that the shard is done
                                 logger.debug(
                                     "[{}] new cluster-manager thinks the shard [{}] is not completed but the shard is done locally, "
-                                        + "updating status on the master",
+                                        + "updating status on the cluster-manager",
                                     snapshot.snapshot(),
                                     shardId
                                 );
@@ -536,7 +536,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                                 // but we think the shard failed - we need to make new cluster-manager know that the shard failed
                                 logger.debug(
                                     "[{}] new cluster-manager thinks the shard [{}] is not completed but the shard failed locally, "
-                                        + "updating status on master",
+                                        + "updating status on cluster-manager",
                                     snapshot.snapshot(),
                                     shardId
                                 );

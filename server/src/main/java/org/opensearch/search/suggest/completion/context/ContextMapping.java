@@ -34,12 +34,13 @@ package org.opensearch.search.suggest.completion.context;
 
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
-import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.common.Strings;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.core.xcontent.XContentParser.Token;
+import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.index.mapper.CompletionFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.ParseContext;
@@ -187,7 +188,7 @@ public abstract class ContextMapping<T extends ToXContent> implements ToXContent
     @Override
     public String toString() {
         try {
-            return toXContent(JsonXContent.contentBuilder(), ToXContent.EMPTY_PARAMS).toString();
+            return Strings.toString(toXContent(JsonXContent.contentBuilder(), ToXContent.EMPTY_PARAMS));
         } catch (IOException e) {
             return super.toString();
         }

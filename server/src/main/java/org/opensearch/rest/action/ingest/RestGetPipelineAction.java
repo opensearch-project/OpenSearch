@@ -70,7 +70,7 @@ public class RestGetPipelineAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         GetPipelineRequest request = new GetPipelineRequest(Strings.splitStringByCommaToArray(restRequest.param("id")));
         request.clusterManagerNodeTimeout(restRequest.paramAsTime("cluster_manager_timeout", request.clusterManagerNodeTimeout()));
-        parseDeprecatedMasterTimeoutParameter(request, restRequest, deprecationLogger, getName());
+        parseDeprecatedMasterTimeoutParameter(request, restRequest);
         return channel -> client.admin().cluster().getPipeline(request, new RestStatusToXContentListener<>(channel));
     }
 }

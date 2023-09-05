@@ -32,13 +32,13 @@
 
 package org.opensearch.painless;
 
-import org.opensearch.common.settings.Settings;
-import org.opensearch.painless.spi.Allowlist;
-import org.opensearch.painless.spi.AllowlistInstanceBinding;
-import org.opensearch.painless.spi.AllowlistLoader;
-import org.opensearch.script.ScriptContext;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.painless.spi.Whitelist;
+import org.opensearch.painless.spi.WhitelistInstanceBinding;
+import org.opensearch.painless.spi.WhitelistLoader;
+import org.opensearch.script.ScriptContext;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -50,12 +50,12 @@ public class BindingsTests extends ScriptTestCase {
 
     @BeforeClass
     public static void beforeClass() {
-        Map<ScriptContext<?>, List<Allowlist>> contexts = newDefaultContexts();
-        List<Allowlist> allowlists = new ArrayList<>(Allowlist.BASE_ALLOWLISTS);
-        allowlists.add(AllowlistLoader.loadFromResourceFiles(Allowlist.class, "org.opensearch.painless.test"));
+        Map<ScriptContext<?>, List<Whitelist>> contexts = newDefaultContexts();
+        List<Whitelist> allowlists = new ArrayList<>(Whitelist.BASE_WHITELISTS);
+        allowlists.add(WhitelistLoader.loadFromResourceFiles(Whitelist.class, "org.opensearch.painless.test"));
 
         InstanceBindingTestClass instanceBindingTestClass = new InstanceBindingTestClass(1);
-        AllowlistInstanceBinding getter = new AllowlistInstanceBinding(
+        WhitelistInstanceBinding getter = new WhitelistInstanceBinding(
             "test",
             instanceBindingTestClass,
             "setInstanceBindingValue",
@@ -63,7 +63,7 @@ public class BindingsTests extends ScriptTestCase {
             Collections.singletonList("int"),
             Collections.emptyList()
         );
-        AllowlistInstanceBinding setter = new AllowlistInstanceBinding(
+        WhitelistInstanceBinding setter = new WhitelistInstanceBinding(
             "test",
             instanceBindingTestClass,
             "getInstanceBindingValue",
@@ -71,10 +71,10 @@ public class BindingsTests extends ScriptTestCase {
             Collections.emptyList(),
             Collections.emptyList()
         );
-        List<AllowlistInstanceBinding> instanceBindingsList = new ArrayList<>();
+        List<WhitelistInstanceBinding> instanceBindingsList = new ArrayList<>();
         instanceBindingsList.add(getter);
         instanceBindingsList.add(setter);
-        Allowlist instanceBindingsAllowlist = new Allowlist(
+        Whitelist instanceBindingsAllowlist = new Whitelist(
             instanceBindingTestClass.getClass().getClassLoader(),
             Collections.emptyList(),
             Collections.emptyList(),

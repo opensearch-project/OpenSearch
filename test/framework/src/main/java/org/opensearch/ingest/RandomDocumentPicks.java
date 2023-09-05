@@ -35,7 +35,6 @@ package org.opensearch.ingest;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
-
 import org.opensearch.index.VersionType;
 
 import java.util.ArrayList;

@@ -31,10 +31,9 @@
 
 package org.opensearch.http;
 
-import org.apache.hc.client5.http.entity.GzipDecompressingEntity;
-import org.apache.hc.core5.http.HttpHeaders;
-import org.apache.hc.core5.http.ParseException;
-import org.apache.hc.core5.http.io.entity.EntityUtils;
+import org.apache.http.HttpHeaders;
+import org.apache.http.client.entity.GzipDecompressingEntity;
+import org.apache.http.util.EntityUtils;
 import org.opensearch.client.Request;
 import org.opensearch.client.RequestOptions;
 import org.opensearch.client.Response;
@@ -57,7 +56,7 @@ public class HttpCompressionIT extends OpenSearchRestTestCase {
         "   }\n" +
         "}";
 
-    public void testCompressesResponseIfRequested() throws IOException, ParseException {
+    public void testCompressesResponseIfRequested() throws IOException {
         Request request = new Request("POST", "/company/_doc/2");
         request.setJsonEntity(SAMPLE_DOCUMENT);
         Response response = client().performRequest(request);

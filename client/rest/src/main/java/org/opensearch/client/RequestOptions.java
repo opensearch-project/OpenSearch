@@ -32,10 +32,10 @@
 
 package org.opensearch.client;
 
-import org.apache.hc.client5.http.config.RequestConfig;
-import org.apache.hc.core5.http.Header;
-import org.apache.hc.core5.http.message.BasicHeader;
-import org.apache.hc.core5.http.nio.AsyncResponseConsumer;
+import org.apache.http.Header;
+import org.apache.http.client.config.RequestConfig;
+import org.apache.http.message.BasicHeader;
+import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
 import org.opensearch.client.HttpAsyncResponseConsumerFactory.HeapBufferedResponseConsumerFactory;
 
 import java.util.ArrayList;
@@ -86,7 +86,7 @@ public final class RequestOptions {
 
     /**
      * The {@link HttpAsyncResponseConsumerFactory} used to create one
-     * {@link AsyncResponseConsumer} callback per retry. Controls how the
+     * {@link HttpAsyncResponseConsumer} callback per retry. Controls how the
      * response body gets streamed from a non-blocking HTTP connection on the
      * client side.
      */
@@ -124,9 +124,6 @@ public final class RequestOptions {
         return requestConfig;
     }
 
-    /**
-     * Convert request options to string representation
-     */
     @Override
     public String toString() {
         StringBuilder b = new StringBuilder();
@@ -155,10 +152,6 @@ public final class RequestOptions {
         return b.append('}').toString();
     }
 
-    /**
-     * Compare two request options for equality
-     * @param obj request options instance to compare with
-     */
     @Override
     public boolean equals(Object obj) {
         if (obj == null || (obj.getClass() != getClass())) {
@@ -174,9 +167,6 @@ public final class RequestOptions {
             && Objects.equals(warningsHandler, other.warningsHandler);
     }
 
-    /**
-     * Calculate the hash code of the request options
-     */
     @Override
     public int hashCode() {
         return Objects.hash(headers, httpAsyncResponseConsumerFactory, warningsHandler);
@@ -228,11 +218,11 @@ public final class RequestOptions {
 
         /**
          * Set the {@link HttpAsyncResponseConsumerFactory} used to create one
-         * {@link AsyncResponseConsumer} callback per retry. Controls how the
+         * {@link HttpAsyncResponseConsumer} callback per retry. Controls how the
          * response body gets streamed from a non-blocking HTTP connection on the
          * client side.
          *
-         * @param httpAsyncResponseConsumerFactory factory for creating {@link AsyncResponseConsumer}.
+         * @param httpAsyncResponseConsumerFactory factory for creating {@link HttpAsyncResponseConsumer}.
          * @throws NullPointerException if {@code httpAsyncResponseConsumerFactory} is null.
          */
         public void setHttpAsyncResponseConsumerFactory(HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory) {

@@ -32,9 +32,11 @@
 
 package org.opensearch.index.reindex;
 
-import org.apache.hc.core5.http.HttpRequestInterceptor;
+import java.util.Optional;
+import org.apache.http.HttpRequestInterceptor;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.action.ActionListener;
 import org.opensearch.action.DocWriteRequest;
 import org.opensearch.action.DocWriteResponse;
 import org.opensearch.action.admin.indices.refresh.RefreshRequest;
@@ -50,10 +52,9 @@ import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.support.TransportAction;
 import org.opensearch.client.ParentTaskAssigningClient;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
-import org.opensearch.core.action.ActionListener;
-import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.IndexFieldMapper;
@@ -78,7 +79,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
@@ -90,8 +90,8 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableList;
 import static org.opensearch.action.bulk.BackoffPolicy.exponentialBackoff;
 import static org.opensearch.common.unit.TimeValue.timeValueNanos;
-import static org.opensearch.core.rest.RestStatus.CONFLICT;
 import static org.opensearch.index.reindex.AbstractBulkByScrollRequest.MAX_DOCS_ALL_MATCHES;
+import static org.opensearch.core.rest.RestStatus.CONFLICT;
 import static org.opensearch.search.sort.SortBuilders.fieldSort;
 
 /**
@@ -516,7 +516,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
             return;
         }
         RefreshRequest refresh = new RefreshRequest();
-        refresh.indices(destinationIndices.toArray(new String[0]));
+        refresh.indices(destinationIndices.toArray(new String[destinationIndices.size()]));
         logger.debug("[{}]: refreshing", task.getId());
         client.admin().indices().refresh(refresh, new ActionListener<RefreshResponse>() {
             @Override

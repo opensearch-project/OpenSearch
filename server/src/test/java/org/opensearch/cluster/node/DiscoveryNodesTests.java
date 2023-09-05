@@ -33,11 +33,10 @@
 package org.opensearch.cluster.node;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-
 import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.common.settings.Setting;
-import org.opensearch.core.common.transport.TransportAddress;
+import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
@@ -166,9 +165,9 @@ public class DiscoveryNodesTests extends OpenSearchTestCase {
             expectedNodeIdsSet.add(discoveryNode.getId());
         }
 
-        String[] resolvedNodesIds = discoveryNodes.resolveNodes(nodeSelectors.toArray(new String[0]));
+        String[] resolvedNodesIds = discoveryNodes.resolveNodes(nodeSelectors.toArray(new String[nodeSelectors.size()]));
         Arrays.sort(resolvedNodesIds);
-        String[] expectedNodesIds = expectedNodeIdsSet.toArray(new String[0]);
+        String[] expectedNodesIds = expectedNodeIdsSet.toArray(new String[expectedNodeIdsSet.size()]);
         Arrays.sort(expectedNodesIds);
         assertThat(resolvedNodesIds, equalTo(expectedNodesIds));
     }
@@ -495,6 +494,35 @@ public class DiscoveryNodesTests extends OpenSearchTestCase {
         DiscoveryNodes build = discoBuilder.build();
         assertEquals(Version.fromString("1.1.0"), build.getMaxNodeVersion());
         assertEquals(LegacyESVersion.fromString("5.1.0"), build.getMinNodeVersion());
+    }
+
+    public void testNodeExistsWithBWCVersion() {
+        DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
+        DiscoveryNode node_1 = new DiscoveryNode(
+            "name_" + 1,
+            "node_" + 1,
+            buildNewFakeTransportAddress(),
+            Collections.emptyMap(),
+            new HashSet<>(randomSubsetOf(DiscoveryNodeRole.BUILT_IN_ROLES)),
+            LegacyESVersion.fromString("7.10.2")
+        );
+        DiscoveryNode node_2 = new DiscoveryNode(
+            "name_" + 2,
+            "node_" + 2,
+            buildNewFakeTransportAddress(),
+            Collections.emptyMap(),
+            new HashSet<>(randomSubsetOf(DiscoveryNodeRole.BUILT_IN_ROLES)),
+            LegacyESVersion.fromString("7.9.0")
+        );
+        discoBuilder.add(node_1);
+        discoBuilder.add(node_2);
+
+        discoBuilder.localNodeId("name_1");
+        discoBuilder.clusterManagerNodeId("name_2");
+        DiscoveryNodes build = discoBuilder.build();
+        assertTrue(build.nodeExistsWithBWCVersion(buildDiscoveryNodeFromExisting(node_1, Version.CURRENT)));
+        assertFalse(build.nodeExistsWithBWCVersion(buildDiscoveryNodeFromExisting(node_2, LegacyESVersion.fromString("7.10.2"))));
+        assertFalse(build.nodeExistsWithBWCVersion(buildDiscoveryNodeFromExisting(node_1, LegacyESVersion.fromString("6.8.0"))));
     }
 
     private DiscoveryNode buildDiscoveryNodeFromExisting(DiscoveryNode existing, Version newVersion) {

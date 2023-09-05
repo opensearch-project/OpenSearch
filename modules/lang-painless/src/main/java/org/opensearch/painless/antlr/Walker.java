@@ -41,7 +41,6 @@ import org.antlr.v4.runtime.RecognitionException;
 import org.antlr.v4.runtime.Recognizer;
 import org.antlr.v4.runtime.atn.PredictionMode;
 import org.antlr.v4.runtime.tree.TerminalNode;
-
 import org.opensearch.painless.CompilerSettings;
 import org.opensearch.painless.Location;
 import org.opensearch.painless.Operation;
@@ -247,6 +246,10 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
     private Location location(ParserRuleContext ctx) {
         return new Location(sourceName, ctx.getStart().getStartIndex());
+    }
+
+    private Location location(TerminalNode tn) {
+        return new Location(sourceName, tn.getSymbol().getStartIndex());
     }
 
     @Override

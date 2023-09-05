@@ -40,7 +40,6 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexService;
@@ -173,28 +172,28 @@ public class UpdateSettingsIT extends OpenSearchIntegTestCase {
     }
 
     public void testUpdateDependentClusterSettings() {
-        SettingsException e = expectThrows(
-            SettingsException.class,
+        IllegalArgumentException iae = expectThrows(
+            IllegalArgumentException.class,
             () -> client().admin()
                 .cluster()
                 .prepareUpdateSettings()
                 .setPersistentSettings(Settings.builder().put("cluster.acc.test.pw", "asdf"))
                 .get()
         );
-        assertEquals("missing required setting [cluster.acc.test.user] for setting [cluster.acc.test.pw]", e.getMessage());
+        assertEquals("missing required setting [cluster.acc.test.user] for setting [cluster.acc.test.pw]", iae.getMessage());
 
-        e = expectThrows(
-            SettingsException.class,
+        iae = expectThrows(
+            IllegalArgumentException.class,
             () -> client().admin()
                 .cluster()
                 .prepareUpdateSettings()
                 .setTransientSettings(Settings.builder().put("cluster.acc.test.pw", "asdf"))
                 .get()
         );
-        assertEquals("missing required setting [cluster.acc.test.user] for setting [cluster.acc.test.pw]", e.getMessage());
+        assertEquals("missing required setting [cluster.acc.test.user] for setting [cluster.acc.test.pw]", iae.getMessage());
 
-        e = expectThrows(
-            SettingsException.class,
+        iae = expectThrows(
+            IllegalArgumentException.class,
             () -> client().admin()
                 .cluster()
                 .prepareUpdateSettings()
@@ -202,7 +201,7 @@ public class UpdateSettingsIT extends OpenSearchIntegTestCase {
                 .setPersistentSettings(Settings.builder().put("cluster.acc.test.user", "asdf"))
                 .get()
         );
-        assertEquals("missing required setting [cluster.acc.test.user] for setting [cluster.acc.test.pw]", e.getMessage());
+        assertEquals("missing required setting [cluster.acc.test.user] for setting [cluster.acc.test.pw]", iae.getMessage());
 
         if (randomBoolean()) {
             client().admin()
@@ -210,15 +209,15 @@ public class UpdateSettingsIT extends OpenSearchIntegTestCase {
                 .prepareUpdateSettings()
                 .setTransientSettings(Settings.builder().put("cluster.acc.test.pw", "asdf").put("cluster.acc.test.user", "asdf"))
                 .get();
-            e = expectThrows(
-                SettingsException.class,
+            iae = expectThrows(
+                IllegalArgumentException.class,
                 () -> client().admin()
                     .cluster()
                     .prepareUpdateSettings()
                     .setTransientSettings(Settings.builder().putNull("cluster.acc.test.user"))
                     .get()
             );
-            assertEquals("missing required setting [cluster.acc.test.user] for setting [cluster.acc.test.pw]", e.getMessage());
+            assertEquals("missing required setting [cluster.acc.test.user] for setting [cluster.acc.test.pw]", iae.getMessage());
             client().admin()
                 .cluster()
                 .prepareUpdateSettings()
@@ -231,15 +230,15 @@ public class UpdateSettingsIT extends OpenSearchIntegTestCase {
                 .setPersistentSettings(Settings.builder().put("cluster.acc.test.pw", "asdf").put("cluster.acc.test.user", "asdf"))
                 .get();
 
-            e = expectThrows(
-                SettingsException.class,
+            iae = expectThrows(
+                IllegalArgumentException.class,
                 () -> client().admin()
                     .cluster()
                     .prepareUpdateSettings()
                     .setPersistentSettings(Settings.builder().putNull("cluster.acc.test.user"))
                     .get()
             );
-            assertEquals("missing required setting [cluster.acc.test.user] for setting [cluster.acc.test.pw]", e.getMessage());
+            assertEquals("missing required setting [cluster.acc.test.user] for setting [cluster.acc.test.pw]", iae.getMessage());
 
             client().admin()
                 .cluster()
@@ -251,11 +250,11 @@ public class UpdateSettingsIT extends OpenSearchIntegTestCase {
     }
 
     public void testUpdateDependentIndexSettings() {
-        SettingsException e = expectThrows(
-            SettingsException.class,
+        IllegalArgumentException iae = expectThrows(
+            IllegalArgumentException.class,
             () -> prepareCreate("test", Settings.builder().put("index.acc.test.pw", "asdf")).get()
         );
-        assertEquals("missing required setting [index.acc.test.user] for setting [index.acc.test.pw]", e.getMessage());
+        assertEquals("missing required setting [index.acc.test.user] for setting [index.acc.test.pw]", iae.getMessage());
 
         createIndex("test");
         for (int i = 0; i < 2; i++) {
@@ -264,8 +263,8 @@ public class UpdateSettingsIT extends OpenSearchIntegTestCase {
                 client().admin().indices().prepareClose("test").get();
             }
 
-            e = expectThrows(
-                SettingsException.class,
+            iae = expectThrows(
+                IllegalArgumentException.class,
                 () -> client().admin()
                     .indices()
                     .prepareUpdateSettings("test")
@@ -273,7 +272,7 @@ public class UpdateSettingsIT extends OpenSearchIntegTestCase {
                     .execute()
                     .actionGet()
             );
-            assertEquals("missing required setting [index.acc.test.user] for setting [index.acc.test.pw]", e.getMessage());
+            assertEquals("missing required setting [index.acc.test.user] for setting [index.acc.test.pw]", iae.getMessage());
 
             // user has no dependency
             client().admin()
@@ -292,8 +291,8 @@ public class UpdateSettingsIT extends OpenSearchIntegTestCase {
                 .actionGet();
 
             // now try to remove it and make sure it fails
-            e = expectThrows(
-                SettingsException.class,
+            iae = expectThrows(
+                IllegalArgumentException.class,
                 () -> client().admin()
                     .indices()
                     .prepareUpdateSettings("test")
@@ -301,7 +300,7 @@ public class UpdateSettingsIT extends OpenSearchIntegTestCase {
                     .execute()
                     .actionGet()
             );
-            assertEquals("missing required setting [index.acc.test.user] for setting [index.acc.test.pw]", e.getMessage());
+            assertEquals("missing required setting [index.acc.test.user] for setting [index.acc.test.pw]", iae.getMessage());
 
             // now we are consistent
             client().admin()
@@ -479,8 +478,8 @@ public class UpdateSettingsIT extends OpenSearchIntegTestCase {
         assertThat(indexMetadata.getSettings().get("index.refresh_interval"), equalTo("1s"));
         assertThat(indexMetadata.getSettings().get("index.fielddata.cache"), equalTo("none"));
 
-        SettingsException ex = expectThrows(
-            SettingsException.class,
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
             () -> client().admin()
                 .indices()
                 .prepareUpdateSettings("test")

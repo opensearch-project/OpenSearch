@@ -32,6 +32,7 @@
 
 package org.opensearch.search.aggregations.bucket.composite;
 
+import org.opensearch.Version;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -82,7 +83,9 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
             this.userValueTypeHint = ValueType.readFromStream(in);
         }
         this.missingBucket = in.readBoolean();
-        this.missingOrder = MissingOrder.readFromStream(in);
+        if (in.getVersion().onOrAfter(Version.V_1_3_0)) {
+            this.missingOrder = MissingOrder.readFromStream(in);
+        }
         this.order = SortOrder.readFromStream(in);
         this.format = in.readOptionalString();
     }
@@ -102,7 +105,9 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
             userValueTypeHint.writeTo(out);
         }
         out.writeBoolean(missingBucket);
-        missingOrder.writeTo(out);
+        if (out.getVersion().onOrAfter(Version.V_1_3_0)) {
+            missingOrder.writeTo(out);
+        }
         order.writeTo(out);
         out.writeOptionalString(format);
         innerWriteTo(out);

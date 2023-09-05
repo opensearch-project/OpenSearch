@@ -32,7 +32,6 @@
 
 package org.opensearch.index.seqno;
 
-import org.opensearch.common.Nullable;
 import org.opensearch.common.SuppressForbidden;
 
 import java.util.HashMap;
@@ -121,13 +120,6 @@ public class LocalCheckpointTracker {
     }
 
     /**
-     * Checks that the sequence number is in an acceptable range for an update to take place.
-     */
-    private boolean shouldUpdateSeqNo(final long seqNo, final long lowerBound, @Nullable final AtomicLong upperBound) {
-        return !((seqNo <= lowerBound) || (upperBound != null && seqNo > upperBound.get()));
-    }
-
-    /**
      * Marks the provided sequence number as processed and updates the processed checkpoint if possible.
      *
      * @param seqNo the sequence number to mark as processed
@@ -167,7 +159,7 @@ public class LocalCheckpointTracker {
         assert Thread.holdsLock(this);
         // make sure we track highest seen sequence number
         advanceMaxSeqNo(seqNo);
-        if (shouldUpdateSeqNo(seqNo, checkPoint.get(), null) == false) {
+        if (seqNo <= checkPoint.get()) {
             // this is possible during recovery where we might replay an operation that was also replicated
             return;
         }

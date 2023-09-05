@@ -44,7 +44,7 @@ import java.io.IOException;
  *
  * @opensearch.internal
  */
-class InternalGeoTileGridBucket extends BaseGeoGridBucket<InternalGeoTileGridBucket> {
+public class InternalGeoTileGridBucket extends InternalGeoGridBucket<InternalGeoTileGridBucket> {
     InternalGeoTileGridBucket(long hashAsLong, long docCount, InternalAggregations aggregations) {
         super(hashAsLong, docCount, aggregations);
     }
@@ -52,7 +52,7 @@ class InternalGeoTileGridBucket extends BaseGeoGridBucket<InternalGeoTileGridBuc
     /**
      * Read from a stream.
      */
-    InternalGeoTileGridBucket(StreamInput in) throws IOException {
+    public InternalGeoTileGridBucket(StreamInput in) throws IOException {
         super(in);
     }
 

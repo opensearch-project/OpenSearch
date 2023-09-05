@@ -32,15 +32,15 @@
 package org.opensearch.threadpool;
 
 import org.opensearch.Version;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.SizeValue;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
@@ -141,9 +141,6 @@ public class ThreadPoolSerializationTests extends OpenSearchTestCase {
         StreamInput input = output.bytes().streamInput();
         ThreadPool.Info newInfo = new ThreadPool.Info(input);
 
-        /* The SerDe patch converts RESIZABLE threadpool type value to FIXED. Implementing
-         * the same conversion in test to maintain parity.
-         */
         assertThat(newInfo.getThreadPoolType(), is(threadPoolType));
     }
 }

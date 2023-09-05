@@ -32,25 +32,26 @@
 
 package org.opensearch.client;
 
-import org.apache.hc.client5.http.classic.methods.HttpGet;
-import org.apache.hc.core5.http.ContentType;
-import org.apache.hc.core5.http.Header;
-import org.apache.hc.core5.http.HttpHost;
-import org.apache.hc.core5.http.ProtocolVersion;
-import org.apache.hc.core5.http.io.entity.ByteArrayEntity;
-import org.apache.hc.core5.http.message.RequestLine;
-import org.apache.hc.core5.http.message.StatusLine;
+import org.apache.http.Header;
+import org.apache.http.HttpHost;
+import org.apache.http.ProtocolVersion;
+import org.apache.http.RequestLine;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.entity.ContentType;
+import org.apache.http.message.BasicRequestLine;
+import org.apache.http.message.BasicStatusLine;
+import org.apache.http.nio.entity.NByteArrayEntity;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.Build;
 import org.opensearch.Version;
+import org.opensearch.action.ActionListener;
 import org.opensearch.action.main.MainRequest;
 import org.opensearch.action.main.MainResponse;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.common.SuppressForbidden;
-import org.opensearch.core.action.ActionListener;
-import org.opensearch.core.xcontent.MediaTypeRegistry;
-import org.opensearch.core.xcontent.XContentHelper;
+import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
@@ -171,13 +172,13 @@ public class CustomRestHighLevelClientTests extends OpenSearchTestCase {
         when(mockResponse.getHost()).thenReturn(new HttpHost("localhost", 9200));
 
         ProtocolVersion protocol = new ProtocolVersion("HTTP", 1, 1);
-        when(mockResponse.getStatusLine()).thenReturn(new StatusLine(protocol, 200, "OK"));
+        when(mockResponse.getStatusLine()).thenReturn(new BasicStatusLine(protocol, 200, "OK"));
 
         MainResponse response = new MainResponse(httpHeader.getValue(), Version.CURRENT, ClusterName.DEFAULT, "_na", Build.CURRENT);
-        BytesRef bytesRef = XContentHelper.toXContent(response, MediaTypeRegistry.JSON, false).toBytesRef();
-        when(mockResponse.getEntity()).thenReturn(new ByteArrayEntity(bytesRef.bytes, ContentType.APPLICATION_JSON));
+        BytesRef bytesRef = XContentHelper.toXContent(response, XContentType.JSON, false).toBytesRef();
+        when(mockResponse.getEntity()).thenReturn(new NByteArrayEntity(bytesRef.bytes, ContentType.APPLICATION_JSON));
 
-        RequestLine requestLine = new RequestLine(HttpGet.METHOD_NAME, ENDPOINT, protocol);
+        RequestLine requestLine = new BasicRequestLine(HttpGet.METHOD_NAME, ENDPOINT, protocol);
         when(mockResponse.getRequestLine()).thenReturn(requestLine);
 
         return mockResponse;

@@ -34,16 +34,17 @@ package org.opensearch.index.query;
 
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchParseException;
-import org.opensearch.common.unit.Fuzziness;
-import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.ParsingException;
-import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.common.unit.Fuzziness;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.DeprecationHandler;
+import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.query.support.QueryParsers;
@@ -253,6 +254,9 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
         maxExpansions = in.readVInt();
         minimumShouldMatch = in.readOptionalString();
         fuzzyRewrite = in.readOptionalString();
+        if (in.getVersion().before(LegacyESVersion.V_7_0_0)) {
+            in.readOptionalBoolean(); // unused use_dis_max flag
+        }
         tieBreaker = in.readOptionalFloat();
         lenient = in.readOptionalBoolean();
         cutoffFrequency = in.readOptionalFloat();
@@ -278,6 +282,9 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
         out.writeVInt(maxExpansions);
         out.writeOptionalString(minimumShouldMatch);
         out.writeOptionalString(fuzzyRewrite);
+        if (out.getVersion().before(LegacyESVersion.V_7_0_0)) {
+            out.writeOptionalBoolean(null);
+        }
         out.writeOptionalFloat(tieBreaker);
         out.writeOptionalBoolean(lenient);
         out.writeOptionalFloat(cutoffFrequency);

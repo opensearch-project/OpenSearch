@@ -34,13 +34,13 @@ package org.opensearch.search.aggregations.pipeline;
 
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
-import org.opensearch.search.aggregations.BucketOrder;
 import org.opensearch.search.aggregations.bucket.histogram.Histogram;
 import org.opensearch.search.aggregations.bucket.histogram.Histogram.Bucket;
-import org.opensearch.search.aggregations.bucket.terms.IncludeExclude;
 import org.opensearch.search.aggregations.bucket.terms.Terms;
+import org.opensearch.search.aggregations.bucket.terms.IncludeExclude;
 import org.opensearch.search.aggregations.metrics.Sum;
 import org.opensearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
+import org.opensearch.search.aggregations.BucketOrder;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.ArrayList;
@@ -148,7 +148,7 @@ public class MinBucketIT extends OpenSearchIntegTestCase {
         assertThat(minBucketValue, notNullValue());
         assertThat(minBucketValue.getName(), equalTo("min_bucket"));
         assertThat(minBucketValue.value(), equalTo(minValue));
-        assertThat(minBucketValue.keys(), equalTo(minKeys.toArray(new String[0])));
+        assertThat(minBucketValue.keys(), equalTo(minKeys.toArray(new String[minKeys.size()])));
     }
 
     public void testDocCountAsSubAgg() throws Exception {
@@ -200,7 +200,7 @@ public class MinBucketIT extends OpenSearchIntegTestCase {
             assertThat(minBucketValue, notNullValue());
             assertThat(minBucketValue.getName(), equalTo("min_bucket"));
             assertThat(minBucketValue.value(), equalTo(minValue));
-            assertThat(minBucketValue.keys(), equalTo(minKeys.toArray(new String[0])));
+            assertThat(minBucketValue.keys(), equalTo(minKeys.toArray(new String[minKeys.size()])));
         }
     }
 
@@ -240,7 +240,7 @@ public class MinBucketIT extends OpenSearchIntegTestCase {
         assertThat(minBucketValue, notNullValue());
         assertThat(minBucketValue.getName(), equalTo("min_bucket"));
         assertThat(minBucketValue.value(), equalTo(minValue));
-        assertThat(minBucketValue.keys(), equalTo(minKeys.toArray(new String[0])));
+        assertThat(minBucketValue.keys(), equalTo(minKeys.toArray(new String[minKeys.size()])));
     }
 
     public void testMetricAsSubAgg() throws Exception {
@@ -299,7 +299,7 @@ public class MinBucketIT extends OpenSearchIntegTestCase {
             assertThat(minBucketValue, notNullValue());
             assertThat(minBucketValue.getName(), equalTo("min_bucket"));
             assertThat(minBucketValue.value(), equalTo(minValue));
-            assertThat(minBucketValue.keys(), equalTo(minKeys.toArray(new String[0])));
+            assertThat(minBucketValue.keys(), equalTo(minKeys.toArray(new String[minKeys.size()])));
         }
     }
 
@@ -357,7 +357,7 @@ public class MinBucketIT extends OpenSearchIntegTestCase {
             assertThat(minBucketValue, notNullValue());
             assertThat(minBucketValue.getName(), equalTo("min_bucket"));
             assertThat(minBucketValue.value(), equalTo(minValue));
-            assertThat(minBucketValue.keys(), equalTo(minKeys.toArray(new String[0])));
+            assertThat(minBucketValue.keys(), equalTo(minKeys.toArray(new String[minKeys.size()])));
         }
     }
 
@@ -438,7 +438,7 @@ public class MinBucketIT extends OpenSearchIntegTestCase {
             assertThat(minBucketValue, notNullValue());
             assertThat(minBucketValue.getName(), equalTo("min_histo_bucket"));
             assertThat(minBucketValue.value(), equalTo(minHistoValue));
-            assertThat(minBucketValue.keys(), equalTo(minHistoKeys.toArray(new String[0])));
+            assertThat(minBucketValue.keys(), equalTo(minHistoKeys.toArray(new String[minHistoKeys.size()])));
             if (minHistoValue < minTermsValue) {
                 minTermsValue = minHistoValue;
                 minTermsKeys = new ArrayList<>();
@@ -452,6 +452,6 @@ public class MinBucketIT extends OpenSearchIntegTestCase {
         assertThat(minBucketValue, notNullValue());
         assertThat(minBucketValue.getName(), equalTo("min_terms_bucket"));
         assertThat(minBucketValue.value(), equalTo(minTermsValue));
-        assertThat(minBucketValue.keys(), equalTo(minTermsKeys.toArray(new String[0])));
+        assertThat(minBucketValue.keys(), equalTo(minTermsKeys.toArray(new String[minTermsKeys.size()])));
     }
 }

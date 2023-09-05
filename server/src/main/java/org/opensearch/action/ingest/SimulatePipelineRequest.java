@@ -32,17 +32,15 @@
 
 package org.opensearch.action.ingest;
 
-import org.opensearch.Version;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
-import org.opensearch.common.logging.DeprecationLogger;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.VersionType;
 import org.opensearch.ingest.ConfigurationUtils;
 import org.opensearch.ingest.IngestDocument;
@@ -68,14 +66,14 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
     private String id;
     private boolean verbose;
     private BytesReference source;
-    private MediaType mediaType;
+    private XContentType xContentType;
 
     /**
      * Creates a new request with the given source and its content type
      */
-    public SimulatePipelineRequest(BytesReference source, MediaType mediaType) {
+    public SimulatePipelineRequest(BytesReference source, XContentType xContentType) {
         this.source = Objects.requireNonNull(source);
-        this.mediaType = Objects.requireNonNull(mediaType);
+        this.xContentType = Objects.requireNonNull(xContentType);
     }
 
     SimulatePipelineRequest() {}
@@ -85,11 +83,7 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
         id = in.readOptionalString();
         verbose = in.readBoolean();
         source = in.readBytesReference();
-        if (in.getVersion().onOrAfter(Version.V_2_10_0)) {
-            mediaType = in.readMediaType();
-        } else {
-            mediaType = in.readEnum(XContentType.class);
-        }
+        xContentType = in.readEnum(XContentType.class);
     }
 
     @Override
@@ -117,8 +111,8 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
         return source;
     }
 
-    public MediaType getXContentType() {
-        return mediaType;
+    public XContentType getXContentType() {
+        return xContentType;
     }
 
     @Override
@@ -127,16 +121,12 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
         out.writeOptionalString(id);
         out.writeBoolean(verbose);
         out.writeBytesReference(source);
-        if (out.getVersion().onOrAfter(Version.V_2_10_0)) {
-            mediaType.writeTo(out);
-        } else {
-            out.writeEnum((XContentType) mediaType);
-        }
+        out.writeEnum(xContentType);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.rawValue(source.streamInput(), mediaType);
+        builder.rawValue(source.streamInput(), xContentType);
         return builder;
     }
 

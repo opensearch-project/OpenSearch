@@ -10,9 +10,9 @@ package org.opensearch.action.admin.indices.segments;
 
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.broadcast.BroadcastRequest;
-import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -64,7 +64,7 @@ public class PitSegmentsRequest extends BroadcastRequest<PitSegmentsRequest> {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeStringArrayNullable((pitIds == null) ? null : pitIds.toArray(new String[0]));
+        out.writeStringArrayNullable((pitIds == null) ? null : pitIds.toArray(new String[pitIds.size()]));
         out.writeBoolean(verbose);
     }
 

@@ -31,24 +31,25 @@
 
 package org.opensearch.snapshots;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
+import org.opensearch.core.action.ShardOperationFailedException;
 import org.opensearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.opensearch.cluster.SnapshotsInProgress;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.time.DateFormatter;
-import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.ParseField;
-import org.opensearch.core.action.ShardOperationFailedException;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.core.rest.RestStatus;
+import org.opensearch.common.time.DateFormatter;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.core.xcontent.XContentParserUtils;
 import org.opensearch.repositories.IndexId;
+import org.opensearch.core.rest.RestStatus;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -68,8 +69,11 @@ import java.util.stream.Collectors;
  */
 public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent, Writeable {
 
+    public static final Version DATA_STREAMS_IN_SNAPSHOT = LegacyESVersion.V_7_9_0;
+
     public static final String CONTEXT_MODE_PARAM = "context_mode";
     public static final String CONTEXT_MODE_SNAPSHOT = "SNAPSHOT";
+    public static final Version METADATA_FIELD_INTRODUCED = LegacyESVersion.V_7_3_0;
     private static final DateFormatter DATE_TIME_FORMATTER = DateFormatter.forPattern("strict_date_optional_time");
     private static final String SNAPSHOT = "snapshot";
     private static final String UUID = "uuid";
@@ -418,8 +422,16 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         shardFailures = Collections.unmodifiableList(in.readList(SnapshotShardFailure::new));
         version = in.readBoolean() ? in.readVersion() : null;
         includeGlobalState = in.readOptionalBoolean();
-        userMetadata = in.readMap();
-        dataStreams = in.readStringList();
+        if (in.getVersion().onOrAfter(METADATA_FIELD_INTRODUCED)) {
+            userMetadata = in.readMap();
+        } else {
+            userMetadata = null;
+        }
+        if (in.getVersion().onOrAfter(DATA_STREAMS_IN_SNAPSHOT)) {
+            dataStreams = in.readStringList();
+        } else {
+            dataStreams = Collections.emptyList();
+        }
         if (in.getVersion().onOrAfter(Version.V_2_9_0)) {
             remoteStoreIndexShallowCopy = in.readOptionalBoolean();
         }
@@ -617,7 +629,11 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         if (shardFailures.size() == 0) {
             return RestStatus.OK;
         }
-        return RestStatus.status(successfulShards, totalShards, shardFailures.toArray(new ShardOperationFailedException[0]));
+        return RestStatus.status(
+            successfulShards,
+            totalShards,
+            shardFailures.toArray(new ShardOperationFailedException[shardFailures.size()])
+        );
     }
 
     @Override
@@ -865,8 +881,12 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
             out.writeBoolean(false);
         }
         out.writeOptionalBoolean(includeGlobalState);
-        out.writeMap(userMetadata);
-        out.writeStringCollection(dataStreams);
+        if (out.getVersion().onOrAfter(METADATA_FIELD_INTRODUCED)) {
+            out.writeMap(userMetadata);
+            if (out.getVersion().onOrAfter(DATA_STREAMS_IN_SNAPSHOT)) {
+                out.writeStringCollection(dataStreams);
+            }
+        }
         if (out.getVersion().onOrAfter(Version.V_2_9_0)) {
             out.writeOptionalBoolean(remoteStoreIndexShallowCopy);
         }

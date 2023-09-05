@@ -32,6 +32,7 @@
 package org.opensearch.versioning;
 
 import org.apache.lucene.tests.util.TestUtil;
+import org.opensearch.action.ActionResponse;
 import org.opensearch.action.DocWriteRequest;
 import org.opensearch.action.DocWriteResponse;
 import org.opensearch.action.bulk.BulkResponse;
@@ -42,7 +43,6 @@ import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.action.ActionResponse;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.engine.VersionConflictEngineException;
 import org.opensearch.test.OpenSearchIntegTestCase;

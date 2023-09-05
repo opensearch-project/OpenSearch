@@ -32,15 +32,16 @@
 
 package org.opensearch.index.rankeval;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchType;
 import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.Strings;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -68,7 +69,9 @@ public class RankEvalRequest extends ActionRequest implements IndicesRequest.Rep
         rankingEvaluationSpec = new RankEvalSpec(in);
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
-        searchType = SearchType.fromId(in.readByte());
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_6_0)) {
+            searchType = SearchType.fromId(in.readByte());
+        }
     }
 
     RankEvalRequest() {}
@@ -147,7 +150,9 @@ public class RankEvalRequest extends ActionRequest implements IndicesRequest.Rep
         rankingEvaluationSpec.writeTo(out);
         out.writeStringArray(indices);
         indicesOptions.writeIndicesOptions(out);
-        out.writeByte(searchType.id());
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_6_0)) {
+            out.writeByte(searchType.id());
+        }
     }
 
     @Override

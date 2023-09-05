@@ -35,19 +35,20 @@ package org.opensearch.search.slice;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.routing.GroupShardsIterator;
 import org.opensearch.cluster.routing.ShardIterator;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.logging.DeprecationLogger;
-import org.opensearch.common.util.set.Sets;
-import org.opensearch.core.ParseField;
-import org.opensearch.core.common.Strings;
+import org.opensearch.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.common.logging.DeprecationLogger;
+import org.opensearch.common.util.set.Sets;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.ParseField;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -132,7 +133,7 @@ public class SliceBuilder implements Writeable, ToXContentObject {
     }
 
     private SliceBuilder setField(String field) {
-        if (Strings.isEmpty(field)) {
+        if (org.opensearch.core.common.Strings.isEmpty(field)) {
             throw new IllegalArgumentException("field name is null or empty");
         }
         this.field = field;
@@ -260,7 +261,16 @@ public class SliceBuilder implements Writeable, ToXContentObject {
         String field = this.field;
         boolean useTermQuery = false;
         if ("_uid".equals(field)) {
-            throw new IllegalArgumentException("Computing slices on the [_uid] field is illegal for 7.x indices, use [_id] instead");
+            // on new indices, the _id acts as a _uid
+            field = IdFieldMapper.NAME;
+            if (context.getIndexSettings().getIndexVersionCreated().onOrAfter(LegacyESVersion.V_7_0_0)) {
+                throw new IllegalArgumentException("Computing slices on the [_uid] field is illegal for 7.x indices, use [_id] instead");
+            }
+            DEPRECATION_LOG.deprecate(
+                "slice_on_uid",
+                "Computing slices on the [_uid] field is deprecated for 6.x indices, use [_id] instead"
+            );
+            useTermQuery = true;
         } else if (IdFieldMapper.NAME.equals(field)) {
             useTermQuery = true;
         } else if (type.hasDocValues() == false) {
@@ -328,6 +338,6 @@ public class SliceBuilder implements Writeable, ToXContentObject {
 
     @Override
     public String toString() {
-        return Strings.toString(MediaTypeRegistry.JSON, this, true, true);
+        return Strings.toString(XContentType.JSON, this, true, true);
     }
 }

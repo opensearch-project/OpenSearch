@@ -162,7 +162,7 @@ class OpenSearch extends EnvironmentAwareCommand {
 
         // a misconfigured java.io.tmpdir can cause hard-to-diagnose problems later, so reject it immediately
         try {
-            env.validateTmpDir();
+            env.validateTmpFile();
         } catch (IOException e) {
             throw new UserException(ExitCodes.CONFIG, e.getMessage());
         }

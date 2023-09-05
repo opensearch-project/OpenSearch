@@ -32,14 +32,14 @@
 
 package org.opensearch.client;
 
-import org.apache.hc.client5.http.classic.methods.HttpDelete;
-import org.apache.hc.client5.http.classic.methods.HttpGet;
-import org.apache.hc.client5.http.classic.methods.HttpHead;
-import org.apache.hc.client5.http.classic.methods.HttpPost;
-import org.apache.hc.client5.http.classic.methods.HttpPut;
-import org.apache.hc.core5.http.HttpEntity;
-import org.apache.hc.core5.http.io.entity.ByteArrayEntity;
-import org.apache.hc.core5.http.io.entity.EntityUtils;
+import org.apache.http.HttpEntity;
+import org.apache.http.client.methods.HttpDelete;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.HttpHead;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.methods.HttpPut;
+import org.apache.http.nio.entity.NByteArrayEntity;
+import org.apache.http.util.EntityUtils;
 import org.opensearch.action.DocWriteRequest;
 import org.opensearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
 import org.opensearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
@@ -62,8 +62,8 @@ import org.opensearch.action.search.SearchType;
 import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.WriteRequest;
-import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.action.support.master.AcknowledgedRequest;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.action.support.replication.ReplicationRequest;
 import org.opensearch.action.update.UpdateRequest;
 import org.opensearch.client.RequestConverters.EndpointBuilder;
@@ -73,19 +73,17 @@ import org.opensearch.client.core.MultiTermVectorsRequest;
 import org.opensearch.client.core.TermVectorsRequest;
 import org.opensearch.client.indices.AnalyzeRequest;
 import org.opensearch.common.CheckedBiConsumer;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.Streams;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.common.Strings;
-import org.opensearch.core.common.bytes.BytesArray;
-import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.core.tasks.TaskId;
-import org.opensearch.core.xcontent.MediaType;
-import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
@@ -119,6 +117,7 @@ import org.opensearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.opensearch.search.rescore.QueryRescorerBuilder;
 import org.opensearch.search.suggest.SuggestBuilder;
 import org.opensearch.search.suggest.completion.CompletionSuggestionBuilder;
+import org.opensearch.tasks.TaskId;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.RandomObjects;
 import org.hamcrest.Matchers;
@@ -734,8 +733,8 @@ public class RequestConvertersTests extends OpenSearchTestCase {
         assertEquals(method, request.getMethod());
 
         HttpEntity entity = request.getEntity();
-        assertTrue(entity instanceof ByteArrayEntity);
-        assertEquals(indexRequest.getContentType().mediaTypeWithoutParameters(), entity.getContentType());
+        assertTrue(entity instanceof NByteArrayEntity);
+        assertEquals(indexRequest.getContentType().mediaTypeWithoutParameters(), entity.getContentType().getValue());
         try (XContentParser parser = createParser(xContentType.xContent(), entity.getContent())) {
             assertEquals(nbFields, parser.map().size());
         }
@@ -806,11 +805,11 @@ public class RequestConvertersTests extends OpenSearchTestCase {
         assertEquals(HttpPost.METHOD_NAME, request.getMethod());
 
         HttpEntity entity = request.getEntity();
-        assertTrue(entity instanceof ByteArrayEntity);
+        assertTrue(entity instanceof NByteArrayEntity);
 
         UpdateRequest parsedUpdateRequest = new UpdateRequest();
 
-        MediaType entityContentType = MediaType.fromMediaType(entity.getContentType());
+        XContentType entityContentType = XContentType.fromMediaType(entity.getContentType().getValue());
         try (XContentParser parser = createParser(entityContentType.xContent(), entity.getContent())) {
             parsedUpdateRequest.fromXContent(parser);
         }
@@ -852,7 +851,7 @@ public class RequestConvertersTests extends OpenSearchTestCase {
     public void testUpdateWithDifferentContentTypes() {
         IllegalStateException exception = expectThrows(IllegalStateException.class, () -> {
             UpdateRequest updateRequest = new UpdateRequest();
-            updateRequest.doc(new IndexRequest().source(singletonMap("field", "doc"), MediaTypeRegistry.JSON));
+            updateRequest.doc(new IndexRequest().source(singletonMap("field", "doc"), XContentType.JSON));
             updateRequest.upsert(new IndexRequest().source(singletonMap("field", "upsert"), XContentType.YAML));
             RequestConverters.update(updateRequest);
         });
@@ -876,7 +875,7 @@ public class RequestConvertersTests extends OpenSearchTestCase {
 
         setRandomRefreshPolicy(bulkRequest::setRefreshPolicy, expectedParams);
 
-        MediaType mediaType = randomFrom(MediaTypeRegistry.JSON, XContentType.SMILE);
+        XContentType xContentType = randomFrom(XContentType.JSON, XContentType.SMILE);
 
         int nbItems = randomIntBetween(10, 100);
         DocWriteRequest<?>[] requests = new DocWriteRequest<?>[nbItems];
@@ -884,21 +883,21 @@ public class RequestConvertersTests extends OpenSearchTestCase {
             String index = randomAlphaOfLength(5);
             String id = randomAlphaOfLength(5);
 
-            BytesReference source = RandomObjects.randomSource(random(), mediaType);
+            BytesReference source = RandomObjects.randomSource(random(), xContentType);
             DocWriteRequest.OpType opType = randomFrom(DocWriteRequest.OpType.values());
 
             DocWriteRequest<?> docWriteRequest;
             if (opType == DocWriteRequest.OpType.INDEX) {
-                IndexRequest indexRequest = new IndexRequest(index).id(id).source(source, mediaType);
+                IndexRequest indexRequest = new IndexRequest(index).id(id).source(source, xContentType);
                 docWriteRequest = indexRequest;
                 if (randomBoolean()) {
                     indexRequest.setPipeline(randomAlphaOfLength(5));
                 }
             } else if (opType == DocWriteRequest.OpType.CREATE) {
-                IndexRequest createRequest = new IndexRequest(index).id(id).source(source, mediaType).create(true);
+                IndexRequest createRequest = new IndexRequest(index).id(id).source(source, xContentType).create(true);
                 docWriteRequest = createRequest;
             } else if (opType == DocWriteRequest.OpType.UPDATE) {
-                final UpdateRequest updateRequest = new UpdateRequest(index, id).doc(new IndexRequest().source(source, mediaType));
+                final UpdateRequest updateRequest = new UpdateRequest(index, id).doc(new IndexRequest().source(source, xContentType));
                 docWriteRequest = updateRequest;
                 if (randomBoolean()) {
                     updateRequest.retryOnConflict(randomIntBetween(1, 5));
@@ -927,14 +926,14 @@ public class RequestConvertersTests extends OpenSearchTestCase {
         assertEquals("/_bulk", request.getEndpoint());
         assertEquals(expectedParams, request.getParameters());
         assertEquals(HttpPost.METHOD_NAME, request.getMethod());
-        assertEquals(mediaType.mediaTypeWithoutParameters(), request.getEntity().getContentType());
+        assertEquals(xContentType.mediaTypeWithoutParameters(), request.getEntity().getContentType().getValue());
         byte[] content = new byte[(int) request.getEntity().getContentLength()];
         try (InputStream inputStream = request.getEntity().getContent()) {
             Streams.readFully(inputStream, content);
         }
 
         BulkRequest parsedBulkRequest = new BulkRequest();
-        parsedBulkRequest.add(content, 0, content.length, mediaType);
+        parsedBulkRequest.add(content, 0, content.length, xContentType);
         assertEquals(bulkRequest.numberOfActions(), parsedBulkRequest.numberOfActions());
 
         for (int i = 0; i < bulkRequest.numberOfActions(); i++) {
@@ -956,7 +955,7 @@ public class RequestConvertersTests extends OpenSearchTestCase {
                 IndexRequest parsedIndexRequest = (IndexRequest) parsedRequest;
 
                 assertEquals(indexRequest.getPipeline(), parsedIndexRequest.getPipeline());
-                assertToXContentEquivalent(indexRequest.source(), parsedIndexRequest.source(), mediaType);
+                assertToXContentEquivalent(indexRequest.source(), parsedIndexRequest.source(), xContentType);
             } else if (opType == DocWriteRequest.OpType.UPDATE) {
                 UpdateRequest updateRequest = (UpdateRequest) originalRequest;
                 UpdateRequest parsedUpdateRequest = (UpdateRequest) parsedRequest;
@@ -964,7 +963,7 @@ public class RequestConvertersTests extends OpenSearchTestCase {
                 assertEquals(updateRequest.retryOnConflict(), parsedUpdateRequest.retryOnConflict());
                 assertEquals(updateRequest.fetchSource(), parsedUpdateRequest.fetchSource());
                 if (updateRequest.doc() != null) {
-                    assertToXContentEquivalent(updateRequest.doc().source(), parsedUpdateRequest.doc().source(), mediaType);
+                    assertToXContentEquivalent(updateRequest.doc().source(), parsedUpdateRequest.doc().source(), xContentType);
                 } else {
                     assertNull(parsedUpdateRequest.doc());
                 }
@@ -980,34 +979,34 @@ public class RequestConvertersTests extends OpenSearchTestCase {
             bulkRequest.add(new DeleteRequest("index", "2"));
 
             Request request = RequestConverters.bulk(bulkRequest);
-            assertEquals(MediaTypeRegistry.JSON.mediaTypeWithoutParameters(), request.getEntity().getContentType());
+            assertEquals(XContentType.JSON.mediaTypeWithoutParameters(), request.getEntity().getContentType().getValue());
         }
         {
-            MediaType mediaType = randomFrom(MediaTypeRegistry.JSON, XContentType.SMILE);
+            XContentType xContentType = randomFrom(XContentType.JSON, XContentType.SMILE);
             BulkRequest bulkRequest = new BulkRequest();
             bulkRequest.add(new DeleteRequest("index", "0"));
-            bulkRequest.add(new IndexRequest("index").id("0").source(singletonMap("field", "value"), mediaType));
+            bulkRequest.add(new IndexRequest("index").id("0").source(singletonMap("field", "value"), xContentType));
             bulkRequest.add(new DeleteRequest("index", "2"));
 
             Request request = RequestConverters.bulk(bulkRequest);
-            assertEquals(mediaType.mediaTypeWithoutParameters(), request.getEntity().getContentType());
+            assertEquals(xContentType.mediaTypeWithoutParameters(), request.getEntity().getContentType().getValue());
         }
         {
-            MediaType mediaType = randomFrom(MediaTypeRegistry.JSON, XContentType.SMILE);
+            XContentType xContentType = randomFrom(XContentType.JSON, XContentType.SMILE);
             UpdateRequest updateRequest = new UpdateRequest("index", "0");
             if (randomBoolean()) {
-                updateRequest.doc(new IndexRequest().source(singletonMap("field", "value"), mediaType));
+                updateRequest.doc(new IndexRequest().source(singletonMap("field", "value"), xContentType));
             } else {
-                updateRequest.upsert(new IndexRequest().source(singletonMap("field", "value"), mediaType));
+                updateRequest.upsert(new IndexRequest().source(singletonMap("field", "value"), xContentType));
             }
 
             Request request = RequestConverters.bulk(new BulkRequest().add(updateRequest));
-            assertEquals(mediaType.mediaTypeWithoutParameters(), request.getEntity().getContentType());
+            assertEquals(xContentType.mediaTypeWithoutParameters(), request.getEntity().getContentType().getValue());
         }
         {
             BulkRequest bulkRequest = new BulkRequest();
             bulkRequest.add(new IndexRequest("index").id("0").source(singletonMap("field", "value"), XContentType.SMILE));
-            bulkRequest.add(new IndexRequest("index").id("1").source(singletonMap("field", "value"), MediaTypeRegistry.JSON));
+            bulkRequest.add(new IndexRequest("index").id("1").source(singletonMap("field", "value"), XContentType.JSON));
             IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> RequestConverters.bulk(bulkRequest));
             assertEquals(
                 "Mismatching content-type found for request with content-type [JSON], " + "previous requests have content-type [SMILE]",
@@ -1016,10 +1015,10 @@ public class RequestConvertersTests extends OpenSearchTestCase {
         }
         {
             BulkRequest bulkRequest = new BulkRequest();
-            bulkRequest.add(new IndexRequest("index").id("0").source(singletonMap("field", "value"), MediaTypeRegistry.JSON));
-            bulkRequest.add(new IndexRequest("index").id("1").source(singletonMap("field", "value"), MediaTypeRegistry.JSON));
+            bulkRequest.add(new IndexRequest("index").id("0").source(singletonMap("field", "value"), XContentType.JSON));
+            bulkRequest.add(new IndexRequest("index").id("1").source(singletonMap("field", "value"), XContentType.JSON));
             bulkRequest.add(
-                new UpdateRequest("index", "2").doc(new IndexRequest().source(singletonMap("field", "value"), MediaTypeRegistry.JSON))
+                new UpdateRequest("index", "2").doc(new IndexRequest().source(singletonMap("field", "value"), XContentType.JSON))
                     .upsert(new IndexRequest().source(singletonMap("field", "value"), XContentType.SMILE))
             );
             IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> RequestConverters.bulk(bulkRequest));
@@ -1032,10 +1031,10 @@ public class RequestConvertersTests extends OpenSearchTestCase {
             XContentType xContentType = randomFrom(XContentType.CBOR, XContentType.YAML);
             BulkRequest bulkRequest = new BulkRequest();
             bulkRequest.add(new DeleteRequest("index", "0"));
-            bulkRequest.add(new IndexRequest("index").id("1").source(singletonMap("field", "value"), MediaTypeRegistry.JSON));
+            bulkRequest.add(new IndexRequest("index").id("1").source(singletonMap("field", "value"), XContentType.JSON));
             bulkRequest.add(new DeleteRequest("index", "2"));
             bulkRequest.add(new DeleteRequest("index", "3"));
-            bulkRequest.add(new IndexRequest("index").id("4").source(singletonMap("field", "value"), MediaTypeRegistry.JSON));
+            bulkRequest.add(new IndexRequest("index").id("4").source(singletonMap("field", "value"), XContentType.JSON));
             bulkRequest.add(new IndexRequest("index").id("1").source(singletonMap("field", "value"), xContentType));
             IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> RequestConverters.bulk(bulkRequest));
             assertEquals(
@@ -1048,9 +1047,9 @@ public class RequestConvertersTests extends OpenSearchTestCase {
     public void testGlobalPipelineOnBulkRequest() throws IOException {
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.pipeline("xyz");
-        bulkRequest.add(new IndexRequest("test").id("11").source(MediaTypeRegistry.JSON, "field", "bulk1"));
-        bulkRequest.add(new IndexRequest("test").id("12").source(MediaTypeRegistry.JSON, "field", "bulk2"));
-        bulkRequest.add(new IndexRequest("test").id("13").source(MediaTypeRegistry.JSON, "field", "bulk3"));
+        bulkRequest.add(new IndexRequest("test").id("11").source(XContentType.JSON, "field", "bulk1"));
+        bulkRequest.add(new IndexRequest("test").id("12").source(XContentType.JSON, "field", "bulk2"));
+        bulkRequest.add(new IndexRequest("test").id("13").source(XContentType.JSON, "field", "bulk3"));
 
         Request request = RequestConverters.bulk(bulkRequest);
 
@@ -1290,7 +1289,7 @@ public class RequestConvertersTests extends OpenSearchTestCase {
         assertEquals("/_search/scroll", request.getEndpoint());
         assertEquals(0, request.getParameters().size());
         assertToXContentBody(searchScrollRequest, request.getEntity());
-        assertEquals(REQUEST_BODY_CONTENT_TYPE.mediaTypeWithoutParameters(), request.getEntity().getContentType());
+        assertEquals(REQUEST_BODY_CONTENT_TYPE.mediaTypeWithoutParameters(), request.getEntity().getContentType().getValue());
     }
 
     public void testClearScroll() throws IOException {
@@ -1304,7 +1303,7 @@ public class RequestConvertersTests extends OpenSearchTestCase {
         assertEquals("/_search/scroll", request.getEndpoint());
         assertEquals(0, request.getParameters().size());
         assertToXContentBody(clearScrollRequest, request.getEntity());
-        assertEquals(REQUEST_BODY_CONTENT_TYPE.mediaTypeWithoutParameters(), request.getEntity().getContentType());
+        assertEquals(REQUEST_BODY_CONTENT_TYPE.mediaTypeWithoutParameters(), request.getEntity().getContentType().getValue());
     }
 
     public void testCreatePit() throws IOException {
@@ -1325,7 +1324,7 @@ public class RequestConvertersTests extends OpenSearchTestCase {
         assertEquals(endpoint.toString(), request.getEndpoint());
         assertEquals(expectedParams, request.getParameters());
         assertToXContentBody(createPitRequest, request.getEntity());
-        assertEquals(REQUEST_BODY_CONTENT_TYPE.mediaTypeWithoutParameters(), request.getEntity().getContentType());
+        assertEquals(REQUEST_BODY_CONTENT_TYPE.mediaTypeWithoutParameters(), request.getEntity().getContentType().getValue());
     }
 
     public void testDeletePit() throws IOException {
@@ -1338,7 +1337,7 @@ public class RequestConvertersTests extends OpenSearchTestCase {
         assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
         assertEquals(endpoint, request.getEndpoint());
         assertToXContentBody(deletePitRequest, request.getEntity());
-        assertEquals(REQUEST_BODY_CONTENT_TYPE.mediaTypeWithoutParameters(), request.getEntity().getContentType());
+        assertEquals(REQUEST_BODY_CONTENT_TYPE.mediaTypeWithoutParameters(), request.getEntity().getContentType().getValue());
     }
 
     public void testDeleteAllPits() {
@@ -1456,11 +1455,8 @@ public class RequestConvertersTests extends OpenSearchTestCase {
         assertEquals(expectedParams, multiRequest.getParameters());
 
         HttpEntity actualEntity = multiRequest.getEntity();
-        byte[] expectedBytes = MultiSearchTemplateRequest.writeMultiLineFormat(
-            multiSearchTemplateRequest,
-            MediaTypeRegistry.JSON.xContent()
-        );
-        assertEquals(MediaTypeRegistry.JSON.mediaTypeWithoutParameters(), actualEntity.getContentType());
+        byte[] expectedBytes = MultiSearchTemplateRequest.writeMultiLineFormat(multiSearchTemplateRequest, XContentType.JSON.xContent());
+        assertEquals(XContentType.JSON.mediaTypeWithoutParameters(), actualEntity.getContentType().getValue());
         assertEquals(new BytesArray(expectedBytes), new BytesArray(EntityUtils.toByteArray(actualEntity)));
     }
 
@@ -1711,7 +1707,7 @@ public class RequestConvertersTests extends OpenSearchTestCase {
         }
 
         Map<String, String> expectedParams = new HashMap<>();
-        setRandomClusterManagerTimeout(putStoredScriptRequest, expectedParams);
+        setRandomMasterTimeout(putStoredScriptRequest, expectedParams);
         setRandomTimeout(putStoredScriptRequest::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
 
         if (randomBoolean()) {
@@ -1742,7 +1738,7 @@ public class RequestConvertersTests extends OpenSearchTestCase {
     public void testGetScriptRequest() {
         GetStoredScriptRequest getStoredScriptRequest = new GetStoredScriptRequest("x-script");
         Map<String, String> expectedParams = new HashMap<>();
-        setRandomClusterManagerTimeout(getStoredScriptRequest, expectedParams);
+        setRandomMasterTimeout(getStoredScriptRequest, expectedParams);
 
         Request request = RequestConverters.getScript(getStoredScriptRequest);
         assertThat(request.getEndpoint(), equalTo("/_scripts/" + getStoredScriptRequest.id()));
@@ -1756,7 +1752,7 @@ public class RequestConvertersTests extends OpenSearchTestCase {
 
         Map<String, String> expectedParams = new HashMap<>();
         setRandomTimeout(deleteStoredScriptRequest::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
-        setRandomClusterManagerTimeout(deleteStoredScriptRequest, expectedParams);
+        setRandomMasterTimeout(deleteStoredScriptRequest, expectedParams);
 
         Request request = RequestConverters.deleteScript(deleteStoredScriptRequest);
         assertThat(request.getEndpoint(), equalTo("/_scripts/" + deleteStoredScriptRequest.id()));
@@ -1766,12 +1762,8 @@ public class RequestConvertersTests extends OpenSearchTestCase {
     }
 
     static void assertToXContentBody(ToXContent expectedBody, HttpEntity actualEntity) throws IOException {
-        BytesReference expectedBytes = org.opensearch.core.xcontent.XContentHelper.toXContent(
-            expectedBody,
-            REQUEST_BODY_CONTENT_TYPE,
-            false
-        );
-        assertEquals(MediaTypeRegistry.JSON.mediaTypeWithoutParameters(), actualEntity.getContentType());
+        BytesReference expectedBytes = XContentHelper.toXContent(expectedBody, REQUEST_BODY_CONTENT_TYPE, false);
+        assertEquals(XContentType.JSON.mediaTypeWithoutParameters(), actualEntity.getContentType().getValue());
         assertEquals(expectedBytes, new BytesArray(EntityUtils.toByteArray(actualEntity)));
     }
 
@@ -1920,12 +1912,12 @@ public class RequestConvertersTests extends OpenSearchTestCase {
     }
 
     public void testEnforceSameContentType() {
-        MediaType mediaType = randomFrom(MediaTypeRegistry.JSON, XContentType.SMILE);
-        IndexRequest indexRequest = new IndexRequest().source(singletonMap("field", "value"), mediaType);
-        assertEquals(mediaType, enforceSameContentType(indexRequest, null));
-        assertEquals(mediaType, enforceSameContentType(indexRequest, mediaType));
+        XContentType xContentType = randomFrom(XContentType.JSON, XContentType.SMILE);
+        IndexRequest indexRequest = new IndexRequest().source(singletonMap("field", "value"), xContentType);
+        assertEquals(xContentType, enforceSameContentType(indexRequest, null));
+        assertEquals(xContentType, enforceSameContentType(indexRequest, xContentType));
 
-        MediaType bulkContentType = randomBoolean() ? mediaType : null;
+        XContentType bulkContentType = randomBoolean() ? xContentType : null;
 
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
@@ -1945,18 +1937,18 @@ public class RequestConvertersTests extends OpenSearchTestCase {
             exception.getMessage()
         );
 
-        MediaType requestContentType = mediaType == MediaTypeRegistry.JSON ? XContentType.SMILE : MediaTypeRegistry.JSON;
+        XContentType requestContentType = xContentType == XContentType.JSON ? XContentType.SMILE : XContentType.JSON;
 
         exception = expectThrows(
             IllegalArgumentException.class,
-            () -> enforceSameContentType(new IndexRequest().source(singletonMap("field", "value"), requestContentType), mediaType)
+            () -> enforceSameContentType(new IndexRequest().source(singletonMap("field", "value"), requestContentType), xContentType)
         );
         assertEquals(
             "Mismatching content-type found for request with content-type ["
                 + requestContentType
                 + "], "
                 + "previous requests have content-type ["
-                + mediaType
+                + xContentType
                 + "]",
             exception.getMessage()
         );
@@ -2157,34 +2149,34 @@ public class RequestConvertersTests extends OpenSearchTestCase {
         }
     }
 
-    static void setRandomClusterManagerTimeout(ClusterManagerNodeRequest<?> request, Map<String, String> expectedParams) {
-        setRandomClusterManagerTimeout(request::clusterManagerNodeTimeout, expectedParams);
+    static void setRandomMasterTimeout(ClusterManagerNodeRequest<?> request, Map<String, String> expectedParams) {
+        setRandomMasterTimeout(request::clusterManagerNodeTimeout, expectedParams);
     }
 
-    static void setRandomClusterManagerTimeout(TimedRequest request, Map<String, String> expectedParams) {
-        setRandomClusterManagerTimeout(
-            s -> request.setClusterManagerTimeout(TimeValue.parseTimeValue(s, request.getClass().getName() + ".clusterManagerNodeTimeout")),
+    static void setRandomMasterTimeout(TimedRequest request, Map<String, String> expectedParams) {
+        setRandomMasterTimeout(
+            s -> request.setMasterTimeout(TimeValue.parseTimeValue(s, request.getClass().getName() + ".masterNodeTimeout")),
             expectedParams
         );
     }
 
-    static void setRandomClusterManagerTimeout(Consumer<String> setter, Map<String, String> expectedParams) {
+    static void setRandomMasterTimeout(Consumer<String> setter, Map<String, String> expectedParams) {
         if (randomBoolean()) {
-            String clusterManagerTimeout = randomTimeValue();
-            setter.accept(clusterManagerTimeout);
-            expectedParams.put("cluster_manager_timeout", clusterManagerTimeout);
+            String masterTimeout = randomTimeValue();
+            setter.accept(masterTimeout);
+            expectedParams.put("master_timeout", masterTimeout);
         } else {
-            expectedParams.put("cluster_manager_timeout", ClusterManagerNodeRequest.DEFAULT_CLUSTER_MANAGER_NODE_TIMEOUT.getStringRep());
+            expectedParams.put("master_timeout", ClusterManagerNodeRequest.DEFAULT_CLUSTER_MANAGER_NODE_TIMEOUT.getStringRep());
         }
     }
 
-    static void setRandomClusterManagerTimeout(Consumer<TimeValue> setter, TimeValue defaultTimeout, Map<String, String> expectedParams) {
+    static void setRandomMasterTimeout(Consumer<TimeValue> setter, TimeValue defaultTimeout, Map<String, String> expectedParams) {
         if (randomBoolean()) {
-            TimeValue clusterManagerTimeout = TimeValue.parseTimeValue(randomTimeValue(), "random_cluster_manager_timeout");
-            setter.accept(clusterManagerTimeout);
-            expectedParams.put("cluster_manager_timeout", clusterManagerTimeout.getStringRep());
+            TimeValue masterTimeout = TimeValue.parseTimeValue(randomTimeValue(), "random_master_timeout");
+            setter.accept(masterTimeout);
+            expectedParams.put("master_timeout", masterTimeout.getStringRep());
         } else {
-            expectedParams.put("cluster_manager_timeout", defaultTimeout.getStringRep());
+            expectedParams.put("master_timeout", defaultTimeout.getStringRep());
         }
     }
 

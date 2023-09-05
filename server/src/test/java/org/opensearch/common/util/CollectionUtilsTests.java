@@ -32,7 +32,6 @@
 
 package org.opensearch.common.util;
 
-import org.opensearch.core.common.util.CollectionUtils;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
@@ -46,7 +45,7 @@ import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
-import static org.opensearch.core.common.util.CollectionUtils.eagerPartition;
+import static org.opensearch.common.util.CollectionUtils.eagerPartition;
 import static org.hamcrest.Matchers.containsString;
 
 public class CollectionUtilsTests extends OpenSearchTestCase {

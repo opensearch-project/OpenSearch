@@ -39,7 +39,7 @@ public class CheckpointRefreshListener extends CloseableRetryableRefreshListener
     }
 
     @Override
-    protected boolean performAfterRefreshWithPermit(boolean didRefresh) {
+    protected boolean performAfterRefresh(boolean didRefresh, boolean isRetry) {
         if (didRefresh
             && shard.state() == IndexShardState.STARTED
             && shard.getReplicationTracker().isPrimaryMode()

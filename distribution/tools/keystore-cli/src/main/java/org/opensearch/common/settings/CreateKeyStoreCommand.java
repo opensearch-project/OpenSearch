@@ -32,6 +32,10 @@
 
 package org.opensearch.common.settings;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Arrays;
+
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 import org.opensearch.cli.ExitCodes;
@@ -40,10 +44,6 @@ import org.opensearch.cli.Terminal;
 import org.opensearch.cli.UserException;
 import org.opensearch.core.common.settings.SecureString;
 import org.opensearch.env.Environment;
-
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.Arrays;
 
 /**
  * A sub-command for the keystore cli to create a new keystore.
@@ -60,7 +60,7 @@ class CreateKeyStoreCommand extends KeyStoreAwareCommand {
     @Override
     protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
         try (SecureString password = options.has(passwordOption) ? readPassword(terminal, true) : new SecureString(new char[0])) {
-            Path keystoreFile = KeyStoreWrapper.keystorePath(env.configDir());
+            Path keystoreFile = KeyStoreWrapper.keystorePath(env.configFile());
             if (Files.exists(keystoreFile)) {
                 if (terminal.promptYesNo("An opensearch keystore already exists. Overwrite?", false) == false) {
                     terminal.println("Exiting without creating keystore.");
@@ -68,8 +68,8 @@ class CreateKeyStoreCommand extends KeyStoreAwareCommand {
                 }
             }
             KeyStoreWrapper keystore = KeyStoreWrapper.create();
-            keystore.save(env.configDir(), password.getChars());
-            terminal.println("Created opensearch keystore in " + KeyStoreWrapper.keystorePath(env.configDir()));
+            keystore.save(env.configFile(), password.getChars());
+            terminal.println("Created opensearch keystore in " + KeyStoreWrapper.keystorePath(env.configFile()));
         } catch (SecurityException e) {
             throw new UserException(ExitCodes.IO_ERROR, "Error creating the opensearch keystore.");
         }

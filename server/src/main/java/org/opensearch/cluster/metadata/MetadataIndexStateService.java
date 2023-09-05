@@ -35,9 +35,12 @@ package org.opensearch.cluster.metadata;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
+import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRunnable;
+import org.opensearch.action.NotifyOnceListener;
 import org.opensearch.action.admin.indices.close.CloseIndexClusterStateUpdateRequest;
 import org.opensearch.action.admin.indices.close.CloseIndexResponse;
 import org.opensearch.action.admin.indices.close.CloseIndexResponse.IndexResult;
@@ -75,19 +78,17 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AtomicArray;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.util.concurrent.CountDown;
-import org.opensearch.core.action.ActionListener;
-import org.opensearch.core.action.NotifyOnceListener;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.rest.RestStatus;
-import org.opensearch.core.tasks.TaskId;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.ShardLimitValidator;
 import org.opensearch.snapshots.RestoreService;
 import org.opensearch.snapshots.SnapshotInProgressException;
 import org.opensearch.snapshots.SnapshotsService;
+import org.opensearch.tasks.TaskId;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
@@ -837,6 +838,10 @@ public class MetadataIndexStateService {
         final Map<Index, IndexResult> verifyResult
     ) {
 
+        // Remove the index routing table of closed indices if the cluster is in a mixed version
+        // that does not support the replication of closed indices
+        final boolean removeRoutingTable = currentState.nodes().getMinNodeVersion().before(LegacyESVersion.V_7_2_0);
+
         final Metadata.Builder metadata = Metadata.builder(currentState.metadata());
         final ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
         final RoutingTable.Builder routingTable = RoutingTable.builder(currentState.routingTable());
@@ -909,11 +914,16 @@ public class MetadataIndexStateService {
                 blocks.removeIndexBlockWithId(index.getName(), INDEX_CLOSED_BLOCK_ID);
                 blocks.addIndexBlock(index.getName(), INDEX_CLOSED_BLOCK);
                 final IndexMetadata.Builder updatedMetadata = IndexMetadata.builder(indexMetadata).state(IndexMetadata.State.CLOSE);
-                metadata.put(
-                    updatedMetadata.settingsVersion(indexMetadata.getSettingsVersion() + 1)
-                        .settings(Settings.builder().put(indexMetadata.getSettings()).put(VERIFIED_BEFORE_CLOSE_SETTING.getKey(), true))
-                );
-                routingTable.addAsFromOpenToClose(metadata.getSafe(index));
+                if (removeRoutingTable) {
+                    metadata.put(updatedMetadata);
+                    routingTable.remove(index.getName());
+                } else {
+                    metadata.put(
+                        updatedMetadata.settingsVersion(indexMetadata.getSettingsVersion() + 1)
+                            .settings(Settings.builder().put(indexMetadata.getSettings()).put(VERIFIED_BEFORE_CLOSE_SETTING.getKey(), true))
+                    );
+                    routingTable.addAsFromOpenToClose(metadata.getSafe(index));
+                }
 
                 logger.debug("closing index {} succeeded", index);
                 closedIndices.add(index.getName());

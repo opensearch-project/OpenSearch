@@ -8,6 +8,7 @@
 
 package org.opensearch.cluster.decommission;
 
+import org.junit.BeforeClass;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
@@ -18,7 +19,6 @@ import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.test.OpenSearchTestCase;
-import org.junit.BeforeClass;
 
 import java.util.Set;
 

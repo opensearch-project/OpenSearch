@@ -33,7 +33,6 @@
 package org.opensearch.test.fixture;
 
 import com.sun.net.httpserver.HttpServer;
-
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.io.PathUtils;
 

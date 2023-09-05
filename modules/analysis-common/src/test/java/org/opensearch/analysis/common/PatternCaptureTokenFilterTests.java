@@ -39,8 +39,8 @@ import org.opensearch.env.Environment;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.IndexAnalyzers;
 import org.opensearch.index.analysis.NamedAnalyzer;
-import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.OpenSearchTokenStreamTestCase;
+import org.opensearch.test.IndexSettingsModule;
 
 import static org.opensearch.test.OpenSearchTestCase.createTestAnalysis;
 import static org.hamcrest.Matchers.containsString;
@@ -55,7 +55,7 @@ public class PatternCaptureTokenFilterTests extends OpenSearchTokenStreamTestCas
             .build();
 
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
-        IndexAnalyzers indexAnalyzers = createTestAnalysis(idxSettings, settings, new CommonAnalysisModulePlugin()).indexAnalyzers;
+        IndexAnalyzers indexAnalyzers = createTestAnalysis(idxSettings, settings, new CommonAnalysisPlugin()).indexAnalyzers;
         NamedAnalyzer analyzer1 = indexAnalyzers.get("single");
 
         assertTokenStreamContents(analyzer1.tokenStream("test", "foobarbaz"), new String[] { "foobarbaz", "foobar", "foo" });

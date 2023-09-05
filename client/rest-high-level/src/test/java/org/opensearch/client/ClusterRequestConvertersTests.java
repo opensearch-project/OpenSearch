@@ -32,8 +32,8 @@
 
 package org.opensearch.client;
 
-import org.apache.hc.client5.http.classic.methods.HttpGet;
-import org.apache.hc.client5.http.classic.methods.HttpPut;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.HttpPut;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.opensearch.action.admin.cluster.settings.ClusterGetSettingsRequest;
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
@@ -42,7 +42,7 @@ import org.opensearch.action.support.master.AcknowledgedRequest;
 import org.opensearch.client.cluster.RemoteInfoRequest;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.common.Priority;
-import org.opensearch.core.common.util.CollectionUtils;
+import org.opensearch.common.util.CollectionUtils;
 import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.CoreMatchers;
 import org.junit.Assert;
@@ -61,7 +61,7 @@ public class ClusterRequestConvertersTests extends OpenSearchTestCase {
     public void testClusterPutSettings() throws IOException {
         ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest();
         Map<String, String> expectedParams = new HashMap<>();
-        RequestConvertersTests.setRandomClusterManagerTimeout(request, expectedParams);
+        RequestConvertersTests.setRandomMasterTimeout(request, expectedParams);
         RequestConvertersTests.setRandomTimeout(request::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
 
         Request expectedRequest = ClusterRequestConverters.clusterPutSettings(request);
@@ -73,7 +73,7 @@ public class ClusterRequestConvertersTests extends OpenSearchTestCase {
     public void testClusterGetSettings() throws IOException {
         ClusterGetSettingsRequest request = new ClusterGetSettingsRequest();
         Map<String, String> expectedParams = new HashMap<>();
-        RequestConvertersTests.setRandomClusterManagerTimeout(request, expectedParams);
+        RequestConvertersTests.setRandomMasterTimeout(request, expectedParams);
         request.includeDefaults(OpenSearchTestCase.randomBoolean());
         if (request.includeDefaults()) {
             expectedParams.put("include_defaults", String.valueOf(true));
@@ -89,30 +89,30 @@ public class ClusterRequestConvertersTests extends OpenSearchTestCase {
         ClusterHealthRequest healthRequest = new ClusterHealthRequest();
         Map<String, String> expectedParams = new HashMap<>();
         RequestConvertersTests.setRandomLocal(healthRequest::local, expectedParams);
-        String timeoutType = OpenSearchTestCase.randomFrom("timeout", "clusterManagerTimeout", "both", "none");
+        String timeoutType = OpenSearchTestCase.randomFrom("timeout", "masterTimeout", "both", "none");
         String timeout = OpenSearchTestCase.randomTimeValue();
         String clusterManagerTimeout = OpenSearchTestCase.randomTimeValue();
         switch (timeoutType) {
             case "timeout":
                 healthRequest.timeout(timeout);
                 expectedParams.put("timeout", timeout);
-                // If Cluster Manager Timeout wasn't set it uses the same value as Timeout
-                expectedParams.put("cluster_manager_timeout", timeout);
+                // If Master Timeout wasn't set it uses the same value as Timeout
+                expectedParams.put("master_timeout", timeout);
                 break;
-            case "clusterManagerTimeout":
+            case "masterTimeout":
                 expectedParams.put("timeout", "30s");
                 healthRequest.clusterManagerNodeTimeout(clusterManagerTimeout);
-                expectedParams.put("cluster_manager_timeout", clusterManagerTimeout);
+                expectedParams.put("master_timeout", clusterManagerTimeout);
                 break;
             case "both":
                 healthRequest.timeout(timeout);
                 expectedParams.put("timeout", timeout);
                 healthRequest.clusterManagerNodeTimeout(timeout);
-                expectedParams.put("cluster_manager_timeout", timeout);
+                expectedParams.put("master_timeout", timeout);
                 break;
             case "none":
                 expectedParams.put("timeout", "30s");
-                expectedParams.put("cluster_manager_timeout", "30s");
+                expectedParams.put("master_timeout", "30s");
                 break;
             default:
                 throw new UnsupportedOperationException();

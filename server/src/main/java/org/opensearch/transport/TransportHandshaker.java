@@ -31,16 +31,16 @@
 
 package org.opensearch.transport;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
+import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.common.metrics.CounterMetric;
-import org.opensearch.common.unit.TimeValue;
-import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.core.transport.TransportResponse;
+import org.opensearch.common.metrics.CounterMetric;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.EOFException;
@@ -65,6 +65,9 @@ final class TransportHandshaker {
     private final ThreadPool threadPool;
     private final HandshakeRequestSender handshakeRequestSender;
 
+    // @todo remove in 3.0.0
+    static final Version V_3_0_0 = Version.fromId(3000099 ^ Version.MASK);
+
     TransportHandshaker(Version version, ThreadPool threadPool, HandshakeRequestSender handshakeRequestSender) {
         this.version = version;
         this.threadPool = threadPool;
@@ -84,6 +87,19 @@ final class TransportHandshaker {
             // we also have no payload on the request but the response will contain the actual version of the node we talk
             // to as the payload.
             Version minCompatVersion = version.minimumCompatibilityVersion();
+            if (version.onOrAfter(Version.V_1_0_0) && version.before(Version.V_2_0_0)) {
+                // the minCompatibleVersion for OpenSearch 1.x is sent as 6.7.99 instead of 6.8.0
+                // as this helps in (indirectly) identifying the remote node version during handle HandshakeRequest itself
+                // and then send appropriate version (7.10.2/ OpenSearch 1.x version) in response.
+                // The advantage of doing this is early identification of remote node version as otherwise
+                // if OpenSearch node also sends 6.8.0, there is no way to differentiate ES 7.x version from
+                // OpenSearch version and OpenSearch node will end up sending BC version to both ES & OpenSearch remote node.
+                // Sending only BC version to ElasticSearch node provide easy deprecation path for this BC version logic
+                // in OpenSearch 2.0.0.
+                minCompatVersion = Version.fromId(6079999);
+            } else if (version.onOrAfter(Version.V_2_0_0)) {
+                minCompatVersion = Version.fromId(7099999);
+            }
             handshakeRequestSender.sendRequest(node, channel, requestId, minCompatVersion);
 
             threadPool.schedule(
@@ -117,7 +133,16 @@ final class TransportHandshaker {
                     + "]; resetting"
             );
         }
-        channel.sendResponse(new HandshakeResponse(this.version));
+        // 1. if remote node is 7.x, then StreamInput version would be 6.8.0
+        // 2. if remote node is 6.8 then it would be 5.6.0
+        // 3. if remote node is OpenSearch 1.x then it would be 6.7.99
+        if ((this.version.onOrAfter(Version.V_1_0_0) && this.version.before(V_3_0_0))
+            && (stream.getVersion().equals(LegacyESVersion.fromId(6080099)) || stream.getVersion().equals(Version.fromId(5060099)))) {
+            // send 7.10.2 in response to ensure compatibility w/ Legacy 7.10.x nodes for rolling upgrade support
+            channel.sendResponse(new HandshakeResponse(LegacyESVersion.V_7_10_2));
+        } else {
+            channel.sendResponse(new HandshakeResponse(this.version));
+        }
     }
 
     TransportResponseHandler<HandshakeResponse> removeHandlerForHandshake(long requestId) {

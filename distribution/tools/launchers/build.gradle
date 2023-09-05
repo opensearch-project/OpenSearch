@@ -56,5 +56,6 @@ testingConventions {
 }
 
 javadoc.enabled = false
+missingJavadoc.enabled = false
 loggerUsageCheck.enabled = false
 jarHell.enabled = false

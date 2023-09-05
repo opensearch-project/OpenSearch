@@ -32,12 +32,12 @@
 
 package org.opensearch.client;
 
-import joptsimple.internal.Strings;
-import org.apache.hc.core5.http.Header;
-import org.opensearch.test.OpenSearchTestCase;
-
 import java.util.HashMap;
 import java.util.Map;
+
+import joptsimple.internal.Strings;
+import org.apache.http.Header;
+import org.opensearch.test.OpenSearchTestCase;
 
 /**
  * A test case with access to internals of a RestClient.

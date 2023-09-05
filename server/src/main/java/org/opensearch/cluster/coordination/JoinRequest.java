@@ -31,6 +31,7 @@
 
 package org.opensearch.cluster.coordination;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -55,7 +56,7 @@ public class JoinRequest extends TransportRequest {
     /**
      * The minimum term for which the joining node will accept any cluster state publications. If the joining node is in a strictly greater
      * term than the cluster-manager it wants to join then the cluster-manager must enter a new term and hold another election. Doesn't necessarily match
-     * {@link JoinRequest#optionalJoin} and may be zero in join requests sent prior to {@code LegacyESVersion#V_7_7_0}.
+     * {@link JoinRequest#optionalJoin} and may be zero in join requests sent prior to {@link LegacyESVersion#V_7_7_0}.
      */
     private final long minimumTerm;
 
@@ -77,7 +78,11 @@ public class JoinRequest extends TransportRequest {
     public JoinRequest(StreamInput in) throws IOException {
         super(in);
         sourceNode = new DiscoveryNode(in);
-        minimumTerm = in.readLong();
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_7_0)) {
+            minimumTerm = in.readLong();
+        } else {
+            minimumTerm = 0L;
+        }
         optionalJoin = Optional.ofNullable(in.readOptionalWriteable(Join::new));
     }
 
@@ -85,7 +90,9 @@ public class JoinRequest extends TransportRequest {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         sourceNode.writeTo(out);
-        out.writeLong(minimumTerm);
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_7_0)) {
+            out.writeLong(minimumTerm);
+        }
         out.writeOptionalWriteable(optionalJoin.orElse(null));
     }
 

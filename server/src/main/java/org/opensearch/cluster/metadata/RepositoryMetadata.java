@@ -31,6 +31,7 @@
 
 package org.opensearch.cluster.metadata;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -48,10 +49,11 @@ import java.util.Objects;
  */
 public class RepositoryMetadata implements Writeable {
 
+    public static final Version REPO_GEN_IN_CS_VERSION = LegacyESVersion.V_7_6_0;
+
     private final String name;
     private final String type;
     private final Settings settings;
-    private final CryptoMetadata cryptoMetadata;
 
     /**
      * Safe repository generation.
@@ -71,29 +73,14 @@ public class RepositoryMetadata implements Writeable {
      * @param settings repository settings
      */
     public RepositoryMetadata(String name, String type, Settings settings) {
-        this(name, type, settings, RepositoryData.UNKNOWN_REPO_GEN, RepositoryData.EMPTY_REPO_GEN, null);
-    }
-
-    public RepositoryMetadata(String name, String type, Settings settings, CryptoMetadata cryptoMetadata) {
-        this(name, type, settings, RepositoryData.UNKNOWN_REPO_GEN, RepositoryData.EMPTY_REPO_GEN, cryptoMetadata);
+        this(name, type, settings, RepositoryData.UNKNOWN_REPO_GEN, RepositoryData.EMPTY_REPO_GEN);
     }
 
     public RepositoryMetadata(RepositoryMetadata metadata, long generation, long pendingGeneration) {
-        this(metadata.name, metadata.type, metadata.settings, generation, pendingGeneration, metadata.cryptoMetadata);
+        this(metadata.name, metadata.type, metadata.settings, generation, pendingGeneration);
     }
 
     public RepositoryMetadata(String name, String type, Settings settings, long generation, long pendingGeneration) {
-        this(name, type, settings, generation, pendingGeneration, null);
-    }
-
-    public RepositoryMetadata(
-        String name,
-        String type,
-        Settings settings,
-        long generation,
-        long pendingGeneration,
-        CryptoMetadata cryptoMetadata
-    ) {
         this.name = name;
         this.type = type;
         this.settings = settings;
@@ -104,7 +91,6 @@ public class RepositoryMetadata implements Writeable {
             + "] must be greater or equal to generation ["
             + generation
             + "]";
-        this.cryptoMetadata = cryptoMetadata;
     }
 
     /**
@@ -135,15 +121,6 @@ public class RepositoryMetadata implements Writeable {
     }
 
     /**
-     * Returns crypto metadata of repository
-     *
-     * @return crypto metadata of repository
-     */
-    public CryptoMetadata cryptoMetadata() {
-        return this.cryptoMetadata;
-    }
-
-    /**
      * Returns the safe repository generation. {@link RepositoryData} for this generation is assumed to exist in the repository.
      * All operations on the repository must be based on the {@link RepositoryData} at this generation.
      * See package level documentation for the blob store based repositories {@link org.opensearch.repositories.blobstore} for details
@@ -171,12 +148,12 @@ public class RepositoryMetadata implements Writeable {
         name = in.readString();
         type = in.readString();
         settings = Settings.readSettingsFromStream(in);
-        generation = in.readLong();
-        pendingGeneration = in.readLong();
-        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
-            cryptoMetadata = in.readOptionalWriteable(CryptoMetadata::new);
+        if (in.getVersion().onOrAfter(REPO_GEN_IN_CS_VERSION)) {
+            generation = in.readLong();
+            pendingGeneration = in.readLong();
         } else {
-            cryptoMetadata = null;
+            generation = RepositoryData.UNKNOWN_REPO_GEN;
+            pendingGeneration = RepositoryData.EMPTY_REPO_GEN;
         }
     }
 
@@ -190,10 +167,9 @@ public class RepositoryMetadata implements Writeable {
         out.writeString(name);
         out.writeString(type);
         Settings.writeSettingsToStream(settings, out);
-        out.writeLong(generation);
-        out.writeLong(pendingGeneration);
-        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
-            out.writeOptionalWriteable(cryptoMetadata);
+        if (out.getVersion().onOrAfter(REPO_GEN_IN_CS_VERSION)) {
+            out.writeLong(generation);
+            out.writeLong(pendingGeneration);
         }
     }
 
@@ -204,10 +180,7 @@ public class RepositoryMetadata implements Writeable {
      * @return {@code true} if both instances equal in all fields but the generation fields
      */
     public boolean equalsIgnoreGenerations(RepositoryMetadata other) {
-        return name.equals(other.name)
-            && type.equals(other.type())
-            && settings.equals(other.settings())
-            && Objects.equals(cryptoMetadata, other.cryptoMetadata());
+        return name.equals(other.name) && type.equals(other.type()) && settings.equals(other.settings());
     }
 
     @Override
@@ -221,21 +194,16 @@ public class RepositoryMetadata implements Writeable {
         if (!type.equals(that.type)) return false;
         if (generation != that.generation) return false;
         if (pendingGeneration != that.pendingGeneration) return false;
-        if (!settings.equals(that.settings)) return false;
-        return Objects.equals(cryptoMetadata, that.cryptoMetadata);
+        return settings.equals(that.settings);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, type, settings, generation, pendingGeneration, cryptoMetadata);
+        return Objects.hash(name, type, settings, generation, pendingGeneration);
     }
 
     @Override
     public String toString() {
-        String toStr = "RepositoryMetadata{" + name + "}{" + type + "}{" + settings + "}{" + generation + "}{" + pendingGeneration + "}";
-        if (cryptoMetadata != null) {
-            return toStr + "{" + cryptoMetadata + "}";
-        }
-        return toStr;
+        return "RepositoryMetadata{" + name + "}{" + type + "}{" + settings + "}{" + generation + "}{" + pendingGeneration + "}";
     }
 }

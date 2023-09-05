@@ -48,15 +48,7 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.singletonList;
 
-/**
- * A plugin demonstrating the implementation of a new Rest Handler.
- */
 public class ExampleRestHandlerPlugin extends Plugin implements ActionPlugin {
-
-    /**
-     * Instantiate this plugin.
-     */
-    public ExampleRestHandlerPlugin() {}
 
     @Override
     public List<RestHandler> getRestHandlers(

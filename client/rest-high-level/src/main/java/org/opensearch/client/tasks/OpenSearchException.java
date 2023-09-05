@@ -33,7 +33,6 @@ package org.opensearch.client.tasks;
 
 import org.opensearch.core.ParseField;
 import org.opensearch.core.xcontent.XContentParser;
-
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;

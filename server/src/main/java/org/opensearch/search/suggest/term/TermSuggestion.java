@@ -31,6 +31,7 @@
 
 package org.opensearch.search.suggest.term;
 
+import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -73,7 +74,9 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
 
     public TermSuggestion(StreamInput in) throws IOException {
         super(in);
-        sort = SortBy.readFromStream(in);
+        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
+            sort = SortBy.readFromStream(in);
+        }
     }
 
     /**
@@ -151,7 +154,10 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        sort.writeTo(out);
+
+        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
+            sort.writeTo(out);
+        }
     }
 
     @Override

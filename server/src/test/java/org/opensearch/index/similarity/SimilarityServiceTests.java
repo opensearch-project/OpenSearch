@@ -37,11 +37,11 @@ import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.similarities.BooleanSimilarity;
 import org.apache.lucene.search.similarities.Similarity;
-import org.opensearch.Version;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.IndexSettingsModule;
 import org.hamcrest.Matchers;
 
 import java.util.Collections;
@@ -97,7 +97,7 @@ public class SimilarityServiceTests extends OpenSearchTestCase {
         };
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> SimilarityService.validateSimilarity(Version.V_2_0_0, negativeScoresSim)
+            () -> SimilarityService.validateSimilarity(LegacyESVersion.V_7_0_0, negativeScoresSim)
         );
         assertThat(e.getMessage(), Matchers.containsString("Similarities should not return negative scores"));
 
@@ -122,7 +122,7 @@ public class SimilarityServiceTests extends OpenSearchTestCase {
         };
         e = expectThrows(
             IllegalArgumentException.class,
-            () -> SimilarityService.validateSimilarity(Version.V_2_0_0, decreasingScoresWithFreqSim)
+            () -> SimilarityService.validateSimilarity(LegacyESVersion.V_7_0_0, decreasingScoresWithFreqSim)
         );
         assertThat(e.getMessage(), Matchers.containsString("Similarity scores should not decrease when term frequency increases"));
 
@@ -147,7 +147,7 @@ public class SimilarityServiceTests extends OpenSearchTestCase {
         };
         e = expectThrows(
             IllegalArgumentException.class,
-            () -> SimilarityService.validateSimilarity(Version.V_2_0_0, increasingScoresWithNormSim)
+            () -> SimilarityService.validateSimilarity(LegacyESVersion.V_7_0_0, increasingScoresWithNormSim)
         );
         assertThat(e.getMessage(), Matchers.containsString("Similarity scores should not increase when norm increases"));
     }

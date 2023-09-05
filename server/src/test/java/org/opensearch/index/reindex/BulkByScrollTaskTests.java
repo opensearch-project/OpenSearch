@@ -32,10 +32,11 @@
 
 package org.opensearch.index.reindex;
 
+import org.opensearch.common.Strings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -121,7 +122,7 @@ public class BulkByScrollTaskTests extends OpenSearchTestCase {
             timeValueMillis(0)
         );
         status.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertThat(builder.toString(), containsString("\"requests_per_second\":-1"));
+        assertThat(Strings.toString(builder), containsString("\"requests_per_second\":-1"));
     }
 
     public void testXContentRepresentationOfUnfinishedSlices() throws IOException {
@@ -147,7 +148,7 @@ public class BulkByScrollTaskTests extends OpenSearchTestCase {
             null
         );
         status.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertThat(builder.toString(), containsString("\"slices\":[null,null,{\"slice_id\":2"));
+        assertThat(Strings.toString(builder), containsString("\"slices\":[null,null,{\"slice_id\":2"));
     }
 
     public void testXContentRepresentationOfSliceFailures() throws IOException {
@@ -158,7 +159,7 @@ public class BulkByScrollTaskTests extends OpenSearchTestCase {
             null
         );
         status.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertThat(builder.toString(), containsString("\"slices\":[null,null,{\"type\":\"exception\""));
+        assertThat(Strings.toString(builder), containsString("\"slices\":[null,null,{\"type\":\"exception\""));
     }
 
     public void testMergeStatuses() {

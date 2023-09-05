@@ -59,7 +59,7 @@ import java.util.Map;
  *
  * @opensearch.internal
  */
-class GeoTileGridAggregatorFactory extends ValuesSourceAggregatorFactory {
+public class GeoTileGridAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     private final int precision;
     private final int requiredSize;
@@ -87,7 +87,7 @@ class GeoTileGridAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     @Override
     protected Aggregator createUnmapped(SearchContext searchContext, Aggregator parent, Map<String, Object> metadata) throws IOException {
-        final InternalAggregation aggregation = new GeoTileGrid(name, requiredSize, Collections.emptyList(), metadata);
+        final InternalAggregation aggregation = new InternalGeoTileGrid(name, requiredSize, Collections.emptyList(), metadata);
         return new NonCollectingAggregator(name, searchContext, parent, factories, metadata) {
             @Override
             public InternalAggregation buildEmptyAggregation() {
@@ -193,10 +193,5 @@ class GeoTileGridAggregatorFactory extends ValuesSourceAggregatorFactory {
             },
             true
         );
-    }
-
-    @Override
-    protected boolean supportsConcurrentSegmentSearch() {
-        return true;
     }
 }

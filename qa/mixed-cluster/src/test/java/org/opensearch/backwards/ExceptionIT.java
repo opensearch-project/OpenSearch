@@ -8,9 +8,7 @@
 
 package org.opensearch.backwards;
 
-import org.apache.hc.core5.http.HttpStatus;
-import org.apache.hc.core5.http.ParseException;
-import org.apache.hc.core5.http.io.entity.EntityUtils;
+import org.apache.http.util.EntityUtils;
 import org.opensearch.Version;
 import org.opensearch.client.Node;
 import org.opensearch.client.Request;
@@ -22,6 +20,8 @@ import org.opensearch.test.rest.yaml.ObjectPath;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
+
+import static org.apache.http.HttpStatus.SC_NOT_FOUND;
 
 public class ExceptionIT extends OpenSearchRestTestCase {
     public void testOpensearchException() throws Exception {
@@ -38,22 +38,23 @@ public class ExceptionIT extends OpenSearchRestTestCase {
             } catch (ResponseException e) {
                 logger.debug(e.getMessage());
                 Response response = e.getResponse();
-                assertEquals(HttpStatus.SC_NOT_FOUND, response.getStatusLine().getStatusCode());
+                assertEquals(SC_NOT_FOUND, response.getStatusLine().getStatusCode());
                 assertEquals("no_such_index", ObjectPath.createFromResponse(response).evaluate("error.index"));
             }
         }
     }
 
-    private void logClusterNodes() throws IOException, ParseException {
+    private void logClusterNodes() throws IOException {
         ObjectPath objectPath = ObjectPath.createFromResponse(client().performRequest(new Request("GET", "_nodes")));
         Map<String, ?> nodes = objectPath.evaluate("nodes");
-        // As of 2.0, 'GET _cat/master' API is deprecated to promote inclusive language.
-        // Allow the deprecation warning for the node running an older version.
-        // TODO: Replace the API with 'GET _cat/cluster_manager' when dropping compatibility with 1.x versions.
-        Request catRequest = new Request("GET", "_cat/master?h=id");
-        catRequest.setOptions(expectWarningsOnce("[GET /_cat/master] is deprecated! Use [GET /_cat/cluster_manager] instead."));
-        String clusterManager = EntityUtils.toString(client().performRequest(catRequest).getEntity()).trim();
-        logger.info("cluster discovered: cluster-manager id='{}'", clusterManager);
+        Request request = new Request("GET", "_cat/master?h=id");
+        String inclusiveWarning = "[GET /_cat/master] is deprecated! Use [GET /_cat/cluster_manager] instead.";
+        request.setOptions(expectVersionSpecificWarnings(v -> {
+            v.current(inclusiveWarning);
+            v.compatible(inclusiveWarning);
+        }));
+        String master = EntityUtils.toString(client().performRequest(request).getEntity()).trim();
+        logger.info("cluster discovered: master id='{}'", master);
         for (String id : nodes.keySet()) {
             logger.info("{}: id='{}', name='{}', version={}",
                 objectPath.evaluate("nodes." + id + ".http.publish_address"),
