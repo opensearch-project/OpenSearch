@@ -258,19 +258,15 @@ public class RemoteStoreStatsTestHelper {
                 segmentTransferStats.uploadBytesPerSecMovingAverage
             );
             assertEquals(
-                ((Map) segmentUploads.get(RemoteStoreStats.UploadStatsFields.TOTAL_SYNCS_TO_REMOTE)).get(
-                    RemoteStoreStats.SubFields.STARTED
-                ),
+                ((Map) segmentUploads.get(RemoteStoreStats.UploadStatsFields.TOTAL_UPLOADS)).get(RemoteStoreStats.SubFields.STARTED),
                 (int) segmentTransferStats.totalUploadsStarted
             );
             assertEquals(
-                ((Map) segmentUploads.get(RemoteStoreStats.UploadStatsFields.TOTAL_SYNCS_TO_REMOTE)).get(
-                    RemoteStoreStats.SubFields.SUCCEEDED
-                ),
+                ((Map) segmentUploads.get(RemoteStoreStats.UploadStatsFields.TOTAL_UPLOADS)).get(RemoteStoreStats.SubFields.SUCCEEDED),
                 (int) segmentTransferStats.totalUploadsSucceeded
             );
             assertEquals(
-                ((Map) segmentUploads.get(RemoteStoreStats.UploadStatsFields.TOTAL_SYNCS_TO_REMOTE)).get(RemoteStoreStats.SubFields.FAILED),
+                ((Map) segmentUploads.get(RemoteStoreStats.UploadStatsFields.TOTAL_UPLOADS)).get(RemoteStoreStats.SubFields.FAILED),
                 (int) segmentTransferStats.totalUploadsFailed
             );
             assertEquals(

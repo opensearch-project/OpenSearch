@@ -173,7 +173,7 @@ public class RemoteStoreStats implements Writeable, ToXContentFragment {
             .field(UploadStatsFields.BYTES_LAG, remoteSegmentShardStats.bytesLag)
             .field(UploadStatsFields.BACKPRESSURE_REJECTION_COUNT, remoteSegmentShardStats.rejectionCount)
             .field(UploadStatsFields.CONSECUTIVE_FAILURE_COUNT, remoteSegmentShardStats.consecutiveFailuresCount);
-        builder.startObject(UploadStatsFields.TOTAL_SYNCS_TO_REMOTE)
+        builder.startObject(UploadStatsFields.TOTAL_UPLOADS)
             .field(SubFields.STARTED, remoteSegmentShardStats.totalUploadsStarted)
             .field(SubFields.SUCCEEDED, remoteSegmentShardStats.totalUploadsSucceeded)
             .field(SubFields.FAILED, remoteSegmentShardStats.totalUploadsFailed);
@@ -275,11 +275,6 @@ public class RemoteStoreStats implements Writeable, ToXContentFragment {
          * No of consecutive remote refresh failures without a single success since the first failures
          */
         static final String CONSECUTIVE_FAILURE_COUNT = "consecutive_failure_count";
-
-        /**
-         * Represents the number of remote refreshes
-         */
-        static final String TOTAL_SYNCS_TO_REMOTE = "total_syncs_to_remote";
 
         /**
          * Represents the size of new data to be uploaded as part of a refresh
