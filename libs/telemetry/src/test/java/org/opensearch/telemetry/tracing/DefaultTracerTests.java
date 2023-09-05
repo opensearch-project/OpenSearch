@@ -19,7 +19,9 @@ import org.opensearch.test.telemetry.tracing.MockTracingTelemetry;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -249,7 +251,7 @@ public class DefaultTracerTests extends OpenSearchTestCase {
      * 4. verify the current_span is still the same on async thread as the 2
      * 5. verify the main thread has current span as null.
      */
-    public void testSpanAcrossThreads() {
+    public void testSpanAcrossThreads() throws ExecutionException, InterruptedException {
         TracingTelemetry tracingTelemetry = new MockTracingTelemetry();
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         AtomicReference<Span> currentSpanRefThread1 = new AtomicReference<>();
@@ -265,32 +267,41 @@ public class DefaultTracerTests extends OpenSearchTestCase {
         );
         DefaultTracer defaultTracer = new DefaultTracer(tracingTelemetry, spanTracerStorage);
 
-        executorService.execute(() -> {
+        Future<?> asyncTask = executorService.submit(() -> {
             // create a span
             Span span = defaultTracer.startSpan(new SpanCreationContext("span_name_t_1", Attributes.EMPTY));
             SpanScope spanScope = defaultTracer.withSpanInScope(span);
             spanRef.set(span);
 
-            executorService.execute(() -> {
+            Future<?> asyncTask1 = executorService.submit(() -> {
                 Span spanT2 = defaultTracer.startSpan(new SpanCreationContext("span_name_t_2", Attributes.EMPTY));
                 SpanScope spanScopeT2 = defaultTracer.withSpanInScope(spanT2);
                 spanT2Ref.set(spanT2);
 
                 currentSpanRefThread2.set(defaultTracer.getCurrentSpan().getSpan());
 
-                spanT2.endSpan();
                 spanScopeT2.close();
+                spanT2.endSpan();
                 currentSpanRefAfterEndThread2.set(getCurrentSpanFromContext(defaultTracer));
             });
+            try {
+                asyncTask1.get();
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            } catch (ExecutionException e) {
+                throw new RuntimeException(e);
+            }
             spanScope.close();
+            span.endSpan();
             currentSpanRefThread1.set(getCurrentSpanFromContext(defaultTracer));
         });
+        asyncTask.get();
         assertEquals(spanT2Ref.get(), currentSpanRefThread2.get());
-        assertEquals(spanRef.get(), currentSpanRefAfterEndThread2.get());
+        assertEquals(null, currentSpanRefAfterEndThread2.get());
         assertEquals(null, currentSpanRefThread1.get());
     }
 
-    public void testSpanCloseOnThread2() {
+    public void testSpanCloseOnThread2() throws ExecutionException, InterruptedException {
         TracingTelemetry tracingTelemetry = new MockTracingTelemetry();
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         ThreadContextBasedTracerContextStorage spanTracerStorage = new ThreadContextBasedTracerContextStorage(
@@ -302,11 +313,14 @@ public class DefaultTracerTests extends OpenSearchTestCase {
         DefaultTracer defaultTracer = new DefaultTracer(tracingTelemetry, spanTracerStorage);
         final Span span = defaultTracer.startSpan(new SpanCreationContext("span_name_t1", Attributes.EMPTY));
         try (SpanScope spanScope = defaultTracer.withSpanInScope(span)) {
-            executorService.execute(() -> async(new ActionListener<Boolean>() {
+            Future<?> asyncTask = executorService.submit(() -> async(new ActionListener<Boolean>() {
                 @Override
                 public void onResponse(Boolean response) {
-                    span.endSpan();
-                    currentSpanRefThread2.set(defaultTracer.getCurrentSpan());
+                    try (SpanScope s = defaultTracer.withSpanInScope(span)) {
+                        currentSpanRefThread2.set(defaultTracer.getCurrentSpan());
+                    } finally {
+                        span.endSpan();
+                    }
                 }
 
                 @Override
@@ -314,9 +328,10 @@ public class DefaultTracerTests extends OpenSearchTestCase {
 
                 }
             }));
+            asyncTask.get();
             currentSpanRefThread1.set(defaultTracer.getCurrentSpan());
         }
-        assertEquals(null, currentSpanRefThread2.get());
+        assertEquals(span, currentSpanRefThread2.get().getSpan());
         assertEquals(span, currentSpanRefThread1.get().getSpan());
         assertEquals(null, defaultTracer.getCurrentSpan());
     }
@@ -334,7 +349,7 @@ public class DefaultTracerTests extends OpenSearchTestCase {
      * 6. verify the current_span is still the same on async thread as the 2
      * 7. verify the main thread has current span as null.
      */
-    public void testSpanAcrossThreadsMultipleSpans() {
+    public void testSpanAcrossThreadsMultipleSpans() throws ExecutionException, InterruptedException {
         TracingTelemetry tracingTelemetry = new MockTracingTelemetry();
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         AtomicReference<Span> currentSpanRefThread1 = new AtomicReference<>();
@@ -351,7 +366,7 @@ public class DefaultTracerTests extends OpenSearchTestCase {
         );
         DefaultTracer defaultTracer = new DefaultTracer(tracingTelemetry, spanTracerStorage);
 
-        executorService.execute(() -> {
+        Future<?> asyncTask = executorService.submit(() -> {
             // create a parent span
             Span parentSpan = defaultTracer.startSpan(new SpanCreationContext("p_span_name", Attributes.EMPTY));
             SpanScope parentSpanScope = defaultTracer.withSpanInScope(parentSpan);
@@ -361,28 +376,37 @@ public class DefaultTracerTests extends OpenSearchTestCase {
             SpanScope spanScope = defaultTracer.withSpanInScope(span);
             spanRef.set(span);
 
-            executorService.execute(() -> {
+            Future<?> asyncTask1 = executorService.submit(() -> {
                 Span spanT2 = defaultTracer.startSpan(new SpanCreationContext("span_name_t_2", Attributes.EMPTY));
                 SpanScope spanScopeT2 = defaultTracer.withSpanInScope(spanT2);
-
                 Span spanT21 = defaultTracer.startSpan(new SpanCreationContext("span_name_t_2", Attributes.EMPTY));
-                SpanScope spanScopeT21 = defaultTracer.withSpanInScope(spanT2);
+                SpanScope spanScopeT21 = defaultTracer.withSpanInScope(spanT21);
                 spanT2Ref.set(spanT21);
                 currentSpanRefThread2.set(defaultTracer.getCurrentSpan().getSpan());
-
-                spanT21.endSpan();
                 spanScopeT21.close();
+                spanT21.endSpan();
 
-                spanT2.endSpan();
                 spanScopeT2.close();
+                spanT2.endSpan();
+
                 currentSpanRefAfterEndThread2.set(getCurrentSpanFromContext(defaultTracer));
             });
+            try {
+                asyncTask1.get();
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            } catch (ExecutionException e) {
+                throw new RuntimeException(e);
+            }
             spanScope.close();
+            span.endSpan();
             parentSpanScope.close();
+            parentSpan.endSpan();
             currentSpanRefThread1.set(getCurrentSpanFromContext(defaultTracer));
         });
+        asyncTask.get();
         assertEquals(spanT2Ref.get(), currentSpanRefThread2.get());
-        assertEquals(spanRef.get(), currentSpanRefAfterEndThread2.get());
+        assertEquals(null, currentSpanRefAfterEndThread2.get());
         assertEquals(null, currentSpanRefThread1.get());
     }
 
