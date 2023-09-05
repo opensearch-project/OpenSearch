@@ -41,7 +41,6 @@ public class TraceableTransportResponseHandler<T extends TransportResponse> impl
         this.delegate = Objects.requireNonNull(delegate);
         this.span = Objects.requireNonNull(span);
         this.tracer = Objects.requireNonNull(tracer);
-        ;
     }
 
     /**
