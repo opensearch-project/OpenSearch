@@ -151,7 +151,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         assertThat(manifest.getStateUUID(), is(expectedManifest.getStateUUID()));
     }
 
-    public void testWriteFullMetadataAsyncSuccess() throws IOException {
+    public void testWriteFullMetadataInParallelSuccess() throws IOException {
         final ClusterState clusterState = generateClusterStateWithOneIndex().nodes(nodesWithLocalNodeClusterManager()).build();
         AsyncMultiStreamBlobContainer container = (AsyncMultiStreamBlobContainer) mockBlobStoreObjects(AsyncMultiStreamBlobContainer.class);
 
@@ -185,7 +185,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         assertThat(manifest.getStateUUID(), is(expectedManifest.getStateUUID()));
     }
 
-    public void testWriteFullMetadataAsyncFailure() throws IOException {
+    public void testWriteFullMetadataInParallelFailure() throws IOException {
         final ClusterState clusterState = generateClusterStateWithOneIndex().nodes(nodesWithLocalNodeClusterManager()).build();
         AsyncMultiStreamBlobContainer container = (AsyncMultiStreamBlobContainer) mockBlobStoreObjects(AsyncMultiStreamBlobContainer.class);
 
