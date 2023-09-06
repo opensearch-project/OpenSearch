@@ -141,13 +141,26 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
     private static NodeShardStates getNodeShardStates(FetchResult<NodeGatewayStartedShards> shardsState) {
         NodeShardStates nodeShardStates = new NodeShardStates((o1, o2) -> 1);
         shardsState.getData().forEach((node, nodeGatewayStartedShard) -> {
-            nodeShardStates.add(new NodeShardState(node, nodeGatewayStartedShard.allocationId(), nodeGatewayStartedShard.primary(), nodeGatewayStartedShard.replicationCheckpoint(), nodeGatewayStartedShard.storeException()), node);
+            nodeShardStates.add(
+                new NodeShardState(
+                    node,
+                    nodeGatewayStartedShard.allocationId(),
+                    nodeGatewayStartedShard.primary(),
+                    nodeGatewayStartedShard.replicationCheckpoint(),
+                    nodeGatewayStartedShard.storeException()
+                ),
+                node
+            );
         });
         return nodeShardStates;
     }
 
-    protected AllocateUnassignedDecision getAllocationDecision(ShardRouting unassignedShard, RoutingAllocation allocation,
-                                                               NodeShardStates shardState, Logger logger) {
+    protected AllocateUnassignedDecision getAllocationDecision(
+        ShardRouting unassignedShard,
+        RoutingAllocation allocation,
+        NodeShardStates shardState,
+        Logger logger
+    ) {
         final boolean explain = allocation.debugDecision();
         // don't create a new IndexSetting object for every shard as this could cause a lot of garbage
         // on cluster restart if we allocate a boat load of shards
@@ -338,9 +351,7 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
     private static final Comparator<NodeShardState> NO_STORE_EXCEPTION_FIRST_COMPARATOR = Comparator.comparing(
         (NodeShardState state) -> state.storeException() == null
     ).reversed();
-    private static final Comparator<NodeShardState> PRIMARY_FIRST_COMPARATOR = Comparator.comparing(
-        NodeShardState::primary
-    ).reversed();
+    private static final Comparator<NodeShardState> PRIMARY_FIRST_COMPARATOR = Comparator.comparing(NodeShardState::primary).reversed();
 
     private static final Comparator<NodeShardState> HIGHEST_REPLICATION_CHECKPOINT_FIRST_COMPARATOR = Comparator.comparing(
         NodeShardState::replicationCheckpoint,
@@ -507,7 +518,11 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
         final List<? extends DecidedNode> throttleNodeShards;
         final List<? extends DecidedNode> noNodeShards;
 
-        NodesToAllocate(List<? extends DecidedNode> yesNodeShards, List<? extends DecidedNode> throttleNodeShards, List<? extends DecidedNode> noNodeShards) {
+        NodesToAllocate(
+            List<? extends DecidedNode> yesNodeShards,
+            List<? extends DecidedNode> throttleNodeShards,
+            List<? extends DecidedNode> noNodeShards
+        ) {
             this.yesNodeShards = yesNodeShards;
             this.throttleNodeShards = throttleNodeShards;
             this.noNodeShards = noNodeShards;

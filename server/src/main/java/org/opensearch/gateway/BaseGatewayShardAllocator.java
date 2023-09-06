@@ -37,7 +37,6 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.RoutingNode;
-import org.opensearch.cluster.routing.RoutingNodes;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.allocation.AllocateUnassignedDecision;
 import org.opensearch.cluster.routing.allocation.AllocationDecision;
@@ -49,13 +48,9 @@ import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Set;
 import java.util.TreeMap;
-import java.util.concurrent.ConcurrentMap;
-import java.util.stream.Collectors;
 
 /**
  * An abstract class that implements basic functionality for allocating
@@ -151,11 +146,13 @@ public abstract class BaseGatewayShardAllocator {
         private final ReplicationCheckpoint replicationCheckpoint;
         private final DiscoveryNode node;
 
-        public NodeShardState(DiscoveryNode node,
-                              String allocationId,
-                              boolean primary,
-                              ReplicationCheckpoint replicationCheckpoint,
-                              Exception storeException) {
+        public NodeShardState(
+            DiscoveryNode node,
+            String allocationId,
+            boolean primary,
+            ReplicationCheckpoint replicationCheckpoint,
+            Exception storeException
+        ) {
             this.node = node;
             this.allocationId = allocationId;
             this.primary = primary;
