@@ -15,11 +15,15 @@ import org.opensearch.action.admin.indices.segments.IndicesSegmentsRequest;
 import org.opensearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.index.codec.customcodecs.CustomCodecPlugin;
 import org.opensearch.index.engine.Segment;
+import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -39,6 +43,11 @@ import static org.hamcrest.Matchers.is;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST)
 public class MultiCodecMergeIT extends OpenSearchIntegTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return Collections.singletonList(CustomCodecPlugin.class);
+    }
 
     public void testForceMergeMultipleCodecs() throws ExecutionException, InterruptedException {
 
