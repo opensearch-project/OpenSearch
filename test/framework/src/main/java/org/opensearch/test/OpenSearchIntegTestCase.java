@@ -2096,7 +2096,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
      * @return boolean.
      */
     protected boolean addMockTelemetryPlugin() {
-        return false;
+        return true;
     }
 
     /**
