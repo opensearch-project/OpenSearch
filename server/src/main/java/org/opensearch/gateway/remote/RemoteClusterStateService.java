@@ -560,10 +560,9 @@ public class RemoteClusterStateService implements Closeable {
         }
     }
 
-
     public static String encodeString(String content) {
         return Base64.getUrlEncoder().withoutPadding().encodeToString(content.getBytes(StandardCharsets.UTF_8));
-
+    }
 
     /**
      * Exception for IndexMetadata transfer failures to remote

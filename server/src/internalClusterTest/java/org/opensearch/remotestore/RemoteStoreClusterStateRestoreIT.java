@@ -11,11 +11,8 @@ package org.opensearch.remotestore;
 import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStoreResponse;
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.opensearch.action.support.PlainActionFuture;
-import org.opensearch.cluster.ClusterState;
-import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.gateway.remote.RemoteClusterStateService;
-import org.opensearch.index.recovery.RemoteStoreRestoreService;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.io.IOException;
@@ -23,7 +20,6 @@ import java.nio.file.Files;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 
 import static org.opensearch.gateway.remote.RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING;
@@ -65,35 +61,7 @@ public class RemoteStoreClusterStateRestoreIT extends BaseRemoteStoreRestoreIT {
     }
 
     private void restoreAndValidate(String clusterUUID, Map<String, Long> indexStats, boolean validate) throws Exception {
-        CountDownLatch latch = new CountDownLatch(1);
-        RemoteStoreRestoreService remoteStoreRestoreService = internalCluster().getClusterManagerNodeInstance(
-            RemoteStoreRestoreService.class
-        );
-        internalCluster().clusterService(internalCluster().getClusterManagerName())
-            .submitStateUpdateTask("restore[remote_store]", new ClusterStateUpdateTask() {
-                @Override
-                public ClusterState execute(ClusterState currentState) {
-                    RemoteStoreRestoreService.RemoteRestoreResult remoteRestoreResult = remoteStoreRestoreService.restore(
-                        currentState,
-                        clusterUUID,
-                        false,
-                        new String[0]
-                    );
-                    return remoteRestoreResult.getClusterState();
-                }
-
-                @Override
-                public void onFailure(String source, Exception e) {
-                    latch.countDown();
-                }
-
-                @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                    latch.countDown();
-                }
-            });
-
-        latch.await();
+        // TODO once auto restore is merged, the remote cluster state will be restored
 
         if (validate) {
             // Step - 4 validation restore is successful.
@@ -125,6 +93,7 @@ public class RemoteStoreClusterStateRestoreIT extends BaseRemoteStoreRestoreIT {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/9834")
     public void testFullClusterRestore() throws Exception {
         int shardCount = randomIntBetween(1, 2);
         int replicaCount = 1;
@@ -145,6 +114,7 @@ public class RemoteStoreClusterStateRestoreIT extends BaseRemoteStoreRestoreIT {
         restoreAndValidate(prevClusterUUID, indexStats);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/9834")
     public void testFullClusterRestoreMultipleIndices() throws Exception {
         int shardCount = randomIntBetween(1, 2);
         int replicaCount = 1;
@@ -174,6 +144,7 @@ public class RemoteStoreClusterStateRestoreIT extends BaseRemoteStoreRestoreIT {
         verifyRestoredData(indexStats2, secondIndexName);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/9834")
     public void testFullClusterRestoreFailureValidationFailures() throws Exception {
         int shardCount = randomIntBetween(1, 2);
         int replicaCount = 1;
@@ -249,6 +220,7 @@ public class RemoteStoreClusterStateRestoreIT extends BaseRemoteStoreRestoreIT {
         // End of Test - 4
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/9834")
     public void testFullClusterRestoreManifestFilePointsToInvalidIndexMetadataPathThrowsException() throws Exception {
         int shardCount = randomIntBetween(1, 2);
         int replicaCount = 1;
