@@ -140,6 +140,12 @@ tasks.named("thirdPartyAudit").configure {
   )
 }
 
+protobuf {
+  protoc {
+    artifact = "com.google.protobuf:protoc:${versions.protobuf}"
+  }
+}
+
 tasks.named("dependencyLicenses").configure {
   mapping from: /jackson-.*/, to: 'jackson'
   mapping from: /lucene-.*/, to: 'lucene'

@@ -76,7 +76,7 @@ public final class TaskId implements Writeable, ProtobufWriteable {
     private TaskId() {
         nodeId = "";
         id = -1;
-        taskIdProto = TaskIdProto.TaskId.newBuilder().setNodeId(nodeId).setId(id).build();
+        taskIdProto = TaskIdProto.TaskId.newBuilder().setId(id).build();
     }
 
     public TaskId(String taskId) {
@@ -95,7 +95,7 @@ public final class TaskId implements Writeable, ProtobufWriteable {
         } else {
             nodeId = "";
             id = -1L;
-            taskIdProto = TaskIdProto.TaskId.newBuilder().setNodeId(nodeId).setId(id).build();
+            taskIdProto = TaskIdProto.TaskId.newBuilder().setId(id).build();
         }
     }
 
@@ -121,15 +121,14 @@ public final class TaskId implements Writeable, ProtobufWriteable {
     */
     public static TaskId readFromBytes(byte[] in) throws IOException {
         TaskIdProto.TaskId taskIdProto = TaskIdProto.TaskId.parseFrom(in);
-        String nodeId = taskIdProto.getNodeId();
-        if (nodeId.isEmpty()) {
+        if (!taskIdProto.hasNodeId()) {
             /*
              * The only TaskId allowed to have the empty string as its nodeId is the EMPTY_TASK_ID and there is only ever one of it and it
              * never writes its taskId to save bytes on the wire because it is by far the most common TaskId.
              */
             return EMPTY_TASK_ID;
         }
-        return new TaskId(nodeId, taskIdProto.getId());
+        return new TaskId(taskIdProto.getNodeId(), taskIdProto.getId());
     }
 
     @Override
@@ -144,6 +143,9 @@ public final class TaskId implements Writeable, ProtobufWriteable {
 
     @Override
     public void writeTo(OutputStream out) throws IOException {
+        if (!taskIdProto.hasNodeId()) {
+            return;
+        }
         out.write(this.taskIdProto.toByteArray());
     }
 

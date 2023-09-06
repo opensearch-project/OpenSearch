@@ -15,6 +15,6 @@ package org.opensearch.core.tasks.proto;
 option java_outer_classname = "TaskIdProto";
 
 message TaskId {
-  string nodeId = 1;
+  optional string nodeId = 1;
   int64 id = 2;
 }
