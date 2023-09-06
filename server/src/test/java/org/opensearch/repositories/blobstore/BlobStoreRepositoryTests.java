@@ -166,8 +166,6 @@ public class BlobStoreRepositoryTests extends BlobStoreRepositoryHelperTests {
         assertThat(snapshotIds, equalTo(originalSnapshots));
     }
 
-    // Validate Scenario remoteStoreShallowCopy Snapshot -> remoteStoreShallowCopy Snapshot
-    // -> remoteStoreShallowCopy Snapshot -> normal snapshot
     public void testReadAndWriteSnapshotsThroughIndexFile() throws Exception {
         final BlobStoreRepository repository = setupRepo();
         final long pendingGeneration = repository.metadata.pendingGeneration();
