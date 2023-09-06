@@ -67,6 +67,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY;
@@ -437,7 +438,8 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
 
         for (Map.Entry<String, String> nodeAttribute : existingNodeAttributes.entrySet()) {
             if (nodeAttribute.getKey() != REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY
-                && nodeAttribute.getKey() != REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY) {
+                && nodeAttribute.getKey() != REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY
+                && nodeAttribute.getKey() != REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY) {
                 remoteStoreNodeAttributes.put(nodeAttribute.getKey(), nodeAttribute.getValue() + "-new");
                 validateAttributes(remoteStoreNodeAttributes, currentState, existingNode);
                 remoteStoreNodeAttributes.put(nodeAttribute.getKey(), nodeAttribute.getValue());
@@ -791,6 +793,16 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
             REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX,
             translogRepoName
         );
+        String clusterStateRepositoryTypeAttributeKey = String.format(
+            Locale.getDefault(),
+            REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT,
+            segmentRepoName
+        );
+        String clusterStateRepositorySettingsAttributeKeyPrefix = String.format(
+            Locale.getDefault(),
+            REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX,
+            segmentRepoName
+        );
 
         return new HashMap<>() {
             {
@@ -802,6 +814,10 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
                 putIfAbsent(translogRepositoryTypeAttributeKey, "s3");
                 putIfAbsent(translogRepositorySettingsAttributeKeyPrefix + "bucket", "translog_bucket");
                 putIfAbsent(translogRepositorySettingsAttributeKeyPrefix + "base_path", "/translog/path");
+                put(REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY, segmentRepoName);
+                putIfAbsent(clusterStateRepositoryTypeAttributeKey, "s3");
+                putIfAbsent(clusterStateRepositorySettingsAttributeKeyPrefix + "bucket", "state_bucket");
+                putIfAbsent(clusterStateRepositorySettingsAttributeKeyPrefix + "base_path", "/state/path");
             }
         };
     }
@@ -812,16 +828,14 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
             IllegalStateException.class,
             () -> JoinTaskExecutor.ensureNodesCompatibility(joiningNode, currentState.getNodes(), currentState.metadata())
         );
-        assertTrue(
-            e.getMessage()
-                .equals(
-                    "a remote store node ["
-                        + joiningNode
-                        + "] is trying to join a remote store cluster with incompatible node attributes in "
-                        + "comparison with existing node ["
-                        + existingNode
-                        + "]"
-                )
+        assertEquals(
+            e.getMessage(),
+            "a remote store node ["
+                + joiningNode
+                + "] is trying to join a remote store cluster with incompatible node attributes in "
+                + "comparison with existing node ["
+                + existingNode
+                + "]"
         );
     }
 

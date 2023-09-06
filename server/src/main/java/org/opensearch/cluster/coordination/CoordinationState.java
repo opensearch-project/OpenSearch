@@ -53,6 +53,7 @@ import java.util.Set;
 
 import static org.opensearch.cluster.coordination.Coordinator.ZEN1_BWC_TERM;
 import static org.opensearch.gateway.remote.RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteStoreAttributePresent;
 
 /**
  * The core class of the cluster state coordination algorithm, directly implementing the
@@ -101,7 +102,7 @@ public class CoordinationState {
             .getLastAcceptedState()
             .getLastAcceptedConfiguration();
         this.publishVotes = new VoteCollection();
-        this.isRemoteStateEnabled = REMOTE_CLUSTER_STATE_ENABLED_SETTING.get(settings);
+        this.isRemoteStateEnabled = isRemoteStoreAttributePresent(settings);
     }
 
     public long getCurrentTerm() {
