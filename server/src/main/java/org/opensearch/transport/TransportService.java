@@ -865,6 +865,7 @@ public class TransportService extends AbstractLifecycleComponent
         final TransportRequestOptions options,
         final TransportResponseHandler<T> handler
     ) {
+        logger.debug("Action: " + action);
         final Span span = tracer.startSpan(SpanBuilder.from(action, connection));
         try (SpanScope spanScope = tracer.withSpanInScope(span)) {
             final TransportResponseHandler<T> traceableTransportResponseHandler = TraceableTransportResponseHandler.create(
@@ -873,8 +874,6 @@ public class TransportService extends AbstractLifecycleComponent
                 tracer
             );
             try {
-                logger.debug("Action: " + action);
-
                 final TransportResponseHandler<T> delegate;
                 if (request.getParentTask().isSet()) {
                     // TODO: capture the connection instead so that we can cancel child tasks on the remote connections.

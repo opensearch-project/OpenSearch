@@ -71,6 +71,7 @@ import org.opensearch.plugins.Plugin;
 import org.opensearch.script.MockScriptService;
 import org.opensearch.search.SearchService;
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.telemetry.Telemetry;
 import org.opensearch.telemetry.TelemetrySettings;
 import org.opensearch.test.telemetry.MockTelemetry;
 import org.opensearch.test.telemetry.MockTelemetryPlugin;
@@ -200,11 +201,15 @@ public abstract class OpenSearchSingleNodeTestCase extends OpenSearchTestCase {
 
     private static void ensureTracingStrictCheck(Node node) {
         if (node != null) {
-            MockTelemetry telemetry = ((MockNode) node).getTelemetry();
-            if (telemetry != null && telemetry.getTracingTelemetry() != null) {
-                ((MockTracingTelemetry) telemetry.getTracingTelemetry()).ensureSpanStrictCheck();
+            Telemetry telemetry = ((MockNode) node).getTelemetry();
+            if (isValidMockTracingTelemetry(telemetry)) {
+                ((MockTracingTelemetry) telemetry.getTracingTelemetry()).ensureTracingStrictCheck();
             }
         }
+    }
+
+    private static boolean isValidMockTracingTelemetry(Telemetry telemetry) {
+        return telemetry != null && telemetry instanceof MockTelemetry && telemetry.getTracingTelemetry() != null;
     }
 
     /**

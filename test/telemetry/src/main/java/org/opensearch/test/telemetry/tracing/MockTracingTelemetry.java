@@ -25,29 +25,17 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class MockTracingTelemetry implements TracingTelemetry {
 
     private final SpanProcessor spanProcessor = new StrictCheckSpanProcessor();
-    private final AtomicBoolean isShutdown = new AtomicBoolean(false);
-    private final Runnable onClose;
+    private final AtomicBoolean shutdown = new AtomicBoolean(false);
 
     /**
      * Base constructor.
      */
-    public MockTracingTelemetry() {
-        this(() -> {});
-    }
-
-    /**
-     * Base constructor.
-     *
-     * @param onClose on close hook
-     */
-    public MockTracingTelemetry(final Runnable onClose) {
-        this.onClose = onClose;
-    }
+    public MockTracingTelemetry() {}
 
     @Override
     public Span createSpan(String spanName, Span parentSpan, Attributes attributes) {
         Span span = new MockSpan(spanName, parentSpan, spanProcessor, attributes);
-        if (isShutdown.get() == false) {
+        if (shutdown.get() == false) {
             spanProcessor.onStart(span);
         }
         return span;
@@ -60,23 +48,13 @@ public class MockTracingTelemetry implements TracingTelemetry {
 
     @Override
     public void close() {
-        isShutdown.set(true);
-        // Run onClose hook
-        /*onClose.run();
-
-        List<MockSpanData> spanData = ((StrictCheckSpanProcessor) spanProcessor).getFinishedSpanItems();
-        if (spanData.size() != 0) {
-            TelemetryValidators validators = new TelemetryValidators(
-                Arrays.asList(new AllSpansAreEndedProperly(), new AllSpansHaveUniqueId())
-            );
-            validators.validate(spanData, 1);
-        }*/
+        shutdown.set(true);
     }
 
     /**
      * Ensures the strict check succeeds for all the spans.
      */
-    public void ensureSpanStrictCheck() {
+    public void ensureTracingStrictCheck() {
         List<MockSpanData> spanData = ((StrictCheckSpanProcessor) spanProcessor).getFinishedSpanItems();
         if (spanData.size() != 0) {
             TelemetryValidators validators = new TelemetryValidators(
