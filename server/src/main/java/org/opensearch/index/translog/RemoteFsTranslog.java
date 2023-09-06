@@ -29,8 +29,10 @@ import org.opensearch.repositories.Repository;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.threadpool.ThreadPool;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.Locale;
@@ -68,6 +70,7 @@ public class RemoteFsTranslog extends Translog {
     private final SetOnce<Boolean> olderPrimaryCleaned = new SetOnce<>();
 
     private static final int REMOTE_DELETION_PERMITS = 2;
+    private static final int DOWNLOAD_RETRIES = 2;
     public static final String TRANSLOG = "translog";
 
     // Semaphore used to allow only single remote generation to happen at a time
@@ -161,7 +164,28 @@ public class RemoteFsTranslog extends Translog {
         RemoteFsTranslog.download(translogTransferManager, location, logger);
     }
 
-    public static void download(TranslogTransferManager translogTransferManager, Path location, Logger logger) throws IOException {
+    static void download(TranslogTransferManager translogTransferManager, Path location, Logger logger) throws IOException {
+        /*
+        In Primary to Primary relocation , there can be concurrent upload and download of translog.
+        While translog files are getting downloaded by new primary, it might hence be deleted by the primary
+        Hence we retry if tlog/ckp files are not found .
+
+        This doesn't happen in last download , where it is ensured that older primary has stopped modifying tlog data.
+         */
+        IOException ex = null;
+        for (int i = 0; i <= DOWNLOAD_RETRIES; i++) {
+            try {
+                downloadOnce(translogTransferManager, location, logger);
+                return;
+            } catch (FileNotFoundException | NoSuchFileException e) {
+                // continue till download retries
+                ex = e;
+            }
+        }
+        throw ex;
+    }
+
+    static private void downloadOnce(TranslogTransferManager translogTransferManager, Path location, Logger logger) throws IOException {
         logger.trace("Downloading translog files from remote");
         RemoteTranslogTransferTracker statsTracker = translogTransferManager.getRemoteTranslogTransferTracker();
         long prevDownloadBytesSucceeded = statsTracker.getDownloadBytesSucceeded();
