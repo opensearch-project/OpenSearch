@@ -86,6 +86,7 @@ import org.opensearch.discovery.SeedHostsProvider;
 import org.opensearch.discovery.SeedHostsResolver;
 import org.opensearch.monitor.NodeHealthService;
 import org.opensearch.monitor.StatusInfo;
+import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool.Names;
 import org.opensearch.transport.TransportService;
@@ -183,6 +184,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     private Optional<CoordinatorPublication> currentPublication = Optional.empty();
     private final NodeHealthService nodeHealthService;
     private final PersistedStateRegistry persistedStateRegistry;
+    private final RemoteStoreNodeService remoteStoreNodeService;
 
     /**
      * @param nodeName The name of the node, used to name the {@link java.util.concurrent.ExecutorService} of the {@link SeedHostsResolver}.
@@ -204,7 +206,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         RerouteService rerouteService,
         ElectionStrategy electionStrategy,
         NodeHealthService nodeHealthService,
-        PersistedStateRegistry persistedStateRegistry
+        PersistedStateRegistry persistedStateRegistry,
+        RemoteStoreNodeService remoteStoreNodeService
     ) {
         this.settings = settings;
         this.transportService = transportService;
@@ -218,6 +221,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             allocationService,
             clusterManagerService,
             transportService,
+            remoteStoreNodeService,
             this::getCurrentTerm,
             this::getStateForClusterManagerService,
             this::handleJoinRequest,
@@ -291,6 +295,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         this.nodeHealthService = nodeHealthService;
         this.persistedStateRegistry = persistedStateRegistry;
         this.localNodeCommissioned = true;
+        this.remoteStoreNodeService = remoteStoreNodeService;
     }
 
     private ClusterFormationState getClusterFormationState() {

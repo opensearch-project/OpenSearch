@@ -420,7 +420,13 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             // Check if repositories got changed
             if ((oldMetadata == null && newMetadata == null) || (oldMetadata != null && oldMetadata.equalsIgnoreGenerations(newMetadata))) {
                 for (Repository repo : repositories.values()) {
-                    repo.updateState(state);
+                    // Update State should only be invoked for repository which are already in cluster state. This
+                    // check needs to be added as system repositories can be populated before cluster state has the
+                    // repository metadata.
+                    RepositoriesMetadata stateRepositoriesMetadata = state.metadata().custom(RepositoriesMetadata.TYPE);
+                    if (stateRepositoriesMetadata != null && stateRepositoriesMetadata.repository(repo.getMetadata().name()) != null) {
+                        repo.updateState(state);
+                    }
                 }
                 return;
             }
@@ -468,7 +474,22 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                         }
                     } else {
                         try {
-                            repository = createRepository(repositoryMetadata, typesRegistry);
+                            // System repositories are already created and verified and hence during cluster state
+                            // update we should avoid creating it again. Once the cluster state is update with the
+                            // repository metadata the repository metadata update will land in the above if block.
+                            if (repositories.containsKey(repositoryMetadata.name()) == false) {
+                                repository = createRepository(repositoryMetadata, typesRegistry);
+                            } else {
+                                // Validate the repository metadata which was created during bootstrap is same as the
+                                // one present in incoming cluster state.
+                                repository = repositories.get(repositoryMetadata.name());
+                                if (repositoryMetadata.equalsIgnoreGenerations(repository.getMetadata()) == false) {
+                                    throw new RepositoryException(
+                                        repositoryMetadata.name(),
+                                        "repository was already " + "registered with different metadata during bootstrap than cluster state"
+                                    );
+                                }
+                            }
                         } catch (RepositoryException ex) {
                             logger.warn(() -> new ParameterizedMessage("failed to create repository [{}]", repositoryMetadata.name()), ex);
                         }
@@ -587,7 +608,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     }
 
     /** Closes the given repository. */
-    private void closeRepository(Repository repository) {
+    public void closeRepository(Repository repository) {
         logger.debug("closing repository [{}][{}]", repository.getMetadata().type(), repository.getMetadata().name());
         repository.close();
     }
@@ -599,6 +620,13 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                 logger.warn("Unable to archive the repository stats [{}] as the archive is full.", stats);
             }
         }
+    }
+
+    /**
+     * Creates repository holder. This method starts the non-internal repository
+     */
+    public Repository createRepository(RepositoryMetadata repositoryMetadata) {
+        return this.createRepository(repositoryMetadata, typesRegistry);
     }
 
     /**
@@ -625,7 +653,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         }
     }
 
-    private static void validate(final String identifier) {
+    public static void validate(final String identifier) {
         if (org.opensearch.core.common.Strings.hasLength(identifier) == false) {
             throw new RepositoryException(identifier, "cannot be empty");
         }
@@ -722,6 +750,17 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             }
         }
         return false;
+    }
+
+    /**
+     * This method will be used to update the repositories map.
+     */
+    public void updateRepositoriesMap(Map<String, Repository> repos) {
+        if (repositories.isEmpty()) {
+            repositories = repos;
+        } else {
+            throw new IllegalArgumentException("can't overwrite as repositories are already present");
+        }
     }
 
     @Override

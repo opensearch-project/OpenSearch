@@ -27,7 +27,6 @@ public class RemoteSegmentStatsFromNodesStatsIT extends RemoteStoreBaseIntegTest
     @Before
     public void setup() {
         setupCustomCluster();
-        setupRepo(false);
     }
 
     private void setupCustomCluster() {
