@@ -310,22 +310,22 @@ public class RepositoriesServiceTests extends OpenSearchTestCase {
         assertNotNull(repository.cryptoHandler);
         assertEquals(kpTypeA, repository.cryptoHandler.kpType);
 
-        expectThrows(IllegalArgumentException.class, () -> repositoriesService.registerRepository(request, null));
+        expectThrows(IllegalArgumentException.class, () -> repositoriesService.registerOrUpdateRepository(request, null));
 
         CryptoSettings cryptoSettings = new CryptoSettings(keyProviderName);
         cryptoSettings.keyProviderType(kpTypeA);
         cryptoSettings.settings(Settings.builder().put("key-1", "val-1"));
         request.cryptoSettings(cryptoSettings);
-        expectThrows(IllegalArgumentException.class, () -> repositoriesService.registerRepository(request, null));
+        expectThrows(IllegalArgumentException.class, () -> repositoriesService.registerOrUpdateRepository(request, null));
 
         cryptoSettings.settings(Settings.builder());
         cryptoSettings.keyProviderName("random");
-        expectThrows(IllegalArgumentException.class, () -> repositoriesService.registerRepository(request, null));
+        expectThrows(IllegalArgumentException.class, () -> repositoriesService.registerOrUpdateRepository(request, null));
 
         cryptoSettings.keyProviderName(keyProviderName);
 
         assertEquals(kpTypeA, repository.cryptoHandler.kpType);
-        repositoriesService.registerRepository(request, null);
+        repositoriesService.registerOrUpdateRepository(request, null);
     }
 
     public void testCryptoManagerClusterStateChanges() {
@@ -355,7 +355,7 @@ public class RepositoriesServiceTests extends OpenSearchTestCase {
             verified,
             repositoryMetadata
         );
-        repositoriesService.registerRepository(request, null);
+        repositoriesService.registerOrUpdateRepository(request, null);
         MeteredRepositoryTypeA repository = (MeteredRepositoryTypeA) repositoriesService.repository(repoName);
         assertNotNull(repository.cryptoHandler);
         assertEquals(kpTypeA, repository.cryptoHandler.kpType);
@@ -375,7 +375,7 @@ public class RepositoriesServiceTests extends OpenSearchTestCase {
             verified,
             repositoryMetadata
         );
-        repositoriesService.registerRepository(request, null);
+        repositoriesService.registerOrUpdateRepository(request, null);
 
         repository = (MeteredRepositoryTypeA) repositoriesService.repository(repoName);
         assertNotNull(repository.cryptoHandler);
@@ -397,7 +397,7 @@ public class RepositoriesServiceTests extends OpenSearchTestCase {
             verified,
             repositoryMetadata
         );
-        repositoriesService.registerRepository(request, null);
+        repositoriesService.registerOrUpdateRepository(request, null);
         repository = (MeteredRepositoryTypeA) repositoriesService.repository(repoName);
         assertNotNull(repository.cryptoHandler);
         assertEquals(kpTypeA, repository.cryptoHandler.kpType);
@@ -418,7 +418,7 @@ public class RepositoriesServiceTests extends OpenSearchTestCase {
             verified,
             repositoryMetadata
         );
-        repositoriesService.registerRepository(request, null);
+        repositoriesService.registerOrUpdateRepository(request, null);
         repository = (MeteredRepositoryTypeA) repositoriesService.repository(repoName);
         assertNotNull(repository.cryptoHandler);
         assertEquals(kpTypeB, repository.cryptoHandler.kpType);
@@ -530,7 +530,7 @@ public class RepositoriesServiceTests extends OpenSearchTestCase {
 
     private void assertThrowsOnRegister(String repoName) {
         PutRepositoryRequest request = new PutRepositoryRequest(repoName);
-        expectThrows(RepositoryException.class, () -> repositoriesService.registerRepository(request, null));
+        expectThrows(RepositoryException.class, () -> repositoriesService.registerOrUpdateRepository(request, null));
     }
 
     private static class TestCryptoProvider implements CryptoHandler<Object, Object> {
