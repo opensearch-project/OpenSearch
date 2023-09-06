@@ -61,4 +61,23 @@ public class StrictCheckSpanProcessor implements SpanProcessor {
         );
         return spanData;
     }
+
+    /**
+     * Ensures the strict check succeeds for all the spans.
+     */
+    public static void validateTracingStateOnShutdown() {
+        List<MockSpanData> spanData = new ArrayList(spanMap.values());
+        if (spanData.size() != 0) {
+            TelemetryValidators validators = new TelemetryValidators(
+                Arrays.asList(new AllSpansAreEndedProperly(), new AllSpansHaveUniqueId())
+            );
+            try {
+                validators.validate(spanData, 1);
+            } catch (Error e) {
+                spanMap.clear();
+                throw e;
+            }
+        }
+
+    }
 }
