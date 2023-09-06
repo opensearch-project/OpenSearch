@@ -9,6 +9,7 @@
 package org.opensearch.index.codec;
 
 import org.apache.lucene.codecs.Codec;
+import org.opensearch.common.annotation.ExperimentalApi;
 
 import java.util.Set;
 
@@ -17,6 +18,7 @@ import java.util.Set;
  *
  * @opensearch.internal
  */
+@ExperimentalApi
 public interface CodecAliases {
 
     /**

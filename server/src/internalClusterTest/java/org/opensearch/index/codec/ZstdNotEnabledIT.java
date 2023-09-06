@@ -12,6 +12,8 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
+import java.util.List;
+
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST)
 public class ZstdNotEnabledIT extends OpenSearchIntegTestCase {
 
@@ -20,18 +22,20 @@ public class ZstdNotEnabledIT extends OpenSearchIntegTestCase {
         internalCluster().startNode();
         final String index = "test-index";
 
-        // creating index with zstd or zstd_no_dict should fail if custom-codecs plugin is not installed
-        assertThrows(
-            IllegalArgumentException.class,
-            () -> createIndex(
-                index,
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                    .put("index.codec", randomFrom("zstd", "zstd_no_dict"))
-                    .build()
-            )
-        );
+        // creating index with zstd and zstd_no_dict should fail if custom-codecs plugin is not installed
+        for (String codec : List.of("zstd", "zstd_no_dict")) {
+            assertThrows(
+                IllegalArgumentException.class,
+                () -> createIndex(
+                    index,
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put("index.codec", codec)
+                        .build()
+                )
+            );
+        }
     }
 
 }
