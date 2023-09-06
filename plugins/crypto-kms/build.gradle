@@ -26,8 +26,6 @@ ext {
 }
 
 dependencies {
-  api project(':libs:opensearch-encryption-sdk')
-
   api "software.amazon.awssdk:sdk-core:${versions.aws}"
   api "software.amazon.awssdk:aws-core:${versions.aws}"
   api "software.amazon.awssdk:utils:${versions.aws}"
@@ -55,6 +53,10 @@ dependencies {
   api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
   api "org.reactivestreams:reactive-streams:${versions.reactivestreams}"
 }
+
+//testClusters.all {
+//  module ':modules:crypto'
+//}
 
 tasks.named("dependencyLicenses").configure {
   mapping from: /jackson-.*/, to: 'jackson'
