@@ -519,17 +519,18 @@ public class LocalTranslogTests extends OpenSearchTestCase {
                 builder.startObject();
                 copy.toXContent(builder, ToXContent.EMPTY_PARAMS);
                 builder.endObject();
-                assertThat(
-                    builder.toString(),
-                    equalTo(
-                        "{\"translog\":{\"operations\":4,\"size_in_bytes\":"
-                            + 326
-                            + ",\"uncommitted_operations\":4,\"uncommitted_size_in_bytes\":"
-                            + 271
-                            + ",\"earliest_last_modified_age\":"
-                            + stats.getEarliestLastModifiedAge()
-                            + "}}"
-                    )
+                assertEquals(
+                    "{\"translog\":{\"operations\":4,\"size_in_bytes\":"
+                        + 326
+                        + ",\"uncommitted_operations\":4,\"uncommitted_size_in_bytes\":"
+                        + 271
+                        + ",\"earliest_last_modified_age\":"
+                        + stats.getEarliestLastModifiedAge()
+                        + ",\"remote_store\":{\"upload\":{"
+                        + "\"total_uploads\":{\"started\":0,\"failed\":0,\"succeeded\":0},"
+                        + "\"total_upload_size\":{\"started_bytes\":0,\"failed_bytes\":0,\"succeeded_bytes\":0}"
+                        + "}}}}",
+                    builder.toString()
                 );
             }
         }
