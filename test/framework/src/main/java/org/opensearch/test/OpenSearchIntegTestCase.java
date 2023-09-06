@@ -283,9 +283,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         CodecService.DEFAULT_CODEC,
         CodecService.LZ4,
         CodecService.BEST_COMPRESSION_CODEC,
-        CodecService.ZLIB,
-        CodecService.ZSTD_CODEC,
-        CodecService.ZSTD_NO_DICT_CODEC
+        CodecService.ZLIB
     );
 
     /**
