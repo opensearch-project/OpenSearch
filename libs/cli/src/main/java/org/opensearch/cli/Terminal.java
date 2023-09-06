@@ -323,8 +323,7 @@ public abstract class Terminal {
         }
 
         @SuppressForbidden(reason = "Writer for System.out")
-        private static PrintWriter
-        newWriter() {
+        private static PrintWriter newWriter() {
             return new PrintWriter(System.out);
         }
 
