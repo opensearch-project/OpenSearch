@@ -73,6 +73,7 @@ import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.function.Function;
@@ -275,7 +276,7 @@ public class MockNode extends Node {
     }
 
     @Override
-    public Telemetry getTelemetry() {
+    public Optional<Telemetry> getTelemetry() {
         return super.getTelemetry();
     }
 }

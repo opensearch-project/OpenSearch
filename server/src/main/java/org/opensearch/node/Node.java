@@ -1811,7 +1811,7 @@ public class Node implements Closeable {
         return this.fileCache;
     }
 
-    protected Telemetry getTelemetry() {
-        return telemetry;
+    protected Optional<Telemetry> getTelemetry() {
+        return Optional.ofNullable(telemetry);
     }
 }

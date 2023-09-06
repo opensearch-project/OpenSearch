@@ -86,6 +86,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 import static org.opensearch.cluster.coordination.ClusterBootstrapService.INITIAL_CLUSTER_MANAGER_NODES_SETTING;
@@ -195,21 +196,21 @@ public abstract class OpenSearchSingleNodeTestCase extends OpenSearchTestCase {
     @AfterClass
     public static void tearDownClass() throws Exception {
         stopNode();
-        ensureTracingStrictCheck(nodeForTracingStrictCheck);
+        validateTracingTerminalState(nodeForTracingStrictCheck);
         nodeForTracingStrictCheck = null;
     }
 
-    private static void ensureTracingStrictCheck(Node node) {
+    private static void validateTracingTerminalState(Node node) {
         if (node != null) {
-            Telemetry telemetry = ((MockNode) node).getTelemetry();
+            Optional<Telemetry> telemetry = ((MockNode) node).getTelemetry();
             if (isValidMockTracingTelemetry(telemetry)) {
-                ((MockTracingTelemetry) telemetry.getTracingTelemetry()).ensureTracingStrictCheck();
+                ((MockTracingTelemetry) telemetry.get().getTracingTelemetry()).validateTracingStateOnShutdown();
             }
         }
     }
 
-    private static boolean isValidMockTracingTelemetry(Telemetry telemetry) {
-        return telemetry != null && telemetry instanceof MockTelemetry && telemetry.getTracingTelemetry() != null;
+    private static boolean isValidMockTracingTelemetry(Optional<Telemetry> telemetry) {
+        return telemetry.isPresent() && telemetry.get() instanceof MockTelemetry && telemetry.get().getTracingTelemetry() != null;
     }
 
     /**

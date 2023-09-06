@@ -140,6 +140,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.TreeMap;
@@ -960,6 +961,10 @@ public final class InternalTestCluster extends TestCluster {
 
     @Override
     public synchronized void close() throws IOException {
+        /**
+         * MockTracingTelemetry:validateTracingStateOnShutdown validates the shared span storage across all the nodes.
+         * Hence, we just need any one node to ensure the correctness of the system.
+         */
         Node anyNodeToGetRefOfTelemetry = null;
         if (this.open.compareAndSet(true, false)) {
             if (activeDisruptionScheme != null) {
@@ -967,13 +972,14 @@ public final class InternalTestCluster extends TestCluster {
                 activeDisruptionScheme = null;
             }
             try {
-                NodeAndClient nodeAndClient = nodes.firstEntry() != null ? nodes.firstEntry().getValue() : null;
-                anyNodeToGetRefOfTelemetry = nodeAndClient != null ? nodeAndClient.node : null;
+                if (nodes.firstEntry() != null && nodes.firstEntry().getValue() != null) {
+                    anyNodeToGetRefOfTelemetry = nodes.firstEntry().getValue().node;
+                }
                 IOUtils.close(nodes.values());
             } finally {
                 nodes = Collections.emptyNavigableMap();
                 executor.shutdownNow();
-                ensureTracingStrictCheck(anyNodeToGetRefOfTelemetry);
+                validateTracingTerminalState(anyNodeToGetRefOfTelemetry);
             }
         }
     }
@@ -1934,17 +1940,17 @@ public final class InternalTestCluster extends TestCluster {
         removeExclusions(excludedNodeIds);
     }
 
-    private void ensureTracingStrictCheck(Node node) {
+    private void validateTracingTerminalState(Node node) {
         if (node != null) {
-            Telemetry telemetry = ((MockNode) node).getTelemetry();
+            Optional<Telemetry> telemetry = ((MockNode) node).getTelemetry();
             if (isValidMockTracingTelemetry(telemetry)) {
-                ((MockTracingTelemetry) telemetry.getTracingTelemetry()).ensureTracingStrictCheck();
+                ((MockTracingTelemetry) telemetry.get().getTracingTelemetry()).validateTracingStateOnShutdown();
             }
         }
     }
 
-    private static boolean isValidMockTracingTelemetry(Telemetry telemetry) {
-        return telemetry != null && telemetry instanceof MockTelemetry && telemetry.getTracingTelemetry() != null;
+    private static boolean isValidMockTracingTelemetry(Optional<Telemetry> telemetry) {
+        return telemetry.isPresent() && (telemetry.get() instanceof MockTelemetry) && (telemetry.get().getTracingTelemetry() != null);
     }
 
     /**

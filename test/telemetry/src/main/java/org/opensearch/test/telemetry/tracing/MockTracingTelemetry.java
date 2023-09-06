@@ -54,7 +54,7 @@ public class MockTracingTelemetry implements TracingTelemetry {
     /**
      * Ensures the strict check succeeds for all the spans.
      */
-    public void ensureTracingStrictCheck() {
+    public void validateTracingStateOnShutdown() {
         List<MockSpanData> spanData = ((StrictCheckSpanProcessor) spanProcessor).getFinishedSpanItems();
         if (spanData.size() != 0) {
             TelemetryValidators validators = new TelemetryValidators(
