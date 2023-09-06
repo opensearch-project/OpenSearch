@@ -67,6 +67,36 @@ public class RemoteStoreNodeAttributeTests extends OpenSearchTestCase {
         assertEquals(cryptoMetadata, repositoryMetadata.cryptoMetadata());
     }
 
+    public void testInvalidCryptoMetadata() throws UnknownHostException {
+        Map<String, String> attr = Map.of(
+            "remote_store.segment.repository",
+            "remote-store-A",
+            "remote_store.translog.repository",
+            "remote-store-A",
+            "remote_store.repository.remote-store-A.type",
+            "s3",
+            "remote_store.repository.remote-store-A.settings.bucket",
+            "abc",
+            "remote_store.repository.remote-store-A.settings.base_path",
+            "xyz",
+            "remote_store.repository.remote-store-A.crypto_metadata.key_provider_name",
+            "store-test",
+            "remote_store.repository.remote-store-A.crypto_metadata.settings.region",
+            REGION,
+            "remote_store.repository.remote-store-A.crypto_metadata.settings.key_arn",
+            KEY_ARN
+        );
+        DiscoveryNode node = new DiscoveryNode(
+            "C",
+            new TransportAddress(InetAddress.getByName("localhost"), 9876),
+            attr,
+            emptySet(),
+            Version.CURRENT
+        );
+
+        assertThrows(IllegalStateException.class, () -> new RemoteStoreNodeAttribute(node));
+    }
+
     public void testNoCryptoMetadata() throws UnknownHostException {
         Map<String, String> attr = Map.of(
             "remote_store.segment.repository",

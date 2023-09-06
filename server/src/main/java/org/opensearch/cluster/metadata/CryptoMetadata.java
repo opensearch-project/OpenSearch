@@ -30,7 +30,7 @@ public class CryptoMetadata implements Writeable {
     static final public String CRYPTO_METADATA_KEY = "crypto_metadata";
     static final public String KEY_PROVIDER_NAME_KEY = "key_provider_name";
     static final public String KEY_PROVIDER_TYPE_KEY = "key_provider_type";
-    static final public String KEY_SETTINGS = "settings";
+    static final public String SETTINGS_KEY = "settings";
     private final String keyProviderName;
     private final String keyProviderType;
     private final Settings settings;
@@ -118,7 +118,7 @@ public class CryptoMetadata implements Writeable {
                         throw new OpenSearchParseException("failed to parse crypto metadata [{}], unknown type");
                     }
                     keyProviderType = parser.text();
-                } else if (KEY_SETTINGS.equals(currentFieldName)) {
+                } else if (SETTINGS_KEY.equals(currentFieldName)) {
                     if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
                         throw new OpenSearchParseException("failed to parse crypto metadata [{}], unknown type");
                     }
@@ -137,7 +137,7 @@ public class CryptoMetadata implements Writeable {
         builder.startObject(CRYPTO_METADATA_KEY);
         builder.field(KEY_PROVIDER_NAME_KEY, cryptoMetadata.keyProviderName());
         builder.field(KEY_PROVIDER_TYPE_KEY, cryptoMetadata.keyProviderType());
-        builder.startObject(KEY_SETTINGS);
+        builder.startObject(SETTINGS_KEY);
         cryptoMetadata.settings().toXContent(builder, params);
         builder.endObject();
         builder.endObject();
