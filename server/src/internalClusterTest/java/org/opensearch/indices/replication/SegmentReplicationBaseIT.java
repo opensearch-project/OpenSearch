@@ -241,7 +241,7 @@ public class SegmentReplicationBaseIT extends OpenSearchIntegTestCase {
 
     protected void assertReplicaCheckpointUpdated(IndexShard primaryShard) throws Exception {
         assertBusy(() -> {
-            Set<SegmentReplicationShardStats> groupStats = primaryShard.getReplicationStats();
+            Set<SegmentReplicationShardStats> groupStats = primaryShard.getReplicationStatsForTrackedReplicas();
             assertEquals(primaryShard.indexSettings().getNumberOfReplicas(), groupStats.size());
             for (SegmentReplicationShardStats shardStat : groupStats) {
                 assertEquals(0, shardStat.getCheckpointsBehindCount());
