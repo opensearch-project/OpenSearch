@@ -219,6 +219,7 @@ import org.opensearch.tasks.TaskCancellationService;
 import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.tasks.TaskResultsService;
 import org.opensearch.tasks.consumer.TopNSearchTasksLogger;
+import org.opensearch.telemetry.Telemetry;
 import org.opensearch.telemetry.TelemetryModule;
 import org.opensearch.telemetry.TelemetrySettings;
 import org.opensearch.telemetry.tracing.NoopTracerFactory;
@@ -391,6 +392,8 @@ public class Node implements Closeable {
     private final AtomicReference<RunnableTaskExecutionListener> runnableTaskListener;
     private FileCache fileCache;
     private final RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory;
+
+    private final Telemetry telemetry;
 
     public Node(Environment environment) {
         this(environment, Collections.emptyList(), true);
@@ -587,9 +590,11 @@ public class Node implements Closeable {
                 final TelemetrySettings telemetrySettings = new TelemetrySettings(settings, clusterService.getClusterSettings());
                 List<TelemetryPlugin> telemetryPlugins = pluginsService.filterPlugins(TelemetryPlugin.class);
                 TelemetryModule telemetryModule = new TelemetryModule(telemetryPlugins, telemetrySettings);
+                telemetry = telemetryModule.getTelemetry().orElse(null);
                 tracerFactory = new TracerFactory(telemetrySettings, telemetryModule.getTelemetry(), threadPool.getThreadContext());
             } else {
                 tracerFactory = new NoopTracerFactory();
+                telemetry = null;
             }
 
             tracer = tracerFactory.getTracer();
@@ -1804,5 +1809,9 @@ public class Node implements Closeable {
      */
     public FileCache fileCache() {
         return this.fileCache;
+    }
+
+    protected Telemetry getTelemetry() {
+        return telemetry;
     }
 }

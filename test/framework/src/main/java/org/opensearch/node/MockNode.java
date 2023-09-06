@@ -62,6 +62,7 @@ import org.opensearch.search.fetch.FetchPhase;
 import org.opensearch.search.query.QueryPhase;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.test.MockHttpTransport;
+import org.opensearch.test.telemetry.MockTelemetry;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.Transport;
@@ -271,5 +272,10 @@ public class MockNode extends Node {
 
     public NamedWriteableRegistry getNamedWriteableRegistry() {
         return namedWriteableRegistry;
+    }
+
+    @Override
+    public MockTelemetry getTelemetry() {
+        return (MockTelemetry) super.getTelemetry();
     }
 }

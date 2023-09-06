@@ -116,7 +116,9 @@ import org.opensearch.script.ScriptModule;
 import org.opensearch.script.ScriptService;
 import org.opensearch.search.SearchService;
 import org.opensearch.tasks.TaskManager;
+import org.opensearch.telemetry.Telemetry;
 import org.opensearch.test.disruption.ServiceDisruptionScheme;
+import org.opensearch.test.telemetry.tracing.MockTracingTelemetry;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.transport.TransportService;
 import org.opensearch.transport.TransportSettings;
@@ -957,16 +959,20 @@ public final class InternalTestCluster extends TestCluster {
 
     @Override
     public synchronized void close() throws IOException {
+        Node node = null;
         if (this.open.compareAndSet(true, false)) {
             if (activeDisruptionScheme != null) {
                 activeDisruptionScheme.testClusterClosed();
                 activeDisruptionScheme = null;
             }
             try {
+                NodeAndClient nodeAndClient = nodes.firstEntry() != null ? nodes.firstEntry().getValue() : null;
+                node = nodeAndClient != null ? nodeAndClient.node : null;
                 IOUtils.close(nodes.values());
             } finally {
                 nodes = Collections.emptyNavigableMap();
                 executor.shutdownNow();
+                ensureTracingStrictCheck(node);
             }
         }
     }
@@ -1908,17 +1914,33 @@ public final class InternalTestCluster extends TestCluster {
         stopNodesAndClients(Collections.singleton(nodeAndClient));
     }
 
+    public void stopNodesAndClients() throws IOException {
+        stopNodesAndClients(nodes.values());
+    }
+
     private synchronized void stopNodesAndClients(Collection<NodeAndClient> nodeAndClients) throws IOException {
         final Set<String> excludedNodeIds = excludeClusterManagers(nodeAndClients);
-
+        Node anyOneNode = null;
         for (NodeAndClient nodeAndClient : nodeAndClients) {
+            if (anyOneNode == null) {
+                anyOneNode = nodeAndClient.node;
+            }
             removeDisruptionSchemeFromNode(nodeAndClient);
             final NodeAndClient previous = removeNode(nodeAndClient);
             assert previous == nodeAndClient;
             nodeAndClient.close();
         }
-
+        //ensureTracingStrictCheck(anyOneNode);
         removeExclusions(excludedNodeIds);
+    }
+
+    private void ensureTracingStrictCheck(Node node) {
+        if (node != null) {
+            Telemetry telemetry = ((MockNode) node).getTelemetry();
+            if (telemetry != null && telemetry.getTracingTelemetry() != null) {
+                ((MockTracingTelemetry) telemetry.getTracingTelemetry()).ensureSpanStrictCheck();
+            }
+        }
     }
 
     /**

@@ -72,7 +72,9 @@ import org.opensearch.script.MockScriptService;
 import org.opensearch.search.SearchService;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.telemetry.TelemetrySettings;
+import org.opensearch.test.telemetry.MockTelemetry;
 import org.opensearch.test.telemetry.MockTelemetryPlugin;
+import org.opensearch.test.telemetry.tracing.MockTracingTelemetry;
 import org.opensearch.transport.TransportSettings;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -99,10 +101,12 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 public abstract class OpenSearchSingleNodeTestCase extends OpenSearchTestCase {
 
     private static Node NODE = null;
+    private static Node nodeForTracingStrictCheck = null;
 
     protected void startNode(long seed) throws Exception {
         assert NODE == null;
         NODE = RandomizedContext.current().runWithPrivateRandomness(seed, this::newNode);
+        nodeForTracingStrictCheck = NODE;
         // we must wait for the node to actually be up and running. otherwise the node might have started,
         // elected itself cluster-manager but might not yet have removed the
         // SERVICE_UNAVAILABLE/1/state not recovered / initialized block
@@ -190,6 +194,17 @@ public abstract class OpenSearchSingleNodeTestCase extends OpenSearchTestCase {
     @AfterClass
     public static void tearDownClass() throws Exception {
         stopNode();
+        ensureTracingStrictCheck(nodeForTracingStrictCheck);
+        nodeForTracingStrictCheck = null;
+    }
+
+    private static void ensureTracingStrictCheck(Node node) {
+        if (node != null) {
+            MockTelemetry telemetry = ((MockNode) node).getTelemetry();
+            if (telemetry != null && telemetry.getTracingTelemetry() != null) {
+                ((MockTracingTelemetry) telemetry.getTracingTelemetry()).ensureSpanStrictCheck();
+            }
+        }
     }
 
     /**

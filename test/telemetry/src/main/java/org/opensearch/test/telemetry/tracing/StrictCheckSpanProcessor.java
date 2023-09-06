@@ -24,7 +24,7 @@ public class StrictCheckSpanProcessor implements SpanProcessor {
      */
     public StrictCheckSpanProcessor() {}
 
-    private Map<String, MockSpanData> spanMap = new ConcurrentHashMap<>();
+    private static Map<String, MockSpanData> spanMap = new ConcurrentHashMap<>();
 
     @Override
     public void onStart(Span span) {
@@ -60,5 +60,12 @@ public class StrictCheckSpanProcessor implements SpanProcessor {
             Thread.currentThread().getStackTrace()
         );
         return spanData;
+    }
+
+    /**
+     * Clears the StrictCheck span storage.
+     */
+    public void clear() {
+        spanMap.clear();
     }
 }

@@ -114,6 +114,7 @@ public class SingleNodeDiscoveryIT extends OpenSearchIntegTestCase {
             assertThat(second.nodes().getSize(), equalTo(1));
             assertThat(first.nodes().getClusterManagerNodeId(), not(equalTo(second.nodes().getClusterManagerNodeId())));
             assertThat(first.metadata().clusterUUID(), not(equalTo(second.metadata().clusterUUID())));
+            internalCluster().stopNodesAndClients();
         }
     }
 
@@ -178,6 +179,7 @@ public class SingleNodeDiscoveryIT extends OpenSearchIntegTestCase {
                 final ClusterState first = internalCluster().getInstance(ClusterService.class).state();
                 assertThat(first.nodes().getSize(), equalTo(1));
                 assertBusy(() -> mockAppender.assertAllExpectationsMatched());
+                internalCluster().stopNodesAndClients();
             }
         }
     }
