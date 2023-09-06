@@ -53,6 +53,7 @@ import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.gateway.GatewayMetaState;
 import org.opensearch.monitor.NodeHealthService;
+import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.plugins.DiscoveryPlugin;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
@@ -131,7 +132,8 @@ public class DiscoveryModule {
         GatewayMetaState gatewayMetaState,
         RerouteService rerouteService,
         NodeHealthService nodeHealthService,
-        PersistedStateRegistry persistedStateRegistry
+        PersistedStateRegistry persistedStateRegistry,
+        RemoteStoreNodeService remoteStoreNodeService
     ) {
         final Collection<BiConsumer<DiscoveryNode, ClusterState>> joinValidators = new ArrayList<>();
         final Map<String, Supplier<SeedHostsProvider>> hostProviders = new HashMap<>();
@@ -208,7 +210,8 @@ public class DiscoveryModule {
                 rerouteService,
                 electionStrategy,
                 nodeHealthService,
-                persistedStateRegistry
+                persistedStateRegistry,
+                remoteStoreNodeService
             );
         } else {
             throw new IllegalArgumentException("Unknown discovery type [" + discoveryType + "]");

@@ -757,6 +757,11 @@ public class RepositoriesServiceTests extends OpenSearchTestCase {
         }
 
         @Override
+        public boolean isSystemRepository() {
+            return false;
+        }
+
+        @Override
         public void snapshotShard(
             Store store,
             MapperService mapperService,

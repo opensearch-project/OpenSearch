@@ -28,6 +28,7 @@ import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.opensearch.snapshots.SnapshotState;
 import org.opensearch.test.InternalTestCluster;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.junit.After;
 import org.junit.Before;
 
@@ -43,6 +44,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
     private static final String BASE_REMOTE_REPO = "test-rs-repo" + TEST_REMOTE_STORE_REPO_SUFFIX;
     private Path remoteRepoPath;
@@ -50,7 +52,6 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
     @Before
     public void setup() {
         remoteRepoPath = randomRepoPath().toAbsolutePath();
-        createRepository(BASE_REMOTE_REPO, "fs", remoteRepoPath);
     }
 
     @After
@@ -63,7 +64,7 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
             .put(FeatureFlags.REMOTE_STORE, "true")
-            .put(remoteStoreClusterSettings(BASE_REMOTE_REPO))
+            .put(remoteStoreClusterSettings(BASE_REMOTE_REPO, remoteRepoPath))
             .build();
     }
 
