@@ -18,7 +18,6 @@ import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.gateway.remote.ClusterMetadataManifest.UploadedIndexMetadata;
 import org.opensearch.test.EqualsHashCodeTestUtils;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -52,53 +51,120 @@ public class ClusterMetadataManifestTests extends OpenSearchTestCase {
 
     public void testClusterMetadataManifestSerializationEqualsHashCode() {
         ClusterMetadataManifest initialManifest = new ClusterMetadataManifest(
-            randomNonNegativeLong(),
-            randomNonNegativeLong(),
-            randomAlphaOfLength(10),
-            randomAlphaOfLength(10),
-            VersionUtils.randomOpenSearchVersion(random()),
-            randomAlphaOfLength(10),
-            randomBoolean(),
+            1337L,
+            7L,
+            "HrYF3kP5SmSPWtKlWhnNSA",
+            "6By9p9G0Rv2MmFYJcPAOgA",
+            Version.CURRENT,
+            "B10RX1f5RJenMQvYccCgSQ",
+            true,
             randomUploadedIndexMetadataList()
         );
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
-            initialManifest,
-            orig -> OpenSearchTestCase.copyWriteable(
-                orig,
-                new NamedWriteableRegistry(Collections.emptyList()),
-                ClusterMetadataManifest::new
-            ),
-            manifest -> {
-                ClusterMetadataManifest.Builder builder = ClusterMetadataManifest.builder(manifest);
-                switch (randomInt(7)) {
-                    case 0:
-                        builder.clusterTerm(randomNonNegativeLong());
-                        break;
-                    case 1:
-                        builder.stateVersion(randomNonNegativeLong());
-                        break;
-                    case 2:
-                        builder.clusterUUID(randomAlphaOfLength(10));
-                        break;
-                    case 3:
-                        builder.stateUUID(randomAlphaOfLength(10));
-                        break;
-                    case 4:
-                        builder.opensearchVersion(VersionUtils.randomOpenSearchVersion(random()));
-                        break;
-                    case 5:
-                        builder.nodeId(randomAlphaOfLength(10));
-                        break;
-                    case 6:
-                        builder.committed(randomBoolean());
-                        break;
-                    case 7:
-                        builder.indices(randomUploadedIndexMetadataList());
-                        break;
+        {  // Mutate Cluster Term
+            EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+                initialManifest,
+                orig -> OpenSearchTestCase.copyWriteable(
+                    orig,
+                    new NamedWriteableRegistry(Collections.emptyList()),
+                    ClusterMetadataManifest::new
+                ),
+                manifest -> {
+                    ClusterMetadataManifest.Builder builder = ClusterMetadataManifest.builder(manifest);
+                    builder.clusterTerm(1338L);
+                    return builder.build();
                 }
-                return builder.build();
-            }
-        );
+            );
+        }
+        {  // Mutate State Version
+            EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+                initialManifest,
+                orig -> OpenSearchTestCase.copyWriteable(
+                    orig,
+                    new NamedWriteableRegistry(Collections.emptyList()),
+                    ClusterMetadataManifest::new
+                ),
+                manifest -> {
+                    ClusterMetadataManifest.Builder builder = ClusterMetadataManifest.builder(manifest);
+                    builder.stateVersion(8L);
+                    return builder.build();
+                }
+            );
+        }
+        {  // Mutate Cluster UUID
+            EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+                initialManifest,
+                orig -> OpenSearchTestCase.copyWriteable(
+                    orig,
+                    new NamedWriteableRegistry(Collections.emptyList()),
+                    ClusterMetadataManifest::new
+                ),
+                manifest -> {
+                    ClusterMetadataManifest.Builder builder = ClusterMetadataManifest.builder(manifest);
+                    builder.clusterUUID("efOkMiPbQZCUQQgtFWdbPw");
+                    return builder.build();
+                }
+            );
+        }
+        {  // Mutate State UUID
+            EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+                initialManifest,
+                orig -> OpenSearchTestCase.copyWriteable(
+                    orig,
+                    new NamedWriteableRegistry(Collections.emptyList()),
+                    ClusterMetadataManifest::new
+                ),
+                manifest -> {
+                    ClusterMetadataManifest.Builder builder = ClusterMetadataManifest.builder(manifest);
+                    builder.stateUUID("efOkMiPbQZCUQQgtFWdbPw");
+                    return builder.build();
+                }
+            );
+        }
+        {  // Mutate OpenSearch Version
+            EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+                initialManifest,
+                orig -> OpenSearchTestCase.copyWriteable(
+                    orig,
+                    new NamedWriteableRegistry(Collections.emptyList()),
+                    ClusterMetadataManifest::new
+                ),
+                manifest -> {
+                    ClusterMetadataManifest.Builder builder = ClusterMetadataManifest.builder(manifest);
+                    builder.opensearchVersion(Version.V_EMPTY);
+                    return builder.build();
+                }
+            );
+        }
+        {  // Mutate Committed State
+            EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+                initialManifest,
+                orig -> OpenSearchTestCase.copyWriteable(
+                    orig,
+                    new NamedWriteableRegistry(Collections.emptyList()),
+                    ClusterMetadataManifest::new
+                ),
+                manifest -> {
+                    ClusterMetadataManifest.Builder builder = ClusterMetadataManifest.builder(manifest);
+                    builder.committed(false);
+                    return builder.build();
+                }
+            );
+        }
+        {  // Mutate Indices
+            EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+                initialManifest,
+                orig -> OpenSearchTestCase.copyWriteable(
+                    orig,
+                    new NamedWriteableRegistry(Collections.emptyList()),
+                    ClusterMetadataManifest::new
+                ),
+                manifest -> {
+                    ClusterMetadataManifest.Builder builder = ClusterMetadataManifest.builder(manifest);
+                    builder.indices(randomUploadedIndexMetadataList());
+                    return builder.build();
+                }
+            );
+        }
     }
 
     private List<UploadedIndexMetadata> randomUploadedIndexMetadataList() {
