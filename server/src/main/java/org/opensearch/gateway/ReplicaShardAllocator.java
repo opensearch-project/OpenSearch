@@ -62,7 +62,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentMap;
 
 import static org.opensearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
 
@@ -498,10 +497,13 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
 
     @Override
     // to be override
-    public ConcurrentMap<ShardRouting, AllocateUnassignedDecision> makeAllocationDecision(Set<ShardRouting> shards, RoutingAllocation allocation, Logger logger) {
+    public HashMap<ShardRouting, AllocateUnassignedDecision> makeAllocationDecision(
+        Set<ShardRouting> shards,
+        RoutingAllocation allocation,
+        Logger logger
+    ) {
         return null;
     }
-
 
     /**
      * Returns a boolean indicating whether fetching shard data has been triggered at any point for the given shard.

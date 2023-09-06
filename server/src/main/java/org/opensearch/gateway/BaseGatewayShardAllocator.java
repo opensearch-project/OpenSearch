@@ -46,9 +46,10 @@ import org.opensearch.cluster.routing.allocation.RoutingAllocation;
 import org.opensearch.cluster.routing.allocation.decider.Decision;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.ConcurrentMap;
+import java.util.stream.Collectors;
 
 /**
  * An abstract class that implements basic functionality for allocating
@@ -82,21 +83,44 @@ public abstract class BaseGatewayShardAllocator {
 
     public void allocateUnassignedBatch(Set<ShardRouting> shards, RoutingAllocation allocation) {
         // make Allocation Decisions for all shards
-        ConcurrentMap<ShardRouting, AllocateUnassignedDecision> decisionMap = makeAllocationDecision(shards, allocation, logger);
+        HashMap<ShardRouting, AllocateUnassignedDecision> decisionMap = makeAllocationDecision(shards, allocation, logger);
+        assert shards.size() == decisionMap.size() : "make allocation decision didn't return allocation decision for " + "some shards";
         // get all unassigned shards
         RoutingNodes.UnassignedShards.UnassignedIterator iterator = allocation.routingNodes().unassigned().iterator();
-        while (iterator.hasNext()){
+
+        while (iterator.hasNext()) {
             ShardRouting shard = iterator.next();
-            if (shards.contains(shard)) {
-                executeDecision(shard, decisionMap.get(shard), allocation, iterator);
+            try {
+                if (decisionMap.isEmpty() == false) {
+                    if (shards.stream()
+                        .filter(shardRouting -> shardRouting.shardId().equals(shard.shardId()) && shardRouting.primary() == shard.primary())
+                        .count() == 1) {
+                        List<ShardRouting> matchedShardRouting = decisionMap.keySet()
+                            .stream()
+                            .filter(
+                                shardRouting -> shardRouting.shardId().equals(shard.shardId()) && shardRouting.primary() == shard.primary()
+                            )
+                            .collect(Collectors.toList());
+                        if (matchedShardRouting.size() == 1) {
+                            executeDecision(shard, decisionMap.remove(matchedShardRouting.get(0)), allocation, iterator);
+                        } else if (matchedShardRouting.size() > 1) {
+                            // Adding this just to check the behaviour if we ever land up here.
+                            throw new IllegalStateException("decision map must have single entry for 1 shard");
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                logger.error("failed to execute decision for shard {} ", shard, e);
             }
         }
     }
 
-    private void executeDecision(ShardRouting shardRouting,
-                                 AllocateUnassignedDecision allocateUnassignedDecision,
-                                 RoutingAllocation allocation,
-                                 ExistingShardsAllocator.UnassignedAllocationHandler unassignedAllocationHandler) {
+    private void executeDecision(
+        ShardRouting shardRouting,
+        AllocateUnassignedDecision allocateUnassignedDecision,
+        RoutingAllocation allocation,
+        ExistingShardsAllocator.UnassignedAllocationHandler unassignedAllocationHandler
+    ) {
         if (allocateUnassignedDecision.isDecisionTaken() == false) {
             // no decision was taken by this allocator
             return;
@@ -113,6 +137,7 @@ public abstract class BaseGatewayShardAllocator {
             unassignedAllocationHandler.removeAndIgnore(allocateUnassignedDecision.getAllocationStatus(), allocation.changes());
         }
     }
+
     protected long getExpectedShardSize(ShardRouting shardRouting, RoutingAllocation allocation) {
         if (shardRouting.primary()) {
             if (shardRouting.recoverySource().getType() == RecoverySource.Type.SNAPSHOT) {
@@ -141,10 +166,10 @@ public abstract class BaseGatewayShardAllocator {
         Logger logger
     );
 
-    public abstract ConcurrentMap<ShardRouting, AllocateUnassignedDecision> makeAllocationDecision(
-            Set<ShardRouting> shards,
-            RoutingAllocation allocation,
-            Logger logger
+    public abstract HashMap<ShardRouting, AllocateUnassignedDecision> makeAllocationDecision(
+        Set<ShardRouting> shards,
+        RoutingAllocation allocation,
+        Logger logger
     );
 
     /**
