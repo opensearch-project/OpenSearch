@@ -19,6 +19,7 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.shard.IndexShard;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * Tracks remote store segment download and upload stats
@@ -299,5 +300,41 @@ public class RemoteSegmentStats implements Writeable, ToXContentFragment {
         static final String MAX_BYTES = "max_bytes";
         static final String TOTAL_TIME_SPENT = "total_time_spent";
         static final String TOTAL_TIME_SPENT_IN_MILLIS = "total_time_spent_in_millis";
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        RemoteSegmentStats that = (RemoteSegmentStats) o;
+        return uploadBytesStarted == that.uploadBytesStarted
+            && uploadBytesFailed == that.uploadBytesFailed
+            && uploadBytesSucceeded == that.uploadBytesSucceeded
+            && downloadBytesStarted == that.downloadBytesStarted
+            && downloadBytesFailed == that.downloadBytesFailed
+            && downloadBytesSucceeded == that.downloadBytesSucceeded
+            && maxRefreshTimeLag == that.maxRefreshTimeLag
+            && maxRefreshBytesLag == that.maxRefreshBytesLag
+            && totalRefreshBytesLag == that.totalRefreshBytesLag
+            && totalUploadTime == that.totalUploadTime
+            && totalDownloadTime == that.totalDownloadTime;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(
+            uploadBytesStarted,
+            uploadBytesFailed,
+            uploadBytesSucceeded,
+            downloadBytesStarted,
+            downloadBytesFailed,
+            downloadBytesSucceeded,
+            maxRefreshTimeLag,
+            maxRefreshBytesLag,
+            totalRefreshBytesLag,
+            totalUploadTime,
+            totalDownloadTime
+        );
     }
 }
