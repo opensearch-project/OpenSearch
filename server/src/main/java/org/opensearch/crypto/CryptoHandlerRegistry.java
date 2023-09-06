@@ -13,12 +13,11 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.cluster.metadata.CryptoMetadata;
 import org.opensearch.common.SetOnce;
+import org.opensearch.common.crypto.CryptoHandler;
 import org.opensearch.common.crypto.MasterKeyProvider;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.unit.TimeValue;
-import org.opensearch.encryption.CryptoManager;
-import org.opensearch.encryption.CryptoManagerFactory;
 import org.opensearch.plugins.CryptoKeyProviderPlugin;
+import org.opensearch.plugins.CryptoPlugin;
 
 import java.util.HashMap;
 import java.util.List;
@@ -27,19 +26,19 @@ import java.util.Objects;
 
 /**
  * During node bootstrap, installed key provider extensions responsible for generating data keys are loaded.
- * Crypto factories against the respective extensions are cached. A crypto factory is used to register crypto
- * manager against an {@link org.opensearch.common.blobstore.EncryptedBlobStore}
+ * Crypto factories against the respective KP plugins are cached. A crypto factory is used to register crypto
+ * handler against an {@link org.opensearch.common.blobstore.EncryptedBlobStore}
  */
-public class CryptoManagerRegistry {
-    private static final Logger logger = LogManager.getLogger(CryptoManagerRegistry.class);
+public class CryptoHandlerRegistry {
+    private static final Logger logger = LogManager.getLogger(CryptoHandlerRegistry.class);
     // Package private for tests
     SetOnce<Map<String, CryptoKeyProviderPlugin>> registry = new SetOnce<>();
 
     // Package private for tests
-    SetOnce<CryptoManagerFactory> cryptoManagerFactory = new SetOnce<CryptoManagerFactory>();
-    private final Map<CryptoMetadata, CryptoManager> registeredCryptoManagers = new HashMap<>();
+    SetOnce<CryptoPlugin> cryptoHandlerPlugin = new SetOnce<>();
+    private final Map<CryptoMetadata, CryptoHandler> registeredCryptoHandlers = new HashMap<>();
 
-    private static volatile CryptoManagerRegistry instance;
+    private static volatile CryptoHandlerRegistry instance;
     private static final Object lock = new Object();
 
     /**
@@ -48,22 +47,38 @@ public class CryptoManagerRegistry {
      * @param cryptoPlugins The list of installed crypto key provider plugins.
      * @param settings Crypto settings.
      */
-    protected CryptoManagerRegistry(List<CryptoKeyProviderPlugin> cryptoPlugins, Settings settings) {
-        cryptoManagerFactory.set(new CryptoManagerFactory("ALG_AES_256_GCM_HKDF_SHA512_COMMIT_KEY", TimeValue.timeValueDays(2), 500));
-        registry.set(loadCryptoFactories(cryptoPlugins));
+    protected CryptoHandlerRegistry(
+        List<CryptoPlugin> cryptoPlugins,
+        List<CryptoKeyProviderPlugin> cryptoKeyProviderPlugins,
+        Settings settings
+    ) {
+        if (cryptoPlugins == null || cryptoPlugins.size() == 0) {
+            return;
+        }
+        if (cryptoPlugins.size() > 1) {
+            // We can remove this to support multiple implementations in future if needed.
+            throw new IllegalStateException("More than 1 implementation of crypto plugin found.");
+        }
+
+        cryptoHandlerPlugin.set(cryptoPlugins.get(0));
+        registry.set(loadCryptoFactories(cryptoKeyProviderPlugins));
     }
 
-    public static CryptoManagerRegistry getInstance() {
+    public static CryptoHandlerRegistry getInstance() {
         return instance;
     }
 
-    public static CryptoManagerRegistry initRegistry(List<CryptoKeyProviderPlugin> cryptoPlugins, Settings settings) {
-        CryptoManagerRegistry curInstance = instance;
+    public static CryptoHandlerRegistry initRegistry(
+        List<CryptoPlugin> cryptoPlugins,
+        List<CryptoKeyProviderPlugin> cryptoKeyProviderPlugins,
+        Settings settings
+    ) {
+        CryptoHandlerRegistry curInstance = instance;
         if (curInstance == null) {
             synchronized (lock) {
                 curInstance = instance;
                 if (curInstance == null) {
-                    instance = curInstance = new CryptoManagerRegistry(cryptoPlugins, settings);
+                    instance = curInstance = new CryptoHandlerRegistry(cryptoPlugins, cryptoKeyProviderPlugins, settings);
                 }
             }
         }
@@ -71,23 +86,23 @@ public class CryptoManagerRegistry {
     }
 
     // For tests
-    protected Map<String, CryptoKeyProviderPlugin> loadCryptoFactories(List<CryptoKeyProviderPlugin> cryptoPlugins) {
+    protected Map<String, CryptoKeyProviderPlugin> loadCryptoFactories(List<CryptoKeyProviderPlugin> cryptoKPPlugins) {
         Map<String, CryptoKeyProviderPlugin> cryptoFactories = new HashMap<>();
-        for (CryptoKeyProviderPlugin cryptoPlugin : cryptoPlugins) {
-            if (cryptoFactories.containsKey(cryptoPlugin.type())) {
-                throw new IllegalArgumentException("Crypto plugin key provider type [" + cryptoPlugin.type() + "] is already registered");
+        for (CryptoKeyProviderPlugin cryptoKPPlugin : cryptoKPPlugins) {
+            if (cryptoFactories.containsKey(cryptoKPPlugin.type())) {
+                throw new IllegalArgumentException("Crypto plugin key provider type [" + cryptoKPPlugin.type() + "] is already registered");
             }
-            cryptoFactories.put(cryptoPlugin.type(), cryptoPlugin);
+            cryptoFactories.put(cryptoKPPlugin.type(), cryptoKPPlugin);
         }
 
         return Map.copyOf(cryptoFactories);
     }
 
     /**
-     * Retrieves the crypto factory associated with the given key provider type (extension id).
+     * Retrieves the crypto factory associated with the given key provider type .
      *
-     * @param keyProviderType The unique extension type for which the factory is to be fetched.
-     * @return The crypto factory used to create {@link CryptoManager}
+     * @param keyProviderType The unique provider type for which the factory is to be fetched.
+     * @return The crypto factory used to create {@link CryptoHandler}
      *         instances in a {@link org.opensearch.common.blobstore.EncryptedBlobStore}.
      * @throws IllegalStateException If the crypto registry is not yet loaded.
      */
@@ -106,26 +121,26 @@ public class CryptoManagerRegistry {
      * @return The crypto manager for performing encrypt/decrypt operations.
      * @throws CryptoRegistryException If the key provider is not installed or there is an error during crypto manager creation.
      */
-    public CryptoManager fetchCryptoManager(CryptoMetadata cryptoMetadata) {
-        CryptoManager cryptoManager = registeredCryptoManagers.get(cryptoMetadata);
-        if (cryptoManager == null) {
-            synchronized (registeredCryptoManagers) {
-                cryptoManager = registeredCryptoManagers.get(cryptoMetadata);
-                if (cryptoManager == null) {
+    public CryptoHandler<?, ?> fetchCryptoHandler(CryptoMetadata cryptoMetadata) {
+        CryptoHandler<?, ?> cryptoHandler = registeredCryptoHandlers.get(cryptoMetadata);
+        if (cryptoHandler == null) {
+            synchronized (registeredCryptoHandlers) {
+                cryptoHandler = registeredCryptoHandlers.get(cryptoMetadata);
+                if (cryptoHandler == null) {
                     Runnable onClose = () -> {
-                        synchronized (registeredCryptoManagers) {
-                            registeredCryptoManagers.remove(cryptoMetadata);
+                        synchronized (registeredCryptoHandlers) {
+                            registeredCryptoHandlers.remove(cryptoMetadata);
                         }
                     };
-                    cryptoManager = createCryptoManager(cryptoMetadata, onClose);
-                    registeredCryptoManagers.put(cryptoMetadata, cryptoManager);
+                    cryptoHandler = createCryptoHandler(cryptoMetadata, onClose);
+                    registeredCryptoHandlers.put(cryptoMetadata, cryptoHandler);
                 }
             }
         }
-        return cryptoManager;
+        return cryptoHandler;
     }
 
-    private CryptoManager createCryptoManager(CryptoMetadata cryptoMetadata, Runnable onClose) {
+    private CryptoHandler<?, ?> createCryptoHandler(CryptoMetadata cryptoMetadata, Runnable onClose) {
         logger.debug("creating crypto client [{}][{}]", cryptoMetadata.keyProviderType(), cryptoMetadata.keyProviderName());
         CryptoKeyProviderPlugin keyProviderPlugin = getCryptoKeyProviderPlugin(cryptoMetadata.keyProviderType());
         if (keyProviderPlugin == null) {
@@ -134,8 +149,8 @@ public class CryptoManagerRegistry {
 
         try {
             MasterKeyProvider masterKeyProvider = keyProviderPlugin.createKeyProvider(cryptoMetadata);
-            return Objects.requireNonNull(cryptoManagerFactory.get())
-                .getOrCreateCryptoManager(masterKeyProvider, cryptoMetadata.keyProviderName(), cryptoMetadata.keyProviderType(), onClose);
+            return Objects.requireNonNull(cryptoHandlerPlugin.get())
+                .getOrCreateCryptoHandler(masterKeyProvider, cryptoMetadata.keyProviderName(), cryptoMetadata.keyProviderType(), onClose);
 
         } catch (Exception e) {
             logger.warn(
