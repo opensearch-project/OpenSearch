@@ -576,10 +576,10 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
             IndexMetadata indexMetadata,
             RemoteStoreRecoverySource recoverySource,
             Map<ShardId, IndexShardRoutingTable> indexShardRoutingTableMap,
-            boolean restoreAllShards
+            boolean forceRecoveryPrimary
         ) {
             IndexRoutingTable.Builder indexRoutingBuilder = new IndexRoutingTable.Builder(indexMetadata.getIndex())
-                .initializeAsRemoteStoreRestore(indexMetadata, recoverySource, indexShardRoutingTableMap, restoreAllShards);
+                .initializeAsRemoteStoreRestore(indexMetadata, recoverySource, indexShardRoutingTableMap, forceRecoveryPrimary);
             add(indexRoutingBuilder);
             return this;
         }

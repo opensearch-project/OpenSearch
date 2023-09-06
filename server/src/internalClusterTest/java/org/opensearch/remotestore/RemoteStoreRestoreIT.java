@@ -10,20 +10,14 @@ package org.opensearch.remotestore;
 
 import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStoreRequest;
 import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStoreResponse;
-import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.health.ClusterHealthStatus;
-import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.test.transport.MockTransportService;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
@@ -33,79 +27,8 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.greaterThan;
 
-@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
-public class RemoteStoreRestoreIT extends RemoteStoreBaseIntegTestCase {
-    private static final String INDEX_NAME = "remote-store-test-idx-1";
-    private static final String INDEX_NAMES = "test-remote-store-1,test-remote-store-2,remote-store-test-index-1,remote-store-test-index-2";
-    private static final String INDEX_NAMES_WILDCARD = "test-remote-store-*,remote-store-test-index-*";
-    private static final String TOTAL_OPERATIONS = "total-operations";
-    private static final String MAX_SEQ_NO_TOTAL = "max-seq-no-total";
-
-    @Override
-    public Settings indexSettings() {
-        return remoteStoreIndexSettings(0);
-    }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(MockTransportService.TestPlugin.class);
-    }
-
-    private void restore(String... indices) {
-        boolean restoreAllShards = randomBoolean();
-        if (restoreAllShards) {
-            assertAcked(client().admin().indices().prepareClose(indices));
-        }
-        client().admin()
-            .cluster()
-            .restoreRemoteStore(
-                new RestoreRemoteStoreRequest().indices(indices).restoreAllShards(restoreAllShards),
-                PlainActionFuture.newFuture()
-            );
-    }
-
-    private void verifyRestoredData(Map<String, Long> indexStats, String indexName) throws Exception {
-        ensureYellowAndNoInitializingShards(indexName);
-        ensureGreen(indexName);
-        // This is to ensure that shards that were already assigned will get latest count
-        refresh(indexName);
-        assertBusy(
-            () -> assertHitCount(client().prepareSearch(indexName).setSize(0).get(), indexStats.get(TOTAL_OPERATIONS)),
-            30,
-            TimeUnit.SECONDS
-        );
-        IndexResponse response = indexSingleDoc(indexName);
-        if (indexStats.containsKey(MAX_SEQ_NO_TOTAL + "-shard-" + response.getShardId().id())) {
-            assertEquals(indexStats.get(MAX_SEQ_NO_TOTAL + "-shard-" + response.getShardId().id()) + 1, response.getSeqNo());
-        }
-        refresh(indexName);
-        assertBusy(
-            () -> assertHitCount(client().prepareSearch(indexName).setSize(0).get(), indexStats.get(TOTAL_OPERATIONS) + 1),
-            30,
-            TimeUnit.SECONDS
-        );
-    }
-
-    private void prepareCluster(int numClusterManagerNodes, int numDataOnlyNodes, String indices, int replicaCount, int shardCount) {
-        prepareCluster(numClusterManagerNodes, numDataOnlyNodes, indices, replicaCount, shardCount, Settings.EMPTY);
-    }
-
-    private void prepareCluster(
-        int numClusterManagerNodes,
-        int numDataOnlyNodes,
-        String indices,
-        int replicaCount,
-        int shardCount,
-        Settings clusterSettings
-    ) {
-        internalCluster().startClusterManagerOnlyNodes(numClusterManagerNodes, clusterSettings);
-        internalCluster().startDataOnlyNodes(numDataOnlyNodes, clusterSettings);
-        for (String index : indices.split(",")) {
-            createIndex(index, remoteStoreIndexSettings(replicaCount, shardCount));
-            ensureYellowAndNoInitializingShards(index);
-            ensureGreen(index);
-        }
-    }
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE, numDataNodes = 0)
+public class RemoteStoreRestoreIT extends BaseRemoteStoreRestoreIT {
 
     /**
      * Simulates all data restored using Remote Translog Store.

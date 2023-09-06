@@ -332,7 +332,7 @@ public class RemoteClusterStateService implements Closeable {
         return blobStoreRepository.blobStore()
             .blobContainer(
                 blobStoreRepository.basePath()
-                    .add(Base64.getUrlEncoder().withoutPadding().encodeToString(clusterName.getBytes(StandardCharsets.UTF_8)))
+                    .add(encodeString(clusterName))
                     .add("cluster-state")
                     .add(clusterUUID)
                     .add("index")
@@ -344,11 +344,7 @@ public class RemoteClusterStateService implements Closeable {
         // 123456789012_test-cluster/cluster-state/dsgYj10Nkso7/manifest
         return blobStoreRepository.blobStore()
             .blobContainer(
-                blobStoreRepository.basePath()
-                    .add(Base64.getUrlEncoder().withoutPadding().encodeToString(clusterName.getBytes(StandardCharsets.UTF_8)))
-                    .add("cluster-state")
-                    .add(clusterUUID)
-                    .add("manifest")
+                blobStoreRepository.basePath().add(encodeString(clusterName)).add("cluster-state").add(clusterUUID).add("manifest")
             );
     }
 
@@ -378,6 +374,7 @@ public class RemoteClusterStateService implements Closeable {
      * @return {@code Map<String, IndexMetadata>} latest IndexUUID to IndexMetadata map
      */
     public Map<String, IndexMetadata> getLatestIndexMetadata(String clusterName, String clusterUUID) throws IOException {
+        ensureRepositorySet();
         Map<String, IndexMetadata> remoteIndexMetadata = new HashMap<>();
         ClusterMetadataManifest clusterMetadataManifest = getLatestClusterMetadataManifest(clusterName, clusterUUID);
         assert Objects.equals(clusterUUID, clusterMetadataManifest.getClusterUUID())
@@ -398,9 +395,10 @@ public class RemoteClusterStateService implements Closeable {
      */
     private IndexMetadata getIndexMetadata(String clusterName, String clusterUUID, UploadedIndexMetadata uploadedIndexMetadata) {
         try {
+            String[] splitPath = uploadedIndexMetadata.getUploadedFilename().split("/");
             return INDEX_METADATA_FORMAT.read(
                 indexMetadataContainer(clusterName, clusterUUID, uploadedIndexMetadata.getIndexUUID()),
-                uploadedIndexMetadata.getUploadedFilename(),
+                splitPath[splitPath.length - 1],
                 blobStoreRepository.getNamedXContentRegistry()
             );
         } catch (IOException e) {
@@ -467,5 +465,9 @@ public class RemoteClusterStateService implements Closeable {
         } catch (IOException e) {
             throw new IllegalStateException(String.format(Locale.ROOT, "Error while downloading cluster metadata - %s", filename), e);
         }
+    }
+
+    public static String encodeString(String content) {
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(content.getBytes(StandardCharsets.UTF_8));
     }
 }
