@@ -14,7 +14,6 @@ import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.transport.MockTransportService;
-import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -85,7 +84,14 @@ public class BaseRemoteStoreRestoreIT extends RemoteStoreBaseIntegTestCase {
         prepareCluster(numClusterManagerNodes, numDataOnlyNodes, indices, replicaCount, shardCount, Settings.EMPTY);
     }
 
-    public void prepareCluster(int numClusterManagerNodes, int numDataOnlyNodes, String indices, int replicaCount, int shardCount, Settings settings) {
+    public void prepareCluster(
+        int numClusterManagerNodes,
+        int numDataOnlyNodes,
+        String indices,
+        int replicaCount,
+        int shardCount,
+        Settings settings
+    ) {
         prepareCluster(numClusterManagerNodes, numDataOnlyNodes, settings);
         for (String index : indices.split(",")) {
             createIndex(index, remoteStoreIndexSettings(replicaCount, shardCount));
