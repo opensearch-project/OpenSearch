@@ -15,12 +15,17 @@ thirdPartyAudit.enabled = false
 forbiddenApisTest.ignoreFailures = true
 testingConventions.enabled = false
 
+opensearchplugin {
+  description 'Crypto module plugin for providing encryption and decryption support.'
+  classname 'org.opensearch.encryption.CryptoModulePlugin'
+}
+
 dependencies {
   // Common crypto classes
   api project(':libs:opensearch-common')
 
-  // Encryption
-  implementation "com.amazonaws:aws-encryption-sdk-java:2.4.0"
+  implementation "com.amazonaws:aws-encryption-sdk-java:1.7.0"
+  implementation "org.bouncycastle:bcprov-jdk15to18:${versions.bouncycastle}"
   implementation "org.apache.commons:commons-lang3:${versions.commonslang}"
 
   //Tests

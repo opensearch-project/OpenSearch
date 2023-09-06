@@ -125,4 +125,8 @@ public class NoOpCryptoHandler implements CryptoHandler<Object, Object> {
         return new DecryptedRangedStreamProvider(range, (encryptedStream) -> encryptedStream);
     }
 
+    @Override
+    public void close() {
+        // Nothing to close.
+    }
 }

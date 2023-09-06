@@ -16,6 +16,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 
 public class NoOpCryptoHandlerTests extends OpenSearchTestCase {
 
@@ -61,7 +62,7 @@ public class NoOpCryptoHandlerTests extends OpenSearchTestCase {
     }
 
     private InputStreamContainer randomStream() {
-        byte[] bytes = randomAlphaOfLength(10).getBytes();
+        byte[] bytes = randomAlphaOfLength(10).getBytes(StandardCharsets.UTF_8);
         ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream(bytes);
         int offset = randomIntBetween(0, bytes.length - 1);
         return new InputStreamContainer(byteArrayInputStream, bytes.length, offset);
