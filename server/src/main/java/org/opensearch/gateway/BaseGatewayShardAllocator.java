@@ -92,8 +92,7 @@ public abstract class BaseGatewayShardAllocator {
         }
     }
 
-    public void allocateUnassignedBatch(String batchId, RoutingAllocation allocation){
-    }
+    public void allocateUnassignedBatch(String batchId, RoutingAllocation allocation) {}
 
     protected long getExpectedShardSize(ShardRouting shardRouting, RoutingAllocation allocation) {
         if (shardRouting.primary()) {

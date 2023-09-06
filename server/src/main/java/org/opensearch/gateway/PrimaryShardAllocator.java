@@ -89,7 +89,6 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
                 || shard.recoverySource().getType() == RecoverySource.Type.SNAPSHOT);
     }
 
-
     @Override
     public AllocateUnassignedDecision makeAllocationDecision(
         final ShardRouting unassignedShard,

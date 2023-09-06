@@ -33,7 +33,6 @@
 package org.opensearch.gateway;
 
 import org.opensearch.common.inject.AbstractModule;
-import org.opensearch.indices.store.TransportNodesListShardStoreMetadataBatch;
 
 /**
  * Binds the gateway module
