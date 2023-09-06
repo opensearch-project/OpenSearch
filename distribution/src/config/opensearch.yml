@@ -98,6 +98,9 @@ ${path.logs}
 # node.attr.remote_store.translog.repository: my-repo-1
 #
 # ---------------------------------- Experimental Features -----------------------------------
+# Gates the visibility of the experimental segment replication features until they are production ready.
+#
+#opensearch.experimental.feature.segment_replication_experimental.enabled: false
 #
 # Gates the functionality of a new parameter to the snapshot restore API
 # that allows for creation of a new index type that searches a snapshot

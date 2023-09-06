@@ -671,13 +671,9 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 // Remote cluster state settings
                 RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING,
                 RemoteClusterStateService.REMOTE_CLUSTER_STATE_REPOSITORY_SETTING,
-              
-                RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING
-              
-                // Remote store enablement settings
-                IndicesService.CLUSTER_REMOTE_STORE_ENABLED_SETTING,
-                IndicesService.CLUSTER_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING,
-                IndicesService.CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING,
+
+                RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING,
+
                 IndicesService.CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING
             )
         )

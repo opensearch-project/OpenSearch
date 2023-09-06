@@ -52,7 +52,6 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexingPressureService;
-import org.opensearch.indices.IndicesService;
 import org.opensearch.node.Node;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -292,13 +291,6 @@ public class ClusterService extends AbstractLifecycleComponent {
      */
     public final String getNodeName() {
         return nodeName;
-    }
-
-    /**
-     * Returns true if remote store is enabled for this cluster
-     */
-    public boolean isRemoteStoreEnabled() {
-        return clusterSettings.get(IndicesService.CLUSTER_REMOTE_STORE_ENABLED_SETTING);
     }
 
     /**
