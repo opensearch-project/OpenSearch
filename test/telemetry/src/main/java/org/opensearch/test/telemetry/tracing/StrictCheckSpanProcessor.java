@@ -9,8 +9,11 @@
 package org.opensearch.test.telemetry.tracing;
 
 import org.opensearch.telemetry.tracing.Span;
+import org.opensearch.test.telemetry.tracing.validators.AllSpansAreEndedProperly;
+import org.opensearch.test.telemetry.tracing.validators.AllSpansHaveUniqueId;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -66,7 +69,7 @@ public class StrictCheckSpanProcessor implements SpanProcessor {
      * Ensures the strict check succeeds for all the spans.
      */
     public static void validateTracingStateOnShutdown() {
-        List<MockSpanData> spanData = new ArrayList(spanMap.values());
+        List<MockSpanData> spanData = new ArrayList<>(spanMap.values());
         if (spanData.size() != 0) {
             TelemetryValidators validators = new TelemetryValidators(
                 Arrays.asList(new AllSpansAreEndedProperly(), new AllSpansHaveUniqueId())

@@ -12,11 +12,7 @@ import org.opensearch.telemetry.tracing.Span;
 import org.opensearch.telemetry.tracing.TracingContextPropagator;
 import org.opensearch.telemetry.tracing.TracingTelemetry;
 import org.opensearch.telemetry.tracing.attributes.Attributes;
-import org.opensearch.test.telemetry.tracing.validators.AllSpansAreEndedProperly;
-import org.opensearch.test.telemetry.tracing.validators.AllSpansHaveUniqueId;
 
-import java.util.Arrays;
-import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
