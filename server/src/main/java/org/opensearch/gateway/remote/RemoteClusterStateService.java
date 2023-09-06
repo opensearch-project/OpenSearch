@@ -108,7 +108,8 @@ public class RemoteClusterStateService implements Closeable {
         ClusterSettings clusterSettings,
         LongSupplier relativeTimeNanosSupplier
     ) {
-        assert REMOTE_CLUSTER_STATE_ENABLED_SETTING.get(settings) == true && isRemoteStoreAttributePresent(settings) == true: "Remote cluster state is not enabled";
+        assert REMOTE_CLUSTER_STATE_ENABLED_SETTING.get(settings) == true && isRemoteStoreAttributePresent(settings) == true
+            : "Remote cluster state is not enabled";
         this.nodeId = nodeId;
         this.repositoriesService = repositoriesService;
         this.settings = settings;
@@ -377,7 +378,8 @@ public class RemoteClusterStateService implements Closeable {
         if (blobStoreRepository != null) {
             return;
         }
-        assert REMOTE_CLUSTER_STATE_ENABLED_SETTING.get(settings) == true && isRemoteStoreAttributePresent(settings) == true: "Remote cluster state is not enabled";
+        assert REMOTE_CLUSTER_STATE_ENABLED_SETTING.get(settings) == true && isRemoteStoreAttributePresent(settings) == true
+            : "Remote cluster state is not enabled";
         final String remoteStoreRepo = settings.get(
             Node.NODE_ATTRIBUTES.getKey() + RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY
         );
