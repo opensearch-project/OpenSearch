@@ -18,7 +18,6 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.snapshots.AbstractSnapshotIntegTestCase;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -40,11 +39,6 @@ public abstract class AbstractRemoteStoreMockRepositoryIntegTestCase extends Abs
     protected static final String REPOSITORY_NAME = "my-segment-repo-1";
     protected static final String TRANSLOG_REPOSITORY_NAME = "my-translog-repo-1";
     protected static final String INDEX_NAME = "remote-store-test-idx-1";
-
-    @Before
-    public void setup() {
-        internalCluster().startClusterManagerOnlyNode(remoteStoreClusterSettings(REPOSITORY_NAME, TRANSLOG_REPOSITORY_NAME));
-    }
 
     @Override
     public Settings indexSettings() {

@@ -60,7 +60,10 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal)).put(remoteStoreClusterSettings(BASE_REMOTE_REPO)).build();
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal))
+            .put(remoteStoreClusterSettings(BASE_REMOTE_REPO, remoteRepoPath))
+            .build();
     }
 
     private Settings.Builder getIndexSettings(int numOfShards, int numOfReplicas) {
