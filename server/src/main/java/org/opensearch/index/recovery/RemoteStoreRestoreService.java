@@ -288,7 +288,8 @@ public class RemoteStoreRestoreService {
                         indexUUID
                     );
 
-                    // Any indices being restored from remote cluster state should not already be part of the cluster as this causes conflict
+                    // Any indices being restored from remote cluster state should not already be part of the cluster as this causes
+                    // conflict
                     boolean sameNameIndexExists = currentState.metadata().hasIndex(indexName);
                     boolean sameUUIDIndexExists = liveClusterIndexUUIDs.contains(indexUUID);
                     if (sameNameIndexExists || sameUUIDIndexExists) {
