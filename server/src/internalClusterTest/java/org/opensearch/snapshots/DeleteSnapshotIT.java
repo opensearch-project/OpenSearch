@@ -137,6 +137,7 @@ public class DeleteSnapshotIT extends AbstractSnapshotIntegTestCase {
                 .prepareDeleteSnapshot(snapshotRepoName, snapshotsToBeDeleted.toArray(new String[0]))
                 .get()
         );
+        awaitNoMoreRunningOperations();
         assert (getRepositoryData(snapshotRepoName).getSnapshotIds().size() == totalShallowCopySnapshotsCount - tobeDeletedSnapshotsCount);
         assert (getLockFilesInRemoteStore(remoteStoreEnabledIndexName, REMOTE_REPO_NAME).length == totalShallowCopySnapshotsCount
             - tobeDeletedSnapshotsCount);
@@ -294,6 +295,64 @@ public class DeleteSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertAcked(clusterManagerClient.admin().cluster().prepareDeleteSnapshot(snapshotRepoName, "*").get());
         assert (getRepositoryData(snapshotRepoName).getSnapshotIds().size() == 0);
         assert (getLockFilesInRemoteStore(remoteStoreEnabledIndexName, REMOTE_REPO_NAME).length == 0);
+    }
+
+    // Checking snapshot deletion after inducing lock release failure for shallow copy snapshot.
+    public void testReleaseLockFailure() throws Exception {
+        disableRepoConsistencyCheck("This test uses remote store repository");
+        FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
+        internalCluster().startClusterManagerOnlyNode(remoteStoreClusterSettings("remote-store-repo-name"));
+        internalCluster().startDataOnlyNode();
+
+        logger.info("-->  creating snapshot repository");
+        final String shallowSnapshotRepoName = "shallow-snapshot-repo-name";
+        final Path shallowSnapshotRepoPath = randomRepoPath();
+        createRepository(shallowSnapshotRepoName, "mock", snapshotRepoSettingsForShallowCopy(shallowSnapshotRepoPath));
+
+        logger.info("-->  creating remote store repository");
+        final String remoteStoreRepoName = "remote-store-repo-name";
+        final Path remoteStoreRepoPath = randomRepoPath();
+        Settings.Builder remoteStoreRepoSettingsBuilder = Settings.builder().put("location", remoteStoreRepoPath);
+        createRepository(remoteStoreRepoName, "mock", remoteStoreRepoSettingsBuilder);
+
+        createIndexWithContent("index-test-1");
+
+        final String remoteStoreEnabledIndexName = "remote-index-1";
+        final Settings remoteStoreEnabledIndexSettings = getRemoteStoreBackedIndexSettings();
+        createIndex(remoteStoreEnabledIndexName, remoteStoreEnabledIndexSettings);
+        indexRandomDocs(remoteStoreEnabledIndexName, randomIntBetween(5, 10));
+
+        createFullSnapshot(shallowSnapshotRepoName, "snapshot_one");
+
+        assert (getLockFilesInRemoteStore(remoteStoreEnabledIndexName, remoteStoreRepoName).length == 1);
+        assert (clusterAdmin().prepareGetSnapshots(shallowSnapshotRepoName).get().getSnapshots().size() == 1);
+
+        logger.info("Updating repo settings");
+        remoteStoreRepoSettingsBuilder.putList("regexes_to_fail_io", "lock$");
+        createRepository(remoteStoreRepoName, "mock", remoteStoreRepoSettingsBuilder);
+
+        // Deleting snapshot_one after updating repo settings to fail on lock file release operation.
+        // Expecting snapshot to be deleted but the lock file as well as snapshot files to be still present.
+        // index.N and index.latest are the only two files expected to be present after snapshot deletion.
+        assertAcked(startDeleteSnapshot(shallowSnapshotRepoName, "snapshot_one").get());
+        assert (clusterAdmin().prepareGetSnapshots(shallowSnapshotRepoName).get().getSnapshots().size() == 0);
+        assert (getLockFilesInRemoteStore(remoteStoreEnabledIndexName, remoteStoreRepoName).length == 1);
+        assert (numberOfFiles(shallowSnapshotRepoPath) != 2);
+
+        logger.info("Updating repo settings");
+        remoteStoreRepoSettingsBuilder.remove("regexes_to_fail_io");
+        createRepository(remoteStoreRepoName, "mock", remoteStoreRepoSettingsBuilder);
+
+        createIndexWithContent("test-index-2");
+        createFullSnapshot(shallowSnapshotRepoName, "snapshot_two");
+
+        // Deleting snapshot_two after reverting the repo settings. Expecting snapshot count as well as lock
+        // file count to be zero after the snapshot deletion. Also the files present in the snapshot repository
+        // should equal to 2 (index.latest and index.N)
+        assertAcked(startDeleteSnapshot(shallowSnapshotRepoName, "snapshot_two").get());
+        assert (clusterAdmin().prepareGetSnapshots(shallowSnapshotRepoName).get().getSnapshots().size() == 0);
+        assert (getLockFilesInRemoteStore(remoteStoreEnabledIndexName, remoteStoreRepoName).length == 0);
+        assert (numberOfFiles(shallowSnapshotRepoPath) == 2);
     }
 
     public void testRemoteStoreCleanupForDeletedIndex() throws Exception {

@@ -99,6 +99,8 @@ public class RemoteIndexSnapshotStatusApiIT extends AbstractSnapshotIntegTestCas
         assertThat(shallowSnapshotShardState.getStats().getTotalSize(), greaterThan(0L));
         assertThat(shallowSnapshotShardState.getStats().getIncrementalFileCount(), is(0));
         assertThat(shallowSnapshotShardState.getStats().getIncrementalSize(), is(0L));
+        assertNotNull(shallowSnapshotShardState.getStats().getStartTime());
+        assertNotNull(shallowSnapshotShardState.getStats().getTime());
     }
 
     public void testStatusAPIStatsForBackToBackShallowSnapshot() throws Exception {
