@@ -15,27 +15,10 @@ import org.opensearch.indices.recovery.IndexPrimaryRelocationIT;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
-import java.nio.file.Path;
-
-import static org.opensearch.remotestore.RemoteStoreBaseIntegTestCase.remoteStoreClusterSettings;
-
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST)
 public class RemoteIndexPrimaryRelocationIT extends IndexPrimaryRelocationIT {
 
     protected static final String REPOSITORY_NAME = "test-remote-store-repo";
-
-    protected Path absolutePath;
-
-    public void setup() {
-        absolutePath = randomRepoPath().toAbsolutePath();
-    }
-
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal))
-            .put(remoteStoreClusterSettings(REPOSITORY_NAME, absolutePath))
-            .build();
-    }
 
     @Override
     protected boolean addMockInternalEngine() {
