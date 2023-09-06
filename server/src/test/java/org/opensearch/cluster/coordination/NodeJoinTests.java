@@ -38,6 +38,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.OpenSearchAllocationTestCase;
 import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
+import org.opensearch.cluster.coordination.PersistedStateRegistry.PersistedStateType;
 import org.opensearch.cluster.decommission.DecommissionAttribute;
 import org.opensearch.cluster.decommission.DecommissionAttributeMetadata;
 import org.opensearch.cluster.decommission.DecommissionStatus;
@@ -59,6 +60,7 @@ import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.monitor.NodeHealthService;
 import org.opensearch.monitor.StatusInfo;
 import org.opensearch.node.Node;
+import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.test.ClusterServiceUtils;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.CapturingTransport;
@@ -88,6 +90,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
+
+import org.mockito.Mockito;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -245,6 +249,8 @@ public class NodeJoinTests extends OpenSearchTestCase {
             clusterSettings,
             Collections.emptySet()
         );
+        final PersistedStateRegistry persistedStateRegistry = persistedStateRegistry();
+        persistedStateRegistry.addPersistedState(PersistedStateType.LOCAL, new InMemoryPersistedState(term, initialState));
         coordinator = new Coordinator(
             "test_node",
             Settings.EMPTY,
@@ -253,14 +259,16 @@ public class NodeJoinTests extends OpenSearchTestCase {
             writableRegistry(),
             OpenSearchAllocationTestCase.createAllocationService(Settings.EMPTY),
             clusterManagerService,
-            () -> new InMemoryPersistedState(term, initialState),
+            () -> persistedStateRegistry.getPersistedState(PersistedStateType.LOCAL),
             r -> emptyList(),
             new NoOpClusterApplier(),
             Collections.emptyList(),
             random,
             (s, p, r) -> {},
             ElectionStrategy.DEFAULT_INSTANCE,
-            nodeHealthService
+            nodeHealthService,
+            persistedStateRegistry,
+            Mockito.mock(RemoteStoreNodeService.class)
         );
         transportService.start();
         transportService.acceptIncomingRequests();

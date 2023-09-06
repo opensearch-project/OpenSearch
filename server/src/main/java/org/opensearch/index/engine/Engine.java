@@ -38,7 +38,10 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SegmentReader;
@@ -134,6 +137,8 @@ public abstract class Engine implements LifecycleAware, Closeable {
     public static final String MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID = "max_unsafe_auto_id_timestamp";
     public static final String SEARCH_SOURCE = "search"; // TODO: Make source of search enum?
     public static final String CAN_MATCH_SEARCH_SOURCE = "can_match";
+    public static final String FORCE_MERGE = "force merge";
+    public static final String MERGE_FAILED = "merge failed";
 
     protected final ShardId shardId;
     protected final Logger logger;
@@ -950,6 +955,10 @@ public abstract class Engine implements LifecycleAware, Closeable {
         }
     }
 
+    boolean shouldCleanupUnreferencedFiles() {
+        return engineConfig.getIndexSettings().shouldCleanupUnreferencedFiles();
+    }
+
     private Map<String, Long> getSegmentFileSizes(SegmentReader segmentReader) {
         Directory directory = null;
         SegmentCommitInfo segmentCommitInfo = segmentReader.getSegmentInfo();
@@ -1291,6 +1300,14 @@ public abstract class Engine implements LifecycleAware, Closeable {
                             );
                         }
                     }
+
+                    // If cleanup of unreferenced flag is enabled and force merge or regular merge failed due to IOException,
+                    // clean all unreferenced files on best effort basis created during failed merge and reset the
+                    // shard state back to last Lucene Commit.
+                    if (shouldCleanupUnreferencedFiles() && isMergeFailureDueToIOException(failure, reason)) {
+                        cleanUpUnreferencedFiles();
+                    }
+
                     eventListener.onFailedEngine(reason, failure);
                 }
             } catch (Exception inner) {
@@ -1307,6 +1324,32 @@ public abstract class Engine implements LifecycleAware, Closeable {
                 failure
             );
         }
+    }
+
+    /**
+     * Cleanup all unreferenced files generated during failed segment merge. This resets shard state to last Lucene
+     * commit.
+     */
+    private void cleanUpUnreferencedFiles() {
+        try (
+            IndexWriter writer = new IndexWriter(
+                store.directory(),
+                new IndexWriterConfig(Lucene.STANDARD_ANALYZER).setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
+                    .setCommitOnClose(false)
+                    .setMergePolicy(NoMergePolicy.INSTANCE)
+                    .setOpenMode(IndexWriterConfig.OpenMode.APPEND)
+            )
+        ) {
+            // do nothing and close this will kick off IndexFileDeleter which will remove all unreferenced files.
+        } catch (Exception ex) {
+            logger.error("Error while deleting unreferenced file ", ex);
+        }
+    }
+
+    /** Check whether the merge failure happened due to IOException. */
+    private boolean isMergeFailureDueToIOException(Exception failure, String reason) {
+        return (reason.equals(FORCE_MERGE) || reason.equals(MERGE_FAILED))
+            && ExceptionsHelper.unwrap(failure, IOException.class) instanceof IOException;
     }
 
     /** Check whether the engine should be failed */

@@ -37,6 +37,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.Version;
 import org.opensearch.action.ActionRunnable;
+import org.opensearch.action.admin.cluster.crypto.CryptoSettings;
 import org.opensearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
 import org.opensearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.opensearch.cluster.AckedClusterStateUpdateTask;
@@ -48,6 +49,7 @@ import org.opensearch.cluster.RestoreInProgress;
 import org.opensearch.cluster.SnapshotDeletionsInProgress;
 import org.opensearch.cluster.SnapshotsInProgress;
 import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
+import org.opensearch.cluster.metadata.CryptoMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.RepositoriesMetadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
@@ -56,6 +58,7 @@ import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.service.ClusterManagerTaskKeys;
 import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.common.settings.Setting;
@@ -86,8 +89,9 @@ import static org.opensearch.repositories.blobstore.BlobStoreRepository.REMOTE_S
 /**
  * Service responsible for maintaining and providing access to snapshot repositories on nodes.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class RepositoriesService extends AbstractLifecycleComponent implements ClusterStateApplier {
 
     private static final Logger logger = LogManager.getLogger(RepositoriesService.class);
@@ -162,9 +166,17 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     public void registerRepository(final PutRepositoryRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
         assert lifecycle.started() : "Trying to register new repository but service is in state [" + lifecycle.state() + "]";
 
-        final RepositoryMetadata newRepositoryMetadata = new RepositoryMetadata(request.name(), request.type(), request.settings());
+        final RepositoryMetadata newRepositoryMetadata = new RepositoryMetadata(
+            request.name(),
+            request.type(),
+            request.settings(),
+            CryptoMetadata.fromRequest(request.cryptoSettings())
+        );
         validate(request.name());
         validateRepositoryMetadataSettings(clusterService, request.name(), request.settings());
+        if (newRepositoryMetadata.cryptoMetadata() != null) {
+            validate(newRepositoryMetadata.cryptoMetadata().keyProviderName());
+        }
 
         final ActionListener<ClusterStateUpdateResponse> registrationListener;
         if (request.verify()) {
@@ -211,7 +223,14 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                     if (repositories == null) {
                         logger.info("put repository [{}]", request.name());
                         repositories = new RepositoriesMetadata(
-                            Collections.singletonList(new RepositoryMetadata(request.name(), request.type(), request.settings()))
+                            Collections.singletonList(
+                                new RepositoryMetadata(
+                                    request.name(),
+                                    request.type(),
+                                    request.settings(),
+                                    CryptoMetadata.fromRequest(request.cryptoSettings())
+                                )
+                            )
                         );
                     } else {
                         boolean found = false;
@@ -223,6 +242,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                                     // Previous version is the same as this one no update is needed.
                                     return currentState;
                                 }
+                                ensureCryptoSettingsAreSame(repositoryMetadata, request);
                                 found = true;
                                 repositoriesMetadata.add(newRepositoryMetadata);
                             } else {
@@ -231,7 +251,14 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                         }
                         if (!found) {
                             logger.info("put repository [{}]", request.name());
-                            repositoriesMetadata.add(new RepositoryMetadata(request.name(), request.type(), request.settings()));
+                            repositoriesMetadata.add(
+                                new RepositoryMetadata(
+                                    request.name(),
+                                    request.type(),
+                                    request.settings(),
+                                    CryptoMetadata.fromRequest(request.cryptoSettings())
+                                )
+                            );
                         } else {
                             logger.info("update repository [{}]", request.name());
                         }
@@ -393,7 +420,13 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             // Check if repositories got changed
             if ((oldMetadata == null && newMetadata == null) || (oldMetadata != null && oldMetadata.equalsIgnoreGenerations(newMetadata))) {
                 for (Repository repo : repositories.values()) {
-                    repo.updateState(state);
+                    // Update State should only be invoked for repository which are already in cluster state. This
+                    // check needs to be added as system repositories can be populated before cluster state has the
+                    // repository metadata.
+                    RepositoriesMetadata stateRepositoriesMetadata = state.metadata().custom(RepositoriesMetadata.TYPE);
+                    if (stateRepositoriesMetadata != null && stateRepositoriesMetadata.repository(repo.getMetadata().name()) != null) {
+                        repo.updateState(state);
+                    }
                 }
                 return;
             }
@@ -441,7 +474,22 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                         }
                     } else {
                         try {
-                            repository = createRepository(repositoryMetadata, typesRegistry);
+                            // System repositories are already created and verified and hence during cluster state
+                            // update we should avoid creating it again. Once the cluster state is update with the
+                            // repository metadata the repository metadata update will land in the above if block.
+                            if (repositories.containsKey(repositoryMetadata.name()) == false) {
+                                repository = createRepository(repositoryMetadata, typesRegistry);
+                            } else {
+                                // Validate the repository metadata which was created during bootstrap is same as the
+                                // one present in incoming cluster state.
+                                repository = repositories.get(repositoryMetadata.name());
+                                if (repositoryMetadata.equalsIgnoreGenerations(repository.getMetadata()) == false) {
+                                    throw new RepositoryException(
+                                        repositoryMetadata.name(),
+                                        "repository was already " + "registered with different metadata during bootstrap than cluster state"
+                                    );
+                                }
+                            }
                         } catch (RepositoryException ex) {
                             logger.warn(() -> new ParameterizedMessage("failed to create repository [{}]", repositoryMetadata.name()), ex);
                         }
@@ -560,7 +608,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     }
 
     /** Closes the given repository. */
-    private void closeRepository(Repository repository) {
+    public void closeRepository(Repository repository) {
         logger.debug("closing repository [{}][{}]", repository.getMetadata().type(), repository.getMetadata().name());
         repository.close();
     }
@@ -572,6 +620,13 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                 logger.warn("Unable to archive the repository stats [{}] as the archive is full.", stats);
             }
         }
+    }
+
+    /**
+     * Creates repository holder. This method starts the non-internal repository
+     */
+    public Repository createRepository(RepositoryMetadata repositoryMetadata) {
+        return this.createRepository(repositoryMetadata, typesRegistry);
     }
 
     /**
@@ -598,15 +653,15 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         }
     }
 
-    private static void validate(final String repositoryName) {
-        if (Strings.hasLength(repositoryName) == false) {
-            throw new RepositoryException(repositoryName, "cannot be empty");
+    public static void validate(final String identifier) {
+        if (org.opensearch.core.common.Strings.hasLength(identifier) == false) {
+            throw new RepositoryException(identifier, "cannot be empty");
         }
-        if (repositoryName.contains("#")) {
-            throw new RepositoryException(repositoryName, "must not contain '#'");
+        if (identifier.contains("#")) {
+            throw new RepositoryException(identifier, "must not contain '#'");
         }
-        if (Strings.validFileName(repositoryName) == false) {
-            throw new RepositoryException(repositoryName, "must not contain the following characters " + Strings.INVALID_FILENAME_CHARS);
+        if (Strings.validFileName(identifier) == false) {
+            throw new RepositoryException(identifier, "must not contain the following characters " + Strings.INVALID_FILENAME_CHARS);
         }
     }
 
@@ -639,6 +694,23 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     private static void ensureRepositoryNotInUse(ClusterState clusterState, String repository) {
         if (isRepositoryInUse(clusterState, repository)) {
             throw new IllegalStateException("trying to modify or unregister repository that is currently used");
+        }
+    }
+
+    private static void ensureCryptoSettingsAreSame(RepositoryMetadata repositoryMetadata, PutRepositoryRequest request) {
+        if (repositoryMetadata.cryptoMetadata() == null && request.cryptoSettings() == null) {
+            return;
+        }
+        if (repositoryMetadata.cryptoMetadata() == null || request.cryptoSettings() == null) {
+            throw new IllegalArgumentException("Crypto settings changes found in the repository update request. This is not allowed");
+        }
+
+        CryptoMetadata cryptoMetadata = repositoryMetadata.cryptoMetadata();
+        CryptoSettings cryptoSettings = request.cryptoSettings();
+        if (!cryptoMetadata.keyProviderName().equals(cryptoSettings.getKeyProviderName())
+            || !cryptoMetadata.keyProviderType().equals(cryptoSettings.getKeyProviderType())
+            || !cryptoMetadata.settings().toString().equals(cryptoSettings.getSettings().toString())) {
+            throw new IllegalArgumentException("Changes in crypto settings found in the repository update request. This is not allowed");
         }
     }
 
@@ -678,6 +750,17 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             }
         }
         return false;
+    }
+
+    /**
+     * This method will be used to update the repositories map.
+     */
+    public void updateRepositoriesMap(Map<String, Repository> repos) {
+        if (repositories.isEmpty()) {
+            repositories = repos;
+        } else {
+            throw new IllegalArgumentException("can't overwrite as repositories are already present");
+        }
     }
 
     @Override

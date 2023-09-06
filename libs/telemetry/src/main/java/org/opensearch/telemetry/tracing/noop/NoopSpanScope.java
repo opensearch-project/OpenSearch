@@ -8,52 +8,36 @@
 
 package org.opensearch.telemetry.tracing.noop;
 
+import org.opensearch.common.annotation.InternalApi;
+import org.opensearch.telemetry.tracing.Span;
 import org.opensearch.telemetry.tracing.SpanScope;
 
 /**
- * No-op implementation of SpanScope
+ * No-op implementation of {@link SpanScope}
  *
  * @opensearch.internal
  */
-public final class NoopSpanScope implements SpanScope {
-
+@InternalApi
+public class NoopSpanScope implements SpanScope {
     /**
-     * No-args constructor
+     * Constructor.
      */
-    public NoopSpanScope() {}
-
-    @Override
-    public void addSpanAttribute(String key, String value) {
-
-    }
-
-    @Override
-    public void addSpanAttribute(String key, long value) {
-
-    }
-
-    @Override
-    public void addSpanAttribute(String key, double value) {
-
-    }
-
-    @Override
-    public void addSpanAttribute(String key, boolean value) {
-
-    }
-
-    @Override
-    public void addSpanEvent(String event) {
-
-    }
-
-    @Override
-    public void setError(Exception exception) {
+    public NoopSpanScope() {
 
     }
 
     @Override
     public void close() {
 
+    }
+
+    @Override
+    public SpanScope attach() {
+        return this;
+    }
+
+    @Override
+    public Span getSpan() {
+        return NoopSpan.INSTANCE;
     }
 }

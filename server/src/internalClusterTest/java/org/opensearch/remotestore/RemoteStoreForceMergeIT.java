@@ -16,7 +16,6 @@ import org.opensearch.plugins.Plugin;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.transport.MockTransportService;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -29,7 +28,7 @@ import java.util.Map;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 
-@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE, numDataNodes = 3)
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class RemoteStoreForceMergeIT extends RemoteStoreBaseIntegTestCase {
 
     private static final String INDEX_NAME = "remote-store-test-idx-1";
@@ -39,11 +38,6 @@ public class RemoteStoreForceMergeIT extends RemoteStoreBaseIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(MockTransportService.TestPlugin.class);
-    }
-
-    @Before
-    public void setup() {
-        setupRepo();
     }
 
     @Override
@@ -97,6 +91,7 @@ public class RemoteStoreForceMergeIT extends RemoteStoreBaseIntegTestCase {
 
     private void testRestoreWithMergeFlow(int numberOfIterations, boolean invokeFlush, boolean flushAfterMerge, long deletedDocs)
         throws IOException {
+        internalCluster().startNodes(3);
         createIndex(INDEX_NAME, remoteStoreIndexSettings(0));
         ensureYellowAndNoInitializingShards(INDEX_NAME);
         ensureGreen(INDEX_NAME);

@@ -81,6 +81,11 @@ class GeoCentroidAggregatorFactory extends ValuesSourceAggregatorFactory {
             .build(name, config, searchContext, parent, metadata);
     }
 
+    @Override
+    protected boolean supportsConcurrentSegmentSearch() {
+        return true;
+    }
+
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(GeoCentroidAggregationBuilder.REGISTRY_KEY, CoreValuesSourceType.GEOPOINT, GeoCentroidAggregator::new, true);
     }

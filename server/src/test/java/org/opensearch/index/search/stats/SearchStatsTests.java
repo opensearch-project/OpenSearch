@@ -45,9 +45,9 @@ public class SearchStatsTests extends OpenSearchTestCase {
         // let's create two dummy search stats with groups
         Map<String, Stats> groupStats1 = new HashMap<>();
         Map<String, Stats> groupStats2 = new HashMap<>();
-        groupStats2.put("group1", new Stats(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1));
-        SearchStats searchStats1 = new SearchStats(new Stats(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1), 0, groupStats1);
-        SearchStats searchStats2 = new SearchStats(new Stats(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1), 0, groupStats2);
+        groupStats2.put("group1", new Stats(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1));
+        SearchStats searchStats1 = new SearchStats(new Stats(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1), 0, groupStats1);
+        SearchStats searchStats2 = new SearchStats(new Stats(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1), 0, groupStats2);
 
         // adding these two search stats and checking group stats are correct
         searchStats1.add(searchStats2);
@@ -69,6 +69,9 @@ public class SearchStatsTests extends OpenSearchTestCase {
         assertEquals(equalTo, stats.getQueryCount());
         assertEquals(equalTo, stats.getQueryTimeInMillis());
         assertEquals(equalTo, stats.getQueryCurrent());
+        assertEquals(equalTo, stats.getConcurrentQueryCount());
+        assertEquals(equalTo, stats.getConcurrentQueryTimeInMillis());
+        assertEquals(equalTo, stats.getConcurrentQueryCurrent());
         assertEquals(equalTo, stats.getFetchCount());
         assertEquals(equalTo, stats.getFetchTimeInMillis());
         assertEquals(equalTo, stats.getFetchCurrent());
@@ -81,6 +84,8 @@ public class SearchStatsTests extends OpenSearchTestCase {
         assertEquals(equalTo, stats.getSuggestCount());
         assertEquals(equalTo, stats.getSuggestTimeInMillis());
         assertEquals(equalTo, stats.getSuggestCurrent());
+        // avg_concurrency is not summed up across stats
+        assertEquals(1, stats.getConcurrentAvgSliceCount(), 0);
     }
 
 }
