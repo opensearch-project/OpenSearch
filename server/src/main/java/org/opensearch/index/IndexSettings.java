@@ -514,6 +514,18 @@ public final class IndexSettings {
     );
 
     /**
+     * This setting controls if unreferenced files will be cleaned up in case segment merge fails due to disk full.
+     *
+     * Defaults to true which means unreferenced files will be cleaned up in case segment merge fails.
+     */
+    public static final Setting<Boolean> INDEX_UNREFERENCED_FILE_CLEANUP = Setting.boolSetting(
+        "index.unreferenced_file_cleanup.enabled",
+        true,
+        Property.IndexScope,
+        Property.Dynamic
+    );
+
+    /**
      * Determines a balance between file-based and operations-based peer recoveries. The number of operations that will be used in an
      * operations-based peer recovery is limited to this proportion of the total number of documents in the shard (including deleted
      * documents) on the grounds that a file-based peer recovery may copy all of the documents in the shard over to the new peer, but is
@@ -678,6 +690,7 @@ public final class IndexSettings {
     private volatile String defaultPipeline;
     private volatile String requiredPipeline;
     private volatile boolean searchThrottled;
+    private volatile boolean shouldCleanupUnreferencedFiles;
     private volatile long mappingNestedFieldsLimit;
     private volatile long mappingNestedDocsLimit;
     private volatile long mappingTotalFieldsLimit;
@@ -795,6 +808,7 @@ public final class IndexSettings {
         }
 
         this.searchThrottled = INDEX_SEARCH_THROTTLED.get(settings);
+        this.shouldCleanupUnreferencedFiles = INDEX_UNREFERENCED_FILE_CLEANUP.get(settings);
         this.queryStringLenient = QUERY_STRING_LENIENT_SETTING.get(settings);
         this.queryStringAnalyzeWildcard = QUERY_STRING_ANALYZE_WILDCARD.get(nodeSettings);
         this.queryStringAllowLeadingWildcard = QUERY_STRING_ALLOW_LEADING_WILDCARD.get(nodeSettings);
@@ -907,6 +921,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(FINAL_PIPELINE, this::setRequiredPipeline);
         scopedSettings.addSettingsUpdateConsumer(INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING, this::setSoftDeleteRetentionOperations);
         scopedSettings.addSettingsUpdateConsumer(INDEX_SEARCH_THROTTLED, this::setSearchThrottled);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_UNREFERENCED_FILE_CLEANUP, this::setShouldCleanupUnreferencedFiles);
         scopedSettings.addSettingsUpdateConsumer(INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING, this::setRetentionLeaseMillis);
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING, this::setMappingNestedFieldsLimit);
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING, this::setMappingNestedDocsLimit);
@@ -1537,6 +1552,18 @@ public final class IndexSettings {
 
     private void setSearchThrottled(boolean searchThrottled) {
         this.searchThrottled = searchThrottled;
+    }
+
+    /**
+     * Returns true if unreferenced files should be cleaned up on merge failure for this index.
+     *
+     */
+    public boolean shouldCleanupUnreferencedFiles() {
+        return shouldCleanupUnreferencedFiles;
+    }
+
+    private void setShouldCleanupUnreferencedFiles(boolean shouldCleanupUnreferencedFiles) {
+        this.shouldCleanupUnreferencedFiles = shouldCleanupUnreferencedFiles;
     }
 
     public long getMappingNestedFieldsLimit() {
