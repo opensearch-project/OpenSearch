@@ -12,14 +12,24 @@ import org.apache.logging.log4j.core.util.Throwables;
 import org.opensearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.index.codec.customcodecs.CustomCodecPlugin;
+import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
+import java.util.Collection;
+import java.util.Collections;
 import java.util.concurrent.ExecutionException;
 
+import static org.opensearch.index.codec.customcodecs.CustomCodecService.ZSTD_CODEC;
+import static org.opensearch.index.codec.customcodecs.CustomCodecService.ZSTD_NO_DICT_CODEC;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST)
 public class CodecCompressionLevelIT extends OpenSearchIntegTestCase {
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return Collections.singletonList(CustomCodecPlugin.class);
+    }
 
     public void testLuceneCodecsCreateIndexWithCompressionLevel() {
 
@@ -62,7 +72,7 @@ public class CodecCompressionLevelIT extends OpenSearchIntegTestCase {
             Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put("index.codec", randomFrom(CodecService.ZSTD_CODEC, CodecService.ZSTD_NO_DICT_CODEC))
+                .put("index.codec", randomFrom(ZSTD_CODEC, ZSTD_NO_DICT_CODEC))
                 .put("index.codec.compression_level", randomIntBetween(1, 6))
                 .build()
         );
@@ -81,7 +91,7 @@ public class CodecCompressionLevelIT extends OpenSearchIntegTestCase {
             Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put("index.codec", randomFrom(CodecService.ZSTD_CODEC, CodecService.ZSTD_NO_DICT_CODEC))
+                .put("index.codec", randomFrom(ZSTD_CODEC, ZSTD_NO_DICT_CODEC))
                 .put("index.codec.compression_level", randomIntBetween(1, 6))
                 .build()
         );
@@ -164,7 +174,7 @@ public class CodecCompressionLevelIT extends OpenSearchIntegTestCase {
                 .updateSettings(
                     new UpdateSettingsRequest(index).settings(
                         Settings.builder()
-                            .put("index.codec", randomFrom(CodecService.ZSTD_CODEC, CodecService.ZSTD_NO_DICT_CODEC))
+                            .put("index.codec", randomFrom(ZSTD_CODEC, ZSTD_NO_DICT_CODEC))
                             .put("index.codec.compression_level", randomIntBetween(1, 6))
                     )
                 )
