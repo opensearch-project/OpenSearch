@@ -27,6 +27,10 @@ import java.util.Objects;
  * @opensearch.internal
  */
 public class CryptoMetadata implements Writeable {
+    static final public String CRYPTO_METADATA_KEY = "crypto_metadata";
+    static final public String KEY_PROVIDER_NAME_KEY = "key_provider_name";
+    static final public String KEY_PROVIDER_TYPE_KEY = "key_provider_type";
+    static final public String SETTINGS_KEY = "settings";
     private final String keyProviderName;
     private final String keyProviderType;
     private final Settings settings;
@@ -104,17 +108,17 @@ public class CryptoMetadata implements Writeable {
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 String currentFieldName = parser.currentName();
-                if ("key_provider_name".equals(currentFieldName)) {
+                if (KEY_PROVIDER_NAME_KEY.equals(currentFieldName)) {
                     if (parser.nextToken() != XContentParser.Token.VALUE_STRING) {
                         throw new OpenSearchParseException("failed to parse crypto metadata [{}], unknown type");
                     }
                     keyProviderName = parser.text();
-                } else if ("key_provider_type".equals(currentFieldName)) {
+                } else if (KEY_PROVIDER_TYPE_KEY.equals(currentFieldName)) {
                     if (parser.nextToken() != XContentParser.Token.VALUE_STRING) {
                         throw new OpenSearchParseException("failed to parse crypto metadata [{}], unknown type");
                     }
                     keyProviderType = parser.text();
-                } else if ("settings".equals(currentFieldName)) {
+                } else if (SETTINGS_KEY.equals(currentFieldName)) {
                     if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
                         throw new OpenSearchParseException("failed to parse crypto metadata [{}], unknown type");
                     }
@@ -130,10 +134,10 @@ public class CryptoMetadata implements Writeable {
     }
 
     public void toXContent(CryptoMetadata cryptoMetadata, XContentBuilder builder, ToXContent.Params params) throws IOException {
-        builder.startObject("crypto_metadata");
-        builder.field("key_provider_name", cryptoMetadata.keyProviderName());
-        builder.field("key_provider_type", cryptoMetadata.keyProviderType());
-        builder.startObject("settings");
+        builder.startObject(CRYPTO_METADATA_KEY);
+        builder.field(KEY_PROVIDER_NAME_KEY, cryptoMetadata.keyProviderName());
+        builder.field(KEY_PROVIDER_TYPE_KEY, cryptoMetadata.keyProviderType());
+        builder.startObject(SETTINGS_KEY);
         cryptoMetadata.settings().toXContent(builder, params);
         builder.endObject();
         builder.endObject();
