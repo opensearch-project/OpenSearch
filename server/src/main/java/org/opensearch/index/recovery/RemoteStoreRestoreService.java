@@ -147,7 +147,7 @@ public class RemoteStoreRestoreService {
                     .forEach(indexMetadata -> {
                         indexMetadataMap.put(indexMetadata.getIndex().getName(), new Tuple<>(true, indexMetadata));
                     });
-            } catch (IOException e) {
+            } catch (Exception e) {
                 throw new IllegalStateException("Unable to restore remote index metadata", e);
             }
         } else {

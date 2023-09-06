@@ -48,6 +48,8 @@ import org.opensearch.env.NodeEnvironment;
 import org.opensearch.gateway.remote.RemoteClusterStateService;
 import org.opensearch.index.recovery.RemoteStoreRestoreService;
 import org.opensearch.plugins.MetadataUpgrader;
+import org.opensearch.repositories.RepositoriesService;
+import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -101,6 +103,12 @@ public class MockGatewayMetaState extends GatewayMetaState {
     ClusterState prepareInitialClusterState(TransportService transportService, ClusterService clusterService, ClusterState clusterState) {
         // Just set localNode here, not to mess with ClusterService and IndicesService mocking
         return ClusterStateUpdaters.setLocalNode(clusterState, localNode);
+    }
+
+    @Override
+    public void close() throws IOException {
+        super.close();
+        threadPool.shutdown();
     }
 
     public void start(
