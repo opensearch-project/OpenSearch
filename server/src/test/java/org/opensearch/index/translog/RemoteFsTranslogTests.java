@@ -1483,7 +1483,9 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         translogTransferMetadata.setGenerationToPrimaryTermMapper(generationToPrimaryTermMapper);
 
         TranslogTransferManager mockTransfer = mock(TranslogTransferManager.class);
+        RemoteTranslogTransferTracker remoteTranslogTransferTracker = mock(RemoteTranslogTransferTracker.class);
         when(mockTransfer.readMetadata()).thenReturn(translogTransferMetadata);
+        when(mockTransfer.getRemoteTranslogTransferTracker()).thenReturn(remoteTranslogTransferTracker);
 
         // Always File not found
         when(mockTransfer.downloadTranslog(any(), any(), any())).thenThrow(new NoSuchFileException("File not found"));
@@ -1492,6 +1494,8 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
 
         // File not found in first attempt . File found in second attempt.
         mockTransfer = mock(TranslogTransferManager.class);
+        when(mockTransfer.readMetadata()).thenReturn(translogTransferMetadata);
+        when(mockTransfer.getRemoteTranslogTransferTracker()).thenReturn(remoteTranslogTransferTracker);
         String msg = "File not found";
         Exception toThrow = randomBoolean() ? new NoSuchFileException(msg) : new FileNotFoundException(msg);
         when(mockTransfer.downloadTranslog(any(), any(), any())).thenThrow(toThrow).thenReturn(true);
