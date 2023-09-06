@@ -18,18 +18,17 @@ import java.nio.file.Path;
 
 import static org.opensearch.remotestore.RemoteStoreBaseIntegTestCase.remoteStoreClusterSettings;
 
-@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST)
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class RemoteIndexPrimaryRelocationIT extends IndexPrimaryRelocationIT {
 
     protected static final String REPOSITORY_NAME = "test-remote-store-repo";
 
     protected Path absolutePath;
 
-    public void setup() {
-        absolutePath = randomRepoPath().toAbsolutePath();
-    }
-
     protected Settings nodeSettings(int nodeOrdinal) {
+        if (absolutePath == null) {
+            absolutePath = randomRepoPath().toAbsolutePath();
+        }
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
             .put(remoteStoreClusterSettings(REPOSITORY_NAME, absolutePath))
@@ -51,6 +50,7 @@ public class RemoteIndexPrimaryRelocationIT extends IndexPrimaryRelocationIT {
     }
 
     public void testPrimaryRelocationWhileIndexing() throws Exception {
+        internalCluster().startClusterManagerOnlyNode();
         super.testPrimaryRelocationWhileIndexing();
     }
 }
