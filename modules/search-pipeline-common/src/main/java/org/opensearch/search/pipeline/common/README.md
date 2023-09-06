@@ -40,6 +40,7 @@ New search processors can be created by following these steps:
 
 For the example field `DeleteFieldResponseProcessor`, this will look like:
 
+```
 @Override
 public SearchResponse processResponse(SearchRequest request, SearchResponse response) throws Exception {
 boolean foundField = false;
@@ -69,7 +70,8 @@ boolean foundField = false;
 		}
 
 		return response;
-	}
+}
+```
 
 4. Create a factory to encapsulate the behavior of the class so that processors can be handled uniformly.
 
