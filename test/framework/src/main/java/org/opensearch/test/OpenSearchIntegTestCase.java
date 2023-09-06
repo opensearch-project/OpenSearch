@@ -165,6 +165,7 @@ import org.opensearch.test.disruption.NetworkDisruption;
 import org.opensearch.test.disruption.ServiceDisruptionScheme;
 import org.opensearch.test.store.MockFSIndexStore;
 import org.opensearch.test.telemetry.MockTelemetryPlugin;
+import org.opensearch.test.telemetry.tracing.StrictCheckSpanProcessor;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.transport.TransportInterceptor;
 import org.opensearch.transport.TransportRequest;
@@ -2342,7 +2343,9 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
                 INSTANCE.printTestMessage("cleaning up after");
                 INSTANCE.afterInternal(true);
                 checkStaticState(true);
+                StrictCheckSpanProcessor.validateTracingStateOnShutdown();
             }
+
         } finally {
             SUITE_SEED = null;
             currentCluster = null;
