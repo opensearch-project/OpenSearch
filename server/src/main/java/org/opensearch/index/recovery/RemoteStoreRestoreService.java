@@ -249,19 +249,6 @@ public class RemoteStoreRestoreService {
     ) throws IllegalStateException, IllegalArgumentException {
         String errorMsg = "cannot restore index [%s] because an open index with same name/uuid already exists in the cluster.";
 
-        Set<String> graveyardIndexNames = new HashSet<>();
-        Set<String> graveyardIndexUUID = new HashSet<>();
-        Set<String> liveClusterIndexUUIDs = currentState.metadata()
-            .indices()
-            .values()
-            .stream()
-            .map(IndexMetadata::getIndexUUID)
-            .collect(Collectors.toSet());
-
-        currentState.metadata().indexGraveyard().getTombstones().forEach(tombstone -> {
-            graveyardIndexNames.add(tombstone.getIndex().getName());
-            graveyardIndexUUID.add(tombstone.getIndex().getUUID());
-        });
         // Restore with current cluster UUID will fail as same indices would be present in the cluster which we are trying to
         // restore
         if (currentState.metadata().clusterUUID().equals(restoreClusterUUID)) {
@@ -274,6 +261,19 @@ public class RemoteStoreRestoreService {
             boolean metadataFromRemoteStore = indexMetadataEntry.getValue().v1();
             if (indexMetadata.getSettings().getAsBoolean(SETTING_REMOTE_STORE_ENABLED, false)) {
                 if (metadataFromRemoteStore) {
+                    Set<String> graveyardIndexNames = new HashSet<>();
+                    Set<String> graveyardIndexUUID = new HashSet<>();
+                    Set<String> liveClusterIndexUUIDs = currentState.metadata()
+                        .indices()
+                        .values()
+                        .stream()
+                        .map(IndexMetadata::getIndexUUID)
+                        .collect(Collectors.toSet());
+
+                    currentState.metadata().indexGraveyard().getTombstones().forEach(tombstone -> {
+                        graveyardIndexNames.add(tombstone.getIndex().getName());
+                        graveyardIndexUUID.add(tombstone.getIndex().getUUID());
+                    });
 
                     // Since updates to graveyard are synced to remote we should neven land in a situation where remote contain index
                     // metadata for graveyard index.
@@ -303,7 +303,6 @@ public class RemoteStoreRestoreService {
                     boolean isHidden = IndexMetadata.INDEX_HIDDEN_SETTING.get(indexMetadata.getSettings());
                     createIndexService.validateIndexName(indexName, currentState);
                     createIndexService.validateDotIndex(indexName, isHidden);
-                    createIndexService.validateIndexSettings(indexName, indexMetadata.getSettings(), false);
                     shardLimitValidator.validateShardLimit(indexName, indexMetadata.getSettings(), currentState);
                 } else if (restoreAllShards && IndexMetadata.State.CLOSE.equals(indexMetadata.getState()) == false) {
                     throw new IllegalStateException(String.format(Locale.ROOT, errorMsg, indexName) + " Close the existing index.");
