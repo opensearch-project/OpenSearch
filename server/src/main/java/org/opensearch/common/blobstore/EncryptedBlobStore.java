@@ -9,9 +9,9 @@
 package org.opensearch.common.blobstore;
 
 import org.opensearch.cluster.metadata.CryptoMetadata;
-import org.opensearch.crypto.CryptoManagerRegistry;
+import org.opensearch.common.crypto.CryptoHandler;
+import org.opensearch.crypto.CryptoHandlerRegistry;
 import org.opensearch.crypto.CryptoRegistryException;
-import org.opensearch.encryption.CryptoManager;
 
 import java.io.IOException;
 import java.util.Map;
@@ -25,7 +25,7 @@ import java.util.Map;
 public class EncryptedBlobStore implements BlobStore {
 
     private final BlobStore blobStore;
-    private final CryptoManager<?, ?> cryptoManager;
+    private final CryptoHandler<?, ?> cryptoHandler;
 
     /**
      * Constructs an EncryptedBlobStore that wraps the provided BlobStore with encryption capabilities based on the
@@ -36,17 +36,16 @@ public class EncryptedBlobStore implements BlobStore {
      * @throws CryptoRegistryException If the CryptoManager is not found during encrypted BlobStore creation.
      */
     public EncryptedBlobStore(BlobStore blobStore, CryptoMetadata cryptoMetadata) {
-        CryptoManagerRegistry cryptoManagerRegistry = CryptoManagerRegistry.getInstance();
-        assert cryptoManagerRegistry != null : "CryptoManagerRegistry is not initialized";
-        this.cryptoManager = cryptoManagerRegistry.fetchCryptoManager(cryptoMetadata);
-        if (cryptoManager == null) {
+        CryptoHandlerRegistry cryptoHandlerRegistry = CryptoHandlerRegistry.getInstance();
+        assert cryptoHandlerRegistry != null : "CryptoManagerRegistry is not initialized";
+        this.cryptoHandler = cryptoHandlerRegistry.fetchCryptoHandler(cryptoMetadata);
+        if (cryptoHandler == null) {
             throw new CryptoRegistryException(
                 cryptoMetadata.keyProviderName(),
                 cryptoMetadata.keyProviderType(),
                 "Crypto manager not found during encrypted blob store creation."
             );
         }
-        this.cryptoManager.incRef();
         this.blobStore = blobStore;
     }
 
@@ -61,12 +60,9 @@ public class EncryptedBlobStore implements BlobStore {
     public BlobContainer blobContainer(BlobPath path) {
         BlobContainer blobContainer = blobStore.blobContainer(path);
         if (blobContainer instanceof AsyncMultiStreamBlobContainer) {
-            return new AsyncMultiStreamEncryptedBlobContainer<>(
-                (AsyncMultiStreamBlobContainer) blobContainer,
-                cryptoManager.getCryptoProvider()
-            );
+            return new AsyncMultiStreamEncryptedBlobContainer<>((AsyncMultiStreamBlobContainer) blobContainer, cryptoHandler);
         }
-        return new EncryptedBlobContainer<>(blobContainer, cryptoManager.getCryptoProvider());
+        return new EncryptedBlobContainer<>(blobContainer, cryptoHandler);
     }
 
     /**
@@ -87,7 +83,7 @@ public class EncryptedBlobStore implements BlobStore {
      */
     @Override
     public void close() throws IOException {
-        cryptoManager.decRef();
+        cryptoHandler.close();
         blobStore.close();
     }
 
