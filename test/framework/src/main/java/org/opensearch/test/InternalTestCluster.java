@@ -1915,10 +1915,6 @@ public final class InternalTestCluster extends TestCluster {
         stopNodesAndClients(Collections.singleton(nodeAndClient));
     }
 
-    public void stopNodesAndClients() throws IOException {
-        stopNodesAndClients(nodes.values());
-    }
-
     private synchronized void stopNodesAndClients(Collection<NodeAndClient> nodeAndClients) throws IOException {
         final Set<String> excludedNodeIds = excludeClusterManagers(nodeAndClients);
 

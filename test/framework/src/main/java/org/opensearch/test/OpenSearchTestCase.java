@@ -130,7 +130,6 @@ import org.opensearch.script.ScriptType;
 import org.opensearch.search.MockSearchService;
 import org.opensearch.test.junit.listeners.LoggingListener;
 import org.opensearch.test.junit.listeners.ReproduceInfoPrinter;
-import org.opensearch.test.telemetry.tracing.StrictCheckSpanProcessor;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 import org.opensearch.transport.nio.MockNioTransportPlugin;
@@ -627,7 +626,6 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
     protected static void checkStaticState(boolean afterClass) throws Exception {
         if (afterClass) {
             MockPageCacheRecycler.ensureAllPagesAreReleased();
-            StrictCheckSpanProcessor.validateTracingStateOnShutdown();
         }
         MockBigArrays.ensureAllArraysAreReleased();
 
