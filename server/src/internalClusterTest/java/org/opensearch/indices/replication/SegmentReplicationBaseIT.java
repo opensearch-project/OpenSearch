@@ -204,8 +204,7 @@ public class SegmentReplicationBaseIT extends OpenSearchIntegTestCase {
     }
 
     protected boolean segmentReplicationWithRemoteEnabled() {
-        return IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING.get(indexSettings()).booleanValue()
-            && "true".equalsIgnoreCase(featureFlagSettings().get(FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL));
+        return IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING.get(indexSettings()).booleanValue();
     }
 
     protected Releasable blockReplication(List<String> nodes, CountDownLatch latch) {

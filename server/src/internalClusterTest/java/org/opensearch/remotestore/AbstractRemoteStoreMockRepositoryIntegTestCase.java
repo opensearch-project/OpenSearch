@@ -46,7 +46,6 @@ public abstract class AbstractRemoteStoreMockRepositoryIntegTestCase extends Abs
     @Before
     public void setup() {
         FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
-        FeatureFlagSetter.set(FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL);
         internalCluster().startClusterManagerOnlyNode(remoteStoreClusterSettings(REPOSITORY_NAME, TRANSLOG_REPOSITORY_NAME));
     }
 

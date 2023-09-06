@@ -40,7 +40,6 @@ public class SegmentReplicationWithRemoteStorePressureIT extends SegmentReplicat
         return Settings.builder()
             .put(super.featureFlagSettings())
             .put(FeatureFlags.REMOTE_STORE, "true")
-            .put(FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL, "true")
             .build();
     }
 
