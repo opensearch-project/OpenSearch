@@ -8,12 +8,17 @@
 
 package org.opensearch.telemetry.tracing;
 
+import org.opensearch.common.annotation.InternalApi;
+
 import java.util.Objects;
 
 /**
  * Default implementation for {@link SpanScope}
+ *
+ * @opensearch.internal
  */
-public class DefaultSpanScope implements SpanScope {
+@InternalApi
+class DefaultSpanScope implements SpanScope {
     private final Span span;
     private final SpanScope previousSpanScope;
     private static final ThreadLocal<SpanScope> spanScopeThreadLocal = new ThreadLocal<>();

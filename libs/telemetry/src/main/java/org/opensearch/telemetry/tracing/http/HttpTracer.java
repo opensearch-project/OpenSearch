@@ -8,6 +8,7 @@
 
 package org.opensearch.telemetry.tracing.http;
 
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.telemetry.tracing.Span;
 import org.opensearch.telemetry.tracing.attributes.Attributes;
 
@@ -19,7 +20,10 @@ import java.util.Map;
  * from the HttpRequest header and propagate the span accordingly.
  *
  * All methods on the Tracer object are multi-thread safe.
+ *
+ * @opensearch.experimental
  */
+@ExperimentalApi
 public interface HttpTracer {
     /**
      * Start the span with propagating the tracing info from the HttpRequest header.
