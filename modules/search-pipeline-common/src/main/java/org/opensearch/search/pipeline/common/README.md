@@ -1,8 +1,8 @@
 - [Search Pipelines](#search-pipelines)
-	- [Architecture](#architecture)
-	- [Search Processors](#search-processors)
-		- [Creating a Search Processor](#creating-a-search-processor)
-	- [Creating a Pipeline](#creating-a-search-pipeline)
+  - [Architecture](#architecture)
+  - [Search Processors](#search-processors)
+    - [Creating a Search Processor](#creating-a-search-processor)
+    - [Creating a Pipeline](#creating-a-search-pipeline)
 
 # Search Pipelines
 
