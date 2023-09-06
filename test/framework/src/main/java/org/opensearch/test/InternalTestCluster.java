@@ -55,6 +55,7 @@ import org.opensearch.cluster.action.index.MappingUpdatedAction;
 import org.opensearch.cluster.coordination.ClusterBootstrapService;
 import org.opensearch.cluster.coordination.NoClusterManagerBlockService;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.RepositoriesMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;
@@ -1316,6 +1317,12 @@ public final class InternalTestCluster extends TestCluster {
                     assertEquals("Node size mismatch" + debugString, expectedNodes.size(), discoveryNodes.getSize());
                     for (DiscoveryNode expectedNode : expectedNodes) {
                         assertTrue("Expected node to exist: " + expectedNode + debugString, discoveryNodes.nodeExists(expectedNode));
+                    }
+                });
+                states.forEach(cs -> {
+                    if (cs.nodes().getNodes().values().stream().findFirst().get().isRemoteStoreNode()) {
+                        RepositoriesMetadata repositoriesMetadata = cs.metadata().custom(RepositoriesMetadata.TYPE);
+                        assertTrue(repositoriesMetadata != null && !repositoriesMetadata.repositories().isEmpty());
                     }
                 });
             }, 30, TimeUnit.SECONDS);
