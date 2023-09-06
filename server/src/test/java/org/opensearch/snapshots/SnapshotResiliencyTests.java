@@ -205,6 +205,7 @@ import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpoin
 import org.opensearch.ingest.IngestService;
 import org.opensearch.monitor.StatusInfo;
 import org.opensearch.node.ResponseCollectorService;
+import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
@@ -1892,6 +1893,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
             private final ClusterInfoService clusterInfoService;
 
             private Coordinator coordinator;
+            private RemoteStoreNodeService remoteStoreNodeService;
 
             private Map<ActionType, TransportAction> actions = new HashMap<>();
 
@@ -1997,6 +1999,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     emptyMap(),
                     threadPool
                 );
+                remoteStoreNodeService = new RemoteStoreNodeService(new SetOnce<>(repositoriesService)::get, threadPool);
                 final ActionFilters actionFilters = new ActionFilters(emptySet());
                 snapshotsService = new SnapshotsService(
                     settings,
@@ -2513,7 +2516,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     rerouteService,
                     ElectionStrategy.DEFAULT_INSTANCE,
                     () -> new StatusInfo(HEALTHY, "healthy-info"),
-                    persistedStateRegistry
+                    persistedStateRegistry,
+                    remoteStoreNodeService
                 );
                 clusterManagerService.setClusterStatePublisher(coordinator);
                 coordinator.start();

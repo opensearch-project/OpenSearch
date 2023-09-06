@@ -42,15 +42,13 @@ public class DeleteSnapshotIT extends AbstractSnapshotIntegTestCase {
     public void testDeleteSnapshot() throws Exception {
         disableRepoConsistencyCheck("Remote store repository is being used in the test");
         FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
-        internalCluster().startClusterManagerOnlyNode(remoteStoreClusterSettings(REMOTE_REPO_NAME));
-        internalCluster().startDataOnlyNode();
+        final Path remoteStoreRepoPath = randomRepoPath();
+        internalCluster().startClusterManagerOnlyNode(remoteStoreClusterSettings(REMOTE_REPO_NAME, remoteStoreRepoPath));
+        internalCluster().startDataOnlyNode(remoteStoreClusterSettings(REMOTE_REPO_NAME, remoteStoreRepoPath));
 
         final String snapshotRepoName = "snapshot-repo-name";
         final Path snapshotRepoPath = randomRepoPath();
         createRepository(snapshotRepoName, "fs", snapshotRepoPath);
-
-        final Path remoteStoreRepoPath = randomRepoPath();
-        createRepository(REMOTE_REPO_NAME, "fs", remoteStoreRepoPath);
 
         final String indexName = "index-1";
         createIndexWithRandomDocs(indexName, randomIntBetween(5, 10));
@@ -72,14 +70,12 @@ public class DeleteSnapshotIT extends AbstractSnapshotIntegTestCase {
     public void testDeleteShallowCopySnapshot() throws Exception {
         disableRepoConsistencyCheck("Remote store repository is being used in the test");
         FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
-        internalCluster().startClusterManagerOnlyNode(remoteStoreClusterSettings(REMOTE_REPO_NAME));
-        internalCluster().startDataOnlyNode();
+        final Path remoteStoreRepoPath = randomRepoPath();
+        internalCluster().startClusterManagerOnlyNode(remoteStoreClusterSettings(REMOTE_REPO_NAME, remoteStoreRepoPath));
+        internalCluster().startDataOnlyNode(remoteStoreClusterSettings(REMOTE_REPO_NAME, remoteStoreRepoPath));
 
         final String snapshotRepoName = "snapshot-repo-name";
         createRepository(snapshotRepoName, "fs", snapshotRepoSettingsForShallowCopy());
-
-        final Path remoteStoreRepoPath = randomRepoPath();
-        createRepository(REMOTE_REPO_NAME, "fs", remoteStoreRepoPath);
 
         final String indexName = "index-1";
         createIndexWithRandomDocs(indexName, randomIntBetween(5, 10));
@@ -104,13 +100,11 @@ public class DeleteSnapshotIT extends AbstractSnapshotIntegTestCase {
         disableRepoConsistencyCheck("Remote store repository is being used in the test");
         FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
 
-        internalCluster().startClusterManagerOnlyNode(remoteStoreClusterSettings(REMOTE_REPO_NAME));
-        internalCluster().startDataOnlyNode();
+        final Path remoteStoreRepoPath = randomRepoPath();
+        internalCluster().startClusterManagerOnlyNode(remoteStoreClusterSettings(REMOTE_REPO_NAME, remoteStoreRepoPath));
+        internalCluster().startDataOnlyNode(remoteStoreClusterSettings(REMOTE_REPO_NAME, remoteStoreRepoPath));
         final Client clusterManagerClient = internalCluster().clusterManagerClient();
         ensureStableCluster(2);
-
-        final Path remoteStoreRepoPath = randomRepoPath();
-        createRepository(REMOTE_REPO_NAME, "fs", remoteStoreRepoPath);
 
         final String snapshotRepoName = "snapshot-repo-name";
         final Path snapshotRepoPath = randomRepoPath();
@@ -150,8 +144,9 @@ public class DeleteSnapshotIT extends AbstractSnapshotIntegTestCase {
         disableRepoConsistencyCheck("Remote store repository is being used in the test");
         FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
 
-        internalCluster().startClusterManagerOnlyNode(remoteStoreClusterSettings(REMOTE_REPO_NAME));
-        final String dataNode = internalCluster().startDataOnlyNode();
+        final Path remoteStoreRepoPath = randomRepoPath();
+        internalCluster().startClusterManagerOnlyNode(remoteStoreClusterSettings(REMOTE_REPO_NAME, remoteStoreRepoPath));
+        final String dataNode = internalCluster().startDataOnlyNode(remoteStoreClusterSettings(REMOTE_REPO_NAME, remoteStoreRepoPath));
         ensureStableCluster(2);
         final String clusterManagerNode = internalCluster().getClusterManagerName();
 
@@ -160,9 +155,6 @@ public class DeleteSnapshotIT extends AbstractSnapshotIntegTestCase {
         createRepository(snapshotRepoName, "mock", snapshotRepoSettingsForShallowCopy(snapshotRepoPath));
         final String testIndex = "index-test";
         createIndexWithContent(testIndex);
-
-        final Path remoteStoreRepoPath = randomRepoPath();
-        createRepository(REMOTE_REPO_NAME, "fs", remoteStoreRepoPath);
 
         final String remoteStoreEnabledIndexName = "remote-index-1";
         final Settings remoteStoreEnabledIndexSettings = getRemoteStoreBackedIndexSettings();
@@ -238,17 +230,15 @@ public class DeleteSnapshotIT extends AbstractSnapshotIntegTestCase {
         disableRepoConsistencyCheck("Remote store repository is being used in the test");
         FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
 
-        internalCluster().startClusterManagerOnlyNode(remoteStoreClusterSettings(REMOTE_REPO_NAME));
-        internalCluster().startDataOnlyNode();
+        final Path remoteStoreRepoPath = randomRepoPath();
+        internalCluster().startClusterManagerOnlyNode(remoteStoreClusterSettings(REMOTE_REPO_NAME, remoteStoreRepoPath));
+        internalCluster().startDataOnlyNode(remoteStoreClusterSettings(REMOTE_REPO_NAME, remoteStoreRepoPath));
         final Client clusterManagerClient = internalCluster().clusterManagerClient();
         ensureStableCluster(2);
 
         final String snapshotRepoName = "snapshot-repo-name";
         final Path snapshotRepoPath = randomRepoPath();
         createRepository(snapshotRepoName, "mock", snapshotRepoSettingsForShallowCopy(snapshotRepoPath));
-
-        final Path remoteStoreRepoPath = randomRepoPath();
-        createRepository(REMOTE_REPO_NAME, "fs", remoteStoreRepoPath);
 
         final String testIndex = "index-test";
         createIndexWithContent(testIndex);
@@ -300,17 +290,15 @@ public class DeleteSnapshotIT extends AbstractSnapshotIntegTestCase {
         disableRepoConsistencyCheck("Remote store repository is being used in the test");
         FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
 
-        internalCluster().startClusterManagerOnlyNode(remoteStoreClusterSettings(REMOTE_REPO_NAME));
-        internalCluster().startDataOnlyNode();
+        final Path remoteStoreRepoPath = randomRepoPath();
+        internalCluster().startClusterManagerOnlyNode(remoteStoreClusterSettings(REMOTE_REPO_NAME, remoteStoreRepoPath));
+        internalCluster().startDataOnlyNode(remoteStoreClusterSettings(REMOTE_REPO_NAME, remoteStoreRepoPath));
         final Client clusterManagerClient = internalCluster().clusterManagerClient();
         ensureStableCluster(2);
 
         final String snapshotRepoName = "snapshot-repo-name";
         final Path snapshotRepoPath = randomRepoPath();
         createRepository(snapshotRepoName, "mock", snapshotRepoSettingsForShallowCopy(snapshotRepoPath));
-
-        final Path remoteStoreRepoPath = randomRepoPath();
-        createRepository(REMOTE_REPO_NAME, "fs", remoteStoreRepoPath);
 
         final String testIndex = "index-test";
         createIndexWithContent(testIndex);

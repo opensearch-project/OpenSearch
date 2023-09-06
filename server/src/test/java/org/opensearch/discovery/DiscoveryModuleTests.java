@@ -46,6 +46,7 @@ import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.gateway.GatewayMetaState;
+import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.plugins.DiscoveryPlugin;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.MockTransportService;
@@ -77,6 +78,8 @@ public class DiscoveryModuleTests extends OpenSearchTestCase {
     private ClusterSettings clusterSettings;
     private GatewayMetaState gatewayMetaState;
 
+    private RemoteStoreNodeService remoteStoreNodeService;
+
     public interface DummyHostsProviderPlugin extends DiscoveryPlugin {
         Map<String, Supplier<SeedHostsProvider>> impl();
 
@@ -99,6 +102,7 @@ public class DiscoveryModuleTests extends OpenSearchTestCase {
         clusterApplier = mock(ClusterApplier.class);
         clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         gatewayMetaState = mock(GatewayMetaState.class);
+        remoteStoreNodeService = mock(RemoteStoreNodeService.class);
     }
 
     @After
@@ -122,7 +126,8 @@ public class DiscoveryModuleTests extends OpenSearchTestCase {
             gatewayMetaState,
             mock(RerouteService.class),
             null,
-            new PersistedStateRegistry()
+            new PersistedStateRegistry(),
+            remoteStoreNodeService
         );
     }
 
