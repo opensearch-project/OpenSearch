@@ -1930,7 +1930,7 @@ public final class InternalTestCluster extends TestCluster {
             assert previous == nodeAndClient;
             nodeAndClient.close();
         }
-        //ensureTracingStrictCheck(anyOneNode);
+        // ensureTracingStrictCheck(anyOneNode);
         removeExclusions(excludedNodeIds);
     }
 
