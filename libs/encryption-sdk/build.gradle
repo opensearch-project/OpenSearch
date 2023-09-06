@@ -19,13 +19,8 @@ dependencies {
   // Common crypto classes
   api project(':libs:opensearch-common')
 
-  // Logger
-  implementation "org.slf4j:slf4j-api:${versions.slf4j}"
-  implementation 'commons-logging:commons-logging:1.2'
-
   // Encryption
   implementation "com.amazonaws:aws-encryption-sdk-java:2.4.0"
-  implementation "org.bouncycastle:bcprov-jdk15to18:${versions.bouncycastle}"
   implementation "org.apache.commons:commons-lang3:${versions.commonslang}"
 
   //Tests
