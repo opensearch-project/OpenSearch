@@ -109,7 +109,8 @@ public class MockGatewayMetaState extends GatewayMetaState {
             throw new AssertionError(e);
         }
         Supplier<RemoteClusterStateService> remoteClusterStateServiceSupplier = () -> {
-            if (RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING.get(settings) == true && isRemoteStoreAttributePresent(settings)) {
+            if (RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING.get(settings) == true
+                && isRemoteStoreAttributePresent(settings)) {
                 return new RemoteClusterStateService(
                     nodeEnvironment.nodeId(),
                     () -> new RepositoriesService(
