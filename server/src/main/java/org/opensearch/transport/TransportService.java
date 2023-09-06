@@ -865,15 +865,15 @@ public class TransportService extends AbstractLifecycleComponent
         final TransportRequestOptions options,
         final TransportResponseHandler<T> handler
     ) {
-        try {
-            logger.debug("Action: " + action);
-            final Span span = tracer.startSpan(SpanBuilder.from(action, connection));
-            try (SpanScope spanScope = tracer.withSpanInScope(span)) {
-                final TransportResponseHandler<T> traceableTransportResponseHandler = TraceableTransportResponseHandler.create(
-                    handler,
-                    span,
-                    tracer
-                );
+        final Span span = tracer.startSpan(SpanBuilder.from(action, connection));
+        try (SpanScope spanScope = tracer.withSpanInScope(span)) {
+            final TransportResponseHandler<T> traceableTransportResponseHandler = TraceableTransportResponseHandler.create(
+                handler,
+                span,
+                tracer
+            );
+            try {
+                logger.debug("Action: " + action);
                 final TransportResponseHandler<T> delegate;
                 if (request.getParentTask().isSet()) {
                     // TODO: capture the connection instead so that we can cancel child tasks on the remote connections.
@@ -913,16 +913,16 @@ public class TransportService extends AbstractLifecycleComponent
                     delegate = traceableTransportResponseHandler;
                 }
                 asyncSender.sendRequest(connection, action, request, options, delegate);
+            } catch (final Exception ex) {
+                // the caller might not handle this so we invoke the handler
+                final TransportException te;
+                if (ex instanceof TransportException) {
+                    te = (TransportException) ex;
+                } else {
+                    te = new TransportException("failure to send", ex);
+                }
+                traceableTransportResponseHandler.handleException(te);
             }
-        } catch (final Exception ex) {
-            // the caller might not handle this so we invoke the handler
-            final TransportException te;
-            if (ex instanceof TransportException) {
-                te = (TransportException) ex;
-            } else {
-                te = new TransportException("failure to send", ex);
-            }
-            handler.handleException(te);
         }
     }
 
