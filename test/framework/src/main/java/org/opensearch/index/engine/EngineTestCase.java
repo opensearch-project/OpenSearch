@@ -840,10 +840,39 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
         final @Nullable Supplier<RetentionLeases> maybeRetentionLeasesSupplier,
         final CircuitBreakerService breakerService
     ) {
-        final IndexWriterConfig iwc = newIndexWriterConfig();
-        final TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, indexSettings, BigArrays.NON_RECYCLING_INSTANCE);
         final Engine.EventListener eventListener = new Engine.EventListener() {
         }; // we don't need to notify anybody in this test
+
+        return config(
+            indexSettings,
+            store,
+            translogPath,
+            mergePolicy,
+            externalRefreshListener,
+            internalRefreshListener,
+            indexSort,
+            maybeGlobalCheckpointSupplier,
+            maybeGlobalCheckpointSupplier == null ? null : () -> RetentionLeases.EMPTY,
+            breakerService,
+            eventListener
+        );
+    }
+
+    public EngineConfig config(
+        final IndexSettings indexSettings,
+        final Store store,
+        final Path translogPath,
+        final MergePolicy mergePolicy,
+        final ReferenceManager.RefreshListener externalRefreshListener,
+        final ReferenceManager.RefreshListener internalRefreshListener,
+        final Sort indexSort,
+        final @Nullable LongSupplier maybeGlobalCheckpointSupplier,
+        final @Nullable Supplier<RetentionLeases> maybeRetentionLeasesSupplier,
+        final CircuitBreakerService breakerService,
+        final Engine.EventListener eventListener
+    ) {
+        final IndexWriterConfig iwc = newIndexWriterConfig();
+        final TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, indexSettings, BigArrays.NON_RECYCLING_INSTANCE);
         final List<ReferenceManager.RefreshListener> extRefreshListenerList = externalRefreshListener == null
             ? emptyList()
             : Collections.singletonList(externalRefreshListener);
