@@ -44,20 +44,7 @@ public class MockTracingTelemetry implements TracingTelemetry {
 
     @Override
     public void close() {
-<<<<<<< HEAD
         shutdown.set(true);
-=======
-        // Run onClose hook
-        onClose.run();
-
-        List<MockSpanData> spanData = ((StrictCheckSpanProcessor) spanProcessor).getFinishedSpanItems();
-        if (spanData.size() != 0) {
-            TelemetryValidators validators = new TelemetryValidators(
-                Arrays.asList(new AllSpansAreEndedProperly(), new AllSpansHaveUniqueId())
-            );
-            validators.validate(spanData, 1);
-        }
->>>>>>> 87030c86d80 (Fix failing test cases)
     }
 
 }
