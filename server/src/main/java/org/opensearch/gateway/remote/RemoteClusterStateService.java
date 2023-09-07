@@ -283,6 +283,7 @@ public class RemoteClusterStateService implements Closeable {
      * @param clusterState current ClusterState
      * @param toUpload list of IndexMetadata to upload
      * @return {@code List<UploadedIndexMetadata>} list of IndexMetadata uploaded to remote
+     * @throws IOException
      */
     private List<UploadedIndexMetadata> writeIndexMetadataParallel(ClusterState clusterState, List<IndexMetadata> toUpload)
         throws IOException {
@@ -357,6 +358,7 @@ public class RemoteClusterStateService implements Closeable {
      * @param clusterState current ClusterState
      * @param indexMetadata {@link IndexMetadata} to upload
      * @param latchedActionListener listener to respond back on after upload finishes
+     * @throws IOException
      */
     private void writeIndexMetadataAsync(
         ClusterState clusterState,
