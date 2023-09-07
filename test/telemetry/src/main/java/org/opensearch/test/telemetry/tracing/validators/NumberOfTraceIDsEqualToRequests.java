@@ -53,7 +53,7 @@ public class NumberOfTraceIDsEqualToRequests implements TracingValidator {
     }
 
     private boolean isMatchingSpan(MockSpanData mockSpanData) {
-        if (mockSpanData.getAttributes().isEmpty()) {
+        if (attributes.getAttributesMap().isEmpty()) {
             return true;
         } else {
             return Objects.equals(
