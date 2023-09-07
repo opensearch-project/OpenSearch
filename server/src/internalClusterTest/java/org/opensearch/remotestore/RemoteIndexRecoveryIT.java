@@ -10,7 +10,6 @@ package org.opensearch.remotestore;
 
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.indices.recovery.IndexRecoveryIT;
@@ -43,15 +42,6 @@ public class RemoteIndexRecoveryIT extends IndexRecoveryIT {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
             .put(remoteStoreClusterSettings(REPOSITORY_NAME, repositoryPath))
-            .build();
-    }
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder()
-            .put(super.featureFlagSettings())
-            .put(FeatureFlags.REMOTE_STORE, "true")
-            .put(FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL, "true")
             .build();
     }
 
