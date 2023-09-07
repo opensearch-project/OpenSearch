@@ -19,9 +19,17 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.util.Locale;
 import java.util.Map;
 
 import static java.util.Collections.emptySet;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_CRYPTO_ATTRIBUTE_KEY_FORMAT;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_CRYPTO_SETTINGS_PREFIX;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY;
 
 public class RemoteStoreNodeAttributeTests extends OpenSearchTestCase {
 
@@ -29,24 +37,31 @@ public class RemoteStoreNodeAttributeTests extends OpenSearchTestCase {
     static private final String REGION = "us-east-1";
 
     public void testCryptoMetadata() throws UnknownHostException {
+        String repoName = "remote-store-A";
+        String repoTypeSettingKey = String.format(Locale.ROOT, REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT, repoName);
+        String repoSettingsKey = String.format(Locale.ROOT, REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX, repoName);
+        String repoCryptoMetadataKey = String.format(Locale.ROOT, REMOTE_STORE_REPOSITORY_CRYPTO_ATTRIBUTE_KEY_FORMAT, repoName);
+        String repoCryptoMetadataSettingsKey = String.format(Locale.ROOT, REMOTE_STORE_REPOSITORY_CRYPTO_SETTINGS_PREFIX, repoName);
         Map<String, String> attr = Map.of(
-            "remote_store.segment.repository",
-            "remote-store-A",
-            "remote_store.translog.repository",
-            "remote-store-A",
-            "remote_store.repository.remote-store-A.type",
+            REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY,
+            repoName,
+            REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY,
+            repoName,
+            REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY,
+            repoName,
+            repoTypeSettingKey,
             "s3",
-            "remote_store.repository.remote-store-A.settings.bucket",
+            repoSettingsKey,
             "abc",
-            "remote_store.repository.remote-store-A.settings.base_path",
+            repoSettingsKey + "base_path",
             "xyz",
-            "remote_store.repository.remote-store-A.crypto_metadata.key_provider_name",
+            repoCryptoMetadataKey + ".key_provider_name",
             "store-test",
-            "remote_store.repository.remote-store-A.crypto_metadata.key_provider_type",
+            repoCryptoMetadataKey + ".key_provider_type",
             "aws-kms",
-            "remote_store.repository.remote-store-A.crypto_metadata.settings.region",
+            repoCryptoMetadataSettingsKey + ".region",
             REGION,
-            "remote_store.repository.remote-store-A.crypto_metadata.settings.key_arn",
+            repoCryptoMetadataSettingsKey + ".key_arn",
             KEY_ARN
         );
         DiscoveryNode node = new DiscoveryNode(
@@ -68,22 +83,27 @@ public class RemoteStoreNodeAttributeTests extends OpenSearchTestCase {
     }
 
     public void testInvalidCryptoMetadata() throws UnknownHostException {
+        String repoName = "remote-store-A";
+        String repoTypeSettingKey = String.format(Locale.ROOT, REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT, repoName);
+        String repoSettingsKey = String.format(Locale.ROOT, REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX, repoName);
+        String repoCryptoMetadataKey = String.format(Locale.ROOT, REMOTE_STORE_REPOSITORY_CRYPTO_ATTRIBUTE_KEY_FORMAT, repoName);
+        String repoCryptoMetadataSettingsKey = String.format(Locale.ROOT, REMOTE_STORE_REPOSITORY_CRYPTO_SETTINGS_PREFIX, repoName);
         Map<String, String> attr = Map.of(
-            "remote_store.segment.repository",
-            "remote-store-A",
-            "remote_store.translog.repository",
-            "remote-store-A",
-            "remote_store.repository.remote-store-A.type",
+            REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY,
+            repoName,
+            REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY,
+            repoName,
+            REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY,
+            repoName,
+            repoTypeSettingKey,
             "s3",
-            "remote_store.repository.remote-store-A.settings.bucket",
+            repoSettingsKey,
             "abc",
-            "remote_store.repository.remote-store-A.settings.base_path",
+            repoSettingsKey + "base_path",
             "xyz",
-            "remote_store.repository.remote-store-A.crypto_metadata.key_provider_name",
-            "store-test",
-            "remote_store.repository.remote-store-A.crypto_metadata.settings.region",
+            repoCryptoMetadataSettingsKey + ".region",
             REGION,
-            "remote_store.repository.remote-store-A.crypto_metadata.settings.key_arn",
+            repoCryptoMetadataSettingsKey + ".key_arn",
             KEY_ARN
         );
         DiscoveryNode node = new DiscoveryNode(
@@ -98,16 +118,21 @@ public class RemoteStoreNodeAttributeTests extends OpenSearchTestCase {
     }
 
     public void testNoCryptoMetadata() throws UnknownHostException {
+        String repoName = "remote-store-A";
+        String repoTypeSettingKey = String.format(Locale.ROOT, REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT, repoName);
+        String repoSettingsKey = String.format(Locale.ROOT, REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX, repoName);
         Map<String, String> attr = Map.of(
-            "remote_store.segment.repository",
-            "remote-store-A",
-            "remote_store.translog.repository",
-            "remote-store-A",
-            "remote_store.repository.remote-store-A.type",
+            REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY,
+            repoName,
+            REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY,
+            repoName,
+            REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY,
+            repoName,
+            repoTypeSettingKey,
             "s3",
-            "remote_store.repository.remote-store-A.settings.bucket",
+            repoSettingsKey,
             "abc",
-            "remote_store.repository.remote-store-A.settings.base_path",
+            repoSettingsKey + "base_path",
             "xyz"
         );
         DiscoveryNode node = new DiscoveryNode(
