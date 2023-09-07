@@ -31,7 +31,6 @@ import static org.opensearch.common.settings.Settings.writeSettingsToStream;
  * @opensearch.internal
  */
 public class CryptoSettings implements Writeable, ToXContentObject {
-
     private String keyProviderName;
     private String keyProviderType;
     private Settings settings = EMPTY_SETTINGS;
