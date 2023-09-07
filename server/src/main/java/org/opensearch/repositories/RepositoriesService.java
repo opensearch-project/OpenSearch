@@ -245,7 +245,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                                 }
                                 ensureCryptoSettingsAreSame(repositoryMetadata, request);
                                 found = true;
-                                repositoriesMetadata.add(ensureValidSystemRepositoryUpdate(repositoryMetadata, newRepositoryMetadata));
+                                repositoriesMetadata.add(ensureValidSystemRepositoryUpdate(newRepositoryMetadata, repositoryMetadata));
                             } else {
                                 repositoriesMetadata.add(repositoryMetadata);
                             }
@@ -797,8 +797,11 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         return SYSTEM_REPOSITORY_SETTING.get(repositoryMetadataSettings);
     }
 
-    private static boolean nullOrEqual(String newValue, String currentValue) {
-        if (newValue != null && newValue.equals(currentValue) == false) {
+    private static boolean isValueEqual(String newValue, String currentValue) {
+        if (newValue == null) {
+            throw new IllegalArgumentException("new value cannot be empty, " + "current value [" + currentValue + "]");
+        }
+        if (newValue.equals(currentValue) == false) {
             throw new IllegalArgumentException(
                 "trying to modify an unmodifiable attribute of system repository from "
                     + "current value ["
@@ -811,14 +814,14 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         return true;
     }
 
-    private RepositoryMetadata ensureValidSystemRepositoryUpdate(
-        RepositoryMetadata currentRepositoryMetadata,
-        RepositoryMetadata newRepositoryMetadata
+    public RepositoryMetadata ensureValidSystemRepositoryUpdate(
+        RepositoryMetadata newRepositoryMetadata,
+        RepositoryMetadata currentRepositoryMetadata
     ) {
         if (isSystemRepositorySettingPresent(currentRepositoryMetadata.settings())) {
             Settings.Builder updatedSettings = Settings.builder().put(newRepositoryMetadata.settings());
             try {
-                nullOrEqual(newRepositoryMetadata.type(), currentRepositoryMetadata.name());
+                isValueEqual(newRepositoryMetadata.type(), currentRepositoryMetadata.type());
 
                 Repository repository = repositories.get(currentRepositoryMetadata.name());
                 Settings newRepositoryMetadataSettings = newRepositoryMetadata.settings();
@@ -830,10 +833,14 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                     .collect(Collectors.toList());
 
                 for (String restrictedSettingKey : restrictedSettings) {
-                    nullOrEqual(
-                        newRepositoryMetadataSettings.get(restrictedSettingKey),
-                        currentRepositoryMetadataSettings.get(restrictedSettingKey)
-                    );
+                    String newSettingValue = newRepositoryMetadataSettings.get(restrictedSettingKey);
+                    String currentSettingValue = currentRepositoryMetadataSettings.get(restrictedSettingKey);
+
+                    isValueEqual(newSettingValue, currentSettingValue);
+
+                    if (currentSettingValue != null) {
+                        updatedSettings.put(restrictedSettingKey, currentSettingValue);
+                    }
                 }
             } catch (IllegalArgumentException e) {
                 throw new RepositoryException(currentRepositoryMetadata.name(), e.getMessage());

@@ -17,6 +17,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
+import org.opensearch.repositories.RepositoryException;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
@@ -133,10 +134,12 @@ public class RemoteStoreNodeService {
                 boolean repositoryAlreadyPresent = false;
                 for (RepositoryMetadata existingRepositoryMetadata : existingRepositories.repositories()) {
                     if (newRepositoryMetadata.name().equals(existingRepositoryMetadata.name())) {
-                        if (newRepositoryMetadata.equalsIgnoreGenerations(existingRepositoryMetadata)) {
+                        try {
+                            newRepositoryMetadata = repositoriesService.get()
+                                .ensureValidSystemRepositoryUpdate(newRepositoryMetadata, existingRepositoryMetadata);
                             repositoryAlreadyPresent = true;
                             break;
-                        } else {
+                        } catch (RepositoryException e) {
                             throw new IllegalStateException(
                                 "new repository metadata ["
                                     + newRepositoryMetadata

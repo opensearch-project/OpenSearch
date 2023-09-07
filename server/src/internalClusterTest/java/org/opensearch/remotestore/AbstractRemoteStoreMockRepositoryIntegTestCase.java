@@ -108,6 +108,8 @@ public abstract class AbstractRemoteStoreMockRepositoryIntegTestCase extends Abs
     }
 
     protected void deleteRepo() {
+        logger.info("--> Deleting all the indices");
+        internalCluster().wipeIndices("_all");
         logger.info("--> Deleting the repository={}", REPOSITORY_NAME);
         assertAcked(clusterAdmin().prepareDeleteRepository(REPOSITORY_NAME));
         logger.info("--> Deleting the repository={}", TRANSLOG_REPOSITORY_NAME);
