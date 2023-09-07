@@ -229,6 +229,7 @@ import org.opensearch.telemetry.tracing.TracerFactory;
 import org.opensearch.threadpool.ExecutorBuilder;
 import org.opensearch.threadpool.RunnableTaskExecutionListener;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.throttling.tracker.NodePerformanceTracker;
 import org.opensearch.transport.RemoteClusterService;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportInterceptor;
@@ -775,6 +776,15 @@ public class Node implements Closeable {
                 remoteStoreStatsTrackerFactory
             );
 
+            final PerformanceCollectorService performanceCollectorService = new PerformanceCollectorService(clusterService);
+
+            final NodePerformanceTracker nodePerformanceTracker = new NodePerformanceTracker(
+                performanceCollectorService,
+                threadPool,
+                settings,
+                clusterService.getClusterSettings()
+            );
+
             final AliasValidator aliasValidator = new AliasValidator();
 
             final ShardLimitValidator shardLimitValidator = new ShardLimitValidator(settings, clusterService, systemIndices);
@@ -1059,7 +1069,9 @@ public class Node implements Closeable {
                 searchBackpressureService,
                 searchPipelineService,
                 fileCache,
-                taskCancellationMonitoringService
+                taskCancellationMonitoringService,
+                nodePerformanceTracker,
+                performanceCollectorService
             );
 
             final SearchService searchService = newSearchService(
@@ -1192,6 +1204,8 @@ public class Node implements Closeable {
                 b.bind(RerouteService.class).toInstance(rerouteService);
                 b.bind(ShardLimitValidator.class).toInstance(shardLimitValidator);
                 b.bind(FsHealthService.class).toInstance(fsHealthService);
+                b.bind(PerformanceCollectorService.class).toInstance(performanceCollectorService);
+                b.bind(NodePerformanceTracker.class).toInstance(nodePerformanceTracker);
                 b.bind(SystemIndices.class).toInstance(systemIndices);
                 b.bind(IdentityService.class).toInstance(identityService);
                 b.bind(Tracer.class).toInstance(tracer);
@@ -1308,6 +1322,7 @@ public class Node implements Closeable {
         nodeService.getMonitorService().start();
         nodeService.getSearchBackpressureService().start();
         nodeService.getTaskCancellationMonitoringService().start();
+        nodeService.getNodePerformanceTracker().start();
 
         final ClusterService clusterService = injector.getInstance(ClusterService.class);
 
@@ -1464,6 +1479,7 @@ public class Node implements Closeable {
         injector.getInstance(FsHealthService.class).stop();
         nodeService.getMonitorService().stop();
         nodeService.getSearchBackpressureService().stop();
+        nodeService.getNodePerformanceTracker().stop();
         injector.getInstance(GatewayService.class).stop();
         injector.getInstance(SearchService.class).stop();
         injector.getInstance(TransportService.class).stop();
@@ -1523,6 +1539,7 @@ public class Node implements Closeable {
         toClose.add(() -> stopWatch.stop().start("monitor"));
         toClose.add(nodeService.getMonitorService());
         toClose.add(nodeService.getSearchBackpressureService());
+        toClose.add(nodeService.getNodePerformanceTracker());
         toClose.add(() -> stopWatch.stop().start("fsHealth"));
         toClose.add(injector.getInstance(FsHealthService.class));
         toClose.add(() -> stopWatch.stop().start("gateway"));

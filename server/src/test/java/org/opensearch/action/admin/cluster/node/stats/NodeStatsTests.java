@@ -58,6 +58,8 @@ import org.opensearch.monitor.jvm.JvmStats;
 import org.opensearch.monitor.os.OsStats;
 import org.opensearch.monitor.process.ProcessStats;
 import org.opensearch.node.AdaptiveSelectionStats;
+import org.opensearch.node.DownstreamNodesPerfStats;
+import org.opensearch.node.PerformanceCollectorService;
 import org.opensearch.node.ResponseCollectorService;
 import org.opensearch.script.ScriptCacheStats;
 import org.opensearch.script.ScriptStats;
@@ -390,6 +392,22 @@ public class NodeStatsTests extends OpenSearchTestCase {
                         assertEquals(aStats.queueSize, bStats.queueSize, 0.01);
                         assertEquals(aStats.serviceTime, bStats.serviceTime, 0.01);
                         assertEquals(aStats.responseTime, bStats.responseTime, 0.01);
+                    });
+                }
+                DownstreamNodesPerfStats downstreamNodesPerfStats = nodeStats.getNodesPerformanceStats();
+                DownstreamNodesPerfStats deserializedNodePerfStats = deserializedNodeStats.getNodesPerformanceStats();
+                if (downstreamNodesPerfStats == null) {
+                    assertNull(deserializedNodePerfStats);
+                } else {
+                    downstreamNodesPerfStats.getNodePerfStats().forEach((k, v) -> {
+                        PerformanceCollectorService.NodePerformanceStatistics aPerfStats = downstreamNodesPerfStats.getNodePerfStats()
+                            .get(k);
+                        PerformanceCollectorService.NodePerformanceStatistics bPerfStats = downstreamNodesPerfStats.getNodePerfStats()
+                            .get(k);
+                        assertEquals(aPerfStats.getMemoryPercent(), bPerfStats.getMemoryPercent(), 0.0);
+                        assertEquals(aPerfStats.getIoUtilizationPercent(), bPerfStats.getIoUtilizationPercent(), 0.0);
+                        assertEquals(aPerfStats.getCpuPercent(), bPerfStats.getCpuPercent(), 0.0);
+                        assertEquals(aPerfStats.getTimestamp(), bPerfStats.getTimestamp());
                     });
                 }
                 ScriptCacheStats scriptCacheStats = nodeStats.getScriptCacheStats();
@@ -754,6 +772,31 @@ public class NodeStatsTests extends OpenSearchTestCase {
             }
             adaptiveSelectionStats = new AdaptiveSelectionStats(nodeConnections, nodeStats);
         }
+        DownstreamNodesPerfStats downstreamNodesPerfStats = null;
+        if (frequently()) {
+            int numNodes = randomIntBetween(0, 10);
+            Map<String, Long> nodeConnections = new HashMap<>();
+            Map<String, PerformanceCollectorService.NodePerformanceStatistics> nodePerfStats = new HashMap<>();
+            for (int i = 0; i < numNodes; i++) {
+                String nodeId = randomAlphaOfLengthBetween(3, 10);
+                // add outgoing connection info
+                if (frequently()) {
+                    nodeConnections.put(nodeId, randomLongBetween(0, 100));
+                }
+                // add node calculations
+                if (frequently()) {
+                    PerformanceCollectorService.NodePerformanceStatistics stats = new PerformanceCollectorService.NodePerformanceStatistics(
+                        nodeId,
+                        randomDoubleBetween(1.0, 100.0, true),
+                        randomDoubleBetween(1.0, 100.0, true),
+                        randomDoubleBetween(1.0, 100.0, true),
+                        System.currentTimeMillis()
+                    );
+                    nodePerfStats.put(nodeId, stats);
+                }
+            }
+            downstreamNodesPerfStats = new DownstreamNodesPerfStats(nodePerfStats);
+        }
         ClusterManagerThrottlingStats clusterManagerThrottlingStats = null;
         if (frequently()) {
             clusterManagerThrottlingStats = new ClusterManagerThrottlingStats();
@@ -785,6 +828,7 @@ public class NodeStatsTests extends OpenSearchTestCase {
             discoveryStats,
             ingestStats,
             adaptiveSelectionStats,
+            downstreamNodesPerfStats,
             scriptCacheStats,
             null,
             null,

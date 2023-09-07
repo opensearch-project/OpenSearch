@@ -13,7 +13,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Implement on behalf of token passing for extensions ([#8679](https://github.com/opensearch-project/OpenSearch/pull/8679))
 - Added encryption-sdk lib to provide encryption and decryption capabilities ([#8466](https://github.com/opensearch-project/OpenSearch/pull/8466) [#9289](https://github.com/opensearch-project/OpenSearch/pull/9289))
 - Added crypto-kms plugin to provide AWS KMS based key providers for encryption/decryption. ([#8465](https://github.com/opensearch-project/OpenSearch/pull/8465))
-
+- Added Performance collector service and node performance stats tracker  ([#9890](https://github.com/opensearch-project/OpenSearch/pull/9890))
 ### Dependencies
 - Bump `log4j-core` from 2.18.0 to 2.19.0
 - Bump `forbiddenapis` from 3.3 to 3.4

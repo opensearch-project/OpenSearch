@@ -56,6 +56,7 @@ import org.opensearch.monitor.jvm.JvmStats;
 import org.opensearch.monitor.os.OsStats;
 import org.opensearch.monitor.process.ProcessStats;
 import org.opensearch.node.AdaptiveSelectionStats;
+import org.opensearch.node.DownstreamNodesPerfStats;
 import org.opensearch.script.ScriptCacheStats;
 import org.opensearch.script.ScriptStats;
 import org.opensearch.search.backpressure.stats.SearchBackpressureStats;
@@ -142,6 +143,9 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
     @Nullable
     private SearchPipelineStats searchPipelineStats;
 
+    @Nullable
+    private DownstreamNodesPerfStats downstreamNodesPerfStats;
+
     public NodeStats(StreamInput in) throws IOException {
         super(in);
         timestamp = in.readVLong();
@@ -198,6 +202,11 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         } else {
             searchPipelineStats = null;
         }
+        if (in.getVersion().onOrAfter(Version.V_3_0_0)) { // make it 2.11 when we backport
+            downstreamNodesPerfStats = in.readOptionalWriteable(DownstreamNodesPerfStats::new);
+        } else {
+            downstreamNodesPerfStats = null;
+        }
     }
 
     public NodeStats(
@@ -216,6 +225,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         @Nullable DiscoveryStats discoveryStats,
         @Nullable IngestStats ingestStats,
         @Nullable AdaptiveSelectionStats adaptiveSelectionStats,
+        @Nullable DownstreamNodesPerfStats downstreamNodesPerfStats,
         @Nullable ScriptCacheStats scriptCacheStats,
         @Nullable IndexingPressureStats indexingPressureStats,
         @Nullable ShardIndexingPressureStats shardIndexingPressureStats,
@@ -240,7 +250,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         this.scriptStats = scriptStats;
         this.discoveryStats = discoveryStats;
         this.ingestStats = ingestStats;
-        this.adaptiveSelectionStats = adaptiveSelectionStats;
+        this.downstreamNodesPerfStats = downstreamNodesPerfStats;
         this.scriptCacheStats = scriptCacheStats;
         this.indexingPressureStats = indexingPressureStats;
         this.shardIndexingPressureStats = shardIndexingPressureStats;
@@ -250,6 +260,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         this.fileCacheStats = fileCacheStats;
         this.taskCancellationStats = taskCancellationStats;
         this.searchPipelineStats = searchPipelineStats;
+        this.adaptiveSelectionStats = adaptiveSelectionStats;
     }
 
     public long getTimestamp() {
@@ -345,6 +356,11 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
     }
 
     @Nullable
+    public DownstreamNodesPerfStats getNodesPerformanceStats() {
+        return downstreamNodesPerfStats;
+    }
+
+    @Nullable
     public ScriptCacheStats getScriptCacheStats() {
         return scriptCacheStats;
     }
@@ -429,6 +445,9 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         }
         if (out.getVersion().onOrAfter(Version.V_2_9_0)) {
             out.writeOptionalWriteable(searchPipelineStats);
+        }
+        if (out.getVersion().onOrAfter(Version.V_3_0_0)) { // TODO : make it 2.11 when we backport
+            out.writeOptionalWriteable(downstreamNodesPerfStats);
         }
     }
 
@@ -520,7 +539,9 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         if (getSearchPipelineStats() != null) {
             getSearchPipelineStats().toXContent(builder, params);
         }
-
+        if (getNodesPerformanceStats() != null) {
+            getNodesPerformanceStats().toXContent(builder, params);
+        }
         return builder;
     }
 }
