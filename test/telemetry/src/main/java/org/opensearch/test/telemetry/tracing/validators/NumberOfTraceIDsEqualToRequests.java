@@ -22,7 +22,7 @@ import java.util.stream.Collectors;
  */
 public class NumberOfTraceIDsEqualToRequests implements TracingValidator {
 
-    public static final String FILTERING_ATTRIBUTE = "action";
+    private static final String FILTERING_ATTRIBUTE = "action";
     private final Attributes attributes;
 
     /**
