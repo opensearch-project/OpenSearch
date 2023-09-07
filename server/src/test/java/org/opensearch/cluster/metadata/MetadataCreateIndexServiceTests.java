@@ -62,7 +62,6 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
@@ -80,7 +79,6 @@ import org.opensearch.indices.SystemIndices;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.snapshots.EmptySnapshotsInfoService;
 import org.opensearch.test.ClusterServiceUtils;
-import org.opensearch.test.FeatureFlagSetter;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
 import org.opensearch.test.gateway.TestGatewayAllocator;
@@ -1230,7 +1228,6 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             .put(segmentRepositoryNameAttributeKey, "my-segment-repo-1")
             .put(translogRepositoryNameAttributeKey, "my-translog-repo-1")
             .build();
-        FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
 
         request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
         final Settings.Builder requestSettings = Settings.builder();
@@ -1262,7 +1259,6 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             .put(segmentRepositoryNameAttributeKey, "my-segment-repo-1")
             .put(translogRepositoryNameAttributeKey, "my-translog-repo-1")
             .build();
-        FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
 
         request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
         final Settings.Builder requestSettings = Settings.builder();
@@ -1294,7 +1290,6 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             .put(segmentRepositoryNameAttributeKey, "my-segment-repo-1")
             .put(translogRepositoryNameAttributeKey, "my-translog-repo-1")
             .build();
-        FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
 
         request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
         Settings indexSettings = aggregateIndexSettings(
@@ -1346,7 +1341,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             assertThat(validationErrors.size(), is(1));
             assertThat(
                 validationErrors.get(0),
-                is(String.format(Locale.ROOT, "expected [%s] to be private but it was not", SETTING_REMOTE_STORE_ENABLED))
+                is(String.format(Locale.ROOT, "private index setting [%s] can not be set explicitly", SETTING_REMOTE_STORE_ENABLED))
             );
         }));
     }
@@ -1380,7 +1375,13 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             assertThat(validationErrors.size(), is(1));
             assertThat(
                 validationErrors.get(0),
-                is(String.format(Locale.ROOT, "expected [%s] to be private but it was not", SETTING_REMOTE_SEGMENT_STORE_REPOSITORY))
+                is(
+                    String.format(
+                        Locale.ROOT,
+                        "private index setting [%s] can not be set explicitly",
+                        SETTING_REMOTE_SEGMENT_STORE_REPOSITORY
+                    )
+                )
             );
         }));
     }
@@ -1413,7 +1414,13 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             assertThat(validationErrors.size(), is(1));
             assertThat(
                 validationErrors.get(0),
-                is(String.format(Locale.ROOT, "expected [%s] to be private but it was not", SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY))
+                is(
+                    String.format(
+                        Locale.ROOT,
+                        "private index setting [%s] can not be set explicitly",
+                        SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY
+                    )
+                )
             );
         }));
     }
