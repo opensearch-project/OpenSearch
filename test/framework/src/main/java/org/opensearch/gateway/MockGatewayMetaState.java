@@ -55,6 +55,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.function.Supplier;
 
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteStoreClusterStateEnabled;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -108,7 +109,7 @@ public class MockGatewayMetaState extends GatewayMetaState {
             throw new AssertionError(e);
         }
         Supplier<RemoteClusterStateService> remoteClusterStateServiceSupplier = () -> {
-            if (RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING.get(settings) == true) {
+            if (isRemoteStoreClusterStateEnabled(settings)) {
                 return new RemoteClusterStateService(
                     nodeEnvironment.nodeId(),
                     () -> new RepositoriesService(
