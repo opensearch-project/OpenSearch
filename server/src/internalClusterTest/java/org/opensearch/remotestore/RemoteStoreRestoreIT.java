@@ -408,7 +408,8 @@ public class RemoteStoreRestoreIT extends BaseRemoteStoreRestoreIT {
             }
             assertThat(downloadPauseTime, greaterThan(TimeValue.timeValueSeconds(randomIntBetween(5, 10)).nanos()));
         }, 30, TimeUnit.SECONDS);
-        ensureGreen(INDEX_NAME);
+        // Waiting for extended period for green state so that rate limit does not cause flakiness
+        ensureGreen(TimeValue.timeValueSeconds(120), INDEX_NAME);
         // This is required to get updated number from already active shards which were not restored
         assertEquals(shardCount, getNumShards(INDEX_NAME).totalNumShards);
         assertEquals(0, getNumShards(INDEX_NAME).numReplicas);
