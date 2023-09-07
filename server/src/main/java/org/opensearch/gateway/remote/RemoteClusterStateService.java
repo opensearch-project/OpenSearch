@@ -769,37 +769,41 @@ public class RemoteClusterStateService implements Closeable {
             logger.info("Delete stale cluster metadata task is already in progress.");
             return;
         }
-        getBlobStoreTransferService().listAllInSortedOrderAsync(
-            ThreadPool.Names.REMOTE_PURGE,
-            getManifestFolderPath(clusterName, clusterUUID),
-            "manifest",
-            Integer.MAX_VALUE,
-            new ActionListener<>() {
-                @Override
-                public void onResponse(List<BlobMetadata> blobMetadata) {
-                    if (blobMetadata.size() > manifestsToRetain) {
-                        deleteClusterMetadata(
-                            clusterName,
-                            clusterUUID,
-                            blobMetadata.subList(0, manifestsToRetain - 1),
-                            blobMetadata.subList(manifestsToRetain - 1, blobMetadata.size())
-                        );
+        try {
+            getBlobStoreTransferService().listAllInSortedOrderAsync(
+                ThreadPool.Names.REMOTE_PURGE,
+                getManifestFolderPath(clusterName, clusterUUID),
+                "manifest",
+                Integer.MAX_VALUE,
+                new ActionListener<>() {
+                    @Override
+                    public void onResponse(List<BlobMetadata> blobMetadata) {
+                        if (blobMetadata.size() > manifestsToRetain) {
+                            deleteClusterMetadata(
+                                clusterName,
+                                clusterUUID,
+                                blobMetadata.subList(0, manifestsToRetain - 1),
+                                blobMetadata.subList(manifestsToRetain - 1, blobMetadata.size())
+                            );
+                        }
+                        deleteStaleMetadataRunning.set(false);
                     }
-                    deleteStaleMetadataRunning.set(false);
-                }
 
-                @Override
-                public void onFailure(Exception e) {
-                    logger.error(
-                        new ParameterizedMessage(
-                            "Exception occurred while deleting Remote Cluster Metadata for clusterUUIDs {}",
-                            clusterUUID
-                        )
-                    );
-                    deleteStaleMetadataRunning.set(false);
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.error(
+                            new ParameterizedMessage(
+                                "Exception occurred while deleting Remote Cluster Metadata for clusterUUIDs {}",
+                                clusterUUID
+                            )
+                        );
+                        deleteStaleMetadataRunning.set(false);
+                    }
                 }
-            }
-        );
+            );
+        } finally {
+            deleteStaleMetadataRunning.set(false);
+        }
     }
 
     private void deleteClusterMetadata(
