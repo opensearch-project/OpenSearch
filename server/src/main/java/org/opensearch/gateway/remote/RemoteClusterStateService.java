@@ -778,20 +778,11 @@ public class RemoteClusterStateService implements Closeable {
                 @Override
                 public void onResponse(List<BlobMetadata> blobMetadata) {
                     if (blobMetadata.size() > manifestsToRetain) {
-                        List<ClusterMetadataManifest> allManifests = blobMetadata.stream()
-                            .map(
-                                mainfestBlobMetadata -> fetchRemoteClusterMetadataManifest(
-                                    clusterName,
-                                    clusterUUID,
-                                    mainfestBlobMetadata.name()
-                                )
-                            )
-                            .collect(Collectors.toList());
                         deleteClusterMetadata(
                             clusterName,
                             clusterUUID,
                             blobMetadata.subList(0, manifestsToRetain - 1),
-                            blobMetadata.subList(manifestsToRetain - 1, allManifests.size())
+                            blobMetadata.subList(manifestsToRetain - 1, blobMetadata.size())
                         );
                     }
                     deleteStaleMetadataRunning.set(false);

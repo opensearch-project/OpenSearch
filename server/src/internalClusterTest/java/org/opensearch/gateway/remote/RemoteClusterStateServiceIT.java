@@ -14,6 +14,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.remotestore.RemoteStoreBaseIntegTestCase;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.junit.annotations.TestIssueLogging;
 
 import java.nio.charset.StandardCharsets;
@@ -23,6 +24,7 @@ import java.util.Map;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.gateway.remote.RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING;
 
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class RemoteClusterStateServiceIT extends RemoteStoreBaseIntegTestCase {
 
     private static String INDEX_NAME = "test-index";
