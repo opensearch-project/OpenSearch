@@ -15,30 +15,30 @@ COPYABLE_LABELS = {
 
 # Returns a pull request extracted from Github's event JSON.
 def get_pr(event):
-    # --- Extract PR from event JSON ---
-    # `check_run`/`check_suite` does not include any direct reference to the PR
-    # that triggered it in its event JSON. We have to extrapolate it using the head
-    # SHA that *is* there.
+  # --- Extract PR from event JSON ---
+  # `check_run`/`check_suite` does not include any direct reference to the PR
+  # that triggered it in its event JSON. We have to extrapolate it using the head
+  # SHA that *is* there.
 
-    # Get head SHA from event JSON
-    pr_head_sha = event["check_suite"]["head_sha"]
+  # Get head SHA from event JSON
+  pr_head_sha = event["pull_request"]["head"]["sha"]
 
-    # Find the repo PR that matches the head SHA we found
-    return {pr.head.sha: pr for pr in repo.get_pulls()}[pr_head_sha]
+  # Find the repo PR that matches the head SHA we found
+  return {pr.head.sha: pr for pr in repo.get_pulls()}[pr_head_sha]
 
 # Get all issue numbers related to a PR.
 def get_related_issues(pr):
-    # Regex to pick out closing keywords.
-    regex = re.compile("(close[sd]?|fix|fixe[sd]?|resolve[sd]?)\s*:?\s+#(\d+)", re.I)
+  # Regex to pick out closing keywords.
+  regex = re.compile("(close[sd]?|fix|fixe[sd]?|resolve[sd]?)\s*:?\s+#(\d+)", re.I)
 
-    # Extract all associated issues from closing keyword in PR
-    for verb, num in regex.findall(pr.body):
-        yield int(num)
+  # Extract all associated issues from closing keyword in PR
+  for verb, num in regex.findall(pr.body):
+    yield int(num)
 
-    # Extract all associated issues from PR commit messages
-    for c in pr.get_commits():
-        for verb, num in regex.findall(c.commit.message):
-            yield int(num)
+  # Extract all associated issues from PR commit messages
+  for c in pr.get_commits():
+    for verb, num in regex.findall(c.commit.message):
+      yield int(num)
 
 # Get inputs from shell
 (token, repository, path) = sys.argv[1:4]
@@ -48,7 +48,7 @@ repo = Github(token).get_repo(repository)
 
 # Open Github event JSON
 with open(path) as f:
-    event = json.load(f)
+  event = json.load(f)
 
 # Get the PR we're working on.
 pr = get_pr(event)
@@ -64,4 +64,4 @@ unset_labels = COPYABLE_LABELS & issues_labels - pr_labels
 
 # If there are any labels we need to add, add them.
 if len(unset_labels) > 0:
-    pr.set_labels(*list(unset_labels))
+  pr.set_labels(*list(unset_labels))
