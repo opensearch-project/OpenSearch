@@ -84,7 +84,7 @@ import java.util.function.Function;
 import java.util.function.UnaryOperator;
 
 import static org.opensearch.common.util.concurrent.OpenSearchExecutors.daemonThreadFactory;
-import static org.opensearch.gateway.remote.RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteStoreClusterStateEnabled;
 
 /**
  * Loads (and maybe upgrades) cluster metadata at startup, and persistently stores cluster metadata for future restarts.
@@ -165,7 +165,7 @@ public class GatewayMetaState implements Closeable {
 
                     if (DiscoveryNode.isClusterManagerNode(settings)) {
                         persistedState = new LucenePersistedState(persistedClusterStateService, currentTerm, clusterState);
-                        if (REMOTE_CLUSTER_STATE_ENABLED_SETTING.get(settings) == true) {
+                        if (isRemoteStoreClusterStateEnabled(settings)) {
                             remotePersistedState = new RemotePersistedState(remoteClusterStateService);
                         }
                     } else {
