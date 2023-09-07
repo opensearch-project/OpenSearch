@@ -36,7 +36,6 @@ import org.opensearch.action.admin.cluster.repositories.get.GetRepositoriesRespo
 import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.env.Environment;
 import org.opensearch.gateway.remote.RemoteClusterStateService;
@@ -49,7 +48,6 @@ import org.opensearch.repositories.RepositoryData;
 import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.snapshots.SnapshotInfo;
-import org.opensearch.test.FeatureFlagSetter;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.io.IOException;
@@ -72,10 +70,6 @@ import static org.hamcrest.Matchers.equalTo;
  * Tests for the {@link BlobStoreRepository} and its subclasses.
  */
 public class BlobStoreRepositoryRemoteIndexTests extends BlobStoreRepositoryHelperTests {
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.REMOTE_STORE, "true").build();
-    }
 
     @Override
     protected Settings nodeSettings() {
@@ -118,7 +112,6 @@ public class BlobStoreRepositoryRemoteIndexTests extends BlobStoreRepositoryHelp
 
     // Validate Scenario Normal Snapshot -> remoteStoreShallowCopy Snapshot -> normal Snapshot
     public void testRetrieveShallowCopySnapshotCase1() throws IOException {
-        FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
         final Client client = client();
         final String snapshotRepositoryName = "test-repo";
         final String remoteStoreRepositoryName = "test-rs-repo";
@@ -208,7 +201,6 @@ public class BlobStoreRepositoryRemoteIndexTests extends BlobStoreRepositoryHelp
     }
 
     public void testGetRemoteStoreShallowCopyShardMetadata() throws IOException {
-        FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
         final Client client = client();
         final String snapshotRepositoryName = "test-repo";
         final String remoteStoreRepositoryName = "test-rs-repo";
@@ -259,7 +251,6 @@ public class BlobStoreRepositoryRemoteIndexTests extends BlobStoreRepositoryHelp
     // Validate Scenario remoteStoreShallowCopy Snapshot -> remoteStoreShallowCopy Snapshot
     // -> remoteStoreShallowCopy Snapshot -> normal snapshot
     public void testRetrieveShallowCopySnapshotCase2() throws IOException {
-        FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
         final Client client = client();
         final String snapshotRepositoryName = "test-repo";
         final String remoteStoreRepositoryName = "test-rs-repo";

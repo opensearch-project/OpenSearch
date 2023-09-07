@@ -20,7 +20,6 @@ import org.opensearch.client.Requests;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.indices.replication.common.ReplicationType;
@@ -65,7 +64,6 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
-            .put(FeatureFlags.REMOTE_STORE, "true")
             .put(remoteStoreClusterSettings(BASE_REMOTE_REPO, remoteRepoPath))
             .build();
     }
