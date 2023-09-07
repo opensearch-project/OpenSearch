@@ -1,0 +1,11 @@
+AWS Encryption SDK
+Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+
+THIRD PARTY COMPONENTS
+**********************
+This software includes third party software subject to the following copyrights:
+
+-Cryptographic functions from Bouncy Castle Crypto APIs for Java - Copyright
+2000-2013 The Legion of the Bouncy Castle
+
+The licenses for these third party components are included in LICENSE.txt
