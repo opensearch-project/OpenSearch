@@ -46,6 +46,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
@@ -93,6 +94,11 @@ public class RemoteClusterStateService implements Closeable {
     private static final Logger logger = LogManager.getLogger(RemoteClusterStateService.class);
 
     public static final String DELIMITER = "__";
+    private static final String CLUSTER_STATE_PATH_TOKEN = "cluster-state";
+    private static final String INDEX_PATH_TOKEN = "index";
+    private static final String MANIFEST_PATH_TOKEN = "manifest";
+    private static final String MANIFEST_FILE_PREFIX = "manifest";
+    private static final String INDEX_METADATA_FILE_PREFIX = "metadata";
 
     private final String nodeId;
     private final Supplier<RepositoriesService> repositoriesService;
@@ -159,8 +165,8 @@ public class RemoteClusterStateService implements Closeable {
 
     /**
      * This method uploads the diff between the previous cluster state and the current cluster state. The previous manifest file is needed to create the new
-     * manifest. The new manifest file is created by using the unchanged metadata from the previous manifest and the new metadata changes from the current cluster
-     * state.
+     * manifest. The new manifest file is created by using the unchanged metadata from the previous manifest and the new metadata changes from the current
+     * cluster state.
      *
      * @return The uploaded ClusterMetadataManifest file
      */
@@ -238,10 +244,10 @@ public class RemoteClusterStateService implements Closeable {
 
     /**
      * Uploads provided IndexMetadata's to remote store in parallel. The call is blocking so the method waits for upload to finish and then return.
+     *
      * @param clusterState current ClusterState
      * @param toUpload list of IndexMetadata to upload
      * @return {@code List<UploadedIndexMetadata>} list of IndexMetadata uploaded to remote
-     * @throws IOException
      */
     private List<UploadedIndexMetadata> writeIndexMetadataParallel(ClusterState clusterState, List<IndexMetadata> toUpload)
         throws IOException {
@@ -312,10 +318,10 @@ public class RemoteClusterStateService implements Closeable {
 
     /**
      * Allows async Upload of IndexMetadata to remote
+     *
      * @param clusterState current ClusterState
      * @param indexMetadata {@link IndexMetadata} to upload
      * @param latchedActionListener listener to respond back on after upload finishes
-     * @throws IOException
      */
     private void writeIndexMetadataAsync(
         ClusterState clusterState,
@@ -360,11 +366,6 @@ public class RemoteClusterStateService implements Closeable {
         return uploadManifest(clusterState, previousManifest.getIndices(), true);
     }
 
-    public ClusterState getLatestClusterState(String clusterUUID) {
-        // todo
-        return null;
-    }
-
     @Override
     public void close() throws IOException {
         if (blobStoreRepository != null) {
@@ -402,7 +403,9 @@ public class RemoteClusterStateService implements Closeable {
                 Version.CURRENT,
                 nodeId,
                 committed,
-                uploadedIndexMetadata
+                uploadedIndexMetadata,
+                // todo Change this to proper cluster UUID
+                ClusterState.UNKNOWN_UUID
             );
             writeMetadataManifest(clusterState.getClusterName().value(), clusterState.metadata().clusterUUID(), manifest, manifestFileName);
             return manifest;
@@ -421,9 +424,9 @@ public class RemoteClusterStateService implements Closeable {
             .blobContainer(
                 blobStoreRepository.basePath()
                     .add(encodeString(clusterName))
-                    .add("cluster-state")
+                    .add(CLUSTER_STATE_PATH_TOKEN)
                     .add(clusterUUID)
-                    .add("index")
+                    .add(INDEX_PATH_TOKEN)
                     .add(indexUUID)
             );
     }
@@ -432,7 +435,20 @@ public class RemoteClusterStateService implements Closeable {
         // 123456789012_test-cluster/cluster-state/dsgYj10Nkso7/manifest
         return blobStoreRepository.blobStore()
             .blobContainer(
-                blobStoreRepository.basePath().add(encodeString(clusterName)).add("cluster-state").add(clusterUUID).add("manifest")
+                blobStoreRepository.basePath()
+                    .add(encodeString(clusterName))
+                    .add(CLUSTER_STATE_PATH_TOKEN)
+                    .add(clusterUUID)
+                    .add(MANIFEST_PATH_TOKEN)
+            );
+    }
+
+    private BlobContainer clusterUUIDContainer(String clusterName) {
+        return blobStoreRepository.blobStore()
+            .blobContainer(
+                blobStoreRepository.basePath()
+                    .add(Base64.getUrlEncoder().withoutPadding().encodeToString(clusterName.getBytes(StandardCharsets.UTF_8)))
+                    .add(CLUSTER_STATE_PATH_TOKEN)
             );
     }
 
@@ -444,7 +460,7 @@ public class RemoteClusterStateService implements Closeable {
         // 123456789012_test-cluster/cluster-state/dsgYj10Nkso7/manifest/manifest_2147483642_2147483637_456536447
         return String.join(
             DELIMITER,
-            "manifest",
+            MANIFEST_FILE_PREFIX,
             RemoteStoreUtils.invertLong(term),
             RemoteStoreUtils.invertLong(version),
             RemoteStoreUtils.invertLong(System.currentTimeMillis())
@@ -452,11 +468,17 @@ public class RemoteClusterStateService implements Closeable {
     }
 
     private static String indexMetadataFileName(IndexMetadata indexMetadata) {
-        return String.join(DELIMITER, "metadata", String.valueOf(indexMetadata.getVersion()), String.valueOf(System.currentTimeMillis()));
+        return String.join(
+            DELIMITER,
+            INDEX_METADATA_FILE_PREFIX,
+            String.valueOf(indexMetadata.getVersion()),
+            String.valueOf(System.currentTimeMillis())
+        );
     }
 
     /**
      * Fetch latest index metadata from remote cluster state
+     *
      * @param clusterUUID uuid of cluster state to refer to in remote
      * @param clusterName name of the cluster
      * @return {@code Map<String, IndexMetadata>} latest IndexUUID to IndexMetadata map
@@ -476,6 +498,7 @@ public class RemoteClusterStateService implements Closeable {
 
     /**
      * Fetch index metadata from remote cluster state
+     *
      * @param clusterUUID uuid of cluster state to refer to in remote
      * @param clusterName name of the cluster
      * @param uploadedIndexMetadata {@link UploadedIndexMetadata} contains details about remote location of index metadata
@@ -499,6 +522,7 @@ public class RemoteClusterStateService implements Closeable {
 
     /**
      * Fetch latest ClusterMetadataManifest from remote state store
+     *
      * @param clusterUUID uuid of cluster state to refer to in remote
      * @param clusterName name of the cluster
      * @return ClusterMetadataManifest
@@ -509,7 +533,96 @@ public class RemoteClusterStateService implements Closeable {
     }
 
     /**
+     * Fetch the previous cluster UUIDs from remote state store and return the most recent valid cluster UUID
+     *
+     * @param clusterName The cluster name for which previous cluster UUID is to be fetched
+     * @return Last valid cluster UUID
+     */
+    public String getLatestClusterUUID(String clusterName) {
+        try {
+            Set<String> clusterUUIDs = getAllClusterUUIDs(clusterName);
+            Map<String, ClusterMetadataManifest> latestManifests = getLatestManifestForAllClusterUUIDs(clusterName, clusterUUIDs);
+            List<String> validChain = createClusterChain(latestManifests);
+            if (validChain.isEmpty()) {
+                return ClusterState.UNKNOWN_UUID;
+            }
+            return validChain.get(0);
+        } catch (IOException e) {
+            throw new IllegalStateException(
+                String.format(Locale.ROOT, "Error while fetching previous UUIDs from remote store for cluster name: %s", clusterName)
+            );
+        }
+    }
+
+    private Set<String> getAllClusterUUIDs(String clusterName) throws IOException {
+        Map<String, BlobContainer> clusterUUIDMetadata = clusterUUIDContainer(clusterName).children();
+        if (clusterUUIDMetadata == null) {
+            return Collections.emptySet();
+        }
+        return Collections.unmodifiableSet(clusterUUIDMetadata.keySet());
+    }
+
+    private Map<String, ClusterMetadataManifest> getLatestManifestForAllClusterUUIDs(String clusterName, Set<String> clusterUUIDs) {
+        Map<String, ClusterMetadataManifest> manifestsByClusterUUID = new HashMap<>();
+        for (String clusterUUID : clusterUUIDs) {
+            try {
+                ClusterMetadataManifest manifest = getLatestClusterMetadataManifest(clusterName, clusterUUID);
+                manifestsByClusterUUID.put(clusterUUID, manifest);
+            } catch (Exception e) {
+                throw new IllegalStateException(
+                    String.format(Locale.ROOT, "Exception in fetching manifest for clusterUUID: %s", clusterUUID)
+                );
+            }
+        }
+        return manifestsByClusterUUID;
+    }
+
+    /**
+     * This method creates a valid cluster UUID chain.
+     *
+     * @param manifestsByClusterUUID Map of latest ClusterMetadataManifest for every cluster UUID
+     * @return List of cluster UUIDs. The first element is the most recent cluster UUID in the chain
+     */
+    private List<String> createClusterChain(final Map<String, ClusterMetadataManifest> manifestsByClusterUUID) {
+        final Map<String, String> clusterUUIDGraph = manifestsByClusterUUID.values()
+            .stream()
+            .collect(Collectors.toMap(ClusterMetadataManifest::getClusterUUID, ClusterMetadataManifest::getPreviousClusterUUID));
+        final List<String> validClusterUUIDs = manifestsByClusterUUID.values()
+            .stream()
+            .filter(m -> !isInvalidClusterUUID(m) && !clusterUUIDGraph.containsValue(m.getClusterUUID()))
+            .map(ClusterMetadataManifest::getClusterUUID)
+            .collect(Collectors.toList());
+        if (validClusterUUIDs.isEmpty()) {
+            logger.info("There is no valid previous cluster UUID");
+            return Collections.emptyList();
+        }
+        if (validClusterUUIDs.size() > 1) {
+            throw new IllegalStateException(
+                String.format(
+                    Locale.ROOT,
+                    "The system has ended into multiple valid cluster states in the remote store. "
+                        + "Please check their latest manifest to decide which one you want to keep. Valid Cluster UUIDs: - %s",
+                    validClusterUUIDs
+                )
+            );
+        }
+        final List<String> validChain = new ArrayList<>();
+        String currentUUID = validClusterUUIDs.get(0);
+        while (!ClusterState.UNKNOWN_UUID.equals(currentUUID)) {
+            validChain.add(currentUUID);
+            // Getting the previous cluster UUID of a cluster UUID from the clusterUUID Graph
+            currentUUID = clusterUUIDGraph.get(currentUUID);
+        }
+        return validChain;
+    }
+
+    private boolean isInvalidClusterUUID(ClusterMetadataManifest manifest) {
+        return !manifest.isCommitted() && manifest.getIndices().isEmpty();
+    }
+
+    /**
      * Fetch latest ClusterMetadataManifest file from remote state store
+     *
      * @param clusterUUID uuid of cluster state to refer to in remote
      * @param clusterName name of the cluster
      * @return latest ClusterMetadataManifest filename
@@ -522,7 +635,7 @@ public class RemoteClusterStateService implements Closeable {
              * when sorted in LEXICOGRAPHIC order the latest uploaded manifest file comes on top.
              */
             List<BlobMetadata> manifestFilesMetadata = manifestContainer(clusterName, clusterUUID).listBlobsByPrefixInSortedOrder(
-                "manifest" + DELIMITER,
+                MANIFEST_FILE_PREFIX + DELIMITER,
                 1,
                 BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC
             );
@@ -538,6 +651,7 @@ public class RemoteClusterStateService implements Closeable {
 
     /**
      * Fetch ClusterMetadataManifest from remote state store
+     *
      * @param clusterUUID uuid of cluster state to refer to in remote
      * @param clusterName name of the cluster
      * @return ClusterMetadataManifest
