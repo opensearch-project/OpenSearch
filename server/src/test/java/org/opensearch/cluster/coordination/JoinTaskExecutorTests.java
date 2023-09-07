@@ -468,7 +468,11 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
                 Map<String, String> remoteStoreNodeAttributes = remoteStoreNodeAttributes(SEGMENT_REPO, TRANSLOG_REPO + "new");
                 validateAttributes(remoteStoreNodeAttributes, currentState, existingNode);
             } else if (REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY.equals(nodeAttribute.getKey())) {
-                Map<String, String> remoteStoreNodeAttributes = remoteStoreNodeAttributes(SEGMENT_REPO, TRANSLOG_REPO, CLUSTER_STATE_REPO + "new");
+                Map<String, String> remoteStoreNodeAttributes = remoteStoreNodeAttributes(
+                    SEGMENT_REPO,
+                    TRANSLOG_REPO,
+                    CLUSTER_STATE_REPO + "new"
+                );
                 validateAttributes(remoteStoreNodeAttributes, currentState, existingNode);
             }
         }
