@@ -80,9 +80,17 @@ public class NRTReplicationEngineTests extends EngineTestCase {
         final Store nrtEngineStore = createStore(INDEX_SETTINGS, newDirectory());
         try {
             // Passing null translogPath to induce failure
-            final EngineConfig replicaConfig = config(defaultSettings, nrtEngineStore, null, NoMergePolicy.INSTANCE, null, null, globalCheckpoint::get);
+            final EngineConfig replicaConfig = config(
+                defaultSettings,
+                nrtEngineStore,
+                null,
+                NoMergePolicy.INSTANCE,
+                null,
+                null,
+                globalCheckpoint::get
+            );
             new NRTReplicationEngine(replicaConfig);
-        } catch(Exception e) {
+        } catch (Exception e) {
             // Ignore as engine creation will fail
         }
         assertEquals(1, nrtEngineStore.refCount());
