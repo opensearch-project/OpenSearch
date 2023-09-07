@@ -115,7 +115,7 @@ import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
-import org.opensearch.crypto.CryptoManagerRegistry;
+import org.opensearch.crypto.CryptoHandlerRegistry;
 import org.opensearch.discovery.Discovery;
 import org.opensearch.discovery.DiscoveryModule;
 import org.opensearch.env.Environment;
@@ -165,6 +165,7 @@ import org.opensearch.monitor.fs.FsHealthService;
 import org.opensearch.monitor.fs.FsInfo;
 import org.opensearch.monitor.fs.FsProbe;
 import org.opensearch.monitor.jvm.JvmInfo;
+import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.persistent.PersistentTasksClusterService;
 import org.opensearch.persistent.PersistentTasksExecutor;
 import org.opensearch.persistent.PersistentTasksExecutorRegistry;
@@ -174,6 +175,7 @@ import org.opensearch.plugins.AnalysisPlugin;
 import org.opensearch.plugins.CircuitBreakerPlugin;
 import org.opensearch.plugins.ClusterPlugin;
 import org.opensearch.plugins.CryptoKeyProviderPlugin;
+import org.opensearch.plugins.CryptoPlugin;
 import org.opensearch.plugins.DiscoveryPlugin;
 import org.opensearch.plugins.EnginePlugin;
 import org.opensearch.plugins.ExtensionAwarePlugin;
@@ -269,6 +271,7 @@ import static java.util.stream.Collectors.toList;
 import static org.opensearch.common.util.FeatureFlags.TELEMETRY;
 import static org.opensearch.env.NodeEnvironment.collectFileCacheDataPath;
 import static org.opensearch.index.ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENABLED_ATTRIBUTE_KEY;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteStoreAttributePresent;
 
 /**
  * A node represent a node within a cluster ({@code cluster.name}). The {@link #client()} can be used
@@ -522,12 +525,15 @@ public class Node implements Closeable {
                     .collect(Collectors.toCollection(LinkedHashSet::new))
             );
             resourcesToClose.add(nodeEnvironment);
-            localNodeFactory = new LocalNodeFactory(settings, nodeEnvironment.nodeId());
 
             final List<ExecutorBuilder<?>> executorBuilders = pluginsService.getExecutorBuilders(settings);
 
             runnableTaskListener = new AtomicReference<>();
             final ThreadPool threadPool = new ThreadPool(settings, runnableTaskListener, executorBuilders.toArray(new ExecutorBuilder[0]));
+
+            final SetOnce<RepositoriesService> repositoriesServiceReference = new SetOnce<>();
+            final RemoteStoreNodeService remoteStoreNodeService = new RemoteStoreNodeService(repositoriesServiceReference::get, threadPool);
+            localNodeFactory = new LocalNodeFactory(settings, nodeEnvironment.nodeId(), remoteStoreNodeService);
             resourcesToClose.add(() -> ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS));
             final ResourceWatcherService resourceWatcherService = new ResourceWatcherService(settings, threadPool);
             resourcesToClose.add(resourceWatcherService);
@@ -591,7 +597,6 @@ public class Node implements Closeable {
                 client
             );
 
-            final SetOnce<RepositoriesService> repositoriesServiceReference = new SetOnce<>();
             final ClusterInfoService clusterInfoService = newClusterInfoService(settings, clusterService, threadPool, client);
             final UsageService usageService = new UsageService();
 
@@ -935,7 +940,11 @@ public class Node implements Closeable {
                 xContentRegistry,
                 recoverySettings
             );
-            CryptoManagerRegistry.initRegistry(pluginsService.filterPlugins(CryptoKeyProviderPlugin.class), settings);
+            CryptoHandlerRegistry.initRegistry(
+                pluginsService.filterPlugins(CryptoPlugin.class),
+                pluginsService.filterPlugins(CryptoKeyProviderPlugin.class),
+                settings
+            );
             RepositoriesService repositoryService = repositoriesModule.getRepositoryService();
             repositoriesServiceReference.set(repositoryService);
             SnapshotsService snapshotsService = new SnapshotsService(
@@ -970,9 +979,14 @@ public class Node implements Closeable {
                 indicesService,
                 clusterInfoService::getClusterInfo
             );
+
             RemoteStoreRestoreService remoteStoreRestoreService = new RemoteStoreRestoreService(
                 clusterService,
-                clusterModule.getAllocationService()
+                clusterModule.getAllocationService(),
+                metadataCreateIndexService,
+                metadataIndexUpgradeService,
+                shardLimitValidator,
+                remoteClusterStateService
             );
 
             final DiskThresholdMonitor diskThresholdMonitor = new DiskThresholdMonitor(
@@ -1000,7 +1014,8 @@ public class Node implements Closeable {
                 gatewayMetaState,
                 rerouteService,
                 fsHealthService,
-                persistedStateRegistry
+                persistedStateRegistry,
+                remoteStoreNodeService
             );
             final SearchPipelineService searchPipelineService = new SearchPipelineService(
                 clusterService,
@@ -1739,15 +1754,28 @@ public class Node implements Closeable {
         private final SetOnce<DiscoveryNode> localNode = new SetOnce<>();
         private final String persistentNodeId;
         private final Settings settings;
+        private final RemoteStoreNodeService remoteStoreNodeService;
 
-        private LocalNodeFactory(Settings settings, String persistentNodeId) {
+        private LocalNodeFactory(Settings settings, String persistentNodeId, RemoteStoreNodeService remoteStoreNodeService) {
             this.persistentNodeId = persistentNodeId;
             this.settings = settings;
+            this.remoteStoreNodeService = remoteStoreNodeService;
         }
 
         @Override
         public DiscoveryNode apply(BoundTransportAddress boundTransportAddress) {
-            localNode.set(DiscoveryNode.createLocal(settings, boundTransportAddress.publishAddress(), persistentNodeId));
+            if (isRemoteStoreAttributePresent(settings)) {
+                localNode.set(
+                    DiscoveryNode.createRemoteNodeLocal(
+                        settings,
+                        boundTransportAddress.publishAddress(),
+                        persistentNodeId,
+                        remoteStoreNodeService
+                    )
+                );
+            } else {
+                localNode.set(DiscoveryNode.createLocal(settings, boundTransportAddress.publishAddress(), persistentNodeId));
+            }
             return localNode.get();
         }
 

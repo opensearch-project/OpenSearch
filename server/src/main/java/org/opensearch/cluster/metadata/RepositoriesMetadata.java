@@ -232,7 +232,7 @@ public class RepositoriesMetadata extends AbstractNamedDiffable<Custom> implemen
                                 throw new OpenSearchParseException("failed to parse repository [{}], unknown type", name);
                             }
                             pendingGeneration = parser.longValue();
-                        } else if ("crypto_metadata".equals(currentFieldName)) {
+                        } else if (CryptoMetadata.CRYPTO_METADATA_KEY.equals(currentFieldName)) {
                             if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
                                 throw new OpenSearchParseException("failed to parse repository [{}], unknown type", name);
                             }

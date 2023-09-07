@@ -111,7 +111,7 @@ public class BlobStoreRepositoryHelperTests extends OpenSearchSingleNodeTestCase
         createRepository(client, repoName, repoSettings);
     }
 
-    protected Settings getRemoteStoreBackedIndexSettings(String remoteStoreRepo) {
+    protected Settings getRemoteStoreBackedIndexSettings() {
         return Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "1")
             .put("index.refresh_interval", "300s")

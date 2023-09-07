@@ -34,13 +34,13 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-@OpenSearchIntegTestCase.ClusterScope(numDataNodes = 0)
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class ReplicaToPrimaryPromotionIT extends RemoteStoreBaseIntegTestCase {
     private int shard_count = 5;
 
     @Before
     public void setup() {
-        setupRepo();
+        internalCluster().startClusterManagerOnlyNode();
     }
 
     @Override

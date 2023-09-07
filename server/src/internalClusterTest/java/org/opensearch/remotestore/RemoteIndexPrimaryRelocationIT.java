@@ -18,26 +18,21 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 import java.nio.file.Path;
 
 import static org.opensearch.remotestore.RemoteStoreBaseIntegTestCase.remoteStoreClusterSettings;
-import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
-@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST)
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class RemoteIndexPrimaryRelocationIT extends IndexPrimaryRelocationIT {
 
     protected static final String REPOSITORY_NAME = "test-remote-store-repo";
 
     protected Path absolutePath;
 
-    public void setup() {
-        absolutePath = randomRepoPath().toAbsolutePath();
-        assertAcked(
-            clusterAdmin().preparePutRepository(REPOSITORY_NAME).setType("fs").setSettings(Settings.builder().put("location", absolutePath))
-        );
-    }
-
     protected Settings nodeSettings(int nodeOrdinal) {
+        if (absolutePath == null) {
+            absolutePath = randomRepoPath().toAbsolutePath();
+        }
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
-            .put(remoteStoreClusterSettings(REPOSITORY_NAME, REPOSITORY_NAME, false))
+            .put(remoteStoreClusterSettings(REPOSITORY_NAME, absolutePath))
             .build();
     }
 
@@ -64,8 +59,8 @@ public class RemoteIndexPrimaryRelocationIT extends IndexPrimaryRelocationIT {
             .build();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/9191")
     public void testPrimaryRelocationWhileIndexing() throws Exception {
+        internalCluster().startClusterManagerOnlyNode();
         super.testPrimaryRelocationWhileIndexing();
     }
 }

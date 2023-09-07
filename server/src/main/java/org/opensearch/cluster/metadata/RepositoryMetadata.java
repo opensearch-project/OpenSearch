@@ -173,7 +173,7 @@ public class RepositoryMetadata implements Writeable {
         settings = Settings.readSettingsFromStream(in);
         generation = in.readLong();
         pendingGeneration = in.readLong();
-        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_2_10_0)) {
             cryptoMetadata = in.readOptionalWriteable(CryptoMetadata::new);
         } else {
             cryptoMetadata = null;
@@ -192,7 +192,7 @@ public class RepositoryMetadata implements Writeable {
         Settings.writeSettingsToStream(settings, out);
         out.writeLong(generation);
         out.writeLong(pendingGeneration);
-        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_2_10_0)) {
             out.writeOptionalWriteable(cryptoMetadata);
         }
     }
