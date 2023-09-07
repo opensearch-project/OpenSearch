@@ -959,6 +959,7 @@ public class CoordinationStateTests extends OpenSearchTestCase {
             .put("node.attr." + REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY, randomRepoName)
             .put(stateRepoTypeAttributeKey, FsRepository.TYPE)
             .put(stateRepoSettingsAttributeKeyPrefix + "location", "randomRepoPath")
+            .put(RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING.getKey(), true)
             .build();
 
         final CoordinationState coordinationState = createCoordinationState(persistedStateRegistry, node1, settings);
