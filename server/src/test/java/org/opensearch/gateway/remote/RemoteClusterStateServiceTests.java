@@ -41,6 +41,9 @@ import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
+import org.opensearch.threadpool.TestThreadPool;
+import org.opensearch.threadpool.ThreadPool;
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 
@@ -82,6 +85,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
     private RepositoriesService repositoriesService;
     private BlobStoreRepository blobStoreRepository;
     private BlobStore blobStore;
+    private final ThreadPool threadPool = new TestThreadPool(getClass().getName());
 
     @Before
     public void setup() {
@@ -117,8 +121,16 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             repositoriesServiceSupplier,
             settings,
             new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            () -> 0L
+            () -> 0L,
+            threadPool
         );
+    }
+
+    @After
+    public void teardown() throws Exception {
+        super.tearDown();
+        remoteClusterStateService.close();
+        threadPool.shutdown();
     }
 
     public void testFailWriteFullMetadataNonClusterManagerNode() throws IOException {
@@ -127,7 +139,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         Assert.assertThat(manifest, nullValue());
     }
 
-    public void testFailInitializationWhenRemoteStateDisabled() throws IOException {
+    public void testFailInitializationWhenRemoteStateDisabled() {
         final Settings settings = Settings.builder().build();
         assertThrows(
             AssertionError.class,
@@ -136,7 +148,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
                 repositoriesServiceSupplier,
                 settings,
                 new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                () -> 0L
+                () -> 0L,
+                threadPool
             )
         );
     }

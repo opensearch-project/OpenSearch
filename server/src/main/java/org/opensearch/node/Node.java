@@ -688,7 +688,8 @@ public class Node implements Closeable {
                     repositoriesServiceReference::get,
                     settings,
                     clusterService.getClusterSettings(),
-                    threadPool::preciseRelativeTimeInNanos
+                    threadPool::preciseRelativeTimeInNanos,
+                    threadPool
                 );
             } else {
                 remoteClusterStateService = null;
