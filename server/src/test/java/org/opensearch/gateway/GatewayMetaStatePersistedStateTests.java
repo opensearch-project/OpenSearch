@@ -118,6 +118,8 @@ public class GatewayMetaStatePersistedStateTests extends OpenSearchTestCase {
     private DiscoveryNode localNode;
     private BigArrays bigArrays;
 
+    private MockGatewayMetaState gateway;
+
     @Override
     public void setUp() throws Exception {
         bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
@@ -137,11 +139,13 @@ public class GatewayMetaStatePersistedStateTests extends OpenSearchTestCase {
     @Override
     public void tearDown() throws Exception {
         nodeEnvironment.close();
+        IOUtils.close(gateway);
         super.tearDown();
     }
 
-    private CoordinationState.PersistedState newGatewayPersistedState() {
-        final MockGatewayMetaState gateway = new MockGatewayMetaState(localNode, bigArrays);
+    private CoordinationState.PersistedState newGatewayPersistedState() throws IOException {
+        IOUtils.close(gateway);
+        gateway = new MockGatewayMetaState(localNode, bigArrays);
         final PersistedStateRegistry persistedStateRegistry = persistedStateRegistry();
         gateway.start(settings, nodeEnvironment, xContentRegistry(), persistedStateRegistry);
         final CoordinationState.PersistedState persistedState = gateway.getPersistedState();
@@ -447,7 +451,10 @@ public class GatewayMetaStatePersistedStateTests extends OpenSearchTestCase {
             cleanup.add(gateway);
             final TransportService transportService = mock(TransportService.class);
             TestThreadPool threadPool = new TestThreadPool("testMarkAcceptedConfigAsCommittedOnDataOnlyNode");
-            cleanup.add(() -> ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS));
+            cleanup.add(() -> {
+                ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
+                threadPool.shutdown();
+            });
             when(transportService.getThreadPool()).thenReturn(threadPool);
             ClusterService clusterService = mock(ClusterService.class);
             when(clusterService.getClusterSettings()).thenReturn(
@@ -474,7 +481,8 @@ public class GatewayMetaStatePersistedStateTests extends OpenSearchTestCase {
                         ),
                         settings,
                         new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                        () -> 0L
+                        () -> 0L,
+                        threadPool
                     );
                 } else {
                     return null;
