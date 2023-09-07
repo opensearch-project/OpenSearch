@@ -831,11 +831,11 @@ public class RemoteClusterStateService implements Closeable {
                     clusterUUID,
                     blobMetadata.name()
                 );
-                staleManifestPaths.add(new BlobPath().add("manifest").buildAsString() + blobMetadata.name());
+                staleManifestPaths.add(new BlobPath().add(MANIFEST_PATH_TOKEN).buildAsString() + blobMetadata.name());
                 clusterMetadataManifest.getIndices().forEach(uploadedIndexMetadata -> {
                     if (filesToKeep.contains(uploadedIndexMetadata.getUploadedFilename()) == false) {
                         staleIndexMetadataPaths.add(
-                            new BlobPath().add("index").add(uploadedIndexMetadata.getIndexUUID()).buildAsString()
+                            new BlobPath().add(INDEX_PATH_TOKEN).add(uploadedIndexMetadata.getIndexUUID()).buildAsString()
                                 + uploadedIndexMetadata.getUploadedFilename()
                                 + ".dat"
                         );
