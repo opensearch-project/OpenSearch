@@ -29,7 +29,6 @@ import static org.opensearch.telemetry.OTelTelemetrySettings.OTEL_TRACER_SPAN_EX
 import static org.opensearch.telemetry.OTelTelemetrySettings.TRACER_EXPORTER_BATCH_SIZE_SETTING;
 import static org.opensearch.telemetry.OTelTelemetrySettings.TRACER_EXPORTER_DELAY_SETTING;
 import static org.opensearch.telemetry.OTelTelemetrySettings.TRACER_EXPORTER_MAX_QUEUE_SIZE_SETTING;
-import static org.opensearch.telemetry.OTelTelemetrySettings.TRACER_SPAN_EXPORTER_ENDPOINT;
 import static org.opensearch.telemetry.TelemetrySettings.TRACER_ENABLED_SETTING;
 import static org.opensearch.telemetry.TelemetrySettings.TRACER_SAMPLER_PROBABILITY;
 
@@ -61,8 +60,7 @@ public class OTelTelemetryPluginTests extends OpenSearchTestCase {
                 TRACER_EXPORTER_BATCH_SIZE_SETTING,
                 TRACER_EXPORTER_DELAY_SETTING,
                 TRACER_EXPORTER_MAX_QUEUE_SIZE_SETTING,
-                OTEL_TRACER_SPAN_EXPORTER_CLASS_SETTING,
-                TRACER_SPAN_EXPORTER_ENDPOINT
+                OTEL_TRACER_SPAN_EXPORTER_CLASS_SETTING
             ),
             oTelTracerModulePlugin.getSettings()
         );
