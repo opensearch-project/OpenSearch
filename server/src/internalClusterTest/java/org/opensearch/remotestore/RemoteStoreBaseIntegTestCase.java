@@ -47,7 +47,6 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
-import static org.opensearch.indices.IndicesService.CLUSTER_REPLICATION_TYPE_SETTING;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY;
@@ -175,13 +174,7 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
         Path translogRepoPath
     ) {
         Settings.Builder settingsBuilder = Settings.builder();
-
-        if (randomBoolean()) {
-            settingsBuilder.put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT);
-        }
-
         settingsBuilder.put(buildRemoteStoreNodeAttributes(segmentRepoName, segmentRepoPath, translogRepoName, translogRepoPath, false));
-
         return settingsBuilder.build();
     }
 
