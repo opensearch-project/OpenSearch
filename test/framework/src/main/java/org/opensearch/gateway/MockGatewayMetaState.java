@@ -103,6 +103,11 @@ public class MockGatewayMetaState extends GatewayMetaState {
         return ClusterStateUpdaters.setLocalNode(clusterState, localNode);
     }
 
+    @Override
+    public void close() throws IOException {
+        super.close();
+    }
+
     public void start(
         Settings settings,
         NodeEnvironment nodeEnvironment,
