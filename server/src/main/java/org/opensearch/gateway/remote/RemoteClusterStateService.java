@@ -790,8 +790,8 @@ public class RemoteClusterStateService implements Closeable {
                         deleteClusterMetadata(
                             clusterName,
                             clusterUUID,
-                            allManifests.subList(0, manifestsToRetain - 1),
-                            allManifests.subList(manifestsToRetain - 1, allManifests.size())
+                            blobMetadata.subList(0, manifestsToRetain - 1),
+                            blobMetadata.subList(manifestsToRetain - 1, allManifests.size())
                         );
                     }
                     deleteStaleMetadataRunning.set(false);
@@ -814,26 +814,28 @@ public class RemoteClusterStateService implements Closeable {
     private void deleteClusterMetadata(
         String clusterName,
         String clusterUUID,
-        List<ClusterMetadataManifest> activeManifestBlobMetadata,
-        List<ClusterMetadataManifest> staleManifestBlobMetadata
+        List<BlobMetadata> activeManifestBlobMetadata,
+        List<BlobMetadata> staleManifestBlobMetadata
     ) {
         try {
             Set<String> filesToKeep = new HashSet<>();
             List<String> stalePaths = new ArrayList<>();
-            activeManifestBlobMetadata.forEach(clusterMetadataManifest -> {
-                filesToKeep.add(
-                    getManifestFileNamePrefix(clusterMetadataManifest.getClusterTerm(), clusterMetadataManifest.getStateVersion())
+            activeManifestBlobMetadata.forEach(blobMetadata -> {
+                ClusterMetadataManifest clusterMetadataManifest = fetchRemoteClusterMetadataManifest(
+                    clusterName,
+                    clusterUUID,
+                    blobMetadata.name()
                 );
                 clusterMetadataManifest.getIndices()
                     .forEach(uploadedIndexMetadata -> filesToKeep.add(uploadedIndexMetadata.getUploadedFilename()));
             });
-            staleManifestBlobMetadata.forEach(clusterMetadataManifest -> {
-                stalePaths.add(
-                    new BlobPath().add("manifest").buildAsString() + getManifestFileName(
-                        clusterMetadataManifest.getClusterTerm(),
-                        clusterMetadataManifest.getStateVersion()
-                    )
+            staleManifestBlobMetadata.forEach(blobMetadata -> {
+                ClusterMetadataManifest clusterMetadataManifest = fetchRemoteClusterMetadataManifest(
+                    clusterName,
+                    clusterUUID,
+                    blobMetadata.name()
                 );
+                stalePaths.add(new BlobPath().add("manifest").buildAsString() + blobMetadata.name());
                 clusterMetadataManifest.getIndices().forEach(uploadedIndexMetadata -> {
                     if (filesToKeep.contains(uploadedIndexMetadata.getUploadedFilename()) == false) {
                         stalePaths.add(

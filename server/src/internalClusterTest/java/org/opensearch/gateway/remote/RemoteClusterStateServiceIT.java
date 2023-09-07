@@ -84,7 +84,7 @@ public class RemoteClusterStateServiceIT extends RemoteStoreBaseIntegTestCase {
             .add("cluster-state")
             .add(getClusterState().metadata().clusterUUID());
 
-        assertEquals(repository.blobStore().blobContainer(baseMetadataPath.add("manifest")).listBlobsByPrefix("manifest").size(), 10);
+        assertEquals(10, repository.blobStore().blobContainer(baseMetadataPath.add("manifest")).listBlobsByPrefix("manifest").size());
 
         Map<String, IndexMetadata> indexMetadataMap = remoteClusterStateService.getLatestIndexMetadata(
             cluster().getClusterName(),
