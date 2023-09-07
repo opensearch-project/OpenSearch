@@ -413,7 +413,20 @@ public abstract class Rounding implements Writeable {
     }
 
     private abstract class PreparedRounding implements Prepared {
-        private static final int LINEAR_SEARCH_ARRAY_ROUNDING_THRESHOLD = 64;
+        /**
+         * The maximum limit up to which array-based prepared rounding is used.
+         * 128 is a power of two that isn't huge. We might be able to do
+         * better if the limit was based on the actual type of prepared
+         * rounding but this'll do for now.
+         */
+        private static final int DEFAULT_ARRAY_ROUNDING_MAX_THRESHOLD = 128;
+
+        /**
+         * The maximum limit up to which linear search is used, otherwise binary search is used.
+         * This is because linear search is much faster on small arrays.
+         * Benchmark results: <a href="https://github.com/opensearch-project/OpenSearch/pull/9727">PR #9727</a>
+         */
+        private static final int LINEAR_SEARCH_ARRAY_ROUNDING_MAX_THRESHOLD = 64;
 
         /**
          * Attempt to build a {@link Prepared} implementation that relies on pre-calcuated
@@ -438,7 +451,7 @@ public abstract class Rounding implements Writeable {
                 values = ArrayUtil.grow(values, i + 1);
                 values[i++] = rounded;
             }
-            return i <= LINEAR_SEARCH_ARRAY_ROUNDING_THRESHOLD
+            return i <= LINEAR_SEARCH_ARRAY_ROUNDING_MAX_THRESHOLD
                 ? new BidirectionalLinearSearchArrayRounding(values, i, this)
                 : new BinarySearchArrayRounding(values, i, this);
         }
@@ -526,12 +539,11 @@ public abstract class Rounding implements Writeable {
 
         @Override
         public Prepared prepare(long minUtcMillis, long maxUtcMillis) {
-            /*
-             * 128 is a power of two that isn't huge. We might be able to do
-             * better if the limit was based on the actual type of prepared
-             * rounding but this'll do for now.
-             */
-            return prepareOffsetOrJavaTimeRounding(minUtcMillis, maxUtcMillis).maybeUseArray(minUtcMillis, maxUtcMillis, 128);
+            return prepareOffsetOrJavaTimeRounding(minUtcMillis, maxUtcMillis).maybeUseArray(
+                minUtcMillis,
+                maxUtcMillis,
+                PreparedRounding.DEFAULT_ARRAY_ROUNDING_MAX_THRESHOLD
+            );
         }
 
         private TimeUnitPreparedRounding prepareOffsetOrJavaTimeRounding(long minUtcMillis, long maxUtcMillis) {
@@ -1414,8 +1426,13 @@ public abstract class Rounding implements Writeable {
         public long round(long utcMillis) {
             int i = 0;
             for (; i < ascending.length; i++) {
-                if (descending[i] <= utcMillis) return descending[i];
-                if (ascending[i] > utcMillis) return ascending[i - 1];
+                if (descending[i] <= utcMillis) {
+                    return descending[i];
+                }
+                if (ascending[i] > utcMillis) {
+                    assert i > 0 : "utcMillis must be after " + ascending[0];
+                    return ascending[i - 1];
+                }
             }
             return ascending[i - 1];
         }

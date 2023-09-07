@@ -1157,6 +1157,12 @@ public class RoundingTests extends OpenSearchTestCase {
             long key = values[0] + (randomNonNegativeLong() % (100 + values[length - 1] - values[0]));
             assertEquals(binarySearchImpl.round(key), linearSearchImpl.round(key));
         }
+
+        AssertionError exception = expectThrows(AssertionError.class, () -> { binarySearchImpl.round(values[0] - 1); });
+        assertEquals("utcMillis must be after " + values[0], exception.getMessage());
+
+        exception = expectThrows(AssertionError.class, () -> { linearSearchImpl.round(values[0] - 1); });
+        assertEquals("utcMillis must be after " + values[0], exception.getMessage());
     }
 
     private void assertInterval(long rounded, long nextRoundingValue, Rounding rounding, int minutes, ZoneId tz) {
