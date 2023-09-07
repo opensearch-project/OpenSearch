@@ -96,7 +96,7 @@ public class TransportTermVectorsAction extends TransportSingleShardAction<TermV
         // iff there are no other preferences/routings enabled for routing to a specific shard
         if (shouldForcePrimaryRouting(
             state.getMetadata(),
-            request.request().realtime,
+            request.request().realtime(),
             request.request().preference(),
             request.concreteIndex()
         )) {
