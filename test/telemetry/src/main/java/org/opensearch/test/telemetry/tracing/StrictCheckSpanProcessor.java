@@ -60,7 +60,8 @@ public class StrictCheckSpanProcessor implements SpanProcessor {
             System.nanoTime(),
             false,
             span.getSpanName(),
-            Thread.currentThread().getStackTrace()
+            Thread.currentThread().getStackTrace(),
+            ((MockSpan) span).getAttributes()
         );
         return spanData;
     }

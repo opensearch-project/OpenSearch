@@ -8,6 +8,7 @@
 
 package org.opensearch.test.telemetry.tracing.validators;
 
+import org.opensearch.telemetry.tracing.attributes.Attributes;
 import org.opensearch.test.telemetry.tracing.MockSpanData;
 import org.opensearch.test.telemetry.tracing.TracingValidator;
 
@@ -21,10 +22,16 @@ import java.util.stream.Collectors;
  */
 public class NumberOfTraceIDsEqualToRequests implements TracingValidator {
 
+    public static final String FILTERING_ATTRIBUTE = "action";
+    private final Attributes attributes;
+
     /**
-     * Base Constructor
+     * Constructor.
+     * @param attributes
      */
-    public NumberOfTraceIDsEqualToRequests() {}
+    public NumberOfTraceIDsEqualToRequests(Attributes attributes) {
+        this.attributes = attributes;
+    }
 
     /**
      * validates if all spans emitted for a particular request have same traceID.
@@ -33,11 +40,18 @@ public class NumberOfTraceIDsEqualToRequests implements TracingValidator {
      */
     @Override
     public List<MockSpanData> validate(List<MockSpanData> spans, int requests) {
-        Set<String> totalTraceIDs = spans.stream().map(MockSpanData::getTraceID).collect(Collectors.toSet());
+        Set<String> totalTraceIDs = spans.stream()
+            .filter(span -> isMatchingSpan(span))
+            .map(MockSpanData::getTraceID)
+            .collect(Collectors.toSet());
         List<MockSpanData> problematicSpans = new ArrayList<>();
         if (totalTraceIDs.size() != requests) {
             problematicSpans.addAll(spans);
         }
         return problematicSpans;
+    }
+
+    private boolean isMatchingSpan(MockSpanData mockSpanData) {
+        return mockSpanData.getAttributes().get(FILTERING_ATTRIBUTE).equals(attributes.getAttributesMap().get(FILTERING_ATTRIBUTE));
     }
 }
