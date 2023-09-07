@@ -272,6 +272,7 @@ import static org.opensearch.common.util.FeatureFlags.TELEMETRY;
 import static org.opensearch.env.NodeEnvironment.collectFileCacheDataPath;
 import static org.opensearch.index.ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENABLED_ATTRIBUTE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteStoreAttributePresent;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteStoreClusterStateEnabled;
 
 /**
  * A node represent a node within a cluster ({@code cluster.name}). The {@link #client()} can be used
@@ -681,7 +682,7 @@ public class Node implements Closeable {
                 threadPool::relativeTimeInMillis
             );
             final RemoteClusterStateService remoteClusterStateService;
-            if (RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING.get(settings) == true) {
+            if (isRemoteStoreClusterStateEnabled(settings)) {
                 remoteClusterStateService = new RemoteClusterStateService(
                     nodeEnvironment.nodeId(),
                     repositoriesServiceReference::get,
@@ -1334,6 +1335,10 @@ public class Node implements Closeable {
         injector.getInstance(PeerRecoverySourceService.class).start();
         injector.getInstance(SegmentReplicationSourceService.class).start();
 
+        final RemoteClusterStateService remoteClusterStateService = injector.getInstance(RemoteClusterStateService.class);
+        if (remoteClusterStateService != null) {
+            remoteClusterStateService.start();
+        }
         // Load (and maybe upgrade) the metadata stored on disk
         final GatewayMetaState gatewayMetaState = injector.getInstance(GatewayMetaState.class);
         gatewayMetaState.start(
@@ -1345,7 +1350,8 @@ public class Node implements Closeable {
             injector.getInstance(MetadataUpgrader.class),
             injector.getInstance(PersistedClusterStateService.class),
             injector.getInstance(RemoteClusterStateService.class),
-            injector.getInstance(PersistedStateRegistry.class)
+            injector.getInstance(PersistedStateRegistry.class),
+            injector.getInstance(RemoteStoreRestoreService.class)
         );
         if (Assertions.ENABLED) {
             try {

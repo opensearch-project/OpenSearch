@@ -39,7 +39,6 @@ import org.opensearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.opensearch.cluster.SnapshotsInProgress;
 import org.opensearch.common.action.ActionFuture;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.junit.Before;
@@ -67,8 +66,6 @@ public class RemoteIndexSnapshotStatusApiIT extends AbstractSnapshotIntegTestCas
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
             .put(ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING.getKey(), 0) // We have tests that check by-timestamp order
-            .put(FeatureFlags.REMOTE_STORE, "true")
-            .put(FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL, "true")
             .put(remoteStoreClusterSettings(remoteStoreRepoName, absolutePath))
             .build();
     }
