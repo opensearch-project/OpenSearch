@@ -27,7 +27,7 @@ public class NumberOfTraceIDsEqualToRequests implements TracingValidator {
 
     /**
      * Constructor.
-     * @param attributes
+     * @param attributes attributes.
      */
     public NumberOfTraceIDsEqualToRequests(Attributes attributes) {
         this.attributes = attributes;

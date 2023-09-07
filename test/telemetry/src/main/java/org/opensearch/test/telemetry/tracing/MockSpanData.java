@@ -159,7 +159,7 @@ public class MockSpanData {
 
     /**
      * Returns the attributes
-     * @return
+     * @return returns the attributes map.
      */
     public Map<String, Object> getAttributes() {
         return attributes;
