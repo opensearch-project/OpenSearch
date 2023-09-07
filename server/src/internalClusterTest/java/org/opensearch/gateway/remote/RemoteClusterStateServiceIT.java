@@ -15,7 +15,6 @@ import org.opensearch.remotestore.RemoteStoreBaseIntegTestCase;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.test.junit.annotations.TestIssueLogging;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
@@ -52,7 +51,6 @@ public class RemoteClusterStateServiceIT extends RemoteStoreBaseIntegTestCase {
         return indexStats;
     }
 
-    @TestIssueLogging(value = "_root:INFO", issueUrl = "https://github.com/opensearch-project/OpenSearch/issues/7923")
     public void testFullClusterRestoreStaleDelete() throws Exception {
         int shardCount = randomIntBetween(1, 2);
         int replicaCount = 1;

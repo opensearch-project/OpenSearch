@@ -607,7 +607,7 @@ public class RemoteClusterStateService implements Closeable {
         for (String clusterUUID : clusterUUIDs) {
             try {
                 Optional<ClusterMetadataManifest> manifest = getLatestClusterMetadataManifest(clusterName, clusterUUID);
-                manifestsByClusterUUID.put(clusterUUID, manifest.get());
+                manifest.ifPresent(clusterMetadataManifest -> manifestsByClusterUUID.put(clusterUUID, clusterMetadataManifest));
             } catch (Exception e) {
                 throw new IllegalStateException(
                     String.format(Locale.ROOT, "Exception in fetching manifest for clusterUUID: %s", clusterUUID)
