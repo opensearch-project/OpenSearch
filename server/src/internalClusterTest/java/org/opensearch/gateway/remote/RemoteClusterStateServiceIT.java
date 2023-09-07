@@ -14,6 +14,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.remotestore.RemoteStoreBaseIntegTestCase;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
+import org.opensearch.test.junit.annotations.TestIssueLogging;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
@@ -21,7 +22,6 @@ import java.util.Map;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.gateway.remote.RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING;
-import static org.opensearch.gateway.remote.RemoteClusterStateService.REMOTE_CLUSTER_STATE_REPOSITORY_SETTING;
 
 public class RemoteClusterStateServiceIT extends RemoteStoreBaseIntegTestCase {
 
@@ -29,11 +29,7 @@ public class RemoteClusterStateServiceIT extends RemoteStoreBaseIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal))
-            .put(REMOTE_CLUSTER_STATE_ENABLED_SETTING.getKey(), true)
-            .put(REMOTE_CLUSTER_STATE_REPOSITORY_SETTING.getKey(), REPOSITORY_NAME)
-            .build();
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal)).put(REMOTE_CLUSTER_STATE_ENABLED_SETTING.getKey(), true).build();
     }
 
     private void prepareCluster(int numClusterManagerNodes, int numDataOnlyNodes, String indices, int replicaCount, int shardCount) {
@@ -54,6 +50,7 @@ public class RemoteClusterStateServiceIT extends RemoteStoreBaseIntegTestCase {
         return indexStats;
     }
 
+    @TestIssueLogging(value = "_root:INFO", issueUrl = "https://github.com/opensearch-project/OpenSearch/issues/7923")
     public void testFullClusterRestoreStaleDelete() throws Exception {
         int shardCount = randomIntBetween(1, 2);
         int replicaCount = 1;
@@ -62,13 +59,13 @@ public class RemoteClusterStateServiceIT extends RemoteStoreBaseIntegTestCase {
 
         initialTestSetup(shardCount, replicaCount, dataNodeCount, clusterManagerNodeCount);
         setReplicaCount(0);
-        setReplicaCount(1);
+        setReplicaCount(2);
         setReplicaCount(0);
         setReplicaCount(1);
         setReplicaCount(0);
         setReplicaCount(1);
         setReplicaCount(0);
-        setReplicaCount(1);
+        setReplicaCount(2);
         setReplicaCount(0);
 
         RemoteClusterStateService remoteClusterStateService = internalCluster().getClusterManagerNodeInstance(
@@ -87,14 +84,14 @@ public class RemoteClusterStateServiceIT extends RemoteStoreBaseIntegTestCase {
             .add("cluster-state")
             .add(getClusterState().metadata().clusterUUID());
 
-        assertEquals(repository.blobStore().blobContainer(baseMetadataPath.add("manifest")).listBlobsByPrefix("manifest").size(), 4);
+        assertEquals(repository.blobStore().blobContainer(baseMetadataPath.add("manifest")).listBlobsByPrefix("manifest").size(), 10);
 
         Map<String, IndexMetadata> indexMetadataMap = remoteClusterStateService.getLatestIndexMetadata(
             cluster().getClusterName(),
             getClusterState().metadata().clusterUUID()
         );
-        assertEquals(indexMetadataMap.values().stream().findFirst().get().getNumberOfReplicas(), 0);
-        assertEquals(indexMetadataMap.values().stream().findFirst().get().getNumberOfShards(), shardCount);
+        assertEquals(0, indexMetadataMap.values().stream().findFirst().get().getNumberOfReplicas());
+        assertEquals(shardCount, indexMetadataMap.values().stream().findFirst().get().getNumberOfShards());
     }
 
     private void setReplicaCount(int replicaCount) {

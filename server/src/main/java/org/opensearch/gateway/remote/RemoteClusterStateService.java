@@ -54,6 +54,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
@@ -73,7 +74,7 @@ public class RemoteClusterStateService implements Closeable {
 
     public static final String METADATA_MANIFEST_NAME_FORMAT = "%s";
 
-    public static final int RETAINED_MANIFESTS = 3;
+    public static final int RETAINED_MANIFESTS = 10;
 
     public static final String DELIMITER = "__";
 
@@ -116,6 +117,8 @@ public class RemoteClusterStateService implements Closeable {
     private BlobStoreRepository blobStoreRepository;
     private BlobStoreTransferService blobStoreTransferService;
     private volatile TimeValue slowWriteLoggingThreshold;
+
+    private final AtomicBoolean deleteStaleMetadataRunning = new AtomicBoolean(false);
 
     public RemoteClusterStateService(
         String nodeId,
@@ -252,6 +255,7 @@ public class RemoteClusterStateService implements Closeable {
             false
         );
         deleteStaleClusterMetadata(clusterState.getClusterName().value(), clusterState.metadata().clusterUUID(), RETAINED_MANIFESTS);
+
         final long durationMillis = TimeValue.nsecToMSec(relativeTimeNanosSupplier.getAsLong() - startTimeNanos);
         if (durationMillis >= slowWriteLoggingThreshold.getMillis()) {
             logger.warn(
@@ -729,103 +733,104 @@ public class RemoteClusterStateService implements Closeable {
      * @param clusterUUID uuid of cluster state to refer to in remote
      * @param manifestsToRetain no of latest manifest files to keep in remote
      */
-    public void deleteStaleClusterMetadata(String clusterName, String clusterUUID, int manifestsToRetain) {
-        threadpool.executor(ThreadPool.Names.REMOTE_PURGE).execute(() -> {
-            synchronized (this) {
-                getBlobStoreTransferService().listAllInSortedOrder(
-                    getManifestFolderPath(clusterName, clusterUUID),
-                    "manifest",
-                    Integer.MAX_VALUE,
-                    new ActionListener<>() {
-                        @Override
-                        public void onResponse(List<BlobMetadata> blobMetadata) {
-                            if (blobMetadata.size() > manifestsToRetain) {
-                                deleteClusterMetadata(
-                                    clusterName,
-                                    clusterUUID,
-                                    blobMetadata.subList(0, manifestsToRetain - 1),
-                                    blobMetadata.subList(manifestsToRetain, blobMetadata.size() - 1)
-                                );
-                            }
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            logger.error(
-                                new ParameterizedMessage(
-                                    "Exception occurred while deleting Remote Cluster Metadata for clusterUUIDs {}",
-                                    clusterUUID
-                                )
-                            );
-                        }
-                    }
-                );
-            }
-        });
-    }
-
-    private void deleteClusterMetadata(
-        String clusterName,
-        String clusterUUID,
-        List<BlobMetadata> activeManifestBlobMetadata,
-        List<BlobMetadata> staleManifestBlobMetadata
-    ) {
-        Set<String> filesToKeep = new HashSet<>();
-        List<String> stalePaths = new ArrayList<>();
-        activeManifestBlobMetadata.forEach(manifestBlobMetadata -> {
-            ClusterMetadataManifest clusterMetadataManifest = fetchRemoteClusterMetadataManifest(
-                clusterName,
-                clusterUUID,
-                manifestBlobMetadata.name()
-            );
-            clusterMetadataManifest.getIndices()
-                .forEach(uploadedIndexMetadata -> filesToKeep.add(uploadedIndexMetadata.getUploadedFilename()));
-        });
-        staleManifestBlobMetadata.forEach(manifestBlobMetadata -> {
-            ClusterMetadataManifest clusterMetadataManifest = fetchRemoteClusterMetadataManifest(
-                clusterName,
-                clusterUUID,
-                manifestBlobMetadata.name()
-            );
-            stalePaths.add(new BlobPath().add("manifest").buildAsString() + manifestBlobMetadata.name());
-            clusterMetadataManifest.getIndices().forEach(uploadedIndexMetadata -> {
-                if (filesToKeep.contains(uploadedIndexMetadata.getUploadedFilename()) == false) {
-                    stalePaths.add(
-                        new BlobPath().add("index").add(uploadedIndexMetadata.getIndexUUID()).buildAsString()
-                            + uploadedIndexMetadata.getUploadedFilename()
-                            + ".dat"
-                    );
-                }
-            });
-        });
-
-        if (stalePaths.toArray().length == 0) {
-            logger.trace("No stale Remote Cluster Metadata files found");
-            return;
+    private void deleteStaleClusterMetadata(String clusterName, String clusterUUID, int manifestsToRetain) {
+        if (deleteStaleMetadataRunning.compareAndSet(false, true) == false) {
+            logger.info("Delete stale cluster metadata task is already in progress.");
+            // return;
         }
-
-        deleteStalePaths(clusterName, clusterUUID, stalePaths);
-    }
-
-    private void deleteStalePaths(String clusterName, String clusterUUID, List<String> stalePaths) {
-        logger.debug(String.format(Locale.ROOT, "Deleting stale files from remote - %s", stalePaths));
-        getBlobStoreTransferService().deleteBlobsAsync(
+        getBlobStoreTransferService().listAllInSortedOrderAsync(
             ThreadPool.Names.REMOTE_PURGE,
-            getCusterMetadataBasePath(clusterName, clusterUUID),
-            stalePaths,
+            getManifestFolderPath(clusterName, clusterUUID),
+            "manifest",
+            Integer.MAX_VALUE,
             new ActionListener<>() {
                 @Override
-                public void onResponse(Void unused) {
-                    logger.info(String.format(Locale.ROOT, "Deleted [%s] stale Remote Cluster Metadata files", stalePaths.size()));
+                public void onResponse(List<BlobMetadata> blobMetadata) {
+                    if (blobMetadata.size() > manifestsToRetain) {
+                        List<ClusterMetadataManifest> allManifests = blobMetadata.stream()
+                            .map(
+                                mainfestBlobMetadata -> fetchRemoteClusterMetadataManifest(
+                                    clusterName,
+                                    clusterUUID,
+                                    mainfestBlobMetadata.name()
+                                )
+                            )
+                            .collect(Collectors.toList());
+                        deleteClusterMetadata(
+                            clusterName,
+                            clusterUUID,
+                            allManifests.subList(0, manifestsToRetain - 1),
+                            allManifests.subList(manifestsToRetain - 1, allManifests.size())
+                        );
+                    }
+                    deleteStaleMetadataRunning.set(false);
                 }
 
                 @Override
                 public void onFailure(Exception e) {
                     logger.error(
-                        new ParameterizedMessage("Exception occurred while deleting stale Remote Cluster Metadata files - {}", stalePaths)
+                        new ParameterizedMessage(
+                            "Exception occurred while deleting Remote Cluster Metadata for clusterUUIDs {}",
+                            clusterUUID
+                        )
                     );
+                    deleteStaleMetadataRunning.set(false);
                 }
             }
         );
+    }
+
+    private void deleteClusterMetadata(
+        String clusterName,
+        String clusterUUID,
+        List<ClusterMetadataManifest> activeManifestBlobMetadata,
+        List<ClusterMetadataManifest> staleManifestBlobMetadata
+    ) {
+        try {
+            Set<String> filesToKeep = new HashSet<>();
+            List<String> stalePaths = new ArrayList<>();
+            activeManifestBlobMetadata.forEach(clusterMetadataManifest -> {
+                filesToKeep.add(
+                    getManifestFileNamePrefix(clusterMetadataManifest.getClusterTerm(), clusterMetadataManifest.getStateVersion())
+                );
+                clusterMetadataManifest.getIndices()
+                    .forEach(uploadedIndexMetadata -> filesToKeep.add(uploadedIndexMetadata.getUploadedFilename()));
+            });
+            staleManifestBlobMetadata.forEach(clusterMetadataManifest -> {
+                stalePaths.add(
+                    new BlobPath().add("manifest").buildAsString() + getManifestFileName(
+                        clusterMetadataManifest.getClusterTerm(),
+                        clusterMetadataManifest.getStateVersion()
+                    )
+                );
+                clusterMetadataManifest.getIndices().forEach(uploadedIndexMetadata -> {
+                    if (filesToKeep.contains(uploadedIndexMetadata.getUploadedFilename()) == false) {
+                        stalePaths.add(
+                            new BlobPath().add("index").add(uploadedIndexMetadata.getIndexUUID()).buildAsString()
+                                + uploadedIndexMetadata.getUploadedFilename()
+                                + ".dat"
+                        );
+                    }
+                });
+            });
+
+            if (stalePaths.isEmpty()) {
+                logger.info("No stale Remote Cluster Metadata files found");
+                return;
+            }
+
+            deleteStalePaths(clusterName, clusterUUID, stalePaths);
+        } catch (IllegalStateException e) {
+            logger.error("Error while fetching Remote Cluster Metadata manifests", e);
+        } catch (IOException e) {
+            logger.error("Error while deleting stale Remote Cluster Metadata files", e);
+        } catch (Exception e) {
+            logger.error("Unexpected error while deleting stale Remote Cluster Metadata files", e);
+        }
+    }
+
+    private void deleteStalePaths(String clusterName, String clusterUUID, List<String> stalePaths) throws IOException {
+        logger.debug(String.format(Locale.ROOT, "Deleting stale files from remote - %s", stalePaths));
+        getBlobStoreTransferService().deleteBlobs(getCusterMetadataBasePath(clusterName, clusterUUID), stalePaths);
     }
 }
