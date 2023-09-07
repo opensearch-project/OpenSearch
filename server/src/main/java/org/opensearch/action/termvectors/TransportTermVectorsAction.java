@@ -94,7 +94,12 @@ public class TransportTermVectorsAction extends TransportSingleShardAction<TermV
         final String preference;
         // route realtime TermVector requests when segment replication is enabled to primary shards,
         // iff there are no other preferences/routings enabled for routing to a specific shard
-        if (shouldForcePrimaryRouting(state, request.request().realtime, request.request().preference(), request.concreteIndex())) {
+        if (shouldForcePrimaryRouting(
+            state.getMetadata(),
+            request.request().realtime,
+            request.request().preference(),
+            request.concreteIndex()
+        )) {
             preference = Preference.PRIMARY.type();
         } else {
             preference = request.request().preference();

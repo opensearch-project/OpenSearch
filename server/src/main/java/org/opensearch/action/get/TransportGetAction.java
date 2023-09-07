@@ -93,7 +93,7 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
     /**
      * Returns true if GET request should be routed to primary shards, else false.
      */
-    protected static boolean shouldForcePrimaryRouting(Metadata metadata, boolean realtime, String preference, String indexName) {
+    public static boolean shouldForcePrimaryRouting(Metadata metadata, boolean realtime, String preference, String indexName) {
         return metadata.isSegmentReplicationEnabled(indexName) && realtime && preference == null;
     }
 

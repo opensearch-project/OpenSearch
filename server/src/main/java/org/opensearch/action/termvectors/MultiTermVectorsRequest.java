@@ -64,7 +64,6 @@ public class MultiTermVectorsRequest extends ActionRequest
 
     String preference;
 
-    boolean realtime = true;
     List<TermVectorsRequest> requests = new ArrayList<>();
 
     final Set<String> ids = new HashSet<>();
@@ -188,17 +187,8 @@ public class MultiTermVectorsRequest extends ActionRequest
 
     @Override
     public MultiTermVectorsRequest realtime(boolean realtime) {
-        this.realtime = realtime;
         for (TermVectorsRequest request : requests) {
             request.realtime(realtime);
-        }
-        return this;
-    }
-
-    public MultiTermVectorsRequest preference(String preference) {
-        this.preference = preference;
-        for (TermVectorsRequest request : requests) {
-            request.preference(preference);
         }
         return this;
     }
