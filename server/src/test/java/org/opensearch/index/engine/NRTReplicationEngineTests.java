@@ -75,6 +75,28 @@ public class NRTReplicationEngineTests extends EngineTestCase {
         }
     }
 
+    public void testCreateEngineWithException() throws IOException {
+        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+        final Store nrtEngineStore = createStore(INDEX_SETTINGS, newDirectory());
+        try {
+            // Passing null translogPath to induce failure
+            final EngineConfig replicaConfig = config(
+                defaultSettings,
+                nrtEngineStore,
+                null,
+                NoMergePolicy.INSTANCE,
+                null,
+                null,
+                globalCheckpoint::get
+            );
+            new NRTReplicationEngine(replicaConfig);
+        } catch (Exception e) {
+            // Ignore as engine creation will fail
+        }
+        assertEquals(1, nrtEngineStore.refCount());
+        nrtEngineStore.close();
+    }
+
     public void testEngineWritesOpsToTranslog() throws Exception {
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
 
