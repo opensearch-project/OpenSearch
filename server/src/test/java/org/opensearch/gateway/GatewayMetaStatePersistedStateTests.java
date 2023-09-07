@@ -67,6 +67,7 @@ import org.opensearch.gateway.remote.ClusterMetadataManifest;
 import org.opensearch.gateway.remote.RemoteClusterStateService;
 import org.opensearch.node.Node;
 import org.opensearch.repositories.RepositoriesService;
+import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
@@ -79,12 +80,17 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
 import org.mockito.Mockito;
 
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteStoreClusterStateEnabled;
 import static org.opensearch.test.NodeRoles.nonClusterManagerNode;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -445,7 +451,7 @@ public class GatewayMetaStatePersistedStateTests extends OpenSearchTestCase {
                 () -> 0L
             );
             Supplier<RemoteClusterStateService> remoteClusterStateServiceSupplier = () -> {
-                if (RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING.get(settings) == true) {
+                if (isRemoteStoreClusterStateEnabled(settings)) {
                     return new RemoteClusterStateService(
                         nodeEnvironment.nodeId(),
                         () -> new RepositoriesService(
@@ -757,11 +763,26 @@ public class GatewayMetaStatePersistedStateTests extends OpenSearchTestCase {
         try {
             gateway = new MockGatewayMetaState(localNode, bigArrays);
             final PersistedStateRegistry persistedStateRegistry = persistedStateRegistry();
-            final Settings settingWithRemoteStateEnabled = Settings.builder()
-                .put(settings)
+
+            String stateRepoTypeAttributeKey = String.format(
+                Locale.getDefault(),
+                "node.attr." + REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT,
+                "randomRepoName"
+            );
+            String stateRepoSettingsAttributeKeyPrefix = String.format(
+                Locale.getDefault(),
+                "node.attr." + REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX,
+                "randomRepoName"
+            );
+
+            Settings settings = Settings.builder()
+                .put("node.attr." + REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY, "randomRepoName")
+                .put(stateRepoTypeAttributeKey, FsRepository.TYPE)
+                .put(stateRepoSettingsAttributeKeyPrefix + "location", "randomRepoPath")
                 .put(RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING.getKey(), true)
                 .build();
-            gateway.start(settingWithRemoteStateEnabled, nodeEnvironment, xContentRegistry(), persistedStateRegistry);
+            gateway.start(settings, nodeEnvironment, xContentRegistry(), persistedStateRegistry);
+
             final CoordinationState.PersistedState persistedState = gateway.getPersistedState();
             assertThat(persistedState, instanceOf(GatewayMetaState.LucenePersistedState.class));
             assertThat(

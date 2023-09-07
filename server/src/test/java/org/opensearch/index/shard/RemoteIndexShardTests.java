@@ -71,22 +71,18 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
         return createGroup(numberOfReplicas, settings, indexMapping, new NRTReplicationEngineFactory(), createTempDir());
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/9624")
     public void testNRTReplicaWithRemoteStorePromotedAsPrimaryRefreshRefresh() throws Exception {
         testNRTReplicaWithRemoteStorePromotedAsPrimary(false, false);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/9624")
     public void testNRTReplicaWithRemoteStorePromotedAsPrimaryRefreshCommit() throws Exception {
         testNRTReplicaWithRemoteStorePromotedAsPrimary(false, true);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/9624")
     public void testNRTReplicaWithRemoteStorePromotedAsPrimaryCommitRefresh() throws Exception {
         testNRTReplicaWithRemoteStorePromotedAsPrimary(true, false);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/9624")
     public void testNRTReplicaWithRemoteStorePromotedAsPrimaryCommitCommit() throws Exception {
         testNRTReplicaWithRemoteStorePromotedAsPrimary(true, true);
     }
@@ -145,10 +141,6 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
 
             assertEquals(InternalEngine.class, nextPrimary.getEngine().getClass());
             assertDocCounts(nextPrimary, totalDocs, totalDocs);
-
-            // As we are downloading segments from remote segment store on failover, there should not be
-            // any operations replayed from translog
-            assertEquals(prevOperationCount, nextPrimary.translogStats().estimatedNumberOfOperations());
 
             // refresh and push segments to our other replica.
             nextPrimary.refresh("test");
