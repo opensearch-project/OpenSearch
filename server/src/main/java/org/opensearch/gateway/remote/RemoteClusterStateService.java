@@ -745,13 +745,18 @@ public class RemoteClusterStateService implements Closeable {
 
                     @Override
                     public void onFailure(Exception e) {
-                        logger.error(new ParameterizedMessage("Exception occurred while deleting all remote cluster metadata for cluster UUID {}", clusterUUID), e);
+                        logger.error(
+                            new ParameterizedMessage(
+                                "Exception occurred while deleting all remote cluster metadata for cluster UUID {}",
+                                clusterUUID
+                            ),
+                            e
+                        );
                     }
                 }
             );
         });
     }
-
 
     /**
      * Deletes older than last {@code versionsToRetain} manifests. Also cleans up unreferenced IndexMetadata associated with older manifests
@@ -762,7 +767,7 @@ public class RemoteClusterStateService implements Closeable {
     private void deleteStaleClusterMetadata(String clusterName, String clusterUUID, int manifestsToRetain) {
         if (deleteStaleMetadataRunning.compareAndSet(false, true) == false) {
             logger.info("Delete stale cluster metadata task is already in progress.");
-             return;
+            return;
         }
         getBlobStoreTransferService().listAllInSortedOrderAsync(
             ThreadPool.Names.REMOTE_PURGE,
