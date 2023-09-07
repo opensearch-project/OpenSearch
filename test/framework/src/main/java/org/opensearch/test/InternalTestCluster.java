@@ -1848,6 +1848,27 @@ public final class InternalTestCluster extends TestCluster {
         stopRandomNonClusterManagerNode();
     }
 
+    /**
+     * Stops all running nodes in cluster
+     */
+    public void stopAllNodes() {
+        try {
+            int totalDataNodes = numDataNodes();
+            while (totalDataNodes > 0) {
+                stopRandomDataNode();
+                totalDataNodes -= 1;
+            }
+            int totalClusterManagerNodes = numClusterManagerNodes();
+            while (totalClusterManagerNodes > 1) {
+                stopRandomNonClusterManagerNode();
+                totalClusterManagerNodes -= 1;
+            }
+            stopCurrentClusterManagerNode();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     private synchronized void startAndPublishNodesAndClients(List<NodeAndClient> nodeAndClients) {
         if (nodeAndClients.size() > 0) {
             final int newClusterManagers = (int) nodeAndClients.stream()
