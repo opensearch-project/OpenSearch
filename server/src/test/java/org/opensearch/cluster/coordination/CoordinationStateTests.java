@@ -935,7 +935,8 @@ public class CoordinationStateTests extends OpenSearchTestCase {
                     Version.CURRENT,
                     randomAlphaOfLength(10),
                     false,
-                    Collections.emptyList()
+                    Collections.emptyList(),
+                    randomAlphaOfLength(10)
                 )
             );
 
@@ -976,7 +977,8 @@ public class CoordinationStateTests extends OpenSearchTestCase {
             Version.CURRENT,
             randomAlphaOfLength(10),
             false,
-            Collections.emptyList()
+            Collections.emptyList(),
+            randomAlphaOfLength(10)
         );
         Mockito.when(remoteClusterStateService.writeFullMetadata(clusterState2)).thenReturn(manifest2);
         coordinationState.handlePrePublish(clusterState2);
