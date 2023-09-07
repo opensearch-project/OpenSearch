@@ -46,16 +46,13 @@ import org.opensearch.common.util.BigArrays;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.gateway.remote.RemoteClusterStateService;
+import org.opensearch.index.recovery.RemoteStoreRestoreService;
 import org.opensearch.plugins.MetadataUpgrader;
-import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.function.Supplier;
 
-import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteStoreClusterStateEnabled;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -68,10 +65,26 @@ import static org.mockito.Mockito.when;
 public class MockGatewayMetaState extends GatewayMetaState {
     private final DiscoveryNode localNode;
     private final BigArrays bigArrays;
+    private final RemoteClusterStateService remoteClusterStateService;
+    private final RemoteStoreRestoreService remoteStoreRestoreService;
 
     public MockGatewayMetaState(DiscoveryNode localNode, BigArrays bigArrays) {
         this.localNode = localNode;
         this.bigArrays = bigArrays;
+        this.remoteClusterStateService = mock(RemoteClusterStateService.class);
+        this.remoteStoreRestoreService = mock(RemoteStoreRestoreService.class);
+    }
+
+    public MockGatewayMetaState(
+        DiscoveryNode localNode,
+        BigArrays bigArrays,
+        RemoteClusterStateService remoteClusterStateService,
+        RemoteStoreRestoreService remoteStoreRestoreService
+    ) {
+        this.localNode = localNode;
+        this.bigArrays = bigArrays;
+        this.remoteClusterStateService = remoteClusterStateService;
+        this.remoteStoreRestoreService = remoteStoreRestoreService;
     }
 
     @Override
@@ -108,26 +121,6 @@ public class MockGatewayMetaState extends GatewayMetaState {
         } catch (IOException e) {
             throw new AssertionError(e);
         }
-        Supplier<RemoteClusterStateService> remoteClusterStateServiceSupplier = () -> {
-            if (isRemoteStoreClusterStateEnabled(settings)) {
-                return new RemoteClusterStateService(
-                    nodeEnvironment.nodeId(),
-                    () -> new RepositoriesService(
-                        settings,
-                        clusterService,
-                        transportService,
-                        Collections.emptyMap(),
-                        Collections.emptyMap(),
-                        transportService.getThreadPool()
-                    ),
-                    settings,
-                    new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                    () -> 0L
-                );
-            } else {
-                return null;
-            }
-        };
         start(
             settings,
             transportService,
@@ -142,8 +135,9 @@ public class MockGatewayMetaState extends GatewayMetaState {
                 new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                 () -> 0L
             ),
-            remoteClusterStateServiceSupplier.get(),
-            persistedStateRegistry
+            remoteClusterStateService,
+            persistedStateRegistry,
+            remoteStoreRestoreService
         );
     }
 }
