@@ -127,6 +127,14 @@ public interface DateFormatter {
     String pattern();
 
     /**
+     * A name based format for this formatter. Can be one of the registered formatters like <code>epoch_millis</code> or
+     * a configured format like <code>HH:mm:ss</code>
+     *
+     * @return The name of this formatter
+     */
+    String printPattern();
+
+    /**
      * Returns the configured locale of the date formatter
      *
      * @return The locale of this formatter

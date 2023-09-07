@@ -243,7 +243,7 @@ public interface DocValueFormat extends NamedWriteable {
         }
 
         public DateTime(StreamInput in) throws IOException {
-            this.formatter = DateFormatter.forPattern(in.readString());
+            this.formatter = DateFormatter.forPattern(in.readString(), in.readString());
             this.parser = formatter.toDateMathParser();
             String zoneId = in.readString();
             this.timeZone = ZoneId.of(zoneId);
@@ -261,6 +261,7 @@ public interface DocValueFormat extends NamedWriteable {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(formatter.pattern());
+            out.writeString(formatter.printPattern());
             out.writeString(timeZone.getId());
             out.writeVInt(resolution.ordinal());
             if (out.getVersion().before(Version.V_3_0_0)) {

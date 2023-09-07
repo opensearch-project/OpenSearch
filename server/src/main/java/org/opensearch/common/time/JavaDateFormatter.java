@@ -68,6 +68,7 @@ class JavaDateFormatter implements DateFormatter {
     }
 
     private final String format;
+    private final String printFormat;
     private final DateTimeFormatter printer;
     private final List<DateTimeFormatter> parsers;
     private final JavaDateFormatter roundupParser;
@@ -80,8 +81,8 @@ class JavaDateFormatter implements DateFormatter {
      */
     static class RoundUpFormatter extends JavaDateFormatter {
 
-        RoundUpFormatter(String format, List<DateTimeFormatter> roundUpParsers, Boolean canCacheLastParsedFormatter) {
-            super(format, firstFrom(roundUpParsers), null, roundUpParsers, canCacheLastParsedFormatter);
+        RoundUpFormatter(String format, List<DateTimeFormatter> roundUpParsers) {
+            super(format, firstFrom(roundUpParsers), null, roundUpParsers);
         }
 
         private static DateTimeFormatter firstFrom(List<DateTimeFormatter> roundUpParsers) {
@@ -95,12 +96,18 @@ class JavaDateFormatter implements DateFormatter {
     }
 
     // named formatters use default roundUpParser
-    JavaDateFormatter(String format, DateTimeFormatter printer, Boolean canCacheLastParsedFormatter, DateTimeFormatter... parsers) {
-        this(format, printer, ROUND_UP_BASE_FIELDS, canCacheLastParsedFormatter, parsers);
+    JavaDateFormatter(
+        String format,
+        String printFormat,
+        DateTimeFormatter printer,
+        Boolean canCacheLastParsedFormatter,
+        DateTimeFormatter... parsers
+    ) {
+        this(format, printFormat, printer, ROUND_UP_BASE_FIELDS, canCacheLastParsedFormatter, parsers);
     }
 
     JavaDateFormatter(String format, DateTimeFormatter printer, DateTimeFormatter... parsers) {
-        this(format, printer, false, parsers);
+        this(format, format, printer, false, parsers);
     }
 
     private static final BiConsumer<DateTimeFormatterBuilder, DateTimeFormatter> ROUND_UP_BASE_FIELDS = (builder, parser) -> {
@@ -117,6 +124,7 @@ class JavaDateFormatter implements DateFormatter {
     // subclasses override roundUpParser
     JavaDateFormatter(
         String format,
+        String printFormat,
         DateTimeFormatter printer,
         BiConsumer<DateTimeFormatterBuilder, DateTimeFormatter> roundupParserConsumer,
         Boolean canCacheLastParsedFormatter,
@@ -135,6 +143,7 @@ class JavaDateFormatter implements DateFormatter {
         }
         this.printer = printer;
         this.format = format;
+        this.printFormat = printFormat;
         this.canCacheLastParsedFormatter = canCacheLastParsedFormatter;
 
         if (parsers.length == 0) {
@@ -143,7 +152,7 @@ class JavaDateFormatter implements DateFormatter {
             this.parsers = Arrays.asList(parsers);
         }
         List<DateTimeFormatter> roundUp = createRoundUpParser(format, roundupParserConsumer);
-        this.roundupParser = new RoundUpFormatter(format, roundUp, canCacheLastParsedFormatter);
+        this.roundupParser = new RoundUpFormatter(format, roundUp);
     }
 
     JavaDateFormatter(
@@ -152,7 +161,7 @@ class JavaDateFormatter implements DateFormatter {
         BiConsumer<DateTimeFormatterBuilder, DateTimeFormatter> roundupParserConsumer,
         DateTimeFormatter... parsers
     ) {
-        this(format, printer, roundupParserConsumer, false, parsers);
+        this(format, format, printer, roundupParserConsumer, false, parsers);
     }
 
     /**
@@ -194,7 +203,8 @@ class JavaDateFormatter implements DateFormatter {
         List<DateTimeFormatter> roundUpParsers = new ArrayList<>(formatters.size());
 
         assert printFormatter instanceof JavaDateFormatter;
-        DateTimeFormatter printer = ((JavaDateFormatter) printFormatter).getPrinter();
+        JavaDateFormatter javaPrintFormatter = (JavaDateFormatter) printFormatter;
+        DateTimeFormatter printer = javaPrintFormatter.getPrinter();
         for (DateFormatter formatter : formatters) {
             assert formatter instanceof JavaDateFormatter;
             JavaDateFormatter javaDateFormatter = (JavaDateFormatter) formatter;
@@ -202,21 +212,32 @@ class JavaDateFormatter implements DateFormatter {
             roundUpParsers.addAll(javaDateFormatter.getRoundupParser().getParsers());
         }
 
-        return new JavaDateFormatter(input, printer, roundUpParsers, parsers, canCacheLastParsedFormatter);
+        return new JavaDateFormatter(input, javaPrintFormatter.format, printer, roundUpParsers, parsers, canCacheLastParsedFormatter);
     }
 
     private JavaDateFormatter(
         String format,
+        String printFormat,
         DateTimeFormatter printer,
         List<DateTimeFormatter> roundUpParsers,
         List<DateTimeFormatter> parsers,
         Boolean canCacheLastParsedFormatter
     ) {
         this.format = format;
+        this.printFormat = printFormat;
         this.printer = printer;
-        this.roundupParser = roundUpParsers != null ? new RoundUpFormatter(format, roundUpParsers, canCacheLastParsedFormatter) : null;
+        this.roundupParser = roundUpParsers != null ? new RoundUpFormatter(format, roundUpParsers) : null;
         this.parsers = parsers;
         this.canCacheLastParsedFormatter = canCacheLastParsedFormatter;
+    }
+
+    private JavaDateFormatter(
+        String format,
+        DateTimeFormatter printer,
+        List<DateTimeFormatter> roundUpParsers,
+        List<DateTimeFormatter> parsers
+    ) {
+        this(format, format, printer, roundUpParsers, parsers, false);
     }
 
     JavaDateFormatter getRoundupParser() {
@@ -289,7 +310,7 @@ class JavaDateFormatter implements DateFormatter {
             .stream()
             .map(p -> p.withZone(zoneId))
             .collect(Collectors.toList());
-        return new JavaDateFormatter(format, printer.withZone(zoneId), roundUpParsers, parsers, this.canCacheLastParsedFormatter);
+        return new JavaDateFormatter(format, printFormat, printer.withZone(zoneId), roundUpParsers, parsers, canCacheLastParsedFormatter);
     }
 
     @Override
@@ -303,7 +324,7 @@ class JavaDateFormatter implements DateFormatter {
             .stream()
             .map(p -> p.withLocale(locale))
             .collect(Collectors.toList());
-        return new JavaDateFormatter(format, printer.withLocale(locale), roundUpParsers, parsers, this.canCacheLastParsedFormatter);
+        return new JavaDateFormatter(format, printFormat, printer.withLocale(locale), roundUpParsers, parsers, canCacheLastParsedFormatter);
     }
 
     @Override
@@ -314,6 +335,11 @@ class JavaDateFormatter implements DateFormatter {
     @Override
     public String pattern() {
         return format;
+    }
+
+    @Override
+    public String printPattern() {
+        return printFormat;
     }
 
     @Override
