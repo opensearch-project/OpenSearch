@@ -20,7 +20,6 @@ import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -250,7 +249,7 @@ public class DefaultTracerTests extends OpenSearchTestCase {
      * 4. verify the current_span is still the same on async thread as the 2
      * 5. verify the main thread has current span as null.
      */
-    public void testSpanAcrossThreads() throws ExecutionException, InterruptedException {
+    public void testSpanAcrossThreads() {
         TracingTelemetry tracingTelemetry = new MockTracingTelemetry();
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
 
@@ -279,10 +278,10 @@ public class DefaultTracerTests extends OpenSearchTestCase {
             span.endSpan();
             assertEquals(null, defaultTracer.getCurrentSpan());
         }, executorService);
-        asyncTask.get();
+        asyncTask.join();
     }
 
-    public void testSpanCloseOnThread2() throws ExecutionException, InterruptedException {
+    public void testSpanCloseOnThread2() {
         TracingTelemetry tracingTelemetry = new MockTracingTelemetry();
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         ThreadContextBasedTracerContextStorage spanTracerStorage = new ThreadContextBasedTracerContextStorage(
@@ -308,7 +307,7 @@ public class DefaultTracerTests extends OpenSearchTestCase {
                 }
             }), executorService);
             assertEquals(span, defaultTracer.getCurrentSpan().getSpan());
-            asyncTask.get();
+            asyncTask.join();
         }
         assertEquals(null, defaultTracer.getCurrentSpan());
     }
@@ -326,7 +325,7 @@ public class DefaultTracerTests extends OpenSearchTestCase {
      * 6. verify the current_span is still the same on async thread as the 2
      * 7. verify the main thread has current span as null.
      */
-    public void testSpanAcrossThreadsMultipleSpans() throws ExecutionException, InterruptedException {
+    public void testSpanAcrossThreadsMultipleSpans() {
         TracingTelemetry tracingTelemetry = new MockTracingTelemetry();
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
 
@@ -367,7 +366,7 @@ public class DefaultTracerTests extends OpenSearchTestCase {
             parentSpan.endSpan();
             assertEquals(null, defaultTracer.getCurrentSpan());
         }, executorService);
-        asyncTask.get();
+        asyncTask.join();
     }
 
     public void testClose() throws IOException {
