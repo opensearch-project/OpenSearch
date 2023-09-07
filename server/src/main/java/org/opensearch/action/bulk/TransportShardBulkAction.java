@@ -72,7 +72,6 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.action.ActionListener;
@@ -539,7 +538,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             }
             // TODO - While removing remote store flag, this can be encapsulated to single class with common interface for backpressure
             // service
-            if (FeatureFlags.isEnabled(FeatureFlags.REMOTE_STORE) && remoteStorePressureService.isSegmentsUploadBackpressureEnabled()) {
+            if (remoteStorePressureService.isSegmentsUploadBackpressureEnabled()) {
                 remoteStorePressureService.validateSegmentsUploadLag(request.shardId());
             }
         }
