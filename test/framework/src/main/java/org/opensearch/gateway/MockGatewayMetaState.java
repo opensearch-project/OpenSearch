@@ -48,8 +48,6 @@ import org.opensearch.env.NodeEnvironment;
 import org.opensearch.gateway.remote.RemoteClusterStateService;
 import org.opensearch.index.recovery.RemoteStoreRestoreService;
 import org.opensearch.plugins.MetadataUpgrader;
-import org.opensearch.repositories.RepositoriesService;
-import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
