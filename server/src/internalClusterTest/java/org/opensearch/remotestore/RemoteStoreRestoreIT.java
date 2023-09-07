@@ -250,7 +250,7 @@ public class RemoteStoreRestoreIT extends BaseRemoteStoreRestoreIT {
         for (String index : indices) {
             Map<String, Long> indexStats = indexData(2, true, index);
             indicesStats.put(index, indexStats);
-            assertEquals(shardCount * (replicaCount  + 1), getNumShards(index).totalNumShards);
+            assertEquals(shardCount * (replicaCount + 1), getNumShards(index).totalNumShards);
         }
 
         for (String index : indices) {
