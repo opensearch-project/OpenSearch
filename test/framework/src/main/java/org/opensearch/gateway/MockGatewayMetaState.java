@@ -55,9 +55,9 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.function.Supplier;
 
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteStoreClusterStateEnabled;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
-import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteStoreClusterStateEnabled;
 
 /**
  * {@link GatewayMetaState} constructor accepts a lot of arguments.
