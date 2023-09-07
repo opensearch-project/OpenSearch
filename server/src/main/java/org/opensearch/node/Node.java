@@ -1335,6 +1335,10 @@ public class Node implements Closeable {
         injector.getInstance(PeerRecoverySourceService.class).start();
         injector.getInstance(SegmentReplicationSourceService.class).start();
 
+        final RemoteClusterStateService remoteClusterStateService = injector.getInstance(RemoteClusterStateService.class);
+        if (remoteClusterStateService != null) {
+            remoteClusterStateService.start();
+        }
         // Load (and maybe upgrade) the metadata stored on disk
         final GatewayMetaState gatewayMetaState = injector.getInstance(GatewayMetaState.class);
         gatewayMetaState.start(
@@ -1346,7 +1350,8 @@ public class Node implements Closeable {
             injector.getInstance(MetadataUpgrader.class),
             injector.getInstance(PersistedClusterStateService.class),
             injector.getInstance(RemoteClusterStateService.class),
-            injector.getInstance(PersistedStateRegistry.class)
+            injector.getInstance(PersistedStateRegistry.class),
+            injector.getInstance(RemoteStoreRestoreService.class)
         );
         if (Assertions.ENABLED) {
             try {

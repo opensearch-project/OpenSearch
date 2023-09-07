@@ -106,7 +106,7 @@ public class BlobStoreRepositoryRemoteIndexTests extends BlobStoreRepositoryHelp
             .put("node.attr." + REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY, repoName)
             .put(repoTypeAttributeKey, FsRepository.TYPE)
             .put(repoSettingsAttributeKeyPrefix + "location", repoPath)
-            .put(RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING.getKey(), true)
+            .put(RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING.getKey(), false)
             .build();
     }
 
