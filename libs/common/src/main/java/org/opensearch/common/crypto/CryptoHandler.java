@@ -11,6 +11,7 @@ package org.opensearch.common.crypto;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.io.InputStreamContainer;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 
@@ -22,7 +23,7 @@ import java.io.InputStream;
  * U - Parsed Encryption Metadata / CryptoContext
  */
 @ExperimentalApi
-public interface CryptoHandler<T, U> {
+public interface CryptoHandler<T, U> extends Closeable {
 
     /**
      * To initialise or create a new crypto metadata to be used in encryption. This is needed to set the context before

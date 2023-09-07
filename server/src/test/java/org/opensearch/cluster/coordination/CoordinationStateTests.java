@@ -48,12 +48,14 @@ import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.gateway.GatewayMetaState.RemotePersistedState;
 import org.opensearch.gateway.remote.ClusterMetadataManifest;
 import org.opensearch.gateway.remote.RemoteClusterStateService;
+import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.test.EqualsHashCodeTestUtils;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -62,6 +64,9 @@ import org.mockito.Mockito;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -937,9 +942,26 @@ public class CoordinationStateTests extends OpenSearchTestCase {
         final PersistedStateRegistry persistedStateRegistry = persistedStateRegistry();
         persistedStateRegistry.addPersistedState(PersistedStateType.LOCAL, ps1);
         persistedStateRegistry.addPersistedState(PersistedStateType.REMOTE, new RemotePersistedState(remoteClusterStateService));
-        final Settings settings = Settings.builder()
+
+        String randomRepoName = "randomRepoName";
+        String stateRepoTypeAttributeKey = String.format(
+            Locale.getDefault(),
+            "node.attr." + REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT,
+            randomRepoName
+        );
+        String stateRepoSettingsAttributeKeyPrefix = String.format(
+            Locale.getDefault(),
+            "node.attr." + REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX,
+            randomRepoName
+        );
+
+        Settings settings = Settings.builder()
+            .put("node.attr." + REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY, randomRepoName)
+            .put(stateRepoTypeAttributeKey, FsRepository.TYPE)
+            .put(stateRepoSettingsAttributeKeyPrefix + "location", "randomRepoPath")
             .put(RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING.getKey(), true)
             .build();
+
         final CoordinationState coordinationState = createCoordinationState(persistedStateRegistry, node1, settings);
         coordinationState.handlePrePublish(clusterState);
         Mockito.verifyNoInteractions(remoteClusterStateService);
