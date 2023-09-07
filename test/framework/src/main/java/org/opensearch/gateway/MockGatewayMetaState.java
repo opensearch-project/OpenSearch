@@ -108,7 +108,6 @@ public class MockGatewayMetaState extends GatewayMetaState {
     @Override
     public void close() throws IOException {
         super.close();
-        threadPool.shutdown();
     }
 
     public void start(

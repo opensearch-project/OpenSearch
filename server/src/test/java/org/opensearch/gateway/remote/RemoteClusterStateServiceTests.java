@@ -130,6 +130,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
     public void teardown() throws Exception {
         super.tearDown();
         remoteClusterStateService.close();
+        threadPool.shutdown();
     }
 
     public void testFailWriteFullMetadataNonClusterManagerNode() throws IOException {
