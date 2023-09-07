@@ -1,0 +1,18 @@
+name: Apply issue labels to PR
+
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize, converted_to_draft, edited]
+  check_suite:
+    types: [ requested, rerequested, completed ]
+
+jobs:
+  mirror-labels-to-pr:
+#    if: github.repository == 'opensearch-project/OpenSearch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Run label script
+        run: ../../.github-automation/copy-issue-labels-to-pr.py ${{ secrets.GITHUB_TOKEN }} $GITHUB_REPOSITORY $GITHUB_EVENT_PATH
