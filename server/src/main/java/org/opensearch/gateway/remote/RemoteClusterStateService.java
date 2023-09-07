@@ -28,6 +28,8 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.Index;
 import org.opensearch.gateway.remote.ClusterMetadataManifest.UploadedIndexMetadata;
 import org.opensearch.index.remote.RemoteStoreUtils;
+import org.opensearch.node.Node;
+import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
@@ -52,6 +54,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.opensearch.gateway.PersistedClusterStateService.SLOW_WRITE_LOGGING_THRESHOLD;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteStoreClusterStateEnabled;
 
 /**
  * A Service which provides APIs to upload and download cluster metadata from remote store.
@@ -80,23 +83,13 @@ public class RemoteClusterStateService implements Closeable {
     /**
      * Used to specify if cluster state metadata should be published to remote store
      */
-    // TODO The remote state enabled and repository settings should be read from node attributes.
-    // Dependent on https://github.com/opensearch-project/OpenSearch/pull/9105/
     public static final Setting<Boolean> REMOTE_CLUSTER_STATE_ENABLED_SETTING = Setting.boolSetting(
         "cluster.remote_store.state.enabled",
         false,
         Property.NodeScope,
         Property.Final
     );
-    /**
-     * Used to specify default repo to use for cluster state metadata upload
-     */
-    public static final Setting<String> REMOTE_CLUSTER_STATE_REPOSITORY_SETTING = Setting.simpleString(
-        "cluster.remote_store.state.repository",
-        "",
-        Property.NodeScope,
-        Property.Final
-    );
+
     private static final Logger logger = LogManager.getLogger(RemoteClusterStateService.class);
 
     public static final String DELIMITER = "__";
@@ -115,7 +108,7 @@ public class RemoteClusterStateService implements Closeable {
         ClusterSettings clusterSettings,
         LongSupplier relativeTimeNanosSupplier
     ) {
-        assert REMOTE_CLUSTER_STATE_ENABLED_SETTING.get(settings) == true : "Remote cluster state is not enabled";
+        assert isRemoteStoreClusterStateEnabled(settings) : "Remote cluster state is not enabled";
         this.nodeId = nodeId;
         this.repositoriesService = repositoriesService;
         this.settings = settings;
@@ -384,8 +377,10 @@ public class RemoteClusterStateService implements Closeable {
         if (blobStoreRepository != null) {
             return;
         }
-        assert REMOTE_CLUSTER_STATE_ENABLED_SETTING.get(settings) == true : "Remote cluster state is not enabled";
-        final String remoteStoreRepo = REMOTE_CLUSTER_STATE_REPOSITORY_SETTING.get(settings);
+        assert isRemoteStoreClusterStateEnabled(settings) : "Remote cluster state is not enabled";
+        final String remoteStoreRepo = settings.get(
+            Node.NODE_ATTRIBUTES.getKey() + RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY
+        );
         assert remoteStoreRepo != null : "Remote Cluster State repository is not configured";
         final Repository repository = repositoriesService.get().repository(remoteStoreRepo);
         assert repository instanceof BlobStoreRepository : "Repository should be instance of BlobStoreRepository";
