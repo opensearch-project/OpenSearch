@@ -54,7 +54,7 @@ public class TelemetryTracerEnabledSanityIT extends OpenSearchIntegTestCase {
     }
 
     public void testSanityChecksWhenTracingEnabled() throws Exception {
-        Client client = client();
+        Client client = internalCluster().clusterManagerClient();
         // ENABLE TRACING
         updateTelemetrySetting(client, true);
 
