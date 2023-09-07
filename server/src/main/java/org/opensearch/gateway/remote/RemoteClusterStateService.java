@@ -814,7 +814,8 @@ public class RemoteClusterStateService implements Closeable {
     ) {
         try {
             Set<String> filesToKeep = new HashSet<>();
-            List<String> stalePaths = new ArrayList<>();
+            Set<String> staleManifestPaths = new HashSet<>();
+            Set<String> staleIndexMetadataPaths = new HashSet<>();
             activeManifestBlobMetadata.forEach(blobMetadata -> {
                 ClusterMetadataManifest clusterMetadataManifest = fetchRemoteClusterMetadataManifest(
                     clusterName,
@@ -830,10 +831,10 @@ public class RemoteClusterStateService implements Closeable {
                     clusterUUID,
                     blobMetadata.name()
                 );
-                stalePaths.add(new BlobPath().add("manifest").buildAsString() + blobMetadata.name());
+                staleManifestPaths.add(new BlobPath().add("manifest").buildAsString() + blobMetadata.name());
                 clusterMetadataManifest.getIndices().forEach(uploadedIndexMetadata -> {
                     if (filesToKeep.contains(uploadedIndexMetadata.getUploadedFilename()) == false) {
-                        stalePaths.add(
+                        staleIndexMetadataPaths.add(
                             new BlobPath().add("index").add(uploadedIndexMetadata.getIndexUUID()).buildAsString()
                                 + uploadedIndexMetadata.getUploadedFilename()
                                 + ".dat"
@@ -842,12 +843,13 @@ public class RemoteClusterStateService implements Closeable {
                 });
             });
 
-            if (stalePaths.isEmpty()) {
+            if (staleManifestPaths.isEmpty()) {
                 logger.info("No stale Remote Cluster Metadata files found");
                 return;
             }
 
-            deleteStalePaths(clusterName, clusterUUID, stalePaths);
+            deleteStalePaths(clusterName, clusterUUID, new ArrayList<>(staleIndexMetadataPaths));
+            deleteStalePaths(clusterName, clusterUUID, new ArrayList<>(staleManifestPaths));
         } catch (IllegalStateException e) {
             logger.error("Error while fetching Remote Cluster Metadata manifests", e);
         } catch (IOException e) {
