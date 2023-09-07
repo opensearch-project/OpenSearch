@@ -90,7 +90,7 @@ import org.mockito.Mockito;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT;
-import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteStoreAttributePresent;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteStoreClusterStateEnabled;
 import static org.opensearch.test.NodeRoles.nonClusterManagerNode;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -451,7 +451,7 @@ public class GatewayMetaStatePersistedStateTests extends OpenSearchTestCase {
                 () -> 0L
             );
             Supplier<RemoteClusterStateService> remoteClusterStateServiceSupplier = () -> {
-                if (isRemoteStoreAttributePresent(settings) == true) {
+                if (isRemoteStoreClusterStateEnabled(settings)) {
                     return new RemoteClusterStateService(
                         nodeEnvironment.nodeId(),
                         () -> new RepositoriesService(

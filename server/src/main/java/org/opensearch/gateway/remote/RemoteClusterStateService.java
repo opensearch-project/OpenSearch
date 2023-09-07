@@ -54,7 +54,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.opensearch.gateway.PersistedClusterStateService.SLOW_WRITE_LOGGING_THRESHOLD;
-import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteStoreAttributePresent;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteStoreClusterStateEnabled;
 
 /**
  * A Service which provides APIs to upload and download cluster metadata from remote store.
@@ -108,8 +108,7 @@ public class RemoteClusterStateService implements Closeable {
         ClusterSettings clusterSettings,
         LongSupplier relativeTimeNanosSupplier
     ) {
-        assert REMOTE_CLUSTER_STATE_ENABLED_SETTING.get(settings) == true && isRemoteStoreAttributePresent(settings) == true
-            : "Remote cluster state is not enabled";
+        assert isRemoteStoreClusterStateEnabled(settings) : "Remote cluster state is not enabled";
         this.nodeId = nodeId;
         this.repositoriesService = repositoriesService;
         this.settings = settings;
@@ -378,8 +377,7 @@ public class RemoteClusterStateService implements Closeable {
         if (blobStoreRepository != null) {
             return;
         }
-        assert REMOTE_CLUSTER_STATE_ENABLED_SETTING.get(settings) == true && isRemoteStoreAttributePresent(settings) == true
-            : "Remote cluster state is not enabled";
+        assert isRemoteStoreClusterStateEnabled(settings) : "Remote cluster state is not enabled";
         final String remoteStoreRepo = settings.get(
             Node.NODE_ATTRIBUTES.getKey() + RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY
         );
