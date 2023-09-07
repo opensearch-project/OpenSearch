@@ -46,9 +46,9 @@ public class TraceableActionListener<Response> implements ActionListener<Respons
      * @param tracer tracer
      * @return action listener
      */
-    public static ActionListener create(ActionListener delegate, Span span, Tracer tracer) {
+    public static <Response> ActionListener<Response> create(ActionListener<Response> delegate, Span span, Tracer tracer) {
         if (FeatureFlags.isEnabled(FeatureFlags.TELEMETRY) == true) {
-            return new TraceableActionListener(delegate, span, tracer);
+            return new TraceableActionListener<Response>(delegate, span, tracer);
         } else {
             return delegate;
         }

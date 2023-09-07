@@ -50,9 +50,13 @@ public class TraceableTransportResponseHandler<T extends TransportResponse> impl
      * @param tracer tracer
      * @return transportResponseHandler
      */
-    public static TransportResponseHandler create(TransportResponseHandler delegate, Span span, Tracer tracer) {
+    public static <S extends TransportResponse> TransportResponseHandler<S> create(
+        TransportResponseHandler<S> delegate,
+        Span span,
+        Tracer tracer
+    ) {
         if (FeatureFlags.isEnabled(FeatureFlags.TELEMETRY) == true) {
-            return new TraceableTransportResponseHandler(delegate, span, tracer);
+            return new TraceableTransportResponseHandler<S>(delegate, span, tracer);
         } else {
             return delegate;
         }

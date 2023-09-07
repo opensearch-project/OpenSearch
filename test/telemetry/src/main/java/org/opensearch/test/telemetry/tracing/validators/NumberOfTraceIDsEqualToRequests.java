@@ -14,6 +14,7 @@ import org.opensearch.test.telemetry.tracing.TracingValidator;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -52,6 +53,13 @@ public class NumberOfTraceIDsEqualToRequests implements TracingValidator {
     }
 
     private boolean isMatchingSpan(MockSpanData mockSpanData) {
-        return mockSpanData.getAttributes().get(FILTERING_ATTRIBUTE).equals(attributes.getAttributesMap().get(FILTERING_ATTRIBUTE));
+        if (mockSpanData.getAttributes().isEmpty()) {
+            return true;
+        } else {
+            return Objects.equals(
+                mockSpanData.getAttributes().get(FILTERING_ATTRIBUTE),
+                attributes.getAttributesMap().get(FILTERING_ATTRIBUTE)
+            );
+        }
     }
 }

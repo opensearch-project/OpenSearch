@@ -867,11 +867,7 @@ public class TransportService extends AbstractLifecycleComponent
     ) {
         final Span span = tracer.startSpan(SpanBuilder.from(action, connection));
         try (SpanScope spanScope = tracer.withSpanInScope(span)) {
-            final TransportResponseHandler<T> traceableTransportResponseHandler = TraceableTransportResponseHandler.create(
-                handler,
-                span,
-                tracer
-            );
+            TransportResponseHandler<T> traceableTransportResponseHandler = TraceableTransportResponseHandler.create(handler, span, tracer);
             try {
                 logger.debug("Action: " + action);
                 final TransportResponseHandler<T> delegate;

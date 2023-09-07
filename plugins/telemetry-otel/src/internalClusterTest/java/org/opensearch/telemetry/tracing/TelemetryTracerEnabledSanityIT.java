@@ -72,7 +72,6 @@ public class TelemetryTracerEnabledSanityIT extends OpenSearchIntegTestCase {
         client.prepareSearch().setSearchType("query_then_fetch").setPreFilterShardSize(3).setQuery(queryStringQuery("fox")).get();
         client.prepareSearch().setSearchType("query_then_fetch").setPreFilterShardSize(3).setQuery(queryStringQuery("jumps")).get();
 
-        updateTelemetrySetting(client, false);
         ensureGreen();
         refresh();
 

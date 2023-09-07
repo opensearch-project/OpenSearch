@@ -47,9 +47,9 @@ public class TraceableTaskListener<Response> implements TaskListener<Response> {
      * @param tracer tracer
      * @return task listener
      */
-    public static TaskListener create(TaskListener delegate, Span span, Tracer tracer) {
+    public static <Response> TaskListener<Response> create(TaskListener<Response> delegate, Span span, Tracer tracer) {
         if (FeatureFlags.isEnabled(FeatureFlags.TELEMETRY) == true) {
-            return new TraceableTaskListener(delegate, span, tracer);
+            return new TraceableTaskListener<Response>(delegate, span, tracer);
         } else {
             return delegate;
         }
