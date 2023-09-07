@@ -423,8 +423,13 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
             this.uploadedFilename = in.readString();
         }
 
-        public String getUploadedFilename() {
+        public String getUploadedFilePath() {
             return uploadedFilename;
+        }
+
+        public String getUploadedFilename() {
+            String[] splitPath = uploadedFilename.split("/");
+            return splitPath[splitPath.length - 1];
         }
 
         public String getIndexName() {
@@ -440,7 +445,7 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
             return builder.startObject()
                 .field(INDEX_NAME_FIELD.getPreferredName(), getIndexName())
                 .field(INDEX_UUID_FIELD.getPreferredName(), getIndexUUID())
-                .field(UPLOADED_FILENAME_FIELD.getPreferredName(), getUploadedFilename())
+                .field(UPLOADED_FILENAME_FIELD.getPreferredName(), getUploadedFilePath())
                 .endObject();
         }
 
