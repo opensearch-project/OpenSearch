@@ -54,6 +54,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - [Remote Store] Add remote segment transfer stats on NodesStats API ([#9168](https://github.com/opensearch-project/OpenSearch/pull/9168))
 - Add completionCount in search_backpressure stats API
 - Return 409 Conflict HTTP status instead of 503 on failure to concurrently execute snapshots ([#8986](https://github.com/opensearch-project/OpenSearch/pull/5855))
+- [Remote Store] Removing feature flag to mark feature GA ([#9761](https://github.com/opensearch-project/OpenSearch/pull/9761))
 
 ### Deprecated
 

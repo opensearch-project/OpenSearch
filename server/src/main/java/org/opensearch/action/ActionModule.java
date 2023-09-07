@@ -972,12 +972,8 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestCatAction(catActions));
         registerHandler.accept(new RestDecommissionAction());
         registerHandler.accept(new RestGetDecommissionStateAction());
-
-        // Remote Store APIs
-        if (FeatureFlags.isEnabled(FeatureFlags.REMOTE_STORE)) {
-            registerHandler.accept(new RestRemoteStoreStatsAction());
-            registerHandler.accept(new RestRestoreRemoteStoreAction());
-        }
+        registerHandler.accept(new RestRemoteStoreStatsAction());
+        registerHandler.accept(new RestRestoreRemoteStoreAction());
     }
 
     @Override
