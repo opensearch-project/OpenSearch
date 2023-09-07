@@ -45,7 +45,6 @@ import org.opensearch.cluster.metadata.MappingMetadata;
 import org.opensearch.common.action.ActionFuture;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.rest.RestStatus;
@@ -82,11 +81,6 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal)).put(FeatureFlags.REMOTE_STORE, "true").build();
-    }
-
     public void testParallelRestoreOperations() {
         String indexName1 = "testindex1";
         String indexName2 = "testindex2";
