@@ -15,7 +15,6 @@ import org.opensearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.index.codec.customcodecs.CustomCodecPlugin;
 import org.opensearch.index.engine.Segment;
 import org.opensearch.index.reindex.BulkByScrollResponse;
 import org.opensearch.index.reindex.ReindexAction;
@@ -47,7 +46,7 @@ public class MultiCodecReindexIT extends ReindexTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(CustomCodecPlugin.class, ReindexModulePlugin.class);
+        return List.of(ReindexModulePlugin.class);
     }
 
     public void testReindexingMultipleCodecs() throws InterruptedException, ExecutionException {
@@ -57,10 +56,6 @@ public class MultiCodecReindexIT extends ReindexTestCase {
             "BEST_COMPRESSION",
             "zlib",
             "BEST_COMPRESSION",
-            "zstd_no_dict",
-            "ZSTD_NO_DICT",
-            "zstd",
-            "ZSTD",
             "default",
             "BEST_SPEED",
             "lz4",
