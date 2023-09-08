@@ -34,7 +34,7 @@ New search processors can be created by following these steps:
 2. Make the class extend the generic `AbstractProcessor` class as well as implement either the `SearchRequestProcessor` or `SearchResponseProcessor` class depending on what type of processor it is. In the `DeleteFieldResponseProcessor` example, this would look like:
 
 
-	public class DeleteFieldResponseProcessor extends AbstractProcessor implements SearchResponseProcessor
+  public class DeleteFieldResponseProcessor extends AbstractProcessor implements SearchResponseProcessor
 
 3. Create the main functionality of your processor and implement the methods required by the implemented interface. This will be `SearchRequest processRequest(SearchRequest request) throws Exception;` for a search request processor or `SearchResponse processResponse(SearchRequest request, SearchResponse response) throws Exception;` for a search response processor.
 
@@ -45,31 +45,31 @@ For the example field `DeleteFieldResponseProcessor`, this will look like:
 public SearchResponse processResponse(SearchRequest request, SearchResponse response) throws Exception {
 boolean foundField = false;
 
-		SearchHit[] hits = response.getHits().getHits();
-		for (SearchHit hit : hits) {
-			 
-			// Process each hit as desired 
-			}
+    SearchHit[] hits = response.getHits().getHits();
+    for (SearchHit hit : hits) {
+       
+      // Process each hit as desired 
+      }
 
-			if (hit.hasSource()) {
-				
+      if (hit.hasSource()) {
+        
                 // Change hit source if needed 
-				);
+        );
 
-				Map<String, Object> sourceAsMap = typeAndSourceMap.v2();
-				if (sourceAsMap.containsKey(field)) {
-					
+        Map<String, Object> sourceAsMap = typeAndSourceMap.v2();
+        if (sourceAsMap.containsKey(field)) {
+          
                 // Handle source as map 
-				}
-			}
+        }
+      }
 
-			if (!foundField && !ignoreMissing) {
-				
+      if (!foundField && !ignoreMissing) {
+        
             // Handle error scenarios 
-			}
-		}
+      }
+    }
 
-		return response;
+    return response;
 }
 ```
 
