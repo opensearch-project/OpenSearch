@@ -1043,6 +1043,7 @@ public class TransportService extends AbstractLifecycleComponent
                     @Override
                     public void onFailure(Exception e) {
                         logger.error("Failing from onFailure ", e);
+                        contextToNotify.handler().handleRejection(e);
                         logger.warn(
                             () -> new ParameterizedMessage(
                                 "failed to notify response handler on exception, action: {}",

@@ -13,12 +13,15 @@ import org.opensearch.telemetry.tracing.TracingContextPropagator;
 import org.opensearch.telemetry.tracing.TracingTelemetry;
 import org.opensearch.telemetry.tracing.attributes.Attributes;
 
+import java.util.concurrent.atomic.AtomicBoolean;
+
 /**
  * Mock {@link TracingTelemetry} implementation for testing.
  */
 public class MockTracingTelemetry implements TracingTelemetry {
 
     private final SpanProcessor spanProcessor = new StrictCheckSpanProcessor();
+    private final AtomicBoolean shutdown = new AtomicBoolean();
 
     /**
      * Base constructor.
@@ -28,7 +31,9 @@ public class MockTracingTelemetry implements TracingTelemetry {
     @Override
     public Span createSpan(String spanName, Span parentSpan, Attributes attributes) {
         Span span = new MockSpan(spanName, parentSpan, spanProcessor, attributes);
-        spanProcessor.onStart(span);
+        if (shutdown.get() == false) {
+            spanProcessor.onStart(span);
+        }
         return span;
     }
 
@@ -39,7 +44,8 @@ public class MockTracingTelemetry implements TracingTelemetry {
 
     @Override
     public void close() {
-        StrictCheckSpanProcessor.shutdown();
+        // StrictCheckSpanProcessor.shutdown();
+        shutdown.set(true);
     }
 
 }

@@ -31,7 +31,7 @@ public class StrictCheckSpanProcessor implements SpanProcessor {
     }
 
     private void initProcessor() {
-        restartTheProcessor();
+        // restartTheProcessor();
     }
 
     private static Map<String, MockSpanData> spanMap = new ConcurrentHashMap<>();
@@ -81,7 +81,7 @@ public class StrictCheckSpanProcessor implements SpanProcessor {
      */
     public static synchronized void shutdown() {
         if (shutdown.get() == false) {
-            shutdown.set(true);
+            // shutdown.set(true);
         }
     }
 
@@ -109,7 +109,7 @@ public class StrictCheckSpanProcessor implements SpanProcessor {
                 spanMap.clear();
                 throw e;
             } finally {
-                restartTheProcessor();
+                // restartTheProcessor();
             }
         }
 
