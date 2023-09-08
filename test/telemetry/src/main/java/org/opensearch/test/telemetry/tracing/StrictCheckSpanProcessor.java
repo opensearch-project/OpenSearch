@@ -97,9 +97,7 @@ public class StrictCheckSpanProcessor implements SpanProcessor {
      * restartTheProcessor
      */
     public static synchronized void restartTheProcessor() {
-        if (shutdown.get() == true) {
-            shutdown.set(false);
-        }
+        spanMap.clear();
     }
 
     /**

@@ -56,6 +56,11 @@ import static org.hamcrest.Matchers.instanceOf;
 @OpenSearchIntegTestCase.SuiteScopeTestCase
 public class IpRangeIT extends OpenSearchIntegTestCase {
 
+    @Override
+    protected boolean addMockTelemetryPlugin() {
+        return true;
+    }
+
     public static class DummyScriptPlugin extends MockScriptPlugin {
         @Override
         public Map<String, Function<Map<String, Object>, Object>> pluginScripts() {

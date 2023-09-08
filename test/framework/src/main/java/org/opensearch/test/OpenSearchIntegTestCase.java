@@ -2328,6 +2328,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
                 INSTANCE.beforeInternal();
                 INSTANCE.setupSuiteScopeCluster();
                 success = true;
+                StrictCheckSpanProcessor.restartTheProcessor();
             } finally {
                 if (!success) {
                     afterClass();
