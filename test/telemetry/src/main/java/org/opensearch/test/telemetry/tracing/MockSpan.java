@@ -194,4 +194,12 @@ public class MockSpan extends AbstractSpan {
     public Object getAttribute(String key) {
         return metadata.get(key);
     }
+
+    /**
+     * Returns the attributes as map.
+     * @return returns the attributes map.
+     */
+    public Map<String, Object> getAttributes() {
+        return metadata;
+    }
 }

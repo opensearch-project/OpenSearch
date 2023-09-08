@@ -92,7 +92,7 @@ final class WrappedTracer implements Tracer {
     }
 
     @Override
-    public Span startSpan(String spanName, Map<String, List<String>> headers, Attributes attributes) {
-        return defaultTracer.startSpan(spanName, headers, attributes);
+    public Span startSpan(SpanCreationContext spanCreationContext, Map<String, List<String>> headers) {
+        return defaultTracer.startSpan(spanCreationContext, headers);
     }
 }

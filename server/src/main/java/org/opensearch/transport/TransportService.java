@@ -68,6 +68,7 @@ import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.node.NodeClosedException;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskManager;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -135,11 +136,11 @@ public class TransportService extends AbstractLifecycleComponent
     // tracer log
 
     private final Logger tracerLog;
-
     volatile String[] tracerLogInclude;
     volatile String[] tracerLogExclude;
 
     private final RemoteClusterService remoteClusterService;
+    private final Tracer tracer;
 
     /** if set will call requests sent to this id to shortcut and executed locally */
     volatile DiscoveryNode localNode = null;
@@ -193,7 +194,8 @@ public class TransportService extends AbstractLifecycleComponent
         TransportInterceptor transportInterceptor,
         Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
         @Nullable ClusterSettings clusterSettings,
-        Set<String> taskHeaders
+        Set<String> taskHeaders,
+        Tracer tracer
     ) {
         this(
             settings,
@@ -203,7 +205,8 @@ public class TransportService extends AbstractLifecycleComponent
             localNodeFactory,
             clusterSettings,
             taskHeaders,
-            new ClusterConnectionManager(settings, transport)
+            new ClusterConnectionManager(settings, transport),
+            tracer
         );
     }
 
@@ -215,7 +218,8 @@ public class TransportService extends AbstractLifecycleComponent
         Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
         @Nullable ClusterSettings clusterSettings,
         Set<String> taskHeaders,
-        ConnectionManager connectionManager
+        ConnectionManager connectionManager,
+        Tracer tracer
     ) {
         this.transport = transport;
         transport.setSlowLogThreshold(TransportSettings.SLOW_OPERATION_THRESHOLD_SETTING.get(settings));
@@ -230,6 +234,7 @@ public class TransportService extends AbstractLifecycleComponent
         this.interceptor = transportInterceptor;
         this.asyncSender = interceptor.interceptSender(this::sendRequestInternal);
         this.remoteClusterClient = DiscoveryNode.isRemoteClusterClient(settings);
+        this.tracer = tracer;
         remoteClusterService = new RemoteClusterService(settings, this);
         responseHandlers = transport.getResponseHandlers();
         if (clusterSettings != null) {
