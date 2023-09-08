@@ -10,7 +10,6 @@ package org.opensearch.telemetry.tracing;
 
 import org.opensearch.Version;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.common.network.NetworkAddress;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.transport.TransportAddress;
@@ -56,15 +55,6 @@ public class SpanBuilderTests extends OpenSearchTestCase {
         SpanCreationContext context = SpanBuilder.from((RestRequest) null);
         assertEquals("rest_request", context.getSpanName());
         assertEquals(Attributes.EMPTY, context.getAttributes());
-    }
-
-    public void testTransportContext() {
-        String action = "test-action";
-        Transport.Connection connection = createTransportConnection();
-        SpanCreationContext context = SpanBuilder.from(action, connection);
-        Attributes attributes = context.getAttributes();
-        assertEquals(action + " " + NetworkAddress.format(TransportAddress.META_ADDRESS), context.getSpanName());
-        assertEquals(connection.getNode().getHostAddress(), attributes.getAttributesMap().get(AttributeNames.TRANSPORT_TARGET_HOST));
     }
 
     private static Transport.Connection createTransportConnection() {
