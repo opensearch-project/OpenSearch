@@ -2365,8 +2365,12 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
          */
         assert INSTANCE == null;
         if (isSuiteScopedTest(targetClass)) {
-            // note we need to do this this way to make sure this is reproducible
-            INSTANCE = (OpenSearchIntegTestCase) targetClass.getConstructor().newInstance();
+            // note we need to do this way to make sure this is reproducible
+            if (isSuiteScopedTestParameterized(targetClass)) {
+                INSTANCE = (OpenSearchIntegTestCase) targetClass.getConstructor(Settings.class).newInstance(Settings.EMPTY);
+            } else {
+                INSTANCE = (OpenSearchIntegTestCase) targetClass.getConstructor().newInstance();
+            }
             boolean success = false;
             try {
                 INSTANCE.printTestMessage("setup");
@@ -2459,6 +2463,16 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
 
     private static boolean isSuiteScopedTest(Class<?> clazz) {
         return clazz.getAnnotation(SuiteScopeTestCase.class) != null;
+    }
+
+    /*
+    * For tests defined with, SuiteScopeTestCase return true if the
+    * class has a constructor that takes a single Settings parameter
+    * */
+    private static boolean isSuiteScopedTestParameterized(Class<?> clazz) {
+        return Arrays.stream(clazz.getConstructors())
+            .filter(x -> x.getParameterTypes().length == 1)
+            .anyMatch(x -> x.getParameterTypes()[0].equals(Settings.class));
     }
 
     /**
