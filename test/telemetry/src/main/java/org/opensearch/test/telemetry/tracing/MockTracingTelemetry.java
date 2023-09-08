@@ -15,6 +15,7 @@ import org.opensearch.telemetry.tracing.TracingContextPropagator;
 import org.opensearch.telemetry.tracing.TracingTelemetry;
 import org.opensearch.telemetry.tracing.attributes.Attributes;
 
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -36,7 +37,7 @@ public class MockTracingTelemetry implements TracingTelemetry {
     public Span createSpan(String spanName, Span parentSpan, Attributes attributes) {
         Span span = new MockSpan(spanName, parentSpan, spanProcessor, attributes);
         if (shutdown.get() == false) {
-            logger.info("adding span {} {}", Thread.currentThread().getName(), span);
+            logger.info("adding span {} {}", Thread.currentThread().getName(), toMockSpanData(span));
             spanProcessor.onStart(span);
         }
         return span;
@@ -52,6 +53,21 @@ public class MockTracingTelemetry implements TracingTelemetry {
         logger.info("Telemetry close {}", Thread.currentThread().getName());
         // StrictCheckSpanProcessor.shutdown();
         shutdown.set(true);
+    }
+
+    private MockSpanData toMockSpanData(Span span) {
+        String parentSpanId = (span.getParentSpan() != null) ? span.getParentSpan().getSpanId() : "";
+        MockSpanData spanData = new MockSpanData(
+            span.getSpanId(),
+            parentSpanId,
+            span.getTraceId(),
+            System.nanoTime(),
+            false,
+            span.getSpanName(),
+            Thread.currentThread().getStackTrace(),
+            (span instanceof MockSpan) ? ((MockSpan) span).getAttributes() : Map.of()
+        );
+        return spanData;
     }
 
 }

@@ -122,7 +122,7 @@ public final class SpanBuilder {
     private static Attributes buildSpanAttributes(String action, Transport.Connection connection) {
         Attributes attributes = Attributes.create().addAttribute(AttributeNames.TRANSPORT_ACTION, action);
         if (connection != null && connection.getNode() != null) {
-            attributes.addAttribute(AttributeNames.TRANSPORT_TARGET_HOST, connection.getNode().getHostAddress());
+            attributes.addAttribute(AttributeNames.TRANSPORT_TARGET_HOST, connection.getNode().getHostAddress() + connection.getNode().getName() + connection.getNode().getId() + connection.getNode().getHostName());
         }
         return attributes;
     }
