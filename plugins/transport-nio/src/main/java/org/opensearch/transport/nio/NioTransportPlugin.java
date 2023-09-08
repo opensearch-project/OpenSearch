@@ -50,6 +50,7 @@ import org.opensearch.http.HttpServerTransport;
 import org.opensearch.http.nio.NioHttpServerTransport;
 import org.opensearch.plugins.NetworkPlugin;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.Transport;
 
@@ -117,7 +118,8 @@ public class NioTransportPlugin extends Plugin implements NetworkPlugin {
         NamedXContentRegistry xContentRegistry,
         NetworkService networkService,
         HttpServerTransport.Dispatcher dispatcher,
-        ClusterSettings clusterSettings
+        ClusterSettings clusterSettings,
+        Tracer tracer
     ) {
         return Collections.singletonMap(
             NIO_HTTP_TRANSPORT_NAME,
@@ -130,7 +132,8 @@ public class NioTransportPlugin extends Plugin implements NetworkPlugin {
                 xContentRegistry,
                 dispatcher,
                 getNioGroupFactory(settings),
-                clusterSettings
+                clusterSettings,
+                tracer
             )
         );
     }

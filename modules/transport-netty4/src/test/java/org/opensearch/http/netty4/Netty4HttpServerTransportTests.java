@@ -55,6 +55,7 @@ import org.opensearch.http.NullDispatcher;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestChannel;
 import org.opensearch.rest.RestRequest;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.rest.FakeRestRequest;
 import org.opensearch.threadpool.TestThreadPool;
@@ -198,7 +199,8 @@ public class Netty4HttpServerTransportTests extends OpenSearchTestCase {
                 xContentRegistry(),
                 dispatcher,
                 clusterSettings,
-                new SharedGroupFactory(settings)
+                new SharedGroupFactory(settings),
+                NoopTracer.INSTANCE
             )
         ) {
             transport.start();
@@ -247,7 +249,8 @@ public class Netty4HttpServerTransportTests extends OpenSearchTestCase {
                 xContentRegistry(),
                 new NullDispatcher(),
                 clusterSettings,
-                new SharedGroupFactory(Settings.EMPTY)
+                new SharedGroupFactory(Settings.EMPTY),
+                NoopTracer.INSTANCE
             )
         ) {
             transport.start();
@@ -265,7 +268,8 @@ public class Netty4HttpServerTransportTests extends OpenSearchTestCase {
                     xContentRegistry(),
                     new NullDispatcher(),
                     clusterSettings,
-                    new SharedGroupFactory(settings)
+                    new SharedGroupFactory(settings),
+                    NoopTracer.INSTANCE
                 )
             ) {
                 BindHttpException bindHttpException = expectThrows(BindHttpException.class, otherTransport::start);
@@ -317,7 +321,8 @@ public class Netty4HttpServerTransportTests extends OpenSearchTestCase {
                 xContentRegistry(),
                 dispatcher,
                 clusterSettings,
-                new SharedGroupFactory(settings)
+                new SharedGroupFactory(settings),
+                NoopTracer.INSTANCE
             )
         ) {
             transport.start();
@@ -379,7 +384,8 @@ public class Netty4HttpServerTransportTests extends OpenSearchTestCase {
                 xContentRegistry(),
                 dispatcher,
                 clusterSettings,
-                new SharedGroupFactory(Settings.EMPTY)
+                new SharedGroupFactory(Settings.EMPTY),
+                NoopTracer.INSTANCE
             )
         ) {
             transport.start();
@@ -448,7 +454,8 @@ public class Netty4HttpServerTransportTests extends OpenSearchTestCase {
                 xContentRegistry(),
                 dispatcher,
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                new SharedGroupFactory(settings)
+                new SharedGroupFactory(settings),
+                NoopTracer.INSTANCE
             )
         ) {
             transport.start();
@@ -521,7 +528,8 @@ public class Netty4HttpServerTransportTests extends OpenSearchTestCase {
                 xContentRegistry(),
                 dispatcher,
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                new SharedGroupFactory(settings)
+                new SharedGroupFactory(settings),
+                NoopTracer.INSTANCE
             )
         ) {
             transport.start();
