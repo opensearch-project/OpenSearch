@@ -129,6 +129,7 @@ import org.opensearch.monitor.process.ProcessService;
 import org.opensearch.node.Node;
 import org.opensearch.node.Node.DiscoverySettings;
 import org.opensearch.node.NodeRoleSettings;
+import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.persistent.PersistentTasksClusterService;
 import org.opensearch.persistent.decider.EnableAssignmentDecider;
 import org.opensearch.plugins.PluginsService;
@@ -669,7 +670,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
 
                 // Remote cluster state settings
                 RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING,
-                RemoteClusterStateService.REMOTE_CLUSTER_STATE_REPOSITORY_SETTING
+                RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING,
+                IndicesService.CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING
             )
         )
     );
@@ -682,13 +684,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
      * setting should be moved to {@link #BUILT_IN_CLUSTER_SETTINGS}.
      */
     public static final Map<List<String>, List<Setting>> FEATURE_FLAGGED_CLUSTER_SETTINGS = Map.of(
-        List.of(FeatureFlags.REMOTE_STORE),
-        List.of(
-            IndicesService.CLUSTER_REMOTE_STORE_ENABLED_SETTING,
-            IndicesService.CLUSTER_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING,
-            IndicesService.CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING,
-            IndicesService.CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING
-        ),
         List.of(FeatureFlags.CONCURRENT_SEGMENT_SEARCH),
         List.of(
             SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING,

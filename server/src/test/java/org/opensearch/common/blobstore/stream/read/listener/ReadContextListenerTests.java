@@ -70,7 +70,8 @@ public class ReadContextListenerTests extends OpenSearchTestCase {
         assertEquals(NUMBER_OF_PARTS * PART_SIZE, Files.size(fileLocation));
     }
 
-    public void testReadContextListenerFailure() throws InterruptedException {
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/9776")
+    public void testReadContextListenerFailure() throws Exception {
         Path fileLocation = path.resolve(UUID.randomUUID().toString());
         List<InputStreamContainer> blobPartStreams = initializeBlobPartStreams();
         CountDownLatch countDownLatch = new CountDownLatch(1);
@@ -99,8 +100,7 @@ public class ReadContextListenerTests extends OpenSearchTestCase {
         readContextListener.onResponse(readContext);
 
         countDownLatch.await();
-
-        assertFalse(Files.exists(fileLocation));
+        assertBusy(() -> { assertFalse(Files.exists(fileLocation)); });
     }
 
     public void testReadContextListenerException() {

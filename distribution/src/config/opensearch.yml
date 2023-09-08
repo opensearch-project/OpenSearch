@@ -92,23 +92,15 @@ ${path.logs}
 # cluster.remote_store.enabled: true
 #
 # Repository to use for segment upload while enforcing remote store for an index
-# cluster.remote_store.segment.repository: my-repo-1
+# node.attr.remote_store.segment.repository: my-repo-1
 #
 # Repository to use for translog upload while enforcing remote store for an index
-# cluster.remote_store.translog.repository: my-repo-1
+# node.attr.remote_store.translog.repository: my-repo-1
 #
 # ---------------------------------- Experimental Features -----------------------------------
-#
 # Gates the visibility of the experimental segment replication features until they are production ready.
 #
 #opensearch.experimental.feature.segment_replication_experimental.enabled: false
-#
-#
-# Gates the visibility of the index setting that allows persisting data to remote store along with local disk.
-# Once the feature is ready for production release, this feature flag can be removed.
-#
-#opensearch.experimental.feature.remote_store.enabled: false
-#
 #
 # Gates the functionality of a new parameter to the snapshot restore API
 # that allows for creation of a new index type that searches a snapshot

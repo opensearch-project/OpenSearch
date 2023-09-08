@@ -71,6 +71,7 @@ import org.opensearch.index.engine.VersionConflictEngineException;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.index.remote.RemoteSegmentStats;
 import org.opensearch.index.shard.IndexShard;
+import org.opensearch.index.translog.RemoteTranslogStats;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.IndicesQueryCache;
 import org.opensearch.indices.IndicesRequestCache;
@@ -1436,9 +1437,12 @@ public class IndexStatsIT extends OpenSearchIntegTestCase {
                 .get()
                 .status()
         );
-        ShardStats shard = client().admin().indices().prepareStats(indexName).setSegments(true).get().getShards()[0];
+        ShardStats shard = client().admin().indices().prepareStats(indexName).setSegments(true).setTranslog(true).get().getShards()[0];
         RemoteSegmentStats remoteSegmentStatsFromIndexStats = shard.getStats().getSegments().getRemoteSegmentStats();
         assertZeroRemoteSegmentStats(remoteSegmentStatsFromIndexStats);
+        RemoteTranslogStats remoteTranslogStatsFromIndexStats = shard.getStats().getTranslog().getRemoteTranslogStats();
+        assertZeroRemoteTranslogStats(remoteTranslogStatsFromIndexStats);
+
         NodesStatsResponse nodesStatsResponse = client().admin().cluster().prepareNodesStats(primaryNodeName(indexName)).get();
         RemoteSegmentStats remoteSegmentStatsFromNodesStats = nodesStatsResponse.getNodes()
             .get(0)
@@ -1446,20 +1450,22 @@ public class IndexStatsIT extends OpenSearchIntegTestCase {
             .getSegments()
             .getRemoteSegmentStats();
         assertZeroRemoteSegmentStats(remoteSegmentStatsFromNodesStats);
+        RemoteTranslogStats remoteTranslogStatsFromNodesStats = nodesStatsResponse.getNodes()
+            .get(0)
+            .getIndices()
+            .getTranslog()
+            .getRemoteTranslogStats();
+        assertZeroRemoteTranslogStats(remoteTranslogStatsFromNodesStats);
     }
 
     private void assertZeroRemoteSegmentStats(RemoteSegmentStats remoteSegmentStats) {
-        assertEquals(0, remoteSegmentStats.getUploadBytesStarted());
-        assertEquals(0, remoteSegmentStats.getUploadBytesSucceeded());
-        assertEquals(0, remoteSegmentStats.getUploadBytesFailed());
-        assertEquals(0, remoteSegmentStats.getDownloadBytesStarted());
-        assertEquals(0, remoteSegmentStats.getDownloadBytesSucceeded());
-        assertEquals(0, remoteSegmentStats.getDownloadBytesFailed());
-        assertEquals(0, remoteSegmentStats.getTotalRefreshBytesLag());
-        assertEquals(0, remoteSegmentStats.getMaxRefreshBytesLag());
-        assertEquals(0, remoteSegmentStats.getMaxRefreshTimeLag());
-        assertEquals(0, remoteSegmentStats.getTotalUploadTime());
-        assertEquals(0, remoteSegmentStats.getTotalDownloadTime());
+        // Compare with fresh object because all values default to 0 in default fresh object
+        assertEquals(new RemoteSegmentStats(), remoteSegmentStats);
+    }
+
+    private void assertZeroRemoteTranslogStats(RemoteTranslogStats remoteTranslogStats) {
+        // Compare with fresh object because all values default to 0 in default fresh object
+        assertEquals(new RemoteTranslogStats(), remoteTranslogStats);
     }
 
     /**

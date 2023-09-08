@@ -8,6 +8,7 @@
 
 package org.opensearch.telemetry.tracing;
 
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.telemetry.tracing.attributes.Attributes;
 
 import java.io.Closeable;
@@ -15,8 +16,9 @@ import java.io.Closeable;
 /**
  * Interface for tracing telemetry providers
  *
- * @opensearch.internal
+ * @opensearch.experimental
  */
+@ExperimentalApi
 public interface TracingTelemetry extends Closeable {
 
     /**
