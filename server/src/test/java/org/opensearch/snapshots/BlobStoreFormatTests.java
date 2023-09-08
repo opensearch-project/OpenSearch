@@ -34,14 +34,19 @@ package org.opensearch.snapshots;
 
 import org.opensearch.OpenSearchCorruptionException;
 import org.opensearch.OpenSearchParseException;
+import org.opensearch.common.blobstore.AsyncMultiStreamBlobContainer;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
+import org.opensearch.common.blobstore.fs.FsBlobContainer;
 import org.opensearch.common.blobstore.fs.FsBlobStore;
+import org.opensearch.common.blobstore.stream.read.ReadContext;
+import org.opensearch.common.blobstore.stream.write.WriteContext;
 import org.opensearch.common.compress.DeflateCompressor;
 import org.opensearch.common.io.Streams;
 import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.compress.CompressorRegistry;
@@ -56,7 +61,9 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Path;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
@@ -112,6 +119,57 @@ public class BlobStoreFormatTests extends OpenSearchTestCase {
             builder.field("text", getText());
             return builder;
         }
+    }
+
+    public void testBlobStoreAsyncOperations() throws IOException, InterruptedException {
+        BlobStore blobStore = createTestBlobStore();
+        MockFsVerifyingBlobContainer mockBlobContainer = new MockFsVerifyingBlobContainer(
+            (FsBlobStore) blobStore,
+            BlobPath.cleanPath(),
+            null
+        );
+        ChecksumBlobStoreFormat<BlobObj> checksumSMILE = new ChecksumBlobStoreFormat<>(BLOB_CODEC, "%s", BlobObj::fromXContent);
+
+        CountDownLatch latch = new CountDownLatch(2);
+
+        ActionListener<Void> actionListener = new ActionListener<>() {
+            @Override
+            public void onResponse(Void unused) {
+                logger.info("---> Async write succeeded");
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.info("---> Failure in async write");
+                throw new RuntimeException("async write should not fail");
+            }
+        };
+
+        // Write blobs in different formats
+        checksumSMILE.writeAsync(
+            new BlobObj("checksum smile"),
+            mockBlobContainer,
+            "check-smile",
+            CompressorRegistry.none(),
+            actionListener
+        );
+        checksumSMILE.writeAsync(
+            new BlobObj("checksum smile compressed"),
+            mockBlobContainer,
+            "check-smile-comp",
+            CompressorRegistry.getCompressor(DeflateCompressor.NAME),
+            actionListener
+        );
+
+        latch.await();
+
+        // Assert that all checksum blobs can be read
+        assertEquals(checksumSMILE.read(mockBlobContainer.getDelegate(), "check-smile", xContentRegistry()).getText(), "checksum smile");
+        assertEquals(
+            checksumSMILE.read(mockBlobContainer.getDelegate(), "check-smile-comp", xContentRegistry()).getText(),
+            "checksum smile compressed"
+        );
     }
 
     public void testBlobStoreOperations() throws IOException {
@@ -194,6 +252,37 @@ public class BlobStoreFormatTests extends OpenSearchTestCase {
                 checksumOutput.write(buffer);
                 return checksumOutput.getChecksum();
             }
+        }
+    }
+
+    public static class MockFsVerifyingBlobContainer extends FsBlobContainer implements AsyncMultiStreamBlobContainer {
+
+        private BlobContainer delegate;
+
+        public MockFsVerifyingBlobContainer(FsBlobStore blobStore, BlobPath blobPath, Path path) {
+            super(blobStore, blobPath, path);
+            delegate = blobStore.blobContainer(BlobPath.cleanPath());
+        }
+
+        @Override
+        public void asyncBlobUpload(WriteContext writeContext, ActionListener<Void> completionListener) throws IOException {
+            InputStream inputStream = writeContext.getStreamProvider(Integer.MAX_VALUE).provideStream(0).getInputStream();
+            delegate.writeBlob(writeContext.getFileName(), inputStream, writeContext.getFileSize(), true);
+            completionListener.onResponse(null);
+        }
+
+        @Override
+        public void readBlobAsync(String blobName, ActionListener<ReadContext> listener) {
+            throw new RuntimeException("read not supported");
+        }
+
+        @Override
+        public boolean remoteIntegrityCheckSupported() {
+            return false;
+        }
+
+        public BlobContainer getDelegate() {
+            return delegate;
         }
     }
 }

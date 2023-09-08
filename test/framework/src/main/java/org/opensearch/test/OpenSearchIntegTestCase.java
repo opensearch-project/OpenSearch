@@ -157,6 +157,7 @@ import org.opensearch.test.disruption.NetworkDisruption;
 import org.opensearch.test.disruption.ServiceDisruptionScheme;
 import org.opensearch.test.store.MockFSIndexStore;
 import org.opensearch.test.telemetry.MockTelemetryPlugin;
+import org.opensearch.test.telemetry.tracing.StrictCheckSpanProcessor;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.transport.TransportInterceptor;
 import org.opensearch.transport.TransportRequest;
@@ -283,9 +284,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         CodecService.DEFAULT_CODEC,
         CodecService.LZ4,
         CodecService.BEST_COMPRESSION_CODEC,
-        CodecService.ZLIB,
-        CodecService.ZSTD_CODEC,
-        CodecService.ZSTD_NO_DICT_CODEC
+        CodecService.ZLIB
     );
 
     /**
@@ -1457,6 +1456,18 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         return actionGet;
     }
 
+    protected ForceMergeResponse forceMerge(int maxNumSegments) {
+        waitForRelocation();
+        ForceMergeResponse actionGet = client().admin()
+            .indices()
+            .prepareForceMerge()
+            .setMaxNumSegments(maxNumSegments)
+            .execute()
+            .actionGet();
+        assertNoFailures(actionGet);
+        return actionGet;
+    }
+
     /**
      * Returns <code>true</code> iff the given index exists otherwise <code>false</code>
      */
@@ -2285,7 +2296,9 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
                 INSTANCE.printTestMessage("cleaning up after");
                 INSTANCE.afterInternal(true);
                 checkStaticState(true);
+                StrictCheckSpanProcessor.validateTracingStateOnShutdown();
             }
+
         } finally {
             SUITE_SEED = null;
             currentCluster = null;

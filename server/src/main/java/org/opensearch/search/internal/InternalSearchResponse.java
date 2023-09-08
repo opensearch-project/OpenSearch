@@ -113,11 +113,11 @@ public class InternalSearchResponse extends SearchResponseSections implements Wr
     }
 
     private static List<SearchExtBuilder> readSearchExtBuildersOnOrAfter(StreamInput in) throws IOException {
-        return (in.getVersion().onOrAfter(Version.V_3_0_0)) ? in.readNamedWriteableList(SearchExtBuilder.class) : Collections.emptyList();
+        return (in.getVersion().onOrAfter(Version.V_2_10_0)) ? in.readNamedWriteableList(SearchExtBuilder.class) : Collections.emptyList();
     }
 
     private static void writeSearchExtBuildersOnOrAfter(StreamOutput out, List<SearchExtBuilder> searchExtBuilders) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_2_10_0)) {
             out.writeNamedWriteableList(searchExtBuilders);
         }
     }

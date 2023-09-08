@@ -15,14 +15,19 @@ import org.opensearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.index.codec.customcodecs.CustomCodecPlugin;
 import org.opensearch.index.engine.Segment;
 import org.opensearch.index.reindex.BulkByScrollResponse;
 import org.opensearch.index.reindex.ReindexAction;
+import org.opensearch.index.reindex.ReindexModulePlugin;
 import org.opensearch.index.reindex.ReindexRequestBuilder;
 import org.opensearch.index.reindex.ReindexTestCase;
+import org.opensearch.plugins.Plugin;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
@@ -39,6 +44,11 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures;
 
 public class MultiCodecReindexIT extends ReindexTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return List.of(CustomCodecPlugin.class, ReindexModulePlugin.class);
+    }
 
     public void testReindexingMultipleCodecs() throws InterruptedException, ExecutionException {
         internalCluster().ensureAtLeastNumDataNodes(1);
@@ -125,7 +135,7 @@ public class MultiCodecReindexIT extends ReindexTestCase {
     }
 
     private void useCodec(String index, String codec) throws ExecutionException, InterruptedException {
-        assertAcked(client().admin().indices().prepareClose(index));
+        assertAcked(client().admin().indices().prepareClose(index).setWaitForActiveShards(1));
 
         assertAcked(
             client().admin()
@@ -134,7 +144,7 @@ public class MultiCodecReindexIT extends ReindexTestCase {
                 .get()
         );
 
-        assertAcked(client().admin().indices().prepareOpen(index));
+        assertAcked(client().admin().indices().prepareOpen(index).setWaitForActiveShards(1));
     }
 
     private void flushAndRefreshIndex(String index) {
