@@ -1,4 +1,4 @@
-name: Apply all issue labels to PR
+name: Copy issue labels to PR
 
 on:
   pull_request:
