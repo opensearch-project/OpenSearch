@@ -24,14 +24,14 @@ import java.util.concurrent.TimeUnit;
  * This class represents collected performance stats of all downstream nodes and the local node
  */
 public class DownstreamNodesPerfStats implements Writeable, ToXContentFragment {
-    private final Map<String, PerformanceCollectorService.NodePerformanceStatistics> nodePerfStats;
+    private final Map<String, NodePerformanceStatistics> nodePerfStats;
 
-    public DownstreamNodesPerfStats(Map<String, PerformanceCollectorService.NodePerformanceStatistics> nodePerfStats) {
+    public DownstreamNodesPerfStats(Map<String, NodePerformanceStatistics> nodePerfStats) {
         this.nodePerfStats = nodePerfStats;
     }
 
     public DownstreamNodesPerfStats(StreamInput in) throws IOException {
-        this.nodePerfStats = in.readMap(StreamInput::readString, PerformanceCollectorService.NodePerformanceStatistics::new);
+        this.nodePerfStats = in.readMap(StreamInput::readString, NodePerformanceStatistics::new);
     }
 
     @Override
@@ -42,7 +42,7 @@ public class DownstreamNodesPerfStats implements Writeable, ToXContentFragment {
     /**
      * Returns map of node id to perf stats
      */
-    public Map<String, PerformanceCollectorService.NodePerformanceStatistics> getNodePerfStats() {
+    public Map<String, NodePerformanceStatistics> getNodePerfStats() {
         return nodePerfStats;
     }
 
@@ -51,12 +51,11 @@ public class DownstreamNodesPerfStats implements Writeable, ToXContentFragment {
         builder.startObject("nodes_performance_stats");
         for (String nodeId : nodePerfStats.keySet()) {
             builder.startObject(nodeId);
-            PerformanceCollectorService.NodePerformanceStatistics perfStats = nodePerfStats.get(nodeId);
+            NodePerformanceStatistics perfStats = nodePerfStats.get(nodeId);
             if (perfStats != null) {
 
-                builder.field("cpu_usage_percent", String.format(Locale.ROOT, "%.1f", perfStats.cpuPercent));
-                builder.field("memory_usage_percent", String.format(Locale.ROOT, "%.1f", perfStats.memoryPercent));
-                builder.field("io_usage_percent", String.format(Locale.ROOT, "%.1f", perfStats.ioUtilizationPercent));
+                builder.field("cpu_utilization_percent", String.format(Locale.ROOT, "%.1f", perfStats.cpuUtilizationPercent));
+                builder.field("memory_utilization_percent", String.format(Locale.ROOT, "%.1f", perfStats.memoryUtilizationPercent));
                 builder.field(
                     "elapsed_time",
                     new TimeValue(System.currentTimeMillis() - perfStats.timestamp, TimeUnit.MILLISECONDS).toString()

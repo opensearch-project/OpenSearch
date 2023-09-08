@@ -12,7 +12,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.settings.ClusterSettings;
-import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.node.PerformanceCollectorService;
@@ -25,52 +24,20 @@ import java.io.IOException;
  * This tracks the performance of node resources such as CPU, IO and memory
  */
 public class NodePerformanceTracker extends AbstractLifecycleComponent {
-    private double cpuPercentUsed;
-    private double memoryPercentUsed;
-    private double ioPercentUsed;
+    private double cpuUtilizationPercent;
+    private double memoryUtilizationPercent;
     private ThreadPool threadPool;
     private volatile Scheduler.Cancellable scheduledFuture;
-    private final Settings settings;
     private final ClusterSettings clusterSettings;
     private AverageCpuUsageTracker cpuUsageTracker;
     private AverageMemoryUsageTracker memoryUsageTracker;
     private PerformanceCollectorService performanceCollectorService;
+
+    private PerformanceTrackerSettings performanceTrackerSettings;
     private static final Logger logger = LogManager.getLogger(NodePerformanceTracker.class);
     private final TimeValue interval;
-    private static final long refreshIntervalInMills = 1000;
-    public static final Setting<Long> REFRESH_INTERVAL_MILLIS = Setting.longSetting(
-        "node.performance_tracker.interval_millis",
-        refreshIntervalInMills,
-        1,
-        Setting.Property.NodeScope
-    );
 
     public static final String LOCAL_NODE = "LOCAL";
-
-    public static final Setting<TimeValue> GLOBAL_CPU_USAGE_AC_POLLING_INTERVAL_SETTING = Setting.positiveTimeSetting(
-        "node.global_cpu_usage.polling_interval",
-        TimeValue.timeValueMillis(500),
-        Setting.Property.NodeScope
-    );
-    public static final Setting<TimeValue> GLOBAL_CPU_USAGE_AC_WINDOW_DURATION_SETTING = Setting.positiveTimeSetting(
-        "node.global_cpu_usage.window_duration",
-        TimeValue.timeValueSeconds(30),
-        Setting.Property.Dynamic,
-        Setting.Property.NodeScope
-    );
-
-    public static final Setting<TimeValue> GLOBAL_JVM_USAGE_AC_POLLING_INTERVAL_SETTING = Setting.positiveTimeSetting(
-        "node.global_jvmmp.polling_interval",
-        TimeValue.timeValueMillis(500),
-        Setting.Property.NodeScope
-    );
-
-    public static final Setting<TimeValue> GLOBAL_JVM_USAGE_AC_WINDOW_DURATION_SETTING = Setting.positiveTimeSetting(
-        "node.global_jvmmp.window_duration",
-        TimeValue.timeValueSeconds(30),
-        Setting.Property.Dynamic,
-        Setting.Property.NodeScope
-    );
 
     public NodePerformanceTracker(
         PerformanceCollectorService performanceCollectorService,
@@ -80,9 +47,9 @@ public class NodePerformanceTracker extends AbstractLifecycleComponent {
     ) {
         this.performanceCollectorService = performanceCollectorService;
         this.threadPool = threadPool;
-        this.settings = settings;
         this.clusterSettings = clusterSettings;
-        interval = new TimeValue(REFRESH_INTERVAL_MILLIS.get(settings));
+        this.performanceTrackerSettings = new PerformanceTrackerSettings(settings, clusterSettings);
+        interval = new TimeValue(performanceTrackerSettings.getRefreshInterval());
         initialize();
     }
 
@@ -94,48 +61,29 @@ public class NodePerformanceTracker extends AbstractLifecycleComponent {
         return memoryUsageTracker.getAverage();
     }
 
-    private double getAverageIoUsed() {
-        // IO utilization percentage - this will be completed after we enhance FS stats
-        return 0;
+    private void setCpuUtilizationPercent(double cpuUtilizationPercent) {
+        this.cpuUtilizationPercent = cpuUtilizationPercent;
     }
 
-    public TimeValue getCpuWindow() {
-        return GLOBAL_CPU_USAGE_AC_POLLING_INTERVAL_SETTING.get(settings);
+    private void setMemoryUtilizationPercent(double memoryUtilizationPercent) {
+        this.memoryUtilizationPercent = memoryUtilizationPercent;
     }
 
-    private void setCpuPercentUsed(double cpuPercentUsed) {
-        this.cpuPercentUsed = cpuPercentUsed;
+    public double getCpuUtilizationPercent() {
+        return cpuUtilizationPercent;
     }
 
-    private void setMemoryPercentUsed(double memoryPercentUsed) {
-        this.memoryPercentUsed = memoryPercentUsed;
-    }
-
-    private void setIoPercentUsed(double ioPercentUsed) {
-        this.ioPercentUsed = ioPercentUsed;
-    }
-
-    public double getCpuPercentUsed() {
-        return cpuPercentUsed;
-    }
-
-    public double getIoPercentUsed() {
-        return ioPercentUsed;
-    }
-
-    public double getMemoryPercentUsed() {
-        return memoryPercentUsed;
+    public double getMemoryUtilizationPercent() {
+        return memoryUtilizationPercent;
     }
 
     void doRun() {
-        setCpuPercentUsed(getAverageCpuUsed());
-        setMemoryPercentUsed(getAverageMemoryUsed());
-        setIoPercentUsed(getAverageIoUsed());
+        setCpuUtilizationPercent(getAverageCpuUsed());
+        setMemoryUtilizationPercent(getAverageMemoryUsed());
         performanceCollectorService.addNodePerfStatistics(
             LOCAL_NODE,
-            getCpuPercentUsed(),
-            getIoPercentUsed(),
-            getMemoryPercentUsed(),
+            getCpuUtilizationPercent(),
+            getMemoryUtilizationPercent(),
             System.currentTimeMillis()
         );
     }
@@ -143,24 +91,16 @@ public class NodePerformanceTracker extends AbstractLifecycleComponent {
     void initialize() {
         cpuUsageTracker = new AverageCpuUsageTracker(
             threadPool,
-            GLOBAL_CPU_USAGE_AC_POLLING_INTERVAL_SETTING.get(settings),
-            GLOBAL_CPU_USAGE_AC_WINDOW_DURATION_SETTING.get(settings)
-        );
-
-        clusterSettings.addSettingsUpdateConsumer(
-            GLOBAL_CPU_USAGE_AC_WINDOW_DURATION_SETTING,
-            duration -> cpuUsageTracker.setWindowDuration(duration)
+            performanceTrackerSettings.getCpuPollingInterval(),
+            performanceTrackerSettings.getCpuWindowDuration(),
+            clusterSettings
         );
 
         memoryUsageTracker = new AverageMemoryUsageTracker(
             threadPool,
-            GLOBAL_JVM_USAGE_AC_POLLING_INTERVAL_SETTING.get(settings),
-            GLOBAL_JVM_USAGE_AC_WINDOW_DURATION_SETTING.get(settings)
-        );
-
-        clusterSettings.addSettingsUpdateConsumer(
-            GLOBAL_JVM_USAGE_AC_WINDOW_DURATION_SETTING,
-            duration -> memoryUsageTracker.setWindowDuration(duration)
+            performanceTrackerSettings.getMemoryPollingInterval(),
+            performanceTrackerSettings.getMemoryWindowDuration(),
+            clusterSettings
         );
     }
 

@@ -54,19 +54,17 @@ public class PerformanceCollectorServiceTests extends OpenSearchTestCase {
     }
 
     public void testNodePerformanceStats() {
-        collector.addNodePerfStatistics("node1", 99, 98, 97, System.currentTimeMillis());
-        Map<String, PerformanceCollectorService.NodePerformanceStatistics> nodeStats = collector.getAllNodeStatistics();
+        collector.addNodePerfStatistics("node1", 99, 97, System.currentTimeMillis());
+        Map<String, NodePerformanceStatistics> nodeStats = collector.getAllNodeStatistics();
         assertTrue(nodeStats.containsKey("node1"));
-        assertEquals(99.0, nodeStats.get("node1").cpuPercent, 0.0);
-        assertEquals(98.0, nodeStats.get("node1").ioUtilizationPercent, 0.0);
-        assertEquals(97.0, nodeStats.get("node1").memoryPercent, 0.0);
+        assertEquals(99.0, nodeStats.get("node1").cpuUtilizationPercent, 0.0);
+        assertEquals(97.0, nodeStats.get("node1").memoryUtilizationPercent, 0.0);
 
-        Optional<PerformanceCollectorService.NodePerformanceStatistics> nodePerformanceStatistics = collector.getNodeStatistics("node1");
+        Optional<NodePerformanceStatistics> nodePerformanceStatistics = collector.getNodeStatistics("node1");
 
         assertNotNull(nodePerformanceStatistics.get());
-        assertEquals(99.0, nodePerformanceStatistics.get().cpuPercent, 0.0);
-        assertEquals(98.0, nodePerformanceStatistics.get().ioUtilizationPercent, 0.0);
-        assertEquals(97.0, nodePerformanceStatistics.get().memoryPercent, 0.0);
+        assertEquals(99.0, nodePerformanceStatistics.get().cpuUtilizationPercent, 0.0);
+        assertEquals(97.0, nodePerformanceStatistics.get().memoryUtilizationPercent, 0.0);
 
         nodePerformanceStatistics = collector.getNodeStatistics("node2");
         assertTrue(nodePerformanceStatistics.isEmpty());
@@ -95,7 +93,6 @@ public class PerformanceCollectorServiceTests extends OpenSearchTestCase {
                     randomFrom(nodes),
                     randomIntBetween(1, 100),
                     randomIntBetween(1, 100),
-                    randomIntBetween(1, 100),
                     System.currentTimeMillis()
                 );
             }
@@ -116,32 +113,19 @@ public class PerformanceCollectorServiceTests extends OpenSearchTestCase {
         t3.join();
         t4.join();
 
-        final Map<String, PerformanceCollectorService.NodePerformanceStatistics> nodeStats = collector.getAllNodeStatistics();
+        final Map<String, NodePerformanceStatistics> nodeStats = collector.getAllNodeStatistics();
         logger.info("--> got stats: {}", nodeStats);
         for (String nodeId : nodes) {
             if (nodeStats.containsKey(nodeId)) {
-                assertThat(nodeStats.get(nodeId).memoryPercent, greaterThan(0.0));
-                assertThat(nodeStats.get(nodeId).cpuPercent, greaterThan(0.0));
-                assertThat(nodeStats.get(nodeId).ioUtilizationPercent, greaterThan(0.0));
+                assertThat(nodeStats.get(nodeId).memoryUtilizationPercent, greaterThan(0.0));
+                assertThat(nodeStats.get(nodeId).cpuUtilizationPercent, greaterThan(0.0));
             }
         }
     }
 
     public void testNodeRemoval() throws Exception {
-        collector.addNodePerfStatistics(
-            "node1",
-            randomIntBetween(1, 100),
-            randomIntBetween(1, 100),
-            randomIntBetween(1, 100),
-            System.currentTimeMillis()
-        );
-        collector.addNodePerfStatistics(
-            "node2",
-            randomIntBetween(1, 100),
-            randomIntBetween(1, 100),
-            randomIntBetween(1, 100),
-            System.currentTimeMillis()
-        );
+        collector.addNodePerfStatistics("node1", randomIntBetween(1, 100), randomIntBetween(1, 100), System.currentTimeMillis());
+        collector.addNodePerfStatistics("node2", randomIntBetween(1, 100), randomIntBetween(1, 100), System.currentTimeMillis());
 
         ClusterState previousState = ClusterState.builder(new ClusterName("cluster"))
             .nodes(
@@ -156,7 +140,7 @@ public class PerformanceCollectorServiceTests extends OpenSearchTestCase {
         ClusterChangedEvent event = new ClusterChangedEvent("test", newState, previousState);
 
         collector.clusterChanged(event);
-        final Map<String, PerformanceCollectorService.NodePerformanceStatistics> nodeStats = collector.getAllNodeStatistics();
+        final Map<String, NodePerformanceStatistics> nodeStats = collector.getAllNodeStatistics();
         assertTrue(nodeStats.containsKey("node1"));
         assertFalse(nodeStats.containsKey("node2"));
     }

@@ -152,7 +152,7 @@ import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.tasks.consumer.TopNSearchTasksLogger;
 import org.opensearch.telemetry.TelemetrySettings;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.throttling.tracker.NodePerformanceTracker;
+import org.opensearch.throttling.tracker.PerformanceTrackerSettings;
 import org.opensearch.transport.ProxyConnectionStrategy;
 import org.opensearch.transport.RemoteClusterService;
 import org.opensearch.transport.RemoteConnectionStrategy;
@@ -653,10 +653,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 SegmentReplicationPressureService.MAX_ALLOWED_STALE_SHARDS,
 
                 // Settings related to admission control
-                NodePerformanceTracker.GLOBAL_CPU_USAGE_AC_POLLING_INTERVAL_SETTING,
-                NodePerformanceTracker.GLOBAL_JVM_USAGE_AC_POLLING_INTERVAL_SETTING,
-                NodePerformanceTracker.GLOBAL_CPU_USAGE_AC_WINDOW_DURATION_SETTING,
-                NodePerformanceTracker.GLOBAL_JVM_USAGE_AC_WINDOW_DURATION_SETTING,
+                PerformanceTrackerSettings.GLOBAL_CPU_USAGE_AC_WINDOW_DURATION_SETTING,
+                PerformanceTrackerSettings.GLOBAL_JVM_USAGE_AC_WINDOW_DURATION_SETTING,
 
                 // Settings related to Searchable Snapshots
                 Node.NODE_SEARCH_CACHE_SIZE_SETTING,

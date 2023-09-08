@@ -777,7 +777,6 @@ public class Node implements Closeable {
             );
 
             final PerformanceCollectorService performanceCollectorService = new PerformanceCollectorService(clusterService);
-
             final NodePerformanceTracker nodePerformanceTracker = new NodePerformanceTracker(
                 performanceCollectorService,
                 threadPool,
@@ -1319,10 +1318,10 @@ public class Node implements Closeable {
         injector.getInstance(RepositoriesService.class).start();
         injector.getInstance(SearchService.class).start();
         injector.getInstance(FsHealthService.class).start();
+        injector.getInstance(NodePerformanceTracker.class).start();
         nodeService.getMonitorService().start();
         nodeService.getSearchBackpressureService().start();
         nodeService.getTaskCancellationMonitoringService().start();
-        nodeService.getNodePerformanceTracker().start();
 
         final ClusterService clusterService = injector.getInstance(ClusterService.class);
 
@@ -1477,9 +1476,9 @@ public class Node implements Closeable {
         injector.getInstance(ClusterService.class).stop();
         injector.getInstance(NodeConnectionsService.class).stop();
         injector.getInstance(FsHealthService.class).stop();
+        injector.getInstance(NodePerformanceTracker.class).stop();
         nodeService.getMonitorService().stop();
         nodeService.getSearchBackpressureService().stop();
-        nodeService.getNodePerformanceTracker().stop();
         injector.getInstance(GatewayService.class).stop();
         injector.getInstance(SearchService.class).stop();
         injector.getInstance(TransportService.class).stop();
@@ -1539,9 +1538,10 @@ public class Node implements Closeable {
         toClose.add(() -> stopWatch.stop().start("monitor"));
         toClose.add(nodeService.getMonitorService());
         toClose.add(nodeService.getSearchBackpressureService());
-        toClose.add(nodeService.getNodePerformanceTracker());
         toClose.add(() -> stopWatch.stop().start("fsHealth"));
         toClose.add(injector.getInstance(FsHealthService.class));
+        toClose.add(() -> stopWatch.stop().start("node_performance_tracker"));
+        toClose.add(injector.getInstance(NodePerformanceTracker.class));
         toClose.add(() -> stopWatch.stop().start("gateway"));
         toClose.add(injector.getInstance(GatewayService.class));
         toClose.add(() -> stopWatch.stop().start("search"));

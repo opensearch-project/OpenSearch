@@ -10,6 +10,7 @@ package org.opensearch.throttling.tracker;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.monitor.process.ProcessProbe;
 import org.opensearch.threadpool.ThreadPool;
@@ -21,8 +22,17 @@ import org.opensearch.threadpool.ThreadPool;
 public class AverageCpuUsageTracker extends AbstractAverageUsageTracker {
     private static final Logger LOGGER = LogManager.getLogger(AverageCpuUsageTracker.class);
 
-    public AverageCpuUsageTracker(ThreadPool threadPool, TimeValue pollingInterval, TimeValue windowDuration) {
+    public AverageCpuUsageTracker(
+        ThreadPool threadPool,
+        TimeValue pollingInterval,
+        TimeValue windowDuration,
+        ClusterSettings clusterSettings
+    ) {
         super(threadPool, pollingInterval, windowDuration);
+        clusterSettings.addSettingsUpdateConsumer(
+            PerformanceTrackerSettings.GLOBAL_CPU_USAGE_AC_WINDOW_DURATION_SETTING,
+            this::setWindowDuration
+        );
     }
 
     @Override

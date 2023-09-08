@@ -59,7 +59,7 @@ import org.opensearch.monitor.os.OsStats;
 import org.opensearch.monitor.process.ProcessStats;
 import org.opensearch.node.AdaptiveSelectionStats;
 import org.opensearch.node.DownstreamNodesPerfStats;
-import org.opensearch.node.PerformanceCollectorService;
+import org.opensearch.node.NodePerformanceStatistics;
 import org.opensearch.node.ResponseCollectorService;
 import org.opensearch.script.ScriptCacheStats;
 import org.opensearch.script.ScriptStats;
@@ -400,13 +400,10 @@ public class NodeStatsTests extends OpenSearchTestCase {
                     assertNull(deserializedNodePerfStats);
                 } else {
                     downstreamNodesPerfStats.getNodePerfStats().forEach((k, v) -> {
-                        PerformanceCollectorService.NodePerformanceStatistics aPerfStats = downstreamNodesPerfStats.getNodePerfStats()
-                            .get(k);
-                        PerformanceCollectorService.NodePerformanceStatistics bPerfStats = downstreamNodesPerfStats.getNodePerfStats()
-                            .get(k);
-                        assertEquals(aPerfStats.getMemoryPercent(), bPerfStats.getMemoryPercent(), 0.0);
-                        assertEquals(aPerfStats.getIoUtilizationPercent(), bPerfStats.getIoUtilizationPercent(), 0.0);
-                        assertEquals(aPerfStats.getCpuPercent(), bPerfStats.getCpuPercent(), 0.0);
+                        NodePerformanceStatistics aPerfStats = downstreamNodesPerfStats.getNodePerfStats().get(k);
+                        NodePerformanceStatistics bPerfStats = downstreamNodesPerfStats.getNodePerfStats().get(k);
+                        assertEquals(aPerfStats.getMemoryUtilizationPercent(), bPerfStats.getMemoryUtilizationPercent(), 0.0);
+                        assertEquals(aPerfStats.getCpuUtilizationPercent(), bPerfStats.getCpuUtilizationPercent(), 0.0);
                         assertEquals(aPerfStats.getTimestamp(), bPerfStats.getTimestamp());
                     });
                 }
@@ -776,7 +773,7 @@ public class NodeStatsTests extends OpenSearchTestCase {
         if (frequently()) {
             int numNodes = randomIntBetween(0, 10);
             Map<String, Long> nodeConnections = new HashMap<>();
-            Map<String, PerformanceCollectorService.NodePerformanceStatistics> nodePerfStats = new HashMap<>();
+            Map<String, NodePerformanceStatistics> nodePerfStats = new HashMap<>();
             for (int i = 0; i < numNodes; i++) {
                 String nodeId = randomAlphaOfLengthBetween(3, 10);
                 // add outgoing connection info
@@ -785,9 +782,8 @@ public class NodeStatsTests extends OpenSearchTestCase {
                 }
                 // add node calculations
                 if (frequently()) {
-                    PerformanceCollectorService.NodePerformanceStatistics stats = new PerformanceCollectorService.NodePerformanceStatistics(
+                    NodePerformanceStatistics stats = new NodePerformanceStatistics(
                         nodeId,
-                        randomDoubleBetween(1.0, 100.0, true),
                         randomDoubleBetween(1.0, 100.0, true),
                         randomDoubleBetween(1.0, 100.0, true),
                         System.currentTimeMillis()

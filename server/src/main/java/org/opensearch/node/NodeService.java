@@ -89,7 +89,6 @@ public class NodeService implements Closeable {
     private final IndexingPressureService indexingPressureService;
     private final AggregationUsageService aggregationUsageService;
     private final SearchBackpressureService searchBackpressureService;
-    private final NodePerformanceTracker nodePerformanceTracker;
     private final SearchPipelineService searchPipelineService;
     private final ClusterService clusterService;
     private final Discovery discovery;
@@ -142,7 +141,6 @@ public class NodeService implements Closeable {
         this.clusterService = clusterService;
         this.fileCache = fileCache;
         this.taskCancellationMonitoringService = taskCancellationMonitoringService;
-        this.nodePerformanceTracker = nodePerformanceTracker;
         this.performanceCollectorService = performanceCollectorService;
         clusterService.addStateApplier(ingestService);
         clusterService.addStateApplier(searchPipelineService);
@@ -268,10 +266,6 @@ public class NodeService implements Closeable {
 
     public SearchBackpressureService getSearchBackpressureService() {
         return searchBackpressureService;
-    }
-
-    public NodePerformanceTracker getNodePerformanceTracker() {
-        return nodePerformanceTracker;
     }
 
     public TaskCancellationMonitoringService getTaskCancellationMonitoringService() {

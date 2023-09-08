@@ -11,6 +11,7 @@ package org.opensearch.throttling.tracker;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.node.NodePerformanceStatistics;
 import org.opensearch.node.PerformanceCollectorService;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
@@ -55,15 +56,13 @@ public class NodePerformanceTrackerTests extends OpenSearchTestCase {
         );
         tracker.start();
         Thread.sleep(2000);
-        double memory = tracker.getMemoryPercentUsed();
-        assertThat(tracker.getMemoryPercentUsed(), greaterThan(0.0));
+        double memory = tracker.getMemoryUtilizationPercent();
+        assertThat(tracker.getMemoryUtilizationPercent(), greaterThan(0.0));
         // cpu percent used is mostly 0, so skipping assertion for that
         tracker.stop();
         assertTrue(performanceCollectorService.getNodeStatistics(NodePerformanceTracker.LOCAL_NODE).isPresent());
-        PerformanceCollectorService.NodePerformanceStatistics perfStats = performanceCollectorService.getNodeStatistics(
-            NodePerformanceTracker.LOCAL_NODE
-        ).get();
-        assertEquals(memory, perfStats.getMemoryPercent(), 0.0);
+        NodePerformanceStatistics perfStats = performanceCollectorService.getNodeStatistics(NodePerformanceTracker.LOCAL_NODE).get();
+        assertEquals(memory, perfStats.getMemoryUtilizationPercent(), 0.0);
         assertTrue(performanceCollectorService.getNodeStatistics("Invalid").isEmpty());
     }
 }
