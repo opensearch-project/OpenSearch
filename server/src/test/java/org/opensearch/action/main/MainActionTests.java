@@ -150,7 +150,8 @@ public class MainActionTests extends OpenSearchTestCase {
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             x -> null,
             null,
-            Collections.emptySet()
+            Collections.emptySet(),
+            NoopTracer.INSTANCE
         );
 
         final Settings settings = Settings.builder().put("node.name", "my-node").put(OVERRIDE_MAIN_RESPONSE_VERSION_KEY, true).build();
