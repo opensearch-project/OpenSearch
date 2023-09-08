@@ -64,7 +64,7 @@ public class MockTracingTelemetry implements TracingTelemetry {
             System.nanoTime(),
             false,
             span.getSpanName(),
-            Thread.currentThread().getStackTrace(),
+            null,
             (span instanceof MockSpan) ? ((MockSpan) span).getAttributes() : Map.of()
         );
         return spanData;

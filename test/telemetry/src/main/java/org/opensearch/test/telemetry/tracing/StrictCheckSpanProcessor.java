@@ -36,7 +36,7 @@ public class StrictCheckSpanProcessor implements SpanProcessor {
     }
 
     private void initProcessor() {
-        // restartTheProcessor();
+        logger.info("State on node start up {} ", spanMap);
     }
 
     private static Map<String, MockSpanData> spanMap = new ConcurrentHashMap<>();
