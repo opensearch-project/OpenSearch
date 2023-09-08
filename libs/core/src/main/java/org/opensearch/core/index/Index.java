@@ -66,6 +66,13 @@ public class Index implements Writeable, ToXContentObject {
     private final String name;
     private final String uuid;
 
+    /**
+     * Create a new Index instance.
+     *
+     * @param name The name of the index
+     * @param uuid The UUID of the index
+     * @throws NullPointerException if either name or uuid are null
+     */
     public Index(String name, String uuid) {
         this.name = Objects.requireNonNull(name);
         this.uuid = Objects.requireNonNull(uuid);
