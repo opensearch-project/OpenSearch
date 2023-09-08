@@ -8,6 +8,7 @@
 
 package org.opensearch.plugins;
 
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.telemetry.Telemetry;
 import org.opensearch.telemetry.TelemetrySettings;
 
@@ -15,7 +16,10 @@ import java.util.Optional;
 
 /**
  * Plugin for extending telemetry related classes
+ *
+ * @opensearch.experimental
  */
+@ExperimentalApi
 public interface TelemetryPlugin {
 
     Optional<Telemetry> getTelemetry(TelemetrySettings telemetrySettings);

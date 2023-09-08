@@ -261,6 +261,7 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/9773")
     public void testReplicaPromotion() throws IOException, InterruptedException {
         setup(false, 3);
         remoteStoreRefreshListener.afterRefresh(true);

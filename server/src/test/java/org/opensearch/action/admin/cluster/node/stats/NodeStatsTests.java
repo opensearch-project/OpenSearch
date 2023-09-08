@@ -42,12 +42,15 @@ import org.opensearch.cluster.service.ClusterManagerThrottlingStats;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.metrics.OperationStats;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.indices.breaker.AllCircuitBreakerStats;
 import org.opensearch.core.indices.breaker.CircuitBreakerStats;
 import org.opensearch.discovery.DiscoveryStats;
 import org.opensearch.http.HttpStats;
 import org.opensearch.index.ReplicationStats;
 import org.opensearch.index.remote.RemoteSegmentStats;
+import org.opensearch.index.remote.RemoteTranslogTransferTracker;
+import org.opensearch.index.translog.RemoteTranslogStats;
 import org.opensearch.indices.NodeIndicesStats;
 import org.opensearch.ingest.IngestStats;
 import org.opensearch.monitor.fs.FsInfo;
@@ -463,6 +466,12 @@ public class NodeStatsTests extends OpenSearchTestCase {
                     assertEquals(remoteSegmentStats.getTotalRefreshBytesLag(), deserializedRemoteSegmentStats.getTotalRefreshBytesLag());
                     assertEquals(remoteSegmentStats.getTotalUploadTime(), deserializedRemoteSegmentStats.getTotalUploadTime());
                     assertEquals(remoteSegmentStats.getTotalDownloadTime(), deserializedRemoteSegmentStats.getTotalDownloadTime());
+
+                    RemoteTranslogStats remoteTranslogStats = nodeIndicesStats.getTranslog().getRemoteTranslogStats();
+                    RemoteTranslogStats deserializedRemoteTranslogStats = deserializedNodeIndicesStats.getTranslog()
+                        .getRemoteTranslogStats();
+                    assertEquals(remoteTranslogStats, deserializedRemoteTranslogStats);
+
                     ReplicationStats replicationStats = nodeIndicesStats.getSegments().getReplicationStats();
 
                     ReplicationStats deserializedReplicationStats = deserializedNodeIndicesStats.getSegments().getReplicationStats();
@@ -792,6 +801,7 @@ public class NodeStatsTests extends OpenSearchTestCase {
         NodeIndicesStats indicesStats = null;
         if (remoteStoreStats) {
             indicesStats = new NodeIndicesStats(new CommonStats(CommonStatsFlags.ALL), new HashMap<>());
+
             RemoteSegmentStats remoteSegmentStats = indicesStats.getSegments().getRemoteSegmentStats();
             remoteSegmentStats.addUploadBytesStarted(10L);
             remoteSegmentStats.addUploadBytesSucceeded(10L);
@@ -804,8 +814,36 @@ public class NodeStatsTests extends OpenSearchTestCase {
             remoteSegmentStats.setMaxRefreshTimeLag(2L);
             remoteSegmentStats.addTotalUploadTime(20L);
             remoteSegmentStats.addTotalDownloadTime(20L);
+
+            RemoteTranslogStats remoteTranslogStats = indicesStats.getTranslog().getRemoteTranslogStats();
+            RemoteTranslogStats otherRemoteTranslogStats = new RemoteTranslogStats(getRandomRemoteTranslogTransferTrackerStats());
+            remoteTranslogStats.add(otherRemoteTranslogStats);
         }
         return indicesStats;
+    }
+
+    private static RemoteTranslogTransferTracker.Stats getRandomRemoteTranslogTransferTrackerStats() {
+        return new RemoteTranslogTransferTracker.Stats(
+            new ShardId("test-idx", "test-idx", randomIntBetween(1, 10)),
+            0L,
+            randomLongBetween(100, 500),
+            randomLongBetween(50, 100),
+            randomLongBetween(100, 200),
+            randomLongBetween(10000, 50000),
+            randomLongBetween(5000, 10000),
+            randomLongBetween(10000, 20000),
+            0L,
+            0D,
+            0D,
+            0D,
+            0L,
+            0L,
+            0L,
+            0L,
+            0D,
+            0D,
+            0D
+        );
     }
 
     private OperationStats getPipelineStats(List<IngestStats.PipelineStat> pipelineStats, String id) {

@@ -19,6 +19,7 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.shard.IndexShard;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * Tracks remote store segment download and upload stats
@@ -256,7 +257,7 @@ public class RemoteSegmentStats implements Writeable, ToXContentFragment {
     }
 
     private void buildUploadStats(XContentBuilder builder) throws IOException {
-        builder.startObject(Fields.TOTAL_UPLOADS);
+        builder.startObject(Fields.TOTAL_UPLOAD_SIZE);
         builder.humanReadableField(Fields.STARTED_BYTES, Fields.STARTED, new ByteSizeValue(uploadBytesStarted));
         builder.humanReadableField(Fields.SUCCEEDED_BYTES, Fields.SUCCEEDED, new ByteSizeValue(uploadBytesSucceeded));
         builder.humanReadableField(Fields.FAILED_BYTES, Fields.FAILED, new ByteSizeValue(uploadBytesFailed));
@@ -270,7 +271,7 @@ public class RemoteSegmentStats implements Writeable, ToXContentFragment {
     }
 
     private void buildDownloadStats(XContentBuilder builder) throws IOException {
-        builder.startObject(Fields.TOTAL_DOWNLOADS);
+        builder.startObject(Fields.TOTAL_DOWNLOAD_SIZE);
         builder.humanReadableField(Fields.STARTED_BYTES, Fields.STARTED, new ByteSizeValue(downloadBytesStarted));
         builder.humanReadableField(Fields.SUCCEEDED_BYTES, Fields.SUCCEEDED, new ByteSizeValue(downloadBytesSucceeded));
         builder.humanReadableField(Fields.FAILED_BYTES, Fields.FAILED, new ByteSizeValue(downloadBytesFailed));
@@ -282,8 +283,8 @@ public class RemoteSegmentStats implements Writeable, ToXContentFragment {
         static final String REMOTE_STORE = "remote_store";
         static final String UPLOAD = "upload";
         static final String DOWNLOAD = "download";
-        static final String TOTAL_UPLOADS = "total_uploads";
-        static final String TOTAL_DOWNLOADS = "total_downloads";
+        static final String TOTAL_UPLOAD_SIZE = "total_upload_size";
+        static final String TOTAL_DOWNLOAD_SIZE = "total_download_size";
         static final String MAX_REFRESH_TIME_LAG = "max_refresh_time_lag";
         static final String MAX_REFRESH_TIME_LAG_IN_MILLIS = "max_refresh_time_lag_in_millis";
         static final String REFRESH_SIZE_LAG = "refresh_size_lag";
@@ -299,5 +300,41 @@ public class RemoteSegmentStats implements Writeable, ToXContentFragment {
         static final String MAX_BYTES = "max_bytes";
         static final String TOTAL_TIME_SPENT = "total_time_spent";
         static final String TOTAL_TIME_SPENT_IN_MILLIS = "total_time_spent_in_millis";
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        RemoteSegmentStats that = (RemoteSegmentStats) o;
+        return uploadBytesStarted == that.uploadBytesStarted
+            && uploadBytesFailed == that.uploadBytesFailed
+            && uploadBytesSucceeded == that.uploadBytesSucceeded
+            && downloadBytesStarted == that.downloadBytesStarted
+            && downloadBytesFailed == that.downloadBytesFailed
+            && downloadBytesSucceeded == that.downloadBytesSucceeded
+            && maxRefreshTimeLag == that.maxRefreshTimeLag
+            && maxRefreshBytesLag == that.maxRefreshBytesLag
+            && totalRefreshBytesLag == that.totalRefreshBytesLag
+            && totalUploadTime == that.totalUploadTime
+            && totalDownloadTime == that.totalDownloadTime;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(
+            uploadBytesStarted,
+            uploadBytesFailed,
+            uploadBytesSucceeded,
+            downloadBytesStarted,
+            downloadBytesFailed,
+            downloadBytesSucceeded,
+            maxRefreshTimeLag,
+            maxRefreshBytesLag,
+            totalRefreshBytesLag,
+            totalUploadTime,
+            totalDownloadTime
+        );
     }
 }

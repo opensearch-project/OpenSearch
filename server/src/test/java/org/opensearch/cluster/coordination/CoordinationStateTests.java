@@ -48,12 +48,14 @@ import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.gateway.GatewayMetaState.RemotePersistedState;
 import org.opensearch.gateway.remote.ClusterMetadataManifest;
 import org.opensearch.gateway.remote.RemoteClusterStateService;
+import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.test.EqualsHashCodeTestUtils;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -62,6 +64,9 @@ import org.mockito.Mockito;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -920,48 +925,49 @@ public class CoordinationStateTests extends OpenSearchTestCase {
         final RemoteClusterStateService remoteClusterStateService = Mockito.mock(RemoteClusterStateService.class);
         final VotingConfiguration initialConfig = VotingConfiguration.of(node1);
         final ClusterState clusterState = clusterState(0L, 0L, node1, initialConfig, initialConfig, 42L);
-        Mockito.when(remoteClusterStateService.writeFullMetadata(clusterState))
-            .thenReturn(
-                new ClusterMetadataManifest(
-                    0L,
-                    0L,
-                    randomAlphaOfLength(10),
-                    randomAlphaOfLength(10),
-                    Version.CURRENT,
-                    randomAlphaOfLength(10),
-                    false,
-                    Collections.emptyList()
-                )
-            );
-
-        final PersistedStateRegistry persistedStateRegistry = persistedStateRegistry();
-        persistedStateRegistry.addPersistedState(PersistedStateType.LOCAL, ps1);
-        persistedStateRegistry.addPersistedState(PersistedStateType.REMOTE, new RemotePersistedState(remoteClusterStateService));
-        final Settings settings = Settings.builder()
-            .put(RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING.getKey(), true)
-            .build();
-        final CoordinationState coordinationState = createCoordinationState(persistedStateRegistry, node1, settings);
-        coordinationState.handlePrePublish(clusterState);
-        Mockito.verifyNoInteractions(remoteClusterStateService);
-        assertThat(persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE).getLastAcceptedState(), equalTo(clusterState));
-
-        final ClusterState clusterState2 = clusterState(0L, 1L, node1, initialConfig, initialConfig, 42L);
-        final ClusterMetadataManifest manifest2 = new ClusterMetadataManifest(
+        final ClusterMetadataManifest manifest = new ClusterMetadataManifest(
             0L,
-            1L,
+            0L,
             randomAlphaOfLength(10),
             randomAlphaOfLength(10),
             Version.CURRENT,
             randomAlphaOfLength(10),
             false,
-            Collections.emptyList()
+            Collections.emptyList(),
+            randomAlphaOfLength(10)
         );
-        Mockito.when(remoteClusterStateService.writeFullMetadata(clusterState2)).thenReturn(manifest2);
-        coordinationState.handlePrePublish(clusterState2);
-        Mockito.verify(remoteClusterStateService, Mockito.times(1)).writeFullMetadata(clusterState2);
+        Mockito.when(remoteClusterStateService.writeFullMetadata(clusterState)).thenReturn(manifest);
+
+        final PersistedStateRegistry persistedStateRegistry = persistedStateRegistry();
+        persistedStateRegistry.addPersistedState(PersistedStateType.LOCAL, ps1);
+        persistedStateRegistry.addPersistedState(PersistedStateType.REMOTE, new RemotePersistedState(remoteClusterStateService));
+
+        String randomRepoName = "randomRepoName";
+        String stateRepoTypeAttributeKey = String.format(
+            Locale.getDefault(),
+            "node.attr." + REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT,
+            randomRepoName
+        );
+        String stateRepoSettingsAttributeKeyPrefix = String.format(
+            Locale.getDefault(),
+            "node.attr." + REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX,
+            randomRepoName
+        );
+
+        Settings settings = Settings.builder()
+            .put("node.attr." + REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY, randomRepoName)
+            .put(stateRepoTypeAttributeKey, FsRepository.TYPE)
+            .put(stateRepoSettingsAttributeKeyPrefix + "location", "randomRepoPath")
+            .put(RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING.getKey(), true)
+            .build();
+
+        final CoordinationState coordinationState = createCoordinationState(persistedStateRegistry, node1, settings);
+        coordinationState.handlePrePublish(clusterState);
+        Mockito.verify(remoteClusterStateService, Mockito.times(1)).writeFullMetadata(clusterState);
+        assertThat(persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE).getLastAcceptedState(), equalTo(clusterState));
 
         coordinationState.handlePreCommit();
-        Mockito.verify(remoteClusterStateService, Mockito.times(1)).markLastStateAsCommitted(clusterState2, manifest2);
+        Mockito.verify(remoteClusterStateService, Mockito.times(1)).markLastStateAsCommitted(clusterState, manifest);
     }
 
     public static CoordinationState createCoordinationState(

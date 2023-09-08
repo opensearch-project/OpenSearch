@@ -2038,7 +2038,7 @@ public class InternalEngine extends Engine {
             throw ex;
         } catch (Exception e) {
             try {
-                maybeFailEngine("force merge", e);
+                maybeFailEngine(FORCE_MERGE, e);
             } catch (Exception inner) {
                 e.addSuppressed(inner);
             }
@@ -2488,7 +2488,7 @@ public class InternalEngine extends Engine {
                      * confidence that the call stack does not contain catch statements that would cause the error that might be thrown
                      * here from being caught and never reaching the uncaught exception handler.
                      */
-                    failEngine("merge failed", new MergePolicy.MergeException(exc));
+                    failEngine(MERGE_FAILED, new MergePolicy.MergeException(exc));
                 }
             });
         }

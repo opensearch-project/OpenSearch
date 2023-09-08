@@ -8,6 +8,7 @@
 
 package org.opensearch.telemetry.tracing.noop;
 
+import org.opensearch.common.annotation.InternalApi;
 import org.opensearch.telemetry.tracing.ScopedSpan;
 
 /**
@@ -15,6 +16,7 @@ import org.opensearch.telemetry.tracing.ScopedSpan;
  *
  * @opensearch.internal
  */
+@InternalApi
 public final class NoopScopedSpan implements ScopedSpan {
 
     /**
