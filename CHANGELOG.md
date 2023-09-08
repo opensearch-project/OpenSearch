@@ -122,6 +122,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Move ZStd to a plugin ([#9658](https://github.com/opensearch-project/OpenSearch/pull/9658))
 - [Remote Store] Add support for Remote Translog Store upload stats in `_nodes/stats/` API ([#8908](https://github.com/opensearch-project/OpenSearch/pull/8908))
 - [Remote Store] Removing feature flag to mark feature GA ([#9761](https://github.com/opensearch-project/OpenSearch/pull/9761))
+- Add instrumentation in rest and network layer. ([#9415](https://github.com/opensearch-project/OpenSearch/pull/9415))
 
 ### Deprecated
 

@@ -81,7 +81,7 @@ public class NoopTracer implements Tracer {
     }
 
     @Override
-    public Span startSpan(String spanName, Map<String, List<String>> header, Attributes attributes) {
+    public Span startSpan(SpanCreationContext spanCreationContext, Map<String, List<String>> header) {
         return NoopSpan.INSTANCE;
     }
 }

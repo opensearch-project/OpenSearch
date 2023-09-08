@@ -45,6 +45,7 @@ import org.opensearch.http.HttpPipelinedRequest;
 import org.opensearch.http.HttpResponse;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.http.NullDispatcher;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
@@ -135,7 +136,8 @@ public class Netty4HttpServerPipeliningTests extends OpenSearchTestCase {
                 xContentRegistry(),
                 new NullDispatcher(),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                new SharedGroupFactory(settings)
+                new SharedGroupFactory(settings),
+                NoopTracer.INSTANCE
             );
         }
 
