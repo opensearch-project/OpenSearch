@@ -13,14 +13,13 @@ import org.opensearch.telemetry.tracing.TracingContextPropagator;
 import org.opensearch.telemetry.tracing.TracingTelemetry;
 import org.opensearch.telemetry.tracing.attributes.Attributes;
 
-import java.util.concurrent.atomic.AtomicBoolean;
-
 /**
  * Mock {@link TracingTelemetry} implementation for testing.
  */
 public class MockTracingTelemetry implements TracingTelemetry {
 
     private final SpanProcessor spanProcessor = new StrictCheckSpanProcessor();
+
     /**
      * Base constructor.
      */
