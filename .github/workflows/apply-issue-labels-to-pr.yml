@@ -4,12 +4,22 @@ on:
   pull_request:
   pull_request_target:
 
-jobs:
-  mirror-labels-to-pr:
-    #    if: github.repository == 'opensearch-project/OpenSearch'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
+#jobs:
+#  mirror-labels-to-pr:
+#    #    if: github.repository == 'opensearch-project/OpenSearch'
+#    runs-on: ubuntu-latest
+#    steps:
+#      - uses: actions/checkout@v3
+#
+#      - name: Run label script
+#        run: pip install PyGithub && .github-automation/copy-issue-labels-to-pr.py ${{ secrets.GITHUB_TOKEN }} $GITHUB_REPOSITORY $GITHUB_EVENT_PATH
 
-      - name: Run label script
-        run: pip install PyGithub && .github-automation/copy-issue-labels-to-pr.py ${{ secrets.GITHUB_TOKEN }} $GITHUB_REPOSITORY $GITHUB_EVENT_PATH
+jobs:
+  copy-labels:
+    runs-on: ubuntu-latest
+    name: Copy labels from linked issues
+    steps:
+      - name: copy-labels
+        uses: michalvankodev/copy-issue-labels@v1.2.1
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
