@@ -21,8 +21,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class MockTracingTelemetry implements TracingTelemetry {
 
     private final SpanProcessor spanProcessor = new StrictCheckSpanProcessor();
-    private static final AtomicBoolean shutdown = new AtomicBoolean(false);
-
     /**
      * Base constructor.
      */
@@ -31,9 +29,7 @@ public class MockTracingTelemetry implements TracingTelemetry {
     @Override
     public Span createSpan(String spanName, Span parentSpan, Attributes attributes) {
         Span span = new MockSpan(spanName, parentSpan, spanProcessor, attributes);
-        if (shutdown.get() == false) {
-            spanProcessor.onStart(span);
-        }
+        spanProcessor.onStart(span);
         return span;
     }
 
@@ -44,18 +40,7 @@ public class MockTracingTelemetry implements TracingTelemetry {
 
     @Override
     public void close() {
-        if (shutdown.get() == false) {
-            shutdown.set(true);
-        }
-    }
-
-    /**
-     * resetShutdown.
-     */
-    public static synchronized void resetShutdown() {
-        if (shutdown.get() == true) {
-            shutdown.set(false);
-        }
+        StrictCheckSpanProcessor.shutdown();
     }
 
 }

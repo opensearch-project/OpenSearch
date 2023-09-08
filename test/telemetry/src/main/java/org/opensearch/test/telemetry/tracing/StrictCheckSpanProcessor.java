@@ -8,6 +8,7 @@
 
 package org.opensearch.test.telemetry.tracing;
 
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.opensearch.telemetry.tracing.Span;
 import org.opensearch.test.telemetry.tracing.validators.AllSpansAreEndedProperly;
 import org.opensearch.test.telemetry.tracing.validators.AllSpansHaveUniqueId;
@@ -25,13 +26,23 @@ public class StrictCheckSpanProcessor implements SpanProcessor {
     /**
      * Base constructor.
      */
-    public StrictCheckSpanProcessor() {}
+    public StrictCheckSpanProcessor() {
+        initProcessor();
+    }
+
+    private void initProcessor() {
+        restartTheProcessor();
+    }
 
     private static Map<String, MockSpanData> spanMap = new ConcurrentHashMap<>();
+    private static final AtomicBoolean shutdown = new AtomicBoolean(false);
+
 
     @Override
     public void onStart(Span span) {
-        spanMap.put(span.getSpanId(), toMockSpanData(span));
+        if(shutdown.get() == false) {
+            spanMap.put(span.getSpanId(), toMockSpanData(span));
+        }
     }
 
     @Override
@@ -67,6 +78,24 @@ public class StrictCheckSpanProcessor implements SpanProcessor {
     }
 
     /**
+     * shutdown
+     */
+    public static synchronized void shutdown(){
+        if(shutdown.get() == false){
+            shutdown.set(true);
+        }
+    }
+
+    /**
+     * restartTheProcessor
+     */
+    public static synchronized void restartTheProcessor(){
+        if(shutdown.get() == true){
+            shutdown.set(false);
+        }
+    }
+
+    /**
      * Ensures the strict check succeeds for all the spans.
      */
     public static void validateTracingStateOnShutdown() {
@@ -81,7 +110,7 @@ public class StrictCheckSpanProcessor implements SpanProcessor {
                 spanMap.clear();
                 throw e;
             } finally {
-                MockTracingTelemetry.resetShutdown();
+                restartTheProcessor();
             }
         }
 
