@@ -67,6 +67,13 @@ public class StrictCheckSpanProcessor implements SpanProcessor {
     }
 
     /**
+     * reset
+     */
+    public static void reset() {
+        spanMap.clear();
+    }
+
+    /**
      * Ensures the strict check succeeds for all the spans.
      */
     public static void validateTracingStateOnShutdown() {
