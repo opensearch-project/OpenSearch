@@ -8,6 +8,8 @@
 
 package org.opensearch.test.telemetry.tracing;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.telemetry.tracing.Span;
 import org.opensearch.test.telemetry.tracing.validators.AllSpansAreEndedProperly;
 import org.opensearch.test.telemetry.tracing.validators.AllSpansHaveUniqueId;
@@ -23,6 +25,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * Strict check span processor to validate the spans.
  */
 public class StrictCheckSpanProcessor implements SpanProcessor {
+
+    private final static Logger logger = LogManager.getLogger(StrictCheckSpanProcessor.class);
+
     /**
      * Base constructor.
      */
@@ -40,15 +45,18 @@ public class StrictCheckSpanProcessor implements SpanProcessor {
     @Override
     public void onStart(Span span) {
         if (shutdown.get() == false) {
+            logger.info("Adding span {} {}", Thread.currentThread().getName(), span.getSpanId());
             spanMap.put(span.getSpanId(), toMockSpanData(span));
         }
     }
 
     @Override
     public void onEnd(Span span) {
+        logger.info("End Span");
         MockSpanData spanData = spanMap.get(span.getSpanId());
         // Setting EndEpochTime and HasEnded value to true on completion of span.
         if (spanData != null) {
+            logger.info("End Span inside {} {} ", Thread.currentThread().getName(), span.getSpanId());
             spanData.setEndEpochNanos(System.nanoTime());
             spanData.setHasEnded(true);
         }
@@ -98,6 +106,7 @@ public class StrictCheckSpanProcessor implements SpanProcessor {
      * Ensures the strict check succeeds for all the spans.
      */
     public static void validateTracingStateOnShutdown() {
+        logger.info("Verifying the tracing at shutdown {}", Thread.currentThread().getName());
         List<MockSpanData> spanData = new ArrayList<>(spanMap.values());
         if (spanData.size() != 0) {
             TelemetryValidators validators = new TelemetryValidators(
