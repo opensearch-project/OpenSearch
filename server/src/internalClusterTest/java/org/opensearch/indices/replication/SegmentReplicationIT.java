@@ -1664,13 +1664,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         // index doc 1
         client().prepareIndex(INDEX_NAME)
             .setId(Integer.toString(1))
-            .setSource(
-                jsonBuilder().startObject()
-                    .field("field", "the quick brown fox jumps over the lazy dog")
-                    // 0the3 4quick9 10brown15 16fox19 20jumps25 26over30
-                    // 31the34 35lazy39 40dog43
-                    .endObject()
-            )
+            .setSource(jsonBuilder().startObject().field("field", "the quick brown fox jumps over the lazy dog").endObject())
             .execute()
             .actionGet();
 
@@ -1683,6 +1677,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
             .setPayloads(true)
             .setOffsets(true)
             .setPositions(true)
+            .setRealtime(true)
             .setSelectedFields();
         response = resp.execute().actionGet();
         assertThat(response.getIndex(), equalTo(INDEX_NAME));
@@ -1694,13 +1689,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         client().prepareIndex(INDEX_NAME)
             .setId(Integer.toString(2))
             .setRouting(id)
-            .setSource(
-                jsonBuilder().startObject()
-                    .field("field", "the quick brown fox jumps over the lazy dog")
-                    // 0the3 4quick9 10brown15 16fox19 20jumps25 26over30
-                    // 31the34 35lazy39 40dog43
-                    .endObject()
-            )
+            .setSource(jsonBuilder().startObject().field("field", "the quick brown fox jumps over the lazy dog").endObject())
             .execute()
             .actionGet();
 
@@ -1752,13 +1741,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         // index doc 1
         client().prepareIndex(INDEX_NAME)
             .setId(Integer.toString(1))
-            .setSource(
-                jsonBuilder().startObject()
-                    .field("field", "the quick brown fox jumps over the lazy dog")
-                    // 0the3 4quick9 10brown15 16fox19 20jumps25 26over30
-                    // 31the34 35lazy39 40dog43
-                    .endObject()
-            )
+            .setSource(jsonBuilder().startObject().field("field", "the quick brown fox jumps over the lazy dog").endObject())
             .setRouting(id)
             .execute()
             .actionGet();
@@ -1773,6 +1756,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
             .setOffsets(true)
             .setPositions(true)
             .setPreference(Preference.REPLICA.type())
+            .setRealtime(true)
             .setSelectedFields();
         response = resp.execute().actionGet();
 

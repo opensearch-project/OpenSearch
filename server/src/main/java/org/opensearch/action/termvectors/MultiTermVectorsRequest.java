@@ -63,7 +63,6 @@ public class MultiTermVectorsRequest extends ActionRequest
         RealtimeRequest {
 
     String preference;
-
     List<TermVectorsRequest> requests = new ArrayList<>();
 
     final Set<String> ids = new HashSet<>();

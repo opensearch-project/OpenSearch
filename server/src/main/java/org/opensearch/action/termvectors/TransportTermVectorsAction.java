@@ -54,8 +54,6 @@ import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 
-import static org.opensearch.action.get.TransportGetAction.shouldForcePrimaryRouting;
-
 /**
  * Performs the get operation.
  *
@@ -91,18 +89,12 @@ public class TransportTermVectorsAction extends TransportSingleShardAction<TermV
     @Override
     protected ShardIterator shards(ClusterState state, InternalRequest request) {
 
-        final String preference;
-        // route realtime TermVector requests when segment replication is enabled to primary shards,
-        // iff there are no other preferences/routings enabled for routing to a specific shard
-        if (shouldForcePrimaryRouting(
-            state.getMetadata(),
-            request.request().realtime(),
-            request.request().preference(),
-            request.concreteIndex()
-        )) {
+        String preference = request.request().preference;
+        // For a real time request on a seg rep index, use primary shard as the preferred query shard.
+        if (request.request().realtime()
+            && preference == null
+            && state.getMetadata().isSegmentReplicationEnabled(request.concreteIndex())) {
             preference = Preference.PRIMARY.type();
-        } else {
-            preference = request.request().preference();
         }
 
         if (request.request().doc() != null && request.request().routing() == null) {
