@@ -49,4 +49,13 @@ public class MockTracingTelemetry implements TracingTelemetry {
         }
     }
 
+    /**
+     * resetShutdown.
+     */
+    public static synchronized void resetShutdown() {
+        if (shutdown.get() == true) {
+            shutdown.set(false);
+        }
+    }
+
 }

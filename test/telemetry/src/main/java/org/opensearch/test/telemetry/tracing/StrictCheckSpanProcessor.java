@@ -80,6 +80,8 @@ public class StrictCheckSpanProcessor implements SpanProcessor {
             } catch (Error e) {
                 spanMap.clear();
                 throw e;
+            } finally {
+                MockTracingTelemetry.resetShutdown();
             }
         }
 
