@@ -32,6 +32,7 @@ import org.opensearch.tasks.TaskCancellation;
 import org.opensearch.tasks.TaskCancellationService;
 import org.opensearch.tasks.TaskManager;
 import org.opensearch.tasks.TaskResourceTrackingService;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.threadpool.TestThreadPool;
@@ -70,7 +71,7 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
     @Before
     public void setup() {
         threadPool = new TestThreadPool(getClass().getName());
-        transportService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool);
+        transportService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool, NoopTracer.INSTANCE);
         transportService.start();
         transportService.acceptIncomingRequests();
         taskManager = transportService.getTaskManager();

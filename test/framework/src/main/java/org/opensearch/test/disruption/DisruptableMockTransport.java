@@ -42,6 +42,7 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.transport.BoundTransportAddress;
 import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.transport.TransportResponse;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.test.transport.MockTransport;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.CloseableConnection;
@@ -91,9 +92,10 @@ public abstract class DisruptableMockTransport extends MockTransport {
         TransportInterceptor interceptor,
         Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
         @Nullable ClusterSettings clusterSettings,
-        Set<String> taskHeaders
+        Set<String> taskHeaders,
+        Tracer tracer
     ) {
-        return new TransportService(settings, this, threadPool, interceptor, localNodeFactory, clusterSettings, taskHeaders);
+        return new TransportService(settings, this, threadPool, interceptor, localNodeFactory, clusterSettings, taskHeaders, tracer);
     }
 
     @Override
