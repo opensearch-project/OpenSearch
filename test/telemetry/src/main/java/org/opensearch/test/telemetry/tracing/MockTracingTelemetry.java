@@ -21,7 +21,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class MockTracingTelemetry implements TracingTelemetry {
 
     private final SpanProcessor spanProcessor = new StrictCheckSpanProcessor();
-    private final AtomicBoolean shutdown = new AtomicBoolean(false);
+    private static final AtomicBoolean shutdown = new AtomicBoolean(false);
 
     /**
      * Base constructor.
@@ -44,7 +44,9 @@ public class MockTracingTelemetry implements TracingTelemetry {
 
     @Override
     public void close() {
-        shutdown.set(true);
+        if (shutdown.get() == false) {
+            shutdown.set(true);
+        }
     }
 
 }
