@@ -66,6 +66,7 @@ import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
 import org.opensearch.search.aggregations.InternalAggregations;
 import org.opensearch.search.internal.InternalSearchResponse;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.threadpool.TestThreadPool;
@@ -126,7 +127,7 @@ public class RemoteClusterConnectionTests extends OpenSearchTestCase {
         boolean success = false;
         final Settings s = Settings.builder().put(settings).put("node.name", id).build();
         ClusterName clusterName = ClusterName.CLUSTER_NAME_SETTING.get(s);
-        MockTransportService newService = MockTransportService.createNewService(s, version, threadPool, null);
+        MockTransportService newService = MockTransportService.createNewService(s, version, threadPool, NoopTracer.INSTANCE);
         try {
             newService.registerRequestHandler(
                 ClusterSearchShardsAction.NAME,
@@ -231,7 +232,14 @@ public class RemoteClusterConnectionTests extends OpenSearchTestCase {
             };
             t.start();
 
-            try (MockTransportService service = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool, null)) {
+            try (
+                MockTransportService service = MockTransportService.createNewService(
+                    Settings.EMPTY,
+                    Version.CURRENT,
+                    threadPool,
+                    NoopTracer.INSTANCE
+                )
+            ) {
                 service.start();
                 service.acceptIncomingRequests();
                 CountDownLatch listenerCalled = new CountDownLatch(1);
@@ -280,7 +288,14 @@ public class RemoteClusterConnectionTests extends OpenSearchTestCase {
             List<String> seedNodes = addresses(seedNode1, seedNode);
             Collections.shuffle(seedNodes, random());
 
-            try (MockTransportService service = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool, null)) {
+            try (
+                MockTransportService service = MockTransportService.createNewService(
+                    Settings.EMPTY,
+                    Version.CURRENT,
+                    threadPool,
+                    NoopTracer.INSTANCE
+                )
+            ) {
                 service.start();
                 service.acceptIncomingRequests();
                 String clusterAlias = "test-cluster";
@@ -367,7 +382,14 @@ public class RemoteClusterConnectionTests extends OpenSearchTestCase {
             List<String> seedNodes = addresses(node3, node1, node2);
             Collections.shuffle(seedNodes, random());
 
-            try (MockTransportService service = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool, null)) {
+            try (
+                MockTransportService service = MockTransportService.createNewService(
+                    Settings.EMPTY,
+                    Version.CURRENT,
+                    threadPool,
+                    NoopTracer.INSTANCE
+                )
+            ) {
                 service.start();
                 service.acceptIncomingRequests();
                 int maxNumConnections = randomIntBetween(1, 5);
@@ -480,7 +502,14 @@ public class RemoteClusterConnectionTests extends OpenSearchTestCase {
         try (MockTransportService seedTransport = startTransport("seed_node", knownNodes, Version.CURRENT)) {
             DiscoveryNode seedNode = seedTransport.getLocalDiscoNode();
             knownNodes.add(seedTransport.getLocalDiscoNode());
-            try (MockTransportService service = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool, null)) {
+            try (
+                MockTransportService service = MockTransportService.createNewService(
+                    Settings.EMPTY,
+                    Version.CURRENT,
+                    threadPool,
+                    NoopTracer.INSTANCE
+                )
+            ) {
                 service.start();
                 service.acceptIncomingRequests();
                 String clusterAlias = "test-cluster";
@@ -515,7 +544,14 @@ public class RemoteClusterConnectionTests extends OpenSearchTestCase {
         try (MockTransportService seedTransport = startTransport("seed_node", knownNodes, Version.CURRENT)) {
             DiscoveryNode seedNode = seedTransport.getLocalDiscoNode();
             knownNodes.add(seedTransport.getLocalDiscoNode());
-            try (MockTransportService service = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool, null)) {
+            try (
+                MockTransportService service = MockTransportService.createNewService(
+                    Settings.EMPTY,
+                    Version.CURRENT,
+                    threadPool,
+                    NoopTracer.INSTANCE
+                )
+            ) {
                 service.start();
                 service.acceptIncomingRequests();
                 String clusterAlias = "test-cluster";
@@ -568,7 +604,14 @@ public class RemoteClusterConnectionTests extends OpenSearchTestCase {
             );
             Collections.shuffle(seedNodes, random());
 
-            try (MockTransportService service = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool, null)) {
+            try (
+                MockTransportService service = MockTransportService.createNewService(
+                    Settings.EMPTY,
+                    Version.CURRENT,
+                    threadPool,
+                    NoopTracer.INSTANCE
+                )
+            ) {
                 service.start();
                 service.acceptIncomingRequests();
 
@@ -645,7 +688,14 @@ public class RemoteClusterConnectionTests extends OpenSearchTestCase {
 
             DiscoveryNode disconnectedNode = disconnectedTransport.getLocalNode();
 
-            try (MockTransportService service = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool, null)) {
+            try (
+                MockTransportService service = MockTransportService.createNewService(
+                    Settings.EMPTY,
+                    Version.CURRENT,
+                    threadPool,
+                    NoopTracer.INSTANCE
+                )
+            ) {
                 service.start();
                 service.acceptIncomingRequests();
                 String clusterAlias = "test-cluster";
