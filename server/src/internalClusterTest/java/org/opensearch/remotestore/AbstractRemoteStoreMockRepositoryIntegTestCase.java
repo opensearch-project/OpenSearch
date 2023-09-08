@@ -12,15 +12,12 @@ import org.opensearch.action.index.IndexResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.util.FileSystemUtils;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.snapshots.AbstractSnapshotIntegTestCase;
-import org.opensearch.test.FeatureFlagSetter;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -31,6 +28,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.opensearch.indices.IndicesService.CLUSTER_REPLICATION_TYPE_SETTING;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY;
@@ -42,17 +40,6 @@ public abstract class AbstractRemoteStoreMockRepositoryIntegTestCase extends Abs
     protected static final String REPOSITORY_NAME = "my-segment-repo-1";
     protected static final String TRANSLOG_REPOSITORY_NAME = "my-translog-repo-1";
     protected static final String INDEX_NAME = "remote-store-test-idx-1";
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.REMOTE_STORE, "true").build();
-    }
-
-    @Before
-    public void setup() {
-        FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
-        FeatureFlagSetter.set(FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL);
-    }
 
     @Override
     public Settings indexSettings() {
@@ -91,6 +78,16 @@ public abstract class AbstractRemoteStoreMockRepositoryIntegTestCase extends Abs
             "node.attr." + REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX,
             TRANSLOG_REPOSITORY_NAME
         );
+        String stateRepoTypeAttributeKey = String.format(
+            Locale.getDefault(),
+            "node.attr." + REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT,
+            REPOSITORY_NAME
+        );
+        String stateRepoSettingsAttributeKeyPrefix = String.format(
+            Locale.getDefault(),
+            "node.attr." + REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX,
+            REPOSITORY_NAME
+        );
 
         return Settings.builder()
             .put("node.attr." + REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY, REPOSITORY_NAME)
@@ -104,6 +101,9 @@ public abstract class AbstractRemoteStoreMockRepositoryIntegTestCase extends Abs
             .put("node.attr." + REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY, TRANSLOG_REPOSITORY_NAME)
             .put(translogRepoTypeAttributeKey, "mock")
             .put(translogRepoSettingsAttributeKeyPrefix + "location", repoLocation)
+            .put("node.attr." + REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY, REPOSITORY_NAME)
+            .put(stateRepoTypeAttributeKey, "mock")
+            .put(stateRepoSettingsAttributeKeyPrefix + "location", repoLocation)
             .build();
     }
 

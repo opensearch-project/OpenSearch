@@ -118,7 +118,7 @@ public class MultiCodecMergeIT extends OpenSearchIntegTestCase {
     }
 
     private void useCodec(String index, String codec) throws ExecutionException, InterruptedException {
-        assertAcked(client().admin().indices().prepareClose(index));
+        assertAcked(client().admin().indices().prepareClose(index).setWaitForActiveShards(1));
 
         assertAcked(
             client().admin()
@@ -127,7 +127,7 @@ public class MultiCodecMergeIT extends OpenSearchIntegTestCase {
                 .get()
         );
 
-        assertAcked(client().admin().indices().prepareOpen(index));
+        assertAcked(client().admin().indices().prepareOpen(index).setWaitForActiveShards(1));
     }
 
     private void ingestDocs(String index) throws InterruptedException {

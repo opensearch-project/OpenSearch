@@ -67,6 +67,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY;
@@ -437,7 +438,8 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
 
         for (Map.Entry<String, String> nodeAttribute : existingNodeAttributes.entrySet()) {
             if (nodeAttribute.getKey() != REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY
-                && nodeAttribute.getKey() != REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY) {
+                && nodeAttribute.getKey() != REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY
+                && nodeAttribute.getKey() != REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY) {
                 remoteStoreNodeAttributes.put(nodeAttribute.getKey(), nodeAttribute.getValue() + "-new");
                 validateAttributes(remoteStoreNodeAttributes, currentState, existingNode);
                 remoteStoreNodeAttributes.put(nodeAttribute.getKey(), nodeAttribute.getValue());
@@ -464,6 +466,13 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
                 validateAttributes(remoteStoreNodeAttributes, currentState, existingNode);
             } else if (REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY.equals(nodeAttribute.getKey())) {
                 Map<String, String> remoteStoreNodeAttributes = remoteStoreNodeAttributes(SEGMENT_REPO, TRANSLOG_REPO + "new");
+                validateAttributes(remoteStoreNodeAttributes, currentState, existingNode);
+            } else if (REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY.equals(nodeAttribute.getKey())) {
+                Map<String, String> remoteStoreNodeAttributes = remoteStoreNodeAttributes(
+                    SEGMENT_REPO,
+                    TRANSLOG_REPO,
+                    CLUSTER_STATE_REPO + "new"
+                );
                 validateAttributes(remoteStoreNodeAttributes, currentState, existingNode);
             }
         }
@@ -560,7 +569,7 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
         assertThat(result.executionResults.entrySet(), hasSize(1));
         final ClusterStateTaskExecutor.TaskResult taskResult = result.executionResults.values().iterator().next();
         assertTrue(taskResult.isSuccess());
-        validateRepositoryMetadata(result.resultingState, clusterManagerNode, 2);
+        validateRepositoryMetadata(result.resultingState, clusterManagerNode, 3);
     }
 
     public void testUpdatesClusterStateWithMultiNodeCluster() throws Exception {
@@ -623,7 +632,7 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
         assertThat(result.executionResults.entrySet(), hasSize(1));
         final ClusterStateTaskExecutor.TaskResult taskResult = result.executionResults.values().iterator().next();
         assertTrue(taskResult.isSuccess());
-        validateRepositoryMetadata(result.resultingState, clusterManagerNode, 2);
+        validateRepositoryMetadata(result.resultingState, clusterManagerNode, 3);
     }
 
     public void testUpdatesClusterStateWithSingleNodeClusterAndSameRepository() throws Exception {
@@ -668,7 +677,7 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
         assertThat(result.executionResults.entrySet(), hasSize(1));
         final ClusterStateTaskExecutor.TaskResult taskResult = result.executionResults.values().iterator().next();
         assertTrue(taskResult.isSuccess());
-        validateRepositoryMetadata(result.resultingState, clusterManagerNode, 1);
+        validateRepositoryMetadata(result.resultingState, clusterManagerNode, 2);
     }
 
     public void testUpdatesClusterStateWithMultiNodeClusterAndSameRepository() throws Exception {
@@ -729,7 +738,7 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
         assertThat(result.executionResults.entrySet(), hasSize(1));
         final ClusterStateTaskExecutor.TaskResult taskResult = result.executionResults.values().iterator().next();
         assertTrue(taskResult.isSuccess());
-        validateRepositoryMetadata(result.resultingState, clusterManagerNode, 1);
+        validateRepositoryMetadata(result.resultingState, clusterManagerNode, 2);
     }
 
     private void validateRepositoryMetadata(ClusterState updatedState, DiscoveryNode existingNode, int expectedRepositories)
@@ -737,14 +746,17 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
 
         final RepositoriesMetadata repositoriesMetadata = updatedState.metadata().custom(RepositoriesMetadata.TYPE);
         assertTrue(repositoriesMetadata.repositories().size() == expectedRepositories);
-        if (repositoriesMetadata.repositories().size() == 2) {
+        if (repositoriesMetadata.repositories().size() == 2 || repositoriesMetadata.repositories().size() == 3) {
             final RepositoryMetadata segmentRepositoryMetadata = buildRepositoryMetadata(existingNode, SEGMENT_REPO);
             final RepositoryMetadata translogRepositoryMetadata = buildRepositoryMetadata(existingNode, TRANSLOG_REPO);
             for (RepositoryMetadata repositoryMetadata : repositoriesMetadata.repositories()) {
                 if (repositoryMetadata.name().equals(segmentRepositoryMetadata.name())) {
                     assertTrue(segmentRepositoryMetadata.equalsIgnoreGenerations(repositoryMetadata));
-                } else if (repositoryMetadata.name().equals(segmentRepositoryMetadata.name())) {
+                } else if (repositoryMetadata.name().equals(translogRepositoryMetadata.name())) {
                     assertTrue(translogRepositoryMetadata.equalsIgnoreGenerations(repositoryMetadata));
+                } else if (repositoriesMetadata.repositories().size() == 3) {
+                    final RepositoryMetadata clusterStateRepoMetadata = buildRepositoryMetadata(existingNode, CLUSTER_STATE_REPO);
+                    assertTrue(clusterStateRepoMetadata.equalsIgnoreGenerations(repositoryMetadata));
                 }
             }
         } else if (repositoriesMetadata.repositories().size() == 1) {
@@ -768,9 +780,14 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
 
     private static final String SEGMENT_REPO = "segment-repo";
     private static final String TRANSLOG_REPO = "translog-repo";
+    private static final String CLUSTER_STATE_REPO = "cluster-state-repo";
     private static final String COMMON_REPO = "remote-repo";
 
     private Map<String, String> remoteStoreNodeAttributes(String segmentRepoName, String translogRepoName) {
+        return remoteStoreNodeAttributes(segmentRepoName, translogRepoName, CLUSTER_STATE_REPO);
+    }
+
+    private Map<String, String> remoteStoreNodeAttributes(String segmentRepoName, String translogRepoName, String clusterStateRepo) {
         String segmentRepositoryTypeAttributeKey = String.format(
             Locale.getDefault(),
             REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT,
@@ -791,6 +808,16 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
             REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX,
             translogRepoName
         );
+        String clusterStateRepositoryTypeAttributeKey = String.format(
+            Locale.getDefault(),
+            REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT,
+            clusterStateRepo
+        );
+        String clusterStateRepositorySettingsAttributeKeyPrefix = String.format(
+            Locale.getDefault(),
+            REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX,
+            clusterStateRepo
+        );
 
         return new HashMap<>() {
             {
@@ -802,6 +829,10 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
                 putIfAbsent(translogRepositoryTypeAttributeKey, "s3");
                 putIfAbsent(translogRepositorySettingsAttributeKeyPrefix + "bucket", "translog_bucket");
                 putIfAbsent(translogRepositorySettingsAttributeKeyPrefix + "base_path", "/translog/path");
+                put(REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY, clusterStateRepo);
+                putIfAbsent(clusterStateRepositoryTypeAttributeKey, "s3");
+                putIfAbsent(clusterStateRepositorySettingsAttributeKeyPrefix + "bucket", "state_bucket");
+                putIfAbsent(clusterStateRepositorySettingsAttributeKeyPrefix + "base_path", "/state/path");
             }
         };
     }
@@ -812,16 +843,14 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
             IllegalStateException.class,
             () -> JoinTaskExecutor.ensureNodesCompatibility(joiningNode, currentState.getNodes(), currentState.metadata())
         );
-        assertTrue(
-            e.getMessage()
-                .equals(
-                    "a remote store node ["
-                        + joiningNode
-                        + "] is trying to join a remote store cluster with incompatible node attributes in "
-                        + "comparison with existing node ["
-                        + existingNode
-                        + "]"
-                )
+        assertEquals(
+            e.getMessage(),
+            "a remote store node ["
+                + joiningNode
+                + "] is trying to join a remote store cluster with incompatible node attributes in "
+                + "comparison with existing node ["
+                + existingNode
+                + "]"
         );
     }
 
