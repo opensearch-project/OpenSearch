@@ -42,6 +42,7 @@ import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.transport.BoundTransportAddress;
 import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.threadpool.TestThreadPool;
@@ -114,7 +115,8 @@ public class FileBasedSeedHostsProviderTests extends OpenSearchTestCase {
             transport,
             threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-            null
+            null,
+            NoopTracer.INSTANCE
         );
     }
 

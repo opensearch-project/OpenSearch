@@ -48,6 +48,7 @@ import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.gateway.GatewayMetaState;
 import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.plugins.DiscoveryPlugin;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.threadpool.ThreadPool;
@@ -96,7 +97,7 @@ public class DiscoveryModuleTests extends OpenSearchTestCase {
     public void setupDummyServices() {
         threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
-        transportService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool, null);
+        transportService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool, NoopTracer.INSTANCE);
         clusterManagerService = mock(ClusterManagerService.class);
         namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
         clusterApplier = mock(ClusterApplier.class);
