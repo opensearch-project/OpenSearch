@@ -1028,6 +1028,8 @@ public class TransportService extends AbstractLifecycleComponent
                 threadPool.executor(executor).execute(new AbstractRunnable() {
                     @Override
                     public void onRejection(Exception e) {
+                        logger.error("Failing from onRejection ", e);
+                        contextToNotify.handler().handleRejection(e);
                         // if we get rejected during node shutdown we don't wanna bubble it up
                         logger.debug(
                             () -> new ParameterizedMessage(
@@ -1040,6 +1042,7 @@ public class TransportService extends AbstractLifecycleComponent
 
                     @Override
                     public void onFailure(Exception e) {
+                        logger.error("Failing from onFailure ", e);
                         logger.warn(
                             () -> new ParameterizedMessage(
                                 "failed to notify response handler on exception, action: {}",

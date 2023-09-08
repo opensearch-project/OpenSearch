@@ -52,6 +52,12 @@ public interface TransportResponseHandler<T extends TransportResponse> extends W
 
     String executor();
 
+    /**
+     * Handles the rejections for case e.g node disconnection etc.
+     * @param exp exception.
+     */
+    default void handleRejection(Exception exp) {}
+
     default <Q extends TransportResponse> TransportResponseHandler<Q> wrap(Function<Q, T> converter, Writeable.Reader<Q> reader) {
         final TransportResponseHandler<T> self = this;
         return new TransportResponseHandler<Q>() {

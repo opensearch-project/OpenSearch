@@ -87,6 +87,16 @@ public class TraceableTransportResponseHandler<T extends TransportResponse> impl
     }
 
     @Override
+    public void handleRejection(Exception exp) {
+        try (SpanScope scope = tracer.withSpanInScope(span)) {
+            delegate.handleRejection(exp);
+        } finally {
+            span.setError(exp);
+            span.endSpan();
+        }
+    }
+
+    @Override
     public String executor() {
         return delegate.executor();
     }
