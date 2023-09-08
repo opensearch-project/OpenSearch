@@ -66,11 +66,7 @@ import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.node.NodeClosedException;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskManager;
-import org.opensearch.telemetry.tracing.Span;
-import org.opensearch.telemetry.tracing.SpanBuilder;
-import org.opensearch.telemetry.tracing.SpanScope;
 import org.opensearch.telemetry.tracing.Tracer;
-import org.opensearch.telemetry.tracing.handler.TraceableTransportResponseHandler;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -865,60 +861,53 @@ public class TransportService extends AbstractLifecycleComponent
         final TransportRequestOptions options,
         final TransportResponseHandler<T> handler
     ) {
-        final Span span = tracer.startSpan(SpanBuilder.from(action, connection));
-        try (SpanScope spanScope = tracer.withSpanInScope(span)) {
-            TransportResponseHandler<T> traceableTransportResponseHandler = TraceableTransportResponseHandler.create(handler, span, tracer);
-            try {
-                logger.debug("Action: " + action);
-                final TransportResponseHandler<T> delegate;
-                if (request.getParentTask().isSet()) {
-                    // TODO: capture the connection instead so that we can cancel child tasks on the remote connections.
-                    final Releasable unregisterChildNode = taskManager.registerChildNode(
-                        request.getParentTask().getId(),
-                        connection.getNode()
-                    );
-                    delegate = new TransportResponseHandler<T>() {
-                        @Override
-                        public void handleResponse(T response) {
-                            unregisterChildNode.close();
-                            traceableTransportResponseHandler.handleResponse(response);
-                        }
+        try {
+            logger.debug("Action: " + action);
+            final TransportResponseHandler<T> delegate;
+            if (request.getParentTask().isSet()) {
+                // TODO: capture the connection instead so that we can cancel child tasks on the remote connections.
+                final Releasable unregisterChildNode = taskManager.registerChildNode(request.getParentTask().getId(), connection.getNode());
+                delegate = new TransportResponseHandler<T>() {
+                    @Override
+                    public void handleResponse(T response) {
+                        unregisterChildNode.close();
+                        handler.handleResponse(response);
+                    }
 
-                        @Override
-                        public void handleException(TransportException exp) {
-                            unregisterChildNode.close();
-                            traceableTransportResponseHandler.handleException(exp);
-                        }
+                    @Override
+                    public void handleException(TransportException exp) {
+                        unregisterChildNode.close();
+                        handler.handleException(exp);
+                    }
 
-                        @Override
-                        public String executor() {
-                            return traceableTransportResponseHandler.executor();
-                        }
+                    @Override
+                    public String executor() {
+                        return handler.executor();
+                    }
 
-                        @Override
-                        public T read(StreamInput in) throws IOException {
-                            return traceableTransportResponseHandler.read(in);
-                        }
+                    @Override
+                    public T read(StreamInput in) throws IOException {
+                        return handler.read(in);
+                    }
 
-                        @Override
-                        public String toString() {
-                            return getClass().getName() + "/[" + action + "]:" + traceableTransportResponseHandler.toString();
-                        }
-                    };
-                } else {
-                    delegate = traceableTransportResponseHandler;
-                }
-                asyncSender.sendRequest(connection, action, request, options, delegate);
-            } catch (final Exception ex) {
-                // the caller might not handle this so we invoke the handler
-                final TransportException te;
-                if (ex instanceof TransportException) {
-                    te = (TransportException) ex;
-                } else {
-                    te = new TransportException("failure to send", ex);
-                }
-                traceableTransportResponseHandler.handleException(te);
+                    @Override
+                    public String toString() {
+                        return getClass().getName() + "/[" + action + "]:" + handler.toString();
+                    }
+                };
+            } else {
+                delegate = handler;
             }
+            asyncSender.sendRequest(connection, action, request, options, delegate);
+        } catch (final Exception ex) {
+            // the caller might not handle this so we invoke the handler
+            final TransportException te;
+            if (ex instanceof TransportException) {
+                te = (TransportException) ex;
+            } else {
+                te = new TransportException("failure to send", ex);
+            }
+            handler.handleException(te);
         }
     }
 

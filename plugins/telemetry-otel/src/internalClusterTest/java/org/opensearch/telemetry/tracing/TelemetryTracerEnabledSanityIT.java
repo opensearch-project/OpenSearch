@@ -89,12 +89,7 @@ public class TelemetryTracerEnabledSanityIT extends OpenSearchIntegTestCase {
 
         InMemorySingletonSpanExporter exporter = InMemorySingletonSpanExporter.INSTANCE;
         if (!exporter.getFinishedSpanItems().isEmpty()) {
-            /**
-             * At present, transport action is not instrumented and all the downstream search calls don't have a parent so,
-             * they all should be creating a separate trace. Once the transportAction will be instrumented this test will
-             * start failing and requires the value to be updated to 2.
-             */
-            validators.validate(exporter.getFinishedSpanItems(), 6);
+            validators.validate(exporter.getFinishedSpanItems(), 2);
         }
     }
 
