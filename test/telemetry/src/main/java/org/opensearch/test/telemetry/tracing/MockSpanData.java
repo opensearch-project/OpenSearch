@@ -9,6 +9,7 @@
 package org.opensearch.test.telemetry.tracing;
 
 import java.util.Arrays;
+import java.util.Map;
 
 /**
  * MockSpanData model for storing Telemetry information for testing.
@@ -17,6 +18,7 @@ public class MockSpanData {
 
     /**
      * MockSpanData constructor with spanID, parentSpanID, traceID, startEpochNanos, endEpochNanos, hasEnded params.
+     *
      * @param spanID spanID
      * @param parentSpanID spanID of the parentSpan
      * @param traceID traceID of the request
@@ -24,6 +26,7 @@ public class MockSpanData {
      * @param endEpochNanos endTime of span in epochNanos
      * @param hasEnded value if the span is closed
      * @param spanName Name of the span emitted
+     * @param attributes span attributes
      */
     public MockSpanData(
         String spanID,
@@ -32,7 +35,8 @@ public class MockSpanData {
         long startEpochNanos,
         long endEpochNanos,
         boolean hasEnded,
-        String spanName
+        String spanName,
+        Map<String, Object> attributes
     ) {
         this.spanID = spanID;
         this.traceID = traceID;
@@ -41,10 +45,12 @@ public class MockSpanData {
         this.endEpochNanos = endEpochNanos;
         this.hasEnded = hasEnded;
         this.spanName = spanName;
+        this.attributes = attributes;
     }
 
     /**
      * MockSpanData constructor with spanID, parentSpanID, traceID, startEpochNanos, hasEnded and spanName params.
+     *
      * @param spanID spanID
      * @param parentSpanID spanID of the parentSpan
      * @param traceID traceID of the request
@@ -52,6 +58,7 @@ public class MockSpanData {
      * @param hasEnded value if the span is closed
      * @param spanName Name of the span emitted
      * @param stackTrace StackTrace to debug the problematic span
+     * @param attributes span attributes
      */
     public MockSpanData(
         String spanID,
@@ -60,7 +67,8 @@ public class MockSpanData {
         long startEpochNanos,
         boolean hasEnded,
         String spanName,
-        StackTraceElement[] stackTrace
+        StackTraceElement[] stackTrace,
+        Map<String, Object> attributes
     ) {
         this.spanID = spanID;
         this.traceID = traceID;
@@ -69,6 +77,7 @@ public class MockSpanData {
         this.hasEnded = hasEnded;
         this.spanName = spanName;
         this.stackTrace = stackTrace;
+        this.attributes = attributes;
     }
 
     private final String spanID;
@@ -79,6 +88,7 @@ public class MockSpanData {
     private final long startEpochNanos;
     private long endEpochNanos;
     private boolean hasEnded;
+    private Map<String, Object> attributes;
 
     private StackTraceElement[] stackTrace;
 
@@ -147,6 +157,14 @@ public class MockSpanData {
         this.hasEnded = hasEnded;
     }
 
+    /**
+     * Returns the attributes
+     * @return returns the attributes map.
+     */
+    public Map<String, Object> getAttributes() {
+        return attributes;
+    }
+
     @Override
     public String toString() {
         return "MockSpanData{"
@@ -168,6 +186,8 @@ public class MockSpanData {
             + endEpochNanos
             + ", hasEnded="
             + hasEnded
+            + ", attributes="
+            + attributes
             + ", stackTrace="
             + Arrays.toString(stackTrace)
             + '}';
