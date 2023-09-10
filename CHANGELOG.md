@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Async blob read support for S3 plugin ([#9694](https://github.com/opensearch-project/OpenSearch/pull/9694))
 
 ### Dependencies
+- Bump `peter-evans/create-or-update-comment` from 2 to 3 ([#9575](https://github.com/opensearch-project/OpenSearch/pull/9575))
 - Bump OpenTelemetry from 1.26.0 to 1.30.1 ([#9950](https://github.com/opensearch-project/OpenSearch/pull/9950))
 - Bump `org.apache.commons:commons-compress` from 1.23.0 to 1.24.0 ([#9973](https://github.com/opensearch-project/OpenSearch/pull/9973))
 - Bump JNA version from 5.5 to 5.13 ([#9963](https://github.com/opensearch-project/OpenSearch/pull/9963))
@@ -28,4 +29,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ### Security
 
+<<<<<<< HEAD
 [Unreleased 2.x]: https://github.com/opensearch-project/OpenSearch/compare/2.10...2.x
+=======
+[Unreleased 3.0]: https://github.com/opensearch-project/OpenSearch/compare/2.x...HEAD
+[Unreleased 2.x]: https://github.com/opensearch-project/OpenSearch/compare/2.11...2.x
+>>>>>>> 1c8d1716bc4 (Bump peter-evans/create-or-update-comment from 2 to 3 (#9575))
