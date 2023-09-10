@@ -34,7 +34,6 @@ package org.opensearch.gateway;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.RoutingNode;
 import org.opensearch.cluster.routing.ShardRouting;
@@ -44,13 +43,9 @@ import org.opensearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.opensearch.cluster.routing.allocation.NodeAllocationResult;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
 import org.opensearch.cluster.routing.allocation.decider.Decision;
-import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 
 import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.Iterator;
 import java.util.List;
-import java.util.TreeMap;
 
 /**
  * An abstract class that implements basic functionality for allocating
@@ -137,71 +132,5 @@ public abstract class BaseGatewayShardAllocator {
             results.add(new NodeAllocationResult(node.node(), null, decision));
         }
         return results;
-    }
-
-    protected static class NodeShardState {
-        private final String allocationId;
-        private final boolean primary;
-        private final Exception storeException;
-        private final ReplicationCheckpoint replicationCheckpoint;
-        private final DiscoveryNode node;
-
-        public NodeShardState(
-            DiscoveryNode node,
-            String allocationId,
-            boolean primary,
-            ReplicationCheckpoint replicationCheckpoint,
-            Exception storeException
-        ) {
-            this.node = node;
-            this.allocationId = allocationId;
-            this.primary = primary;
-            this.replicationCheckpoint = replicationCheckpoint;
-            this.storeException = storeException;
-        }
-
-        public String allocationId() {
-            return this.allocationId;
-        }
-
-        public boolean primary() {
-            return this.primary;
-        }
-
-        public ReplicationCheckpoint replicationCheckpoint() {
-            return this.replicationCheckpoint;
-        }
-
-        public Exception storeException() {
-            return this.storeException;
-        }
-
-        public DiscoveryNode getNode() {
-            return this.node;
-        }
-    }
-
-    protected static class NodeShardStates {
-        TreeMap<NodeShardState, DiscoveryNode> nodeShardStates;
-
-        public NodeShardStates(Comparator<NodeShardState> comparator) {
-            this.nodeShardStates = new TreeMap<>(comparator);
-        }
-
-        public void add(NodeShardState key, DiscoveryNode value) {
-            this.nodeShardStates.put(key, value);
-        }
-
-        public DiscoveryNode get(NodeShardState key) {
-            return this.nodeShardStates.get(key);
-        }
-
-        public int size() {
-            return this.nodeShardStates.size();
-        }
-
-        public Iterator<NodeShardState> iterator() {
-            return this.nodeShardStates.keySet().iterator();
-        }
     }
 }
