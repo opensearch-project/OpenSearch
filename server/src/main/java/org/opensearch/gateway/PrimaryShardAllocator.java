@@ -440,7 +440,7 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
         return new NodeShardsResult(nodeShardStates, numberOfAllocationsFound);
     }
 
-    protected static Comparator<NodeShardState> createActiveShardComparator(boolean matchAnyShard, Set<String> inSyncAllocationIds) {
+    private static Comparator<NodeShardState> createActiveShardComparator(boolean matchAnyShard, Set<String> inSyncAllocationIds) {
         /**
          * Orders the active shards copies based on below comparators
          * 1. No store exception i.e. shard copy is readable
