@@ -22,7 +22,7 @@ jobs:
       - name: Get tag
         id: tag
         uses: dawidd6/action-get-tag@v1
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - uses: ncipollo/release-action@v1
         with:
           github_token: ${{ steps.github_app_token.outputs.token }}
