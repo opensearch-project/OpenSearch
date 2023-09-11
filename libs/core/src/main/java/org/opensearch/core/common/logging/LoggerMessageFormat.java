@@ -56,7 +56,8 @@ public class LoggerMessageFormat {
     }
 
     /**
-     * (this is almost a copy of {@code org.slf4j.helpers.MessageFormatter.arrayFormat}) <p>
+     * (this is almost a copy of {@code org.slf4j.helpers.MessageFormatter.arrayFormat})
+     *
      * @param prefix the prefix to prepend to the formatted message (can be null)
      * @param messagePattern the message pattern which will be parsed and formatted
      * @param argArray an array of arguments to be substituted in place of formatting anchors
@@ -144,8 +145,8 @@ public class LoggerMessageFormat {
      * Check if (delimterStartIndex - 2) in messagePattern is an escape character.
      * @param messagePattern the message pattern
      * @param delimiterStartIndex the index of the character to check
-     * @return true if (delimterStartIndex - 2) in messagePattern is an escape character.<p>
-     *         Always returns false if delimiterStartIndex < 2 (edge case)
+     * @return true if (delimterStartIndex - 2) in messagePattern is an escape character.
+     *         Always returns false if delimiterStartIndex is less than 2 (edge case)
      */
     static boolean isDoubleEscaped(String messagePattern, int delimiterStartIndex) {
         return delimiterStartIndex >= 2 && messagePattern.charAt(delimiterStartIndex - 2) == ESCAPE_CHAR;

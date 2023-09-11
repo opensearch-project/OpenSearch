@@ -131,8 +131,8 @@ public class NoopCircuitBreaker implements CircuitBreaker {
     }
 
     /**
-     * A noop breaker {@link Durability} is always {@link Durability#PERMANENT
-     * @return
+     * A noop breaker {@link Durability} is always {@link Durability#PERMANENT}
+     * @return always return {@link Durability#PERMANENT }
      */
     @Override
     public Durability getDurability() {
