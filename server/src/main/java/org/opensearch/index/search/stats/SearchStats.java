@@ -110,12 +110,9 @@ public class SearchStats implements Writeable, ToXContentFragment {
         private long pitCurrent;
 
         @Nullable
-        public RequestStatsLongHolder requestStatsLongHolder;
+        private RequestStatsLongHolder requestStatsLongHolder;
 
         public RequestStatsLongHolder getRequestStatsLongHolder() {
-            if (requestStatsLongHolder == null) {
-                return null;
-            }
             return requestStatsLongHolder;
         }
 
@@ -359,7 +356,10 @@ public class SearchStats implements Writeable, ToXContentFragment {
                 out.writeVLong(pitCurrent);
             }
 
-            if (out.getVersion().onOrAfter(Version.V_3_0_0) && requestStatsLongHolder != null) {
+            if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+                if (requestStatsLongHolder == null) {
+                    requestStatsLongHolder = new RequestStatsLongHolder();
+                }
                 out.writeVLong(requestStatsLongHolder.dfsPreQueryMetric);
                 out.writeVLong(requestStatsLongHolder.dfsPreQueryCurrent);
                 out.writeVLong(requestStatsLongHolder.dfsPreQueryTotal);

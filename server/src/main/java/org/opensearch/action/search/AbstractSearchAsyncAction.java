@@ -561,7 +561,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private void onPhaseStart(SearchPhase phase, SearchPhaseContext searchPhaseContext) {
         setCurrentPhase(phase);
         phase.setStartTimeInNanos(System.nanoTime());
-        if (!(searchListenersList == null) && !searchListenersList.isEmpty()) {
+        if (!CollectionUtils.isEmpty(searchListenersList)) {
             if (searchPhaseContext.getCurrentPhase() != null
                 && searchPhaseStartTrackingMap.containsKey(searchPhaseContext.getCurrentPhase().getName())) {
                 searchPhaseStartTrackingMap.get(searchPhaseContext.getCurrentPhase().getName()).run();
@@ -831,7 +831,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
 
     @Override
     public final void onPhaseFailure(SearchPhase phase, String msg, Throwable cause) {
-        if (!(searchListenersList == null) && !searchListenersList.isEmpty()) {
+        if (!CollectionUtils.isEmpty(searchListenersList)) {
             if (this.getCurrentPhase() != null && searchPhaseFailureTrackingMap.containsKey(this.getCurrentPhase().getName())) {
                 searchPhaseFailureTrackingMap.get(this.getCurrentPhase().getName()).run();
             }

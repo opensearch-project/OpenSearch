@@ -350,7 +350,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 ThreadPool threadPool,
                 SearchResponse.Clusters clusters
             ) {
-                AbstractSearchAsyncAction<SearchPhaseResult> returnAbstractSearchAsyncAction = new AbstractSearchAsyncAction<
+                return new AbstractSearchAsyncAction<
                     SearchPhaseResult>(
                         actionName,
                         logger,
@@ -397,7 +397,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         return includeSearchContext;
                     }
                 };
-                return returnAbstractSearchAsyncAction;
             }
         }, listener);
     }
