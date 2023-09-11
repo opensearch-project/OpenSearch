@@ -47,7 +47,7 @@ public class Iterators {
      *
      * @param iterators The iterators to concat
      * @param <T> the type of iterator
-     * @return a new {@link ConcatenatedIterator<T>}
+     * @return a new {@link ConcatenatedIterator}
      * @throws NullPointerException if iterators is null
      */
     public static <T> Iterator<T> concat(Iterator<? extends T>... iterators) {
