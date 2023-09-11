@@ -45,7 +45,7 @@ dependencies {
     transitive = false
   }
 
-  implementation 'org.apache.commons:commons-compress:1.23.0'
+  implementation 'org.apache.commons:commons-compress:1.24.0'
 }
 
 tasks.named("dependencyLicenses").configure {
