@@ -76,7 +76,6 @@ public abstract class AbstractGeoTestCase extends ParameterizedOpenSearchIntegTe
     protected static final String DATELINE_IDX_NAME = "dateline_idx";
     protected static final String HIGH_CARD_IDX_NAME = "high_card_idx";
     protected static final String IDX_ZERO_NAME = "idx_zero";
-
     protected static int numDocs;
     protected static int numUniqueGeoPoints;
     protected static GeoPoint[] singleValues, multiValues;
