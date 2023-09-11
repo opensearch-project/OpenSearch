@@ -245,8 +245,7 @@ public class NodeService implements Closeable {
             weightedRoutingStats ? WeightedRoutingStats.getInstance() : null,
             fileCacheStats && fileCache != null ? fileCache.fileCacheStats() : null,
             taskCancellation ? this.taskCancellationMonitoringService.stats() : null,
-            searchPipelineStats ? this.searchPipelineService.stats() : null,
-            searchBackpressure ? searchBackpressureService.isNodeInDuress() : null
+            searchPipelineStats ? this.searchPipelineService.stats() : null
         );
     }
 

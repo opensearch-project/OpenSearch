@@ -774,8 +774,7 @@ public class NodeStatsTests extends OpenSearchTestCase {
             weightedRoutingStats,
             null,
             null,
-            null,
-            false
+            null
         );
     }
 

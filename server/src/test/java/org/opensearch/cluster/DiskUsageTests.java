@@ -190,8 +190,7 @@ public class DiskUsageTests extends OpenSearchTestCase {
                 null,
                 null,
                 null,
-                null,
-                false
+                null
             ),
             new NodeStats(
                 new DiscoveryNode("node_2", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
@@ -217,8 +216,7 @@ public class DiskUsageTests extends OpenSearchTestCase {
                 null,
                 null,
                 null,
-                null,
-                false
+                null
             ),
             new NodeStats(
                 new DiscoveryNode("node_3", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
@@ -244,8 +242,7 @@ public class DiskUsageTests extends OpenSearchTestCase {
                 null,
                 null,
                 null,
-                null,
-                false
+                null
             )
         );
         InternalClusterInfoService.fillDiskUsagePerNode(logger, nodeStats, newLeastAvaiableUsages, newMostAvaiableUsages);
@@ -302,8 +299,7 @@ public class DiskUsageTests extends OpenSearchTestCase {
                 null,
                 null,
                 null,
-                null,
-                false
+                null
             ),
             new NodeStats(
                 new DiscoveryNode("node_2", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
@@ -329,8 +325,7 @@ public class DiskUsageTests extends OpenSearchTestCase {
                 null,
                 null,
                 null,
-                null,
-                false
+                null
             ),
             new NodeStats(
                 new DiscoveryNode("node_3", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
@@ -356,8 +351,7 @@ public class DiskUsageTests extends OpenSearchTestCase {
                 null,
                 null,
                 null,
-                null,
-                false
+                null
             )
         );
         InternalClusterInfoService.fillDiskUsagePerNode(logger, nodeStats, newLeastAvailableUsages, newMostAvailableUsages);
