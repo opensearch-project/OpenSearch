@@ -35,6 +35,7 @@ package org.opensearch.script;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.StringHelper;
 import org.opensearch.ExceptionsHelper;
+import org.opensearch.OpenSearchException;
 import org.opensearch.common.geo.GeoDistance;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.geo.GeoUtils;
@@ -111,6 +112,9 @@ public final class ScoreScriptUtils {
             try {
                 return (float) scoreScript.getTermFrequency(TF, field, term);
             } catch (Exception e) {
+                if (e instanceof UnsupportedOperationException && e.getMessage().equals("requires a TFIDFSimilarity (such as ClassicSimilarity)")) {
+                    throw new OpenSearchException("requires a TFIDFSimilarity (such as [BM25] Similarity) in OpenSearch", e);
+                }
                 throw ExceptionsHelper.convertToOpenSearchException(e);
             }
         }
