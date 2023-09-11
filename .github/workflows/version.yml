@@ -19,7 +19,7 @@ jobs:
           private_key: ${{ secrets.APP_PRIVATE_KEY }}
           installation_id: 22958780
 
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - name: Fetch Tag and Version Information
         run: |
           TAG=$(echo "${GITHUB_REF#refs/*/}")
@@ -44,7 +44,7 @@ jobs:
           echo "NEXT_VERSION=$NEXT_VERSION" >> $GITHUB_ENV
           echo "NEXT_VERSION_UNDERSCORE=$NEXT_VERSION_UNDERSCORE" >> $GITHUB_ENV
           echo "NEXT_VERSION_ID=$NEXT_VERSION_ID" >> $GITHUB_ENV
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
         with:
           ref: ${{ env.BASE }}
           token: ${{ steps.github_app_token.outputs.token }}
@@ -73,7 +73,7 @@ jobs:
           body: |
             I've noticed that a new tag ${{ env.TAG }} was pushed, and incremented the version from ${{ env.CURRENT_VERSION }} to ${{ env.NEXT_VERSION }}.
 
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
         with:
           ref: ${{ env.BASE_X }}
           token: ${{ steps.github_app_token.outputs.token }}
@@ -100,7 +100,7 @@ jobs:
           body: |
             I've noticed that a new tag ${{ env.TAG }} was pushed, and added a bwc version ${{ env.NEXT_VERSION }}.
 
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
         with:
           ref: main
           token: ${{ steps.github_app_token.outputs.token }}

@@ -21,7 +21,7 @@ jobs:
       contents: read
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - name: Set up JDK 17
         uses: actions/setup-java@v3
         with:
@@ -29,7 +29,7 @@ jobs:
           distribution: 'adopt'
 
       - name: Checkout Lucene
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
           repository: 'apache/lucene'
           path: lucene
