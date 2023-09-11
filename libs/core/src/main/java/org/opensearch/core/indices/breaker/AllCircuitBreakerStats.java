@@ -47,25 +47,51 @@ import java.io.IOException;
  */
 public class AllCircuitBreakerStats implements Writeable, ToXContentFragment {
 
+    /** AN array of all the circuit breaker stats */
     private final CircuitBreakerStats[] allStats;
 
+    /**
+     * Constructor
+     *
+     * @param allStats An array of all the circuit breaker stats
+     */
     public AllCircuitBreakerStats(CircuitBreakerStats[] allStats) {
         this.allStats = allStats;
     }
 
+    /**
+     * Constructor from a StreamInput
+     * @param in The StreamInput to read from
+     * @throws IOException If an error occurs while reading from the StreamInput
+     * @see #writeTo(StreamOutput)
+     */
     public AllCircuitBreakerStats(StreamInput in) throws IOException {
         allStats = in.readArray(CircuitBreakerStats::new, CircuitBreakerStats[]::new);
     }
 
+    /**
+     * Write allStats to a StreamOutput
+     * @param out The StreamOutput to write to
+     * @throws IOException If an error occurs while writing to the StreamOutput
+     */
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeArray(allStats);
     }
 
+    /**
+     * Return allStats
+     * @return allStats
+     */
     public CircuitBreakerStats[] getAllStats() {
         return this.allStats;
     }
 
+    /**
+     * Return the stats for a specific circuit breaker
+     * @param name The name of the circuit breaker
+     * @return The {@link CircuitBreakerStats} for the circuit breaker. Null if the circuit breaker does not exist
+     */
     public CircuitBreakerStats getStats(String name) {
         for (CircuitBreakerStats stats : allStats) {
             if (stats.getName().equals(name)) {
