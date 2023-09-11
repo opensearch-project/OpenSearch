@@ -57,8 +57,8 @@ public class ShardId implements Comparable<ShardId>, ToXContentFragment, Writeab
 
     /**
      * Constructs a new shard id.
-     * @param index
-     * @param shardId
+     * @param index the index name
+     * @param shardId the shard id
      */
     public ShardId(Index index, int shardId) {
         this.index = index;
@@ -78,8 +78,8 @@ public class ShardId implements Comparable<ShardId>, ToXContentFragment, Writeab
 
     /**
      * Constructs a new shardId from a stream.
-     * @param in
-     * @throws IOException
+     * @param in the stream to read from
+     * @throws IOException if an error occurs while reading from the stream
      * @see #writeTo(StreamOutput)
      */
     public ShardId(StreamInput in) throws IOException {

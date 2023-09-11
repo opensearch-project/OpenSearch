@@ -84,8 +84,8 @@ public class ZstdCompressor implements Compressor {
     }
 
     /**
-     * TODO : Rewrite this javadoc before committing
-     * @param in
+     * Returns a new {@link ZstdInputStreamNoFinalizer} from the given compressed {@link InputStream}
+     * @param in the compressed {@link InputStream}
      * @return a new {@link ZstdInputStreamNoFinalizer} from the given compressed {@link InputStream}
      * @throws IOException if an I/O error occurs
      * @throws IllegalArgumentException if the input stream is not compressed with ZSTD
@@ -100,9 +100,9 @@ public class ZstdCompressor implements Compressor {
     }
 
     /**
-     * TODO : Rewrite this javadoc before committing
-     * @param out
-     * @return
+     * Returns a new {@link ZstdOutputStreamNoFinalizer} from the given {@link OutputStream}
+     * @param out the {@link OutputStream}
+     * @return a new {@link ZstdOutputStreamNoFinalizer} from the given {@link OutputStream}
      * @throws IOException if an I/O error occurs
      */
     @Override
@@ -116,6 +116,7 @@ public class ZstdCompressor implements Compressor {
      * @param bytesReference a reference to the bytes to uncompress
      * @return always throws an exception
      * @throws UnsupportedOperationException if the method is called
+     * @throws IOException is never thrown
      */
     @Override
     public BytesReference uncompress(BytesReference bytesReference) throws IOException {
@@ -124,8 +125,8 @@ public class ZstdCompressor implements Compressor {
 
     /**
      * Always throws an {@link UnsupportedOperationException} as ZSTD compression is supported only for snapshotting
-     * @param bytesReference
-     * @return null
+     * @param bytesReference a reference to the bytes to compress
+     * @return always throws an exception
      * @throws UnsupportedOperationException if the method is called
      */
     @Override
