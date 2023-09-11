@@ -92,4 +92,8 @@ public abstract class BufferedAsyncIOProcessor<Item> extends AsyncIOProcessor<It
 
     protected abstract String getBufferProcessThreadPoolName();
 
+    // Exclusively for testing, please do not use it elsewhere.
+    public Supplier<TimeValue> getBufferIntervalSupplier() {
+        return bufferIntervalSupplier;
+    }
 }

@@ -171,7 +171,7 @@ public class RestCatSegmentReplicationAction extends AbstractCatAction {
                     t.addCell(state.getTargetNode().getHostName());
                     t.addCell(shardStats.getCheckpointsBehindCount());
                     t.addCell(new ByteSizeValue(shardStats.getBytesBehindCount()));
-                    t.addCell(new TimeValue(shardStats.getCurrentReplicationTimeMillis()));
+                    t.addCell(new TimeValue(shardStats.getCurrentReplicationLagMillis()));
                     t.addCell(new TimeValue(shardStats.getLastCompletedReplicationTimeMillis()));
                     t.addCell(perGroupStats.getRejectedRequestCount());
                     if (detailed) {

@@ -93,6 +93,9 @@ import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.InvalidIndexNameException;
 import org.opensearch.indices.ShardLimitValidator;
 import org.opensearch.indices.SystemIndices;
+import org.opensearch.indices.replication.common.ReplicationType;
+import org.opensearch.node.Node;
+import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -131,10 +134,8 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
 import static org.opensearch.cluster.metadata.Metadata.DEFAULT_REPLICA_COUNT_SETTING;
-import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING;
-import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_STORE_ENABLED_SETTING;
-import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING;
 import static org.opensearch.indices.IndicesService.CLUSTER_REPLICATION_TYPE_SETTING;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteStoreAttributePresent;
 
 /**
  * Service responsible for submitting create index requests
@@ -926,33 +927,44 @@ public class MetadataCreateIndexService {
     }
 
     /**
-     * Updates index settings to set replication strategy by default based on cluster level settings
+     * Updates index settings to set replication strategy by default based on cluster level settings or remote store
+     * node attributes
      * @param settingsBuilder index settings builder to be updated with relevant settings
      * @param requestSettings settings passed in during index create request
      * @param clusterSettings cluster level settings
      */
     private static void updateReplicationStrategy(Settings.Builder settingsBuilder, Settings requestSettings, Settings clusterSettings) {
-        if (CLUSTER_REPLICATION_TYPE_SETTING.exists(clusterSettings) && INDEX_REPLICATION_TYPE_SETTING.exists(requestSettings) == false) {
-            settingsBuilder.put(SETTING_REPLICATION_TYPE, CLUSTER_REPLICATION_TYPE_SETTING.get(clusterSettings));
-            return;
-        }
-        if (INDEX_REPLICATION_TYPE_SETTING.exists(requestSettings) == true) {
+        if (INDEX_REPLICATION_TYPE_SETTING.exists(requestSettings)) {
             settingsBuilder.put(SETTING_REPLICATION_TYPE, INDEX_REPLICATION_TYPE_SETTING.get(requestSettings));
-            return;
+        } else if (CLUSTER_REPLICATION_TYPE_SETTING.exists(clusterSettings)) {
+            settingsBuilder.put(SETTING_REPLICATION_TYPE, CLUSTER_REPLICATION_TYPE_SETTING.get(clusterSettings));
+        } else if (isRemoteStoreAttributePresent(clusterSettings)) {
+            settingsBuilder.put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT);
+        } else {
+            settingsBuilder.put(SETTING_REPLICATION_TYPE, CLUSTER_REPLICATION_TYPE_SETTING.getDefault(clusterSettings));
         }
-        settingsBuilder.put(SETTING_REPLICATION_TYPE, CLUSTER_REPLICATION_TYPE_SETTING.getDefault(clusterSettings));
     }
 
     /**
-     * Updates index settings to enable remote store by default based on cluster level settings
+     * Updates index settings to enable remote store by default based on node attributes
      * @param settingsBuilder index settings builder to be updated with relevant settings
      * @param clusterSettings cluster level settings
      */
     private static void updateRemoteStoreSettings(Settings.Builder settingsBuilder, Settings clusterSettings) {
-        if (CLUSTER_REMOTE_STORE_ENABLED_SETTING.get(clusterSettings) == true) {
+        if (isRemoteStoreAttributePresent(clusterSettings)) {
             settingsBuilder.put(SETTING_REMOTE_STORE_ENABLED, true)
-                .put(SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, CLUSTER_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING.get(clusterSettings))
-                .put(SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING.get(clusterSettings));
+                .put(
+                    SETTING_REMOTE_SEGMENT_STORE_REPOSITORY,
+                    clusterSettings.get(
+                        Node.NODE_ATTRIBUTES.getKey() + RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY
+                    )
+                )
+                .put(
+                    SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY,
+                    clusterSettings.get(
+                        Node.NODE_ATTRIBUTES.getKey() + RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY
+                    )
+                );
         }
     }
 

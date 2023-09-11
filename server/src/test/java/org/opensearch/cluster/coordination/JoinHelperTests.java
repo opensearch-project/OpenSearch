@@ -40,16 +40,22 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.NotClusterManagerException;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.monitor.StatusInfo;
+import org.opensearch.node.remotestore.RemoteStoreNodeService;
+import org.opensearch.repositories.RepositoriesService;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.CapturingTransport;
 import org.opensearch.test.transport.CapturingTransport.CapturedRequest;
 import org.opensearch.test.transport.MockTransport;
+import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.BytesTransportRequest;
 import org.opensearch.transport.RemoteTransportException;
 import org.opensearch.transport.TransportException;
@@ -73,6 +79,7 @@ import static org.opensearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.Is.is;
+import static org.mockito.Mockito.mock;
 
 public class JoinHelperTests extends OpenSearchTestCase {
     private final NamedWriteableRegistry namedWriteableRegistry = DEFAULT_NAMED_WRITABLE_REGISTRY;
@@ -90,13 +97,15 @@ public class JoinHelperTests extends OpenSearchTestCase {
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             x -> localNode,
             null,
-            Collections.emptySet()
+            Collections.emptySet(),
+            NoopTracer.INSTANCE
         );
         JoinHelper joinHelper = new JoinHelper(
             Settings.EMPTY,
             null,
             null,
             transportService,
+            buildRemoteStoreNodeService(transportService, deterministicTaskQueue.getThreadPool()),
             () -> 0L,
             () -> null,
             (joinRequest, joinCallback) -> {
@@ -274,7 +283,8 @@ public class JoinHelperTests extends OpenSearchTestCase {
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             x -> localNode,
             null,
-            Collections.emptySet()
+            Collections.emptySet(),
+            NoopTracer.INSTANCE
         );
         AtomicReference<StatusInfo> nodeHealthServiceStatus = new AtomicReference<>(new StatusInfo(UNHEALTHY, "unhealthy-info"));
         JoinHelper joinHelper = new JoinHelper(
@@ -282,6 +292,7 @@ public class JoinHelperTests extends OpenSearchTestCase {
             null,
             null,
             transportService,
+            buildRemoteStoreNodeService(transportService, deterministicTaskQueue.getThreadPool()),
             () -> 0L,
             () -> null,
             (joinRequest, joinCallback) -> {
@@ -464,7 +475,8 @@ public class JoinHelperTests extends OpenSearchTestCase {
                 TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                 x -> localNode,
                 null,
-                Collections.emptySet()
+                Collections.emptySet(),
+                NoopTracer.INSTANCE
             );
         } else {
             transportService = mockTransport.createTransportService(
@@ -473,7 +485,8 @@ public class JoinHelperTests extends OpenSearchTestCase {
                 TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                 x -> localNode,
                 null,
-                Collections.emptySet()
+                Collections.emptySet(),
+                NoopTracer.INSTANCE
             );
         }
         JoinHelper joinHelper = new JoinHelper(
@@ -481,6 +494,7 @@ public class JoinHelperTests extends OpenSearchTestCase {
             null,
             null,
             transportService,
+            buildRemoteStoreNodeService(transportService, deterministicTaskQueue.getThreadPool()),
             () -> 0L,
             () -> localClusterState,
             (joinRequest, joinCallback) -> {
@@ -498,6 +512,18 @@ public class JoinHelperTests extends OpenSearchTestCase {
         transportService.start();
         transportService.acceptIncomingRequests();
         return new TestClusterSetup(deterministicTaskQueue, localNode, transportService, localClusterState, joinHelper, capturingTransport);
+    }
+
+    private RemoteStoreNodeService buildRemoteStoreNodeService(TransportService transportService, ThreadPool threadPool) {
+        RepositoriesService repositoriesService = new RepositoriesService(
+            Settings.EMPTY,
+            mock(ClusterService.class),
+            transportService,
+            Collections.emptyMap(),
+            Collections.emptyMap(),
+            threadPool
+        );
+        return new RemoteStoreNodeService(new SetOnce<>(repositoriesService)::get, threadPool);
     }
 
     private static class TestClusterSetup {

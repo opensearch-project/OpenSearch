@@ -45,6 +45,7 @@ import org.opensearch.cluster.NodeConnectionsService;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.OperationRouting;
 import org.opensearch.cluster.routing.RerouteService;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
@@ -60,8 +61,9 @@ import java.util.Map;
 /**
  * Main Cluster Service
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class ClusterService extends AbstractLifecycleComponent {
     private final ClusterManagerService clusterManagerService;
 

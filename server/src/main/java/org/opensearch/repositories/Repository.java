@@ -248,6 +248,13 @@ public interface Repository extends LifecycleComponent {
     boolean isReadOnly();
 
     /**
+     * Returns true if the repository is managed by the system directly and doesn't allow managing the lifetime of the
+     * repository through external APIs
+     * @return true if the repository is system managed
+     */
+    boolean isSystemRepository();
+
+    /**
      * Creates a snapshot of the shard based on the index commit point.
      * <p>
      * The index commit point can be obtained by using {@link org.opensearch.index.engine.Engine#acquireLastIndexCommit} method.

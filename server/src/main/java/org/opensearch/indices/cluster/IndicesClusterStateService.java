@@ -55,7 +55,6 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.core.action.ActionListener;
@@ -66,7 +65,7 @@ import org.opensearch.gateway.GatewayService;
 import org.opensearch.index.IndexComponent;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.index.remote.RemoteStorePressureService;
+import org.opensearch.index.remote.RemoteStoreStatsTrackerFactory;
 import org.opensearch.index.seqno.GlobalCheckpointSyncAction;
 import org.opensearch.index.seqno.ReplicationTracker;
 import org.opensearch.index.seqno.RetentionLeaseSyncer;
@@ -149,7 +148,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
     private final SegmentReplicationCheckpointPublisher checkpointPublisher;
 
-    private final RemoteStorePressureService remoteStorePressureService;
+    private final RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory;
 
     @Inject
     public IndicesClusterStateService(
@@ -170,7 +169,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         final GlobalCheckpointSyncAction globalCheckpointSyncAction,
         final RetentionLeaseSyncer retentionLeaseSyncer,
         final SegmentReplicationCheckpointPublisher checkpointPublisher,
-        final RemoteStorePressureService remoteStorePressureService
+        final RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory
     ) {
         this(
             settings,
@@ -190,7 +189,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             primaryReplicaSyncer,
             globalCheckpointSyncAction::updateGlobalCheckpointForShard,
             retentionLeaseSyncer,
-            remoteStorePressureService
+            remoteStoreStatsTrackerFactory
         );
     }
 
@@ -213,7 +212,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         final PrimaryReplicaSyncer primaryReplicaSyncer,
         final Consumer<ShardId> globalCheckpointSyncer,
         final RetentionLeaseSyncer retentionLeaseSyncer,
-        final RemoteStorePressureService remoteStorePressureService
+        final RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory
     ) {
         this.settings = settings;
         this.checkpointPublisher = checkpointPublisher;
@@ -223,10 +222,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         );
         indexEventListeners.add(segmentReplicationTargetService);
         indexEventListeners.add(segmentReplicationSourceService);
-        // if remote store feature is not enabled, do not wire the remote upload pressure service as an IndexEventListener.
-        if (FeatureFlags.isEnabled(FeatureFlags.REMOTE_STORE)) {
-            indexEventListeners.add(remoteStorePressureService);
-        }
+        indexEventListeners.add(remoteStoreStatsTrackerFactory);
         this.segmentReplicationTargetService = segmentReplicationTargetService;
         this.builtInIndexListener = Collections.unmodifiableList(indexEventListeners);
         this.indicesService = indicesService;
@@ -240,7 +236,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         this.globalCheckpointSyncer = globalCheckpointSyncer;
         this.retentionLeaseSyncer = Objects.requireNonNull(retentionLeaseSyncer);
         this.sendRefreshMapping = settings.getAsBoolean("indices.cluster.send_refresh_mapping", true);
-        this.remoteStorePressureService = remoteStorePressureService;
+        this.remoteStoreStatsTrackerFactory = remoteStoreStatsTrackerFactory;
     }
 
     @Override
@@ -683,7 +679,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 retentionLeaseSyncer,
                 nodes.getLocalNode(),
                 sourceNode,
-                remoteStorePressureService
+                remoteStoreStatsTrackerFactory
             );
         } catch (Exception e) {
             failAndRemoveShard(shardRouting, true, "failed to create shard", e, state);
@@ -1028,6 +1024,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
          * @param retentionLeaseSyncer   a callback when this shard syncs retention leases
          * @param targetNode             the node where this shard will be recovered
          * @param sourceNode             the source node to recover this shard from (it might be null)
+         * @param remoteStoreStatsTrackerFactory factory for remote store stats trackers
          * @return a new shard
          * @throws IOException if an I/O exception occurs when creating the shard
          */
@@ -1042,7 +1039,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             RetentionLeaseSyncer retentionLeaseSyncer,
             DiscoveryNode targetNode,
             @Nullable DiscoveryNode sourceNode,
-            RemoteStorePressureService remoteStorePressureService
+            RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory
         ) throws IOException;
 
         /**

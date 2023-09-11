@@ -174,6 +174,11 @@ public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent i
     }
 
     @Override
+    public boolean isSystemRepository() {
+        return false;
+    }
+
+    @Override
     public void snapshotShard(
         Store store,
         MapperService mapperService,

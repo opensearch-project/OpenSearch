@@ -619,4 +619,9 @@ public class IndicesServiceTests extends OpenSearchSingleNodeTestCase {
             ".*multiple engine factories provided for \\[foobar/.*\\]: \\[.*FooEngineFactory\\],\\[.*BarEngineFactory\\].*";
         assertThat(e, hasToString(new RegexMatcher(pattern)));
     }
+
+    public void testClusterRemoteTranslogBufferIntervalDefault() {
+        IndicesService indicesService = getIndicesService();
+        assertEquals(IndexSettings.DEFAULT_REMOTE_TRANSLOG_BUFFER_INTERVAL, indicesService.getClusterRemoteTranslogBufferInterval());
+    }
 }

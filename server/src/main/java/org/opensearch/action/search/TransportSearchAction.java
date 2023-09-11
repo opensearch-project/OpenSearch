@@ -350,27 +350,26 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 ThreadPool threadPool,
                 SearchResponse.Clusters clusters
             ) {
-                return new AbstractSearchAsyncAction<
-                    SearchPhaseResult>(
-                        actionName,
-                        logger,
-                        searchTransportService,
-                        connectionLookup,
-                        aliasFilter,
-                        concreteIndexBoosts,
-                        indexRoutings,
-                        executor,
-                        searchRequest,
-                        listener,
-                        shardsIts,
-                        timeProvider,
-                        clusterState,
-                        task,
-                        new ArraySearchPhaseResults<>(shardsIts.size()),
-                        searchRequest.getMaxConcurrentShardRequests(),
-                        clusters,
-                        searchListenersList
-                    ) {
+                return new AbstractSearchAsyncAction<SearchPhaseResult>(
+                    actionName,
+                    logger,
+                    searchTransportService,
+                    connectionLookup,
+                    aliasFilter,
+                    concreteIndexBoosts,
+                    indexRoutings,
+                    executor,
+                    searchRequest,
+                    listener,
+                    shardsIts,
+                    timeProvider,
+                    clusterState,
+                    task,
+                    new ArraySearchPhaseResults<>(shardsIts.size()),
+                    searchRequest.getMaxConcurrentShardRequests(),
+                    clusters,
+                    searchListenersList
+                ) {
                     @Override
                     protected void executePhaseOnShard(
                         SearchShardIterator shardIt,

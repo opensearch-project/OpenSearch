@@ -8,10 +8,14 @@
 
 package org.opensearch.telemetry.tracing;
 
+import org.opensearch.common.annotation.InternalApi;
 import org.opensearch.telemetry.tracing.attributes.Attributes;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 /**
  *
@@ -20,6 +24,7 @@ import java.io.IOException;
  *
  *  @opensearch.internal
  */
+@InternalApi
 class DefaultTracer implements Tracer {
     static final String THREAD_NAME = "th_name";
 
@@ -38,17 +43,22 @@ class DefaultTracer implements Tracer {
     }
 
     @Override
-    public SpanScope startSpan(String spanName) {
+    public Span startSpan(SpanCreationContext context) {
+        return startSpan(context.getSpanName(), context.getAttributes());
+    }
+
+    @Override
+    public Span startSpan(String spanName) {
         return startSpan(spanName, Attributes.EMPTY);
     }
 
     @Override
-    public SpanScope startSpan(String spanName, Attributes attributes) {
-        return startSpan(spanName, null, attributes);
+    public Span startSpan(String spanName, Attributes attributes) {
+        return startSpan(spanName, (SpanContext) null, attributes);
     }
 
     @Override
-    public SpanScope startSpan(String spanName, SpanContext parentSpan, Attributes attributes) {
+    public Span startSpan(String spanName, SpanContext parentSpan, Attributes attributes) {
         Span span = null;
         if (parentSpan != null) {
             span = createSpan(spanName, parentSpan.getSpan(), attributes);
@@ -57,7 +67,7 @@ class DefaultTracer implements Tracer {
         }
         setCurrentSpanInContext(span);
         addDefaultAttributes(span);
-        return new DefaultSpanScope(span, (scopeSpan) -> endSpan(scopeSpan));
+        return span;
     }
 
     @Override
@@ -69,16 +79,27 @@ class DefaultTracer implements Tracer {
         return tracerContextStorage.get(TracerContextStorage.CURRENT_SPAN);
     }
 
+    @Override
     public SpanContext getCurrentSpan() {
         final Span currentSpan = tracerContextStorage.get(TracerContextStorage.CURRENT_SPAN);
         return (currentSpan == null) ? null : new SpanContext(currentSpan);
     }
 
-    private void endSpan(Span span) {
-        if (span != null) {
-            span.endSpan();
-            setCurrentSpanInContext(span.getParentSpan());
-        }
+    @Override
+    public ScopedSpan startScopedSpan(SpanCreationContext spanCreationContext) {
+        return startScopedSpan(spanCreationContext, null);
+    }
+
+    @Override
+    public ScopedSpan startScopedSpan(SpanCreationContext spanCreationContext, SpanContext parentSpan) {
+        Span span = startSpan(spanCreationContext.getSpanName(), parentSpan, spanCreationContext.getAttributes());
+        SpanScope spanScope = withSpanInScope(span);
+        return new DefaultScopedSpan(span, spanScope);
+    }
+
+    @Override
+    public SpanScope withSpanInScope(Span span) {
+        return DefaultSpanScope.create(span, tracerContextStorage).attach();
     }
 
     private Span createSpan(String spanName, Span parentSpan, Attributes attributes) {
@@ -95,6 +116,16 @@ class DefaultTracer implements Tracer {
      */
     protected void addDefaultAttributes(Span span) {
         span.addAttribute(THREAD_NAME, Thread.currentThread().getName());
+    }
+
+    @Override
+    public Span startSpan(SpanCreationContext spanCreationContext, Map<String, List<String>> headers) {
+        Optional<Span> propagatedSpan = tracingTelemetry.getContextPropagator().extractFromHeaders(headers);
+        return startSpan(
+            spanCreationContext.getSpanName(),
+            propagatedSpan.map(SpanContext::new).orElse(null),
+            spanCreationContext.getAttributes()
+        );
     }
 
 }

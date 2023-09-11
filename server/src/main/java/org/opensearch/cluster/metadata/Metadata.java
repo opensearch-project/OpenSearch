@@ -66,6 +66,7 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.gateway.MetadataStateFormat;
 import org.opensearch.index.IndexNotFoundException;
+import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.plugins.MapperPlugin;
 
 import java.io.IOException;
@@ -106,6 +107,22 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
     public static final String ALL = "_all";
     public static final String UNKNOWN_CLUSTER_UUID = Strings.UNKNOWN_UUID_VALUE;
     public static final Pattern NUMBER_PATTERN = Pattern.compile("[0-9]+$");
+
+    /**
+     * Utility to identify whether input index uses SEGMENT replication strategy in established cluster state metadata.
+     * Note: Method intended for use by other plugins as well.
+     *
+     * @param indexName Index name
+     * @return true if index uses SEGMENT replication, false otherwise
+     */
+    public boolean isSegmentReplicationEnabled(String indexName) {
+        return Optional.ofNullable(index(indexName))
+            .map(
+                indexMetadata -> ReplicationType.parseString(indexMetadata.getSettings().get(IndexMetadata.SETTING_REPLICATION_TYPE))
+                    .equals(ReplicationType.SEGMENT)
+            )
+            .orElse(false);
+    }
 
     /**
      * Context of the XContent.

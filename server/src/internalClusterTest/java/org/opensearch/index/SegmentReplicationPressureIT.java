@@ -15,7 +15,6 @@ import org.opensearch.common.UUIDs;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.index.shard.IndexShard;
@@ -31,7 +30,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -39,7 +37,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static java.util.Arrays.asList;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.index.SegmentReplicationPressureService.MAX_INDEXING_CHECKPOINTS;
-import static org.opensearch.index.SegmentReplicationPressureService.MAX_REPLICATION_TIME_SETTING;
+import static org.opensearch.index.SegmentReplicationPressureService.MAX_REPLICATION_LIMIT_STALE_REPLICA_SETTING;
+import static org.opensearch.index.SegmentReplicationPressureService.MAX_REPLICATION_TIME_BACKPRESSURE_SETTING;
 import static org.opensearch.index.SegmentReplicationPressureService.SEGMENT_REPLICATION_INDEXING_PRESSURE_ENABLED;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
@@ -54,7 +53,7 @@ public class SegmentReplicationPressureIT extends SegmentReplicationBaseIT {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
             .put(SEGMENT_REPLICATION_INDEXING_PRESSURE_ENABLED.getKey(), true)
-            .put(MAX_REPLICATION_TIME_SETTING.getKey(), TimeValue.timeValueSeconds(1))
+            .put(MAX_REPLICATION_TIME_BACKPRESSURE_SETTING.getKey(), TimeValue.timeValueSeconds(1))
             .put(MAX_INDEXING_CHECKPOINTS.getKey(), MAX_CHECKPOINTS_BEHIND)
             .build();
     }
@@ -225,7 +224,10 @@ public class SegmentReplicationPressureIT extends SegmentReplicationBaseIT {
 
     public void testFailStaleReplica() throws Exception {
 
-        Settings settings = Settings.builder().put(MAX_REPLICATION_TIME_SETTING.getKey(), TimeValue.timeValueMillis(500)).build();
+        Settings settings = Settings.builder()
+            .put(MAX_REPLICATION_TIME_BACKPRESSURE_SETTING.getKey(), TimeValue.timeValueMillis(500))
+            .put(MAX_REPLICATION_LIMIT_STALE_REPLICA_SETTING.getKey(), TimeValue.timeValueMillis(1000))
+            .build();
         // Starts a primary and replica node.
         final String primaryNode = internalCluster().startNode(settings);
         createIndex(INDEX_NAME);
@@ -260,11 +262,13 @@ public class SegmentReplicationPressureIT extends SegmentReplicationBaseIT {
     }
 
     public void testWithDocumentReplicationEnabledIndex() throws Exception {
-        assumeTrue(
-            "Can't create DocRep index with remote store enabled. Skipping.",
-            Objects.equals(featureFlagSettings().get(FeatureFlags.REMOTE_STORE, "false"), "false")
+        assumeFalse(
+            "Skipping the test as its not compatible with segment replication with remote store. Cannot create DocRep indices with Remote store enabled",
+            segmentReplicationWithRemoteEnabled()
         );
-        Settings settings = Settings.builder().put(MAX_REPLICATION_TIME_SETTING.getKey(), TimeValue.timeValueMillis(500)).build();
+        Settings settings = Settings.builder()
+            .put(MAX_REPLICATION_TIME_BACKPRESSURE_SETTING.getKey(), TimeValue.timeValueMillis(500))
+            .build();
         // Starts a primary and replica node.
         final String primaryNode = internalCluster().startNode(settings);
         createIndex(

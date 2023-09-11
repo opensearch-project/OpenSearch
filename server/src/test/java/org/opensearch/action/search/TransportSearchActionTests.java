@@ -75,6 +75,7 @@ import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.search.internal.InternalSearchResponse;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.sort.SortBuilders;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.threadpool.TestThreadPool;
@@ -234,7 +235,14 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
     }
 
     public void testProcessRemoteShards() {
-        try (TransportService transportService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool, null)) {
+        try (
+            TransportService transportService = MockTransportService.createNewService(
+                Settings.EMPTY,
+                Version.CURRENT,
+                threadPool,
+                NoopTracer.INSTANCE
+            )
+        ) {
             RemoteClusterService service = transportService.getRemoteClusterService();
             assertFalse(service.isCrossClusterSearchEnabled());
             Map<String, ClusterSearchShardsResponse> searchShardsResponseMap = new HashMap<>();
@@ -451,7 +459,9 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
         OriginalIndices localIndices = local ? new OriginalIndices(new String[] { "index" }, SearchRequest.DEFAULT_INDICES_OPTIONS) : null;
         TransportSearchAction.SearchTimeProvider timeProvider = new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0);
         Function<Boolean, InternalAggregation.ReduceContext> reduceContext = finalReduce -> null;
-        try (MockTransportService service = MockTransportService.createNewService(settings, Version.CURRENT, threadPool, null)) {
+        try (
+            MockTransportService service = MockTransportService.createNewService(settings, Version.CURRENT, threadPool, NoopTracer.INSTANCE)
+        ) {
             service.start();
             service.acceptIncomingRequests();
             RemoteClusterService remoteClusterService = service.getRemoteClusterService();
@@ -507,7 +517,9 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
         OriginalIndices localIndices = local ? new OriginalIndices(new String[] { "index" }, SearchRequest.DEFAULT_INDICES_OPTIONS) : null;
         int totalClusters = numClusters + (local ? 1 : 0);
         TransportSearchAction.SearchTimeProvider timeProvider = new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0);
-        try (MockTransportService service = MockTransportService.createNewService(settings, Version.CURRENT, threadPool, null)) {
+        try (
+            MockTransportService service = MockTransportService.createNewService(settings, Version.CURRENT, threadPool, NoopTracer.INSTANCE)
+        ) {
             service.start();
             service.acceptIncomingRequests();
             RemoteClusterService remoteClusterService = service.getRemoteClusterService();
@@ -748,7 +760,9 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
         Settings.Builder builder = Settings.builder();
         MockTransportService[] mockTransportServices = startTransport(numClusters, nodes, remoteIndicesByCluster, builder);
         Settings settings = builder.build();
-        try (MockTransportService service = MockTransportService.createNewService(settings, Version.CURRENT, threadPool, null)) {
+        try (
+            MockTransportService service = MockTransportService.createNewService(settings, Version.CURRENT, threadPool, NoopTracer.INSTANCE)
+        ) {
             service.start();
             service.acceptIncomingRequests();
             RemoteClusterService remoteClusterService = service.getRemoteClusterService();

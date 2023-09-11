@@ -22,7 +22,7 @@ import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.UUIDs;
-import org.opensearch.common.blobstore.VerifyingMultiStreamBlobContainer;
+import org.opensearch.common.blobstore.AsyncMultiStreamBlobContainer;
 import org.opensearch.common.blobstore.stream.write.WriteContext;
 import org.opensearch.common.io.VersionedCodecStreamWrapper;
 import org.opensearch.common.io.stream.BytesStreamOutput;
@@ -43,6 +43,7 @@ import org.opensearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
@@ -223,21 +224,21 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
             getDummyMetadata("_0", 1)
         );
 
-        when(remoteMetadataDirectory.openInput(metadataFilename, IOContext.DEFAULT)).thenAnswer(
+        when(remoteMetadataDirectory.getBlobStream(metadataFilename)).thenAnswer(
             I -> createMetadataFileBytes(
                 metadataFilenameContentMapping.get(metadataFilename),
                 indexShard.getLatestReplicationCheckpoint(),
                 segmentInfos
             )
         );
-        when(remoteMetadataDirectory.openInput(metadataFilename2, IOContext.DEFAULT)).thenAnswer(
+        when(remoteMetadataDirectory.getBlobStream(metadataFilename2)).thenAnswer(
             I -> createMetadataFileBytes(
                 metadataFilenameContentMapping.get(metadataFilename2),
                 indexShard.getLatestReplicationCheckpoint(),
                 segmentInfos
             )
         );
-        when(remoteMetadataDirectory.openInput(metadataFilename3, IOContext.DEFAULT)).thenAnswer(
+        when(remoteMetadataDirectory.getBlobStream(metadataFilename3)).thenAnswer(
             I -> createMetadataFileBytes(
                 metadataFilenameContentMapping.get(metadataFilename3),
                 indexShard.getLatestReplicationCheckpoint(),
@@ -491,7 +492,7 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
 
         assertFalse(remoteSegmentStoreDirectory.getSegmentsUploadedToRemoteStore().containsKey(filename));
 
-        VerifyingMultiStreamBlobContainer blobContainer = mock(VerifyingMultiStreamBlobContainer.class);
+        AsyncMultiStreamBlobContainer blobContainer = mock(AsyncMultiStreamBlobContainer.class);
         when(remoteDataDirectory.getBlobContainer()).thenReturn(blobContainer);
         Mockito.doAnswer(invocation -> {
             ActionListener<Void> completionListener = invocation.getArgument(1);
@@ -517,7 +518,7 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
 
     public void testCopyFilesFromMultipartIOException() throws Exception {
         String filename = "_100.si";
-        VerifyingMultiStreamBlobContainer blobContainer = mock(VerifyingMultiStreamBlobContainer.class);
+        AsyncMultiStreamBlobContainer blobContainer = mock(AsyncMultiStreamBlobContainer.class);
         remoteDataDirectory = new RemoteDirectory(blobContainer);
         remoteSegmentStoreDirectory = new RemoteSegmentStoreDirectory(
             remoteDataDirectory,
@@ -584,7 +585,7 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         metadata.put("_0.cfe", "_0.cfe::_0.cfe__" + UUIDs.base64UUID() + "::1234::512::" + Version.LATEST.major);
         metadata.put("_0.cfs", "_0.cfs::_0.cfs__" + UUIDs.base64UUID() + "::2345::1024::" + Version.LATEST.major);
 
-        when(remoteMetadataDirectory.openInput(metadataFilename, IOContext.DEFAULT)).thenReturn(
+        when(remoteMetadataDirectory.getBlobStream(metadataFilename)).thenReturn(
             createMetadataFileBytes(metadata, indexShard.getLatestReplicationCheckpoint(), segmentInfos)
         );
 
@@ -647,7 +648,7 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
             latestMetadataFileName,
             getDummyMetadata("_0", (int) generation)
         );
-        when(remoteMetadataDirectory.openInput(latestMetadataFileName, IOContext.DEFAULT)).thenReturn(
+        when(remoteMetadataDirectory.getBlobStream(latestMetadataFileName)).thenReturn(
             createMetadataFileBytes(
                 metadataFilenameContentMapping.get(latestMetadataFileName),
                 indexShard.getLatestReplicationCheckpoint(),
@@ -750,8 +751,8 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         OutputStreamIndexOutput indexOutput = new OutputStreamIndexOutput("segment metadata", "metadata output stream", output, 4096);
         indexOutput.writeMapOfStrings(metadata);
         indexOutput.close();
-        ByteArrayIndexInput byteArrayIndexInput = new ByteArrayIndexInput("segment metadata", BytesReference.toBytes(output.bytes()));
-        when(remoteMetadataDirectory.openInput(metadataFilename, IOContext.DEFAULT)).thenReturn(byteArrayIndexInput);
+        ByteArrayInputStream inputStream = new ByteArrayInputStream(BytesReference.toBytes(output.bytes()));
+        when(remoteMetadataDirectory.getBlobStream(metadataFilename)).thenReturn(inputStream);
 
         assertThrows(CorruptIndexException.class, () -> remoteSegmentStoreDirectory.init());
     }
@@ -775,8 +776,8 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         indexOutput.writeMapOfStrings(metadata);
         CodecUtil.writeFooter(indexOutput);
         indexOutput.close();
-        ByteArrayIndexInput byteArrayIndexInput = new ByteArrayIndexInput("segment metadata", BytesReference.toBytes(output.bytes()));
-        when(remoteMetadataDirectory.openInput(metadataFilename, IOContext.DEFAULT)).thenReturn(byteArrayIndexInput);
+        ByteArrayInputStream inputStream = new ByteArrayInputStream(BytesReference.toBytes(output.bytes()));
+        when(remoteMetadataDirectory.getBlobStream(metadataFilename)).thenReturn(inputStream);
 
         assertThrows(CorruptIndexException.class, () -> remoteSegmentStoreDirectory.init());
     }
@@ -800,8 +801,8 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         indexOutput.writeMapOfStrings(metadata);
         CodecUtil.writeFooter(indexOutput);
         indexOutput.close();
-        ByteArrayIndexInput byteArrayIndexInput = new ByteArrayIndexInput("segment metadata", BytesReference.toBytes(output.bytes()));
-        when(remoteMetadataDirectory.openInput(metadataFilename, IOContext.DEFAULT)).thenReturn(byteArrayIndexInput);
+        ByteArrayInputStream inputStream = new ByteArrayInputStream(BytesReference.toBytes(output.bytes()));
+        when(remoteMetadataDirectory.getBlobStream(metadataFilename)).thenReturn(inputStream);
 
         assertThrows(IndexFormatTooOldException.class, () -> remoteSegmentStoreDirectory.init());
     }
@@ -825,8 +826,8 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         indexOutput.writeMapOfStrings(metadata);
         CodecUtil.writeFooter(indexOutput);
         indexOutput.close();
-        ByteArrayIndexInput byteArrayIndexInput = new ByteArrayIndexInput("segment metadata", BytesReference.toBytes(output.bytes()));
-        when(remoteMetadataDirectory.openInput(metadataFilename, IOContext.DEFAULT)).thenReturn(byteArrayIndexInput);
+        ByteArrayInputStream inputStream = new ByteArrayInputStream(BytesReference.toBytes(output.bytes()));
+        when(remoteMetadataDirectory.getBlobStream(metadataFilename)).thenReturn(inputStream);
 
         assertThrows(IndexFormatTooNewException.class, () -> remoteSegmentStoreDirectory.init());
     }
@@ -854,8 +855,8 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         CodecUtil.writeFooter(indexOutputSpy);
         indexOutputSpy.close();
 
-        ByteArrayIndexInput byteArrayIndexInput = new ByteArrayIndexInput("segment metadata", BytesReference.toBytes(output.bytes()));
-        when(remoteMetadataDirectory.openInput(metadataFilename, IOContext.DEFAULT)).thenReturn(byteArrayIndexInput);
+        ByteArrayInputStream inputStream = new ByteArrayInputStream(BytesReference.toBytes(output.bytes()));
+        when(remoteMetadataDirectory.getBlobStream(metadataFilename)).thenReturn(inputStream);
 
         assertThrows(CorruptIndexException.class, () -> remoteSegmentStoreDirectory.init());
     }
