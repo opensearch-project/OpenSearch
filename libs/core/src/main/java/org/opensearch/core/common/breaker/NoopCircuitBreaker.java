@@ -46,7 +46,7 @@ public class NoopCircuitBreaker implements CircuitBreaker {
     private final String name;
 
     /**
-     * Creates a new NoopCircuitBreaker with the given name
+     * Creates a new NoopCircuitBreaker (that never trip) with the given name
      * @param name the name of this breaker
      */
     public NoopCircuitBreaker(String name) {
