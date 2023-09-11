@@ -44,6 +44,7 @@ import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.OperationRouting;
+import org.opensearch.cluster.routing.Preference;
 import org.opensearch.cluster.routing.ShardIterator;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
@@ -58,8 +59,10 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.tasks.TaskId;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskManager;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
@@ -68,6 +71,7 @@ import org.opensearch.transport.TransportService;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
+import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -91,32 +95,8 @@ public class TransportMultiGetActionTests extends OpenSearchTestCase {
     private static TransportMultiGetAction transportAction;
     private static TransportShardMultiGetAction shardAction;
 
-    @BeforeClass
-    public static void beforeClass() throws Exception {
-        threadPool = new TestThreadPool(TransportMultiGetActionTests.class.getSimpleName());
-
-        transportService = new TransportService(
-            Settings.EMPTY,
-            mock(Transport.class),
-            threadPool,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-            boundAddress -> DiscoveryNode.createLocal(
-                Settings.builder().put("node.name", "node1").build(),
-                boundAddress.publishAddress(),
-                randomBase64UUID()
-            ),
-            null,
-            emptySet()
-        ) {
-            @Override
-            public TaskManager getTaskManager() {
-                return taskManager;
-            }
-        };
-
-        final Index index1 = new Index("index1", randomBase64UUID());
-        final Index index2 = new Index("index2", randomBase64UUID());
-        final ClusterState clusterState = ClusterState.builder(new ClusterName(TransportMultiGetActionTests.class.getSimpleName()))
+    private static ClusterState clusterState(ReplicationType replicationType, Index index1, Index index2) throws IOException {
+        return ClusterState.builder(new ClusterName(TransportMultiGetActionTests.class.getSimpleName()))
             .metadata(
                 new Metadata.Builder().put(
                     new IndexMetadata.Builder(index1.getName()).settings(
@@ -124,6 +104,7 @@ public class TransportMultiGetActionTests extends OpenSearchTestCase {
                             .put("index.version.created", Version.CURRENT)
                             .put("index.number_of_shards", 1)
                             .put("index.number_of_replicas", 1)
+                            .put(IndexMetadata.SETTING_REPLICATION_TYPE, replicationType)
                             .put(IndexMetadata.SETTING_INDEX_UUID, index1.getUUID())
                     )
                         .putMapping(
@@ -149,6 +130,7 @@ public class TransportMultiGetActionTests extends OpenSearchTestCase {
                                 .put("index.version.created", Version.CURRENT)
                                 .put("index.number_of_shards", 1)
                                 .put("index.number_of_replicas", 1)
+                                .put(IndexMetadata.SETTING_REPLICATION_TYPE, replicationType)
                                 .put(IndexMetadata.SETTING_INDEX_UUID, index1.getUUID())
                         )
                             .putMapping(
@@ -170,6 +152,35 @@ public class TransportMultiGetActionTests extends OpenSearchTestCase {
                     )
             )
             .build();
+    }
+
+    @BeforeClass
+    public static void beforeClass() throws Exception {
+        threadPool = new TestThreadPool(TransportMultiGetActionTests.class.getSimpleName());
+
+        transportService = new TransportService(
+            Settings.EMPTY,
+            mock(Transport.class),
+            threadPool,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            boundAddress -> DiscoveryNode.createLocal(
+                Settings.builder().put("node.name", "node1").build(),
+                boundAddress.publishAddress(),
+                randomBase64UUID()
+            ),
+            null,
+            emptySet(),
+            NoopTracer.INSTANCE
+        ) {
+            @Override
+            public TaskManager getTaskManager() {
+                return taskManager;
+            }
+        };
+
+        final Index index1 = new Index("index1", randomBase64UUID());
+        final Index index2 = new Index("index2", randomBase64UUID());
+        ClusterState clusterState = clusterState(randomBoolean() ? ReplicationType.SEGMENT : ReplicationType.DOCUMENT, index1, index2);
 
         final ShardIterator index1ShardIterator = mock(ShardIterator.class);
         when(index1ShardIterator.shardId()).thenReturn(new ShardId(index1, randomInt()));
@@ -282,6 +293,30 @@ public class TransportMultiGetActionTests extends OpenSearchTestCase {
 
         transportAction.execute(task, request.request(), new ActionListenerAdapter());
         assertTrue(shardActionInvoked.get());
+
+    }
+
+    public void testShouldForcePrimaryRouting() throws IOException {
+        final Index index1 = new Index("index1", randomBase64UUID());
+        final Index index2 = new Index("index2", randomBase64UUID());
+        Metadata metadata = clusterState(ReplicationType.SEGMENT, index1, index2).getMetadata();
+
+        // should return false since preference is set for request
+        assertFalse(TransportMultiGetAction.shouldForcePrimaryRouting(metadata, true, Preference.REPLICA.type(), "index1"));
+
+        // should return false since request is not realtime
+        assertFalse(TransportMultiGetAction.shouldForcePrimaryRouting(metadata, false, null, "index2"));
+
+        // should return true since segment replication is enabled
+        assertTrue(TransportMultiGetAction.shouldForcePrimaryRouting(metadata, true, null, "index1"));
+
+        // should return false since index doesn't exist
+        assertFalse(TransportMultiGetAction.shouldForcePrimaryRouting(metadata, true, null, "index3"));
+
+        metadata = clusterState(ReplicationType.DOCUMENT, index1, index2).getMetadata();
+
+        // should fail since document replication enabled
+        assertFalse(TransportGetAction.shouldForcePrimaryRouting(metadata, true, null, "index1"));
 
     }
 

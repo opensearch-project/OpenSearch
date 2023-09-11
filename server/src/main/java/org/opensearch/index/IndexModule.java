@@ -48,6 +48,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.TriFunction;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
@@ -119,8 +120,9 @@ import java.util.function.Supplier;
  *      {@link #addSettingsUpdateConsumer(Setting, Consumer)}</li>
  * </ul>
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class IndexModule {
 
     public static final Setting<Boolean> NODE_STORE_ALLOW_MMAP = Setting.boolSetting("node.store.allow_mmap", true, Property.NodeScope);
@@ -223,7 +225,6 @@ public final class IndexModule {
             "tvd",
             "liv",
             "dii",
-            "vec",
             "vem"
         ),
         Function.identity(),
@@ -600,7 +601,8 @@ public final class IndexModule {
         ValuesSourceRegistry valuesSourceRegistry,
         IndexStorePlugin.DirectoryFactory remoteDirectoryFactory,
         BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier,
-        Supplier<TimeValue> clusterDefaultRefreshIntervalSupplier
+        Supplier<TimeValue> clusterDefaultRefreshIntervalSupplier,
+        Supplier<TimeValue> clusterRemoteTranslogBufferIntervalSupplier
     ) throws IOException {
         final IndexEventListener eventListener = freeze();
         Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> readerWrapperFactory = indexReaderWrapper
@@ -657,7 +659,8 @@ public final class IndexModule {
                 valuesSourceRegistry,
                 recoveryStateFactory,
                 translogFactorySupplier,
-                clusterDefaultRefreshIntervalSupplier
+                clusterDefaultRefreshIntervalSupplier,
+                clusterRemoteTranslogBufferIntervalSupplier
             );
             success = true;
             return indexService;

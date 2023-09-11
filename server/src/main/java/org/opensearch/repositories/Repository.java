@@ -199,6 +199,16 @@ public interface Repository extends LifecycleComponent {
     long getRestoreThrottleTimeInNanos();
 
     /**
+     * Returns restore throttle time in nanoseconds
+     */
+    long getRemoteUploadThrottleTimeInNanos();
+
+    /**
+     * Returns restore throttle time in nanoseconds
+     */
+    long getRemoteDownloadThrottleTimeInNanos();
+
+    /**
      * Returns stats on the repository usage
      */
     default RepositoryStats stats() {
@@ -236,6 +246,13 @@ public interface Repository extends LifecycleComponent {
      * @return true if the repository is read/only
      */
     boolean isReadOnly();
+
+    /**
+     * Returns true if the repository is managed by the system directly and doesn't allow managing the lifetime of the
+     * repository through external APIs
+     * @return true if the repository is system managed
+     */
+    boolean isSystemRepository();
 
     /**
      * Creates a snapshot of the shard based on the index commit point.

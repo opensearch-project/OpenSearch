@@ -17,6 +17,7 @@ import org.opensearch.common.util.concurrent.ReleasableLock;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.util.FileSystemUtils;
+import org.opensearch.index.remote.RemoteTranslogTransferTracker;
 import org.opensearch.index.translog.transfer.BlobStoreTransferService;
 import org.opensearch.index.translog.transfer.FileTransferTracker;
 import org.opensearch.index.translog.transfer.TransferSnapshot;
@@ -28,8 +29,10 @@ import org.opensearch.repositories.Repository;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.threadpool.ThreadPool;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.Locale;
@@ -55,6 +58,7 @@ public class RemoteFsTranslog extends Translog {
     private final TranslogTransferManager translogTransferManager;
     private final FileTransferTracker fileTransferTracker;
     private final BooleanSupplier primaryModeSupplier;
+    private final RemoteTranslogTransferTracker remoteTranslogTransferTracker;
     private volatile long maxRemoteTranslogGenerationUploaded;
 
     private volatile long minSeqNoToKeep;
@@ -66,6 +70,7 @@ public class RemoteFsTranslog extends Translog {
     private final SetOnce<Boolean> olderPrimaryCleaned = new SetOnce<>();
 
     private static final int REMOTE_DELETION_PERMITS = 2;
+    private static final int DOWNLOAD_RETRIES = 2;
     public static final String TRANSLOG = "translog";
 
     // Semaphore used to allow only single remote generation to happen at a time
@@ -80,14 +85,22 @@ public class RemoteFsTranslog extends Translog {
         LongConsumer persistedSequenceNumberConsumer,
         BlobStoreRepository blobStoreRepository,
         ThreadPool threadPool,
-        BooleanSupplier primaryModeSupplier
+        BooleanSupplier primaryModeSupplier,
+        RemoteTranslogTransferTracker remoteTranslogTransferTracker
     ) throws IOException {
         super(config, translogUUID, deletionPolicy, globalCheckpointSupplier, primaryTermSupplier, persistedSequenceNumberConsumer);
         logger = Loggers.getLogger(getClass(), shardId);
         this.blobStoreRepository = blobStoreRepository;
         this.primaryModeSupplier = primaryModeSupplier;
-        fileTransferTracker = new FileTransferTracker(shardId);
-        this.translogTransferManager = buildTranslogTransferManager(blobStoreRepository, threadPool, shardId, fileTransferTracker);
+        this.remoteTranslogTransferTracker = remoteTranslogTransferTracker;
+        fileTransferTracker = new FileTransferTracker(shardId, remoteTranslogTransferTracker);
+        this.translogTransferManager = buildTranslogTransferManager(
+            blobStoreRepository,
+            threadPool,
+            shardId,
+            fileTransferTracker,
+            remoteTranslogTransferTracker
+        );
         try {
             download(translogTransferManager, location, logger);
             Checkpoint checkpoint = readCheckpoint(location);
@@ -124,6 +137,11 @@ public class RemoteFsTranslog extends Translog {
         }
     }
 
+    // visible for testing
+    RemoteTranslogTransferTracker getRemoteTranslogTracker() {
+        return remoteTranslogTransferTracker;
+    }
+
     public static void download(Repository repository, ShardId shardId, ThreadPool threadPool, Path location, Logger logger)
         throws IOException {
         assert repository instanceof BlobStoreRepository : String.format(
@@ -132,32 +150,65 @@ public class RemoteFsTranslog extends Translog {
             shardId
         );
         BlobStoreRepository blobStoreRepository = (BlobStoreRepository) repository;
-        FileTransferTracker fileTransferTracker = new FileTransferTracker(shardId);
+        // We use a dummy stats tracker to ensure the flow doesn't break.
+        // TODO: To be revisited as part of https://github.com/opensearch-project/OpenSearch/issues/7567
+        RemoteTranslogTransferTracker remoteTranslogTransferTracker = new RemoteTranslogTransferTracker(shardId, 1000);
+        FileTransferTracker fileTransferTracker = new FileTransferTracker(shardId, remoteTranslogTransferTracker);
         TranslogTransferManager translogTransferManager = buildTranslogTransferManager(
             blobStoreRepository,
             threadPool,
             shardId,
-            fileTransferTracker
+            fileTransferTracker,
+            remoteTranslogTransferTracker
         );
         RemoteFsTranslog.download(translogTransferManager, location, logger);
     }
 
-    public static void download(TranslogTransferManager translogTransferManager, Path location, Logger logger) throws IOException {
+    static void download(TranslogTransferManager translogTransferManager, Path location, Logger logger) throws IOException {
+        /*
+        In Primary to Primary relocation , there can be concurrent upload and download of translog.
+        While translog files are getting downloaded by new primary, it might hence be deleted by the primary
+        Hence we retry if tlog/ckp files are not found .
+
+        This doesn't happen in last download , where it is ensured that older primary has stopped modifying tlog data.
+         */
+        IOException ex = null;
+        for (int i = 0; i <= DOWNLOAD_RETRIES; i++) {
+            try {
+                downloadOnce(translogTransferManager, location, logger);
+                return;
+            } catch (FileNotFoundException | NoSuchFileException e) {
+                // continue till download retries
+                ex = e;
+            }
+        }
+        throw ex;
+    }
+
+    static private void downloadOnce(TranslogTransferManager translogTransferManager, Path location, Logger logger) throws IOException {
         logger.trace("Downloading translog files from remote");
+        RemoteTranslogTransferTracker statsTracker = translogTransferManager.getRemoteTranslogTransferTracker();
+        long prevDownloadBytesSucceeded = statsTracker.getDownloadBytesSucceeded();
+        long prevDownloadTimeInMillis = statsTracker.getTotalDownloadTimeInMillis();
         TranslogTransferMetadata translogMetadata = translogTransferManager.readMetadata();
         if (translogMetadata != null) {
             if (Files.notExists(location)) {
                 Files.createDirectories(location);
             }
+
             // Delete translog files on local before downloading from remote
             for (Path file : FileSystemUtils.files(location)) {
                 Files.delete(file);
             }
+
             Map<String, String> generationToPrimaryTermMapper = translogMetadata.getGenerationToPrimaryTermMapper();
             for (long i = translogMetadata.getGeneration(); i >= translogMetadata.getMinTranslogGeneration(); i--) {
                 String generation = Long.toString(i);
                 translogTransferManager.downloadTranslog(generationToPrimaryTermMapper.get(generation), generation, location);
             }
+
+            statsTracker.recordDownloadStats(prevDownloadBytesSucceeded, prevDownloadTimeInMillis);
+
             // We copy the latest generation .ckp file to translog.ckp so that flows that depend on
             // existence of translog.ckp file work in the same way
             Files.copy(
@@ -172,13 +223,15 @@ public class RemoteFsTranslog extends Translog {
         BlobStoreRepository blobStoreRepository,
         ThreadPool threadPool,
         ShardId shardId,
-        FileTransferTracker fileTransferTracker
+        FileTransferTracker fileTransferTracker,
+        RemoteTranslogTransferTracker remoteTranslogTransferTracker
     ) {
         return new TranslogTransferManager(
             shardId,
             new BlobStoreTransferService(blobStoreRepository.blobStore(), threadPool),
             blobStoreRepository.basePath().add(shardId.getIndex().getUUID()).add(String.valueOf(shardId.id())).add(TRANSLOG),
-            fileTransferTracker
+            fileTransferTracker,
+            remoteTranslogTransferTracker
         );
     }
 
@@ -265,28 +318,10 @@ public class RemoteFsTranslog extends Translog {
             ).build()
         ) {
             Releasable transferReleasable = Releasables.wrap(deletionPolicy.acquireTranslogGen(getMinFileGeneration()));
-            return translogTransferManager.transferSnapshot(transferSnapshotProvider, new TranslogTransferListener() {
-                @Override
-
-                public void onUploadComplete(TransferSnapshot transferSnapshot) throws IOException {
-                    transferReleasable.close();
-                    closeFilesIfNoPendingRetentionLocks();
-                    maxRemoteTranslogGenerationUploaded = generation;
-                    minRemoteGenReferenced = getMinFileGeneration();
-                    logger.trace("uploaded translog for {} {} ", primaryTerm, generation);
-                }
-
-                @Override
-                public void onUploadFailed(TransferSnapshot transferSnapshot, Exception ex) throws IOException {
-                    transferReleasable.close();
-                    closeFilesIfNoPendingRetentionLocks();
-                    if (ex instanceof IOException) {
-                        throw (IOException) ex;
-                    } else {
-                        throw (RuntimeException) ex;
-                    }
-                }
-            });
+            return translogTransferManager.transferSnapshot(
+                transferSnapshotProvider,
+                new RemoteFsTranslogTransferListener(transferReleasable, generation, primaryTerm)
+            );
         }
 
     }
@@ -439,12 +474,16 @@ public class RemoteFsTranslog extends Translog {
     public static void cleanup(Repository repository, ShardId shardId, ThreadPool threadPool) throws IOException {
         assert repository instanceof BlobStoreRepository : "repository should be instance of BlobStoreRepository";
         BlobStoreRepository blobStoreRepository = (BlobStoreRepository) repository;
-        FileTransferTracker fileTransferTracker = new FileTransferTracker(shardId);
+        // We use a dummy stats tracker to ensure the flow doesn't break.
+        // TODO: To be revisited as part of https://github.com/opensearch-project/OpenSearch/issues/7567
+        RemoteTranslogTransferTracker remoteTranslogTransferTracker = new RemoteTranslogTransferTracker(shardId, 1000);
+        FileTransferTracker fileTransferTracker = new FileTransferTracker(shardId, remoteTranslogTransferTracker);
         TranslogTransferManager translogTransferManager = buildTranslogTransferManager(
             blobStoreRepository,
             threadPool,
             shardId,
-            fileTransferTracker
+            fileTransferTracker,
+            remoteTranslogTransferTracker
         );
         // clean up all remote translog files
         translogTransferManager.deleteTranslogFiles();
@@ -458,5 +497,53 @@ public class RemoteFsTranslog extends Translog {
         }
         // clean up all remote translog files
         translogTransferManager.delete();
+    }
+
+    /**
+     * TranslogTransferListener implementation for RemoteFsTranslog
+     *
+     * @opensearch.internal
+     */
+    private class RemoteFsTranslogTransferListener implements TranslogTransferListener {
+        /**
+         * Releasable instance for the translog
+         */
+        private final Releasable transferReleasable;
+
+        /**
+         * Generation for the translog
+         */
+        private final Long generation;
+
+        /**
+         * Primary Term for the translog
+         */
+        private final Long primaryTerm;
+
+        RemoteFsTranslogTransferListener(Releasable transferReleasable, Long generation, Long primaryTerm) {
+            this.transferReleasable = transferReleasable;
+            this.generation = generation;
+            this.primaryTerm = primaryTerm;
+        }
+
+        @Override
+        public void onUploadComplete(TransferSnapshot transferSnapshot) throws IOException {
+            transferReleasable.close();
+            closeFilesIfNoPendingRetentionLocks();
+            maxRemoteTranslogGenerationUploaded = generation;
+            minRemoteGenReferenced = getMinFileGeneration();
+            logger.trace("uploaded translog for {} {} ", primaryTerm, generation);
+        }
+
+        @Override
+        public void onUploadFailed(TransferSnapshot transferSnapshot, Exception ex) throws IOException {
+            transferReleasable.close();
+            closeFilesIfNoPendingRetentionLocks();
+            if (ex instanceof IOException) {
+                throw (IOException) ex;
+            } else {
+                throw (RuntimeException) ex;
+            }
+        }
     }
 }

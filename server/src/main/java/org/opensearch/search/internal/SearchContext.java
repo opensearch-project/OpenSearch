@@ -399,7 +399,7 @@ public abstract class SearchContext implements Releasable {
     /**
      * Returns concurrent segment search status for the search context
      */
-    public boolean isConcurrentSegmentSearchEnabled() {
+    public boolean shouldUseConcurrentSearch() {
         return false;
     }
 
@@ -407,7 +407,7 @@ public abstract class SearchContext implements Releasable {
      * Returns local bucket count thresholds based on concurrent segment search status
      */
     public LocalBucketCountThresholds asLocalBucketCountThresholds(TermsAggregator.BucketCountThresholds bucketCountThresholds) {
-        if (isConcurrentSegmentSearchEnabled()) {
+        if (shouldUseConcurrentSearch()) {
             return new LocalBucketCountThresholds(0, ArrayUtil.MAX_ARRAY_LENGTH - 1);
         } else {
             return new LocalBucketCountThresholds(bucketCountThresholds.getShardMinDocCount(), bucketCountThresholds.getShardSize());
@@ -487,4 +487,6 @@ public abstract class SearchContext implements Releasable {
     public abstract BucketCollectorProcessor bucketCollectorProcessor();
 
     public abstract int getTargetMaxSliceCount();
+
+    public abstract boolean shouldUseTimeSeriesDescSortOptimization();
 }

@@ -21,7 +21,7 @@ jobs:
           installation_id: 22958780
 
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         
       - name: Edit the issue template
         run: |

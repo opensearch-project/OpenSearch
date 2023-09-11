@@ -561,12 +561,17 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public boolean isConcurrentSegmentSearchEnabled() {
-        return in.isConcurrentSegmentSearchEnabled();
+    public boolean shouldUseConcurrentSearch() {
+        return in.shouldUseConcurrentSearch();
     }
 
     @Override
     public int getTargetMaxSliceCount() {
         return in.getTargetMaxSliceCount();
+    }
+
+    @Override
+    public boolean shouldUseTimeSeriesDescSortOptimization() {
+        return in.shouldUseTimeSeriesDescSortOptimization();
     }
 }
