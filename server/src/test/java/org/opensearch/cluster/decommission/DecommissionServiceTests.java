@@ -28,6 +28,7 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.ClusterServiceUtils;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.MockTransport;
@@ -103,7 +104,8 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             boundTransportAddress -> clusterService.state().nodes().get("node1"),
             null,
-            emptySet()
+            emptySet(),
+            NoopTracer.INSTANCE
         );
 
         final Settings.Builder nodeSettingsBuilder = Settings.builder()

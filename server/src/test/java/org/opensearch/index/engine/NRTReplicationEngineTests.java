@@ -75,6 +75,28 @@ public class NRTReplicationEngineTests extends EngineTestCase {
         }
     }
 
+    public void testCreateEngineWithException() throws IOException {
+        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+        final Store nrtEngineStore = createStore(INDEX_SETTINGS, newDirectory());
+        try {
+            // Passing null translogPath to induce failure
+            final EngineConfig replicaConfig = config(
+                defaultSettings,
+                nrtEngineStore,
+                null,
+                NoMergePolicy.INSTANCE,
+                null,
+                null,
+                globalCheckpoint::get
+            );
+            new NRTReplicationEngine(replicaConfig);
+        } catch (Exception e) {
+            // Ignore as engine creation will fail
+        }
+        assertEquals(1, nrtEngineStore.refCount());
+        nrtEngineStore.close();
+    }
+
     public void testEngineWritesOpsToTranslog() throws Exception {
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
 
@@ -152,7 +174,7 @@ public class NRTReplicationEngineTests extends EngineTestCase {
             assertEquals(2, nrtEngine.getLastCommittedSegmentInfos().getGeneration());
 
             // commit the infos to push us to segments_3.
-            nrtEngine.commitSegmentInfos();
+            nrtEngine.flush();
             assertEquals(3, nrtEngine.getLastCommittedSegmentInfos().getGeneration());
             assertEquals(3, nrtEngine.getLatestSegmentInfos().getGeneration());
 
@@ -283,7 +305,7 @@ public class NRTReplicationEngineTests extends EngineTestCase {
         }
     }
 
-    public void testCommitSegmentInfos() throws Exception {
+    public void testFlush() throws Exception {
         // This test asserts that NRTReplication#commitSegmentInfos creates a new commit point with the latest checkpoints
         // stored in user data.
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
@@ -304,7 +326,7 @@ public class NRTReplicationEngineTests extends EngineTestCase {
             LocalCheckpointTracker localCheckpointTracker = nrtEngine.getLocalCheckpointTracker();
             final long maxSeqNo = localCheckpointTracker.getMaxSeqNo();
             final long processedCheckpoint = localCheckpointTracker.getProcessedCheckpoint();
-            nrtEngine.commitSegmentInfos();
+            nrtEngine.flush();
 
             // ensure getLatestSegmentInfos returns an updated infos ref with correct userdata.
             final SegmentInfos latestSegmentInfos = nrtEngine.getLatestSegmentInfos();
@@ -322,6 +344,10 @@ public class NRTReplicationEngineTests extends EngineTestCase {
             userData = committedInfos.getUserData();
             assertEquals(processedCheckpoint, Long.parseLong(userData.get(LOCAL_CHECKPOINT_KEY)));
             assertEquals(maxSeqNo, Long.parseLong(userData.get(MAX_SEQ_NO)));
+
+            try (final GatedCloseable<IndexCommit> indexCommit = nrtEngine.acquireLastIndexCommit(true)) {
+                assertEquals(committedInfos.getGeneration() + 1, indexCommit.get().getGeneration());
+            }
         }
     }
 

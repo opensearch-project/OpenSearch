@@ -32,6 +32,7 @@
 
 package org.opensearch.core.xcontent;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.Writeable;
 
 import java.io.IOException;
@@ -42,7 +43,10 @@ import java.util.Locale;
  * Abstracts a <a href="http://en.wikipedia.org/wiki/Internet_media_type">Media Type</a> and a format parameter.
  * Media types are used as values on Content-Type and Accept headers
  * format is an URL parameter, specifies response media type.
+ *
+ * @opensearch.api
  */
+@PublicApi(since = "2.1.0")
 public interface MediaType extends Writeable {
     /**
      * Returns a type part of a MediaType
