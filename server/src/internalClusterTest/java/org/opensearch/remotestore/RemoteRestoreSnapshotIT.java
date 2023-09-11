@@ -58,7 +58,7 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
     @After
     public void teardown() {
         internalCluster().wipeIndices("_all");
-        assertAcked(clusterAdmin().prepareDeleteRepository(BASE_REMOTE_REPO));
+        clusterAdmin().prepareCleanupRepository(BASE_REMOTE_REPO).get();
     }
 
     @Override

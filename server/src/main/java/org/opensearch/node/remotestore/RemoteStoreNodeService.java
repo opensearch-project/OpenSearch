@@ -135,8 +135,8 @@ public class RemoteStoreNodeService {
                 for (RepositoryMetadata existingRepositoryMetadata : existingRepositories.repositories()) {
                     if (newRepositoryMetadata.name().equals(existingRepositoryMetadata.name())) {
                         try {
-                            newRepositoryMetadata = repositoriesService.get()
-                                .ensureValidSystemRepositoryUpdate(newRepositoryMetadata, existingRepositoryMetadata);
+                            repositoriesService.get().ensureValidSystemRepositoryUpdate(newRepositoryMetadata, existingRepositoryMetadata);
+                            newRepositoryMetadata = existingRepositoryMetadata;
                             repositoryAlreadyPresent = true;
                             break;
                         } catch (RepositoryException e) {

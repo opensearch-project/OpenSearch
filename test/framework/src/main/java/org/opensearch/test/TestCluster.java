@@ -46,6 +46,7 @@ import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.indices.IndexTemplateMissingException;
 import org.opensearch.repositories.RepositoryMissingException;
+import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.test.hamcrest.OpenSearchAssertions;
 
 import java.io.Closeable;
@@ -253,7 +254,13 @@ public abstract class TestCluster implements Closeable {
             }
             for (String repository : repositories) {
                 try {
-                    client().admin().cluster().prepareDeleteRepository(repository).execute().actionGet();
+                    if (BlobStoreRepository.SYSTEM_REPOSITORY_SETTING.get(
+                        client().admin().cluster().prepareGetRepositories(repository).execute().actionGet().repositories().get(0).settings()
+                    ) == false) {
+                        client().admin().cluster().prepareDeleteRepository(repository).execute().actionGet();
+                    } else {
+                        client().admin().cluster().prepareCleanupRepository(repository).execute().actionGet();
+                    }
                 } catch (RepositoryMissingException ex) {
                     // ignore
                 }

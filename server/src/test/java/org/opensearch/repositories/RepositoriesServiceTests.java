@@ -94,6 +94,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import static org.opensearch.repositories.blobstore.BlobStoreRepository.SYSTEM_REPOSITORY_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -199,6 +200,13 @@ public class RepositoriesServiceTests extends OpenSearchTestCase {
         for (char c : Strings.INVALID_FILENAME_CHARS) {
             assertThrowsOnRegister("contains" + c + "InvalidCharacters");
         }
+    }
+
+    public void testUpdateOrRegisterRejectsForSystemRepository() {
+        String repoName = "name";
+        PutRepositoryRequest request = new PutRepositoryRequest(repoName);
+        request.settings(Settings.builder().put(SYSTEM_REPOSITORY_SETTING.getKey(), true).build());
+        expectThrows(RepositoryException.class, () -> repositoriesService.registerOrUpdateRepository(request, null));
     }
 
     public void testRepositoriesStatsCanHaveTheSameNameAndDifferentTypeOverTime() {
