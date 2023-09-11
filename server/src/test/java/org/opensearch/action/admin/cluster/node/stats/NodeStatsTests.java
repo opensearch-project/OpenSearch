@@ -58,8 +58,8 @@ import org.opensearch.monitor.jvm.JvmStats;
 import org.opensearch.monitor.os.OsStats;
 import org.opensearch.monitor.process.ProcessStats;
 import org.opensearch.node.AdaptiveSelectionStats;
-import org.opensearch.node.DownstreamNodesPerfStats;
 import org.opensearch.node.NodePerformanceStatistics;
+import org.opensearch.node.NodesPerformanceStats;
 import org.opensearch.node.ResponseCollectorService;
 import org.opensearch.script.ScriptCacheStats;
 import org.opensearch.script.ScriptStats;
@@ -394,14 +394,14 @@ public class NodeStatsTests extends OpenSearchTestCase {
                         assertEquals(aStats.responseTime, bStats.responseTime, 0.01);
                     });
                 }
-                DownstreamNodesPerfStats downstreamNodesPerfStats = nodeStats.getNodesPerformanceStats();
-                DownstreamNodesPerfStats deserializedNodePerfStats = deserializedNodeStats.getNodesPerformanceStats();
-                if (downstreamNodesPerfStats == null) {
+                NodesPerformanceStats nodesPerformanceStats = nodeStats.getNodesPerformanceStats();
+                NodesPerformanceStats deserializedNodePerfStats = deserializedNodeStats.getNodesPerformanceStats();
+                if (nodesPerformanceStats == null) {
                     assertNull(deserializedNodePerfStats);
                 } else {
-                    downstreamNodesPerfStats.getNodePerfStats().forEach((k, v) -> {
-                        NodePerformanceStatistics aPerfStats = downstreamNodesPerfStats.getNodePerfStats().get(k);
-                        NodePerformanceStatistics bPerfStats = downstreamNodesPerfStats.getNodePerfStats().get(k);
+                    nodesPerformanceStats.getNodePerfStats().forEach((k, v) -> {
+                        NodePerformanceStatistics aPerfStats = nodesPerformanceStats.getNodePerfStats().get(k);
+                        NodePerformanceStatistics bPerfStats = nodesPerformanceStats.getNodePerfStats().get(k);
                         assertEquals(aPerfStats.getMemoryUtilizationPercent(), bPerfStats.getMemoryUtilizationPercent(), 0.0);
                         assertEquals(aPerfStats.getCpuUtilizationPercent(), bPerfStats.getCpuUtilizationPercent(), 0.0);
                         assertEquals(aPerfStats.getTimestamp(), bPerfStats.getTimestamp());
@@ -769,7 +769,7 @@ public class NodeStatsTests extends OpenSearchTestCase {
             }
             adaptiveSelectionStats = new AdaptiveSelectionStats(nodeConnections, nodeStats);
         }
-        DownstreamNodesPerfStats downstreamNodesPerfStats = null;
+        NodesPerformanceStats nodesPerformanceStats = null;
         if (frequently()) {
             int numNodes = randomIntBetween(0, 10);
             Map<String, Long> nodeConnections = new HashMap<>();
@@ -791,7 +791,7 @@ public class NodeStatsTests extends OpenSearchTestCase {
                     nodePerfStats.put(nodeId, stats);
                 }
             }
-            downstreamNodesPerfStats = new DownstreamNodesPerfStats(nodePerfStats);
+            nodesPerformanceStats = new NodesPerformanceStats(nodePerfStats);
         }
         ClusterManagerThrottlingStats clusterManagerThrottlingStats = null;
         if (frequently()) {
@@ -824,7 +824,7 @@ public class NodeStatsTests extends OpenSearchTestCase {
             discoveryStats,
             ingestStats,
             adaptiveSelectionStats,
-            downstreamNodesPerfStats,
+            nodesPerformanceStats,
             scriptCacheStats,
             null,
             null,

@@ -110,7 +110,7 @@ public class NodePerformanceTracker extends AbstractLifecycleComponent {
             try {
                 doRun();
             } catch (Exception e) {
-                logger.debug("failure in search search backpressure", e);
+                logger.debug("failure in node performance tracker : {}", e);
             }
         }, interval, ThreadPool.Names.GENERIC);
         cpuUsageTracker.doStart();

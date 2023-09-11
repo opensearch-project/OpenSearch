@@ -61,7 +61,7 @@ public class PerformanceCollectorService implements ClusterStateListener {
      */
     public Map<String, NodePerformanceStatistics> getAllNodeStatistics() {
         Map<String, NodePerformanceStatistics> nodeStats = new HashMap<>(nodeIdToPerfStats.size());
-        nodeIdToPerfStats.forEach((k, v) -> { nodeStats.put(k, new NodePerformanceStatistics(v)); });
+        nodeIdToPerfStats.forEach((nodeId, nodePerfStats) -> { nodeStats.put(nodeId, new NodePerformanceStatistics(nodePerfStats)); });
         return nodeStats;
     }
 
@@ -71,11 +71,11 @@ public class PerformanceCollectorService implements ClusterStateListener {
      * {@code Optional} if the node was not found.
      */
     public Optional<NodePerformanceStatistics> getNodeStatistics(final String nodeId) {
-        return Optional.ofNullable(nodeIdToPerfStats.get(nodeId)).map(ns -> new NodePerformanceStatistics(ns));
+        return Optional.ofNullable(nodeIdToPerfStats.get(nodeId)).map(perfStats -> new NodePerformanceStatistics(perfStats));
     }
 
-    public DownstreamNodesPerfStats stats() {
-        return new DownstreamNodesPerfStats(getAllNodeStatistics());
+    public NodesPerformanceStats stats() {
+        return new NodesPerformanceStats(getAllNodeStatistics());
     }
 
 }

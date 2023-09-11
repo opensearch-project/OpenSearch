@@ -23,14 +23,14 @@ import java.util.concurrent.TimeUnit;
 /**
  * This class represents collected performance stats of all downstream nodes and the local node
  */
-public class DownstreamNodesPerfStats implements Writeable, ToXContentFragment {
+public class NodesPerformanceStats implements Writeable, ToXContentFragment {
     private final Map<String, NodePerformanceStatistics> nodePerfStats;
 
-    public DownstreamNodesPerfStats(Map<String, NodePerformanceStatistics> nodePerfStats) {
+    public NodesPerformanceStats(Map<String, NodePerformanceStatistics> nodePerfStats) {
         this.nodePerfStats = nodePerfStats;
     }
 
-    public DownstreamNodesPerfStats(StreamInput in) throws IOException {
+    public NodesPerformanceStats(StreamInput in) throws IOException {
         this.nodePerfStats = in.readMap(StreamInput::readString, NodePerformanceStatistics::new);
     }
 

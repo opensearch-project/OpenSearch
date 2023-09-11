@@ -53,13 +53,18 @@ public class NodePerformanceStatistics implements Writeable {
         sb.append(nodeId).append("](");
         sb.append("CPU utilization percent: ").append(String.format(Locale.ROOT, "%.1f", cpuUtilizationPercent));
         sb.append(", Memory utilization percent: ").append(String.format(Locale.ROOT, "%.1f", memoryUtilizationPercent));
-        sb.append(", Timestamp: ").append(memoryUtilizationPercent);
+        sb.append(", Timestamp: ").append(timestamp);
         sb.append(")");
         return sb.toString();
     }
 
-    NodePerformanceStatistics(NodePerformanceStatistics nodeStats) {
-        this(nodeStats.nodeId, nodeStats.cpuUtilizationPercent, nodeStats.memoryUtilizationPercent, nodeStats.timestamp);
+    NodePerformanceStatistics(NodePerformanceStatistics nodePerformanceStatistics) {
+        this(
+            nodePerformanceStatistics.nodeId,
+            nodePerformanceStatistics.cpuUtilizationPercent,
+            nodePerformanceStatistics.memoryUtilizationPercent,
+            nodePerformanceStatistics.timestamp
+        );
     }
 
     public double getMemoryUtilizationPercent() {

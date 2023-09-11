@@ -28,25 +28,25 @@ public class PerformanceTrackerSettings {
         Setting.Property.NodeScope
     );
     public static final Setting<TimeValue> GLOBAL_CPU_USAGE_AC_POLLING_INTERVAL_SETTING = Setting.positiveTimeSetting(
-        "node.global_cpu_usage.polling_interval",
+        "node.perf_tracker.global_cpu_usage.polling_interval",
         TimeValue.timeValueMillis(Defaults.POLLING_INTERVAL),
         Setting.Property.NodeScope
     );
     public static final Setting<TimeValue> GLOBAL_CPU_USAGE_AC_WINDOW_DURATION_SETTING = Setting.positiveTimeSetting(
-        "node.global_cpu_usage.window_duration",
+        "node.perf_tracker.global_cpu_usage.window_duration",
         TimeValue.timeValueSeconds(Defaults.WINDOW_DURATION),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
 
     public static final Setting<TimeValue> GLOBAL_JVM_USAGE_AC_POLLING_INTERVAL_SETTING = Setting.positiveTimeSetting(
-        "node.global_jvmmp.polling_interval",
+        "node.perf_tracker.global_jvmmp.polling_interval",
         TimeValue.timeValueMillis(Defaults.POLLING_INTERVAL),
         Setting.Property.NodeScope
     );
 
     public static final Setting<TimeValue> GLOBAL_JVM_USAGE_AC_WINDOW_DURATION_SETTING = Setting.positiveTimeSetting(
-        "node.global_jvmmp.window_duration",
+        "node.perf_tracker.global_jvmmp.window_duration",
         TimeValue.timeValueSeconds(Defaults.WINDOW_DURATION),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope

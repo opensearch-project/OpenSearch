@@ -1069,7 +1069,6 @@ public class Node implements Closeable {
                 searchPipelineService,
                 fileCache,
                 taskCancellationMonitoringService,
-                nodePerformanceTracker,
                 performanceCollectorService
             );
 
