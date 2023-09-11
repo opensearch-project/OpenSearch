@@ -6,6 +6,7 @@
  * compatible open source license.
  */
 
-grant codeBase "${codebase.zstd-jni}" {
-  permission java.lang.RuntimePermission "loadLibrary.*";
-};
+/**
+ * This package contains classes needed for tracing requests.
+ */
+package org.opensearch.telemetry.tracing.listener;

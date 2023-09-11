@@ -7,6 +7,6 @@
  */
 
 /**
- * A plugin that implements compression codecs with native implementation.
+ * This package contains classes needed for tracing requests.
  */
-package org.opensearch.index.codec.customcodecs;
+package org.opensearch.telemetry.tracing.channels;
