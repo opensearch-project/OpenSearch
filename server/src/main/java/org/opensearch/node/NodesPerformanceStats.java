@@ -42,7 +42,7 @@ public class NodesPerformanceStats implements Writeable, ToXContentFragment {
     /**
      * Returns map of node id to perf stats
      */
-    public Map<String, NodePerformanceStatistics> getNodePerfStats() {
+    public Map<String, NodePerformanceStatistics> getNodeIdToNodePerfStatsMap() {
         return nodePerfStats;
     }
 

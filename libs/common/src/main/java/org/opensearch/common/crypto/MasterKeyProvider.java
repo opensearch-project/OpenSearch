@@ -22,7 +22,7 @@ public interface MasterKeyProvider extends Closeable {
     DataKeyPair generateDataPair();
 
     /**
-     * Returns decrpted key against the encrypted key.
+     * Returns decrypted key against the encrypted key.
      * @param encryptedKey Key to decrypt
      * @return Decrypted version of key.
      */
@@ -35,6 +35,7 @@ public interface MasterKeyProvider extends Closeable {
     String getKeyId();
 
     /**
+     * Returns encryption context associated with this master key.
      * @return encryption context associated with this master key.
      */
     Map<String, String> getEncryptionContext();

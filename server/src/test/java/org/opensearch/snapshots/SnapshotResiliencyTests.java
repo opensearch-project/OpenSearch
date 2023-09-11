@@ -221,6 +221,7 @@ import org.opensearch.search.pipeline.SearchPipelineService;
 import org.opensearch.search.query.QueryPhase;
 import org.opensearch.snapshots.mockstore.MockEventuallyConsistentRepository;
 import org.opensearch.tasks.TaskResourceTrackingService;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.disruption.DisruptableMockTransport;
 import org.opensearch.threadpool.ThreadPool;
@@ -1985,7 +1986,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                             return actualHandler;
                         }
                     }
-                }, a -> node, null, emptySet());
+                }, a -> node, null, emptySet(), NoopTracer.INSTANCE);
                 final IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(
                     new ThreadContext(Settings.EMPTY)
                 );

@@ -13,6 +13,9 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 
+/**
+ * Settings related to node performance trackers
+ */
 public class PerformanceTrackerSettings {
 
     private static class Defaults {
