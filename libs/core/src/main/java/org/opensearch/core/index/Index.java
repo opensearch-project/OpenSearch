@@ -49,7 +49,7 @@ import java.util.Objects;
 /**
  * A value class representing the basic required properties of an OpenSearch index.
  *
- * @implNote This class is immutable
+ * (This class is immutable.)
  *
  * @opensearch.api
  */
@@ -116,9 +116,9 @@ public class Index implements Writeable, ToXContentObject {
      * return either the name and uuid of the index
      * or only the name if the uuid is {@link Strings#UNKNOWN_UUID_VALUE}.
      *
-     * @implNote If we have a uuid we put it in the toString so it'll show up in logs
-     *           which is useful as more and more things use the uuid rather
-     *           than the name as the lookup key for the index.
+     * If we have a uuid we put it in the toString so it'll show up in logs
+     * which is useful as more and more things use the uuid rather
+     * than the name as the lookup key for the index.
      *
      * @return {@code "[name/uuid]"} or {@code "[name]"}
      */
