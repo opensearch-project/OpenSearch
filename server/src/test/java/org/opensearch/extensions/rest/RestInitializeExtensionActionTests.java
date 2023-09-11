@@ -23,6 +23,7 @@ import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.extensions.ExtensionsSettings;
 import org.opensearch.identity.IdentityService;
 import org.opensearch.rest.RestRequest;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.rest.FakeRestChannel;
 import org.opensearch.test.rest.FakeRestRequest;
@@ -83,7 +84,8 @@ public class RestInitializeExtensionActionTests extends OpenSearchTestCase {
                 Version.CURRENT
             ),
             null,
-            Collections.emptySet()
+            Collections.emptySet(),
+            NoopTracer.INSTANCE
         );
 
     }

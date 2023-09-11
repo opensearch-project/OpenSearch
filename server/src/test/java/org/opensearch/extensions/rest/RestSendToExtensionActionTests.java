@@ -32,6 +32,7 @@ import org.opensearch.identity.IdentityService;
 import org.opensearch.rest.NamedRoute;
 import org.opensearch.rest.RestHandler.Route;
 import org.opensearch.rest.RestRequest.Method;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.threadpool.TestThreadPool;
@@ -94,7 +95,8 @@ public class RestSendToExtensionActionTests extends OpenSearchTestCase {
                 Version.CURRENT
             ),
             null,
-            Collections.emptySet()
+            Collections.emptySet(),
+            NoopTracer.INSTANCE
         );
         discoveryExtensionNode = new DiscoveryExtensionNode(
             "firstExtension",

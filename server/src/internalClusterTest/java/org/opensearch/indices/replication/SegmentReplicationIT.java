@@ -15,6 +15,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.document.TextField;
+import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.SegmentInfos;
@@ -38,6 +39,8 @@ import org.opensearch.action.search.PitTestsUtil;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.SearchType;
 import org.opensearch.action.support.WriteRequest;
+import org.opensearch.action.termvectors.TermVectorsRequestBuilder;
+import org.opensearch.action.termvectors.TermVectorsResponse;
 import org.opensearch.action.update.UpdateResponse;
 import org.opensearch.client.Requests;
 import org.opensearch.cluster.ClusterState;
@@ -57,6 +60,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.SegmentReplicationPerGroupStats;
 import org.opensearch.index.SegmentReplicationPressureService;
@@ -81,6 +85,7 @@ import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.transport.TransportService;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -1622,4 +1627,154 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         assertTrue(mgetResponse.getResponses()[1].isFailed());
 
     }
+
+    /**
+     * Tests whether segment replication supports realtime termvector requests and reads and parses source from the translog to serve strong reads.
+     */
+    public void testRealtimeTermVectorRequestsSuccessful() throws IOException {
+        final String primary = internalCluster().startDataOnlyNode();
+        XContentBuilder mapping = jsonBuilder().startObject()
+            .startObject("properties")
+            .startObject("field")
+            .field("type", "text")
+            .field("term_vector", "with_positions_offsets_payloads")
+            .field("analyzer", "tv_test")
+            .endObject()
+            .endObject()
+            .endObject();
+        // refresh interval disabled to ensure refresh rate of index (when data is ready for search) doesn't affect realtime termvectors
+        assertAcked(
+            prepareCreate(INDEX_NAME).setMapping(mapping)
+                .addAlias(new Alias("alias"))
+                .setSettings(
+                    Settings.builder()
+                        .put(indexSettings())
+                        .put("index.analysis.analyzer.tv_test.tokenizer", "standard")
+                        .put("index.refresh_interval", -1)
+                        .putList("index.analysis.analyzer.tv_test.filter", "lowercase")
+                )
+        );
+        final String replica = internalCluster().startDataOnlyNode();
+        ensureGreen(INDEX_NAME);
+        final String id = routingKeyForShard(INDEX_NAME, 0);
+
+        TermVectorsResponse response = client(replica).prepareTermVectors(indexOrAlias(), "1").get();
+        assertFalse(response.isExists());
+
+        // index doc 1
+        client().prepareIndex(INDEX_NAME)
+            .setId(Integer.toString(1))
+            .setSource(jsonBuilder().startObject().field("field", "the quick brown fox jumps over the lazy dog").endObject())
+            .execute()
+            .actionGet();
+
+        // non realtime termvectors 1
+        response = client().prepareTermVectors(indexOrAlias(), Integer.toString(1)).setRealtime(false).get();
+        assertFalse(response.isExists());
+
+        // realtime termvectors 1
+        TermVectorsRequestBuilder resp = client().prepareTermVectors(indexOrAlias(), Integer.toString(1))
+            .setPayloads(true)
+            .setOffsets(true)
+            .setPositions(true)
+            .setRealtime(true)
+            .setSelectedFields();
+        response = resp.execute().actionGet();
+        assertThat(response.getIndex(), equalTo(INDEX_NAME));
+        assertThat("doc id: " + 1 + " doesn't exists but should", response.isExists(), equalTo(true));
+        Fields fields = response.getFields();
+        assertThat(fields.size(), equalTo(1));
+
+        // index doc 2 with routing
+        client().prepareIndex(INDEX_NAME)
+            .setId(Integer.toString(2))
+            .setRouting(id)
+            .setSource(jsonBuilder().startObject().field("field", "the quick brown fox jumps over the lazy dog").endObject())
+            .execute()
+            .actionGet();
+
+        // realtime termvectors 2 with routing
+        resp = client().prepareTermVectors(indexOrAlias(), Integer.toString(2))
+            .setPayloads(true)
+            .setOffsets(true)
+            .setPositions(true)
+            .setRouting(id)
+            .setSelectedFields();
+        response = resp.execute().actionGet();
+        assertThat(response.getIndex(), equalTo(INDEX_NAME));
+        assertThat("doc id: " + 1 + " doesn't exists but should", response.isExists(), equalTo(true));
+        fields = response.getFields();
+        assertThat(fields.size(), equalTo(1));
+
+    }
+
+    public void testRealtimeTermVectorRequestsUnSuccessful() throws IOException {
+        final String primary = internalCluster().startDataOnlyNode();
+        XContentBuilder mapping = jsonBuilder().startObject()
+            .startObject("properties")
+            .startObject("field")
+            .field("type", "text")
+            .field("term_vector", "with_positions_offsets_payloads")
+            .field("analyzer", "tv_test")
+            .endObject()
+            .endObject()
+            .endObject();
+        // refresh interval disabled to ensure refresh rate of index (when data is ready for search) doesn't affect realtime termvectors
+        assertAcked(
+            prepareCreate(INDEX_NAME).setMapping(mapping)
+                .addAlias(new Alias("alias"))
+                .setSettings(
+                    Settings.builder()
+                        .put(indexSettings())
+                        .put("index.analysis.analyzer.tv_test.tokenizer", "standard")
+                        .put("index.refresh_interval", -1)
+                        .putList("index.analysis.analyzer.tv_test.filter", "lowercase")
+                        .put(indexSettings())
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
+                )
+        );
+        final String replica = internalCluster().startDataOnlyNode();
+        ensureGreen(INDEX_NAME);
+        final String id = routingKeyForShard(INDEX_NAME, 0);
+        final String routingOtherShard = routingKeyForShard(INDEX_NAME, 1);
+
+        // index doc 1
+        client().prepareIndex(INDEX_NAME)
+            .setId(Integer.toString(1))
+            .setSource(jsonBuilder().startObject().field("field", "the quick brown fox jumps over the lazy dog").endObject())
+            .setRouting(id)
+            .execute()
+            .actionGet();
+
+        // non realtime termvectors 1
+        TermVectorsResponse response = client().prepareTermVectors(indexOrAlias(), Integer.toString(1)).setRealtime(false).get();
+        assertFalse(response.isExists());
+
+        // realtime termvectors (preference = _replica)
+        TermVectorsRequestBuilder resp = client(replica).prepareTermVectors(indexOrAlias(), Integer.toString(1))
+            .setPayloads(true)
+            .setOffsets(true)
+            .setPositions(true)
+            .setPreference(Preference.REPLICA.type())
+            .setRealtime(true)
+            .setSelectedFields();
+        response = resp.execute().actionGet();
+
+        assertFalse(response.isExists());
+        assertThat(response.getIndex(), equalTo(INDEX_NAME));
+
+        // realtime termvectors (with routing set)
+        resp = client(replica).prepareTermVectors(indexOrAlias(), Integer.toString(1))
+            .setPayloads(true)
+            .setOffsets(true)
+            .setPositions(true)
+            .setRouting(routingOtherShard)
+            .setSelectedFields();
+        response = resp.execute().actionGet();
+
+        assertFalse(response.isExists());
+        assertThat(response.getIndex(), equalTo(INDEX_NAME));
+
+    }
+
 }
