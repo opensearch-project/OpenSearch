@@ -35,12 +35,12 @@ public class ProbabilisticSampler implements Sampler {
      */
     public ProbabilisticSampler(TelemetrySettings telemetrySettings) {
         this.telemetrySettings = Objects.requireNonNull(telemetrySettings);
-        this.samplingRatio = telemetrySettings.getTracerHeadSamplerSamplingRatio();
+        this.samplingRatio = telemetrySettings.getSamplingProbability();
         this.defaultSampler = Sampler.traceIdRatioBased(samplingRatio);
     }
 
     Sampler getSampler() {
-        double newSamplingRatio = telemetrySettings.getTracerHeadSamplerSamplingRatio();
+        double newSamplingRatio = telemetrySettings.getSamplingProbability();
         if (isSamplingRatioChanged(newSamplingRatio)) {
             synchronized (this) {
                 this.samplingRatio = newSamplingRatio;

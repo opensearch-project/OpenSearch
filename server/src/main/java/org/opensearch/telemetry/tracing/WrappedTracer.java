@@ -8,6 +8,7 @@
 
 package org.opensearch.telemetry.tracing;
 
+import org.opensearch.common.annotation.InternalApi;
 import org.opensearch.telemetry.TelemetrySettings;
 import org.opensearch.telemetry.tracing.attributes.Attributes;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
@@ -21,6 +22,7 @@ import java.util.Map;
  *
  * @opensearch.internal
  */
+@InternalApi
 final class WrappedTracer implements Tracer {
 
     private final Tracer defaultTracer;
@@ -90,7 +92,7 @@ final class WrappedTracer implements Tracer {
     }
 
     @Override
-    public Span startSpan(String spanName, Map<String, List<String>> headers, Attributes attributes) {
-        return defaultTracer.startSpan(spanName, headers, attributes);
+    public Span startSpan(SpanCreationContext spanCreationContext, Map<String, List<String>> headers) {
+        return defaultTracer.startSpan(spanCreationContext, headers);
     }
 }

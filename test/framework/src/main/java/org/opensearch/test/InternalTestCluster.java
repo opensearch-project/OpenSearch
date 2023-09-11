@@ -55,6 +55,7 @@ import org.opensearch.cluster.action.index.MappingUpdatedAction;
 import org.opensearch.cluster.coordination.ClusterBootstrapService;
 import org.opensearch.cluster.coordination.NoClusterManagerBlockService;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.RepositoriesMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;
@@ -1318,6 +1319,12 @@ public final class InternalTestCluster extends TestCluster {
                         assertTrue("Expected node to exist: " + expectedNode + debugString, discoveryNodes.nodeExists(expectedNode));
                     }
                 });
+                states.forEach(cs -> {
+                    if (cs.nodes().getNodes().values().stream().findFirst().get().isRemoteStoreNode()) {
+                        RepositoriesMetadata repositoriesMetadata = cs.metadata().custom(RepositoriesMetadata.TYPE);
+                        assertTrue(repositoriesMetadata != null && !repositoriesMetadata.repositories().isEmpty());
+                    }
+                });
             }, 30, TimeUnit.SECONDS);
         } catch (AssertionError ae) {
             throw new IllegalStateException("cluster failed to form", ae);
@@ -1839,6 +1846,27 @@ public final class InternalTestCluster extends TestCluster {
     @Deprecated
     public synchronized void stopRandomNonMasterNode() throws IOException {
         stopRandomNonClusterManagerNode();
+    }
+
+    /**
+     * Stops all running nodes in cluster
+     */
+    public void stopAllNodes() {
+        try {
+            int totalDataNodes = numDataNodes();
+            while (totalDataNodes > 0) {
+                stopRandomDataNode();
+                totalDataNodes -= 1;
+            }
+            int totalClusterManagerNodes = numClusterManagerNodes();
+            while (totalClusterManagerNodes > 1) {
+                stopRandomNonClusterManagerNode();
+                totalClusterManagerNodes -= 1;
+            }
+            stopCurrentClusterManagerNode();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     private synchronized void startAndPublishNodesAndClients(List<NodeAndClient> nodeAndClients) {

@@ -8,6 +8,7 @@
 
 package org.opensearch.telemetry.tracing;
 
+import org.opensearch.common.annotation.InternalApi;
 import org.opensearch.telemetry.tracing.attributes.Attributes;
 
 import java.io.Closeable;
@@ -23,6 +24,7 @@ import java.util.Optional;
  *
  *  @opensearch.internal
  */
+@InternalApi
 class DefaultTracer implements Tracer {
     static final String THREAD_NAME = "th_name";
 
@@ -77,6 +79,7 @@ class DefaultTracer implements Tracer {
         return tracerContextStorage.get(TracerContextStorage.CURRENT_SPAN);
     }
 
+    @Override
     public SpanContext getCurrentSpan() {
         final Span currentSpan = tracerContextStorage.get(TracerContextStorage.CURRENT_SPAN);
         return (currentSpan == null) ? null : new SpanContext(currentSpan);
@@ -116,9 +119,13 @@ class DefaultTracer implements Tracer {
     }
 
     @Override
-    public Span startSpan(String spanName, Map<String, List<String>> headers, Attributes attributes) {
+    public Span startSpan(SpanCreationContext spanCreationContext, Map<String, List<String>> headers) {
         Optional<Span> propagatedSpan = tracingTelemetry.getContextPropagator().extractFromHeaders(headers);
-        return startSpan(spanName, propagatedSpan.map(SpanContext::new).orElse(null), attributes);
+        return startSpan(
+            spanCreationContext.getSpanName(),
+            propagatedSpan.map(SpanContext::new).orElse(null),
+            spanCreationContext.getAttributes()
+        );
     }
 
 }

@@ -75,8 +75,8 @@ public class CreateRemoteIndexClusterDefaultDocRepIT extends CreateRemoteIndexIT
         verifyRemoteStoreIndexSettings(
             indexSettings,
             "true",
-            "my-segment-repo-1",
-            "my-translog-repo-1",
+            REPOSITORY_NAME,
+            REPOSITORY_2_NAME,
             ReplicationType.SEGMENT.toString(),
             IndexSettings.DEFAULT_REMOTE_TRANSLOG_BUFFER_INTERVAL
         );

@@ -843,7 +843,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
                 .mapToLong(StoreFileMetadata::length)
                 .sum();
 
-            Set<SegmentReplicationShardStats> postRefreshStats = primaryShard.getReplicationStats();
+            Set<SegmentReplicationShardStats> postRefreshStats = primaryShard.getReplicationStatsForTrackedReplicas();
             SegmentReplicationShardStats shardStats = postRefreshStats.stream().findFirst().get();
             assertEquals(1, shardStats.getCheckpointsBehindCount());
             assertEquals(initialCheckpointSize, shardStats.getBytesBehindCount());
@@ -863,7 +863,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             final Store.RecoveryDiff diff = Store.segmentReplicationDiff(segmentMetadataMap, replicaShard.getSegmentMetadataMap());
             final long sizeAfterDeleteAndCommit = diff.missing.stream().mapToLong(StoreFileMetadata::length).sum();
 
-            final Set<SegmentReplicationShardStats> statsAfterFlush = primaryShard.getReplicationStats();
+            final Set<SegmentReplicationShardStats> statsAfterFlush = primaryShard.getReplicationStatsForTrackedReplicas();
             shardStats = statsAfterFlush.stream().findFirst().get();
             assertEquals(sizeAfterDeleteAndCommit, shardStats.getBytesBehindCount());
             assertEquals(1, shardStats.getCheckpointsBehindCount());
@@ -966,7 +966,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
     }
 
     private void assertReplicaCaughtUp(IndexShard primaryShard) {
-        Set<SegmentReplicationShardStats> initialStats = primaryShard.getReplicationStats();
+        Set<SegmentReplicationShardStats> initialStats = primaryShard.getReplicationStatsForTrackedReplicas();
         assertEquals(initialStats.size(), 1);
         SegmentReplicationShardStats shardStats = initialStats.stream().findFirst().get();
         assertEquals(0, shardStats.getCheckpointsBehindCount());

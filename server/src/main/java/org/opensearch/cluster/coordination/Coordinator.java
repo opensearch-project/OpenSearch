@@ -85,6 +85,7 @@ import org.opensearch.discovery.SeedHostsProvider;
 import org.opensearch.discovery.SeedHostsResolver;
 import org.opensearch.monitor.NodeHealthService;
 import org.opensearch.monitor.StatusInfo;
+import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool.Names;
 import org.opensearch.transport.TransportService;
@@ -181,6 +182,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     private JoinHelper.JoinAccumulator joinAccumulator;
     private Optional<CoordinatorPublication> currentPublication = Optional.empty();
     private final NodeHealthService nodeHealthService;
+    private final PersistedStateRegistry persistedStateRegistry;
+    private final RemoteStoreNodeService remoteStoreNodeService;
 
     /**
      * @param nodeName The name of the node, used to name the {@link java.util.concurrent.ExecutorService} of the {@link SeedHostsResolver}.
@@ -201,7 +204,9 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         Random random,
         RerouteService rerouteService,
         ElectionStrategy electionStrategy,
-        NodeHealthService nodeHealthService
+        NodeHealthService nodeHealthService,
+        PersistedStateRegistry persistedStateRegistry,
+        RemoteStoreNodeService remoteStoreNodeService
     ) {
         this.settings = settings;
         this.transportService = transportService;
@@ -215,6 +220,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             allocationService,
             clusterManagerService,
             transportService,
+            remoteStoreNodeService,
             this::getCurrentTerm,
             this::getStateForClusterManagerService,
             this::handleJoinRequest,
@@ -286,7 +292,9 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             joinHelper::logLastFailedJoinAttempt
         );
         this.nodeHealthService = nodeHealthService;
+        this.persistedStateRegistry = persistedStateRegistry;
         this.localNodeCommissioned = true;
+        this.remoteStoreNodeService = remoteStoreNodeService;
     }
 
     private ClusterFormationState getClusterFormationState() {
@@ -820,8 +828,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     @Override
     protected void doStart() {
         synchronized (mutex) {
-            CoordinationState.PersistedState persistedState = persistedStateSupplier.get();
-            coordinationState.set(new CoordinationState(getLocalNode(), persistedState, electionStrategy));
+            coordinationState.set(new CoordinationState(getLocalNode(), persistedStateRegistry, electionStrategy, settings));
             peerFinder.setCurrentTerm(getCurrentTerm());
             configuredHostsResolver.start();
             final ClusterState lastAcceptedState = coordinationState.get().getLastAcceptedState();
@@ -1308,6 +1315,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 leaderChecker.setCurrentNodes(publishNodes);
                 followersChecker.setCurrentNodes(publishNodes);
                 lagDetector.setTrackedNodes(publishNodes);
+                coordinationState.get().handlePrePublish(clusterState);
                 publication.start(followersChecker.getFaultyNodes());
             }
         } catch (Exception e) {
