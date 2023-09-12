@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ### Dependencies
 - Bump OpenTelemetry from 1.26.0 to 1.30.1 ([#9950](https://github.com/opensearch-project/OpenSearch/pull/9950))
+- Bump `org.apache.commons:commons-compress` from 1.23.0 to 1.24.0 ([#9973](https://github.com/opensearch-project/OpenSearch/pull/9973))
 - Bump JNA version from 5.5 to 5.13 ([#9963](https://github.com/opensearch-project/OpenSearch/pull/9963))
 
 ### Changed
