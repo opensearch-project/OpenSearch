@@ -122,10 +122,12 @@ public class ClusterStateUpdaters {
         final RoutingTable.Builder routingTableBuilder = RoutingTable.builder(state.routingTable());
         for (final IndexMetadata cursor : state.metadata().indices().values()) {
             // Whether IndexMetadata is recovered from local disk or remote it doesn't matter to us at this point.
-            // We are only concerted about index data recovery here. Which is why we only check for remote store enabled and not for remote
+            // We are only concerned about index data recovery here. Which is why we only check for remote store enabled and not for remote
             // cluster state enabled.
             if (cursor.getSettings().getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, false) == false
+                || state.routingTable().hasIndex(cursor.getIndex()) == false
                 || state.routingTable()
+                    .index(cursor.getIndex())
                     .shardsMatchingPredicateCount(
                         shardRouting -> shardRouting.primary()
                             // We need to ensure atleast one of the primaries is being recovered from remote.
