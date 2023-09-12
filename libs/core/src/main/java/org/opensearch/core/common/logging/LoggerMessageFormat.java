@@ -126,7 +126,7 @@ public class LoggerMessageFormat {
     }
 
     /**
-     * Check if (delimterStartIndex - 1) in messagePattern is an escape character.
+     * Checks if (delimterStartIndex - 1) in messagePattern is an escape character.
      * @param messagePattern the message pattern
      * @param delimiterStartIndex the index of the character to check
      * @return true if there is an escape char before the character at delimiterStartIndex.<p>
@@ -142,7 +142,7 @@ public class LoggerMessageFormat {
     }
 
     /**
-     * Check if (delimterStartIndex - 2) in messagePattern is an escape character.
+     * Checks if (delimterStartIndex - 2) in messagePattern is an escape character.
      * @param messagePattern the message pattern
      * @param delimiterStartIndex the index of the character to check
      * @return true if (delimterStartIndex - 2) in messagePattern is an escape character.

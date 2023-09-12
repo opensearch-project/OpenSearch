@@ -52,12 +52,12 @@ public class ZstdCompressor implements Compressor {
      */
     private static final int LEVEL = 3;
 
-    /** buffer size for {@link BufferedInputStream} and {@link BufferedOutputStream}
+    /** The buffer size for {@link BufferedInputStream} and {@link BufferedOutputStream}
      */
     private static final int BUFFER_SIZE = 4096;
 
     /**
-     * Compare the given bytes with the {@link ZstdCompressor#HEADER} of a ZSTD compressed stream
+     * Compares the given bytes with the {@link ZstdCompressor#HEADER} of a compressed stream
      * @param bytes the bytes to compare to ({@link ZstdCompressor#HEADER})
      * @return true if the bytes are the {@link ZstdCompressor#HEADER}, false otherwise
      */

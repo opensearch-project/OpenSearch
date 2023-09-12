@@ -102,10 +102,10 @@ public class CollectionUtils {
     }
 
     /**
-     * in place de-duplicates items in a list<p>
+     * In place de-duplicates items in a list<p>
      * Noop if the list is empty or has one item.<p>
      *
-     * TODO : may throws NullPointerException if the list is null or contains null items (untested)
+  @throws NullPointerException if the list is `null` or comparator is `null`
      *
      * @param array the list to de-duplicate
      * @param comparator the comparator to use to compare items
@@ -221,7 +221,7 @@ public class CollectionUtils {
         private final int distance;
 
         /**
-         * Create a rotated list
+         * Creates a rotated list
          * @param list The list to rotate
          * @param distance The distance to rotate to the right
          * @throws IllegalArgumentException if the distance is negative or greater than the size of the list;
@@ -254,7 +254,7 @@ public class CollectionUtils {
     }
 
     /**
-     * Convert an {@link Iterable} to an {@link ArrayList}.
+     * Converts an {@link Iterable} to an {@link ArrayList}.
      * @param elements The iterable to convert
      * @param <E> the type the elements
      * @return an {@link ArrayList}
@@ -339,11 +339,11 @@ public class CollectionUtils {
     }
 
     /**
-     * Check if a collection is empty or not. Empty collection mean either it is null or it has no elements in it.
+     * Checks if a collection is empty or not. Empty collection mean either it is null or it has no elements in it.
      * If collection contains a null element it means it is not empty.
      *
      * @param collection {@link Collection}
-     * @return True if collection is null or {@code isEmpty()}.
+     * @return true if collection is null or {@code isEmpty()}, false otherwise
      * @param <E> Element
      */
     public static <E> boolean isEmpty(final Collection<E> collection) {

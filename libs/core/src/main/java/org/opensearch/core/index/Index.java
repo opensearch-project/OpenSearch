@@ -70,10 +70,10 @@ public class Index implements Writeable, ToXContentObject {
     private final String uuid;
 
     /**
-     * Create a new Index instance from strings.
+     * Creates a new Index instance with name and unique identifier
      *
-     * @param name The name of the index
-     * @param uuid The UUID of the index
+     * @param name the name of the index
+     * @param uuid the unique identifier of the index
      * @throws NullPointerException if either name or uuid are null
      */
     public Index(String name, String uuid) {
@@ -82,10 +82,10 @@ public class Index implements Writeable, ToXContentObject {
     }
 
     /**
-     * Create a new Index instance from a {@link StreamInput}.
-     * Reads the name and uuid from the stream.
+     * Creates a new Index instance from a {@link StreamInput}.
+     * Reads the name and unique identifier from the stream.
      *
-     * @param in The stream to read from
+     * @param in the stream to read from
      * @throws IOException if an error occurs while reading from the stream
      * @see #writeTo(StreamOutput)
      */
@@ -95,25 +95,25 @@ public class Index implements Writeable, ToXContentObject {
     }
 
     /**
-     * Get the name of the index.
+     * Gets the name of the index.
      *
-     * @return The name of the index.
+     * @return the name of the index.
      */
     public String getName() {
         return this.name;
     }
 
     /**
-     * Get the UUID of the index.
+     * Gets the unique identifier of the index.
      *
-     * @return The UUID of the index. "_na_" if {@link Strings#UNKNOWN_UUID_VALUE}.
+     * @return the unique identifier of the index. "_na_" if {@link Strings#UNKNOWN_UUID_VALUE}.
      */
     public String getUUID() {
         return uuid;
     }
 
     /**
-     * return either the name and uuid of the index
+     * Returns either the name and unique identifier of the index
      * or only the name if the uuid is {@link Strings#UNKNOWN_UUID_VALUE}.
      *
      * If we have a uuid we put it in the toString so it'll show up in logs
@@ -131,7 +131,7 @@ public class Index implements Writeable, ToXContentObject {
     }
 
     /**
-     * Check if this index is the same as another index by comparing the name and uuid.
+     * Checks if this index is the same as another index by comparing the name and unique identifier.
      * If both uuid are {@link Strings#UNKNOWN_UUID_VALUE} then only the name is compared.
      *
      * @param o The index to compare to

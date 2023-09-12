@@ -83,7 +83,7 @@ public interface CircuitBreaker {
         NOOP;
 
         /**
-         * convert string (case-insensitive) to breaker {@link Type}
+         * Converts string (case-insensitive) to breaker {@link Type}
          * @param value "noop", "parent", or "memory" (case-insensitive)
          * @return the breaker {@link Type}
          * @throws IllegalArgumentException if value is not "noop", "parent", or "memory"
@@ -163,7 +163,7 @@ public interface CircuitBreaker {
     String getName();
 
     /**
-     * Return the {@link Durability} of this breaker
+     * Returns the {@link Durability} of this breaker
      * @return whether a tripped circuit breaker will
      * reset itself ({@link Durability#TRANSIENT})
      * or requires manual intervention ({@link Durability#PERMANENT}).
