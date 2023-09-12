@@ -31,8 +31,12 @@
 
 package org.opensearch.search.functionscore;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.apache.lucene.util.ArrayUtil;
 import org.opensearch.action.search.SearchResponse;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.fielddata.ScriptDocValues;
 import org.opensearch.index.mapper.SeqNoFieldMapper;
 import org.opensearch.index.query.functionscore.FunctionScoreQueryBuilder;
@@ -43,7 +47,7 @@ import org.opensearch.script.ScoreAccessor;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
 import org.opensearch.search.SearchHit;
-import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
 import org.hamcrest.CoreMatchers;
 
 import java.util.Arrays;
@@ -60,6 +64,7 @@ import static org.opensearch.index.query.functionscore.ScoreFunctionBuilders.fie
 import static org.opensearch.index.query.functionscore.ScoreFunctionBuilders.randomFunction;
 import static org.opensearch.index.query.functionscore.ScoreFunctionBuilders.scriptFunction;
 import static org.opensearch.script.MockScriptPlugin.NAME;
+import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.allOf;
@@ -71,7 +76,24 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
 
-public class RandomScoreFunctionIT extends OpenSearchIntegTestCase {
+public class RandomScoreFunctionIT extends ParameterizedOpenSearchIntegTestCase {
+
+    public RandomScoreFunctionIT(Settings dynamicSettings) {
+        super(dynamicSettings);
+    }
+
+    @ParametersFactory
+    public static Collection<Object[]> parameters() {
+        return Arrays.asList(
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
+        );
+    }
+
+    @Override
+    protected Settings featureFlagSettings() {
+        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
