@@ -41,9 +41,7 @@ import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.RealtimeRequest;
 import org.opensearch.action.ValidateActions;
 import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.cluster.routing.Preference;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.ParsingException;
@@ -323,8 +321,7 @@ public class MultiGetRequest extends ActionRequest
      * will be used across different requests.
      */
     public MultiGetRequest preference(String preference) {
-        this.preference = FeatureFlags.isEnabled(FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL) ? Preference.PRIMARY.type() : preference;
-        ;
+        this.preference = preference;
         return this;
     }
 

@@ -9,32 +9,28 @@
 package org.opensearch.test.client;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
 import org.apache.lucene.tests.util.TestUtil;
-import org.junit.Assert;
-import org.opensearch.action.ActionFuture;
-import org.opensearch.action.admin.indices.replication.SegmentReplicationStatsResponse;
-import org.opensearch.action.search.SearchRequestBuilder;
-import org.opensearch.action.search.SearchType;
-import org.opensearch.action.search.SearchRequest;
-import org.opensearch.action.search.SearchResponse;
+import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.opensearch.action.search.SearchAction;
+import org.opensearch.action.search.SearchRequest;
+import org.opensearch.action.search.SearchRequestBuilder;
+import org.opensearch.action.search.SearchResponse;
+import org.opensearch.action.search.SearchType;
 import org.opensearch.client.Client;
 import org.opensearch.client.FilterClient;
 import org.opensearch.cluster.routing.Preference;
+import org.opensearch.common.action.ActionFuture;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.index.SegmentReplicationPerGroupStats;
-import org.opensearch.index.SegmentReplicationShardStats;
-import org.opensearch.indices.replication.SegmentReplicationState;
+import org.junit.Assert;
 
-import java.util.Map;
-import java.util.List;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
-import static org.junit.Assert.assertEquals;
 import static org.opensearch.test.OpenSearchTestCase.assertBusy;
+import static org.junit.Assert.assertTrue;
 
 /** A {@link Client} that randomizes request parameters. */
 public class SegmentReplicationClient extends FilterClient {
@@ -78,30 +74,9 @@ public class SegmentReplicationClient extends FilterClient {
             // wait until replica shard is caught up before performing search request.
             assertBusy(() -> {
                 for (String index : indexes) {
-                    final SegmentReplicationStatsResponse segmentReplicationStatsResponse = this.admin()
-                        .indices()
-                        .prepareSegmentReplicationStats(index)
-                        .execute()
-                        .actionGet();
-                    final Map<String, List<SegmentReplicationPerGroupStats>> replicationStats = segmentReplicationStatsResponse
-                        .getReplicationStats();
-                    for (Map.Entry<String, List<SegmentReplicationPerGroupStats>> perIndex : replicationStats.entrySet()) {
-                        final List<SegmentReplicationPerGroupStats> value = perIndex.getValue();
-                        for (SegmentReplicationPerGroupStats group : value) {
-                            for (SegmentReplicationShardStats replicaStat : group.getReplicaStats()) {
-                                logger.info(
-                                    "replica shard allocation id is:"
-                                        + replicaStat.getAllocationId()
-                                        + " and checkpoints beyond is: "
-                                        + replicaStat.getCheckpointsBehindCount()
-                                );
-                                assertEquals(0, replicaStat.getCheckpointsBehindCount());
-                                if (replicaStat.getCurrentReplicationState() != null) {
-                                    assertEquals(SegmentReplicationState.Stage.DONE, replicaStat.getCurrentReplicationState().getStage());
-                                }
-                            }
-                        }
-                    }
+                    final IndicesStatsResponse indicesStatsResponse = this.admin().indices().prepareStats(index).execute().actionGet();
+
+                    assertTrue(indicesStatsResponse.getIndex(index).getTotal().getSegments().getReplicationStats().maxBytesBehind == 0);
                 }
             }, 30, TimeUnit.SECONDS);
         } catch (Exception e) {
@@ -136,21 +111,9 @@ public class SegmentReplicationClient extends FilterClient {
             // wait until replica shard is caught up before performing search request.
             assertBusy(() -> {
                 for (String index : indexes) {
-                    final SegmentReplicationStatsResponse segmentReplicationStatsResponse = this.admin()
-                        .indices()
-                        .prepareSegmentReplicationStats(index)
-                        .execute()
-                        .actionGet();
-                    final Map<String, List<SegmentReplicationPerGroupStats>> replicationStats = segmentReplicationStatsResponse
-                        .getReplicationStats();
-                    for (Map.Entry<String, List<SegmentReplicationPerGroupStats>> perIndex : replicationStats.entrySet()) {
-                        final List<SegmentReplicationPerGroupStats> value = perIndex.getValue();
-                        for (SegmentReplicationPerGroupStats group : value) {
-                            for (SegmentReplicationShardStats replicaStat : group.getReplicaStats()) {
-                                assertEquals(0, replicaStat.getCheckpointsBehindCount());
-                            }
-                        }
-                    }
+                    final IndicesStatsResponse indicesStatsResponse = this.admin().indices().prepareStats(index).execute().actionGet();
+
+                    assertTrue(indicesStatsResponse.getIndex(index).getTotal().getSegments().getReplicationStats().maxBytesBehind == 0);
                 }
             });
         } catch (Exception e) {

@@ -37,10 +37,6 @@ import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.RealtimeRequest;
 import org.opensearch.action.ValidateActions;
 import org.opensearch.action.support.single.shard.SingleShardRequest;
-import org.opensearch.cluster.routing.Preference;
-import org.opensearch.common.util.FeatureFlags;
-import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -159,8 +155,7 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
      * will be used across different requests.
      */
     public GetRequest preference(String preference) {
-        this.preference = FeatureFlags.isEnabled(FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL) ? Preference.PRIMARY.type() : preference;
-        ;
+        this.preference = preference;
         return this;
     }
 

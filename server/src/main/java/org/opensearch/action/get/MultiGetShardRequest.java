@@ -34,8 +34,6 @@ package org.opensearch.action.get;
 
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.single.shard.SingleShardRequest;
-import org.opensearch.cluster.routing.Preference;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 
@@ -79,9 +77,7 @@ public class MultiGetShardRequest extends SingleShardRequest<MultiGetShardReques
         this.shardId = shardId;
         locations = new ArrayList<>();
         items = new ArrayList<>();
-        preference = FeatureFlags.isEnabled(FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL)
-            ? Preference.PRIMARY.type()
-            : multiGetRequest.preference;
+        preference = multiGetRequest.preference;
         realtime = multiGetRequest.realtime;
         refresh = multiGetRequest.refresh;
     }
@@ -102,8 +98,7 @@ public class MultiGetShardRequest extends SingleShardRequest<MultiGetShardReques
      * will be used across different requests.
      */
     public MultiGetShardRequest preference(String preference) {
-        this.preference = FeatureFlags.isEnabled(FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL) ? Preference.PRIMARY.type() : preference;
-        ;
+        this.preference = preference;
         return this;
     }
 
