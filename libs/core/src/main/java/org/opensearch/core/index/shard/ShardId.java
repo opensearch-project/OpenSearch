@@ -67,9 +67,9 @@ public class ShardId implements Comparable<ShardId>, ToXContentFragment, Writeab
     }
 
     /**
-     * Constructs a new shard id with the given index name, UUID, and shard id.
+     * Constructs a new shard id with the given index name, index unique identifier, and shard id.
      * @param index the index name
-     * @param indexUUID  the index UUID
+     * @param indexUUID  the index unique identifier
      * @param shardId the shard id
      */
     public ShardId(String index, String indexUUID, int shardId) {
@@ -133,7 +133,7 @@ public class ShardId implements Comparable<ShardId>, ToXContentFragment, Writeab
     }
 
     /**
-     * Return a string representation of this shard id.
+     * Returns a string representation of this shard id.
      * @return "[indexName][shardId]"
      */
     @Override

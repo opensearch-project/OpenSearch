@@ -47,21 +47,21 @@ import java.io.IOException;
  */
 public class AllCircuitBreakerStats implements Writeable, ToXContentFragment {
 
-    /** AN array of all the circuit breaker stats */
+    /** An array of all the circuit breaker stats */
     private final CircuitBreakerStats[] allStats;
 
     /**
-     * Constructor
+     * Constructs the instance
      *
-     * @param allStats An array of all the circuit breaker stats
+     * @param allStats an array of all the circuit breaker stats
      */
     public AllCircuitBreakerStats(CircuitBreakerStats[] allStats) {
         this.allStats = allStats;
     }
 
     /**
-     * Constructor from a StreamInput
-     * @param in The StreamInput to read from
+     * Constructs the new instance from {@link StreamInput}
+     * @param in the  {@link StreamInput} to read from
      * @throws IOException If an error occurs while reading from the StreamInput
      * @see #writeTo(StreamOutput)
      */
@@ -70,9 +70,9 @@ public class AllCircuitBreakerStats implements Writeable, ToXContentFragment {
     }
 
     /**
-     * Write allStats to a StreamOutput
-     * @param out The StreamOutput to write to
-     * @throws IOException If an error occurs while writing to the StreamOutput
+     * Writes this instance into a {@link StreamOutput}
+     * @param out the {@link StreamOutput} to write to
+     * @throws IOException if an error occurs while writing to the StreamOutput
      */
     @Override
     public void writeTo(StreamOutput out) throws IOException {

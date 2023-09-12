@@ -134,8 +134,8 @@ public class Index implements Writeable, ToXContentObject {
      * Checks if this index is the same as another index by comparing the name and unique identifier.
      * If both uuid are {@link Strings#UNKNOWN_UUID_VALUE} then only the name is compared.
      *
-     * @param o The index to compare to
-     * @return true if the name and uuid are the same. false otherwise.
+     * @param o the index to compare to
+     * @return true if the name and unique identifier are the same, false otherwise.
      */
     @Override
     public boolean equals(Object o) {
@@ -156,7 +156,7 @@ public class Index implements Writeable, ToXContentObject {
         return result;
     }
 
-    /** Write the name and uuid to the {@link StreamOutput}
+    /** Writes the name and unique identifier to the {@link StreamOutput}
      *
      * @param out The stream to write to
      */
