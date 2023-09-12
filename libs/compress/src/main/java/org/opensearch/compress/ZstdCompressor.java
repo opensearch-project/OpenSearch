@@ -48,7 +48,7 @@ public class ZstdCompressor implements Compressor {
     public static final String NAME = "ZSTD";
 
     /**
-     * compression level for {@link ZstdOutputStreamNoFinalizer}
+     * The compression level for {@link ZstdOutputStreamNoFinalizer}
      */
     private static final int LEVEL = 3;
 
