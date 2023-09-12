@@ -61,7 +61,7 @@ public class CircuitBreakerStats implements Writeable, ToXContentObject {
     private final double overhead;
 
     /**
-     * Constructor
+     * Constructs new instance
      *
      * @param name The name of the circuit breaker
      * @param limit The limit size in byte of the circuit breaker

@@ -80,17 +80,17 @@ public class AllCircuitBreakerStats implements Writeable, ToXContentFragment {
     }
 
     /**
-     * Return allStats
-     * @return allStats
+     * Returns inner stats instances for all circuit breakers
+     * @return inner stats instances for all circuit breakers
      */
     public CircuitBreakerStats[] getAllStats() {
         return this.allStats;
     }
 
     /**
-     * Return the stats for a specific circuit breaker
-     * @param name The name of the circuit breaker
-     * @return The {@link CircuitBreakerStats} for the circuit breaker. Null if the circuit breaker does not exist
+     * Returns the stats for a specific circuit breaker
+     * @param name the name of the circuit breaker
+     * @return  the {@link CircuitBreakerStats} for the circuit breaker, null if the circuit breaker with such name does not exist
      */
     public CircuitBreakerStats getStats(String name) {
         for (CircuitBreakerStats stats : allStats) {
