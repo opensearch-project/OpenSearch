@@ -79,7 +79,7 @@ public class CircuitBreakerStats implements Writeable, ToXContentObject {
     }
 
     /**
-     * Constructor from a StreamInput
+     * Constructs new instance from the {@link StreamInput}
      *
      * @param in The StreamInput
      * @throws IOException if an error occurs while reading from the StreamInput
@@ -95,7 +95,7 @@ public class CircuitBreakerStats implements Writeable, ToXContentObject {
     }
 
     /**
-     * Write this circuit breaker stats to a StreamOutput
+     * Writes this instance into a {@link StreamOutput}
      *
      * @param out The StreamOutput
      * @throws IOException if an error occurs while writing to the StreamOutput
