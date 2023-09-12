@@ -53,6 +53,8 @@ import java.util.Collections;
 import java.util.Locale;
 import java.util.Objects;
 
+import static org.opensearch.gateway.remote.RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING;
+
 /**
  * Tool to run an unsafe bootstrap
  *
@@ -81,7 +83,11 @@ public class UnsafeBootstrapClusterManagerCommand extends OpenSearchNodeCommand 
     static final Setting<String> UNSAFE_BOOTSTRAP = ClusterService.USER_DEFINED_METADATA.getConcreteSetting(
         "cluster.metadata.unsafe-bootstrap"
     );
-
+    static final String REMOTE_CLUSTER_STATE_ENABLED_NODE =
+        "Unsafe bootstrap cannot be performed when remote cluster state is enabled. The cluster state in the remote store is considered the source of truth. "
+            + "In case, you still wish to do best effort recovery with unsafe-bootstrap, then please disable the "
+            + REMOTE_CLUSTER_STATE_ENABLED_SETTING.getKey()
+            + ". For more details, please check the OpenSearch documentation.";
     private OptionSpec<Boolean> applyClusterReadOnlyBlockOption;
 
     UnsafeBootstrapClusterManagerCommand() {
@@ -100,6 +106,13 @@ public class UnsafeBootstrapClusterManagerCommand extends OpenSearchNodeCommand 
         Boolean clusterManager = DiscoveryNode.isClusterManagerNode(settings);
         if (clusterManager == false) {
             throw new OpenSearchException(NOT_CLUSTER_MANAGER_NODE_MSG);
+        }
+        // During unsafe bootstrap, node will form a cluster with a new cluster UUID but with the existing metadata.
+        // This new state will not know about the previous cluster UUIDs and so we will not able to construct
+        // the cluster UUID chain to get the last known cluster UUID to restore from.
+        // Blocking unsafe-bootstrap below for this reason.
+        if (REMOTE_CLUSTER_STATE_ENABLED_SETTING.get(settings) == true) {
+            throw new OpenSearchException(REMOTE_CLUSTER_STATE_ENABLED_NODE);
         }
 
         return true;
