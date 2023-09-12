@@ -32,8 +32,7 @@ public class SearchBackpressureStats implements ToXContentFragment, Writeable {
     public SearchBackpressureStats(
         SearchTaskStats searchTaskStats,
         SearchShardTaskStats searchShardTaskStats,
-        SearchBackpressureMode mode,
-        boolean isNodeUnderDuress
+        SearchBackpressureMode mode
     ) {
         this.searchShardTaskStats = searchShardTaskStats;
         this.mode = mode;

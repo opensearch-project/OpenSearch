@@ -414,8 +414,6 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
                 .collect(Collectors.toUnmodifiableMap(t -> TaskResourceUsageTrackerType.fromName(t.name()), t -> t.stats(searchShardTasks)))
         );
 
-        boolean isNodeUnderDuress = isNodeInDuress();
-
-        return new SearchBackpressureStats(searchTaskStats, searchShardTaskStats, getSettings().getMode(), isNodeUnderDuress);
+        return new SearchBackpressureStats(searchTaskStats, searchShardTaskStats, getSettings().getMode());
     }
 }
