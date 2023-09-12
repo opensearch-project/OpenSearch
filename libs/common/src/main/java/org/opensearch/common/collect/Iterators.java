@@ -45,7 +45,7 @@ public class Iterators {
     /**
      * Concat iterators
      *
-     * @param iterators The iterators to concat
+     * @param iterators the iterators to concat
      * @param <T> the type of iterator
      * @return a new {@link ConcatenatedIterator}
      * @throws NullPointerException if iterators is null
