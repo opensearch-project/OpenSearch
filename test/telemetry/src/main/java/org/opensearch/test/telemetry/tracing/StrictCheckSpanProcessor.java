@@ -51,6 +51,10 @@ public class StrictCheckSpanProcessor implements SpanProcessor {
         return new ArrayList<>(spanMap.values());
     }
 
+    public static void reset() {
+        spanMap.clear();
+    }
+
     private MockSpanData toMockSpanData(Span span) {
         String parentSpanId = (span.getParentSpan() != null) ? span.getParentSpan().getSpanId() : "";
         MockSpanData spanData = new MockSpanData(

@@ -144,6 +144,7 @@ public abstract class OpenSearchSingleNodeTestCase extends OpenSearchTestCase {
         if (NODE == null) {
             startNode(seed);
         }
+        StrictCheckSpanProcessor.reset();
     }
 
     @Override

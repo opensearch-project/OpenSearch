@@ -2272,6 +2272,8 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             printTestMessage("setting up");
             beforeInternal();
             printTestMessage("all set up");
+        }else{
+            StrictCheckSpanProcessor.reset();
         }
     }
 
