@@ -135,6 +135,13 @@ public class RemoteStoreNodeService {
                 for (RepositoryMetadata existingRepositoryMetadata : existingRepositories.repositories()) {
                     if (newRepositoryMetadata.name().equals(existingRepositoryMetadata.name())) {
                         try {
+                            // This will help in handling two scenarios -
+                            // 1. When a fresh cluster is formed and a node tries to join the cluster, the repository
+                            // metadata constructed from the node attributes of the joining node will be validated
+                            // against the repository information provided by existing nodes in cluster state.
+                            // 2. It's possible to update repository settings except the restricted ones post the
+                            // creation of a system repository and if a node drops we will need to allow it to join
+                            // even if the non-restricted system repository settings are now different.
                             repositoriesService.get().ensureValidSystemRepositoryUpdate(newRepositoryMetadata, existingRepositoryMetadata);
                             newRepositoryMetadata = existingRepositoryMetadata;
                             repositoryAlreadyPresent = true;

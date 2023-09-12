@@ -259,10 +259,8 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                                 found = true;
                                 if (isSystemRepositorySettingPresent(repositoryMetadata.settings())) {
                                     ensureValidSystemRepositoryUpdate(updatedRepositoryMetadata, repositoryMetadata);
-                                    repositoriesMetadata.add(updatedRepositoryMetadata);
-                                } else {
-                                    repositoriesMetadata.add(newRepositoryMetadata);
                                 }
+                                repositoriesMetadata.add(updatedRepositoryMetadata);
                             } else {
                                 repositoriesMetadata.add(updatedRepositoryMetadata);
                             }
