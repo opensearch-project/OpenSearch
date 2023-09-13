@@ -2370,7 +2370,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         // so before that step, we are deleting the translog files present in remote store.
                         deleteTranslogFilesFromRemoteTranslog();
                     }
-                } else {
+                } else if (syncFromRemote) {
                     final SegmentInfos lastCommittedSegmentInfos = store().readLastCommittedSegmentsInfo();
                     final String translogUUID = lastCommittedSegmentInfos.userData.get(TRANSLOG_UUID_KEY);
                     final long checkpoint = Long.parseLong(lastCommittedSegmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
