@@ -104,7 +104,7 @@ public class SearchTaskStats implements ToXContentObject, Writeable {
         SearchTaskStats that = (SearchTaskStats) o;
         return cancellationCount == that.cancellationCount
             && limitReachedCount == that.limitReachedCount
-            && completionCount == completionCount
+            && completionCount == that.completionCount
             && resourceUsageTrackerStats.equals(that.resourceUsageTrackerStats);
     }
 
