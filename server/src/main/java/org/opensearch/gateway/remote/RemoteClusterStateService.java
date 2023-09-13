@@ -436,7 +436,8 @@ public class RemoteClusterStateService implements Closeable {
                 nodeId,
                 committed,
                 uploadedIndexMetadata,
-                previousClusterUUID
+                previousClusterUUID,
+                clusterState.metadata().clusterUUIDCommitted()
             );
             writeMetadataManifest(clusterState.getClusterName().value(), clusterState.metadata().clusterUUID(), manifest, manifestFileName);
             return manifest;
