@@ -33,7 +33,7 @@
  * integration, change default filesystem impl, mess with arbitrary
  * threads, etc.
  */
- 
+
 import org.opensearch.gradle.info.BuildParams
 
 apply plugin: 'opensearch.testclusters'
@@ -41,6 +41,7 @@ apply plugin: 'opensearch.standalone-test'
 
 dependencies {
   testImplementation 'com.google.jimfs:jimfs:1.2'
+  testRuntimeOnly 'com.google.guava:guava:32.0.1-jre'
 }
 
 // TODO: give each evil test its own fresh JVM for more isolation.
