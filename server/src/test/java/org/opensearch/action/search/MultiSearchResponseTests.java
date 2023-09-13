@@ -68,6 +68,7 @@ public class MultiSearchResponseTests extends AbstractXContentTestCase<MultiSear
                 successfulShards,
                 skippedShards,
                 tookInMillis,
+                SearchResponse.PhaseTook.NULL,
                 ShardSearchFailure.EMPTY_ARRAY,
                 clusters,
                 null
@@ -96,6 +97,7 @@ public class MultiSearchResponseTests extends AbstractXContentTestCase<MultiSear
                     successfulShards,
                     skippedShards,
                     tookInMillis,
+                    SearchResponse.PhaseTook.NULL,
                     ShardSearchFailure.EMPTY_ARRAY,
                     clusters,
                     null

@@ -445,7 +445,18 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
             null,
             1
         );
-        return new SearchResponse(response, null, 1, 1, 0, 100, ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY, null);
+        return new SearchResponse(
+            response,
+            null,
+            1,
+            1,
+            0,
+            100,
+            SearchResponse.PhaseTook.NULL,
+            ShardSearchFailure.EMPTY_ARRAY,
+            SearchResponse.Clusters.EMPTY,
+            null
+        );
     }
 
     public void testCCSRemoteReduceMergeFails() throws Exception {

@@ -713,7 +713,7 @@ public class SearchAsyncActionTests extends OpenSearchTestCase {
         final Set<ShardId> queried = new HashSet<>();
 
         TestSearchResponse() {
-            super(InternalSearchResponse.empty(), null, 0, 0, 0, 0L, ShardSearchFailure.EMPTY_ARRAY, Clusters.EMPTY, null);
+            super(InternalSearchResponse.empty(), null, 0, 0, 0, 0L, PhaseTook.NULL, ShardSearchFailure.EMPTY_ARRAY, Clusters.EMPTY, null);
         }
     }
 

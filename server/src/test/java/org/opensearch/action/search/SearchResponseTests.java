@@ -152,6 +152,13 @@ public class SearchResponseTests extends OpenSearchTestCase {
         Boolean terminatedEarly = randomBoolean() ? null : randomBoolean();
         int numReducePhases = randomIntBetween(1, 10);
         long tookInMillis = randomNonNegativeLong();
+        SearchResponse.PhaseTook phaseTook = new SearchResponse.PhaseTook(
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong()
+        );
         int totalShards = randomIntBetween(1, Integer.MAX_VALUE);
         int successfulShards = randomIntBetween(0, totalShards);
         int skippedShards = randomIntBetween(0, totalShards);
@@ -182,6 +189,7 @@ public class SearchResponseTests extends OpenSearchTestCase {
             successfulShards,
             skippedShards,
             tookInMillis,
+            phaseTook,
             shardSearchFailures,
             randomBoolean() ? randomClusters() : SearchResponse.Clusters.EMPTY,
             null
@@ -320,6 +328,7 @@ public class SearchResponseTests extends OpenSearchTestCase {
                 0,
                 0,
                 0,
+                SearchResponse.PhaseTook.NULL,
                 ShardSearchFailure.EMPTY_ARRAY,
                 SearchResponse.Clusters.EMPTY,
                 null
@@ -368,13 +377,23 @@ public class SearchResponseTests extends OpenSearchTestCase {
                 0,
                 0,
                 0,
+                new SearchResponse.PhaseTook(0, 0, 50, 25, 0),
                 ShardSearchFailure.EMPTY_ARRAY,
-                new SearchResponse.Clusters(5, 3, 2)
+                new SearchResponse.Clusters(5, 3, 2),
+                null
             );
             StringBuilder expectedString = new StringBuilder();
             expectedString.append("{");
             {
                 expectedString.append("\"took\":0,");
+                expectedString.append("\"phase_took\":");
+                {
+                    expectedString.append("{\"dfs_prequery\":0,");
+                    expectedString.append("\"can_match\":0,");
+                    expectedString.append("\"query\":50,");
+                    expectedString.append("\"fetch\":25,");
+                    expectedString.append("\"expand_search\":0},");
+                }
                 expectedString.append("\"timed_out\":false,");
                 expectedString.append("\"_shards\":");
                 {
