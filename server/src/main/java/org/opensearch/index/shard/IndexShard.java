@@ -196,6 +196,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.channels.ClosedByInterruptException;
+import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
@@ -2358,16 +2359,29 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             if (indexSettings.isRemoteStoreEnabled() && syncFromRemote) {
                 syncSegmentsFromRemoteSegmentStore(false);
             }
-            if (indexSettings.isRemoteTranslogStoreEnabled() && shardRouting.primary()) {
-                if (syncFromRemote) {
-                    syncRemoteTranslogAndUpdateGlobalCheckpoint();
+            if (indexSettings.isRemoteTranslogStoreEnabled()) {
+                if (shardRouting.primary()) {
+                    if (syncFromRemote) {
+                        syncRemoteTranslogAndUpdateGlobalCheckpoint();
+                    } else {
+                        // we will enter this block when we do not want to recover from remote translog.
+                        // currently only during snapshot restore, we are coming into this block.
+                        // here, as while initiliazing remote translog we cannot skip downloading translog files,
+                        // so before that step, we are deleting the translog files present in remote store.
+                        deleteTranslogFilesFromRemoteTranslog();
+                    }
                 } else {
-                    // we will enter this block when we do not want to recover from remote translog.
-                    // currently only during snapshot restore, we are coming into this block.
-                    // here, as while initiliazing remote translog we cannot skip downloading translog files,
-                    // so before that step, we are deleting the translog files present in remote store.
-                    deleteTranslogFilesFromRemoteTranslog();
-
+                    final SegmentInfos lastCommittedSegmentInfos = store().readLastCommittedSegmentsInfo();
+                    final String translogUUID = lastCommittedSegmentInfos.userData.get(TRANSLOG_UUID_KEY);
+                    final long checkpoint = Long.parseLong(lastCommittedSegmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
+                    Translog.createEmptyTranslog(
+                        shardPath().resolveTranslog(),
+                        shardId(),
+                        checkpoint,
+                        getPendingPrimaryTerm(),
+                        translogUUID,
+                        FileChannel::open
+                    );
                 }
             }
             // we must create a new engine under mutex (see IndexShard#snapshotStoreMetadata).
