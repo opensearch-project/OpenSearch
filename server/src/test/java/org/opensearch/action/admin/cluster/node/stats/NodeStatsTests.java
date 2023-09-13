@@ -602,7 +602,8 @@ public class NodeStatsTests extends OpenSearchTestCase {
                         randomIntBetween(1, 1000),
                         randomNonNegativeLong(),
                         randomIntBetween(1, 1000),
-                        randomIntBetween(1, 1000)
+                        randomIntBetween(1, 1000),
+                        randomIntBetween(-1, 10)
                     )
                 );
             }
