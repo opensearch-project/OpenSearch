@@ -581,7 +581,7 @@ public class RemoteClusterStateService implements Closeable {
      */
     public String getLastKnownUUIDFromRemote(String clusterName) {
         try {
-            Set<String> clusterUUIDs = Collections.unmodifiableSet(getAllClusterUUIDs(clusterName));
+            Set<String> clusterUUIDs = getAllClusterUUIDs(clusterName);
             Map<String, ClusterMetadataManifest> latestManifests = getLatestManifestForAllClusterUUIDs(clusterName, clusterUUIDs);
             List<String> validChain = createClusterChain(latestManifests, clusterName);
             if (validChain.isEmpty()) {
@@ -600,7 +600,7 @@ public class RemoteClusterStateService implements Closeable {
         if (clusterUUIDMetadata == null) {
             return Collections.emptySet();
         }
-        return clusterUUIDMetadata.keySet();
+        return Collections.unmodifiableSet(clusterUUIDMetadata.keySet());
     }
 
     private Map<String, ClusterMetadataManifest> getLatestManifestForAllClusterUUIDs(String clusterName, Set<String> clusterUUIDs) {
@@ -814,7 +814,7 @@ public class RemoteClusterStateService implements Closeable {
             String clusterName = clusterState.getClusterName().value();
             Set<String> allClustersUUIDsInRemote = null;
             try {
-                allClustersUUIDsInRemote = getAllClusterUUIDs(clusterState.getClusterName().value());
+                allClustersUUIDsInRemote = new HashSet<>(getAllClusterUUIDs(clusterState.getClusterName().value()));
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
