@@ -79,6 +79,7 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
     private static String previousClusterUUID(Object[] fields) {
         return (String) fields[8];
     }
+
     private static boolean clusterUUIDCommitted(Object[] fields) {
         return (boolean) fields[9];
     }

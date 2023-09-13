@@ -925,6 +925,7 @@ public class CoordinationStateTests extends OpenSearchTestCase {
         final RemoteClusterStateService remoteClusterStateService = Mockito.mock(RemoteClusterStateService.class);
         final VotingConfiguration initialConfig = VotingConfiguration.of(node1);
         final ClusterState clusterState = clusterState(0L, 0L, node1, initialConfig, initialConfig, 42L);
+        final String previousClusterUUID = "prev-cluster-uuid";
         final ClusterMetadataManifest manifest = new ClusterMetadataManifest(
             0L,
             0L,
@@ -937,11 +938,14 @@ public class CoordinationStateTests extends OpenSearchTestCase {
             randomAlphaOfLength(10),
             true
         );
-        Mockito.when(remoteClusterStateService.writeFullMetadata(clusterState)).thenReturn(manifest);
+        Mockito.when(remoteClusterStateService.writeFullMetadata(clusterState, previousClusterUUID)).thenReturn(manifest);
 
         final PersistedStateRegistry persistedStateRegistry = persistedStateRegistry();
         persistedStateRegistry.addPersistedState(PersistedStateType.LOCAL, ps1);
-        persistedStateRegistry.addPersistedState(PersistedStateType.REMOTE, new RemotePersistedState(remoteClusterStateService));
+        persistedStateRegistry.addPersistedState(
+            PersistedStateType.REMOTE,
+            new RemotePersistedState(remoteClusterStateService, previousClusterUUID)
+        );
 
         String randomRepoName = "randomRepoName";
         String stateRepoTypeAttributeKey = String.format(
@@ -964,7 +968,7 @@ public class CoordinationStateTests extends OpenSearchTestCase {
 
         final CoordinationState coordinationState = createCoordinationState(persistedStateRegistry, node1, settings);
         coordinationState.handlePrePublish(clusterState);
-        Mockito.verify(remoteClusterStateService, Mockito.times(1)).writeFullMetadata(clusterState);
+        Mockito.verify(remoteClusterStateService, Mockito.times(1)).writeFullMetadata(clusterState, previousClusterUUID);
         assertThat(persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE).getLastAcceptedState(), equalTo(clusterState));
 
         coordinationState.handlePreCommit();
