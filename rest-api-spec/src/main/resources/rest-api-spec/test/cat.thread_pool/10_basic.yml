@@ -1,7 +1,7 @@
 "Test cat thread_pool total_wait_time output":
   - skip:
-      version: " - 3.0.0"
-      reason: thread_pool total_wait_time stats were introduced in V_3.0.0
+      version: " - 2.10.99"
+      reason: thread_pool total_wait_time stats were introduced in V_2.11.0
 
   - do:
       cat.thread_pool: {}
@@ -19,11 +19,10 @@
 
   - match:
       $body: |
-        /^  id  \s+ name             \s+ total_wait_time    \s+ twt \n
-           (\S+ \s+ search           \s+ \d+s               \s+ \d+ \n
-            \S+ \s+ search_throttled \s+ \d+s               \s+ \d+ \n
-            \S+ \s+ index_searcher   \s+ \d+s               \s+ \d+ \n
-            \S+ \s+ generic          \s+ -1                 \s+ -1  \n)+  $/
+        /^  name              \s+ total_wait_time \s+ twt              \n
+           (generic           \s+ -1              \s+ -1               \n
+            search            \s+ \d*\.*\d*\D+    \s+ \d*\.*\d*\D+     \n
+            search_throttled  \s+ \d*\.*\d*\D+    \s+ \d*\.*\d*\D+     \n)+  $/
 
 ---
 "Test cat thread_pool output":
