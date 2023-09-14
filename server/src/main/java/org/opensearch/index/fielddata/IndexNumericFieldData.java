@@ -137,7 +137,6 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
             || nested != null
             || (sortMode != MultiValueMode.MAX && sortMode != MultiValueMode.MIN)
             || targetNumericType != getNumericType()) {
-            System.out.println("Custom comparator logic.....");
             return new SortField(getFieldName(), source, reverse);
         }
 
