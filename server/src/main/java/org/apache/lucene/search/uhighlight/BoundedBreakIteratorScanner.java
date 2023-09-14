@@ -43,13 +43,13 @@ import java.util.Locale;
  * If the {@link BreakIterator} cannot find a passage smaller than the maximum length,
  * a secondary break iterator is used to re-split the passage at the first boundary after
  * maximum length.
- *
+ * <p>
  * This is useful to split passages created by {@link BreakIterator}s like `sentence` that
  * can create big outliers on semi-structured text.
- *
+ * <p>
  *
  * WARNING: This break iterator is designed to work with the {@link UnifiedHighlighter}.
- *
+ * <p>
  * TODO: We should be able to create passages incrementally, starting from the offset of the first match and expanding or not
  * depending on the offsets of subsequent matches. This is currently impossible because {@link FieldHighlighter} uses
  * only the first matching offset to derive the start and end of each passage.

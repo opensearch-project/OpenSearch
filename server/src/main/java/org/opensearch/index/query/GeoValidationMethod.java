@@ -42,7 +42,7 @@ import java.io.IOException;
 /**
  * This enum is used to determine how to deal with invalid geo coordinates in geo related
  * queries:
- *
+ * <p>
  *  On STRICT validation invalid coordinates cause an exception to be thrown.
  *  On IGNORE_MALFORMED invalid coordinates are being accepted.
  *  On COERCE invalid coordinates are being corrected to the most likely valid coordinate.

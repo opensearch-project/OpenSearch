@@ -35,7 +35,7 @@ import java.util.function.LongSupplier;
 public interface SearchPipelinePlugin {
     /**
      * Returns additional search pipeline request processor types added by this plugin.
-     *
+     * <p>
      * The key of the returned {@link Map} is the unique name for the processor which is specified
      * in pipeline configurations, and the value is a {@link org.opensearch.search.pipeline.Processor.Factory}
      * to create the processor from a given pipeline configuration.
@@ -46,7 +46,7 @@ public interface SearchPipelinePlugin {
 
     /**
      * Returns additional search pipeline response processor types added by this plugin.
-     *
+     * <p>
      * The key of the returned {@link Map} is the unique name for the processor which is specified
      * in pipeline configurations, and the value is a {@link org.opensearch.search.pipeline.Processor.Factory}
      * to create the processor from a given pipeline configuration.
@@ -57,7 +57,7 @@ public interface SearchPipelinePlugin {
 
     /**
      * Returns additional search pipeline search phase results processor types added by this plugin.
-     *
+     * <p>
      * The key of the returned {@link Map} is the unique name for the processor which is specified
      * in pipeline configurations, and the value is a {@link org.opensearch.search.pipeline.Processor.Factory}
      * to create the processor from a given pipeline configuration.

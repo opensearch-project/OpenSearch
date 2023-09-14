@@ -210,7 +210,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
     /**
      * A specialized simplified mapping source method, takes the form of simple properties definition:
      * ("field1", "type=string,store=true").
-     *
+     * <p>
      * Also supports metadata mapping fields such as `_all` and `_parent` as property definition, these metadata
      * mapping fields will automatically be put on the top level mapping object.
      */

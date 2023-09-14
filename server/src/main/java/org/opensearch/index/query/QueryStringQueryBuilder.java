@@ -119,7 +119,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
      * currently _ALL. Uses a TreeMap to hold the fields so boolean clauses are
      * always sorted in same order for generated Lucene query for easier
      * testing.
-     *
+     * <p>
      * Can be changed back to HashMap once https://issues.apache.org/jira/browse/LUCENE-6305 is fixed.
      */
     private final Map<String, Float> fieldsAndWeights = new TreeMap<>();

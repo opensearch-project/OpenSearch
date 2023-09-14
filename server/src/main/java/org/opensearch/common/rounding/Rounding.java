@@ -45,7 +45,7 @@ import java.util.Objects;
 
 /**
  * A strategy for rounding long values.
- *
+ * <p>
  * Use the java based Rounding class where applicable
  *
  * @opensearch.internal

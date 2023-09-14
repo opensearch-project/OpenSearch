@@ -46,7 +46,7 @@ import static org.junit.Assert.assertThat;
 
 /**
  * Represents an is_true assert section:
- *
+ * <p>
  *   - is_true:  get.fields.bar
  *
  */

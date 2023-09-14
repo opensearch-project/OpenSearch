@@ -56,11 +56,11 @@ import static org.opensearch.core.xcontent.ConstructingObjectParser.constructorA
 /**
  * The allowable types, languages and their corresponding contexts.  When serialized there is a top level <code>types_allowed</code> list,
  * meant to reflect the setting <code>script.allowed_types</code> with the allowed types (eg <code>inline</code>, <code>stored</code>).
- *
+ * <p>
  * The top-level <code>language_contexts</code> list of objects have the <code>language</code> (eg. <code>painless</code>,
  * <code>mustache</code>) and a list of <code>contexts</code> available for the language.  It is the responsibility of the caller to ensure
  * these contexts are filtered by the <code>script.allowed_contexts</code> setting.
- *
+ * <p>
  * The json serialization of the object has the form:
  * <code>
  *     {

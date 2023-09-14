@@ -665,7 +665,7 @@ public class GeoUtils {
 
     /**
      * Parse a precision that can be expressed as an integer or a distance measure like "1km", "10m".
-     *
+     * <p>
      * The precision is expressed as a number between 1 and 12 and indicates the length of geohash
      * used to represent geo points.
      *
@@ -696,7 +696,7 @@ public class GeoUtils {
 
     /**
      * Checks that the precision is within range supported by opensearch - between 1 and 12
-     *
+     * <p>
      * Returns the precision value if it is in the range and throws an IllegalArgumentException if it
      * is outside the range.
      */

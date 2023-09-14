@@ -59,7 +59,7 @@ import java.util.function.Consumer;
  * that it is ready to perform certain operations (read, write, etc) the {@link SocketChannelContext} will
  * be called. This context will need to implement all protocol related logic. Additionally, if any special
  * close behavior is required, it should be implemented in this context.
- *
+ * <p>
  * The only methods of the context that should ever be called from a non-selector thread are
  * {@link #closeChannel()} and {@link #sendMessage(Object, BiConsumer)}.
  */

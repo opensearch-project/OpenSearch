@@ -524,7 +524,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
     /**
      * Attempts to extract auth token and login.
      *
-     * @returns false if there was an error and the request should not continue being dispatched
+     * @return false if there was an error and the request should not continue being dispatched
      * */
     private boolean handleAuthenticateUser(final RestRequest request, final RestChannel channel) {
         try {

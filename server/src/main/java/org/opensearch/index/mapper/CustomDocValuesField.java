@@ -43,7 +43,7 @@ import java.io.Reader;
 
 /**
  * Base class for constructing a custom docvalues type
- *
+ * <p>
  * used for binary, geo, and range fields
  *
  * @opensearch.api

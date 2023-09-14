@@ -70,7 +70,7 @@ import java.util.stream.Stream;
  * {@link RoutingNodes} represents a copy the routing information contained in the {@link ClusterState cluster state}.
  * It can be either initialized as mutable or immutable (see {@link #RoutingNodes(ClusterState, boolean)}), allowing
  * or disallowing changes to its elements.
- *
+ * <p>
  * The main methods used to update routing entries are:
  * <ul>
  * <li> {@link #initializeShard} initializes an unassigned shard.
@@ -369,7 +369,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
     /**
      * Returns one active replica shard for the given shard id or <code>null</code> if
      * no active replica is found.
-     *
+     * <p>
      * Since replicas could possibly be on nodes with an older version of OpenSearch than
      * the primary is, this will return replicas on the highest version of OpenSearch when document
      * replication is enabled.
@@ -395,7 +395,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
     /**
      * Returns one active replica shard for the given shard id or <code>null</code> if
      * no active replica is found.
-     *
+     * <p>
      * Since replicas could possibly be on nodes with a higher version of OpenSearch than
      * the primary is, this will return replicas on the oldest version of OpenSearch when segment
      * replication is enabled to allow for replica to read segments from primary.
@@ -544,9 +544,9 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
     /**
      * Applies the relevant logic to start an initializing shard.
-     *
+     * <p>
      * Moves the initializing shard to started. If the shard is a relocation target, also removes the relocation source.
-     *
+     * <p>
      * If the started shard is a primary relocation target, this also reinitializes currently initializing replicas as their
      * recovery source changes
      *
@@ -605,9 +605,9 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
     /**
      * Applies the relevant logic to handle a cancelled or failed shard.
-     *
+     * <p>
      * Moves the shard to unassigned or completely removes the shard (if relocation target).
-     *
+     * <p>
      * - If shard is a primary, this also fails initializing replicas.
      * - If shard is an active primary, this also promotes an active replica to primary (if such a replica exists).
      * - If shard is a relocating primary, this also removes the primary relocation target shard.

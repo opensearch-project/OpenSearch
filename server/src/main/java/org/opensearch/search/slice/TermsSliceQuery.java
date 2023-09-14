@@ -53,7 +53,7 @@ import java.io.IOException;
 
 /**
  * A {@link SliceQuery} that uses the terms dictionary of a field to do the slicing.
- *
+ * <p>
  * <b>NOTE</b>: The cost of this filter is O(N*M) where N is the number of unique terms in the dictionary
  * and M is the average number of documents per term.
  * For each segment this filter enumerates the terms dictionary, computes the hash code for each term and fills

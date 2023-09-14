@@ -55,7 +55,7 @@ import java.util.function.Supplier;
  * Client that always response with {@code null} to every request. Override {@link #doExecute(ActionType, ActionRequest, ActionListener)},
  * {@link #executeLocally(ActionType, ActionRequest, ActionListener)}, or {@link #executeLocally(ActionType, ActionRequest, TaskListener)}
  * for testing.
- *
+ * <p>
  * See also {@link NoOpClient} if you do not specifically need a {@link NodeClient}.
  */
 public class NoOpNodeClient extends NodeClient {

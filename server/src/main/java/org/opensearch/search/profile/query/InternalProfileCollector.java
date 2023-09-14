@@ -48,7 +48,7 @@ import java.util.List;
  * - collect()
  * - doSetNextReader()
  * - needsScores()
- *
+ * <p>
  * InternalProfiler facilitates the linking of the Collector graph
  *
  * @opensearch.internal
@@ -117,7 +117,7 @@ public class InternalProfileCollector implements Collector, InternalProfileCompo
 
     /**
      * Creates a human-friendly representation of the Collector name.
-     *
+     * <p>
      * InternalBucket Collectors use the aggregation name in their toString() method,
      * which makes the profiled output a bit nicer.
      *

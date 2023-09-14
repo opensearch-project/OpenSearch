@@ -18,7 +18,7 @@ import java.util.stream.Collectors;
 /**
  * TaskCancellation represents a task eligible for cancellation.
  * It doesn't guarantee that the task will actually get cancelled or not; that decision is left to the caller.
- *
+ * <p>
  * It contains a list of cancellation reasons along with callbacks that are invoked when cancel() is called.
  *
  * @opensearch.internal
@@ -87,7 +87,7 @@ public class TaskCancellation implements Comparable<TaskCancellation> {
 
     /**
      * Returns the sum of all cancellation scores.
-     *
+     * <p>
      * A zero score indicates no reason to cancel the task.
      * A task with a higher score suggests greater possibility of recovering the node when it is cancelled.
      */

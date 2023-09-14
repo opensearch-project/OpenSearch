@@ -22,7 +22,7 @@ import java.util.function.BiConsumer;
 /**
  * This class is heavily influenced by Lucene's ReplicaFileDeleter class used to keep track of
  * segment files that should be preserved on replicas between replication events.
- *
+ * <p>
  * https://github.com/apache/lucene/blob/main/lucene/replicator/src/java/org/apache/lucene/replicator/nrt/ReplicaFileDeleter.java
  *
  * @opensearch.internal

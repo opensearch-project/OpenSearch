@@ -747,7 +747,7 @@ public class MetadataIndexTemplateService {
     /**
      * Return a map of v2 template names to their index patterns for v2 templates that would overlap
      * with the given template's index patterns.
-     *
+     * <p>
      * Based on the provided checkPriority and priority parameters this aims to report the overlapping
      * index templates regardless of the priority (ie. checkPriority == false) or otherwise overlapping
      * templates with the same priority as the given priority parameter (this is useful when trying to

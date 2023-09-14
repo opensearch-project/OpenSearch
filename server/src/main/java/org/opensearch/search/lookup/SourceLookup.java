@@ -180,7 +180,7 @@ public class SourceLookup implements Map {
 
     /**
      * For the provided path, return its value in the source.
-     *
+     * <p>
      * Note that in contrast with {@link SourceLookup#extractRawValues}, array and object values
      * can be returned.
      *

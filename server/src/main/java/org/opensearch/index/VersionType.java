@@ -244,7 +244,7 @@ public enum VersionType implements Writeable {
 
     /**
      * Returns a human readable explanation for a version conflict on write.
-     *
+     * <p>
      * Note that this method is only called if {@link #isVersionConflictForWrites(long, long, boolean)} returns true;
      *
      * @param currentVersion  the current version for the document
@@ -265,7 +265,7 @@ public enum VersionType implements Writeable {
 
     /**
      * Returns a human readable explanation for a version conflict on read.
-     *
+     * <p>
      * Note that this method is only called if {@link #isVersionConflictForReads(long, long)} returns true;
      *
      * @param currentVersion  the current version for the document

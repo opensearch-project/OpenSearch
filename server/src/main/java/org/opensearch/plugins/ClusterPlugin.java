@@ -64,7 +64,7 @@ public interface ClusterPlugin {
 
     /**
      * Return {@link ShardsAllocator} implementations added by this plugin.
-     *
+     * <p>
      * The key of the returned {@link Map} is the name of the allocator, and the value
      * is a function to construct the allocator.
      *
@@ -88,7 +88,7 @@ public interface ClusterPlugin {
     /**
      * Called when the node is started
      *
-     * DEPRECATED: Use {@link #onNodeStarted(DiscoveryNode)} for newer implementations.
+     * @deprecated Use {@link #onNodeStarted(DiscoveryNode)} for newer implementations.
      */
     @Deprecated
     default void onNodeStarted() {}

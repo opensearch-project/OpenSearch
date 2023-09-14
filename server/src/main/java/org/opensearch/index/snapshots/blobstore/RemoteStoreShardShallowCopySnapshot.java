@@ -322,10 +322,10 @@ public class RemoteStoreShardShallowCopySnapshot implements ToXContentFragment, 
         return snapshot;
     }
 
-    /**
-     * Returns list of files in the shard
-     *
-     * @return list of files
+    /*
+      Returns list of files in the shard
+
+      @return list of files
      */
 
     /**

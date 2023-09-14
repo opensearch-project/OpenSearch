@@ -258,7 +258,7 @@ public class Netty4HttpRequest implements HttpRequest {
     /**
      * A wrapper of {@link HttpHeaders} that implements a map to prevent copying unnecessarily. This class does not support modifications
      * and due to the underlying implementation, it performs case insensitive lookups of key to values.
-     *
+     * <p>
      * It is important to note that this implementation does have some downsides in that each invocation of the
      * {@link #values()} and {@link #entrySet()} methods will perform a copy of the values in the HttpHeaders rather than returning a
      * view of the underlying values.

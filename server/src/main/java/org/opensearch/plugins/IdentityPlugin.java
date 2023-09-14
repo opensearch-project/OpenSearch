@@ -20,14 +20,14 @@ public interface IdentityPlugin {
 
     /**
      * Get the current subject
-     *
+     * <p>
      * Should never return null
      * */
     public Subject getSubject();
 
     /**
      * Get the Identity Plugin's token manager implementation
-     *
+     * <p>
      * Should never return null
      */
     public TokenManager getTokenManager();

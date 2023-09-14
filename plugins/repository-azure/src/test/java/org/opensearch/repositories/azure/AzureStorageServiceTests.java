@@ -451,7 +451,8 @@ public class AzureStorageServiceTests extends OpenSearchTestCase {
     }
 
     /**
-     * Extract the blob name from a URI like https://myservice.azure.net/container/path/to/myfile
+     * Extract the blob name from a URI like :
+     * {@code https://myservice.azure.net/container/path/to/myfile }
      * It should remove the container part (first part of the path) and gives path/to/myfile
      * @param uri URI to parse
      * @return The blob name relative to the container

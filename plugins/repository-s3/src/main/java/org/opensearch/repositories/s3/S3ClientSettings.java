@@ -446,7 +446,7 @@ final class S3ClientSettings {
 
     /**
      * Load all client settings from the given settings.
-     *
+     * <p>
      * Note this will always at least return a client named "default".
      */
     static Map<String, S3ClientSettings> load(final Settings settings, final Path configPath) {

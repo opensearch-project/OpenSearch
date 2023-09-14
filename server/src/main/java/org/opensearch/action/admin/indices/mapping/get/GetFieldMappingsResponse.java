@@ -61,7 +61,7 @@ import static org.opensearch.core.xcontent.ConstructingObjectParser.optionalCons
 
 /**
  * Response object for {@link GetFieldMappingsRequest} API
- *
+ * <p>
  * Note: there is a new class with the same name for the Java HLRC that uses a typeless format.
  * Any changes done to this class should go to that client class as well.
  *

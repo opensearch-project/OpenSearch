@@ -217,7 +217,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
 
     /**
      * Returns the size of the bucket in specified units.
-     *
+     * <p>
      * If unitSize is null, returns 1.0
      */
     @Override

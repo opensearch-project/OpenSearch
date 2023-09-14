@@ -98,11 +98,11 @@ public class IndexingIT extends AbstractRollingTestCase {
 
         // Verify segment store
         assertBusy(() -> {
-            /**
-             * Use default tabular output and sort response based on shard,segment,primaryOrReplica columns to allow line by
-             * line parsing where records related to a segment (e.g. _0) are chunked together with first record belonging
-             * to primary while remaining *replicaCount* records belongs to replica copies
-             * */
+            /*
+              Use default tabular output and sort response based on shard,segment,primaryOrReplica columns to allow line by
+              line parsing where records related to a segment (e.g. _0) are chunked together with first record belonging
+              to primary while remaining *replicaCount* records belongs to replica copies
+              */
             Request segrepStatsRequest = new Request("GET", "/_cat/segments/" + index + "?s=shard,segment,primaryOrReplica");
             segrepStatsRequest.addParameter("h", "index,shard,primaryOrReplica,segment,docs.count");
             Response segrepStatsResponse = client().performRequest(segrepStatsRequest);
@@ -259,7 +259,8 @@ public class IndexingIT extends AbstractRollingTestCase {
      * This test verifies that during rolling upgrades the segment replication does not break when replica shards can
      * be running on older codec versions.
      *
-     * @throws Exception
+     * @throws Exception if index creation fail
+     * @throws UnsupportedOperationException if cluster type is unknown
      */
     @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/7679")
     public void testIndexingWithSegRep() throws Exception {

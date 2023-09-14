@@ -70,9 +70,9 @@ import java.util.function.BiConsumer;
  * {@link Script} represents used-defined input that can be used to
  * compile and execute a script from the {@link ScriptService}
  * based on the {@link ScriptType}.
- *
+ * <p>
  * There are three types of scripts specified by {@link ScriptType}.
- *
+ * <p>
  * The following describes the expected parameters for each type of script:
  *
  * <ul>
@@ -348,16 +348,16 @@ public final class Script implements ToXContentObject, Writeable {
 
     /**
      * This will parse XContent into a {@link Script}.  The following formats can be parsed:
-     *
+     * <p>
      * The simple format defaults to an {@link ScriptType#INLINE} with no compiler options or user-defined params:
-     *
+     * <p>
      * Example:
      * {@code
      * "return Math.log(doc.popularity) * 100;"
      * }
      *
      * The complex format where {@link ScriptType} and idOrCode are required while lang, options and params are not required.
-     *
+     * <p>
      * {@code
      * {
      *     // Exactly one of "id" or "source" must be specified
@@ -391,7 +391,7 @@ public final class Script implements ToXContentObject, Writeable {
      *
      * This also handles templates in a special way.  If a complexly formatted query is specified as another complex
      * JSON object the query is assumed to be a template, and the format will be preserved.
-     *
+     * <p>
      * {@code
      * {
      *     "source" : { "query" : ... },
@@ -605,7 +605,7 @@ public final class Script implements ToXContentObject, Writeable {
 
     /**
      * This will build scripts into the following XContent structure:
-     *
+     * <p>
      * {@code
      * {
      *     "<(id, source)>" : "<idOrCode>",
@@ -635,10 +635,10 @@ public final class Script implements ToXContentObject, Writeable {
      * }
      *
      * Note that lang, options, and params will only be included if there have been any specified.
-     *
+     * <p>
      * This also handles templates in a special way.  If the {@link Script#CONTENT_TYPE_OPTION} option
      * is provided and the {@link ScriptType#INLINE} is specified then the template will be preserved as a raw field.
-     *
+     * <p>
      * {@code
      * {
      *     "source" : { "query" : ... },

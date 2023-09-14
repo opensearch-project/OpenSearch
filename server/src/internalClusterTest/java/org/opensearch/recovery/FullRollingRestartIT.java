@@ -198,11 +198,11 @@ public class FullRollingRestartIT extends OpenSearchIntegTestCase {
         // see https://github.com/elastic/elasticsearch/issues/14387
         internalCluster().startClusterManagerOnlyNode(Settings.EMPTY);
         internalCluster().startDataOnlyNodes(3);
-        /**
-         * We start 3 nodes and a dedicated cluster-manager. Restart on of the data-nodes and ensure that we got no relocations.
-         * Yet we have 6 shards 0 replica so that means if the restarting node comes back both other nodes are subject
-         * to relocating to the restarting node since all had 2 shards and now one node has nothing allocated.
-         * We have a fix for this to wait until we have allocated unallocated shards now so this shouldn't happen.
+        /*
+          We start 3 nodes and a dedicated cluster-manager. Restart on of the data-nodes and ensure that we got no relocations.
+          Yet we have 6 shards 0 replica so that means if the restarting node comes back both other nodes are subject
+          to relocating to the restarting node since all had 2 shards and now one node has nothing allocated.
+          We have a fix for this to wait until we have allocated unallocated shards now so this shouldn't happen.
          */
         prepareCreate("test").setSettings(
             Settings.builder()

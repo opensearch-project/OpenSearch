@@ -191,7 +191,7 @@ public class CorrelationVectorFieldMapperTests extends OpenSearchTestCase {
 
     /**
      * test parseCreateField in CorrelationVectorFieldMapper
-     * @throws IOException
+     * @throws IOException if an error occurs
      */
     public void testCorrelationVectorFieldMapper_parseCreateField() throws IOException {
         String fieldName = "test-field-name";

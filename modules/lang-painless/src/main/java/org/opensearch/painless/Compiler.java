@@ -73,8 +73,8 @@ final class Compiler {
      */
     private static final CodeSource CODESOURCE;
 
-    /**
-     * Setup the code privileges.
+    /*
+      Setup the code privileges.
      */
     static {
         try {

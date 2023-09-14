@@ -105,7 +105,7 @@ public class PutMappingRequest extends TimedRequest implements IndicesRequest, T
 
     /**
      * The mapping source definition.
-     *
+     * <p>
      * Note that the definition should *not* be nested under a type name.
      */
     public PutMappingRequest source(Map<String, ?> mappingSource) {
@@ -120,7 +120,7 @@ public class PutMappingRequest extends TimedRequest implements IndicesRequest, T
 
     /**
      * The mapping source definition.
-     *
+     * <p>
      * Note that the definition should *not* be nested under a type name.
      */
     public PutMappingRequest source(String mappingSource, MediaType mediaType) {
@@ -131,7 +131,7 @@ public class PutMappingRequest extends TimedRequest implements IndicesRequest, T
 
     /**
      * The mapping source definition.
-     *
+     * <p>
      * Note that the definition should *not* be nested under a type name.
      */
     public PutMappingRequest source(XContentBuilder builder) {
@@ -142,7 +142,7 @@ public class PutMappingRequest extends TimedRequest implements IndicesRequest, T
 
     /**
      * The mapping source definition.
-     *
+     * <p>
      * Note that the definition should *not* be nested under a type name.
      */
     public PutMappingRequest source(BytesReference source, MediaType mediaType) {

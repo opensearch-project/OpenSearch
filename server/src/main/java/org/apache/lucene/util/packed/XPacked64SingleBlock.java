@@ -25,8 +25,8 @@ import java.util.Arrays;
 /**
  * Forked from Lucene 8.x; removed in Lucene 9.0
  *
- * @todo further investigate a better alternative
- *
+ * TODO: further investigate a better alternative
+ * <p>
  * This class is similar to {@link Packed64} except that it trades space for speed by ensuring that
  * a single block needs to be read/written in order to read/write a value.
  */

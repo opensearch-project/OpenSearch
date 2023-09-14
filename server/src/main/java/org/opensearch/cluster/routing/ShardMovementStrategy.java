@@ -14,7 +14,7 @@ import java.util.Locale;
 
 /**
  * ShardMovementStrategy defines the order in which shard movement occurs.
- *
+ * <p>
  * ShardMovementStrategy values or rather their string representation to be used with
  * {@link BalancedShardsAllocator#SHARD_MOVEMENT_STRATEGY_SETTING} via cluster settings.
  *

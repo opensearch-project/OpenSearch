@@ -605,7 +605,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * the search request expands to exceeds the threshold. This filter roundtrip can limit the number of shards significantly if for
      * instance a shard can not match any documents based on its rewrite method ie. if date filters are mandatory to match but the shard
      * bounds and the query are disjoint.
-     *
+     * <p>
      * When unspecified, the pre-filter phase is executed if any of these conditions is met:
      * <ul>
      * <li>The request targets more than 128 shards</li>

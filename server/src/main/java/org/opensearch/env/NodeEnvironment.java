@@ -705,7 +705,7 @@ public final class NodeEnvironment implements Closeable {
      * write operation on a shards data directory like deleting files, creating a new index writer
      * or recover from a different shard instance into it. If the shard lock can not be acquired
      * a {@link ShardLockObtainFailedException} is thrown.
-     *
+     * <p>
      * Note: this method will return immediately if the lock can't be acquired.
      *
      * @param id the shard ID to lock
@@ -778,7 +778,7 @@ public final class NodeEnvironment implements Closeable {
 
     /**
      * Returns all currently lock shards.
-     *
+     * <p>
      * Note: the shard ids return do not contain a valid Index UUID
      */
     public Set<ShardId> lockedShards() {

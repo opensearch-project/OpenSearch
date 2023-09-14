@@ -336,7 +336,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
      * </li>
      * </ul>
      * <code>weight(node, index) = weight<sub>index</sub>(node, index) + weight<sub>node</sub>(node, index)</code>
-     *
+     * <p>
      * package-private for testing
      */
     static class WeightFunction {

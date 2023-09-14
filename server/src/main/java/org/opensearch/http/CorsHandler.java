@@ -81,7 +81,7 @@ import static org.opensearch.http.HttpTransportSettings.SETTING_CORS_MAX_AGE;
  * This file is forked from the https://netty.io project. In particular it combines the following three
  * files: io.netty.handler.codec.http.cors.CorsHandler, io.netty.handler.codec.http.cors.CorsConfig, and
  * io.netty.handler.codec.http.cors.CorsConfigBuilder.
- *
+ * <p>
  * It modifies the original netty code to operate on OpenSearch http request/response abstractions.
  * Additionally, it removes CORS features that are not used by OpenSearch.
  *

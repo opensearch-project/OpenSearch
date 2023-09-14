@@ -55,11 +55,11 @@ import java.util.function.Supplier;
 
 /**
  * Mapper for the {@code _seq_no} field.
- *
+ * <p>
  * We expect to use the seq# for sorting, during collision checking and for
  * doing range searches. Therefore the {@code _seq_no} field is stored both
  * as a numeric doc value and as numeric indexed field.
- *
+ * <p>
  * This mapper also manages the primary term field, which has no OpenSearch named
  * equivalent. The primary term is only used during collision after receiving
  * identical seq# values for two document copies. The primary term is stored as

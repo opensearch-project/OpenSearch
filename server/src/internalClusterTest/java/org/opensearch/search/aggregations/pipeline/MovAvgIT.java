@@ -1168,7 +1168,7 @@ public class MovAvgIT extends ParameterizedOpenSearchIntegTestCase {
      * the default settings.  Which means our mock histo will match the generated result (which it won't
      * if the minimizer is actually working, since the coefficients will be different and thus generate different
      * data)
-     *
+     * <p>
      * We can simulate this by setting the window size == size of histo
      */
     public void testMinimizeNotEnoughData() {

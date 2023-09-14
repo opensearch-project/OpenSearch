@@ -70,7 +70,7 @@ public final class LinearInterpolation extends SmoothingModel {
 
     /**
      * Creates a linear interpolation smoothing model.
-     *
+     * <p>
      * Note: the lambdas must sum up to one.
      *
      * @param trigramLambda

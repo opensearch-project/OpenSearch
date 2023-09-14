@@ -123,7 +123,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
      * Returns true if the result doesn't contain any useful information.
      * It is used by the search action to avoid creating an empty response on
      * shard request that rewrites to match_no_docs.
-     *
+     * <p>
      * TODO: Currently we need the concrete aggregators to build empty responses. This means that we cannot
      *       build an empty response in the coordinating node so we rely on this hack to ensure that at least one shard
      *       returns a valid empty response. We should move the ability to create empty responses to aggregation builders

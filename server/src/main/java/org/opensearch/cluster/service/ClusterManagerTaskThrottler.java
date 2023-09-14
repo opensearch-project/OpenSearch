@@ -29,7 +29,7 @@ import java.util.function.Supplier;
 /**
  * This class does throttling on task submission to cluster manager node, it uses throttling key defined in various executors
  * as key for throttling. Throttling will be performed over task executor's class level, different task types have different executors class.
- *
+ * <p>
  * Set specific setting to for setting the threshold of throttling of particular task type.
  * e.g : Set "cluster_manager.throttling.thresholds.put_mapping" to set throttling limit of "put mapping" tasks,
  *       Set it to default value(-1) to disable the throttling for this task type.
@@ -117,9 +117,9 @@ public class ClusterManagerTaskThrottler implements TaskBatcherListener {
      * * Register task to cluster service with task key,
      * * override getClusterManagerThrottlingKey method with above task key in task executor.
      * * Verify that throttled tasks would be retried from data nodes
-     *
+     * <p>
      * Added retry mechanism in TransportClusterManagerNodeAction, so it would be retried for customer generated tasks.
-     *
+     * <p>
      * If tasks are not getting retried then we can register with false flag, so user won't be able to configure threshold limits for it.
      */
     protected ThrottlingKey registerClusterManagerTask(String taskKey, boolean throttlingEnabled) {
@@ -236,7 +236,7 @@ public class ClusterManagerTaskThrottler implements TaskBatcherListener {
      * It may start throwing throttling exception to older nodes in cluster.
      * Older version nodes will not be equipped to handle the throttling exception and
      * this may result in unexpected behavior where internal tasks would start failing without any retries.
-     *
+     * <p>
      * For every task submission request, it will validate if nodes version is greater or equal to 2.5.0 and set the startThrottling flag.
      * Once the startThrottling flag is set, it will not perform check for next set of tasks.
      */

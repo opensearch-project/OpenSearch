@@ -305,7 +305,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
     /**
      * Parse the field value and populate the fields on {@link ParseContext#doc()}.
-     *
+     * <p>
      * Implementations of this method should ensure that on failing to parse parser.currentToken() must be the
      * current failing token
      */

@@ -125,7 +125,7 @@ public abstract class MappedFieldType {
 
     /**
      * Create a helper class to fetch field values during the {@link FetchFieldsPhase}.
-     *
+     * <p>
      * New field types must implement this method in order to support the search 'fields' option. Except
      * for metadata fields, field types should not throw {@link UnsupportedOperationException} since this
      * could cause a search retrieving multiple fields (like "fields": ["*"]) to fail.
@@ -487,7 +487,7 @@ public abstract class MappedFieldType {
 
     /**
      * Returns information on how any text in this field is indexed
-     *
+     * <p>
      * Fields that do not support any text-based queries should return
      * {@link TextSearchInfo#NONE}.  Some fields (eg numeric) may support
      * only simple match queries, and can return

@@ -35,13 +35,13 @@ package org.opensearch.index.analysis.phonetic;
 /**
  * Ge&auml;nderter Algorithmus aus der Matching Toolbox von Rainer Schnell
  * Java-Programmierung von J&ouml;rg Reiher
- *
+ * <p>
  * Die Kölner Phonetik wurde für den Einsatz in Namensdatenbanken wie
  * der Verwaltung eines Krankenhauses durch Martin Haase (Institut für
  * Sprachwissenschaft, Universität zu Köln) und Kai Heitmann (Insitut für
  * medizinische Statistik, Informatik und Epidemiologie, Köln)  überarbeitet.
  * M. Haase und K. Heitmann. Die Erweiterte Kölner Phonetik. 526, 2000.
- *
+ * <p>
  * nach: Martin Wilz, Aspekte der Kodierung phonetischer Ähnlichkeiten
  * in deutschen Eigennamen, Magisterarbeit.
  * http://www.uni-koeln.de/phil-fak/phonetik/Lehre/MA-Arbeiten/magister_wilz.pdf

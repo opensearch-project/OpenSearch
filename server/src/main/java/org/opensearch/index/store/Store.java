@@ -283,10 +283,10 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     /**
      * Returns a new MetadataSnapshot for the given commit. If the given commit is <code>null</code>
      * the latest commit point is used.
-     *
+     * <p>
      * Note that this method requires the caller verify it has the right to access the store and
      * no concurrent file changes are happening. If in doubt, you probably want to use one of the following:
-     *
+     * <p>
      * {@link #readMetadataSnapshot(Path, ShardId, NodeEnvironment.ShardLocker, Logger)} to read a meta data while locking
      * {@link IndexShard#snapshotStoreMetadata()} to safely read from an existing shard
      * {@link IndexShard#acquireLastIndexCommit(boolean)} to get an {@link IndexCommit} which is safe to use but has to be freed
@@ -314,10 +314,10 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     /**
      * Returns a new MetadataSnapshot for the given commit. If the given commit is <code>null</code>
      * the latest commit point is used.
-     *
+     * <p>
      * Note that this method requires the caller verify it has the right to access the store and
      * no concurrent file changes are happening. If in doubt, you probably want to use one of the following:
-     *
+     * <p>
      * {@link #readMetadataSnapshot(Path, ShardId, NodeEnvironment.ShardLocker, Logger)} to read a meta data while locking
      * {@link IndexShard#snapshotStoreMetadata()} to safely read from an existing shard
      * {@link IndexShard#acquireLastIndexCommit(boolean)} to get an {@link IndexCommit} which is safe to use but has to be freed
@@ -784,7 +784,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
     /**
      * Segment replication method
-     *
+     * <p>
      * This method takes the segment info bytes to build SegmentInfos. It inc'refs files pointed by passed in SegmentInfos
      * bytes to ensure they are not deleted.
      *
@@ -859,7 +859,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * have the ability to create a writer directly from a SegmentInfos object.  To promote the replica as a primary and avoid reindexing, we must first commit
      * on the replica so that it can be opened with a writeable engine. Further, InternalEngine currently invokes `trimUnsafeCommits` which reverts the engine to a previous safeCommit where the max seqNo is less than or equal
      * to the current global checkpoint. It is likely that the replica has a maxSeqNo that is higher than the global cp and a new commit will be wiped.
-     *
+     * <p>
      * To get around these limitations, this method first creates an IndexCommit directly from SegmentInfos, it then
      * uses an appending IW to create an IndexCommit from the commit created on SegmentInfos.
      * This ensures that 1. All files in the new commit are fsynced and 2. Deletes older commit points so the only commit to start from is our new commit.

@@ -44,7 +44,7 @@ import java.util.Objects;
  * "online" as the weights are wrapped by ContextIndexSearcher.  This allows us
  * to know the relationship between nodes in tree without explicitly
  * walking the tree or pre-wrapping everything
- *
+ * <p>
  * A Profiler is associated with every Search, not per Search-Request. E.g. a
  * request may execute two searches (query + global agg).  A Profiler just
  * represents one of those

@@ -54,7 +54,7 @@ public class SearchBackpressureSettings {
     /**
      * Defines the percentage of tasks to cancel relative to the number of successful task completions.
      * In other words, it is the number of tokens added to the bucket on each successful task completion.
-     *
+     * <p>
      * The setting below is deprecated.
      * To keep backwards compatibility, the old usage is remained, and it's also used as the fallback for the new usage.
      */
@@ -71,7 +71,7 @@ public class SearchBackpressureSettings {
     /**
      * Defines the number of tasks to cancel per unit time (in millis).
      * In other words, it is the number of tokens added to the bucket each millisecond.
-     *
+     * <p>
      * The setting below is deprecated.
      * To keep backwards compatibility, the old usage is remained, and it's also used as the fallback for the new usage.
      */
@@ -86,7 +86,7 @@ public class SearchBackpressureSettings {
 
     /**
      * Defines the maximum number of tasks that can be cancelled before being rate-limited.
-     *
+     * <p>
      * The setting below is deprecated.
      * To keep backwards compatibility, the old usage is remained, and it's also used as the fallback for the new usage.
      */

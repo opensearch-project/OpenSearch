@@ -685,7 +685,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
      * Implementors should return a list of {@link ValuesSourceType} that the aggregator supports.
      * This is used to test the matrix of supported/unsupported field types against the aggregator
      * and verify it works (or doesn't) as expected.
-     *
+     * <p>
      * If this method is implemented, {@link AggregatorTestCase#createAggBuilderForTypeTest(MappedFieldType, String)}
      * should be implemented as well.
      *
@@ -702,7 +702,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
      * The field type and name are provided, and the implementor is expected to return an AggBuilder accordingly.
      * The AggBuilder should be returned even if the aggregation does not support the field type, because
      * the test will check if an exception is thrown in that case.
-     *
+     * <p>
      * The list of supported types are provided by {@link AggregatorTestCase#getSupportedValuesSourceTypes()},
      * which must also be implemented.
      *
@@ -720,7 +720,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
      * A method that allows implementors to specifically denylist particular field types (based on their content_name).
      * This is needed in some areas where the ValuesSourceType is not granular enough, for example integer values
      * vs floating points, or `keyword` bytes vs `binary` bytes (which are not searchable)
-     *
+     * <p>
      * This is a denylist instead of an allowlist because there are vastly more field types than ValuesSourceTypes,
      * and it's expected that these unsupported cases are exceptional rather than common
      */
@@ -734,7 +734,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
      * is provided by the implementor class, and it is executed against each field type in turn.  If
      * an exception is thrown when the field is supported, that will fail the test.  Similarly, if
      * an exception _is not_ thrown when a field is unsupported, that will also fail the test.
-     *
+     * <p>
      * Exception types/messages are not currently checked, just presence/absence of an exception.
      */
     public void testSupportedFieldTypes() throws IOException {
@@ -825,7 +825,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
 
     /**
      * Helper method to write a single document with a single value specific to the requested fieldType.
-     *
+     * <p>
      * Throws an exception if it encounters an unknown field type, to prevent new ones from sneaking in without
      * being tested.
      */

@@ -402,7 +402,7 @@ public class InternalEngine extends Engine {
      * The main purpose for this is that if we have external refreshes happening we don't issue extra
      * refreshes to clear version map memory etc. this can cause excessive segment creation if heavy indexing
      * is happening and the refresh interval is low (ie. 1 sec)
-     *
+     * <p>
      * This also prevents segment starvation where an internal reader holds on to old segments literally forever
      * since no indexing is happening and refreshes are only happening to the external reader manager, while with
      * this specialized implementation an external refresh will immediately be reflected on the internal reader

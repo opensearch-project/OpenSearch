@@ -67,11 +67,11 @@ public final class AllowlistLoader {
      * is the path of a single text file. The {@link Class}'s {@link ClassLoader} will be used to lookup the Java
      * reflection objects for each individual {@link Class}, {@link Constructor}, {@link Method}, and {@link Field}
      * specified as part of the allowlist in the text file.
-     *
+     * <p>
      * A single pass is made through each file to collect all the information about each class, constructor, method,
      * and field. Most validation will be done at a later point after all allowlists have been gathered and their
      * merging takes place.
-     *
+     * <p>
      * A painless type name is one of the following:
      * <ul>
      *     <li> def - The Painless dynamic type which is automatically included without a need to be
@@ -129,33 +129,33 @@ public final class AllowlistLoader {
      * be appropriately parsed and handled. Painless complex types must be specified with the
      * fully-qualified Java class name. Method argument types, method return types, and field types
      * must be specified with Painless type names (def, fully-qualified, or short) as described earlier.
-     *
+     * <p>
      * The following example is used to create a single allowlist text file:
-     *
+     * <p>
      * {@code
      * # primitive types
-     *
+     * <p>
      * class int -> int {
      * }
-     *
+     * <p>
      * # complex types
-     *
+     * <p>
      * class my.package.Example @no_import {
      *   # constructors
      *   ()
      *   (int)
      *   (def, def)
      *   (Example, def)
-     *
+     * <p>
      *   # method
      *   Example add(int, def)
      *   int add(Example, Example)
      *   void example() @deprecated[use example 2 instead]
      *   void example2()
-     *
+     * <p>
      *   # augmented
      *   Example some.other.Class sub(Example, int, def)
-     *
+     * <p>
      *   # fields
      *   int value0
      *   int value1

@@ -78,7 +78,7 @@ import java.util.Set;
 /**
  * Runs a suite of yaml tests shared with all the official OpenSearch
  * clients against an opensearch cluster.
- *
+ * <p>
  * The suite timeout is extended to account for projects with a large number of tests.
  */
 @TimeoutSuite(millis = 30 * TimeUnits.MINUTE)
@@ -110,9 +110,9 @@ public abstract class OpenSearchClientYamlSuiteTestCase extends OpenSearchRestTe
     /**
      * This separator pattern matches ',' except it is preceded by a '\'.
      * This allows us to support ',' within paths when it is escaped with a slash.
-     *
+     * <p>
      * For example, the path string "/a/b/c\,d/e/f,/foo/bar,/baz" is separated to "/a/b/c\,d/e/f", "/foo/bar" and "/baz".
-     *
+     * <p>
      * For reference, this regular expression feature is known as zero-width negative look-behind.
      *
      */

@@ -376,7 +376,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
 
     /**
      * write all buffered ops to disk and fsync file.
-     *
+     * <p>
      * Note: any exception during the sync process will be interpreted as a tragic exception and the writer will be closed before
      * raising the exception.
      * @return  <code>true</code> if this call caused an actual sync operation

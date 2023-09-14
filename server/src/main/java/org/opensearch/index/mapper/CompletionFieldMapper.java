@@ -447,13 +447,13 @@ public class CompletionFieldMapper extends ParametrizedFieldMapper {
 
     /**
      * Parses and indexes inputs
-     *
+     * <p>
      * Parsing:
      *  Acceptable format:
      *   "STRING" - interpreted as field value (input)
      *   "ARRAY" - each element can be one of "OBJECT" (see below)
      *   "OBJECT" - { "input": STRING|ARRAY, "weight": STRING|INT, "contexts": ARRAY|OBJECT }
-     *
+     * <p>
      * Indexing:
      *  if context mappings are defined, delegates to {@link ContextMappings#addField(ParseContext.Document, String, String, int, Map)}
      *  else adds inputs as a {@link org.apache.lucene.search.suggest.document.SuggestField}

@@ -43,7 +43,7 @@ import java.util.function.Supplier;
 
 /**
  * Wrapper for a XContentParser that makes a single object/array look like a complete document.
- *
+ * <p>
  * The wrapper prevents the parsing logic to consume tokens outside of the wrapped object as well
  * as skipping to the end of the object in case of a parsing error. The wrapper is intended to be
  * used for parsing objects that should be ignored if they are malformed.

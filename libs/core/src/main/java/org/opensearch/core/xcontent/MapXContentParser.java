@@ -277,7 +277,7 @@ public class MapXContentParser extends AbstractXContentParser {
 
         /**
          * field name that the child element needs to inherit.
-         *
+         * <p>
          * In most cases this is the same as currentName() except with embedded arrays. In "foo": [[42]] the first START_ARRAY
          * token will have the name "foo", but the second START_ARRAY will have no name.
          */

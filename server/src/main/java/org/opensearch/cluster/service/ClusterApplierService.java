@@ -294,7 +294,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
     /**
      * Adds a cluster state listener that is expected to be removed during a short period of time.
      * If provided, the listener will be notified once a specific time has elapsed.
-     *
+     * <p>
      * NOTE: the listener is not removed on timeout. This is the responsibility of the caller.
      */
     public void addTimeoutListener(@Nullable final TimeValue timeout, final TimeoutClusterStateListener listener) {

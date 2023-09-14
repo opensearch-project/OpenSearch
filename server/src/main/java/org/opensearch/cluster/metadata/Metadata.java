@@ -1666,7 +1666,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
 
         /**
          * Validates there isn't any index with a name that would clash with the future backing indices of the existing data streams.
-         *
+         * <p>
          * E.g., if data stream `foo` has backing indices [`.ds-foo-000001`, `.ds-foo-000002`] and the indices lookup contains indices
          * `.ds-foo-000001`, `.ds-foo-000002` and `.ds-foo-000006` this will throw an IllegalStateException (as attempting to rollover the
          * `foo` data stream from generation 5 to 6 will not be possible)

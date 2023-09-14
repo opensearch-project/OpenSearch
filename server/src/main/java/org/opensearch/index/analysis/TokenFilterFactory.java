@@ -51,7 +51,7 @@ public interface TokenFilterFactory {
 
     /**
      * Normalize a tokenStream for use in multi-term queries
-     *
+     * <p>
      * The default implementation is a no-op
      */
     default TokenStream normalize(TokenStream tokenStream) {
@@ -86,7 +86,7 @@ public interface TokenFilterFactory {
 
     /**
      * Return a version of this TokenFilterFactory appropriate for synonym parsing
-     *
+     * <p>
      * Filters that should not be applied to synonyms (for example, those that produce
      * multiple tokens) should throw an exception
      *

@@ -45,7 +45,7 @@ import java.util.stream.Collectors;
  * are using the '.' operator on an existing class variable/field. Painless classes may have multiple
  * methods with the same name as long as they comply with arity overloading described in
  * {@link AllowlistClass}.
- *
+ * <p>
  * Classes may also have additional methods that are not part of the Java class the class represents -
  * these are known as augmented methods. An augmented method can be added to a class as a part of any
  * Java class as long as the method is static and the first parameter of the method is the Java class

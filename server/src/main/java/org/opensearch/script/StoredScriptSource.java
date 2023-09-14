@@ -308,7 +308,7 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
 
     /**
      * This will parse XContent into a {@link StoredScriptSource}. The following format is what will be parsed:
-     *
+     * <p>
      * {@code
      * {
      *     "script" : {
@@ -387,7 +387,7 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
 
     /**
      * This will write XContent from a {@link StoredScriptSource}. The following format will be written:
-     *
+     * <p>
      * {@code
      * {
      *     "script" : {

@@ -93,8 +93,8 @@ public class DeletePitMultiNodeIT extends OpenSearchIntegTestCase {
             assertTrue(deletePitInfo.isSuccessful());
         }
         validatePitStats("index", 0, 10);
-        /**
-         * Checking deleting the same PIT id again results in succeeded
+        /*
+          Checking deleting the same PIT id again results in succeeded
          */
         deleteExecute = client().execute(DeletePitAction.INSTANCE, deletePITRequest);
         deletePITResponse = deleteExecute.get();
@@ -113,8 +113,8 @@ public class DeletePitMultiNodeIT extends OpenSearchIntegTestCase {
         pitIds.add(pitResponse.getId());
         validatePitStats("index", 5, 0);
 
-        /**
-         * Delete Pit #1
+        /*
+          Delete Pit #1
          */
         DeletePitRequest deletePITRequest = new DeletePitRequest(pitIds);
         ActionFuture<DeletePitResponse> deleteExecute = client().execute(DeletePitAction.INSTANCE, deletePITRequest);
@@ -128,8 +128,8 @@ public class DeletePitMultiNodeIT extends OpenSearchIntegTestCase {
         pitResponse = execute.get();
         pitIds.add(pitResponse.getId());
         validatePitStats("index", 5, 5);
-        /**
-         * Delete PIT with both Ids #1 (which is deleted) and #2 (which is present)
+        /*
+          Delete PIT with both Ids #1 (which is deleted) and #2 (which is present)
          */
         deletePITRequest = new DeletePitRequest(pitIds);
         deleteExecute = client().execute(DeletePitAction.INSTANCE, deletePITRequest);
@@ -165,9 +165,9 @@ public class DeletePitMultiNodeIT extends OpenSearchIntegTestCase {
         validatePitStats("index1", 5, 0);
         DeletePitRequest deletePITRequest = new DeletePitRequest("_all");
 
-        /**
-         * When we invoke delete again, returns success after clearing the remaining readers. Asserting reader context
-         * not found exceptions don't result in failures ( as deletion in one node is successful )
+        /*
+          When we invoke delete again, returns success after clearing the remaining readers. Asserting reader context
+          not found exceptions don't result in failures ( as deletion in one node is successful )
          */
         ActionFuture<DeletePitResponse> execute = client().execute(DeletePitAction.INSTANCE, deletePITRequest);
         DeletePitResponse deletePITResponse = execute.get();
@@ -207,9 +207,9 @@ public class DeletePitMultiNodeIT extends OpenSearchIntegTestCase {
         });
 
         ensureGreen();
-        /**
-         * When we invoke delete again, returns success after clearing the remaining readers. Asserting reader context
-         * not found exceptions don't result in failures ( as deletion in one node is successful )
+        /*
+          When we invoke delete again, returns success after clearing the remaining readers. Asserting reader context
+          not found exceptions don't result in failures ( as deletion in one node is successful )
          */
         ActionFuture<DeletePitResponse> execute = client().execute(DeletePitAction.INSTANCE, deletePITRequest);
         DeletePitResponse deletePITResponse = execute.get();
@@ -242,9 +242,9 @@ public class DeletePitMultiNodeIT extends OpenSearchIntegTestCase {
             }
         });
         ensureGreen();
-        /**
-         * When we invoke delete again, returns success as all readers are cleared. (Delete all on node which is Up and
-         * once the node restarts, all active contexts are cleared in the node )
+        /*
+          When we invoke delete again, returns success as all readers are cleared. (Delete all on node which is Up and
+          once the node restarts, all active contexts are cleared in the node )
          */
         ActionFuture<DeletePitResponse> execute = client().execute(DeletePitAction.INSTANCE, deletePITRequest);
         DeletePitResponse deletePITResponse = execute.get();
@@ -278,8 +278,8 @@ public class DeletePitMultiNodeIT extends OpenSearchIntegTestCase {
                         }
                     }
                 } catch (Exception e) {
-                    /**
-                     * assert for exception once delete pit goes through. throw error in case of any exeption before that.
+                    /*
+                      assert for exception once delete pit goes through. throw error in case of any exeption before that.
                      */
                     if (deleted.get() == true) {
                         Throwable t = ExceptionsHelper.unwrapCause(e.getCause());

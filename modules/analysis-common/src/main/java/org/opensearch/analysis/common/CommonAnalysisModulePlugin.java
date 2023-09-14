@@ -555,7 +555,7 @@ public class CommonAnalysisModulePlugin extends Plugin implements AnalysisPlugin
         filters.add(PreConfiguredTokenFilter.singleton("scandinavian_normalization", true, ScandinavianNormalizationFilter::new));
         filters.add(PreConfiguredTokenFilter.singleton("shingle", false, false, input -> {
             TokenStream ts = new ShingleFilter(input);
-            /**
+            /*
              * We disable the graph analysis on this token stream
              * because it produces shingles of different size.
              * Graph analysis on such token stream is useless and dangerous as it may create too many paths

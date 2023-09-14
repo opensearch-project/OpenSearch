@@ -17,7 +17,7 @@ import java.util.Objects;
 
 /**
  * Implementation of subject that is always authenticated
- *
+ * <p>
  * This class and related classes in this package will not return nulls or fail permissions checks
  *
  * @opensearch.internal

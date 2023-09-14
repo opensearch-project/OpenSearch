@@ -248,7 +248,7 @@ public class LongGCDisruption extends SingleNodeDisruption {
     /**
      * resolves all threads belonging to given node and suspends them if their current stack trace
      * is "safe". Threads are added to nodeThreads if suspended.
-     *
+     * <p>
      * returns true if some live threads were found. The caller is expected to call this method
      * until no more "live" are found.
      */

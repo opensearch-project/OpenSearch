@@ -341,7 +341,7 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
 
     /**
      * Parse the output of the {@link #innerToXContent(XContentBuilder, Params)} method.
-     *
+     * <p>
      * This method is intended to be called by subclasses and must be called multiple times to parse all the information concerning
      * {@link DocWriteResponse} objects. It always parses the current token, updates the given parsing context accordingly
      * if needed and then immediately returns.

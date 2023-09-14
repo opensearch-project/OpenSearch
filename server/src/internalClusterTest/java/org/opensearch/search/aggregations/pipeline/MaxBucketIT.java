@@ -544,13 +544,13 @@ public class MaxBucketIT extends ParameterizedOpenSearchIntegTestCase {
 
     /**
      * https://github.com/elastic/elasticsearch/issues/33514
-     *
+     * <p>
      * This bug manifests as the max_bucket agg ("peak") being added to the response twice, because
      * the pipeline agg is run twice.  This makes invalid JSON and breaks conversion to maps.
      * The bug was caused by an UnmappedTerms being the chosen as the first reduction target.  UnmappedTerms
      * delegated reduction to the first non-unmapped agg, which would reduce and run pipeline aggs.  But then
      * execution returns to the UnmappedTerms and _it_ runs pipelines as well, doubling up on the values.
-     *
+     * <p>
      * Applies to any pipeline agg, not just max.
      */
     public void testFieldIsntWrittenOutTwice() throws Exception {

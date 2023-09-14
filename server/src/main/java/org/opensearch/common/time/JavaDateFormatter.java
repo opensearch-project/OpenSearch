@@ -222,7 +222,7 @@ class JavaDateFormatter implements DateFormatter {
      * it will continue iterating if the previous parser failed. The pattern must fully match, meaning whole input was used.
      * This also means that this method depends on <code>DateTimeFormatter.ClassicFormat.parseObject</code>
      * which does not throw exceptions when parsing failed.
-     *
+     * <p>
      * The approach with collection of parsers was taken because java-time requires ordering on optional (composite)
      * patterns. Joda does not suffer from this.
      * https://bugs.openjdk.java.net/browse/JDK-8188771

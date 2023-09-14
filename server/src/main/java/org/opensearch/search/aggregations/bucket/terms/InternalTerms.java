@@ -436,11 +436,11 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
         }
 
         final List<B> reducedBuckets;
-        /**
-         * Buckets returned by a partial reduce or a shard response are sorted by key.
-         * That allows to perform a merge sort when reducing multiple aggregations together.
-         * For backward compatibility, we disable the merge sort and use ({@link InternalTerms#reduceLegacy} if any of
-         * the provided aggregations use a different {@link InternalTerms#reduceOrder}.
+        /*
+          Buckets returned by a partial reduce or a shard response are sorted by key.
+          That allows to perform a merge sort when reducing multiple aggregations together.
+          For backward compatibility, we disable the merge sort and use ({@link InternalTerms#reduceLegacy} if any of
+          the provided aggregations use a different {@link InternalTerms#reduceOrder}.
          */
         BucketOrder thisReduceOrder = getReduceOrder(aggregations);
         if (isKeyOrder(thisReduceOrder)) {

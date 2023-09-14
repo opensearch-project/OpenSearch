@@ -67,7 +67,7 @@ import static org.opensearch.action.admin.cluster.node.tasks.list.TransportListT
 
 /**
  * ActionType to get a single task. If the task isn't running then it'll try to request the status from request index.
- *
+ * <p>
  * The general flow is:
  * <ul>
  * <li>If this isn't being executed on the node to which the requested TaskId belongs then move to that node.

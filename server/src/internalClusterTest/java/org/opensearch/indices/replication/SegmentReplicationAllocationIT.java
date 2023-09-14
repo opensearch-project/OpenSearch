@@ -91,7 +91,7 @@ public class SegmentReplicationAllocationIT extends SegmentReplicationBaseIT {
 
     /**
      * This test verifies the happy path where primary shard allocation is balanced when multiple indices are created.
-     *
+     * <p>
      * This test in general passes without primary shard balance as well due to nature of allocation algorithm which
      * assigns all primary shards first followed by replica copies.
      */

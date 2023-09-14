@@ -398,8 +398,8 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
     }
 
     @Deprecated
-    /**
-     * Sets the fuzziness used when evaluated to a fuzzy query type. Defaults to "AUTO".
+    /*
+      Sets the fuzziness used when evaluated to a fuzzy query type. Defaults to "AUTO".
      */
     public MultiMatchQueryBuilder fuzziness(Object fuzziness) {
         if (fuzziness != null) {

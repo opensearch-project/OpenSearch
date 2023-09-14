@@ -138,7 +138,7 @@ public final class InnerHitsContext {
 
         /**
          * The _id of the root document.
-         *
+         * <p>
          * Since this ID is available on the context, inner hits can avoid re-loading the root _id.
          */
         public String getId() {
@@ -151,7 +151,7 @@ public final class InnerHitsContext {
 
         /**
          * A source lookup for the root document.
-         *
+         * <p>
          * This shared lookup allows inner hits to avoid re-loading the root _source.
          */
         public SourceLookup getRootLookup() {

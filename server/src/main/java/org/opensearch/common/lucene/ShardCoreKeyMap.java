@@ -55,7 +55,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * mappings as segments that were not known before are added and prevents the
  * structure from growing indefinitely by registering close listeners on these
  * segments so that at any time it only tracks live segments.
- *
+ * <p>
  * NOTE: This is heavy. Avoid using this class unless absolutely required.
  *
  * @opensearch.internal

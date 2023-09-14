@@ -18,7 +18,7 @@ import java.util.Map;
 /**
  * HttpTracer helps in creating a {@link Span} which reads the incoming tracing information
  * from the HttpRequest header and propagate the span accordingly.
- *
+ * <p>
  * All methods on the Tracer object are multi-thread safe.
  *
  * @opensearch.experimental

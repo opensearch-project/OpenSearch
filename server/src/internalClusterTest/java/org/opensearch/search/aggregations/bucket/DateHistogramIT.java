@@ -1481,7 +1481,7 @@ public class DateHistogramIT extends ParameterizedOpenSearchIntegTestCase {
     /**
      * https://github.com/elastic/elasticsearch/issues/31760 shows an edge case where an unmapped "date" field in two indices
      * that are queried simultaneously can lead to the "format" parameter in the aggregation not being preserved correctly.
-     *
+     * <p>
      * The error happens when the bucket from the "unmapped" index is received first in the reduce phase, however the case can
      * be recreated when aggregating about a single index with an unmapped date field and also getting "empty" buckets.
      */

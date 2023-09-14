@@ -687,7 +687,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
     /**
      * Creates a new QueryShardContext.
-     *
+     * <p>
      * Passing a {@code null} {@link IndexSearcher} will return a valid context, however it won't be able to make
      * {@link IndexReader}-specific optimizations, such as rewriting containing range queries.
      */
@@ -697,7 +697,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
     /**
      * Creates a new QueryShardContext.
-     *
+     * <p>
      * Passing a {@code null} {@link IndexSearcher} will return a valid context, however it won't be able to make
      * {@link IndexReader}-specific optimizations, such as rewriting containing range queries.
      */

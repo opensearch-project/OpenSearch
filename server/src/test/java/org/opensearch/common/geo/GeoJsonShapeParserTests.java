@@ -1169,9 +1169,9 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
     }
 
     public void testParseInvalidPolygon() throws IOException {
-        /**
-         * The following 3 test cases ensure proper error handling of invalid polygons
-         * per the GeoJSON specification
+        /*
+          The following 3 test cases ensure proper error handling of invalid polygons
+          per the GeoJSON specification
          */
         // test case 1: create an invalid polygon with only 2 points
         String invalidPoly = XContentFactory.jsonBuilder()

@@ -60,38 +60,38 @@ import org.opensearch.core.common.unit.ByteSizeValue;
  *
  * <ul>
  * <li><code>index.merge.policy.expunge_deletes_allowed</code>:
- *
+ * <p>
  *     When expungeDeletes is called, we only merge away a segment if its delete
  *     percentage is over this threshold. Default is <code>10</code>.
  *
  * <li><code>index.merge.policy.floor_segment</code>:
- *
+ * <p>
  *     Segments smaller than this are "rounded up" to this size, i.e. treated as
  *     equal (floor) size for merge selection. This is to prevent frequent
  *     flushing of tiny segments, thus preventing a long tail in the index. Default
  *     is <code>2mb</code>.
  *
  * <li><code>index.merge.policy.max_merge_at_once</code>:
- *
+ * <p>
  *     Maximum number of segments to be merged at a time during "normal" merging.
  *     Default is <code>10</code>.
  *
  * <li><code>index.merge.policy.max_merged_segment</code>:
- *
+ * <p>
  *     Maximum sized segment to produce during normal merging (not explicit
  *     force merge). This setting is approximate: the estimate of the merged
  *     segment size is made by summing sizes of to-be-merged segments
  *     (compensating for percent deleted docs). Default is <code>5gb</code>.
  *
  * <li><code>index.merge.policy.segments_per_tier</code>:
- *
+ * <p>
  *     Sets the allowed number of segments per tier. Smaller values mean more
  *     merging but fewer segments. Default is <code>10</code>. Note, this value needs to be
  *     &gt;= than the <code>max_merge_at_once</code> otherwise you'll force too many merges to
  *     occur.
  *
  * <li><code>index.merge.policy.deletes_pct_allowed</code>:
- *
+ * <p>
  *     Controls the maximum percentage of deleted documents that is tolerated in
  *     the index. Lower values make the index more space efficient at the
  *     expense of increased CPU and I/O activity. Values must be between <code>5</code> and

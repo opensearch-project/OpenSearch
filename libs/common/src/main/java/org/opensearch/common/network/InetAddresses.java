@@ -368,7 +368,7 @@ public class InetAddresses {
 
     /**
      * Convert a byte array into an InetAddress.
-     *
+     * <p>
      * {@link InetAddress#getByAddress} is documented as throwing a checked
      * exception "if IP address is of illegal length."  We replace it with
      * an unchecked exception, for use by callers who already know that addr
@@ -423,7 +423,7 @@ public class InetAddresses {
 
     /**
      * Given an address and prefix length, returns the string representation of the range in CIDR notation.
-     *
+     * <p>
      * See {@link #toAddrString} for details on how the address is represented.
      */
     public static String toCidrString(InetAddress address, int prefixLength) {

@@ -143,10 +143,10 @@ public final class ThreadContext implements Writeable {
      */
     public StoredContext stashContext() {
         final ThreadContextStruct context = threadLocal.get();
-        /**
-         * X-Opaque-ID should be preserved in a threadContext in order to propagate this across threads.
-         * This is needed so the DeprecationLogger in another thread can see the value of X-Opaque-ID provided by a user.
-         * Otherwise when context is stash, it should be empty.
+        /*
+          X-Opaque-ID should be preserved in a threadContext in order to propagate this across threads.
+          This is needed so the DeprecationLogger in another thread can see the value of X-Opaque-ID provided by a user.
+          Otherwise when context is stash, it should be empty.
          */
 
         ThreadContextStruct threadContextStruct = DEFAULT_CONTEXT.putPersistent(context.persistentHeaders);

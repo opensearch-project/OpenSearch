@@ -110,6 +110,7 @@ abstract class AbstractTasksIT extends OpenSearchIntegTestCase {
 
     /**
      * Returns all events that satisfy the criteria across all nodes
+     * TODO : This javadoc is wrong. it's a copy paste from numberOfEvents (the method above)
      *
      * @param actionMasks action masks to match
      * @return number of events that satisfy the criteria

@@ -46,7 +46,7 @@ import java.util.Arrays;
 
 /**
  * Request the mappings of specific fields
- *
+ * <p>
  * Note: there is a new class with the same name for the Java HLRC that uses a typeless format.
  * Any changes done to this class should go to that client class as well.
  *
