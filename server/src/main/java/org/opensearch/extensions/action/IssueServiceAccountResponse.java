@@ -62,7 +62,7 @@ public class IssueServiceAccountResponse extends TransportResponse {
 
     @Override
     public String toString() {
-        return "IssueServiceAccountResponse{" + "name = " + name + " , " + "received a service account." + "}";
+        return "IssueServiceAccountResponse{" + "name = " + name + ", " + "received a service account." + "}";
     }
 
     @Override
