@@ -79,7 +79,7 @@ class ShiroTokenManager implements TokenManager {
     public AuthToken issueServiceAccountToken(String audience) {
 
         String password = generatePassword();
-        final byte[] rawEncoded = Base64.getEncoder().withoutPadding().encode((audience + ":" + password).getBytes(UTF_8)); // Make a new
+        final byte[] rawEncoded = Base64.getUrlEncoder().withoutPadding().encode((audience + ":" + password).getBytes(UTF_8)); // Make a new
         final String usernamePassword = new String(rawEncoded, UTF_8);
         final String header = "Basic " + usernamePassword;
 
