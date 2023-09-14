@@ -102,7 +102,7 @@ public class CollectionUtils {
     }
 
     /**
-     * In place de-duplicates items in a list<p>
+     * In place de-duplicates items in a list
      * Noop if the list is empty or has one item.
      *
      * @throws NullPointerException if the list is `null` or comparator is `null`
