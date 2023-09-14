@@ -32,10 +32,14 @@
 
 package org.opensearch.index.rankeval;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.support.IndicesOptions;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.query.MatchAllQueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
@@ -43,7 +47,7 @@ import org.opensearch.index.rankeval.PrecisionAtK.Detail;
 import org.opensearch.indices.IndexClosedException;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.search.builder.SearchSourceBuilder;
-import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -54,14 +58,32 @@ import java.util.Map.Entry;
 import java.util.Set;
 
 import static org.opensearch.index.rankeval.EvaluationMetric.filterUnratedDocuments;
+import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class RankEvalRequestIT extends OpenSearchIntegTestCase {
+public class RankEvalRequestIT extends ParameterizedOpenSearchIntegTestCase {
 
     private static final String TEST_INDEX = "test";
     private static final String INDEX_ALIAS = "alias0";
     private static final int RELEVANT_RATING_1 = 1;
+
+    public RankEvalRequestIT(Settings dynamicSettings) {
+        super(dynamicSettings);
+    }
+
+    @ParametersFactory
+    public static Collection<Object[]> parameters() {
+        return Arrays.asList(
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
+        );
+    }
+
+    @Override
+    protected Settings featureFlagSettings() {
+        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
