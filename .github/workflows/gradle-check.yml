@@ -76,16 +76,26 @@ jobs:
         with:
           files: ./codeCoverage.xml
 
+      - name: Find Comment
+        uses: peter-evans/find-comment@v2
+        id: fc
+        with:
+          issue-number: ${{ github.event.number }}
+          comment-author: 'github-actions[bot]'
+          body-includes: 'Gradle Check (Jenkins) Run Completed'
+
       - name: Create Comment Success
         if: ${{ github.event_name == 'pull_request_target' && success() && env.result == 'SUCCESS' }}
         uses: peter-evans/create-or-update-comment@v3
         with:
+          comment-id: ${{ steps.fc.outputs.comment-id }}
           issue-number: ${{ env.pr_number }}
           body: |
             ### Gradle Check (Jenkins) Run Completed with:
             * **RESULT:** ${{ env.result }} :white_check_mark:
             * **URL:** ${{ env.workflow_url }}
             * **CommitID:** ${{ env.pr_from_sha }}
+          edit-mode: replace
 
       - name: Extract Test Failure
         if: ${{ github.event_name == 'pull_request_target' && env.result != 'SUCCESS' }}
@@ -106,6 +116,7 @@ jobs:
         if: ${{ github.event_name == 'pull_request_target' && success() && env.result != 'SUCCESS' }}
         uses: peter-evans/create-or-update-comment@v3
         with:
+          comment-id: ${{ steps.fc.outputs.comment-id }}
           issue-number: ${{ env.pr_number }}
           body: |
             ### Gradle Check (Jenkins) Run Completed with:
@@ -113,11 +124,13 @@ jobs:
             * **URL:** ${{ env.workflow_url }}
             * **CommitID:** ${{ env.pr_from_sha }}
             Please review all [flaky tests](https://github.com/opensearch-project/OpenSearch/blob/main/DEVELOPER_GUIDE.md#flaky-tests) that succeeded after retry and create an issue if one does not already exist to track the flaky failure.
+          edit-mode: replace
 
       - name: Create Comment Failure
         if: ${{ github.event_name == 'pull_request_target' && failure() }}
         uses: peter-evans/create-or-update-comment@v3
         with:
+          comment-id: ${{ steps.fc.outputs.comment-id }}
           issue-number: ${{ env.pr_number }}
           body: |
             ### Gradle Check (Jenkins) Run Completed with:
@@ -126,6 +139,7 @@ jobs:
             * **CommitID:** ${{ env.pr_from_sha }}
             Please examine the workflow log, locate, and copy-paste the failure(s) below, then iterate to green.
             Is the failure [a flaky test](https://github.com/opensearch-project/OpenSearch/blob/main/DEVELOPER_GUIDE.md#flaky-tests) unrelated to your change?
+          edit-mode: replace
 
       - name: Create Issue On Push Failure
         if: ${{ github.event_name == 'push' && failure() }}
