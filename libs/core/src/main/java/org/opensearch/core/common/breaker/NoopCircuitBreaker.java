@@ -140,7 +140,7 @@ public class NoopCircuitBreaker implements CircuitBreaker {
     }
 
     /**
-     * limit and overhead are constant for a noop breaker.
+     * Limit and overhead are constant for a noop breaker.
      * this is a noop.
      * @param limit the desired limit (ignored)
      * @param overhead the desired overhead (ignored)
