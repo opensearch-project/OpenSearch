@@ -43,8 +43,10 @@ def props = new Properties()
 project(":build-tools").file("version.properties").withInputStream { props.load(it) }
 
 dependencies {
-  testImplementation 'com.google.jimfs:jimfs:1.2'
-  testRuntimeOnly "com.google.guava:guava:${props.getProperty('guava')}"
+    testImplementation('com.google.jimfs:jimfs:1.2') {
+        exclude group: 'com.google.guava', module: 'guava'
+    }
+    testImplementation "com.google.guava:guava:${props.getProperty('guava')}"
 }
 
 // TODO: give each evil test its own fresh JVM for more isolation.
@@ -66,7 +68,6 @@ thirdPartyAudit {
     'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
     'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
     'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
-    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$3',
     'com.google.common.hash.Striped64',
     'com.google.common.hash.Striped64$1',
     'com.google.common.hash.Striped64$Cell',
