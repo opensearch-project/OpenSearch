@@ -39,9 +39,12 @@ import org.opensearch.gradle.info.BuildParams
 apply plugin: 'opensearch.testclusters'
 apply plugin: 'opensearch.standalone-test'
 
+def props = new Properties()
+project(":build-tools").file("version.properties").withInputStream { props.load(it) }
+
 dependencies {
   testImplementation 'com.google.jimfs:jimfs:1.2'
-  testRuntimeOnly 'com.google.guava:guava:32.0.1-jre'
+  testRuntimeOnly "com.google.guava:guava:${props.getProperty('guava')}"
 }
 
 // TODO: give each evil test its own fresh JVM for more isolation.
