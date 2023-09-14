@@ -35,38 +35,41 @@ package org.opensearch.ingest.common;
 import org.opensearch.OpenSearchException;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.util.set.Sets;
+import org.opensearch.ingest.TestTemplateService;
 import org.opensearch.test.OpenSearchTestCase;
+import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.nullValue;
-
 public class KeyValueProcessorFactoryTests extends OpenSearchTestCase {
 
+    private KeyValueProcessor.Factory factory;
+
+    @Before
+    public void init() {
+        factory = new KeyValueProcessor.Factory(TestTemplateService.instance());
+    }
+
     public void testCreateWithDefaults() throws Exception {
-        KeyValueProcessor.Factory factory = new KeyValueProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
         config.put("field", "field1");
         config.put("field_split", "&");
         config.put("value_split", "=");
         String processorTag = randomAlphaOfLength(10);
         KeyValueProcessor processor = factory.create(null, processorTag, null, config);
-        assertThat(processor.getTag(), equalTo(processorTag));
-        assertThat(processor.getField(), equalTo("field1"));
-        assertThat(processor.getFieldSplit(), equalTo("&"));
-        assertThat(processor.getValueSplit(), equalTo("="));
-        assertThat(processor.getIncludeKeys(), is(nullValue()));
-        assertThat(processor.getTargetField(), is(nullValue()));
+        assertEquals(processor.getTag(), processorTag);
+        assertEquals(processor.getField().newInstance(Collections.emptyMap()).execute(), "field1");
+        assertEquals(processor.getFieldSplit(), "&");
+        assertEquals(processor.getValueSplit(), "=");
+        assertEquals(processor.getIncludeKeys(), null);
+        assertEquals(processor.getTargetField(), null);
         assertFalse(processor.isIgnoreMissing());
     }
 
     public void testCreateWithAllFieldsSet() throws Exception {
-        KeyValueProcessor.Factory factory = new KeyValueProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
         config.put("field", "field1");
         config.put("field_split", "&");
@@ -77,29 +80,27 @@ public class KeyValueProcessorFactoryTests extends OpenSearchTestCase {
         config.put("ignore_missing", true);
         String processorTag = randomAlphaOfLength(10);
         KeyValueProcessor processor = factory.create(null, processorTag, null, config);
-        assertThat(processor.getTag(), equalTo(processorTag));
-        assertThat(processor.getField(), equalTo("field1"));
-        assertThat(processor.getFieldSplit(), equalTo("&"));
-        assertThat(processor.getValueSplit(), equalTo("="));
-        assertThat(processor.getIncludeKeys(), equalTo(Sets.newHashSet("a", "b")));
-        assertThat(processor.getExcludeKeys(), equalTo(Collections.emptySet()));
-        assertThat(processor.getTargetField(), equalTo("target"));
+        assertEquals(processor.getTag(), processorTag);
+        assertEquals(processor.getField().newInstance(Collections.emptyMap()).execute(), "field1");
+        assertEquals(processor.getFieldSplit(), "&");
+        assertEquals(processor.getValueSplit(), "=");
+        assertEquals(processor.getIncludeKeys(), Sets.newHashSet("a", "b"));
+        assertEquals(processor.getExcludeKeys(), Collections.emptySet());
+        assertEquals(processor.getTargetField().newInstance(Collections.emptyMap()).execute(), "target");
         assertTrue(processor.isIgnoreMissing());
     }
 
     public void testCreateWithMissingField() {
-        KeyValueProcessor.Factory factory = new KeyValueProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
         String processorTag = randomAlphaOfLength(10);
         OpenSearchException exception = expectThrows(
             OpenSearchParseException.class,
             () -> factory.create(null, processorTag, null, config)
         );
-        assertThat(exception.getMessage(), equalTo("[field] required property is missing"));
+        assertEquals(exception.getMessage(), "[field] required property is missing");
     }
 
     public void testCreateWithMissingFieldSplit() {
-        KeyValueProcessor.Factory factory = new KeyValueProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
         config.put("field", "field1");
         String processorTag = randomAlphaOfLength(10);
@@ -107,11 +108,10 @@ public class KeyValueProcessorFactoryTests extends OpenSearchTestCase {
             OpenSearchParseException.class,
             () -> factory.create(null, processorTag, null, config)
         );
-        assertThat(exception.getMessage(), equalTo("[field_split] required property is missing"));
+        assertEquals(exception.getMessage(), "[field_split] required property is missing");
     }
 
     public void testCreateWithMissingValueSplit() {
-        KeyValueProcessor.Factory factory = new KeyValueProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
         config.put("field", "field1");
         config.put("field_split", "&");
@@ -120,6 +120,6 @@ public class KeyValueProcessorFactoryTests extends OpenSearchTestCase {
             OpenSearchParseException.class,
             () -> factory.create(null, processorTag, null, config)
         );
-        assertThat(exception.getMessage(), equalTo("[value_split] required property is missing"));
+        assertEquals(exception.getMessage(), "[value_split] required property is missing");
     }
 }
