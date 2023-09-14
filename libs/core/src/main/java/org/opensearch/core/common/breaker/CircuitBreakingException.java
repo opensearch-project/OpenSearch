@@ -46,8 +46,11 @@ import java.io.IOException;
  */
 public class CircuitBreakingException extends OpenSearchException {
 
+    /** The number of bytes wanted */
     private final long bytesWanted;
+    /** The circuit breaker limit */
     private final long byteLimit;
+    /** The {@link CircuitBreaker.Durability} of the circuit breaker */
     private final CircuitBreaker.Durability durability;
 
     public CircuitBreakingException(StreamInput in) throws IOException {
@@ -88,6 +91,7 @@ public class CircuitBreakingException extends OpenSearchException {
         return durability;
     }
 
+    /** Always returns {@link RestStatus#TOO_MANY_REQUESTS} */
     @Override
     public RestStatus status() {
         return RestStatus.TOO_MANY_REQUESTS;
