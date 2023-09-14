@@ -177,7 +177,7 @@ public class GatewayMetaState implements Closeable {
                                 lastKnownClusterUUID = remoteClusterStateService.getLastKnownUUIDFromRemote(
                                     clusterState.getClusterName().value()
                                 );
-                                if (!ClusterState.UNKNOWN_UUID.equals(lastKnownClusterUUID)) {
+                                if (ClusterState.UNKNOWN_UUID.equals(lastKnownClusterUUID) == false) {
                                     // Load state from remote
                                     final RemoteRestoreResult remoteRestoreResult = remoteStoreRestoreService.restore(
                                         clusterState,
@@ -683,8 +683,15 @@ public class GatewayMetaState implements Closeable {
                             clusterState.getClusterName().value(),
                             clusterState.metadata().clusterUUID()
                         );
-                        logger.error("Latest manifest is not present in remote store for cluster UUID: {}", clusterState.metadata().clusterUUID());
-                        previousClusterUUID = latestManifest.isPresent() ? latestManifest.get().getPreviousClusterUUID(): ClusterState.UNKNOWN_UUID;
+                        if (latestManifest.isPresent()) {
+                            previousClusterUUID = latestManifest.get().getPreviousClusterUUID();
+                        } else {
+                            logger.error(
+                                "Latest manifest is not present in remote store for cluster UUID: {}",
+                                clusterState.metadata().clusterUUID()
+                            );
+                            previousClusterUUID = ClusterState.UNKNOWN_UUID;
+                        }
                     }
                     manifest = remoteClusterStateService.writeFullMetadata(clusterState, previousClusterUUID);
                 } else {
@@ -735,7 +742,7 @@ public class GatewayMetaState implements Closeable {
             try {
                 assert lastAcceptedState != null : "Last accepted state is not present";
                 assert lastAcceptedManifest != null : "Last accepted manifest is not present";
-                ClusterState clusterState = null;
+                ClusterState clusterState = lastAcceptedState;
                 if (lastAcceptedState.metadata().clusterUUID().equals(Metadata.UNKNOWN_CLUSTER_UUID) == false
                     && lastAcceptedState.metadata().clusterUUIDCommitted() == false) {
                     Metadata.Builder metadataBuilder = Metadata.builder(lastAcceptedState.metadata());
@@ -743,13 +750,11 @@ public class GatewayMetaState implements Closeable {
                     clusterState = ClusterState.builder(lastAcceptedState).metadata(metadataBuilder).build();
                 }
                 final ClusterMetadataManifest committedManifest = remoteClusterStateService.markLastStateAsCommitted(
-                    lastAcceptedState,
+                    clusterState,
                     lastAcceptedManifest
                 );
                 lastAcceptedManifest = committedManifest;
-                if (clusterState != null) {
-                    lastAcceptedState = clusterState;
-                }
+                lastAcceptedState = clusterState;
             } catch (Exception e) {
                 handleExceptionOnWrite(e);
             }

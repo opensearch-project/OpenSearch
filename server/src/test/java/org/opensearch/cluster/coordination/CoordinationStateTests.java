@@ -60,6 +60,7 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 import static java.util.Collections.emptyMap;
@@ -70,6 +71,9 @@ import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_ST
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 public class CoordinationStateTests extends OpenSearchTestCase {
 
@@ -972,7 +976,24 @@ public class CoordinationStateTests extends OpenSearchTestCase {
         assertThat(persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE).getLastAcceptedState(), equalTo(clusterState));
 
         coordinationState.handlePreCommit();
-        Mockito.verify(remoteClusterStateService, Mockito.times(1)).markLastStateAsCommitted(clusterState, manifest);
+        ClusterState committedClusterState = ClusterState.builder(clusterState)
+            .metadata(Metadata.builder(clusterState.metadata()).clusterUUIDCommitted(true).build())
+            .build();
+        // Mockito.verify(remoteClusterStateService, Mockito.times(1)).markLastStateAsCommitted(committedClusterState, manifest);
+        ArgumentCaptor<ClusterState> clusterStateCaptor = ArgumentCaptor.forClass(ClusterState.class);
+        verify(remoteClusterStateService, times(1)).markLastStateAsCommitted(clusterStateCaptor.capture(), any());
+        assertThat(clusterStateCaptor.getValue().metadata().indices(), equalTo(committedClusterState.metadata().indices()));
+        assertThat(clusterStateCaptor.getValue().metadata().clusterUUID(), equalTo(committedClusterState.metadata().clusterUUID()));
+        assertThat(clusterStateCaptor.getValue().stateUUID(), equalTo(committedClusterState.stateUUID()));
+        assertThat(
+            clusterStateCaptor.getValue().coordinationMetadata().term(),
+            equalTo(committedClusterState.coordinationMetadata().term())
+        );
+        assertThat(clusterStateCaptor.getValue().version(), equalTo(committedClusterState.version()));
+        assertThat(
+            clusterStateCaptor.getValue().metadata().clusterUUIDCommitted(),
+            equalTo(committedClusterState.metadata().clusterUUIDCommitted())
+        );
     }
 
     public static CoordinationState createCoordinationState(
