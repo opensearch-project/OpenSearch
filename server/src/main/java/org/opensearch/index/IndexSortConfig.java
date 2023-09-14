@@ -143,6 +143,7 @@ public final class IndexSortConfig {
 
     // visible for tests
     final FieldSortSpec[] sortSpecs;
+    final boolean shouldWidenIndexSortTpe;
 
     public IndexSortConfig(IndexSettings indexSettings) {
         final Settings settings = indexSettings.getSettings();
@@ -182,6 +183,7 @@ public final class IndexSortConfig {
                 sortSpecs[i].missingValue = missingValues.get(i);
             }
         }
+        this.shouldWidenIndexSortTpe = indexSettings.shouldWidenIndexSortType();
     }
 
     /**
@@ -200,7 +202,6 @@ public final class IndexSortConfig {
      * or returns null if this index has no sort.
      */
     public Sort buildIndexSort(
-        boolean shouldWidenIndexSortTpe,
         Function<String, MappedFieldType> fieldTypeLookup,
         BiFunction<MappedFieldType, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataLookup
     ) {
@@ -231,7 +232,7 @@ public final class IndexSortConfig {
             if (fieldData == null) {
                 throw new IllegalArgumentException("docvalues not found for index sort field:[" + sortSpec.field + "]");
             }
-            if (shouldWidenIndexSortTpe == true) {
+            if (this.shouldWidenIndexSortTpe == true) {
                 sortFields[i] = fieldData.wideSortField(sortSpec.missingValue, mode, null, reverse);
             } else {
                 sortFields[i] = fieldData.sortField(sortSpec.missingValue, mode, null, reverse);
