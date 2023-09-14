@@ -81,15 +81,12 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
 
         private final boolean floatingPoint;
         private final ValuesSourceType valuesSourceType;
-        private SortField.Type sortFieldType;
-
-        private boolean usePointBasedOptimization;
+        private final SortField.Type sortFieldType;
 
         NumericType(boolean floatingPoint, SortField.Type sortFieldType, ValuesSourceType valuesSourceType) {
             this.floatingPoint = floatingPoint;
             this.sortFieldType = sortFieldType;
             this.valuesSourceType = valuesSourceType;
-            this.usePointBasedOptimization = true;
         }
 
         public final boolean isFloatingPoint() {
@@ -98,12 +95,6 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
 
         public final ValuesSourceType getValuesSourceType() {
             return valuesSourceType;
-        }
-
-        public void setSortFieldType(SortField.Type type) {
-            this.sortFieldType = type;
-            this.usePointBasedOptimization = false; // Disable optimization if we set this
-                                                    // This means indexed point type might be different compare to mapping type
         }
     }
 
@@ -145,9 +136,6 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
             : SortedNumericSelector.Type.MIN;
         SortField sortField = new SortedNumericSortField(getFieldName(), getNumericType().sortFieldType, reverse, selectorType);
         sortField.setMissingValue(source.missingObject(missingValue, reverse));
-        if (getNumericType().usePointBasedOptimization == false) {
-            sortField.setOptimizeSortWithPoints(false);
-        }
         return sortField;
     }
 
@@ -165,11 +153,20 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
 
     @Override
     public final SortField wideSortField(Object missingValue, MultiValueMode sortMode, Nested nested, boolean reverse) {
-        switch (getNumericType().sortFieldType) {
-            case INT:
-                getNumericType().setSortFieldType(NumericType.LONG.sortFieldType);
-                break;
+        // This is to support backward compatibility, the minimum number of bytes prior to OpenSearch 2.7 were 8 bytes,
+        // i.e all sort fields were upcasted to Long/Double with 16 bytes.
+        // Now from OpenSearch 2.7, the minimum number of bytes for sort field is 8 bytes, so if it comes as SortField INT,
+        // we need to up caste it to LONG to support backward compatibility info stored in segment info
+        if (getNumericType().sortFieldType == SortField.Type.INT) {
+            XFieldComparatorSource source = comparatorSource(NumericType.LONG, missingValue, sortMode, nested);
+            SortedNumericSelector.Type selectorType = sortMode == MultiValueMode.MAX
+                ? SortedNumericSelector.Type.MAX
+                : SortedNumericSelector.Type.MIN;
+            SortField sortField = new SortedNumericSortField(getFieldName(), SortField.Type.LONG, reverse, selectorType);
+            sortField.setMissingValue(source.missingObject(missingValue, reverse));
+            return sortField;
         }
+        // If already more than INT, up caste not needed.
         return sortField(getNumericType(), missingValue, sortMode, nested, reverse);
     }
 
@@ -242,10 +239,6 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
                 source = new LongValuesComparatorSource(this, missingValue, sortMode, nested);
                 break;
             default:
-                if (getNumericType().sortFieldType == SortField.Type.LONG) {
-                    // Always consider Long source for sortField.Type Long in default
-                    return new LongValuesComparatorSource(this, missingValue, sortMode, nested);
-                }
                 assert !targetNumericType.isFloatingPoint();
                 source = new IntValuesComparatorSource(this, missingValue, sortMode, nested);
         }
