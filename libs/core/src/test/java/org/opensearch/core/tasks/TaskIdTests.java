@@ -98,8 +98,12 @@ public class TaskIdTests extends OpenSearchTestCase {
             taskId.writeTo(out);
             byte[] bytes = out.toByteArray();
             TaskId taskId2 = TaskId.readFromBytes(bytes);
-            assertEquals(taskId.getId(), taskId2.getTaskIdProto().getId());
-            assertEquals(taskId.getNodeId(), taskId2.getTaskIdProto().getNodeId());
+            if (taskId.equals(TaskId.EMPTY_TASK_ID)) {
+                assertEquals(0, taskId2.getTaskIdProto().getSerializedSize());
+            } else {
+                assertEquals(taskId.getId(), taskId2.getTaskIdProto().getId());
+                assertEquals(taskId.getNodeId(), taskId2.getTaskIdProto().getNodeId());
+            }
             return taskId2;
         }
     }

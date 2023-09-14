@@ -56,7 +56,7 @@ public final class TaskId implements Writeable, ProtobufWriteable {
 
     public static final TaskId EMPTY_TASK_ID = new TaskId();
 
-    private final TaskIdProto.TaskId taskIdProto;
+    private TaskIdProto.TaskId taskIdProto;
 
     private final String nodeId;
     private final long id;
@@ -76,7 +76,11 @@ public final class TaskId implements Writeable, ProtobufWriteable {
     private TaskId() {
         nodeId = "";
         id = -1;
-        taskIdProto = TaskIdProto.TaskId.newBuilder().setId(id).build();
+        try {
+            taskIdProto = TaskIdProto.TaskId.parseFrom(new byte[0]);
+        } catch (IOException ex) {
+            throw new IllegalArgumentException("malformed task id ", ex);
+        }
     }
 
     public TaskId(String taskId) {
@@ -95,7 +99,11 @@ public final class TaskId implements Writeable, ProtobufWriteable {
         } else {
             nodeId = "";
             id = -1L;
-            taskIdProto = TaskIdProto.TaskId.newBuilder().setId(id).build();
+            try {
+                taskIdProto = TaskIdProto.TaskId.parseFrom(new byte[0]);
+            } catch (IOException ex) {
+                throw new IllegalArgumentException("malformed task id ", ex);
+            }
         }
     }
 
