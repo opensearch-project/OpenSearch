@@ -470,7 +470,7 @@ public class ExtensionsManager {
             public void handleResponse(IssueServiceAccountResponse response) {
                 for (DiscoveryExtensionNode extension : extensionIdMap.values()) {
                     if (extension.getName().equals(response.getName())
-                        && (serviceAccountToken.equals(response.getServiceAccountString()))) {
+                        && (serviceAccountToken.equals(response.getServiceAccount()))) {
                         logger.info("Successfully issued service account token to extension: " + extension.getName());
                         break;
                     }

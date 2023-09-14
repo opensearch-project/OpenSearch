@@ -21,14 +21,14 @@ public class IssueServiceAccountResponseTests extends OpenSearchTestCase {
         IssueServiceAccountResponse response = new IssueServiceAccountResponse(extensionName, serviceAccountToken);
 
         assertEquals(extensionName, response.getName());
-        assertEquals(serviceAccountToken, response.getServiceAccountString());
+        assertEquals(serviceAccountToken, response.getServiceAccount());
 
         BytesStreamOutput out = new BytesStreamOutput();
         response.writeTo(out);
         BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()));
         response = new IssueServiceAccountResponse(in);
         assertEquals(extensionName, response.getName());
-        assertEquals(serviceAccountToken, response.getServiceAccountString());
+        assertEquals(serviceAccountToken, response.getServiceAccount());
 
         IssueServiceAccountResponse response2 = new IssueServiceAccountResponse(extensionName, serviceAccountToken);
 
