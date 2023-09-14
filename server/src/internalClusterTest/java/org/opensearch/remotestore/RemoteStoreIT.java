@@ -352,7 +352,7 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
             .get();
     }
 
-    public void testAnotherUUID() throws Exception {
+    public void testRestoreSnapshotToIndexWithSameNameDifferentUUID() throws Exception {
         internalCluster().startClusterManagerOnlyNode();
         List<String> dataNodes = internalCluster().startDataOnlyNodes(2);
 
