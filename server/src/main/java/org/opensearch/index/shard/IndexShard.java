@@ -2356,7 +2356,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         synchronized (engineMutex) {
             assert currentEngineReference.get() == null : "engine is running";
             verifyNotClosed();
-            if (indexSettings.isRemoteStoreEnabled())
+            if (indexSettings.isRemoteStoreEnabled()) {
                 // Download missing segments from remote segment store.
                 if (syncFromRemote) {
                     syncSegmentsFromRemoteSegmentStore(false);
