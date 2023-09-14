@@ -143,7 +143,7 @@ public class ActionModuleTests extends OpenSearchTestCase {
             usageService,
             null,
             new IdentityService(Settings.EMPTY, new ArrayList<>()),
-            new ExtensionsManager(Set.of())
+            new ExtensionsManager(Set.of(), new IdentityService(Settings.EMPTY, List.of()))
         );
         actionModule.initRestHandlers(null);
         // At this point the easiest way to confirm that a handler is loaded is to try to register another one on top of it and to fail

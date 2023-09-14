@@ -8,6 +8,7 @@
 
 package org.opensearch.extensions;
 
+import java.util.List;
 import org.opensearch.action.ActionModule;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.service.ClusterService;
@@ -31,7 +32,7 @@ import java.util.Set;
 public class NoopExtensionsManager extends ExtensionsManager {
 
     public NoopExtensionsManager() throws IOException {
-        super(Set.of());
+        super(Set.of(), new IdentityService(Settings.EMPTY, List.of()));
     }
 
     @Override

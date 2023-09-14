@@ -64,14 +64,28 @@ class ShiroTokenManager implements TokenManager {
     public AuthToken issueOnBehalfOfToken(Subject subject, OnBehalfOfClaims claims) {
 
         String password = generatePassword();
-        final byte[] rawEncoded = Base64.getEncoder().encode((claims.getAudience() + ":" + password).getBytes(UTF_8)); // Make a new
-                                                                                                                       // ShiroSubject w/
-                                                                                                                       // audience as name
+        final byte[] rawEncoded = Base64.getUrlEncoder().encode((claims.getAudience() + ":" + password).getBytes(UTF_8)); // Make a new
+        // ShiroSubject w/
+        // audience as
+        // name
         final String usernamePassword = new String(rawEncoded, UTF_8);
         final String header = "Basic " + usernamePassword;
         BasicAuthToken token = new BasicAuthToken(header);
         shiroTokenPasswordMap.put(token, password);
 
+        return token;
+    }
+
+    @Override
+    public AuthToken issueServiceAccountToken(String audience) {
+
+        String password = generatePassword();
+        final byte[] rawEncoded = Base64.getUrlEncoder().withoutPadding().encode((audience + ":" + password).getBytes(UTF_8)); // Make a new
+        final String usernamePassword = new String(rawEncoded, UTF_8);
+        final String header = "Basic " + usernamePassword;
+
+        BasicAuthToken token = new BasicAuthToken(header);
+        shiroTokenPasswordMap.put(token, password);
         return token;
     }
 
@@ -84,7 +98,7 @@ class ShiroTokenManager implements TokenManager {
         if (token instanceof BasicAuthToken) {
             final BasicAuthToken basicAuthToken = (BasicAuthToken) token;
             return basicAuthToken.getUser().equals(SecurityUtils.getSubject().toString())
-                && basicAuthToken.getPassword().equals(shiroTokenPasswordMap.get(basicAuthToken));
+                    && basicAuthToken.getPassword().equals(shiroTokenPasswordMap.get(basicAuthToken));
         }
         return false;
     }
@@ -126,10 +140,10 @@ class ShiroTokenManager implements TokenManager {
         CharacterRule specialCharacterRule = new CharacterRule(EnglishCharacterData.Special, 1);
 
         List<CharacterRule> rules = Arrays.asList(
-            lowercaseCharacterRule,
-            uppercaseCharacterRule,
-            numericCharacterRule,
-            specialCharacterRule
+                lowercaseCharacterRule,
+                uppercaseCharacterRule,
+                numericCharacterRule,
+                specialCharacterRule
         );
         PasswordGenerator passwordGenerator = new PasswordGenerator();
 
