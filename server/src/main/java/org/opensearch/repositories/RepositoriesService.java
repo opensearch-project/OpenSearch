@@ -262,7 +262,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                                 }
                                 repositoriesMetadata.add(updatedRepositoryMetadata);
                             } else {
-                                repositoriesMetadata.add(updatedRepositoryMetadata);
+                                repositoriesMetadata.add(repositoryMetadata);
                             }
                         }
                         if (!found) {
