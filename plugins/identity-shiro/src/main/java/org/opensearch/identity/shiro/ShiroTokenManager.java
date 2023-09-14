@@ -64,7 +64,7 @@ class ShiroTokenManager implements TokenManager {
     public AuthToken issueOnBehalfOfToken(Subject subject, OnBehalfOfClaims claims) {
 
         String password = generatePassword();
-        final byte[] rawEncoded = Base64.getEncoder().encode((claims.getAudience() + ":" + password).getBytes(UTF_8)); // Make a new
+        final byte[] rawEncoded = Base64.getUrlEncoder().encode((claims.getAudience() + ":" + password).getBytes(UTF_8)); // Make a new
                                                                                                                        // ShiroSubject w/
                                                                                                                        // audience as name
         final String usernamePassword = new String(rawEncoded, UTF_8);
