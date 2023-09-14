@@ -62,6 +62,53 @@ public class RestInitializeExtensionAction extends BaseRestHandler {
         this.extensionsManager = extensionsManager;
     }
 
+    private static Map<String, Object> unflattenMap(Map<String, Object> flatMap) {
+        Map<String, Object> unflattenedMap = new HashMap<>();
+
+        for (Map.Entry<String, Object> entry : flatMap.entrySet()) {
+            String[] keys = entry.getKey().split("\\.");
+            putNested(unflattenedMap, keys, entry.getValue());
+        }
+
+        return unflattenedMap;
+    }
+
+    private static void putNested(Map<String, Object> map, String[] keys, Object value) {
+        for (int i = 0; i < keys.length; i++) {
+            String key = keys[i];
+
+            if (i == keys.length - 1) {
+                map.put(key, value);
+            } else if (keys[i + 1].matches("\\d+")) {
+                int index = Integer.parseInt(keys[++i]);
+
+                List<Map<String, Object>> list;
+                if (map.containsKey(key)) {
+                    list = (List<Map<String, Object>>) map.get(key);
+                } else {
+                    list = new ArrayList<>();
+                    map.put(key, list);
+                }
+
+                while (list.size() <= index) {
+                    list.add(new HashMap<>());
+                }
+
+                map = list.get(index);
+            } else {
+                Map<String, Object> nestedMap;
+                if (map.containsKey(key)) {
+                    nestedMap = (Map<String, Object>) map.get(key);
+                } else {
+                    nestedMap = new HashMap<>();
+                    map.put(key, nestedMap);
+                }
+
+                map = nestedMap;
+            }
+        }
+    }
+
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         String name = null;
@@ -124,13 +171,19 @@ public class RestInitializeExtensionAction extends BaseRestHandler {
                 }
             }
 
-            Map<String, ?> additionalSettingsMap = extensionMap.entrySet()
+            Map<String, Object> additionalSettingsMap = extensionMap.entrySet()
                 .stream()
-                .filter(kv -> additionalSettingsKeys.contains(kv.getKey()))
-                .collect(Collectors.toMap(map -> map.getKey(), map -> map.getValue()));
+                    .filter(kv -> additionalSettingsKeys.stream().anyMatch(k -> {
+                        if (k.endsWith(".")) {
+                            return kv.getKey().startsWith(k);
+                        } else {
+                            return kv.getKey().equals(k);
+                        }
+                    })).collect(Collectors.toMap(map -> map.getKey(), map -> map.getValue()));
 
             Settings.Builder output = Settings.builder();
-            output.loadFromMap(additionalSettingsMap);
+            Map<String, Object> unflattenedMap = unflattenMap(additionalSettingsMap);
+            output.loadFromMap(unflattenedMap);
             extAdditionalSettings.applySettings(output.build());
 
             // Create extension read from initialization request

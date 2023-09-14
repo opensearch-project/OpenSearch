@@ -29,4 +29,6 @@ public interface TokenManager {
      * @return The authenticated subject
      */
     public Subject authenticateToken(AuthToken authToken);
+
+
 }

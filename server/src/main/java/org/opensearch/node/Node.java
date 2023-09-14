@@ -497,6 +497,7 @@ public class Node implements Closeable {
                     additionalSettings.addAll(extAwarePlugin.getExtensionSettings());
                 }
                 this.extensionsManager = new ExtensionsManager(additionalSettings);
+                this.extensionsManager.setIdentityService(identityService);
             } else {
                 this.extensionsManager = new NoopExtensionsManager();
             }

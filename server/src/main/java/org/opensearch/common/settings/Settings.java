@@ -271,6 +271,21 @@ public final class Settings implements ToXContentFragment {
     }
 
     /**
+     * Returns a setting value based on the setting key.
+     */
+    public Settings getNestedSettings(String key) {
+        return (Settings) settings.get(key);
+    }
+
+    /**
+     * Returns a setting value based on the setting key.
+     */
+    public List<Settings> getNestedListOfSettings(String key) {
+        return (List<Settings>) settings.get(key);
+    }
+
+
+    /**
      * Returns the setting value (as float) associated with the setting key. If it does not exists,
      * returns the default value provided.
      */
@@ -666,6 +681,7 @@ public final class Settings implements ToXContentFragment {
                 fromXContent(parser, keyBuilder, builder, allowNullValues);
             } else if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
                 List<String> list = new ArrayList<>();
+                List<Object> listOfObjects = new ArrayList<>();
                 while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
                     if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
                         list.add(parser.text());
@@ -674,12 +690,19 @@ public final class Settings implements ToXContentFragment {
                     } else if (parser.currentToken() == XContentParser.Token.VALUE_BOOLEAN) {
                         list.add(String.valueOf(parser.text()));
                     } else {
-                        throw new IllegalStateException("only value lists are allowed in serialized settings");
+                        listOfObjects.add(fromXContent(parser, true, false));
+                        //throw new IllegalStateException("only value lists are allowed in serialized settings");
                     }
                 }
                 String key = keyBuilder.toString();
                 validateValue(key, list, parser, allowNullValues);
                 builder.putList(key, list);
+            if (!listOfObjects.isEmpty()) {
+                builder.putListOfObjects(key, listOfObjects);
+            }
+            if (!list.isEmpty() && !listOfObjects.isEmpty()) {
+                throw new IllegalStateException("list cannot contain both values and objects");
+            }
             } else if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
                 String key = keyBuilder.toString();
                 validateValue(key, null, parser, allowNullValues);
@@ -784,6 +807,20 @@ public final class Settings implements ToXContentFragment {
          */
         public String get(String key) {
             return Settings.toString(map.get(key));
+        }
+
+        /**
+         * Returns a setting value based on the setting key.
+         */
+        public Settings getNestedSettings(String key) {
+            return (Settings) map.get(key);
+        }
+
+        /**
+         * Returns a setting value based on the setting key.
+         */
+        public List<Settings> getNestedListOfSettings(String key) {
+            return (List<Settings>) map.get(key);
         }
 
         /** Return the current secure settings, or {@code null} if none have been set. */
@@ -1018,6 +1055,19 @@ public final class Settings implements ToXContentFragment {
          * @return The builder
          */
         public Builder putList(String setting, List<String> values) {
+            remove(setting);
+            map.put(setting, new ArrayList<>(values));
+            return this;
+        }
+
+        /**
+         * Sets the setting with the provided setting key and a list of values.
+         *
+         * @param setting The setting key
+         * @param values  The values
+         * @return The builder
+         */
+        public Builder putListOfObjects(String setting, List<Object> values) {
             remove(setting);
             map.put(setting, new ArrayList<>(values));
             return this;
