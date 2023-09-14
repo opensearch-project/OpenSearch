@@ -1,4 +1,4 @@
-name: Gradle Precommit and Asssemble
+name: Gradle Precommit and Assemble
 on: [pull_request]
 
 jobs:
