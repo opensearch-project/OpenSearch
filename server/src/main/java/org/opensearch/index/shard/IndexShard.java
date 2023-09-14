@@ -2356,10 +2356,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         synchronized (engineMutex) {
             assert currentEngineReference.get() == null : "engine is running";
             verifyNotClosed();
-            if (indexSettings.isRemoteStoreEnabled() && syncFromRemote) {
-                syncSegmentsFromRemoteSegmentStore(false);
-            }
-            if (indexSettings.isRemoteTranslogStoreEnabled()) {
+            if (indexSettings.isRemoteStoreEnabled())
+                // Download missing segments from remote segment store.
+                if (syncFromRemote) {
+                    syncSegmentsFromRemoteSegmentStore(false);
+                }
                 if (shardRouting.primary()) {
                     if (syncFromRemote) {
                         syncRemoteTranslogAndUpdateGlobalCheckpoint();
@@ -2371,6 +2372,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         deleteTranslogFilesFromRemoteTranslog();
                     }
                 } else if (syncFromRemote) {
+                    // For replicas, when we download segments from remote segment store, we need to make sure that local
+                    // translog is having the same UUID that is referred by the segments. If they are different, engine open
+                    // fails with TranslogCorruptedException. It is safe to create empty translog for remote store enabled
+                    // indices as replica would only need to read translog in failover scenario and we always fetch data
+                    // from remote translog at the time of failover.
                     final SegmentInfos lastCommittedSegmentInfos = store().readLastCommittedSegmentsInfo();
                     final String translogUUID = lastCommittedSegmentInfos.userData.get(TRANSLOG_UUID_KEY);
                     final long checkpoint = Long.parseLong(lastCommittedSegmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
