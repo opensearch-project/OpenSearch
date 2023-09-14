@@ -56,7 +56,7 @@ public class IssueServiceAccountResponse extends TransportResponse {
         return this.name;
     }
 
-    public String getServiceAccountString() {
+    public String getServiceAccount() {
         return this.serviceAccountToken;
     }
 
