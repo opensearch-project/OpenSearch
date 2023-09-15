@@ -506,6 +506,9 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
 
     protected abstract FetchResult<NodeGatewayStartedShards> fetchData(ShardRouting shard, RoutingAllocation allocation);
 
+    /**
+     * This class encapsulates the result of a call to {@link #buildNodeShardsResult}
+     */
     protected static class NodeShardsResult {
         final NodeShardStates orderedAllocationCandidates;
         final int allocationsFound;
@@ -516,6 +519,9 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
         }
     }
 
+    /**
+     * This class encapsulates the result of a call to {@link #buildNodesToAllocate(RoutingAllocation, NodeShardStates, ShardRouting, boolean)}
+     * */
     protected static class NodesToAllocate {
         final List<? extends DecidedNode> yesNodeShards;
         final List<? extends DecidedNode> throttleNodeShards;
