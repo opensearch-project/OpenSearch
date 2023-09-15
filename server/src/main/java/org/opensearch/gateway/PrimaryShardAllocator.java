@@ -150,8 +150,7 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
                     nodeGatewayStartedShard.primary(),
                     nodeGatewayStartedShard.replicationCheckpoint(),
                     nodeGatewayStartedShard.storeException()
-                ),
-                node
+                )
             );
         });
         return nodeShardStates;
@@ -425,7 +424,7 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
                         + nodeShardState.storeException();
                 numberOfAllocationsFound++;
                 if (matchAnyShard || inSyncAllocationIds.contains(nodeShardState.allocationId())) {
-                    nodeShardStates.add(nodeShardState, nodeShardState.getNode());
+                    nodeShardStates.add(nodeShardState);
                 }
             }
         }
