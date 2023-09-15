@@ -21,8 +21,14 @@
 
 package org.opensearch.encryption.frame;
 
+import org.opensearch.ExceptionsHelper;
+
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 
 import com.amazonaws.encryptionsdk.AwsCrypto;
 import com.amazonaws.encryptionsdk.MasterKey;
@@ -72,6 +78,7 @@ public class CryptoInputStream<K extends MasterKey<K>> extends InputStream {
     private boolean hasFinalCalled_;
     private boolean hasProcessBytesCalled_;
     private final boolean isLastPart_;
+    private final ExecutorService cryptoExecutor;
 
     /**
      * Constructs a CryptoInputStream that wraps the provided InputStream object. It performs
@@ -88,6 +95,19 @@ public class CryptoInputStream<K extends MasterKey<K>> extends InputStream {
         inputStream_ = Utils.assertNonNull(inputStream, "inputStream");
         cryptoHandler_ = Utils.assertNonNull(cryptoHandler, "cryptoHandler");
         isLastPart_ = isLastPart;
+        cryptoExecutor = null;
+    }
+
+    CryptoInputStream(
+        final InputStream inputStream,
+        final MessageCryptoHandler cryptoHandler,
+        boolean isLastPart,
+        ExecutorService cryptoExecutor
+    ) {
+        inputStream_ = Utils.assertNonNull(inputStream, "inputStream");
+        cryptoHandler_ = Utils.assertNonNull(cryptoHandler, "cryptoHandler");
+        isLastPart_ = isLastPart;
+        this.cryptoExecutor = cryptoExecutor;
     }
 
     /**
@@ -166,7 +186,26 @@ public class CryptoInputStream<K extends MasterKey<K>> extends InputStream {
             // Block until a byte is read or end of stream in the underlying
             // stream is reached.
             while (newBytesLen == 0) {
-                newBytesLen = fillOutBytes();
+                if (cryptoExecutor != null) {
+                    Callable<Integer> cryptoCallable = this::fillOutBytes;
+                    Future<Integer> cryptoFuture = cryptoExecutor.submit(cryptoCallable);
+                    try {
+                        newBytesLen = cryptoFuture.get();
+                    } catch (ExecutionException e) {
+                        Throwable t = ExceptionsHelper.unwrap(e, BadCiphertextException.class, IllegalArgumentException.class);
+                        if (t instanceof BadCiphertextException) {
+                            throw (BadCiphertextException) t;
+                        } else if (t instanceof IllegalArgumentException) {
+                            throw (IllegalArgumentException) t;
+                        } else {
+                            throw new RuntimeException(e);
+                        }
+                    } catch (Exception ex) {
+                        throw new RuntimeException(ex);
+                    }
+                } else {
+                    newBytesLen = fillOutBytes();
+                }
             }
             if (newBytesLen < 0) {
                 return -1;
