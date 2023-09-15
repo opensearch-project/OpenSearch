@@ -146,8 +146,11 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
     }
 
     public void testWideSortField() throws Exception {
+        if (this instanceof NoOrdinalsStringFieldDataTests || this instanceof PagedBytesStringFieldDataTests) {
+            return; // Numeric types are not supported there.
+        }
         // integer to long widening should happen
-        IndexFieldData<?> indexFieldData = getForField("integer", "value");
+        IndexFieldData<?> indexFieldData = getForField("int", "value");
         SortField sortField = indexFieldData.wideSortField(null, MultiValueMode.MIN, null, false);
         assertTrue(((SortedNumericSortField) sortField).getNumericType() == SortField.Type.LONG);
 
