@@ -191,6 +191,8 @@ public class TranslogTransferManager {
             captureStatsOnUploadFailure();
             translogTransferListener.onUploadFailed(transferSnapshot, ex);
             return false;
+        } finally {
+            translogTransferListener.close();
         }
     }
 

@@ -32,4 +32,8 @@ public interface TranslogTransferListener {
      * @throws IOException the exception during the transfer of data
      */
     void onUploadFailed(TransferSnapshot transferSnapshot, Exception ex) throws IOException;
+
+    default void close() {
+
+    }
 }
