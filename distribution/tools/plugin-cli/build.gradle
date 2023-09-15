@@ -45,11 +45,7 @@ dependencies {
     transitive = false
   }
 
-  implementation 'org.apache.commons:commons-compress:1.23.0'
-}
-
-configurations.implementation {
-  exclude group: 'org.bouncycastle', module: 'bcprov-jdk15to18'
+  implementation "org.apache.commons:commons-compress:${versions.commonscompress}"
 }
 
 tasks.named("dependencyLicenses").configure {

@@ -39,6 +39,7 @@ import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.junit.annotations.TestLogging;
 import org.opensearch.test.transport.MockTransportService;
@@ -79,7 +80,14 @@ public class RemoteClusterClientTests extends OpenSearchTestCase {
                 .put(onlyRole(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE))
                 .put("cluster.remote.test.seeds", remoteNode.getAddress().getAddress() + ":" + remoteNode.getAddress().getPort())
                 .build();
-            try (MockTransportService service = MockTransportService.createNewService(localSettings, Version.CURRENT, threadPool, null)) {
+            try (
+                MockTransportService service = MockTransportService.createNewService(
+                    localSettings,
+                    Version.CURRENT,
+                    threadPool,
+                    NoopTracer.INSTANCE
+                )
+            ) {
                 service.start();
                 // following two log lines added to investigate #41745, can be removed once issue is closed
                 logger.info("Start accepting incoming requests on local transport service");
@@ -118,7 +126,14 @@ public class RemoteClusterClientTests extends OpenSearchTestCase {
                 .put(onlyRole(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE))
                 .put("cluster.remote.test.seeds", remoteNode.getAddress().getAddress() + ":" + remoteNode.getAddress().getPort())
                 .build();
-            try (MockTransportService service = MockTransportService.createNewService(localSettings, Version.CURRENT, threadPool, null)) {
+            try (
+                MockTransportService service = MockTransportService.createNewService(
+                    localSettings,
+                    Version.CURRENT,
+                    threadPool,
+                    NoopTracer.INSTANCE
+                )
+            ) {
                 service.start();
                 // this test is not perfect since we might reconnect concurrently but it will fail most of the time if we don't have
                 // the right calls in place in the RemoteAwareClient
@@ -147,7 +162,9 @@ public class RemoteClusterClientTests extends OpenSearchTestCase {
 
     public void testRemoteClusterServiceNotEnabled() {
         final Settings settings = removeRoles(Collections.singleton(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE));
-        try (MockTransportService service = MockTransportService.createNewService(settings, Version.CURRENT, threadPool, null)) {
+        try (
+            MockTransportService service = MockTransportService.createNewService(settings, Version.CURRENT, threadPool, NoopTracer.INSTANCE)
+        ) {
             service.start();
             service.acceptIncomingRequests();
             final RemoteClusterService remoteClusterService = service.getRemoteClusterService();

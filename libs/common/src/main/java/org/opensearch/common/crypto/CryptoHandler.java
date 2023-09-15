@@ -11,6 +11,7 @@ package org.opensearch.common.crypto;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.io.InputStreamContainer;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 
@@ -18,11 +19,11 @@ import java.io.InputStream;
  * Crypto provider abstractions for encryption and decryption of data. Allows registering multiple providers
  * for defining different ways of encrypting or decrypting data.
  *
- * T - Encryption Metadata / CryptoContext
- * U - Parsed Encryption Metadata / CryptoContext
+ * @param <T> Encryption Metadata / CryptoContext
+ * @param <U> Parsed Encryption Metadata / CryptoContext
  */
 @ExperimentalApi
-public interface CryptoHandler<T, U> {
+public interface CryptoHandler<T, U> extends Closeable {
 
     /**
      * To initialise or create a new crypto metadata to be used in encryption. This is needed to set the context before
@@ -37,6 +38,7 @@ public interface CryptoHandler<T, U> {
      * Note that underlying information in the loaded metadata object is same as present in the object created during
      * encryption but object type may differ.
      *
+     * @param encryptedHeaderContentSupplier supplier for encrypted header content.
      * @return crypto metadata instance used in decryption.
      */
     U loadEncryptionMetadata(EncryptedHeaderContentSupplier encryptedHeaderContentSupplier) throws IOException;

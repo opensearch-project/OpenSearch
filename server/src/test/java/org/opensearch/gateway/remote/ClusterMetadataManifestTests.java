@@ -36,7 +36,8 @@ public class ClusterMetadataManifestTests extends OpenSearchTestCase {
             Version.CURRENT,
             "test-node-id",
             false,
-            Collections.singletonList(uploadedIndexMetadata)
+            Collections.singletonList(uploadedIndexMetadata),
+            "prev-cluster-uuid"
         );
         final XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
@@ -58,7 +59,8 @@ public class ClusterMetadataManifestTests extends OpenSearchTestCase {
             Version.CURRENT,
             "B10RX1f5RJenMQvYccCgSQ",
             true,
-            randomUploadedIndexMetadataList()
+            randomUploadedIndexMetadataList(),
+            "yfObdx8KSMKKrXf8UyHhM"
         );
         {  // Mutate Cluster Term
             EqualsHashCodeTestUtils.checkEqualsAndHashCode(
@@ -164,6 +166,22 @@ public class ClusterMetadataManifestTests extends OpenSearchTestCase {
                     return builder.build();
                 }
             );
+        }
+        { // Mutate Previous cluster UUID
+            EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+                initialManifest,
+                orig -> OpenSearchTestCase.copyWriteable(
+                    orig,
+                    new NamedWriteableRegistry(Collections.emptyList()),
+                    ClusterMetadataManifest::new
+                ),
+                manifest -> {
+                    ClusterMetadataManifest.Builder builder = ClusterMetadataManifest.builder(manifest);
+                    builder.previousClusterUUID("vZX62DCQEOzGXlxXCrEu");
+                    return builder.build();
+                }
+            );
+
         }
     }
 

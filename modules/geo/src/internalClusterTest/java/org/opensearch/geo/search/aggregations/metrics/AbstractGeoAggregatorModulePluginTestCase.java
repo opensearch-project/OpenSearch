@@ -65,6 +65,10 @@ public abstract class AbstractGeoAggregatorModulePluginTestCase extends GeoModul
     protected static Map<String, Integer> expectedDocCountsForGeoHash = null;
     protected static Map<String, GeoPoint> expectedCentroidsForGeoHash = null;
 
+    public AbstractGeoAggregatorModulePluginTestCase(Settings dynamicSettings) {
+        super(dynamicSettings);
+    }
+
     @Override
     public void setupSuiteScopeCluster() throws Exception {
         createIndex(UNMAPPED_IDX_NAME);
