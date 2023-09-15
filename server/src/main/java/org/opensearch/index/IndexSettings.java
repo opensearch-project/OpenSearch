@@ -860,9 +860,9 @@ public final class IndexSettings {
         setMergeOnFlushPolicy(scopedSettings.get(INDEX_MERGE_ON_FLUSH_POLICY));
         defaultSearchPipeline = scopedSettings.get(DEFAULT_SEARCH_PIPELINE);
         /* There was unintentional breaking change got introduced with [OpenSearch-6424](https://github.com/opensearch-project/OpenSearch/pull/6424) (version 2.7).
-         * For indices created prior version (prior to 2.7) which has IndexSort type, they used to type caste the SortField.Type
+         * For indices created prior version (prior to 2.7) which has IndexSort type, they used to type cast the SortField.Type
          * to higher bytes size like integer to long. This behavior was changed from OpenSearch 2.7 version not to
-         * up caste the SortField to gain some sort query optimizations.
+         * up cast the SortField to gain some sort query optimizations.
          * Now this sortField (IndexSort) is stored in SegmentInfo and we need to maintain backward compatibility for them.
          */
         widenIndexSortType = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings).before(V_2_7_0);

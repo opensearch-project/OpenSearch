@@ -143,7 +143,7 @@ public final class IndexSortConfig {
 
     // visible for tests
     final FieldSortSpec[] sortSpecs;
-    final boolean shouldWidenIndexSortTpe;
+    final boolean shouldWidenIndexSortType;
 
     public IndexSortConfig(IndexSettings indexSettings) {
         final Settings settings = indexSettings.getSettings();
@@ -183,7 +183,7 @@ public final class IndexSortConfig {
                 sortSpecs[i].missingValue = missingValues.get(i);
             }
         }
-        this.shouldWidenIndexSortTpe = indexSettings.shouldWidenIndexSortType();
+        this.shouldWidenIndexSortType = indexSettings.shouldWidenIndexSortType();
     }
 
     /**
@@ -232,7 +232,7 @@ public final class IndexSortConfig {
             if (fieldData == null) {
                 throw new IllegalArgumentException("docvalues not found for index sort field:[" + sortSpec.field + "]");
             }
-            if (this.shouldWidenIndexSortTpe == true) {
+            if (this.shouldWidenIndexSortType == true) {
                 sortFields[i] = fieldData.wideSortField(sortSpec.missingValue, mode, null, reverse);
             } else {
                 sortFields[i] = fieldData.sortField(sortSpec.missingValue, mode, null, reverse);

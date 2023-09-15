@@ -543,6 +543,14 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
             index = createIndex("test", settings, createTestMapping("long"));
             assertTrue(index.getIndexSortSupplier().get().getSort()[0].getType() == SortField.Type.LONG);
 
+            // Float index sort should be remained to float sort type
+            index = createIndex("test", settings, createTestMapping("float"));
+            assertTrue(index.getIndexSortSupplier().get().getSort()[0].getType() == SortField.Type.FLOAT);
+
+            // Double index sort should be remained to double sort type
+            index = createIndex("test", settings, createTestMapping("double"));
+            assertTrue(index.getIndexSortSupplier().get().getSort()[0].getType() == SortField.Type.DOUBLE);
+
             // String index sort should be remained to string sort type
             index = createIndex("test", settings, createTestMapping("string"));
             assertTrue(index.getIndexSortSupplier().get().getSort()[0].getType() == SortField.Type.STRING);
@@ -565,6 +573,14 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
             // Long index sort should be remained to long sort type
             index = createIndex("test", settings, createTestMapping("long"));
             assertTrue(index.getIndexSortSupplier().get().getSort()[0].getType() == SortField.Type.LONG);
+
+            // Float index sort should be remained to float sort type
+            index = createIndex("test", settings, createTestMapping("float"));
+            assertTrue(index.getIndexSortSupplier().get().getSort()[0].getType() == SortField.Type.FLOAT);
+
+            // Double index sort should be remained to double sort type
+            index = createIndex("test", settings, createTestMapping("double"));
+            assertTrue(index.getIndexSortSupplier().get().getSort()[0].getType() == SortField.Type.DOUBLE);
 
             // String index sort should be remained to string sort type
             index = createIndex("test", settings, createTestMapping("string"));

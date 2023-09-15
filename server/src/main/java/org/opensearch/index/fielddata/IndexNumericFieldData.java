@@ -156,7 +156,7 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
         // This is to support backward compatibility, the minimum number of bytes prior to OpenSearch 2.7 were 16 bytes,
         // i.e all sort fields were upcasted to Long/Double with 16 bytes.
         // Now from OpenSearch 2.7, the minimum number of bytes for sort field is 8 bytes, so if it comes as SortField INT,
-        // we need to up caste it to LONG to support backward compatibility info stored in segment info
+        // we need to up cast it to LONG to support backward compatibility info stored in segment info
         if (getNumericType().sortFieldType == SortField.Type.INT) {
             XFieldComparatorSource source = comparatorSource(NumericType.LONG, missingValue, sortMode, nested);
             SortedNumericSelector.Type selectorType = sortMode == MultiValueMode.MAX
@@ -166,7 +166,7 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
             sortField.setMissingValue(source.missingObject(missingValue, reverse));
             return sortField;
         }
-        // If already more than INT, up caste not needed.
+        // If already more than INT, up cast not needed.
         return sortField(getNumericType(), missingValue, sortMode, nested, reverse);
     }
 
@@ -243,7 +243,7 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
                 source = new IntValuesComparatorSource(this, missingValue, sortMode, nested);
         }
         if (targetNumericType != getNumericType()) {
-            source.disableSkipping(); // disable skipping logic for caste of sort field
+            source.disableSkipping(); // disable skipping logic for cast of sort field
         }
         return source;
     }
