@@ -631,6 +631,9 @@ public class RemoteClusterStateService implements Closeable {
             return Collections.emptyList();
         }
         if (validClusterUUIDs.size() > 1) {
+            // If the valid cluster UUIDs are more that 1, it means there was some race condition where
+            // more then 2 cluster manager nodes tried to become active cluster manager and published
+            // 2 cluster UUIDs which followed the same previous UUID.
             final Map<String, ClusterMetadataManifest> manifestsByClusterUUIDTrimmed = trimClusterUUIDs(
                 manifestsByClusterUUID,
                 validClusterUUIDs,
@@ -658,26 +661,35 @@ public class RemoteClusterStateService implements Closeable {
         return validChain;
     }
 
+    /**
+     * This method take a map of manifests for different cluster UUIDs and removes the
+     * manifest of a cluster UUID if the latest metadata for that cluster UUID is equivalent
+     * to the latest metadata of its previous UUID.
+     * @return Trimmed map of manifests
+     */
     private Map<String, ClusterMetadataManifest> trimClusterUUIDs(
-        final Map<String, ClusterMetadataManifest> manifestsByClusterUUID,
+        final Map<String, ClusterMetadataManifest> latestManifestsByClusterUUID,
         final List<String> validClusterUUIDs,
         final String clusterName
     ) {
-        final Map<String, ClusterMetadataManifest> manifestsByClusterUUIDTrimmed = new HashMap<>(manifestsByClusterUUID);
+        final Map<String, ClusterMetadataManifest> trimmedUUIDs = new HashMap<>(latestManifestsByClusterUUID);
         for (String clusterUUID : validClusterUUIDs) {
-            ClusterMetadataManifest currentManifest = manifestsByClusterUUIDTrimmed.get(clusterUUID);
+            ClusterMetadataManifest currentManifest = trimmedUUIDs.get(clusterUUID);
+            // Here we compare the manifest of current UUID to that of previous UUID
+            // In case currentUUID's latest manifest is same as previous UUIDs latest manifest,
+            // that means it was restored from previousUUID and no IndexMetadata update was performed on it.
             if (ClusterState.UNKNOWN_UUID.equals(currentManifest.getPreviousClusterUUID())) {
                 if (currentManifest.getIndices().isEmpty()) {
-                    manifestsByClusterUUIDTrimmed.remove(clusterUUID);
+                    trimmedUUIDs.remove(clusterUUID);
                 }
             } else {
-                ClusterMetadataManifest previousManifest = manifestsByClusterUUIDTrimmed.get(currentManifest.getPreviousClusterUUID());
+                ClusterMetadataManifest previousManifest = trimmedUUIDs.get(currentManifest.getPreviousClusterUUID());
                 if (isMetadataEqual(currentManifest, previousManifest, clusterName)) {
-                    manifestsByClusterUUIDTrimmed.remove(clusterUUID);
+                    trimmedUUIDs.remove(clusterUUID);
                 }
             }
         }
-        return manifestsByClusterUUIDTrimmed;
+        return trimmedUUIDs;
     }
 
     private boolean isMetadataEqual(ClusterMetadataManifest first, ClusterMetadataManifest second, String clusterName) {

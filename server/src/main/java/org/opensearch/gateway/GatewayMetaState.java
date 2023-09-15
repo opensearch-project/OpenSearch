@@ -684,8 +684,12 @@ public class GatewayMetaState implements Closeable {
                             clusterState.metadata().clusterUUID()
                         );
                         if (latestManifest.isPresent()) {
+                            // The previous UUID should not change for the current UUID. So fetching the latest manifest
+                            // from remote store and getting the previous UUID.
                             previousClusterUUID = latestManifest.get().getPreviousClusterUUID();
                         } else {
+                            // When the user starts the cluster with remote state disabled but later enables the remote state,
+                            // there will not be any manifest for the current cluster UUID.
                             logger.error(
                                 "Latest manifest is not present in remote store for cluster UUID: {}",
                                 clusterState.metadata().clusterUUID()
