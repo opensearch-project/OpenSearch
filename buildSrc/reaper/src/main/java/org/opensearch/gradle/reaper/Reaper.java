@@ -45,7 +45,6 @@ import java.util.stream.Stream;
 
 /**
  * A standalone process that will reap external services after a build dies.
- * <p>
  * <h2>Input</h2>
  * Since how to reap a given service is platform and service dependent, this tool
  * operates on system commands to execute. It takes a single argument, a directory

@@ -27,7 +27,7 @@ import java.util.function.Supplier;
 public abstract class BasePerFieldCorrelationVectorsFormat extends PerFieldKnnVectorsFormat {
     /**
      * the hyper-parameters for constructing HNSW graphs.
-     * <a href="https://lucene.apache.org/core/9_4_0/core/org/apache/lucene/util/hnsw/HnswGraph.html"/>HnswGraph.html</a>
+     * <a href="https://lucene.apache.org/core/9_4_0/core/org/apache/lucene/util/hnsw/HnswGraph.html">HnswGraph.html</a>
      */
     public static final String METHOD_PARAMETER_M = "m";
     /**
