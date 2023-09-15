@@ -63,6 +63,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
 
+import static org.opensearch.Version.V_2_7_0;
 import static org.opensearch.common.util.FeatureFlags.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY;
 import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING;
 import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING;
@@ -660,6 +661,7 @@ public final class IndexSettings {
     private volatile long retentionLeaseMillis;
 
     private volatile String defaultSearchPipeline;
+    private final boolean widenIndexSortType;
 
     /**
      * The maximum age of a retention lease before it is considered expired.
@@ -857,6 +859,13 @@ public final class IndexSettings {
         mergeOnFlushEnabled = scopedSettings.get(INDEX_MERGE_ON_FLUSH_ENABLED);
         setMergeOnFlushPolicy(scopedSettings.get(INDEX_MERGE_ON_FLUSH_POLICY));
         defaultSearchPipeline = scopedSettings.get(DEFAULT_SEARCH_PIPELINE);
+        /* There was unintentional breaking change got introduced with [OpenSearch-6424](https://github.com/opensearch-project/OpenSearch/pull/6424) (version 2.7).
+         * For indices created prior version (prior to 2.7) which has IndexSort type, they used to type cast the SortField.Type
+         * to higher bytes size like integer to long. This behavior was changed from OpenSearch 2.7 version not to
+         * up cast the SortField to gain some sort query optimizations.
+         * Now this sortField (IndexSort) is stored in SegmentInfo and we need to maintain backward compatibility for them.
+         */
+        widenIndexSortType = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings).before(V_2_7_0);
 
         scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING, mergePolicyConfig::setNoCFSRatio);
         scopedSettings.addSettingsUpdateConsumer(
@@ -1651,5 +1660,13 @@ public final class IndexSettings {
 
     public void setDefaultSearchPipeline(String defaultSearchPipeline) {
         this.defaultSearchPipeline = defaultSearchPipeline;
+    }
+
+    /**
+     * Returns true if we need to maintain backward compatibility for index sorted indices created prior to version 2.7
+     * @return boolean
+     */
+    public boolean shouldWidenIndexSortType() {
+        return this.widenIndexSortType;
     }
 }
