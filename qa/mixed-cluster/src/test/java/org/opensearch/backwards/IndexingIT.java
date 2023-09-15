@@ -46,7 +46,6 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.core.common.Strings;
-import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.core.rest.RestStatus;
@@ -64,7 +63,6 @@ import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
-import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 
 public class IndexingIT extends OpenSearchRestTestCase {
 
