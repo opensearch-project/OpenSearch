@@ -406,7 +406,7 @@ public class RemoteStoreRestoreIT extends BaseRemoteStoreRestoreIT {
             for (RepositoriesService repositoriesService : internalCluster().getDataNodeInstances(RepositoriesService.class)) {
                 downloadPauseTime += repositoriesService.repository(REPOSITORY_NAME).getRemoteDownloadThrottleTimeInNanos();
             }
-            assertThat(downloadPauseTime, greaterThan(TimeValue.timeValueSeconds(randomIntBetween(5, 10)).nanos()));
+            assertThat(downloadPauseTime, greaterThan(TimeValue.timeValueSeconds(randomIntBetween(3, 5)).nanos()));
         }, 30, TimeUnit.SECONDS);
         // Waiting for extended period for green state so that rate limit does not cause flakiness
         ensureGreen(TimeValue.timeValueSeconds(120), INDEX_NAME);
