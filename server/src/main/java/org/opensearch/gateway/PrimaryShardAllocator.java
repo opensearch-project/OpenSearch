@@ -141,7 +141,7 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
     }
 
     private static NodeShardStates adaptToNodeShardStates(FetchResult<NodeGatewayStartedShards> shardsState) {
-        NodeShardStates nodeShardStates = new NodeShardStates((o1, o2) -> 1);
+        NodeShardStates nodeShardStates = new NodeShardStates();
         shardsState.getData().forEach((node, nodeGatewayStartedShard) -> {
             nodeShardStates.add(
                 new NodeShardState(
@@ -373,7 +373,7 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
         NodeShardStates shardState,
         Logger logger
     ) {
-        NodeShardStates nodeShardStates = new NodeShardStates(createActiveShardComparator(matchAnyShard, inSyncAllocationIds));
+        NodeShardStates nodeShardStates = new NodeShardStates();
         int numberOfAllocationsFound = 0;
         Iterator<NodeShardState> iterator = shardState.iterator();
         while (iterator.hasNext()) {
@@ -430,11 +430,13 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
             }
         }
 
+        nodeShardStates.sort(createActiveShardComparator(matchAnyShard, inSyncAllocationIds));
+
         if (logger.isTraceEnabled()) {
             logger.trace(
                 "{} candidates for allocation: {}",
                 shard,
-                nodeShardStates.stream().map(nodeShardStates::get).map(DiscoveryNode::getName).collect(Collectors.joining(", "))
+                nodeShardStates.stream().map(s -> s.getNode().getName()).collect(Collectors.joining(", "))
             );
         }
         return new NodeShardsResult(nodeShardStates, numberOfAllocationsFound);
@@ -641,32 +643,21 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
      */
     protected static class NodeShardStates {
         // TreeMap to store NodeShardState and DiscoveryNode pairs
-        private final TreeMap<NodeShardState, DiscoveryNode> nodeShardStates;
+        private final List<NodeShardState> nodeShardStates;
 
         /**
-         * Constructs a new NodeShardStates with a given Comparator.
-         * @param comparator Comparator to determine the order of the TreeMap.
+         * Constructs a new NodeShardStates
          */
-        public NodeShardStates(Comparator<NodeShardState> comparator) {
-            this.nodeShardStates = new TreeMap<>(comparator);
+        public NodeShardStates() {
+            this.nodeShardStates = new ArrayList<>();
         }
 
         /**
-         * Adds a new {@link NodeShardState} and {@link DiscoveryNode} pair to the TreeMap.
-         * @param key {@link NodeShardState} key.
-         * @param value {@link DiscoveryNode} value.
+         * Adds a new {@link NodeShardState} to the list.
+         * @param state {@link NodeShardState} node shard state.
          */
-        public void add(NodeShardState key, DiscoveryNode value) {
-            this.nodeShardStates.put(key, value);
-        }
-
-        /**
-         * Retrieves the {@link DiscoveryNode} value associated with a given {@link NodeShardState} key.
-         * @param key {@link NodeShardState} key.
-         * @return {@link DiscoveryNode} value associated with the key.
-         */
-        public DiscoveryNode get(NodeShardState key) {
-            return this.nodeShardStates.get(key);
+        public void add(NodeShardState state) {
+            this.nodeShardStates.add(state);
         }
 
         /**
@@ -682,7 +673,7 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
          * @return Iterator over the keys.
          */
         public Iterator<NodeShardState> iterator() {
-            return this.nodeShardStates.keySet().iterator();
+            return this.nodeShardStates.iterator();
         }
 
         /**
@@ -690,7 +681,15 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
          * @return Stream of the keys.
          */
         public Stream<NodeShardState> stream() {
-            return this.nodeShardStates.keySet().stream();
+            return this.nodeShardStates.stream();
+        }
+
+        /**
+         * Sorts the NodeShardStates based on the provided Comparator.
+         * @param comparator The Comparator to use.
+         */
+        public void sort(Comparator<NodeShardState> comparator) {
+            this.nodeShardStates.sort(comparator);
         }
     }
 }
