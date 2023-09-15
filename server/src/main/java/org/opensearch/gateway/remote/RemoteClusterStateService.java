@@ -742,7 +742,7 @@ public class RemoteClusterStateService implements Closeable {
              */
             return manifestContainer(clusterName, clusterUUID).listBlobsByPrefixInSortedOrder(
                 MANIFEST_FILE_PREFIX + DELIMITER,
-                1,
+                limit,
                 BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC
             );
         } catch (IOException e) {
@@ -809,10 +809,10 @@ public class RemoteClusterStateService implements Closeable {
      * @param clusterState current state of the cluster
      * @param committedManifest last committed ClusterMetadataManifest
      */
-    public void deleteStaleClusterUUID(ClusterState clusterState, ClusterMetadataManifest committedManifest) throws IOException {
+    public void deleteStaleClusterUUID(ClusterState clusterState, ClusterMetadataManifest committedManifest) {
         threadpool.executor(ThreadPool.Names.REMOTE_PURGE).execute(() -> {
             String clusterName = clusterState.getClusterName().value();
-            Set<String> allClustersUUIDsInRemote = null;
+            Set<String> allClustersUUIDsInRemote;
             try {
                 allClustersUUIDsInRemote = new HashSet<>(getAllClusterUUIDs(clusterState.getClusterName().value()));
             } catch (IOException e) {
@@ -830,7 +830,7 @@ public class RemoteClusterStateService implements Closeable {
                         throw new RuntimeException(e);
                     }
                 });
-                // delete all index metdata
+                // delete all index metadata
                 getBlobStoreTransferService().deleteAsync(
                     ThreadPool.Names.REMOTE_PURGE,
                     getCusterMetadataBasePath(clusterName, clusterUUID).add(INDEX_PATH_TOKEN),
