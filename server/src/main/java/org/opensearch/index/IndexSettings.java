@@ -64,6 +64,7 @@ import java.util.function.Function;
 import java.util.function.UnaryOperator;
 
 import static org.opensearch.Version.V_2_6_1;
+import static org.opensearch.Version.V_2_7_0;
 import static org.opensearch.common.util.FeatureFlags.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY;
 import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING;
 import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING;
@@ -865,7 +866,7 @@ public final class IndexSettings {
          * up caste the SortField to gain some sort query optimizations.
          * Now this sortField (IndexSort) is stored in SegmentInfo and we need to maintain backward compatibility for them.
          */
-        widenIndexSortType = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings).onOrBefore(V_2_6_1);
+        widenIndexSortType = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings).before(V_2_7_0);
 
         scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING, mergePolicyConfig::setNoCFSRatio);
         scopedSettings.addSettingsUpdateConsumer(

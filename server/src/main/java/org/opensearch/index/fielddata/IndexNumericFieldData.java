@@ -153,7 +153,7 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
 
     @Override
     public final SortField wideSortField(Object missingValue, MultiValueMode sortMode, Nested nested, boolean reverse) {
-        // This is to support backward compatibility, the minimum number of bytes prior to OpenSearch 2.7 were 8 bytes,
+        // This is to support backward compatibility, the minimum number of bytes prior to OpenSearch 2.7 were 16 bytes,
         // i.e all sort fields were upcasted to Long/Double with 16 bytes.
         // Now from OpenSearch 2.7, the minimum number of bytes for sort field is 8 bytes, so if it comes as SortField INT,
         // we need to up caste it to LONG to support backward compatibility info stored in segment info
