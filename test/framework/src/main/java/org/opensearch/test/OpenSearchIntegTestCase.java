@@ -2345,9 +2345,8 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
                 INSTANCE.printTestMessage("cleaning up after");
                 INSTANCE.afterInternal(true);
                 checkStaticState(true);
-                StrictCheckSpanProcessor.validateTracingStateOnShutdown();
             }
-
+            StrictCheckSpanProcessor.validateTracingStateOnShutdown();
         } finally {
             SUITE_SEED = null;
             currentCluster = null;
