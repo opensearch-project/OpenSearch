@@ -18,7 +18,7 @@ jobs:
           installation_id: 22958780
 
       - name: Check out code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
           token: ${{ steps.github_app_token.outputs.token }}
 

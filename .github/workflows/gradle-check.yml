@@ -23,7 +23,7 @@ jobs:
     timeout-minutes: 130
     steps:
       - name: Checkout OpenSearch repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha }}
 
@@ -50,7 +50,7 @@ jobs:
           echo "pr_number=Null" >> $GITHUB_ENV
 
       - name: Checkout opensearch-build repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           repository: opensearch-project/opensearch-build
           ref: main
