@@ -12,6 +12,7 @@ import org.opensearch.common.annotation.InternalApi;
 import org.opensearch.core.common.Strings;
 import org.opensearch.http.HttpRequest;
 import org.opensearch.rest.RestRequest;
+import org.opensearch.tasks.Task;
 import org.opensearch.telemetry.tracing.attributes.Attributes;
 import org.opensearch.transport.Transport;
 
@@ -125,6 +126,30 @@ public final class SpanBuilder {
             attributes.addAttribute(AttributeNames.TRANSPORT_TARGET_HOST, connection.getNode().getHostAddress());
         }
         return attributes;
+    }
+
+    public static SpanCreationContext from(Task task, String actionName) {
+        return new SpanCreationContext(createSpanName(task, actionName), buildSpanAttributes(task, actionName));
+    }
+
+    private static Attributes buildSpanAttributes(Task task, String actionName) {
+        Attributes attributes = Attributes.create().addAttribute(AttributeNames.TRANSPORT_ACTION, actionName);
+        if (task != null) {
+            attributes.addAttribute(AttributeNames.TASK_ID, task.getId());
+            if (task.getParentTaskId() != null && task.getParentTaskId().isSet()) {
+                attributes.addAttribute(AttributeNames.PARENT_TASK_ID, task.getParentTaskId().getId());
+            }
+        }
+        return attributes;
+
+    }
+
+    private static String createSpanName(Task task, String actionName) {
+        if (task != null) {
+            return task.getType() + SEPARATOR + task.getAction();
+        } else {
+            return actionName;
+        }
     }
 
 }

@@ -61,7 +61,7 @@ public class TransportRemoteStoreStatsAction extends TransportBroadcastByNodeAct
         IndicesService indicesService,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory
+        RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory,
         Tracer tracer
     ) {
         super(
