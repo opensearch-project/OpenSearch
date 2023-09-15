@@ -8,6 +8,7 @@
 
 package org.opensearch.remotestore;
 
+import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.opensearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.opensearch.action.admin.indices.get.GetIndexRequest;
 import org.opensearch.action.admin.indices.get.GetIndexResponse;
@@ -33,16 +34,20 @@ import org.hamcrest.MatcherAssert;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.opensearch.index.shard.RemoteStoreRefreshListener.LAST_N_METADATA_FILES_TO_KEEP;
 import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.comparesEqualTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.oneOf;
 
@@ -345,5 +350,70 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
             .prepareUpdateSettings()
             .setTransientSettings(Settings.builder().putNull(CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.getKey()))
             .get();
+    }
+
+    public void testRestoreSnapshotToIndexWithSameNameDifferentUUID() throws Exception {
+        internalCluster().startClusterManagerOnlyNode();
+        List<String> dataNodes = internalCluster().startDataOnlyNodes(2);
+
+        Path absolutePath = randomRepoPath().toAbsolutePath();
+        assertAcked(
+            clusterAdmin().preparePutRepository("test-repo").setType("fs").setSettings(Settings.builder().put("location", absolutePath))
+        );
+
+        logger.info("--> Create index and ingest 50 docs");
+        createIndex(INDEX_NAME, remoteStoreIndexSettings(1));
+        indexBulk(INDEX_NAME, 50);
+        flushAndRefresh(INDEX_NAME);
+
+        String originalIndexUUID = client().admin()
+            .indices()
+            .prepareGetSettings(INDEX_NAME)
+            .get()
+            .getSetting(INDEX_NAME, IndexMetadata.SETTING_INDEX_UUID);
+        assertNotNull(originalIndexUUID);
+        assertNotEquals(IndexMetadata.INDEX_UUID_NA_VALUE, originalIndexUUID);
+
+        ensureGreen();
+
+        logger.info("--> take a snapshot");
+        client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setIndices(INDEX_NAME).setWaitForCompletion(true).get();
+
+        logger.info("--> wipe all indices");
+        cluster().wipeIndices(INDEX_NAME);
+
+        logger.info("--> Create index with the same name, different UUID");
+        assertAcked(
+            prepareCreate(INDEX_NAME).setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 1))
+        );
+
+        ensureGreen(TimeValue.timeValueSeconds(30), INDEX_NAME);
+
+        String newIndexUUID = client().admin()
+            .indices()
+            .prepareGetSettings(INDEX_NAME)
+            .get()
+            .getSetting(INDEX_NAME, IndexMetadata.SETTING_INDEX_UUID);
+        assertNotNull(newIndexUUID);
+        assertNotEquals(IndexMetadata.INDEX_UUID_NA_VALUE, newIndexUUID);
+        assertNotEquals(newIndexUUID, originalIndexUUID);
+
+        logger.info("--> close index");
+        client().admin().indices().prepareClose(INDEX_NAME).get();
+
+        logger.info("--> restore all indices from the snapshot");
+        RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot("test-repo", "test-snap")
+            .setWaitForCompletion(true)
+            .execute()
+            .actionGet();
+        assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
+
+        flushAndRefresh(INDEX_NAME);
+
+        ensureGreen(INDEX_NAME);
+        assertBusy(() -> {
+            assertHitCount(client(dataNodes.get(0)).prepareSearch(INDEX_NAME).setSize(0).get(), 50);
+            assertHitCount(client(dataNodes.get(1)).prepareSearch(INDEX_NAME).setSize(0).get(), 50);
+        });
     }
 }
