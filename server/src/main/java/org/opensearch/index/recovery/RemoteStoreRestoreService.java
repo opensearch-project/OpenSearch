@@ -187,7 +187,7 @@ public class RemoteStoreRestoreService {
             IndexMetadata indexMetadata = indexMetadataEntry.getValue().v2();
             boolean metadataFromRemoteStore = indexMetadataEntry.getValue().v1();
             IndexMetadata updatedIndexMetadata = indexMetadata;
-            if (restoreAllShards || metadataFromRemoteStore) {
+            if (metadataFromRemoteStore == false && restoreAllShards) {
                 updatedIndexMetadata = IndexMetadata.builder(indexMetadata)
                     .state(IndexMetadata.State.OPEN)
                     .version(1 + indexMetadata.getVersion())
