@@ -32,7 +32,6 @@
 package org.opensearch.transport;
 
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.PlainActionFuture;
@@ -43,7 +42,9 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.Strings;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.threadpool.TestThreadPool;
@@ -59,6 +60,7 @@ import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 
@@ -90,6 +92,20 @@ public class RemoteClusterServiceTests extends OpenSearchTestCase {
         final Settings settings
     ) {
         return RemoteClusterConnectionTests.startTransport(id, knownNodes, version, threadPool, settings);
+    }
+
+    void initializeRemoteClusters(RemoteClusterService service) {
+        final PlainActionFuture<Void> future = new PlainActionFuture<>();
+        service.initializeRemoteClusters(future);
+        try {
+            future.get(10, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } catch (TimeoutException ex) {
+            logger.warn("Timed out connecting to remote clusters");
+        } catch (Exception e) {
+            throw new IllegalStateException("failed to connect to remote clusters", e);
+        }
     }
 
     public void testSettingsAreRegistered() {
@@ -147,7 +163,7 @@ public class RemoteClusterServiceTests extends OpenSearchTestCase {
                     Settings.EMPTY,
                     Version.CURRENT,
                     threadPool,
-                    null
+                    NoopTracer.INSTANCE
                 )
             ) {
                 transportService.start();
@@ -157,7 +173,7 @@ public class RemoteClusterServiceTests extends OpenSearchTestCase {
                 builder.putList("cluster.remote.cluster_2.seeds", cluster2Seed.getAddress().toString());
                 try (RemoteClusterService service = new RemoteClusterService(builder.build(), transportService)) {
                     assertFalse(service.isCrossClusterSearchEnabled());
-                    service.initializeRemoteClusters();
+                    initializeRemoteClusters(service);
                     assertTrue(service.isCrossClusterSearchEnabled());
                     assertTrue(service.isRemoteClusterRegistered("cluster_1"));
                     assertTrue(service.isRemoteClusterRegistered("cluster_2"));
@@ -218,7 +234,7 @@ public class RemoteClusterServiceTests extends OpenSearchTestCase {
                     Settings.EMPTY,
                     Version.CURRENT,
                     threadPool,
-                    null
+                    NoopTracer.INSTANCE
                 )
             ) {
                 transportService.start();
@@ -228,7 +244,7 @@ public class RemoteClusterServiceTests extends OpenSearchTestCase {
                 builder.putList("cluster.remote.cluster_2.seeds", cluster2Seed.getAddress().toString());
                 try (RemoteClusterService service = new RemoteClusterService(builder.build(), transportService)) {
                     assertFalse(service.isCrossClusterSearchEnabled());
-                    service.initializeRemoteClusters();
+                    initializeRemoteClusters(service);
                     assertTrue(service.isCrossClusterSearchEnabled());
                     assertTrue(service.isRemoteClusterRegistered("cluster_1"));
                     assertTrue(service.isRemoteClusterRegistered("cluster_2"));
@@ -311,7 +327,7 @@ public class RemoteClusterServiceTests extends OpenSearchTestCase {
                     Settings.EMPTY,
                     Version.CURRENT,
                     threadPool,
-                    null
+                    NoopTracer.INSTANCE
                 )
             ) {
                 transportService.start();
@@ -321,7 +337,7 @@ public class RemoteClusterServiceTests extends OpenSearchTestCase {
                 builder.putList("cluster.remote.cluster_2.seeds", cluster2Seed.getAddress().toString());
                 try (RemoteClusterService service = new RemoteClusterService(Settings.EMPTY, transportService)) {
                     assertFalse(service.isCrossClusterSearchEnabled());
-                    service.initializeRemoteClusters();
+                    initializeRemoteClusters(service);
                     assertFalse(service.isCrossClusterSearchEnabled());
                     Settings cluster1Settings = createSettings(
                         "cluster_1",
@@ -378,13 +394,18 @@ public class RemoteClusterServiceTests extends OpenSearchTestCase {
             }
             Settings settings = settingsBuilder.build();
             try (
-                MockTransportService transportService = MockTransportService.createNewService(settings, Version.CURRENT, threadPool, null)
+                MockTransportService transportService = MockTransportService.createNewService(
+                    settings,
+                    Version.CURRENT,
+                    threadPool,
+                    NoopTracer.INSTANCE
+                )
             ) {
                 transportService.start();
                 transportService.acceptIncomingRequests();
                 try (RemoteClusterService service = new RemoteClusterService(settings, transportService)) {
                     assertFalse(service.isCrossClusterSearchEnabled());
-                    service.initializeRemoteClusters();
+                    initializeRemoteClusters(service);
                     assertTrue(service.isCrossClusterSearchEnabled());
                     service.validateAndUpdateRemoteCluster(
                         "cluster_1",
@@ -421,7 +442,7 @@ public class RemoteClusterServiceTests extends OpenSearchTestCase {
                     transportSettings,
                     Version.CURRENT,
                     threadPool,
-                    null
+                    NoopTracer.INSTANCE
                 )
             ) {
                 transportService.start();
@@ -436,7 +457,7 @@ public class RemoteClusterServiceTests extends OpenSearchTestCase {
                     TimeValue.timeValueSeconds(randomIntBetween(1, 10));
                 builder.put("cluster.remote.cluster_2.transport.ping_schedule", pingSchedule2);
                 try (RemoteClusterService service = new RemoteClusterService(builder.build(), transportService)) {
-                    service.initializeRemoteClusters();
+                    initializeRemoteClusters(service);
                     assertTrue(service.isRemoteClusterRegistered("cluster_1"));
                     RemoteClusterConnection remoteClusterConnection1 = service.getRemoteClusterConnection("cluster_1");
                     assertEquals(pingSchedule1, remoteClusterConnection1.getConnectionManager().getConnectionProfile().getPingInterval());
@@ -459,7 +480,7 @@ public class RemoteClusterServiceTests extends OpenSearchTestCase {
                     Settings.EMPTY,
                     Version.CURRENT,
                     threadPool,
-                    null
+                    NoopTracer.INSTANCE
                 )
             ) {
                 transportService.start();
@@ -467,7 +488,7 @@ public class RemoteClusterServiceTests extends OpenSearchTestCase {
                 Settings.Builder builder = Settings.builder();
                 builder.putList("cluster.remote.cluster_1.seeds", cluster1Seed.getAddress().toString());
                 try (RemoteClusterService service = new RemoteClusterService(builder.build(), transportService)) {
-                    service.initializeRemoteClusters();
+                    initializeRemoteClusters(service);
                     RemoteClusterConnection remoteClusterConnection = service.getRemoteClusterConnection("cluster_1");
                     Settings.Builder settingsChange = Settings.builder();
                     TimeValue pingSchedule = TimeValue.timeValueSeconds(randomIntBetween(6, 8));
@@ -508,7 +529,12 @@ public class RemoteClusterServiceTests extends OpenSearchTestCase {
             Collections.shuffle(knownNodes, random());
 
             try (
-                MockTransportService transportService = MockTransportService.createNewService(settings, Version.CURRENT, threadPool, null)
+                MockTransportService transportService = MockTransportService.createNewService(
+                    settings,
+                    Version.CURRENT,
+                    threadPool,
+                    NoopTracer.INSTANCE
+                )
             ) {
                 transportService.start();
                 transportService.acceptIncomingRequests();
@@ -517,7 +543,7 @@ public class RemoteClusterServiceTests extends OpenSearchTestCase {
                 builder.putList("cluster.remote.cluster_2.seed", c2N1Node.getAddress().toString());
                 try (RemoteClusterService service = new RemoteClusterService(settings, transportService)) {
                     assertFalse(service.isCrossClusterSearchEnabled());
-                    service.initializeRemoteClusters();
+                    initializeRemoteClusters(service);
                     assertFalse(service.isCrossClusterSearchEnabled());
 
                     final CountDownLatch firstLatch = new CountDownLatch(1);
@@ -571,7 +597,12 @@ public class RemoteClusterServiceTests extends OpenSearchTestCase {
             Collections.shuffle(knownNodes, random());
 
             try (
-                MockTransportService transportService = MockTransportService.createNewService(settings, Version.CURRENT, threadPool, null)
+                MockTransportService transportService = MockTransportService.createNewService(
+                    settings,
+                    Version.CURRENT,
+                    threadPool,
+                    NoopTracer.INSTANCE
+                )
             ) {
                 transportService.start();
                 transportService.acceptIncomingRequests();
@@ -580,7 +611,7 @@ public class RemoteClusterServiceTests extends OpenSearchTestCase {
                 builder.putList("cluster.remote.cluster_2.seed", c2N1Node.getAddress().toString());
                 try (RemoteClusterService service = new RemoteClusterService(settings, transportService)) {
                     assertFalse(service.isCrossClusterSearchEnabled());
-                    service.initializeRemoteClusters();
+                    initializeRemoteClusters(service);
                     assertFalse(service.isCrossClusterSearchEnabled());
 
                     final CountDownLatch firstLatch = new CountDownLatch(1);
@@ -639,7 +670,12 @@ public class RemoteClusterServiceTests extends OpenSearchTestCase {
             Collections.shuffle(knownNodes_c2, random());
 
             try (
-                MockTransportService transportService = MockTransportService.createNewService(settings, Version.CURRENT, threadPool, null)
+                MockTransportService transportService = MockTransportService.createNewService(
+                    settings,
+                    Version.CURRENT,
+                    threadPool,
+                    NoopTracer.INSTANCE
+                )
             ) {
                 transportService.start();
                 transportService.acceptIncomingRequests();
@@ -648,7 +684,7 @@ public class RemoteClusterServiceTests extends OpenSearchTestCase {
                 builder.putList("cluster.remote.cluster_2.seed", c2N1Node.getAddress().toString());
                 try (RemoteClusterService service = new RemoteClusterService(settings, transportService)) {
                     assertFalse(service.isCrossClusterSearchEnabled());
-                    service.initializeRemoteClusters();
+                    initializeRemoteClusters(service);
                     assertFalse(service.isCrossClusterSearchEnabled());
 
                     final CountDownLatch firstLatch = new CountDownLatch(1);
@@ -886,7 +922,7 @@ public class RemoteClusterServiceTests extends OpenSearchTestCase {
                     Settings.EMPTY,
                     Version.CURRENT,
                     threadPool,
-                    null
+                    NoopTracer.INSTANCE
                 )
             ) {
                 transportService.start();
@@ -896,7 +932,7 @@ public class RemoteClusterServiceTests extends OpenSearchTestCase {
                 builder.putList("cluster.remote.cluster_test.seeds", Collections.singletonList(node0.getAddress().toString()));
                 try (RemoteClusterService service = new RemoteClusterService(builder.build(), transportService)) {
                     assertFalse(service.isCrossClusterSearchEnabled());
-                    service.initializeRemoteClusters();
+                    initializeRemoteClusters(service);
                     assertTrue(service.isCrossClusterSearchEnabled());
 
                     final RemoteClusterConnection firstRemoteClusterConnection = service.getRemoteClusterConnection("cluster_test");
@@ -968,7 +1004,14 @@ public class RemoteClusterServiceTests extends OpenSearchTestCase {
             knownNodes.add(seedNode);
             Settings.Builder builder = Settings.builder();
             builder.putList("cluster.remote.cluster1.seeds", seedTransport.getLocalDiscoNode().getAddress().toString());
-            try (MockTransportService service = MockTransportService.createNewService(builder.build(), Version.CURRENT, threadPool, null)) {
+            try (
+                MockTransportService service = MockTransportService.createNewService(
+                    builder.build(),
+                    Version.CURRENT,
+                    threadPool,
+                    NoopTracer.INSTANCE
+                )
+            ) {
                 service.start();
                 service.acceptIncomingRequests();
 
@@ -987,7 +1030,9 @@ public class RemoteClusterServiceTests extends OpenSearchTestCase {
 
     public void testRemoteClusterServiceNotEnabledGetRemoteClusterConnection() {
         final Settings settings = removeRoles(Collections.singleton(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE));
-        try (MockTransportService service = MockTransportService.createNewService(settings, Version.CURRENT, threadPool, null)) {
+        try (
+            MockTransportService service = MockTransportService.createNewService(settings, Version.CURRENT, threadPool, NoopTracer.INSTANCE)
+        ) {
             service.start();
             service.acceptIncomingRequests();
             final IllegalArgumentException e = expectThrows(
@@ -1000,7 +1045,9 @@ public class RemoteClusterServiceTests extends OpenSearchTestCase {
 
     public void testRemoteClusterServiceNotEnabledGetCollectNodes() {
         final Settings settings = removeRoles(Collections.singleton(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE));
-        try (MockTransportService service = MockTransportService.createNewService(settings, Version.CURRENT, threadPool, null)) {
+        try (
+            MockTransportService service = MockTransportService.createNewService(settings, Version.CURRENT, threadPool, NoopTracer.INSTANCE)
+        ) {
             service.start();
             service.acceptIncomingRequests();
             final IllegalArgumentException e = expectThrows(

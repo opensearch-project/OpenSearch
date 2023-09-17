@@ -40,10 +40,10 @@ import org.opensearch.action.admin.cluster.storedscripts.GetStoredScriptResponse
 import org.opensearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.opensearch.action.ingest.DeletePipelineRequest;
 import org.opensearch.action.ingest.GetPipelineResponse;
-import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.ingest.IngestTestPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.script.MockScriptEngine;
@@ -115,7 +115,7 @@ public class SnapshotCustomPluginStateIT extends AbstractSnapshotIntegTestCase {
                     .endArray()
                     .endObject()
             );
-            assertAcked(clusterAdmin().preparePutPipeline("barbaz", pipelineSource, XContentType.JSON).get());
+            assertAcked(clusterAdmin().preparePutPipeline("barbaz", pipelineSource, MediaTypeRegistry.JSON).get());
         }
 
         if (testScript) {
@@ -125,7 +125,7 @@ public class SnapshotCustomPluginStateIT extends AbstractSnapshotIntegTestCase {
                     .setId("foobar")
                     .setContent(
                         new BytesArray("{\"script\": { \"lang\": \"" + MockScriptEngine.NAME + "\", \"source\": \"1\"} }"),
-                        XContentType.JSON
+                        MediaTypeRegistry.JSON
                     )
             );
         }

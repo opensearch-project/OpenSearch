@@ -32,12 +32,13 @@
 
 package org.opensearch.repositories.s3;
 
-import com.amazonaws.services.s3.AbstractAmazonS3;
+import software.amazon.awssdk.services.s3.S3Client;
+
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.unit.ByteSizeUnit;
-import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.repositories.RepositoryException;
@@ -55,14 +56,6 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class S3RepositoryTests extends OpenSearchTestCase implements ConfigPathSupport {
 
-    private static class DummyS3Client extends AbstractAmazonS3 {
-
-        @Override
-        public void shutdown() {
-            // TODO check is closed
-        }
-    }
-
     private static class DummyS3Service extends S3Service {
         DummyS3Service(final Path configPath) {
             super(configPath);
@@ -70,7 +63,7 @@ public class S3RepositoryTests extends OpenSearchTestCase implements ConfigPathS
 
         @Override
         public AmazonS3Reference client(RepositoryMetadata repositoryMetadata) {
-            return new AmazonS3Reference(new DummyS3Client());
+            return new AmazonS3Reference(S3Client.create());
         }
 
         @Override
@@ -146,7 +139,12 @@ public class S3RepositoryTests extends OpenSearchTestCase implements ConfigPathS
             NamedXContentRegistry.EMPTY,
             new DummyS3Service(configPath()),
             BlobStoreTestUtil.mockClusterService(),
-            new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))
+            new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
+            null,
+            null,
+            null,
+            null,
+            false
         ) {
             @Override
             protected void assertSnapshotOrGenericThread() {

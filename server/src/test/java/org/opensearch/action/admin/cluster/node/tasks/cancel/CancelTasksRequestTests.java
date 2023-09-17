@@ -32,8 +32,8 @@
 
 package org.opensearch.action.admin.cluster.node.tasks.cancel;
 
+import org.opensearch.core.tasks.TaskId;
 import org.opensearch.tasks.Task;
-import org.opensearch.tasks.TaskId;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Collections;

@@ -42,9 +42,9 @@ import org.opensearch.common.geo.builders.EnvelopeBuilder;
 import org.opensearch.common.geo.builders.GeometryCollectionBuilder;
 import org.opensearch.common.geo.builders.MultiPolygonBuilder;
 import org.opensearch.common.geo.builders.PolygonBuilder;
-import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.geometry.Geometry;
 import org.opensearch.geometry.Rectangle;
 import org.opensearch.index.query.GeoShapeQueryBuilder;
@@ -53,10 +53,11 @@ import org.opensearch.plugins.Plugin;
 import org.opensearch.search.SearchHits;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.test.TestGeoShapeFieldMapperPlugin;
-import org.locationtech.jts.geom.Coordinate;
 
 import java.util.Collection;
 import java.util.Collections;
+
+import org.locationtech.jts.geom.Coordinate;
 
 import static org.opensearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -87,7 +88,7 @@ public abstract class GeoQueryTests extends OpenSearchSingleNodeTestCase {
 
         client().prepareIndex(defaultIndexName)
             .setId("aNullshape")
-            .setSource("{\"geo\": null}", XContentType.JSON)
+            .setSource("{\"geo\": null}", MediaTypeRegistry.JSON)
             .setRefreshPolicy(IMMEDIATE)
             .get();
         GetResponse result = client().prepareGet(defaultIndexName, "aNullshape").get();

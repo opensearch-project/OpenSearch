@@ -9,29 +9,28 @@
 package org.opensearch.identity.shiro;
 
 import org.opensearch.test.OpenSearchTestCase;
-
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
-import static org.mockito.Mockito.verify;
-import org.junit.Before;
 import org.junit.After;
+import org.junit.Before;
 
 import java.security.Principal;
 
-import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.when;
 
 public class ShiroSubjectTests extends OpenSearchTestCase {
 
     private org.apache.shiro.subject.Subject shiroSubject;
-    private AuthTokenHandler authTokenHandler;
+    private ShiroTokenManager authTokenHandler;
     private ShiroSubject subject;
 
     @Before
     public void setup() {
         shiroSubject = mock(org.apache.shiro.subject.Subject.class);
-        authTokenHandler = mock(AuthTokenHandler.class);
+        authTokenHandler = mock(ShiroTokenManager.class);
         subject = new ShiroSubject(authTokenHandler, shiroSubject);
     }
 

@@ -32,11 +32,12 @@
 
 package org.opensearch.search.profile.aggregation;
 
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentParserUtils;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.XContentParserUtils;
 import org.opensearch.search.profile.ProfileResult;
 import org.opensearch.search.profile.ProfileResultTests;
 import org.opensearch.test.OpenSearchTestCase;
@@ -48,7 +49,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.opensearch.common.xcontent.XContentHelper.toXContent;
+import static org.opensearch.core.xcontent.XContentHelper.toXContent;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertToXContentEquivalent;
 
 public class AggregationProfileShardResultTests extends OpenSearchTestCase {
@@ -57,7 +58,7 @@ public class AggregationProfileShardResultTests extends OpenSearchTestCase {
         int size = randomIntBetween(0, 5);
         List<ProfileResult> aggProfileResults = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
-            aggProfileResults.add(ProfileResultTests.createTestItem(1));
+            aggProfileResults.add(ProfileResultTests.createTestItem(depth, false));
         }
         return new AggregationProfileShardResult(aggProfileResults);
     }
@@ -91,7 +92,7 @@ public class AggregationProfileShardResultTests extends OpenSearchTestCase {
         ProfileResult profileResult = new ProfileResult("someType", "someDescription", breakdown, debug, 6000L, Collections.emptyList());
         profileResults.add(profileResult);
         AggregationProfileShardResult aggProfileResults = new AggregationProfileShardResult(profileResults);
-        BytesReference xContent = toXContent(aggProfileResults, XContentType.JSON, false);
+        BytesReference xContent = toXContent(aggProfileResults, MediaTypeRegistry.JSON, false);
         assertEquals(
             "{\"aggregations\":["
                 + "{\"type\":\"someType\","
@@ -104,7 +105,7 @@ public class AggregationProfileShardResultTests extends OpenSearchTestCase {
             xContent.utf8ToString()
         );
 
-        xContent = toXContent(aggProfileResults, XContentType.JSON, true);
+        xContent = toXContent(aggProfileResults, MediaTypeRegistry.JSON, true);
         assertEquals(
             "{\"aggregations\":["
                 + "{\"type\":\"someType\","

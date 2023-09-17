@@ -56,14 +56,13 @@ public class IndexPrimaryRelocationIT extends OpenSearchIntegTestCase {
 
     private static final int RELOCATION_COUNT = 15;
 
+    public Settings indexSettings() {
+        return Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).build();
+    }
+
     public void testPrimaryRelocationWhileIndexing() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(randomIntBetween(2, 3));
-        client().admin()
-            .indices()
-            .prepareCreate("test")
-            .setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
-            .setMapping("field", "type=text")
-            .get();
+        client().admin().indices().prepareCreate("test").setSettings(indexSettings()).setMapping("field", "type=text").get();
         ensureGreen("test");
         AtomicInteger numAutoGenDocs = new AtomicInteger();
         final AtomicBoolean finished = new AtomicBoolean(false);

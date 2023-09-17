@@ -32,6 +32,9 @@
 
 package org.opensearch.core.xcontent;
 
+import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.core.common.bytes.BytesReference;
+
 import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
 import java.io.Flushable;
@@ -59,6 +62,7 @@ import java.util.function.Function;
 /**
  * A utility to build XContent (ie json).
  */
+@PublicApi(since = "1.0.0")
 public final class XContentBuilder implements Closeable, Flushable {
 
     /**
@@ -149,6 +153,14 @@ public final class XContentBuilder implements Closeable, Flushable {
         WRITERS = Collections.unmodifiableMap(writers);
         HUMAN_READABLE_TRANSFORMERS = Collections.unmodifiableMap(humanReadableTransformer);
         DATE_TRANSFORMERS = Collections.unmodifiableMap(dateTransformers);
+    }
+
+    /**
+     * Returns a string representation of the builder (only applicable for text based xcontent).
+     */
+    @Override
+    public String toString() {
+        return BytesReference.bytes(this).utf8ToString();
     }
 
     /**

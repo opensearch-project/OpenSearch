@@ -35,15 +35,15 @@ package org.opensearch.cluster;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterState.Custom;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.Strings;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.index.shard.ShardId;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.RepositoryOperation;
 import org.opensearch.repositories.RepositoryShardId;
@@ -113,7 +113,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         long repositoryStateId,
         final Map<ShardId, ShardSnapshotStatus> shards,
         Map<String, Object> userMetadata,
-        Version version
+        Version version,
+        boolean remoteStoreIndexShallowCopy
     ) {
         return new SnapshotsInProgress.Entry(
             snapshot,
@@ -127,7 +128,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             shards,
             null,
             userMetadata,
-            version
+            version,
+            remoteStoreIndexShallowCopy
         );
     }
 
@@ -164,7 +166,9 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             Collections.emptyMap(),
             version,
             source,
-            Map.of()
+            Map.of(),
+            false // initialising to false, will be updated in startCloning method of SnapshotsService while updating entry with
+                  // clone jobs
         );
     }
 
@@ -177,6 +181,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         private final State state;
         private final Snapshot snapshot;
         private final boolean includeGlobalState;
+        private final boolean remoteStoreIndexShallowCopy;
         private final boolean partial;
         /**
          * Map of {@link ShardId} to {@link ShardSnapshotStatus} tracking the state of each shard snapshot operation.
@@ -219,7 +224,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             final Map<ShardId, ShardSnapshotStatus> shards,
             String failure,
             Map<String, Object> userMetadata,
-            Version version
+            Version version,
+            boolean remoteStoreIndexShallowCopy
         ) {
             this(
                 snapshot,
@@ -235,7 +241,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 userMetadata,
                 version,
                 null,
-                Map.of()
+                Map.of(),
+                remoteStoreIndexShallowCopy
             );
         }
 
@@ -253,7 +260,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             final Map<String, Object> userMetadata,
             Version version,
             @Nullable SnapshotId source,
-            @Nullable final Map<RepositoryShardId, ShardSnapshotStatus> clones
+            @Nullable final Map<RepositoryShardId, ShardSnapshotStatus> clones,
+            boolean remoteStoreIndexShallowCopy
         ) {
             this.state = state;
             this.snapshot = snapshot;
@@ -274,6 +282,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             } else {
                 this.clones = Collections.unmodifiableMap(clones);
             }
+            this.remoteStoreIndexShallowCopy = remoteStoreIndexShallowCopy;
             assert assertShardsConsistent(this.source, this.state, this.indices, this.shards, this.clones);
         }
 
@@ -292,6 +301,11 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             dataStreams = in.readStringList();
             source = in.readOptionalWriteable(SnapshotId::new);
             clones = in.readMap(RepositoryShardId::new, ShardSnapshotStatus::readFrom);
+            if (in.getVersion().onOrAfter(Version.V_2_9_0)) {
+                remoteStoreIndexShallowCopy = in.readBoolean();
+            } else {
+                remoteStoreIndexShallowCopy = false;
+            }
         }
 
         private static boolean assertShardsConsistent(
@@ -346,7 +360,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             long repositoryStateId,
             final Map<ShardId, ShardSnapshotStatus> shards,
             Map<String, Object> userMetadata,
-            Version version
+            Version version,
+            boolean remoteStoreIndexShallowCopy
         ) {
             this(
                 snapshot,
@@ -360,7 +375,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 shards,
                 null,
                 userMetadata,
-                version
+                version,
+                remoteStoreIndexShallowCopy
             );
         }
 
@@ -385,7 +401,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 shards,
                 failure,
                 entry.userMetadata,
-                version
+                version,
+                entry.remoteStoreIndexShallowCopy
             );
         }
 
@@ -409,7 +426,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 userMetadata,
                 version,
                 source,
-                clones
+                clones,
+                remoteStoreIndexShallowCopy
             );
         }
 
@@ -431,7 +449,28 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 userMetadata,
                 version,
                 source,
-                updatedClones
+                updatedClones,
+                remoteStoreIndexShallowCopy
+            );
+        }
+
+        public Entry withRemoteStoreIndexShallowCopy(final boolean remoteStoreIndexShallowCopy) {
+            return new Entry(
+                snapshot,
+                includeGlobalState,
+                partial,
+                state,
+                indices,
+                dataStreams,
+                startTime,
+                repositoryStateId,
+                shards,
+                failure,
+                userMetadata,
+                version,
+                source,
+                clones,
+                remoteStoreIndexShallowCopy
             );
         }
 
@@ -486,7 +525,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 userMetadata,
                 version,
                 source,
-                clones
+                clones,
+                remoteStoreIndexShallowCopy
             );
         }
 
@@ -512,7 +552,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                     shards,
                     failure,
                     userMetadata,
-                    version
+                    version,
+                    remoteStoreIndexShallowCopy
                 );
             }
             return withStartedShards(shards);
@@ -535,7 +576,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 shards,
                 failure,
                 userMetadata,
-                version
+                version,
+                remoteStoreIndexShallowCopy
             );
             assert updated.state().completed() == false && completed(updated.shards().values()) == false
                 : "Only running snapshots allowed but saw [" + updated + "]";
@@ -565,6 +607,10 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
 
         public boolean includeGlobalState() {
             return includeGlobalState;
+        }
+
+        public boolean remoteStoreIndexShallowCopy() {
+            return remoteStoreIndexShallowCopy;
         }
 
         public Map<String, Object> userMetadata() {
@@ -630,7 +676,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             if (version.equals(entry.version) == false) return false;
             if (Objects.equals(source, ((Entry) o).source) == false) return false;
             if (clones.equals(((Entry) o).clones) == false) return false;
-
+            if (remoteStoreIndexShallowCopy != entry.remoteStoreIndexShallowCopy) return false;
             return true;
         }
 
@@ -647,12 +693,13 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             result = 31 * result + version.hashCode();
             result = 31 * result + (source == null ? 0 : source.hashCode());
             result = 31 * result + clones.hashCode();
+            result = 31 * result + (remoteStoreIndexShallowCopy ? 1 : 0);
             return result;
         }
 
         @Override
         public String toString() {
-            return Strings.toString(XContentType.JSON, this);
+            return Strings.toString(MediaTypeRegistry.JSON, this);
         }
 
         @Override
@@ -710,6 +757,9 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             out.writeStringCollection(dataStreams);
             out.writeOptionalWriteable(source);
             out.writeMap(clones, (o, v) -> v.writeTo(o), (o, v) -> v.writeTo(o));
+            if (out.getVersion().onOrAfter(Version.V_2_9_0)) {
+                out.writeBoolean(remoteStoreIndexShallowCopy);
+            }
         }
 
         @Override

@@ -89,6 +89,7 @@ import org.apache.lucene.analysis.it.ItalianAnalyzer;
 import org.apache.lucene.analysis.lt.LithuanianAnalyzer;
 import org.apache.lucene.analysis.lv.LatvianAnalyzer;
 import org.apache.lucene.analysis.miscellaneous.ASCIIFoldingFilter;
+import org.apache.lucene.analysis.miscellaneous.DelimitedTermFrequencyTokenFilter;
 import org.apache.lucene.analysis.miscellaneous.DisableGraphAttribute;
 import org.apache.lucene.analysis.miscellaneous.KeywordRepeatFilter;
 import org.apache.lucene.analysis.miscellaneous.LengthFilter;
@@ -128,10 +129,10 @@ import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.SetOnce;
-import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
@@ -154,8 +155,6 @@ import org.opensearch.script.ScriptContext;
 import org.opensearch.script.ScriptService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.watcher.ResourceWatcherService;
-import org.tartarus.snowball.ext.DutchStemmer;
-import org.tartarus.snowball.ext.FrenchStemmer;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -164,6 +163,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.function.Supplier;
+
+import org.tartarus.snowball.ext.DutchStemmer;
+import org.tartarus.snowball.ext.FrenchStemmer;
 
 import static org.opensearch.plugins.AnalysisPlugin.requiresAnalysisSettings;
 
@@ -264,6 +266,7 @@ public class CommonAnalysisModulePlugin extends Plugin implements AnalysisPlugin
         );
         filters.put("decimal_digit", DecimalDigitFilterFactory::new);
         filters.put("delimited_payload", DelimitedPayloadTokenFilterFactory::new);
+        filters.put("delimited_term_freq", DelimitedTermFrequencyTokenFilterFactory::new);
         filters.put("dictionary_decompounder", requiresAnalysisSettings(DictionaryCompoundWordTokenFilterFactory::new));
         filters.put("dutch_stem", DutchStemTokenFilterFactory::new);
         filters.put("edge_ngram", EdgeNGramTokenFilterFactory::new);
@@ -497,6 +500,13 @@ public class CommonAnalysisModulePlugin extends Plugin implements AnalysisPlugin
                     DelimitedPayloadTokenFilterFactory.DEFAULT_DELIMITER,
                     DelimitedPayloadTokenFilterFactory.DEFAULT_ENCODER
                 )
+            )
+        );
+        filters.add(
+            PreConfiguredTokenFilter.singleton(
+                "delimited_term_freq",
+                false,
+                input -> new DelimitedTermFrequencyTokenFilter(input, DelimitedTermFrequencyTokenFilterFactory.DEFAULT_DELIMITER)
             )
         );
         filters.add(PreConfiguredTokenFilter.singleton("dutch_stem", false, input -> new SnowballFilter(input, new DutchStemmer())));

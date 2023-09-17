@@ -59,7 +59,7 @@ public class AggregationProfileBreakdown extends AbstractProfileBreakdown<Aggreg
     }
 
     @Override
-    protected Map<String, Object> toDebugMap() {
+    public Map<String, Object> toDebugMap() {
         return unmodifiableMap(extra);
     }
 }

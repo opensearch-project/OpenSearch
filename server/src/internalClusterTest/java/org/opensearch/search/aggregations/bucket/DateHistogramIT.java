@@ -31,15 +31,17 @@
 
 package org.opensearch.search.aggregations.bucket;
 
-import org.opensearch.BaseOpenSearchException;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
+import org.opensearch.OpenSearchException;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.SearchResponse;
-import org.opensearch.common.Strings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.time.DateFormatters;
 import org.opensearch.common.time.DateMathParser;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.index.query.MatchNoneQueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
@@ -50,13 +52,14 @@ import org.opensearch.search.aggregations.AggregationExecutionException;
 import org.opensearch.search.aggregations.BucketOrder;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.bucket.histogram.DateHistogramInterval;
-import org.opensearch.search.aggregations.bucket.histogram.LongBounds;
 import org.opensearch.search.aggregations.bucket.histogram.Histogram;
 import org.opensearch.search.aggregations.bucket.histogram.Histogram.Bucket;
 import org.opensearch.search.aggregations.bucket.histogram.InternalDateHistogram;
+import org.opensearch.search.aggregations.bucket.histogram.LongBounds;
 import org.opensearch.search.aggregations.metrics.Avg;
 import org.opensearch.search.aggregations.metrics.Sum;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
 import org.hamcrest.Matchers;
 import org.junit.After;
 
@@ -79,6 +82,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
+import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.search.aggregations.AggregationBuilders.avg;
 import static org.opensearch.search.aggregations.AggregationBuilders.dateHistogram;
 import static org.opensearch.search.aggregations.AggregationBuilders.histogram;
@@ -94,12 +98,29 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsNull.notNullValue;
 
 @OpenSearchIntegTestCase.SuiteScopeTestCase
-public class DateHistogramIT extends OpenSearchIntegTestCase {
+public class DateHistogramIT extends ParameterizedOpenSearchIntegTestCase {
 
     static Map<ZonedDateTime, Map<String, Object>> expectedMultiSortBuckets;
 
     private ZonedDateTime date(int month, int day) {
         return ZonedDateTime.of(2012, month, day, 0, 0, 0, 0, ZoneOffset.UTC);
+    }
+
+    public DateHistogramIT(Settings dynamicSettings) {
+        super(dynamicSettings);
+    }
+
+    @ParametersFactory
+    public static Collection<Object[]> parameters() {
+        return Arrays.asList(
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
+        );
+    }
+
+    @Override
+    protected Settings featureFlagSettings() {
+        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
     }
 
     private ZonedDateTime date(String date) {
@@ -650,9 +671,9 @@ public class DateHistogramIT extends OpenSearchIntegTestCase {
                 .get();
             fail("Expected an exception");
         } catch (SearchPhaseExecutionException e) {
-            BaseOpenSearchException[] rootCauses = e.guessRootCauses();
+            OpenSearchException[] rootCauses = e.guessRootCauses();
             if (rootCauses.length == 1) {
-                BaseOpenSearchException rootCause = rootCauses[0];
+                OpenSearchException rootCause = rootCauses[0];
                 if (rootCause instanceof AggregationExecutionException) {
                     AggregationExecutionException aggException = (AggregationExecutionException) rootCause;
                     assertThat(aggException.getMessage(), Matchers.startsWith("Invalid aggregation order path"));
@@ -1309,16 +1330,15 @@ public class DateHistogramIT extends OpenSearchIntegTestCase {
     }
 
     public void testSingleValueWithMultipleDateFormatsFromMapping() throws Exception {
-        String mappingJson = Strings.toString(
-            jsonBuilder().startObject()
-                .startObject("properties")
-                .startObject("date")
-                .field("type", "date")
-                .field("format", "strict_date_optional_time||dd-MM-yyyy")
-                .endObject()
-                .endObject()
-                .endObject()
-        );
+        String mappingJson = jsonBuilder().startObject()
+            .startObject("properties")
+            .startObject("date")
+            .field("type", "date")
+            .field("format", "strict_date_optional_time||dd-MM-yyyy")
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
         prepareCreate("idx2").setMapping(mappingJson).get();
         IndexRequestBuilder[] reqs = new IndexRequestBuilder[5];
         for (int i = 0; i < reqs.length; i++) {
@@ -1735,6 +1755,7 @@ public class DateHistogramIT extends OpenSearchIntegTestCase {
                 .getMissCount(),
             equalTo(2L)
         );
+        cluster().wipeIndices("cache_test_idx");
     }
 
     public void testSingleValuedFieldOrderedBySingleValueSubAggregationAscAndKeyDesc() throws Exception {
@@ -1852,6 +1873,7 @@ public class DateHistogramIT extends OpenSearchIntegTestCase {
         assertEquals(1, buckets.get(0).getDocCount());
         assertEquals(946771200000L, ((ZonedDateTime) buckets.get(1).getKey()).toEpochSecond() * 1000);
         assertEquals(1, buckets.get(1).getDocCount());
+        cluster().wipeIndices("nanos");
     }
 
     public void testDateKeyFormatting() {

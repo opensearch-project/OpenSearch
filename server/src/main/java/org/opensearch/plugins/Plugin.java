@@ -32,7 +32,6 @@
 
 package org.opensearch.plugins;
 
-import org.opensearch.watcher.ResourceWatcherService;
 import org.opensearch.bootstrap.BootstrapCheck;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.ClusterState;
@@ -41,13 +40,14 @@ import org.opensearch.cluster.metadata.IndexTemplateMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.component.LifecycleComponent;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.inject.Module;
-import org.opensearch.common.io.stream.NamedWriteable;
-import org.opensearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.common.lifecycle.LifecycleComponent;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.SettingUpgrader;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.io.stream.NamedWriteable;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.env.Environment;
@@ -58,6 +58,7 @@ import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
 import org.opensearch.threadpool.ExecutorBuilder;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.watcher.ResourceWatcherService;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -89,6 +90,7 @@ import java.util.function.UnaryOperator;
  *
  * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public abstract class Plugin implements Closeable {
 
     /**

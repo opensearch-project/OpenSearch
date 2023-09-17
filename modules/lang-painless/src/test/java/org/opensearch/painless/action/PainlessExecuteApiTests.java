@@ -31,9 +31,9 @@
 
 package org.opensearch.painless.action;
 
-import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.query.MatchQueryBuilder;
 import org.opensearch.painless.PainlessModulePlugin;
@@ -92,13 +92,13 @@ public class PainlessExecuteApiTests extends OpenSearchSingleNodeTestCase {
         IndexService indexService = createIndex("index", Settings.EMPTY, "doc", "field", "type=long");
 
         Request.ContextSetup contextSetup = new Request.ContextSetup("index", new BytesArray("{\"field\": 3}"), null);
-        contextSetup.setXContentType(XContentType.JSON);
+        contextSetup.setXContentType(MediaTypeRegistry.JSON);
         Request request = new Request(new Script("doc['field'].value >= 3"), "filter", contextSetup);
         Response response = innerShardOperation(request, scriptService, indexService);
         assertThat(response.getResult(), equalTo(true));
 
         contextSetup = new Request.ContextSetup("index", new BytesArray("{\"field\": 3}"), null);
-        contextSetup.setXContentType(XContentType.JSON);
+        contextSetup.setXContentType(MediaTypeRegistry.JSON);
         request = new Request(
             new Script(ScriptType.INLINE, "painless", "doc['field'].value >= params.max", singletonMap("max", 3)),
             "filter",
@@ -108,7 +108,7 @@ public class PainlessExecuteApiTests extends OpenSearchSingleNodeTestCase {
         assertThat(response.getResult(), equalTo(true));
 
         contextSetup = new Request.ContextSetup("index", new BytesArray("{\"field\": 2}"), null);
-        contextSetup.setXContentType(XContentType.JSON);
+        contextSetup.setXContentType(MediaTypeRegistry.JSON);
         request = new Request(
             new Script(ScriptType.INLINE, "painless", "doc['field'].value >= params.max", singletonMap("max", 3)),
             "filter",
@@ -127,7 +127,7 @@ public class PainlessExecuteApiTests extends OpenSearchSingleNodeTestCase {
             new BytesArray("{\"rank\": 4.0, \"text\": \"quick brown fox\"}"),
             new MatchQueryBuilder("text", "fox")
         );
-        contextSetup.setXContentType(XContentType.JSON);
+        contextSetup.setXContentType(MediaTypeRegistry.JSON);
         Request request = new Request(
             new Script(
                 ScriptType.INLINE,

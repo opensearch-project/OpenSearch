@@ -32,24 +32,24 @@
 
 package org.opensearch.node;
 
-import org.opensearch.cluster.routing.WeightedRoutingStats;
-import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.Build;
 import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.node.info.NodeInfo;
 import org.opensearch.action.admin.cluster.node.stats.NodeStats;
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
 import org.opensearch.action.search.SearchTransportService;
+import org.opensearch.cluster.routing.WeightedRoutingStats;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
+import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.discovery.Discovery;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.index.IndexingPressureService;
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.indices.IndicesService;
-import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.ingest.IngestService;
 import org.opensearch.monitor.MonitorService;
 import org.opensearch.plugins.PluginsService;
@@ -57,6 +57,7 @@ import org.opensearch.script.ScriptService;
 import org.opensearch.search.aggregations.support.AggregationUsageService;
 import org.opensearch.search.backpressure.SearchBackpressureService;
 import org.opensearch.search.pipeline.SearchPipelineService;
+import org.opensearch.tasks.TaskCancellationMonitoringService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -90,6 +91,7 @@ public class NodeService implements Closeable {
     private final ClusterService clusterService;
     private final Discovery discovery;
     private final FileCache fileCache;
+    private final TaskCancellationMonitoringService taskCancellationMonitoringService;
 
     NodeService(
         Settings settings,
@@ -111,7 +113,8 @@ public class NodeService implements Closeable {
         AggregationUsageService aggregationUsageService,
         SearchBackpressureService searchBackpressureService,
         SearchPipelineService searchPipelineService,
-        FileCache fileCache
+        FileCache fileCache,
+        TaskCancellationMonitoringService taskCancellationMonitoringService
     ) {
         this.settings = settings;
         this.threadPool = threadPool;
@@ -133,6 +136,7 @@ public class NodeService implements Closeable {
         this.searchPipelineService = searchPipelineService;
         this.clusterService = clusterService;
         this.fileCache = fileCache;
+        this.taskCancellationMonitoringService = taskCancellationMonitoringService;
         clusterService.addStateApplier(ingestService);
         clusterService.addStateApplier(searchPipelineService);
     }
@@ -211,7 +215,9 @@ public class NodeService implements Closeable {
         boolean searchBackpressure,
         boolean clusterManagerThrottling,
         boolean weightedRoutingStats,
-        boolean fileCacheStats
+        boolean fileCacheStats,
+        boolean taskCancellation,
+        boolean searchPipelineStats
     ) {
         // for indices stats we want to include previous allocated shards stats as well (it will
         // only be applied to the sensible ones to use, like refresh/merge/flush/indexing stats)
@@ -237,7 +243,9 @@ public class NodeService implements Closeable {
             searchBackpressure ? this.searchBackpressureService.nodeStats() : null,
             clusterManagerThrottling ? this.clusterService.getClusterManagerService().getThrottlingStats() : null,
             weightedRoutingStats ? WeightedRoutingStats.getInstance() : null,
-            fileCacheStats && fileCache != null ? fileCache.fileCacheStats() : null
+            fileCacheStats && fileCache != null ? fileCache.fileCacheStats() : null,
+            taskCancellation ? this.taskCancellationMonitoringService.stats() : null,
+            searchPipelineStats ? this.searchPipelineService.stats() : null
         );
     }
 
@@ -251,6 +259,10 @@ public class NodeService implements Closeable {
 
     public SearchBackpressureService getSearchBackpressureService() {
         return searchBackpressureService;
+    }
+
+    public TaskCancellationMonitoringService getTaskCancellationMonitoringService() {
+        return taskCancellationMonitoringService;
     }
 
     @Override

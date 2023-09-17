@@ -8,18 +8,10 @@
 
 package org.opensearch.index.translog.transfer;
 
-import org.apache.lucene.codecs.CodecUtil;
-import org.apache.lucene.store.DataOutput;
-import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.store.OutputStreamIndexOutput;
 import org.opensearch.common.SetOnce;
-import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.index.remote.RemoteStoreUtils;
 
-import java.io.IOException;
 import java.util.Arrays;
-import java.util.Comparator;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -44,28 +36,22 @@ public class TranslogTransferMetadata {
 
     public static final String METADATA_SEPARATOR = "__";
 
-    private static final int BUFFER_SIZE = 4096;
+    public static final String METADATA_PREFIX = "metadata";
 
-    private static final int CURRENT_VERSION = 1;
+    static final int BUFFER_SIZE = 4096;
 
-    private static final String METADATA_CODEC = "md";
+    static final int CURRENT_VERSION = 1;
 
-    public static final Comparator<String> METADATA_FILENAME_COMPARATOR = new MetadataFilenameComparator();
+    static final String METADATA_CODEC = "md";
+
+    private final long createdAt;
 
     public TranslogTransferMetadata(long primaryTerm, long generation, long minTranslogGeneration, int count) {
         this.primaryTerm = primaryTerm;
         this.generation = generation;
         this.minTranslogGeneration = minTranslogGeneration;
         this.count = count;
-    }
-
-    public TranslogTransferMetadata(IndexInput indexInput) throws IOException {
-        CodecUtil.checksumEntireFile(indexInput);
-        CodecUtil.checkHeader(indexInput, METADATA_CODEC, CURRENT_VERSION, CURRENT_VERSION);
-        this.primaryTerm = indexInput.readLong();
-        this.generation = indexInput.readLong();
-        this.minTranslogGeneration = indexInput.readLong();
-        this.generationToPrimaryTermMapper.set(indexInput.readMapOfStrings());
+        this.createdAt = System.currentTimeMillis();
     }
 
     public long getPrimaryTerm() {
@@ -92,26 +78,20 @@ public class TranslogTransferMetadata {
         return generationToPrimaryTermMapper.get();
     }
 
-    public static String getFileName(long primaryTerm, long generation) {
-        return String.join(METADATA_SEPARATOR, Arrays.asList(String.valueOf(primaryTerm), String.valueOf(generation)));
-    }
-
-    public byte[] createMetadataBytes() throws IOException {
-        try (BytesStreamOutput output = new BytesStreamOutput()) {
-            try (
-                OutputStreamIndexOutput indexOutput = new OutputStreamIndexOutput(
-                    "translog transfer metadata " + primaryTerm,
-                    getFileName(primaryTerm, generation),
-                    output,
-                    BUFFER_SIZE
-                )
-            ) {
-                CodecUtil.writeHeader(indexOutput, METADATA_CODEC, CURRENT_VERSION);
-                write(indexOutput);
-                CodecUtil.writeFooter(indexOutput);
-            }
-            return BytesReference.toBytes(output.bytes());
-        }
+    /*
+    This should be used only at the time of creation.
+     */
+    public String getFileName() {
+        return String.join(
+            METADATA_SEPARATOR,
+            Arrays.asList(
+                METADATA_PREFIX,
+                RemoteStoreUtils.invertLong(primaryTerm),
+                RemoteStoreUtils.invertLong(generation),
+                RemoteStoreUtils.invertLong(createdAt),
+                String.valueOf(CURRENT_VERSION)
+            )
+        );
     }
 
     @Override
@@ -125,34 +105,5 @@ public class TranslogTransferMetadata {
         if (o == null || getClass() != o.getClass()) return false;
         TranslogTransferMetadata other = (TranslogTransferMetadata) o;
         return Objects.equals(this.primaryTerm, other.primaryTerm) && Objects.equals(this.generation, other.generation);
-    }
-
-    private void write(DataOutput out) throws IOException {
-        out.writeLong(primaryTerm);
-        out.writeLong(generation);
-        out.writeLong(minTranslogGeneration);
-        if (generationToPrimaryTermMapper.get() != null) {
-            out.writeMapOfStrings(generationToPrimaryTermMapper.get());
-        } else {
-            out.writeMapOfStrings(new HashMap<>());
-        }
-    }
-
-    private static class MetadataFilenameComparator implements Comparator<String> {
-        @Override
-        public int compare(String first, String second) {
-            // Format of metadata filename is <Primary Term>__<Generation>
-            String[] filenameTokens1 = first.split(METADATA_SEPARATOR);
-            String[] filenameTokens2 = second.split(METADATA_SEPARATOR);
-            // Here, we are comparing only primary term and generation.
-            for (int i = 0; i < filenameTokens1.length; i++) {
-                if (filenameTokens1[i].equals(filenameTokens2[i]) == false) {
-                    return Long.compare(Long.parseLong(filenameTokens1[i]), Long.parseLong(filenameTokens2[i]));
-                }
-            }
-            throw new IllegalArgumentException(
-                "TranslogTransferMetadata files " + first + " and " + second + " have same primary term and generation"
-            );
-        }
     }
 }

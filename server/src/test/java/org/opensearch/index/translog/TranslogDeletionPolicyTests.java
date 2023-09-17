@@ -39,9 +39,8 @@ import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.io.IOUtils;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.test.OpenSearchTestCase;
-import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.nio.channels.FileChannel;
@@ -49,6 +48,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+
+import org.mockito.Mockito;
 
 import static java.lang.Math.min;
 import static org.hamcrest.Matchers.equalTo;

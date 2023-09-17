@@ -32,13 +32,14 @@
 
 package org.opensearch.search.aggregations.metrics;
 
-import org.HdrHistogram.DoubleHistogram;
 import org.opensearch.search.DocValueFormat;
 
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import org.HdrHistogram.DoubleHistogram;
 
 public class InternalHDRPercentilesRanksTests extends InternalPercentilesRanksTestCase<InternalHDRPercentileRanks> {
 

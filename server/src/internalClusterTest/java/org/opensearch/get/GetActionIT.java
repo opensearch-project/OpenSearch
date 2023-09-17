@@ -35,7 +35,6 @@ package org.opensearch.get;
 import org.opensearch.action.DocWriteResponse;
 import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.action.admin.indices.flush.FlushResponse;
-
 import org.opensearch.action.delete.DeleteResponse;
 import org.opensearch.action.get.GetRequestBuilder;
 import org.opensearch.action.get.GetResponse;
@@ -43,19 +42,19 @@ import org.opensearch.action.get.MultiGetRequest;
 import org.opensearch.action.get.MultiGetRequestBuilder;
 import org.opensearch.action.get.MultiGetResponse;
 import org.opensearch.action.index.IndexResponse;
-import org.opensearch.action.support.DefaultShardOperationFailedException;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.Strings;
-import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.action.support.DefaultShardOperationFailedException;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.rest.RestStatus;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.engine.VersionConflictEngineException;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.rest.RestStatus;
-import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.InternalSettingsPlugin;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -288,17 +287,16 @@ public class GetActionIT extends OpenSearchIntegTestCase {
     }
 
     public void testGetDocWithMultivaluedFields() throws Exception {
-        String mapping1 = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("properties")
-                .startObject("field")
-                .field("type", "text")
-                .field("store", true)
-                .endObject()
-                .endObject()
-                .endObject()
-        );
+        String mapping1 = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("field")
+            .field("type", "text")
+            .field("store", true)
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
         assertAcked(prepareCreate("test").setMapping(mapping1));
         ensureGreen();
 
@@ -633,7 +631,7 @@ public class GetActionIT extends OpenSearchIntegTestCase {
 
         logger.info("indexing documents");
 
-        client().prepareIndex("my-index").setId("1").setSource(source, XContentType.JSON).get();
+        client().prepareIndex("my-index").setId("1").setSource(source, MediaTypeRegistry.JSON).get();
 
         logger.info("checking real time retrieval");
 
@@ -692,7 +690,7 @@ public class GetActionIT extends OpenSearchIntegTestCase {
             + "    }\n"
             + "  }\n"
             + "}";
-        assertAcked(prepareCreate("test").addAlias(new Alias("alias")).setSource(createIndexSource, XContentType.JSON));
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias")).setSource(createIndexSource, MediaTypeRegistry.JSON));
         ensureGreen();
         String doc = "{\n"
             + "  \"suggest\": {\n"
@@ -722,10 +720,10 @@ public class GetActionIT extends OpenSearchIntegTestCase {
             + "    \"refresh_interval\": \"-1\"\n"
             + "  }\n"
             + "}";
-        assertAcked(prepareCreate("test").addAlias(new Alias("alias")).setSource(createIndexSource, XContentType.JSON));
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias")).setSource(createIndexSource, MediaTypeRegistry.JSON));
         ensureGreen();
 
-        client().prepareIndex("test").setId("1").setRouting("routingValue").setId("1").setSource("{}", XContentType.JSON).get();
+        client().prepareIndex("test").setId("1").setRouting("routingValue").setId("1").setSource("{}", MediaTypeRegistry.JSON).get();
 
         String[] fieldsList = { "_routing" };
         // before refresh - document is only in translog
@@ -746,10 +744,10 @@ public class GetActionIT extends OpenSearchIntegTestCase {
             + "  }\n"
             + "}";
 
-        assertAcked(prepareCreate("test").addAlias(new Alias("alias")).setSource(createIndexSource, XContentType.JSON));
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias")).setSource(createIndexSource, MediaTypeRegistry.JSON));
         ensureGreen();
         String doc = "{\n" + "  \"text\": \"some text.\"\n" + "}\n";
-        client().prepareIndex("test").setId("1").setSource(doc, XContentType.JSON).setRouting("1").get();
+        client().prepareIndex("test").setId("1").setSource(doc, MediaTypeRegistry.JSON).setRouting("1").get();
         String[] fieldsList = { "_routing" };
         // before refresh - document is only in translog
         assertGetFieldsAlwaysWorks(indexOrAlias(), "_doc", "1", fieldsList, "1");
@@ -817,7 +815,7 @@ public class GetActionIT extends OpenSearchIntegTestCase {
             + "  }\n"
             + "}";
 
-        assertAcked(prepareCreate("test").addAlias(new Alias("alias")).setSource(createIndexSource, XContentType.JSON));
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias")).setSource(createIndexSource, MediaTypeRegistry.JSON));
         ensureGreen();
         String doc = "{\n" + "  \"text1\": \"some text.\"\n," + "  \"text2\": \"more text.\"\n" + "}\n";
         index("test", "_doc", "1", doc);

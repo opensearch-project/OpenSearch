@@ -32,13 +32,14 @@
 
 package org.opensearch.http.netty4;
 
-import io.netty.channel.Channel;
-import org.opensearch.action.ActionListener;
 import org.opensearch.common.concurrent.CompletableContext;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.http.HttpServerChannel;
 import org.opensearch.transport.netty4.Netty4TcpChannel;
 
 import java.net.InetSocketAddress;
+
+import io.netty.channel.Channel;
 
 public class Netty4HttpServerChannel implements HttpServerChannel {
 

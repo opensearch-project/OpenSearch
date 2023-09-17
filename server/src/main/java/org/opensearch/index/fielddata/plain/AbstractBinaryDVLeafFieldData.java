@@ -35,7 +35,7 @@ package org.opensearch.index.fielddata.plain;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
-import org.opensearch.common.io.stream.BytesStreamInput;
+import org.opensearch.core.common.io.stream.BytesStreamInput;
 import org.opensearch.index.fielddata.LeafFieldData;
 import org.opensearch.index.fielddata.SortedBinaryDocValues;
 

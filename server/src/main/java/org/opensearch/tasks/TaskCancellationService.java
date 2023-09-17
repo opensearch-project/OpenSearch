@@ -34,22 +34,23 @@ package org.opensearch.tasks;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.BaseExceptionsHelper;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchSecurityException;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.StepListener;
 import org.opensearch.action.support.ChannelActionListener;
 import org.opensearch.action.support.GroupedActionListener;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.tasks.TaskId;
+import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.EmptyTransportResponseHandler;
 import org.opensearch.transport.TransportChannel;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportRequestHandler;
-import org.opensearch.transport.TransportResponse;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
@@ -156,7 +157,7 @@ public class TaskCancellationService {
 
                     @Override
                     public void handleException(TransportException exp) {
-                        assert BaseExceptionsHelper.unwrapCause(exp) instanceof OpenSearchSecurityException == false;
+                        assert ExceptionsHelper.unwrapCause(exp) instanceof OpenSearchSecurityException == false;
                         logger.warn("Cannot send ban for tasks with the parent [{}] to the node [{}]", taskId, node);
                         groupedListener.onFailure(exp);
                     }
@@ -172,7 +173,7 @@ public class TaskCancellationService {
             transportService.sendRequest(node, BAN_PARENT_ACTION_NAME, request, new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
                 @Override
                 public void handleException(TransportException exp) {
-                    assert BaseExceptionsHelper.unwrapCause(exp) instanceof OpenSearchSecurityException == false;
+                    assert ExceptionsHelper.unwrapCause(exp) instanceof OpenSearchSecurityException == false;
                     logger.info("failed to remove the parent ban for task {} on node {}", request.parentTaskId, node);
                 }
             });

@@ -32,45 +32,91 @@
 
 package org.opensearch.repositories.s3;
 
-import com.amazonaws.AmazonClientException;
-import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.model.AbortMultipartUploadRequest;
-import com.amazonaws.services.s3.model.CannedAccessControlList;
-import com.amazonaws.services.s3.model.CompleteMultipartUploadRequest;
-import com.amazonaws.services.s3.model.CompleteMultipartUploadResult;
-import com.amazonaws.services.s3.model.InitiateMultipartUploadRequest;
-import com.amazonaws.services.s3.model.InitiateMultipartUploadResult;
-import com.amazonaws.services.s3.model.ObjectMetadata;
-import com.amazonaws.services.s3.model.PartETag;
-import com.amazonaws.services.s3.model.PutObjectRequest;
-import com.amazonaws.services.s3.model.PutObjectResult;
-import com.amazonaws.services.s3.model.StorageClass;
-import com.amazonaws.services.s3.model.UploadPartRequest;
-import com.amazonaws.services.s3.model.UploadPartResult;
+import software.amazon.awssdk.core.ResponseInputStream;
+import software.amazon.awssdk.core.async.AsyncResponseTransformer;
+import software.amazon.awssdk.core.exception.SdkException;
+import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.services.s3.S3AsyncClient;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.AbortMultipartUploadRequest;
+import software.amazon.awssdk.services.s3.model.AbortMultipartUploadResponse;
+import software.amazon.awssdk.services.s3.model.Checksum;
+import software.amazon.awssdk.services.s3.model.CompleteMultipartUploadRequest;
+import software.amazon.awssdk.services.s3.model.CompleteMultipartUploadResponse;
+import software.amazon.awssdk.services.s3.model.CompletedPart;
+import software.amazon.awssdk.services.s3.model.CreateMultipartUploadRequest;
+import software.amazon.awssdk.services.s3.model.CreateMultipartUploadResponse;
+import software.amazon.awssdk.services.s3.model.DeleteObjectsRequest;
+import software.amazon.awssdk.services.s3.model.DeleteObjectsResponse;
+import software.amazon.awssdk.services.s3.model.GetObjectAttributesParts;
+import software.amazon.awssdk.services.s3.model.GetObjectAttributesRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectAttributesResponse;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectResponse;
+import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
+import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
+import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
+import software.amazon.awssdk.services.s3.model.ObjectCannedACL;
+import software.amazon.awssdk.services.s3.model.ObjectIdentifier;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.PutObjectResponse;
+import software.amazon.awssdk.services.s3.model.S3Error;
+import software.amazon.awssdk.services.s3.model.S3Object;
+import software.amazon.awssdk.services.s3.model.ServerSideEncryption;
+import software.amazon.awssdk.services.s3.model.StorageClass;
+import software.amazon.awssdk.services.s3.model.UploadPartRequest;
+import software.amazon.awssdk.services.s3.model.UploadPartResponse;
+import software.amazon.awssdk.services.s3.paginators.ListObjectsV2Iterable;
+
+import org.opensearch.action.LatchedActionListener;
+import org.opensearch.common.blobstore.BlobContainer;
+import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStoreException;
+import org.opensearch.common.blobstore.DeleteResult;
+import org.opensearch.common.blobstore.stream.read.ReadContext;
 import org.opensearch.common.collect.Tuple;
-import org.opensearch.common.unit.ByteSizeUnit;
+import org.opensearch.common.io.InputStreamContainer;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.repositories.s3.async.AsyncTransferManager;
 import org.opensearch.test.OpenSearchTestCase;
-import org.mockito.ArgumentCaptor;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+import java.util.NoSuchElementException;
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import org.mockito.ArgumentCaptor;
+import org.mockito.ArgumentMatchers;
+
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.any;
-import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-import static org.mockito.Mockito.doAnswer;
 
 public class S3BlobStoreContainerTests extends OpenSearchTestCase {
 
@@ -100,6 +146,281 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         assertEquals("Upload request size [2097152] can't be larger than buffer size", e.getMessage());
     }
 
+    public void testBlobExists() {
+        final String bucketName = randomAlphaOfLengthBetween(1, 10);
+        final String blobName = randomAlphaOfLengthBetween(1, 10);
+
+        final BlobPath blobPath = new BlobPath();
+
+        final S3BlobStore blobStore = mock(S3BlobStore.class);
+        when(blobStore.bucket()).thenReturn(bucketName);
+
+        final S3Client client = mock(S3Client.class);
+        when(client.headObject(any(HeadObjectRequest.class))).thenReturn(HeadObjectResponse.builder().build());
+        final AmazonS3Reference clientReference = new AmazonS3Reference(client);
+        when(blobStore.clientReference()).thenReturn(clientReference);
+
+        final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
+
+        assertTrue(blobContainer.blobExists(blobName));
+        verify(client, times(1)).headObject(any(HeadObjectRequest.class));
+    }
+
+    public void testBlobExistsNoSuchKeyException() {
+        final String bucketName = randomAlphaOfLengthBetween(1, 10);
+        final String blobName = randomAlphaOfLengthBetween(1, 10);
+
+        final BlobPath blobPath = new BlobPath();
+
+        final S3BlobStore blobStore = mock(S3BlobStore.class);
+        when(blobStore.bucket()).thenReturn(bucketName);
+
+        final S3Client client = mock(S3Client.class);
+        when(client.headObject(any(HeadObjectRequest.class))).thenThrow(NoSuchKeyException.builder().build());
+        final AmazonS3Reference clientReference = new AmazonS3Reference(client);
+        when(blobStore.clientReference()).thenReturn(clientReference);
+
+        final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
+
+        assertFalse(blobContainer.blobExists(blobName));
+        verify(client, times(1)).headObject(any(HeadObjectRequest.class));
+    }
+
+    public void testBlobExistsRequestFailure() {
+        final String bucketName = randomAlphaOfLengthBetween(1, 10);
+        final String blobName = randomAlphaOfLengthBetween(1, 10);
+
+        final BlobPath blobPath = new BlobPath();
+
+        final S3BlobStore blobStore = mock(S3BlobStore.class);
+        when(blobStore.bucket()).thenReturn(bucketName);
+
+        final S3Client client = mock(S3Client.class);
+        final AmazonS3Reference clientReference = new AmazonS3Reference(client);
+        when(blobStore.clientReference()).thenReturn(clientReference);
+
+        final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
+
+        when(client.headObject(any(HeadObjectRequest.class))).thenThrow(new RuntimeException());
+
+        assertThrows(BlobStoreException.class, () -> blobContainer.blobExists(blobName));
+        verify(client, times(1)).headObject(any(HeadObjectRequest.class));
+    }
+
+    private static class MockListObjectsV2ResponseIterator implements Iterator<ListObjectsV2Response> {
+
+        private final int totalPageCount;
+        private final int s3ObjectsPerPage;
+        private final long s3ObjectSize;
+
+        private final AtomicInteger currInvocationCount = new AtomicInteger();
+        private final List<String> keysListed;
+        private final boolean throwExceptionOnNextInvocation;
+
+        public MockListObjectsV2ResponseIterator(int totalPageCount, int s3ObjectsPerPage, long s3ObjectSize) {
+            this(totalPageCount, s3ObjectsPerPage, s3ObjectSize, "");
+        }
+
+        public MockListObjectsV2ResponseIterator(int totalPageCount, int s3ObjectsPerPage, long s3ObjectSize, String blobPath) {
+            this(totalPageCount, s3ObjectsPerPage, s3ObjectSize, blobPath, false);
+        }
+
+        public MockListObjectsV2ResponseIterator(
+            int totalPageCount,
+            int s3ObjectsPerPage,
+            long s3ObjectSize,
+            String blobPath,
+            boolean throwExceptionOnNextInvocation
+        ) {
+            this.totalPageCount = totalPageCount;
+            this.s3ObjectsPerPage = s3ObjectsPerPage;
+            this.s3ObjectSize = s3ObjectSize;
+            this.throwExceptionOnNextInvocation = throwExceptionOnNextInvocation;
+            keysListed = new ArrayList<>();
+            for (int i = 0; i < totalPageCount * s3ObjectsPerPage; i++) {
+                keysListed.add(blobPath + UUID.randomUUID().toString());
+            }
+            // S3 lists keys in lexicographic order
+            keysListed.sort(String::compareTo);
+        }
+
+        @Override
+        public boolean hasNext() {
+            return currInvocationCount.get() < totalPageCount;
+        }
+
+        @Override
+        public ListObjectsV2Response next() {
+            if (throwExceptionOnNextInvocation) {
+                throw SdkException.builder().build();
+            }
+            if (currInvocationCount.getAndIncrement() < totalPageCount) {
+                List<S3Object> s3Objects = new ArrayList<>();
+                for (int i = 0; i < s3ObjectsPerPage; i++) {
+                    String s3ObjectKey = keysListed.get((currInvocationCount.get() - 1) * s3ObjectsPerPage + i);
+                    s3Objects.add(S3Object.builder().key(s3ObjectKey).size(s3ObjectSize).build());
+                }
+                return ListObjectsV2Response.builder().contents(s3Objects).build();
+            }
+            throw new NoSuchElementException();
+        }
+
+        public List<String> getKeysListed() {
+            return keysListed;
+        }
+
+        public int numberOfPagesFetched() {
+            return currInvocationCount.get();
+        }
+    }
+
+    public void testDelete() throws IOException {
+        final String bucketName = randomAlphaOfLengthBetween(1, 10);
+
+        final BlobPath blobPath = new BlobPath();
+
+        final S3BlobStore blobStore = mock(S3BlobStore.class);
+        when(blobStore.bucket()).thenReturn(bucketName);
+        when(blobStore.getStatsMetricPublisher()).thenReturn(new StatsMetricPublisher());
+
+        final S3Client client = mock(S3Client.class);
+        doAnswer(invocation -> new AmazonS3Reference(client)).when(blobStore).clientReference();
+
+        ListObjectsV2Iterable listObjectsV2Iterable = mock(ListObjectsV2Iterable.class);
+        final int totalPageCount = 3;
+        final long s3ObjectSize = ByteSizeUnit.MB.toBytes(5);
+        final int s3ObjectsPerPage = 5;
+        MockListObjectsV2ResponseIterator listObjectsV2ResponseIterator = new MockListObjectsV2ResponseIterator(
+            totalPageCount,
+            s3ObjectsPerPage,
+            s3ObjectSize
+        );
+        when(listObjectsV2Iterable.iterator()).thenReturn(listObjectsV2ResponseIterator);
+        when(client.listObjectsV2Paginator(any(ListObjectsV2Request.class))).thenReturn(listObjectsV2Iterable);
+
+        final List<String> keysDeleted = new ArrayList<>();
+        doAnswer(invocation -> {
+            DeleteObjectsRequest deleteObjectsRequest = invocation.getArgument(0);
+            keysDeleted.addAll(deleteObjectsRequest.delete().objects().stream().map(ObjectIdentifier::key).collect(Collectors.toList()));
+            return DeleteObjectsResponse.builder().build();
+        }).when(client).deleteObjects(any(DeleteObjectsRequest.class));
+
+        final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
+
+        DeleteResult deleteResult = blobContainer.delete();
+        assertEquals(s3ObjectSize * s3ObjectsPerPage * totalPageCount, deleteResult.bytesDeleted());
+        assertEquals(s3ObjectsPerPage * totalPageCount, deleteResult.blobsDeleted());
+        // keysDeleted will have blobPath also
+        assertEquals(listObjectsV2ResponseIterator.getKeysListed().size(), keysDeleted.size() - 1);
+        assertTrue(keysDeleted.contains(blobPath.buildAsString()));
+        keysDeleted.remove(blobPath.buildAsString());
+        assertEquals(new HashSet<>(listObjectsV2ResponseIterator.getKeysListed()), new HashSet<>(keysDeleted));
+    }
+
+    public void testDeleteItemLevelErrorsDuringDelete() {
+        final String bucketName = randomAlphaOfLengthBetween(1, 10);
+
+        final BlobPath blobPath = new BlobPath();
+
+        final S3BlobStore blobStore = mock(S3BlobStore.class);
+        when(blobStore.bucket()).thenReturn(bucketName);
+        when(blobStore.getStatsMetricPublisher()).thenReturn(new StatsMetricPublisher());
+
+        final S3Client client = mock(S3Client.class);
+        doAnswer(invocation -> new AmazonS3Reference(client)).when(blobStore).clientReference();
+
+        ListObjectsV2Iterable listObjectsV2Iterable = mock(ListObjectsV2Iterable.class);
+        final int totalPageCount = 3;
+        final long s3ObjectSize = ByteSizeUnit.MB.toBytes(5);
+        final int s3ObjectsPerPage = 5;
+        MockListObjectsV2ResponseIterator listObjectsV2ResponseIterator = new MockListObjectsV2ResponseIterator(
+            totalPageCount,
+            s3ObjectsPerPage,
+            s3ObjectSize
+        );
+        when(listObjectsV2Iterable.iterator()).thenReturn(listObjectsV2ResponseIterator);
+        when(client.listObjectsV2Paginator(any(ListObjectsV2Request.class))).thenReturn(listObjectsV2Iterable);
+
+        final List<String> keysFailedDeletion = new ArrayList<>();
+        doAnswer(invocation -> {
+            DeleteObjectsRequest deleteObjectsRequest = invocation.getArgument(0);
+            int i = 0;
+            for (ObjectIdentifier objectIdentifier : deleteObjectsRequest.delete().objects()) {
+                if (i % 2 == 0) {
+                    keysFailedDeletion.add(objectIdentifier.key());
+                }
+                i++;
+            }
+            return DeleteObjectsResponse.builder()
+                .errors(keysFailedDeletion.stream().map(key -> S3Error.builder().key(key).build()).collect(Collectors.toList()))
+                .build();
+        }).when(client).deleteObjects(any(DeleteObjectsRequest.class));
+
+        final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
+
+        assertThrows(AssertionError.class, blobContainer::delete);
+    }
+
+    public void testDeleteSdkExceptionDuringListOperation() {
+        final String bucketName = randomAlphaOfLengthBetween(1, 10);
+
+        final BlobPath blobPath = new BlobPath();
+
+        final S3BlobStore blobStore = mock(S3BlobStore.class);
+        when(blobStore.bucket()).thenReturn(bucketName);
+        when(blobStore.getStatsMetricPublisher()).thenReturn(new StatsMetricPublisher());
+
+        final S3Client client = mock(S3Client.class);
+        doAnswer(invocation -> new AmazonS3Reference(client)).when(blobStore).clientReference();
+
+        ListObjectsV2Iterable listObjectsV2Iterable = mock(ListObjectsV2Iterable.class);
+        final int totalPageCount = 3;
+        final long s3ObjectSize = ByteSizeUnit.MB.toBytes(5);
+        final int s3ObjectsPerPage = 5;
+        MockListObjectsV2ResponseIterator listObjectsV2ResponseIterator = new MockListObjectsV2ResponseIterator(
+            totalPageCount,
+            s3ObjectsPerPage,
+            s3ObjectSize
+        );
+        when(listObjectsV2Iterable.iterator()).thenReturn(listObjectsV2ResponseIterator);
+        when(client.listObjectsV2Paginator(any(ListObjectsV2Request.class))).thenReturn(listObjectsV2Iterable);
+
+        final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
+
+        assertThrows(IOException.class, blobContainer::delete);
+    }
+
+    public void testDeleteSdkExceptionDuringDeleteOperation() {
+        final String bucketName = randomAlphaOfLengthBetween(1, 10);
+
+        final BlobPath blobPath = new BlobPath();
+
+        final S3BlobStore blobStore = mock(S3BlobStore.class);
+        when(blobStore.bucket()).thenReturn(bucketName);
+        when(blobStore.getStatsMetricPublisher()).thenReturn(new StatsMetricPublisher());
+
+        final S3Client client = mock(S3Client.class);
+        doAnswer(invocation -> new AmazonS3Reference(client)).when(blobStore).clientReference();
+
+        ListObjectsV2Iterable listObjectsV2Iterable = mock(ListObjectsV2Iterable.class);
+        final int totalPageCount = 3;
+        final long s3ObjectSize = ByteSizeUnit.MB.toBytes(5);
+        final int s3ObjectsPerPage = 5;
+        MockListObjectsV2ResponseIterator listObjectsV2ResponseIterator = new MockListObjectsV2ResponseIterator(
+            totalPageCount,
+            s3ObjectsPerPage,
+            s3ObjectSize
+        );
+        when(listObjectsV2Iterable.iterator()).thenReturn(listObjectsV2ResponseIterator);
+        when(client.listObjectsV2Paginator(any(ListObjectsV2Request.class))).thenReturn(listObjectsV2Iterable);
+
+        when(client.deleteObjects(any(DeleteObjectsRequest.class))).thenThrow(SdkException.builder().build());
+
+        final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
+
+        assertThrows(IOException.class, blobContainer::delete);
+    }
+
     public void testExecuteSingleUpload() throws IOException {
         final String bucketName = randomAlphaOfLengthBetween(1, 10);
         final String blobName = randomAlphaOfLengthBetween(1, 10);
@@ -115,6 +436,7 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         final S3BlobStore blobStore = mock(S3BlobStore.class);
         when(blobStore.bucket()).thenReturn(bucketName);
         when(blobStore.bufferSizeInBytes()).thenReturn((long) bufferSize);
+        when(blobStore.getStatsMetricPublisher()).thenReturn(new StatsMetricPublisher());
 
         final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
 
@@ -124,30 +446,37 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         final StorageClass storageClass = randomFrom(StorageClass.values());
         when(blobStore.getStorageClass()).thenReturn(storageClass);
 
-        final CannedAccessControlList cannedAccessControlList = randomBoolean() ? randomFrom(CannedAccessControlList.values()) : null;
+        final ObjectCannedACL cannedAccessControlList = randomBoolean() ? randomFrom(ObjectCannedACL.values()) : null;
         if (cannedAccessControlList != null) {
             when(blobStore.getCannedACL()).thenReturn(cannedAccessControlList);
         }
 
-        final AmazonS3 client = mock(AmazonS3.class);
+        final S3Client client = mock(S3Client.class);
         final AmazonS3Reference clientReference = new AmazonS3Reference(client);
         when(blobStore.clientReference()).thenReturn(clientReference);
 
-        final ArgumentCaptor<PutObjectRequest> argumentCaptor = ArgumentCaptor.forClass(PutObjectRequest.class);
-        when(client.putObject(argumentCaptor.capture())).thenReturn(new PutObjectResult());
+        final ArgumentCaptor<PutObjectRequest> putObjectRequestArgumentCaptor = ArgumentCaptor.forClass(PutObjectRequest.class);
+        final ArgumentCaptor<RequestBody> requestBodyArgumentCaptor = ArgumentCaptor.forClass(RequestBody.class);
+        when(client.putObject(putObjectRequestArgumentCaptor.capture(), requestBodyArgumentCaptor.capture())).thenReturn(
+            PutObjectResponse.builder().build()
+        );
 
         final ByteArrayInputStream inputStream = new ByteArrayInputStream(new byte[blobSize]);
         blobContainer.executeSingleUpload(blobStore, blobName, inputStream, blobSize);
 
-        final PutObjectRequest request = argumentCaptor.getValue();
-        assertEquals(bucketName, request.getBucketName());
-        assertEquals(blobPath.buildAsString() + blobName, request.getKey());
-        assertEquals(inputStream, request.getInputStream());
-        assertEquals(blobSize, request.getMetadata().getContentLength());
-        assertEquals(storageClass.toString(), request.getStorageClass());
-        assertEquals(cannedAccessControlList, request.getCannedAcl());
+        final PutObjectRequest request = putObjectRequestArgumentCaptor.getValue();
+        final RequestBody requestBody = requestBodyArgumentCaptor.getValue();
+        assertEquals(bucketName, request.bucket());
+        assertEquals(blobPath.buildAsString() + blobName, request.key());
+        byte[] expectedBytes = inputStream.readAllBytes();
+        try (InputStream is = requestBody.contentStreamProvider().newStream()) {
+            assertArrayEquals(expectedBytes, is.readAllBytes());
+        }
+        assertEquals(blobSize, request.contentLength().longValue());
+        assertEquals(storageClass, request.storageClass());
+        assertEquals(cannedAccessControlList, request.acl());
         if (serverSideEncryption) {
-            assertEquals(ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION, request.getMetadata().getSSEAlgorithm());
+            assertEquals(ServerSideEncryption.AES256, request.serverSideEncryption());
         }
     }
 
@@ -189,6 +518,7 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
 
         final S3BlobStore blobStore = mock(S3BlobStore.class);
         when(blobStore.bucket()).thenReturn(bucketName);
+        when(blobStore.getStatsMetricPublisher()).thenReturn(new StatsMetricPublisher());
         when(blobStore.bufferSizeInBytes()).thenReturn(bufferSize);
 
         final boolean serverSideEncryption = randomBoolean();
@@ -197,21 +527,25 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         final StorageClass storageClass = randomFrom(StorageClass.values());
         when(blobStore.getStorageClass()).thenReturn(storageClass);
 
-        final CannedAccessControlList cannedAccessControlList = randomBoolean() ? randomFrom(CannedAccessControlList.values()) : null;
+        final ObjectCannedACL cannedAccessControlList = randomBoolean() ? randomFrom(ObjectCannedACL.values()) : null;
         if (cannedAccessControlList != null) {
             when(blobStore.getCannedACL()).thenReturn(cannedAccessControlList);
         }
 
-        final AmazonS3 client = mock(AmazonS3.class);
+        final S3Client client = mock(S3Client.class);
         final AmazonS3Reference clientReference = new AmazonS3Reference(client);
         when(blobStore.clientReference()).thenReturn(clientReference);
 
-        final ArgumentCaptor<InitiateMultipartUploadRequest> initArgCaptor = ArgumentCaptor.forClass(InitiateMultipartUploadRequest.class);
-        final InitiateMultipartUploadResult initResult = new InitiateMultipartUploadResult();
-        initResult.setUploadId(randomAlphaOfLength(10));
-        when(client.initiateMultipartUpload(initArgCaptor.capture())).thenReturn(initResult);
+        final ArgumentCaptor<CreateMultipartUploadRequest> createMultipartUploadRequestArgumentCaptor = ArgumentCaptor.forClass(
+            CreateMultipartUploadRequest.class
+        );
+        final CreateMultipartUploadResponse createMultipartUploadResponse = CreateMultipartUploadResponse.builder()
+            .uploadId(randomAlphaOfLength(10))
+            .build();
+        when(client.createMultipartUpload(createMultipartUploadRequestArgumentCaptor.capture())).thenReturn(createMultipartUploadResponse);
 
-        final ArgumentCaptor<UploadPartRequest> uploadArgCaptor = ArgumentCaptor.forClass(UploadPartRequest.class);
+        final ArgumentCaptor<UploadPartRequest> uploadPartRequestArgumentCaptor = ArgumentCaptor.forClass(UploadPartRequest.class);
+        final ArgumentCaptor<RequestBody> requestBodyArgumentCaptor = ArgumentCaptor.forClass(RequestBody.class);
 
         final List<String> expectedEtags = new ArrayList<>();
         final long partSize = Math.min(bufferSize, blobSize);
@@ -221,59 +555,65 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
             totalBytes += partSize;
         } while (totalBytes < blobSize);
 
-        when(client.uploadPart(uploadArgCaptor.capture())).thenAnswer(invocationOnMock -> {
-            final UploadPartRequest request = (UploadPartRequest) invocationOnMock.getArguments()[0];
-            final UploadPartResult response = new UploadPartResult();
-            response.setPartNumber(request.getPartNumber());
-            response.setETag(expectedEtags.get(request.getPartNumber() - 1));
-            return response;
-        });
+        when(client.uploadPart(uploadPartRequestArgumentCaptor.capture(), requestBodyArgumentCaptor.capture())).thenAnswer(
+            invocationOnMock -> {
+                final UploadPartRequest request = (UploadPartRequest) invocationOnMock.getArguments()[0];
+                final UploadPartResponse response = UploadPartResponse.builder().eTag(expectedEtags.get(request.partNumber() - 1)).build();
+                return response;
+            }
+        );
 
-        final ArgumentCaptor<CompleteMultipartUploadRequest> compArgCaptor = ArgumentCaptor.forClass(CompleteMultipartUploadRequest.class);
-        when(client.completeMultipartUpload(compArgCaptor.capture())).thenReturn(new CompleteMultipartUploadResult());
+        final ArgumentCaptor<CompleteMultipartUploadRequest> completeMultipartUploadRequestArgumentCaptor = ArgumentCaptor.forClass(
+            CompleteMultipartUploadRequest.class
+        );
+        when(client.completeMultipartUpload(completeMultipartUploadRequestArgumentCaptor.capture())).thenReturn(
+            CompleteMultipartUploadResponse.builder().build()
+        );
 
         final ByteArrayInputStream inputStream = new ByteArrayInputStream(new byte[0]);
         final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
         blobContainer.executeMultipartUpload(blobStore, blobName, inputStream, blobSize);
 
-        final InitiateMultipartUploadRequest initRequest = initArgCaptor.getValue();
-        assertEquals(bucketName, initRequest.getBucketName());
-        assertEquals(blobPath.buildAsString() + blobName, initRequest.getKey());
-        assertEquals(storageClass, initRequest.getStorageClass());
-        assertEquals(cannedAccessControlList, initRequest.getCannedACL());
+        final CreateMultipartUploadRequest initRequest = createMultipartUploadRequestArgumentCaptor.getValue();
+        assertEquals(bucketName, initRequest.bucket());
+        assertEquals(blobPath.buildAsString() + blobName, initRequest.key());
+        assertEquals(storageClass, initRequest.storageClass());
+        assertEquals(cannedAccessControlList, initRequest.acl());
         if (serverSideEncryption) {
-            assertEquals(ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION, initRequest.getObjectMetadata().getSSEAlgorithm());
+            assertEquals(ServerSideEncryption.AES256, initRequest.serverSideEncryption());
         }
 
         final Tuple<Long, Long> numberOfParts = S3BlobContainer.numberOfMultiparts(blobSize, bufferSize);
 
-        final List<UploadPartRequest> uploadRequests = uploadArgCaptor.getAllValues();
+        final List<UploadPartRequest> uploadRequests = uploadPartRequestArgumentCaptor.getAllValues();
+        final List<RequestBody> requestBodies = requestBodyArgumentCaptor.getAllValues();
         assertEquals(numberOfParts.v1().intValue(), uploadRequests.size());
 
         for (int i = 0; i < uploadRequests.size(); i++) {
-            final UploadPartRequest uploadRequest = uploadRequests.get(i);
+            final UploadPartRequest uploadPartRequest = uploadRequests.get(i);
+            final RequestBody requestBody = requestBodies.get(i);
 
-            assertEquals(bucketName, uploadRequest.getBucketName());
-            assertEquals(blobPath.buildAsString() + blobName, uploadRequest.getKey());
-            assertEquals(initResult.getUploadId(), uploadRequest.getUploadId());
-            assertEquals(i + 1, uploadRequest.getPartNumber());
-            assertEquals(inputStream, uploadRequest.getInputStream());
-
-            if (i == (uploadRequests.size() - 1)) {
-                assertTrue(uploadRequest.isLastPart());
-                assertEquals(numberOfParts.v2().longValue(), uploadRequest.getPartSize());
-            } else {
-                assertFalse(uploadRequest.isLastPart());
-                assertEquals(bufferSize, uploadRequest.getPartSize());
+            assertEquals(bucketName, uploadPartRequest.bucket());
+            assertEquals(blobPath.buildAsString() + blobName, uploadPartRequest.key());
+            assertEquals(createMultipartUploadResponse.uploadId(), uploadPartRequest.uploadId());
+            assertEquals(i + 1, uploadPartRequest.partNumber().intValue());
+            byte[] expectedBytes = inputStream.readAllBytes();
+            try (InputStream is = requestBody.contentStreamProvider().newStream()) {
+                byte[] actualBytes = is.readAllBytes();
+                assertArrayEquals(expectedBytes, actualBytes);
             }
         }
 
-        final CompleteMultipartUploadRequest compRequest = compArgCaptor.getValue();
-        assertEquals(bucketName, compRequest.getBucketName());
-        assertEquals(blobPath.buildAsString() + blobName, compRequest.getKey());
-        assertEquals(initResult.getUploadId(), compRequest.getUploadId());
+        final CompleteMultipartUploadRequest completeMultipartUploadRequest = completeMultipartUploadRequestArgumentCaptor.getValue();
+        assertEquals(bucketName, completeMultipartUploadRequest.bucket());
+        assertEquals(blobPath.buildAsString() + blobName, completeMultipartUploadRequest.key());
+        assertEquals(createMultipartUploadResponse.uploadId(), completeMultipartUploadRequest.uploadId());
 
-        final List<String> actualETags = compRequest.getPartETags().stream().map(PartETag::getETag).collect(Collectors.toList());
+        final List<String> actualETags = completeMultipartUploadRequest.multipartUpload()
+            .parts()
+            .stream()
+            .map(CompletedPart::eTag)
+            .collect(Collectors.toList());
         assertEquals(expectedEtags, actualETags);
     }
 
@@ -289,8 +629,9 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         when(blobStore.bucket()).thenReturn(bucketName);
         when(blobStore.bufferSizeInBytes()).thenReturn(bufferSize);
         when(blobStore.getStorageClass()).thenReturn(randomFrom(StorageClass.values()));
+        when(blobStore.getStatsMetricPublisher()).thenReturn(new StatsMetricPublisher());
 
-        final AmazonS3 client = mock(AmazonS3.class);
+        final S3Client client = mock(S3Client.class);
         final AmazonS3Reference clientReference = new AmazonS3Reference(client);
         doAnswer(invocation -> {
             clientReference.incRef();
@@ -300,34 +641,34 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         final String uploadId = randomAlphaOfLength(25);
 
         final int stage = randomInt(2);
-        final List<AmazonClientException> exceptions = Arrays.asList(
-            new AmazonClientException("Expected initialization request to fail"),
-            new AmazonClientException("Expected upload part request to fail"),
-            new AmazonClientException("Expected completion request to fail")
+        final List<SdkException> exceptions = Arrays.asList(
+            SdkException.create("Expected initialization request to fail", new RuntimeException()),
+            SdkException.create("Expected upload part request to fail", new RuntimeException()),
+            SdkException.create("Expected completion request to fail", new RuntimeException())
         );
 
         if (stage == 0) {
             // Fail the initialization request
-            when(client.initiateMultipartUpload(any(InitiateMultipartUploadRequest.class))).thenThrow(exceptions.get(stage));
+            when(client.createMultipartUpload(any(CreateMultipartUploadRequest.class))).thenThrow(exceptions.get(stage));
 
         } else if (stage == 1) {
-            final InitiateMultipartUploadResult initResult = new InitiateMultipartUploadResult();
-            initResult.setUploadId(uploadId);
-            when(client.initiateMultipartUpload(any(InitiateMultipartUploadRequest.class))).thenReturn(initResult);
+            final CreateMultipartUploadResponse createMultipartUploadResponse = CreateMultipartUploadResponse.builder()
+                .uploadId(uploadId)
+                .build();
+            when(client.createMultipartUpload(any(CreateMultipartUploadRequest.class))).thenReturn(createMultipartUploadResponse);
 
             // Fail the upload part request
-            when(client.uploadPart(any(UploadPartRequest.class))).thenThrow(exceptions.get(stage));
+            when(client.uploadPart(any(UploadPartRequest.class), any(RequestBody.class))).thenThrow(exceptions.get(stage));
 
         } else {
-            final InitiateMultipartUploadResult initResult = new InitiateMultipartUploadResult();
-            initResult.setUploadId(uploadId);
-            when(client.initiateMultipartUpload(any(InitiateMultipartUploadRequest.class))).thenReturn(initResult);
+            final CreateMultipartUploadResponse createMultipartUploadResponse = CreateMultipartUploadResponse.builder()
+                .uploadId(uploadId)
+                .build();
+            when(client.createMultipartUpload(any(CreateMultipartUploadRequest.class))).thenReturn(createMultipartUploadResponse);
 
-            when(client.uploadPart(any(UploadPartRequest.class))).thenAnswer(invocationOnMock -> {
+            when(client.uploadPart(any(UploadPartRequest.class), any(RequestBody.class))).thenAnswer(invocationOnMock -> {
                 final UploadPartRequest request = (UploadPartRequest) invocationOnMock.getArguments()[0];
-                final UploadPartResult response = new UploadPartResult();
-                response.setPartNumber(request.getPartNumber());
-                response.setETag(randomAlphaOfLength(20));
+                final UploadPartResponse response = UploadPartResponse.builder().eTag(randomAlphaOfLength(20)).build();
                 return response;
             });
 
@@ -336,7 +677,7 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         }
 
         final ArgumentCaptor<AbortMultipartUploadRequest> argumentCaptor = ArgumentCaptor.forClass(AbortMultipartUploadRequest.class);
-        doNothing().when(client).abortMultipartUpload(argumentCaptor.capture());
+        when(client.abortMultipartUpload(argumentCaptor.capture())).thenReturn(AbortMultipartUploadResponse.builder().build());
 
         final IOException e = expectThrows(IOException.class, () -> {
             final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
@@ -344,32 +685,32 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         });
 
         assertEquals("Unable to upload object [" + blobName + "] using multipart upload", e.getMessage());
-        assertThat(e.getCause(), instanceOf(AmazonClientException.class));
+        assertThat(e.getCause(), instanceOf(SdkException.class));
         assertEquals(exceptions.get(stage).getMessage(), e.getCause().getMessage());
 
         if (stage == 0) {
-            verify(client, times(1)).initiateMultipartUpload(any(InitiateMultipartUploadRequest.class));
-            verify(client, times(0)).uploadPart(any(UploadPartRequest.class));
+            verify(client, times(1)).createMultipartUpload(any(CreateMultipartUploadRequest.class));
+            verify(client, times(0)).uploadPart(any(UploadPartRequest.class), any(RequestBody.class));
             verify(client, times(0)).completeMultipartUpload(any(CompleteMultipartUploadRequest.class));
             verify(client, times(0)).abortMultipartUpload(any(AbortMultipartUploadRequest.class));
 
         } else {
-            verify(client, times(1)).initiateMultipartUpload(any(InitiateMultipartUploadRequest.class));
+            verify(client, times(1)).createMultipartUpload(any(CreateMultipartUploadRequest.class));
 
             if (stage == 1) {
-                verify(client, times(1)).uploadPart(any(UploadPartRequest.class));
+                verify(client, times(1)).uploadPart(any(UploadPartRequest.class), any(RequestBody.class));
                 verify(client, times(0)).completeMultipartUpload(any(CompleteMultipartUploadRequest.class));
             } else {
-                verify(client, times(6)).uploadPart(any(UploadPartRequest.class));
+                verify(client, times(6)).uploadPart(any(UploadPartRequest.class), any(RequestBody.class));
                 verify(client, times(1)).completeMultipartUpload(any(CompleteMultipartUploadRequest.class));
             }
 
             verify(client, times(1)).abortMultipartUpload(any(AbortMultipartUploadRequest.class));
 
             final AbortMultipartUploadRequest abortRequest = argumentCaptor.getValue();
-            assertEquals(bucketName, abortRequest.getBucketName());
-            assertEquals(blobName, abortRequest.getKey());
-            assertEquals(uploadId, abortRequest.getUploadId());
+            assertEquals(bucketName, abortRequest.bucket());
+            assertEquals(blobName, abortRequest.key());
+            assertEquals(uploadId, abortRequest.uploadId());
         }
     }
 
@@ -407,23 +748,22 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
             "public-read",
             "public-read-write",
             "authenticated-read",
-            "log-delivery-write",
             "bucket-owner-read",
             "bucket-owner-full-control" };
 
         // empty acl
-        assertThat(S3BlobStore.initCannedACL(null), equalTo(CannedAccessControlList.Private));
-        assertThat(S3BlobStore.initCannedACL(""), equalTo(CannedAccessControlList.Private));
+        assertThat(S3BlobStore.initCannedACL(null), equalTo(ObjectCannedACL.PRIVATE));
+        assertThat(S3BlobStore.initCannedACL(""), equalTo(ObjectCannedACL.PRIVATE));
 
         // it should init cannedACL correctly
         for (String aclString : aclList) {
-            CannedAccessControlList acl = S3BlobStore.initCannedACL(aclString);
+            ObjectCannedACL acl = S3BlobStore.initCannedACL(aclString);
             assertThat(acl.toString(), equalTo(aclString));
         }
 
         // it should accept all aws cannedACLs
-        for (CannedAccessControlList awsList : CannedAccessControlList.values()) {
-            CannedAccessControlList acl = S3BlobStore.initCannedACL(awsList.toString());
+        for (ObjectCannedACL awsList : ObjectCannedACL.values()) {
+            ObjectCannedACL acl = S3BlobStore.initCannedACL(awsList.toString());
             assertThat(acl, equalTo(awsList));
         }
     }
@@ -435,23 +775,23 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
 
     public void testInitStorageClass() {
         // it should default to `standard`
-        assertThat(S3BlobStore.initStorageClass(null), equalTo(StorageClass.Standard));
-        assertThat(S3BlobStore.initStorageClass(""), equalTo(StorageClass.Standard));
+        assertThat(S3BlobStore.initStorageClass(null), equalTo(StorageClass.STANDARD));
+        assertThat(S3BlobStore.initStorageClass(""), equalTo(StorageClass.STANDARD));
 
         // it should accept [standard, standard_ia, onezone_ia, reduced_redundancy, intelligent_tiering]
-        assertThat(S3BlobStore.initStorageClass("standard"), equalTo(StorageClass.Standard));
-        assertThat(S3BlobStore.initStorageClass("standard_ia"), equalTo(StorageClass.StandardInfrequentAccess));
-        assertThat(S3BlobStore.initStorageClass("onezone_ia"), equalTo(StorageClass.OneZoneInfrequentAccess));
-        assertThat(S3BlobStore.initStorageClass("reduced_redundancy"), equalTo(StorageClass.ReducedRedundancy));
-        assertThat(S3BlobStore.initStorageClass("intelligent_tiering"), equalTo(StorageClass.IntelligentTiering));
+        assertThat(S3BlobStore.initStorageClass("standard"), equalTo(StorageClass.STANDARD));
+        assertThat(S3BlobStore.initStorageClass("standard_ia"), equalTo(StorageClass.STANDARD_IA));
+        assertThat(S3BlobStore.initStorageClass("onezone_ia"), equalTo(StorageClass.ONEZONE_IA));
+        assertThat(S3BlobStore.initStorageClass("reduced_redundancy"), equalTo(StorageClass.REDUCED_REDUNDANCY));
+        assertThat(S3BlobStore.initStorageClass("intelligent_tiering"), equalTo(StorageClass.INTELLIGENT_TIERING));
     }
 
     public void testCaseInsensitiveStorageClass() {
-        assertThat(S3BlobStore.initStorageClass("sTandaRd"), equalTo(StorageClass.Standard));
-        assertThat(S3BlobStore.initStorageClass("sTandaRd_Ia"), equalTo(StorageClass.StandardInfrequentAccess));
-        assertThat(S3BlobStore.initStorageClass("oNeZoNe_iA"), equalTo(StorageClass.OneZoneInfrequentAccess));
-        assertThat(S3BlobStore.initStorageClass("reduCED_redundancy"), equalTo(StorageClass.ReducedRedundancy));
-        assertThat(S3BlobStore.initStorageClass("intelLigeNt_tieriNG"), equalTo(StorageClass.IntelligentTiering));
+        assertThat(S3BlobStore.initStorageClass("sTandaRd"), equalTo(StorageClass.STANDARD));
+        assertThat(S3BlobStore.initStorageClass("sTandaRd_Ia"), equalTo(StorageClass.STANDARD_IA));
+        assertThat(S3BlobStore.initStorageClass("oNeZoNe_iA"), equalTo(StorageClass.ONEZONE_IA));
+        assertThat(S3BlobStore.initStorageClass("reduCED_redundancy"), equalTo(StorageClass.REDUCED_REDUNDANCY));
+        assertThat(S3BlobStore.initStorageClass("intelLigeNt_tieriNG"), equalTo(StorageClass.INTELLIGENT_TIERING));
     }
 
     public void testInvalidStorageClass() {
@@ -469,5 +809,393 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
 
         assertEquals("Expected number of parts [" + expectedParts + "] but got [" + result.v1() + "]", expectedParts, (long) result.v1());
         assertEquals("Expected remaining [" + expectedRemaining + "] but got [" + result.v2() + "]", expectedRemaining, (long) result.v2());
+    }
+
+    public void testListBlobsByPrefix() throws IOException {
+        final S3BlobStore blobStore = mock(S3BlobStore.class);
+        when(blobStore.getStatsMetricPublisher()).thenReturn(new StatsMetricPublisher());
+
+        final S3Client client = mock(S3Client.class);
+        final AmazonS3Reference clientReference = new AmazonS3Reference(client);
+        when(blobStore.clientReference()).thenReturn(clientReference);
+
+        BlobPath blobPath = mock(BlobPath.class);
+        when(blobPath.buildAsString()).thenReturn("/dummy/path");
+        final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
+
+        final ListObjectsV2Iterable listObjectsV2Iterable = mock(ListObjectsV2Iterable.class);
+        when(client.listObjectsV2Paginator(any(ListObjectsV2Request.class))).thenReturn(listObjectsV2Iterable);
+
+        MockListObjectsV2ResponseIterator iterator = new MockListObjectsV2ResponseIterator(2, 5, 100);
+        when(listObjectsV2Iterable.iterator()).thenReturn(iterator);
+
+        Map<String, BlobMetadata> listOfBlobs = blobContainer.listBlobsByPrefix(null);
+        assertEquals(10, listOfBlobs.size());
+
+        Set<String> keys = iterator.keysListed.stream()
+            .map(s -> s.substring(blobPath.buildAsString().length()))
+            .collect(Collectors.toSet());
+        assertEquals(keys, listOfBlobs.keySet());
+    }
+
+    private void testListBlobsByPrefixInLexicographicOrder(
+        int limit,
+        int expectedNumberofPagesFetched,
+        BlobContainer.BlobNameSortOrder blobNameSortOrder
+    ) throws IOException {
+        final S3BlobStore blobStore = mock(S3BlobStore.class);
+        when(blobStore.getStatsMetricPublisher()).thenReturn(new StatsMetricPublisher());
+
+        final S3Client client = mock(S3Client.class);
+        final AmazonS3Reference clientReference = new AmazonS3Reference(client);
+        when(blobStore.clientReference()).thenReturn(clientReference);
+
+        BlobPath blobPath = mock(BlobPath.class);
+        when(blobPath.buildAsString()).thenReturn("/dummy/path");
+        final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
+
+        final ListObjectsV2Iterable listObjectsV2Iterable = mock(ListObjectsV2Iterable.class);
+        when(client.listObjectsV2Paginator(any(ListObjectsV2Request.class))).thenReturn(listObjectsV2Iterable);
+
+        final MockListObjectsV2ResponseIterator iterator = new MockListObjectsV2ResponseIterator(2, 5, 100, blobPath.buildAsString());
+        when(listObjectsV2Iterable.iterator()).thenReturn(iterator);
+
+        if (limit >= 0) {
+            blobContainer.listBlobsByPrefixInSortedOrder(null, limit, blobNameSortOrder, new ActionListener<>() {
+                @Override
+                public void onResponse(List<BlobMetadata> blobMetadata) {
+                    int actualLimit = Math.max(0, Math.min(limit, 10));
+                    assertEquals(actualLimit, blobMetadata.size());
+
+                    List<String> keys = iterator.keysListed.stream()
+                        .map(s -> s.substring(blobPath.buildAsString().length()))
+                        .collect(Collectors.toList());
+                    Comparator<String> keysComparator = String::compareTo;
+                    if (blobNameSortOrder != BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC) {
+                        keysComparator = Collections.reverseOrder(String::compareTo);
+                    }
+                    keys.sort(keysComparator);
+                    List<String> sortedKeys = keys.subList(0, actualLimit);
+                    assertEquals(sortedKeys, blobMetadata.stream().map(BlobMetadata::name).collect(Collectors.toList()));
+                    assertEquals(expectedNumberofPagesFetched, iterator.numberOfPagesFetched());
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    fail("blobContainer.listBlobsByPrefixInLexicographicOrder failed with exception: " + e.getMessage());
+                }
+            });
+        } else {
+            assertThrows(
+                IllegalArgumentException.class,
+                () -> blobContainer.listBlobsByPrefixInSortedOrder(null, limit, blobNameSortOrder, new ActionListener<>() {
+                    @Override
+                    public void onResponse(List<BlobMetadata> blobMetadata) {}
+
+                    @Override
+                    public void onFailure(Exception e) {}
+                })
+            );
+        }
+    }
+
+    public void testListBlobsByPrefixInLexicographicOrderWithNegativeLimit() throws IOException {
+        testListBlobsByPrefixInLexicographicOrder(-5, 0, BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC);
+    }
+
+    public void testListBlobsByPrefixInLexicographicOrderWithZeroLimit() throws IOException {
+        testListBlobsByPrefixInLexicographicOrder(0, 1, BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC);
+    }
+
+    public void testListBlobsByPrefixInLexicographicOrderWithLimitLessThanPageSize() throws IOException {
+        testListBlobsByPrefixInLexicographicOrder(2, 1, BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC);
+    }
+
+    public void testListBlobsByPrefixInLexicographicOrderWithLimitGreaterThanPageSize() throws IOException {
+        testListBlobsByPrefixInLexicographicOrder(8, 2, BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC);
+    }
+
+    public void testListBlobsByPrefixInLexicographicOrderWithLimitGreaterThanNumberOfRecords() throws IOException {
+        testListBlobsByPrefixInLexicographicOrder(12, 2, BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC);
+    }
+
+    public void testReadBlobAsync() throws Exception {
+        final String bucketName = randomAlphaOfLengthBetween(1, 10);
+        final String blobName = randomAlphaOfLengthBetween(1, 10);
+        final String checksum = randomAlphaOfLength(10);
+
+        final long objectSize = 100L;
+        final int objectPartCount = 10;
+        final int partSize = 10;
+
+        final S3AsyncClient s3AsyncClient = mock(S3AsyncClient.class);
+        final AmazonAsyncS3Reference amazonAsyncS3Reference = new AmazonAsyncS3Reference(
+            AmazonAsyncS3WithCredentials.create(s3AsyncClient, s3AsyncClient, null)
+        );
+        final AsyncTransferManager asyncTransferManager = new AsyncTransferManager(
+            10000L,
+            mock(ExecutorService.class),
+            mock(ExecutorService.class)
+        );
+        final S3BlobStore blobStore = mock(S3BlobStore.class);
+        final BlobPath blobPath = new BlobPath();
+
+        when(blobStore.bucket()).thenReturn(bucketName);
+        when(blobStore.getStatsMetricPublisher()).thenReturn(new StatsMetricPublisher());
+        when(blobStore.serverSideEncryption()).thenReturn(false);
+        when(blobStore.asyncClientReference()).thenReturn(amazonAsyncS3Reference);
+        when(blobStore.getAsyncTransferManager()).thenReturn(asyncTransferManager);
+
+        CompletableFuture<GetObjectAttributesResponse> getObjectAttributesResponseCompletableFuture = new CompletableFuture<>();
+        getObjectAttributesResponseCompletableFuture.complete(
+            GetObjectAttributesResponse.builder()
+                .checksum(Checksum.builder().checksumCRC32(checksum).build())
+                .objectSize(objectSize)
+                .objectParts(GetObjectAttributesParts.builder().totalPartsCount(objectPartCount).build())
+                .build()
+        );
+        when(s3AsyncClient.getObjectAttributes(any(GetObjectAttributesRequest.class))).thenReturn(
+            getObjectAttributesResponseCompletableFuture
+        );
+
+        mockObjectPartResponse(s3AsyncClient, bucketName, blobName, objectPartCount, partSize, objectSize);
+
+        CountDownLatch countDownLatch = new CountDownLatch(1);
+        CountingCompletionListener<ReadContext> readContextActionListener = new CountingCompletionListener<>();
+        LatchedActionListener<ReadContext> listener = new LatchedActionListener<>(readContextActionListener, countDownLatch);
+
+        final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
+        blobContainer.readBlobAsync(blobName, listener);
+        countDownLatch.await();
+
+        assertEquals(1, readContextActionListener.getResponseCount());
+        assertEquals(0, readContextActionListener.getFailureCount());
+        ReadContext readContext = readContextActionListener.getResponse();
+        assertEquals(objectPartCount, readContext.getNumberOfParts());
+        assertEquals(checksum, readContext.getBlobChecksum());
+        assertEquals(objectSize, readContext.getBlobSize());
+
+        for (int partNumber = 1; partNumber < objectPartCount; partNumber++) {
+            InputStreamContainer inputStreamContainer = readContext.getPartStreams().get(partNumber);
+            final int offset = partNumber * partSize;
+            assertEquals(partSize, inputStreamContainer.getContentLength());
+            assertEquals(offset, inputStreamContainer.getOffset());
+            assertEquals(partSize, inputStreamContainer.getInputStream().readAllBytes().length);
+        }
+    }
+
+    public void testReadBlobAsyncFailure() throws Exception {
+        final String bucketName = randomAlphaOfLengthBetween(1, 10);
+        final String blobName = randomAlphaOfLengthBetween(1, 10);
+        final String checksum = randomAlphaOfLength(10);
+
+        final long objectSize = 100L;
+        final int objectPartCount = 10;
+
+        final S3AsyncClient s3AsyncClient = mock(S3AsyncClient.class);
+        final AmazonAsyncS3Reference amazonAsyncS3Reference = new AmazonAsyncS3Reference(
+            AmazonAsyncS3WithCredentials.create(s3AsyncClient, s3AsyncClient, null)
+        );
+        final AsyncTransferManager asyncTransferManager = new AsyncTransferManager(
+            10000L,
+            mock(ExecutorService.class),
+            mock(ExecutorService.class)
+        );
+        final S3BlobStore blobStore = mock(S3BlobStore.class);
+        final BlobPath blobPath = new BlobPath();
+
+        when(blobStore.bucket()).thenReturn(bucketName);
+        when(blobStore.getStatsMetricPublisher()).thenReturn(new StatsMetricPublisher());
+        when(blobStore.serverSideEncryption()).thenReturn(false);
+        when(blobStore.asyncClientReference()).thenReturn(amazonAsyncS3Reference);
+        when(blobStore.getAsyncTransferManager()).thenReturn(asyncTransferManager);
+
+        CompletableFuture<GetObjectAttributesResponse> getObjectAttributesResponseCompletableFuture = new CompletableFuture<>();
+        getObjectAttributesResponseCompletableFuture.complete(
+            GetObjectAttributesResponse.builder()
+                .checksum(Checksum.builder().checksumCRC32(checksum).build())
+                .objectSize(objectSize)
+                .objectParts(GetObjectAttributesParts.builder().totalPartsCount(objectPartCount).build())
+                .build()
+        );
+        when(s3AsyncClient.getObjectAttributes(any(GetObjectAttributesRequest.class))).thenThrow(new RuntimeException());
+
+        CountDownLatch countDownLatch = new CountDownLatch(1);
+        CountingCompletionListener<ReadContext> readContextActionListener = new CountingCompletionListener<>();
+        LatchedActionListener<ReadContext> listener = new LatchedActionListener<>(readContextActionListener, countDownLatch);
+
+        final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
+        blobContainer.readBlobAsync(blobName, listener);
+        countDownLatch.await();
+
+        assertEquals(0, readContextActionListener.getResponseCount());
+        assertEquals(1, readContextActionListener.getFailureCount());
+    }
+
+    public void testGetBlobMetadata() throws Exception {
+        final String checksum = randomAlphaOfLengthBetween(1, 10);
+        final long objectSize = 100L;
+        final int objectPartCount = 10;
+        final String blobName = randomAlphaOfLengthBetween(1, 10);
+        final String bucketName = randomAlphaOfLengthBetween(1, 10);
+
+        final S3AsyncClient s3AsyncClient = mock(S3AsyncClient.class);
+        final S3BlobStore blobStore = mock(S3BlobStore.class);
+        final BlobPath blobPath = new BlobPath();
+        when(blobStore.bucket()).thenReturn(bucketName);
+        when(blobStore.getStatsMetricPublisher()).thenReturn(new StatsMetricPublisher());
+        when(blobStore.serverSideEncryption()).thenReturn(false);
+        final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
+
+        CompletableFuture<GetObjectAttributesResponse> getObjectAttributesResponseCompletableFuture = new CompletableFuture<>();
+        getObjectAttributesResponseCompletableFuture.complete(
+            GetObjectAttributesResponse.builder()
+                .checksum(Checksum.builder().checksumCRC32(checksum).build())
+                .objectSize(objectSize)
+                .objectParts(GetObjectAttributesParts.builder().totalPartsCount(objectPartCount).build())
+                .build()
+        );
+        when(s3AsyncClient.getObjectAttributes(any(GetObjectAttributesRequest.class))).thenReturn(
+            getObjectAttributesResponseCompletableFuture
+        );
+
+        CompletableFuture<GetObjectAttributesResponse> responseFuture = blobContainer.getBlobMetadata(s3AsyncClient, bucketName, blobName);
+        GetObjectAttributesResponse objectAttributesResponse = responseFuture.get();
+
+        assertEquals(checksum, objectAttributesResponse.checksum().checksumCRC32());
+        assertEquals(Long.valueOf(objectSize), objectAttributesResponse.objectSize());
+        assertEquals(Integer.valueOf(objectPartCount), objectAttributesResponse.objectParts().totalPartsCount());
+    }
+
+    public void testGetBlobPartInputStream() throws Exception {
+        final String blobName = randomAlphaOfLengthBetween(1, 10);
+        final String bucketName = randomAlphaOfLengthBetween(1, 10);
+        final long contentLength = 10L;
+        final String contentRange = "bytes 0-10/100";
+        final InputStream inputStream = ResponseInputStream.nullInputStream();
+
+        final S3AsyncClient s3AsyncClient = mock(S3AsyncClient.class);
+        final S3BlobStore blobStore = mock(S3BlobStore.class);
+        final BlobPath blobPath = new BlobPath();
+        when(blobStore.bucket()).thenReturn(bucketName);
+        when(blobStore.getStatsMetricPublisher()).thenReturn(new StatsMetricPublisher());
+        when(blobStore.serverSideEncryption()).thenReturn(false);
+        final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
+
+        GetObjectResponse getObjectResponse = GetObjectResponse.builder().contentLength(contentLength).contentRange(contentRange).build();
+
+        CompletableFuture<ResponseInputStream<GetObjectResponse>> getObjectPartResponse = new CompletableFuture<>();
+        ResponseInputStream<GetObjectResponse> responseInputStream = new ResponseInputStream<>(getObjectResponse, inputStream);
+        getObjectPartResponse.complete(responseInputStream);
+
+        when(
+            s3AsyncClient.getObject(
+                any(GetObjectRequest.class),
+                ArgumentMatchers.<AsyncResponseTransformer<GetObjectResponse, ResponseInputStream<GetObjectResponse>>>any()
+            )
+        ).thenReturn(getObjectPartResponse);
+
+        InputStreamContainer inputStreamContainer = blobContainer.getBlobPartInputStreamContainer(s3AsyncClient, bucketName, blobName, 0)
+            .get();
+
+        assertEquals(0, inputStreamContainer.getOffset());
+        assertEquals(contentLength, inputStreamContainer.getContentLength());
+        assertEquals(inputStream.available(), inputStreamContainer.getInputStream().available());
+    }
+
+    public void testTransformResponseToInputStreamContainer() throws Exception {
+        final String contentRange = "bytes 0-10/100";
+        final long contentLength = 10L;
+        final InputStream inputStream = ResponseInputStream.nullInputStream();
+
+        final S3AsyncClient s3AsyncClient = mock(S3AsyncClient.class);
+
+        GetObjectResponse getObjectResponse = GetObjectResponse.builder().contentLength(contentLength).build();
+
+        ResponseInputStream<GetObjectResponse> responseInputStreamNoRange = new ResponseInputStream<>(getObjectResponse, inputStream);
+        assertThrows(SdkException.class, () -> S3BlobContainer.transformResponseToInputStreamContainer(responseInputStreamNoRange));
+
+        getObjectResponse = GetObjectResponse.builder().contentRange(contentRange).build();
+        ResponseInputStream<GetObjectResponse> responseInputStreamNoContentLength = new ResponseInputStream<>(
+            getObjectResponse,
+            inputStream
+        );
+        assertThrows(SdkException.class, () -> S3BlobContainer.transformResponseToInputStreamContainer(responseInputStreamNoContentLength));
+
+        getObjectResponse = GetObjectResponse.builder().contentRange(contentRange).contentLength(contentLength).build();
+        ResponseInputStream<GetObjectResponse> responseInputStream = new ResponseInputStream<>(getObjectResponse, inputStream);
+        InputStreamContainer inputStreamContainer = S3BlobContainer.transformResponseToInputStreamContainer(responseInputStream);
+        assertEquals(contentLength, inputStreamContainer.getContentLength());
+        assertEquals(0, inputStreamContainer.getOffset());
+        assertEquals(inputStream.available(), inputStreamContainer.getInputStream().available());
+    }
+
+    private void mockObjectPartResponse(
+        S3AsyncClient s3AsyncClient,
+        String bucketName,
+        String blobName,
+        int totalNumberOfParts,
+        int partSize,
+        long objectSize
+    ) {
+        for (int partNumber = 1; partNumber <= totalNumberOfParts; partNumber++) {
+            final int start = (partNumber - 1) * partSize;
+            final int end = partNumber * partSize;
+            final String contentRange = "bytes " + start + "-" + end + "/" + objectSize;
+            final InputStream inputStream = new ByteArrayInputStream(randomByteArrayOfLength(partSize));
+
+            GetObjectResponse getObjectResponse = GetObjectResponse.builder()
+                .contentLength((long) partSize)
+                .contentRange(contentRange)
+                .build();
+
+            CompletableFuture<ResponseInputStream<GetObjectResponse>> getObjectPartResponse = new CompletableFuture<>();
+            ResponseInputStream<GetObjectResponse> responseInputStream = new ResponseInputStream<>(getObjectResponse, inputStream);
+            getObjectPartResponse.complete(responseInputStream);
+
+            GetObjectRequest getObjectRequest = GetObjectRequest.builder().bucket(bucketName).key(blobName).partNumber(partNumber).build();
+
+            when(
+                s3AsyncClient.getObject(
+                    eq(getObjectRequest),
+                    ArgumentMatchers.<AsyncResponseTransformer<GetObjectResponse, ResponseInputStream<GetObjectResponse>>>any()
+                )
+            ).thenReturn(getObjectPartResponse);
+        }
+    }
+
+    private static class CountingCompletionListener<T> implements ActionListener<T> {
+        private int responseCount;
+        private int failureCount;
+        private T response;
+        private Exception exception;
+
+        @Override
+        public void onResponse(T response) {
+            this.response = response;
+            responseCount++;
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            exception = e;
+            failureCount++;
+        }
+
+        public int getResponseCount() {
+            return responseCount;
+        }
+
+        public int getFailureCount() {
+            return failureCount;
+        }
+
+        public T getResponse() {
+            return response;
+        }
+
+        public Exception getException() {
+            return exception;
+        }
     }
 }

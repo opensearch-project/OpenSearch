@@ -35,6 +35,7 @@ import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.ArrayUtil;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.action.search.SearchType;
 import org.opensearch.common.Nullable;
@@ -53,7 +54,12 @@ import org.opensearch.index.similarity.SimilarityService;
 import org.opensearch.search.RescoreDocIds;
 import org.opensearch.search.SearchExtBuilder;
 import org.opensearch.search.SearchShardTarget;
+import org.opensearch.search.aggregations.Aggregator;
+import org.opensearch.search.aggregations.BucketCollectorProcessor;
+import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.SearchContextAggregations;
+import org.opensearch.search.aggregations.bucket.LocalBucketCountThresholds;
+import org.opensearch.search.aggregations.bucket.terms.TermsAggregator;
 import org.opensearch.search.collapse.CollapseContext;
 import org.opensearch.search.dfs.DfsSearchResult;
 import org.opensearch.search.fetch.FetchPhase;
@@ -72,6 +78,7 @@ import org.opensearch.search.rescore.RescoreContext;
 import org.opensearch.search.sort.SortAndFormats;
 import org.opensearch.search.suggest.SuggestionSearchContext;
 
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -93,9 +100,25 @@ public abstract class SearchContext implements Releasable {
     public static final int TRACK_TOTAL_HITS_DISABLED = -1;
     public static final int DEFAULT_TRACK_TOTAL_HITS_UP_TO = 10000;
 
+    // no-op bucket collector processor
+    public static final BucketCollectorProcessor NO_OP_BUCKET_COLLECTOR_PROCESSOR = new BucketCollectorProcessor() {
+        @Override
+        public void processPostCollection(Collector collectorTree) {
+            // do nothing as there is no aggregation collector
+        }
+
+        @Override
+        public List<Aggregator> toAggregators(Collection<Collector> collectors) {
+            // should not be called when there is no aggregation collector
+            throw new IllegalStateException("Unexpected toAggregators call on NO_OP_BUCKET_COLLECTOR_PROCESSOR");
+        }
+    };
+
     private final List<Releasable> releasables = new CopyOnWriteArrayList<>();
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private InnerHitsContext innerHitsContext;
+
+    private volatile boolean searchTimedOut;
 
     protected SearchContext() {}
 
@@ -104,6 +127,14 @@ public abstract class SearchContext implements Releasable {
     public abstract SearchShardTask getTask();
 
     public abstract boolean isCancelled();
+
+    public boolean isSearchTimedOut() {
+        return this.searchTimedOut;
+    }
+
+    public void setSearchTimedOut(boolean searchTimedOut) {
+        this.searchTimedOut = searchTimedOut;
+    }
 
     @Override
     public final void close() {
@@ -366,6 +397,24 @@ public abstract class SearchContext implements Releasable {
     public abstract Profilers getProfilers();
 
     /**
+     * Returns concurrent segment search status for the search context
+     */
+    public boolean shouldUseConcurrentSearch() {
+        return false;
+    }
+
+    /**
+     * Returns local bucket count thresholds based on concurrent segment search status
+     */
+    public LocalBucketCountThresholds asLocalBucketCountThresholds(TermsAggregator.BucketCountThresholds bucketCountThresholds) {
+        if (shouldUseConcurrentSearch()) {
+            return new LocalBucketCountThresholds(0, ArrayUtil.MAX_ARRAY_LENGTH - 1);
+        } else {
+            return new LocalBucketCountThresholds(bucketCountThresholds.getShardMinDocCount(), bucketCountThresholds.getShardSize());
+        }
+    }
+
+    /**
      * Adds a releasable that will be freed when this context is closed.
      */
     public void addReleasable(Releasable releasable) {
@@ -429,4 +478,15 @@ public abstract class SearchContext implements Releasable {
     }
 
     public abstract ReaderContext readerContext();
+
+    public abstract InternalAggregation.ReduceContext partialOnShard();
+
+    // processor used for bucket collectors
+    public abstract void setBucketCollectorProcessor(BucketCollectorProcessor bucketCollectorProcessor);
+
+    public abstract BucketCollectorProcessor bucketCollectorProcessor();
+
+    public abstract int getTargetMaxSliceCount();
+
+    public abstract boolean shouldUseTimeSeriesDescSortOptimization();
 }

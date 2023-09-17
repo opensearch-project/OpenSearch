@@ -32,15 +32,17 @@
 
 package org.opensearch.common.compress;
 
-import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.Streams;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.compress.Compressor;
+import org.opensearch.core.compress.CompressorRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -85,7 +87,7 @@ public final class CompressedXContent {
      */
     public CompressedXContent(ToXContent xcontent, ToXContent.Params params) throws IOException {
         BytesStreamOutput bStream = new BytesStreamOutput();
-        OutputStream compressedStream = CompressorFactory.COMPRESSOR.threadLocalOutputStream(bStream);
+        OutputStream compressedStream = CompressorRegistry.defaultCompressor().threadLocalOutputStream(bStream);
         CRC32 crc32 = new CRC32();
         OutputStream checkedStream = new CheckedOutputStream(compressedStream, crc32);
         try (XContentBuilder builder = XContentFactory.jsonBuilder(checkedStream)) {
@@ -107,20 +109,20 @@ public final class CompressedXContent {
      * that may already be compressed.
      */
     public CompressedXContent(BytesReference data) throws IOException {
-        Compressor compressor = CompressorFactory.compressor(data);
+        Compressor compressor = CompressorRegistry.compressor(data);
         if (compressor != null) {
             // already compressed...
             this.bytes = BytesReference.toBytes(data);
             this.crc32 = crc32(uncompressed());
         } else {
-            this.bytes = BytesReference.toBytes(CompressorFactory.COMPRESSOR.compress(data));
+            this.bytes = BytesReference.toBytes(CompressorRegistry.defaultCompressor().compress(data));
             this.crc32 = crc32(data);
         }
         assertConsistent();
     }
 
     private void assertConsistent() {
-        assert CompressorFactory.compressor(new BytesArray(bytes)) != null;
+        assert CompressorRegistry.compressor(new BytesArray(bytes)) != null;
         assert this.crc32 == crc32(uncompressed());
     }
 
@@ -145,7 +147,7 @@ public final class CompressedXContent {
     /** Return the uncompressed bytes. */
     public BytesReference uncompressed() {
         try {
-            return CompressorFactory.uncompress(new BytesArray(bytes));
+            return CompressorRegistry.uncompress(new BytesArray(bytes));
         } catch (IOException e) {
             throw new IllegalStateException("Cannot decompress compressed string", e);
         }

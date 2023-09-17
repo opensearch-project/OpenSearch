@@ -38,8 +38,8 @@ import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.TieredMergePolicy;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
-import org.opensearch.common.unit.ByteSizeUnit;
-import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.core.common.unit.ByteSizeValue;
 
 /**
  * A shard in opensearch is a Lucene index, and a Lucene index is broken
@@ -94,8 +94,8 @@ import org.opensearch.common.unit.ByteSizeValue;
  *
  *     Controls the maximum percentage of deleted documents that is tolerated in
  *     the index. Lower values make the index more space efficient at the
- *     expense of increased CPU and I/O activity. Values must be between <code>20</code> and
- *     <code>50</code>. Default value is <code>33</code>.
+ *     expense of increased CPU and I/O activity. Values must be between <code>5</code> and
+ *     <code>50</code>. Default value is <code>20</code>.
  * </ul>
  *
  * <p>
@@ -136,7 +136,7 @@ public final class MergePolicyConfig {
     public static final ByteSizeValue DEFAULT_MAX_MERGED_SEGMENT = new ByteSizeValue(5, ByteSizeUnit.GB);
     public static final double DEFAULT_SEGMENTS_PER_TIER = 10.0d;
     public static final double DEFAULT_RECLAIM_DELETES_WEIGHT = 2.0d;
-    public static final double DEFAULT_DELETES_PCT_ALLOWED = 33.0d;
+    public static final double DEFAULT_DELETES_PCT_ALLOWED = 20.0d;
     public static final Setting<Double> INDEX_COMPOUND_FORMAT_SETTING = new Setting<>(
         "index.compound_format",
         Double.toString(TieredMergePolicy.DEFAULT_NO_CFS_RATIO),
@@ -189,7 +189,7 @@ public final class MergePolicyConfig {
     public static final Setting<Double> INDEX_MERGE_POLICY_DELETES_PCT_ALLOWED_SETTING = Setting.doubleSetting(
         "index.merge.policy.deletes_pct_allowed",
         DEFAULT_DELETES_PCT_ALLOWED,
-        20.0d,
+        5.0d,
         50.0d,
         Property.Dynamic,
         Property.IndexScope

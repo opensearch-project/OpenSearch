@@ -36,12 +36,14 @@ import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.breaker.CircuitBreaker;
-import org.opensearch.common.breaker.CircuitBreakingException;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.recycler.Recycler;
-import org.opensearch.indices.breaker.CircuitBreakerService;
+import org.opensearch.core.common.breaker.CircuitBreaker;
+import org.opensearch.core.common.breaker.CircuitBreakingException;
+import org.opensearch.core.common.util.BigArray;
+import org.opensearch.core.common.util.ByteArray;
+import org.opensearch.core.indices.breaker.CircuitBreakerService;
 
 import java.util.Arrays;
 

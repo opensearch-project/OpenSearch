@@ -19,12 +19,13 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.component.AbstractLifecycleComponent;
+import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.index.shard.IndexShard;
-import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RetryableTransportClient;
@@ -63,6 +64,7 @@ public class SegmentReplicationSourceService extends AbstractLifecycleComponent 
 
         public static final String GET_CHECKPOINT_INFO = "internal:index/shard/replication/get_checkpoint_info";
         public static final String GET_SEGMENT_FILES = "internal:index/shard/replication/get_segment_files";
+        public static final String UPDATE_VISIBLE_CHECKPOINT = "internal:index/shard/replication/update_visible_checkpoint";
     }
 
     private final OngoingSegmentReplications ongoingSegmentReplications;
@@ -88,6 +90,12 @@ public class SegmentReplicationSourceService extends AbstractLifecycleComponent 
             ThreadPool.Names.GENERIC,
             GetSegmentFilesRequest::new,
             new GetSegmentFilesRequestHandler()
+        );
+        transportService.registerRequestHandler(
+            Actions.UPDATE_VISIBLE_CHECKPOINT,
+            ThreadPool.Names.GENERIC,
+            UpdateVisibleCheckpointRequest::new,
+            new UpdateVisibleCheckpointRequestHandler()
         );
     }
 
@@ -139,6 +147,20 @@ public class SegmentReplicationSourceService extends AbstractLifecycleComponent 
         @Override
         public void messageReceived(GetSegmentFilesRequest request, TransportChannel channel, Task task) throws Exception {
             ongoingSegmentReplications.startSegmentCopy(request, new ChannelActionListener<>(channel, Actions.GET_SEGMENT_FILES, request));
+        }
+    }
+
+    private class UpdateVisibleCheckpointRequestHandler implements TransportRequestHandler<UpdateVisibleCheckpointRequest> {
+        @Override
+        public void messageReceived(UpdateVisibleCheckpointRequest request, TransportChannel channel, Task task) throws Exception {
+            try {
+                IndexService indexService = indicesService.indexServiceSafe(request.getPrimaryShardId().getIndex());
+                IndexShard indexShard = indexService.getShard(request.getPrimaryShardId().id());
+                indexShard.updateVisibleCheckpointForShard(request.getTargetAllocationId(), request.getCheckpoint());
+                channel.sendResponse(TransportResponse.Empty.INSTANCE);
+            } catch (Exception e) {
+                channel.sendResponse(e);
+            }
         }
     }
 

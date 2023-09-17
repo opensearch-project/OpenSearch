@@ -32,21 +32,20 @@
 
 package org.opensearch.common.lucene.search.function;
 
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.FilterLeafCollector;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.Scorable;
-import org.apache.lucene.search.Weight;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.QueryVisitor;
+import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
-import org.apache.lucene.search.BulkScorer;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 import org.opensearch.Version;
 import org.opensearch.common.Nullable;
@@ -105,12 +104,12 @@ public class ScriptScoreQuery extends Query {
     }
 
     @Override
-    public Query rewrite(IndexReader reader) throws IOException {
-        Query newQ = subQuery.rewrite(reader);
+    public Query rewrite(IndexSearcher searcher) throws IOException {
+        Query newQ = subQuery.rewrite(searcher);
         if (newQ != subQuery) {
             return new ScriptScoreQuery(newQ, queryName, script, scriptBuilder, minScore, indexName, shardId, indexVersion);
         }
-        return super.rewrite(reader);
+        return super.rewrite(searcher);
     }
 
     @Override

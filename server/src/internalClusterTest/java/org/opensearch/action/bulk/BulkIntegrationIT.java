@@ -37,19 +37,19 @@ import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.action.admin.indices.mapping.get.GetMappingsResponse;
-
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.ingest.PutPipelineRequest;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.action.support.replication.ReplicationRequest;
+import org.opensearch.action.update.UpdateRequest;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.rest.RestStatus;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.ingest.IngestTestPlugin;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.rest.RestStatus;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.io.IOException;
@@ -83,7 +83,7 @@ public class BulkIntegrationIT extends OpenSearchIntegTestCase {
     public void testBulkIndexCreatesMapping() throws Exception {
         String bulkAction = copyToStringFromClasspath("/org/opensearch/action/bulk/bulk-log.json");
         BulkRequestBuilder bulkBuilder = client().prepareBulk();
-        bulkBuilder.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON);
+        bulkBuilder.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, MediaTypeRegistry.JSON);
         bulkBuilder.get();
         assertBusy(() -> {
             GetMappingsResponse mappingsResponse = client().admin().indices().prepareGetMappings().get();
@@ -154,7 +154,7 @@ public class BulkIntegrationIT extends OpenSearchIntegTestCase {
         String bulkAction = copyToStringFromClasspath("/org/opensearch/action/bulk/simple-bulk-missing-index-type.json");
         {
             BulkRequestBuilder bulkBuilder = client().prepareBulk();
-            bulkBuilder.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON);
+            bulkBuilder.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, MediaTypeRegistry.JSON);
             ActionRequestValidationException ex = expectThrows(ActionRequestValidationException.class, bulkBuilder::get);
 
             assertThat(ex.validationErrors(), containsInAnyOrder("index is missing", "index is missing", "index is missing"));
@@ -164,7 +164,7 @@ public class BulkIntegrationIT extends OpenSearchIntegTestCase {
             createSamplePipeline("pipeline");
             BulkRequestBuilder bulkBuilder = client().prepareBulk("test").routing("routing").pipeline("pipeline");
 
-            bulkBuilder.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON);
+            bulkBuilder.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, MediaTypeRegistry.JSON);
             BulkResponse bulkItemResponses = bulkBuilder.get();
             assertFalse(bulkItemResponses.hasFailures());
         }
@@ -182,7 +182,7 @@ public class BulkIntegrationIT extends OpenSearchIntegTestCase {
 
         AcknowledgedResponse acknowledgedResponse = client().admin()
             .cluster()
-            .putPipeline(new PutPipelineRequest(pipelineId, BytesReference.bytes(pipeline), XContentType.JSON))
+            .putPipeline(new PutPipelineRequest(pipelineId, BytesReference.bytes(pipeline), MediaTypeRegistry.JSON))
             .get();
 
         assertTrue(acknowledgedResponse.isAcknowledged());
@@ -200,7 +200,7 @@ public class BulkIntegrationIT extends OpenSearchIntegTestCase {
                 try {
                     IndexResponse response = client().prepareIndex(index)
                         .setId(id)
-                        .setSource(Collections.singletonMap("f" + randomIntBetween(1, 10), randomNonNegativeLong()), XContentType.JSON)
+                        .setSource(Collections.singletonMap("f" + randomIntBetween(1, 10), randomNonNegativeLong()), MediaTypeRegistry.JSON)
                         .get();
                     assertThat(response.getResult(), is(oneOf(CREATED, UPDATED)));
                     logger.info("--> index id={} seq_no={}", response.getId(), response.getSeqNo());
@@ -218,4 +218,38 @@ public class BulkIntegrationIT extends OpenSearchIntegTestCase {
         assertFalse(thread.isAlive());
     }
 
+    public void testDocIdTooLong() {
+        String index = "testing";
+        createIndex(index);
+        String validId = String.join("", Collections.nCopies(512, "a"));
+        String invalidId = String.join("", Collections.nCopies(513, "a"));
+
+        // Index Request
+        IndexRequest indexRequest = new IndexRequest(index).source(Collections.singletonMap("foo", "baz"));
+        // Valid id shouldn't throw any exception
+        assertFalse(client().prepareBulk().add(indexRequest.id(validId)).get().hasFailures());
+        // Invalid id should throw the ActionRequestValidationException
+        validateDocIdLimit(() -> client().prepareBulk().add(indexRequest.id(invalidId)).get());
+
+        // Update Request
+        UpdateRequest updateRequest = new UpdateRequest(index, validId).doc("reason", "no source");
+        // Valid id shouldn't throw any exception
+        assertFalse(client().prepareBulk().add(updateRequest).get().hasFailures());
+        // Invalid id should throw the ActionRequestValidationException
+        validateDocIdLimit(() -> client().prepareBulk().add(updateRequest.id(invalidId)).get());
+    }
+
+    private void validateDocIdLimit(Runnable runner) {
+        try {
+            runner.run();
+            fail("Request validation for docId didn't fail");
+        } catch (ActionRequestValidationException e) {
+            assertEquals(
+                1,
+                e.validationErrors().stream().filter(msg -> msg.contains("is too long, must be no longer than 512 bytes but was")).count()
+            );
+        } catch (Exception e) {
+            fail("Request validation for docId failed with different exception: " + e);
+        }
+    }
 }

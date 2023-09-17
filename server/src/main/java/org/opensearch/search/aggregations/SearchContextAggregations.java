@@ -39,10 +39,8 @@ import static org.opensearch.search.aggregations.MultiBucketConsumerService.Mult
  * @opensearch.internal
  */
 public class SearchContextAggregations {
-
     private final AggregatorFactories factories;
     private final MultiBucketConsumer multiBucketConsumer;
-    private Aggregator[] aggregators;
 
     /**
      * Creates a new aggregation context with the parsed aggregator factories
@@ -54,19 +52,6 @@ public class SearchContextAggregations {
 
     public AggregatorFactories factories() {
         return factories;
-    }
-
-    public Aggregator[] aggregators() {
-        return aggregators;
-    }
-
-    /**
-     * Registers all the created aggregators (top level aggregators) for the search execution context.
-     *
-     * @param aggregators The top level aggregators of the search execution.
-     */
-    public void aggregators(Aggregator[] aggregators) {
-        this.aggregators = aggregators;
     }
 
     /**

@@ -34,9 +34,11 @@ package org.opensearch.common.settings;
 
 import org.opensearch.common.inject.ModuleTestCase;
 import org.opensearch.common.settings.Setting.Property;
-import org.hamcrest.Matchers;
 import org.opensearch.common.util.FeatureFlags;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.search.SearchService;
 import org.opensearch.test.FeatureFlagSetter;
+import org.hamcrest.Matchers;
 
 import java.util.Arrays;
 
@@ -281,5 +283,88 @@ public class SettingsModuleTests extends ModuleTestCase {
             SettingsException.class,
             () -> module.registerDynamicSetting(Setting.floatSetting("index.custom.setting2", 1.0f, Property.IndexScope))
         );
+    }
+
+    public void testConcurrentSegmentSearchClusterSettings() {
+        // Test that we throw an exception without the feature flag
+        Settings settings = Settings.builder().put(SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build();
+        SettingsException ex = expectThrows(SettingsException.class, () -> new SettingsModule(settings));
+        assertEquals(
+            "unknown setting ["
+                + SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey()
+                + "] please check that any required plugins are installed, or check the breaking "
+                + "changes documentation for removed settings",
+            ex.getMessage()
+        );
+
+        // Test that the settings updates correctly with the feature flag
+        FeatureFlagSetter.set(FeatureFlags.CONCURRENT_SEGMENT_SEARCH);
+        boolean settingValue = randomBoolean();
+        Settings settingsWithFeatureFlag = Settings.builder()
+            .put(SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), settingValue)
+            .build();
+        SettingsModule settingsModule = new SettingsModule(settingsWithFeatureFlag);
+        assertEquals(settingValue, SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.get(settingsModule.getSettings()));
+    }
+
+    public void testConcurrentSegmentSearchIndexSettings() {
+        Settings.Builder target = Settings.builder().put(Settings.EMPTY);
+        Settings.Builder update = Settings.builder();
+
+        // Test that we throw an exception without the feature flag
+        SettingsModule module = new SettingsModule(Settings.EMPTY);
+        IndexScopedSettings indexScopedSettings = module.getIndexScopedSettings();
+        expectThrows(
+            SettingsException.class,
+            () -> indexScopedSettings.updateDynamicSettings(
+                Settings.builder().put(IndexSettings.INDEX_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build(),
+                target,
+                update,
+                "node"
+            )
+        );
+
+        // Test that the settings updates correctly with the feature flag
+        FeatureFlagSetter.set(FeatureFlags.CONCURRENT_SEGMENT_SEARCH);
+        SettingsModule moduleWithFeatureFlag = new SettingsModule(Settings.EMPTY);
+        IndexScopedSettings indexScopedSettingsWithFeatureFlag = moduleWithFeatureFlag.getIndexScopedSettings();
+        indexScopedSettingsWithFeatureFlag.updateDynamicSettings(
+            Settings.builder().put(IndexSettings.INDEX_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build(),
+            target,
+            update,
+            "node"
+        );
+    }
+
+    public void testMaxSliceCountClusterSettingsForConcurrentSearch() {
+        // Test that we throw an exception without the feature flag
+        Settings settings = Settings.builder()
+            .put(SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING.getKey(), 2)
+            .build();
+        SettingsException ex = expectThrows(SettingsException.class, () -> new SettingsModule(settings));
+        assertTrue(
+            ex.getMessage()
+                .contains("unknown setting [" + SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING.getKey() + "]")
+        );
+
+        // Test that the settings updates correctly with the feature flag
+        FeatureFlagSetter.set(FeatureFlags.CONCURRENT_SEGMENT_SEARCH);
+        int settingValue = randomIntBetween(0, 10);
+        Settings settingsWithFeatureFlag = Settings.builder()
+            .put(SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING.getKey(), settingValue)
+            .build();
+        SettingsModule settingsModule = new SettingsModule(settingsWithFeatureFlag);
+        assertEquals(
+            settingValue,
+            (int) SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING.get(settingsModule.getSettings())
+        );
+
+        // Test that negative value is not allowed
+        settingValue = -1;
+        final Settings settingsWithFeatureFlag_2 = Settings.builder()
+            .put(SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING.getKey(), settingValue)
+            .build();
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> new SettingsModule(settingsWithFeatureFlag_2));
+        assertTrue(iae.getMessage().contains(SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING.getKey()));
     }
 }

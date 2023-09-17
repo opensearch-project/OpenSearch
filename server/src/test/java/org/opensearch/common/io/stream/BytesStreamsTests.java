@@ -35,20 +35,25 @@ package org.opensearch.common.io.stream;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
-import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.lucene.BytesRefs;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.PageCacheRecycler;
-import org.opensearch.script.JodaCompatibleZonedDateTime;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.NamedWriteable;
+import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.test.OpenSearchTestCase;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
 import java.io.EOFException;
 import java.io.IOException;
+import java.time.Instant;
 import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -320,10 +325,9 @@ public class BytesStreamsTests extends OpenSearchTestCase {
         out.writeOptionalBytesReference(new BytesArray("test"));
         out.writeOptionalDouble(null);
         out.writeOptionalDouble(1.2);
-        out.writeTimeZone(DateTimeZone.forID("CET"));
-        out.writeOptionalTimeZone(DateTimeZone.getDefault());
-        out.writeOptionalTimeZone(null);
-        out.writeGenericValue(new DateTime(123456, DateTimeZone.forID("America/Los_Angeles")));
+        out.writeZoneId(ZoneId.of("CET"));
+        out.writeOptionalZoneId(ZoneId.systemDefault());
+        out.writeGenericValue(ZonedDateTime.ofInstant(Instant.ofEpochMilli(123456), ZoneId.of("America/Los_Angeles")));
         final byte[] bytes = BytesReference.toBytes(out.bytes());
         StreamInput in = StreamInput.wrap(BytesReference.toBytes(out.bytes()));
         assertEquals(in.available(), bytes.length);
@@ -353,14 +357,13 @@ public class BytesStreamsTests extends OpenSearchTestCase {
         assertThat(in.readOptionalBytesReference(), equalTo(new BytesArray("test")));
         assertNull(in.readOptionalDouble());
         assertThat(in.readOptionalDouble(), closeTo(1.2, 0.0001));
-        assertEquals(DateTimeZone.forID("CET"), in.readTimeZone());
-        assertEquals(DateTimeZone.getDefault(), in.readOptionalTimeZone());
-        assertNull(in.readOptionalTimeZone());
+        assertEquals(ZoneId.of("CET"), in.readZoneId());
+        assertEquals(ZoneId.systemDefault(), in.readOptionalZoneId());
         Object dt = in.readGenericValue();
-        assertThat(dt, instanceOf(JodaCompatibleZonedDateTime.class));
-        JodaCompatibleZonedDateTime jdt = (JodaCompatibleZonedDateTime) dt;
-        assertThat(jdt.getZonedDateTime().toInstant().toEpochMilli(), equalTo(123456L));
-        assertThat(jdt.getZonedDateTime().getZone(), equalTo(ZoneId.of("America/Los_Angeles")));
+        assertThat(dt, instanceOf(ZonedDateTime.class));
+        ZonedDateTime zdt = (ZonedDateTime) dt;
+        assertThat(zdt.toInstant().toEpochMilli(), equalTo(123456L));
+        assertThat(zdt.getZone(), equalTo(ZoneId.of("America/Los_Angeles")));
         assertEquals(0, in.available());
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> out.writeGenericValue(new Object() {
             @Override
@@ -930,7 +933,7 @@ public class BytesStreamsTests extends OpenSearchTestCase {
 
         BytesStreamOutput prodOut = new BytesStreamOutput() {
             @Override
-            boolean failOnTooManyNestedExceptions(Throwable throwable) {
+            public boolean failOnTooManyNestedExceptions(Throwable throwable) {
                 assertThat(throwable, sameInstance(rootEx));
                 return true;
             }

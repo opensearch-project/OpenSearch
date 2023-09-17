@@ -32,9 +32,9 @@
 
 package org.opensearch.indices;
 
-import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.cache.RemovalNotification;
 import org.opensearch.common.cache.RemovalReason;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.index.cache.request.ShardRequestCache;
 import org.opensearch.index.shard.IndexShard;
 

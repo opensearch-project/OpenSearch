@@ -34,6 +34,7 @@ package org.opensearch.common;
 
 import javax.annotation.CheckForNull;
 import javax.annotation.meta.TypeQualifierNickname;
+
 import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;

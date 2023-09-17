@@ -32,10 +32,10 @@
 
 package org.opensearch.index.seqno;
 
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.replication.ReplicationResponse;
 import org.opensearch.common.inject.Inject;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.index.shard.ShardId;
 
 import java.util.Objects;
 

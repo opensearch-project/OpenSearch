@@ -8,20 +8,19 @@
 
 package org.opensearch.indices.replication;
 
-import org.junit.Assert;
-import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.CancellableThreads;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
-import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.recovery.FileChunkWriter;
 import org.opensearch.indices.recovery.RecoverySettings;
@@ -29,6 +28,7 @@ import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.common.CopyState;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.transport.TransportService;
+import org.junit.Assert;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -48,7 +48,7 @@ import static org.mockito.Mockito.when;
 public class OngoingSegmentReplicationsTests extends IndexShardTestCase {
 
     private final IndicesService mockIndicesService = mock(IndicesService.class);
-    private ReplicationCheckpoint testCheckpoint, olderCodecTestCheckpoint;
+    private ReplicationCheckpoint testCheckpoint;
     private DiscoveryNode primaryDiscoveryNode;
     private DiscoveryNode replicaDiscoveryNode;
     private IndexShard primary;
@@ -74,12 +74,11 @@ public class OngoingSegmentReplicationsTests extends IndexShardTestCase {
 
         ShardId testShardId = primary.shardId();
 
-        CodecService codecService = new CodecService(null, null);
+        CodecService codecService = new CodecService(null, getEngine(primary).config().getIndexSettings(), null);
         String defaultCodecName = codecService.codec(CodecService.DEFAULT_CODEC).getName();
 
         // This mirrors the creation of the ReplicationCheckpoint inside CopyState
         testCheckpoint = new ReplicationCheckpoint(testShardId, primary.getOperationPrimaryTerm(), 0L, 0L, defaultCodecName);
-        olderCodecTestCheckpoint = new ReplicationCheckpoint(testShardId, primary.getOperationPrimaryTerm(), 0L, 0L, "Lucene94");
         IndexService mockIndexService = mock(IndexService.class);
         when(mockIndicesService.indexServiceSafe(testShardId.getIndex())).thenReturn(mockIndexService);
         when(mockIndexService.getShard(testShardId.id())).thenReturn(primary);
@@ -94,46 +93,8 @@ public class OngoingSegmentReplicationsTests extends IndexShardTestCase {
         super.tearDown();
     }
 
-    public void testSuccessfulCodecCompatibilityCheck() throws Exception {
-        indexDoc(primary, "1", "{\"foo\" : \"baz\"}", XContentType.JSON, "foobar");
-        primary.refresh("Test");
-        OngoingSegmentReplications replications = spy(new OngoingSegmentReplications(mockIndicesService, recoverySettings));
-        // replica checkpoint is on same/higher lucene codec than primary
-        final CheckpointInfoRequest request = new CheckpointInfoRequest(
-            1L,
-            replica.routingEntry().allocationId().getId(),
-            replicaDiscoveryNode,
-            testCheckpoint
-        );
-        final FileChunkWriter segmentSegmentFileChunkWriter = (fileMetadata, position, content, lastChunk, totalTranslogOps, listener) -> {
-            listener.onResponse(null);
-        };
-        final CopyState copyState = replications.prepareForReplication(request, segmentSegmentFileChunkWriter);
-    }
-
-    public void testFailCodecCompatibilityCheck() throws Exception {
-        indexDoc(primary, "1", "{\"foo\" : \"baz\"}", XContentType.JSON, "foobar");
-        primary.refresh("Test");
-        OngoingSegmentReplications replications = spy(new OngoingSegmentReplications(mockIndicesService, recoverySettings));
-        // replica checkpoint is on lower/older lucene codec than primary
-        final CheckpointInfoRequest request = new CheckpointInfoRequest(
-            1L,
-            replica.routingEntry().allocationId().getId(),
-            replicaDiscoveryNode,
-            olderCodecTestCheckpoint
-        );
-        final FileChunkWriter segmentSegmentFileChunkWriter = (fileMetadata, position, content, lastChunk, totalTranslogOps, listener) -> {
-            listener.onResponse(null);
-        };
-        try {
-            final CopyState copyState = replications.prepareForReplication(request, segmentSegmentFileChunkWriter);
-        } catch (CancellableThreads.ExecutionCancelledException ex) {
-            Assert.assertTrue(ex.getMessage().contains("Requested unsupported codec version"));
-        }
-    }
-
     public void testPrepareAndSendSegments() throws IOException {
-        indexDoc(primary, "1", "{\"foo\" : \"baz\"}", XContentType.JSON, "foobar");
+        indexDoc(primary, "1", "{\"foo\" : \"baz\"}", MediaTypeRegistry.JSON, "foobar");
         primary.refresh("Test");
         OngoingSegmentReplications replications = spy(new OngoingSegmentReplications(mockIndicesService, recoverySettings));
         final CheckpointInfoRequest request = new CheckpointInfoRequest(
@@ -201,7 +162,7 @@ public class OngoingSegmentReplicationsTests extends IndexShardTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         OngoingSegmentReplications replications = new OngoingSegmentReplications(mockIndicesService, recoverySettings);
         // add a doc and refresh so primary has more than one segment.
-        indexDoc(primary, "1", "{\"foo\" : \"baz\"}", XContentType.JSON, "foobar");
+        indexDoc(primary, "1", "{\"foo\" : \"baz\"}", MediaTypeRegistry.JSON, "foobar");
         primary.refresh("Test");
         final CheckpointInfoRequest request = new CheckpointInfoRequest(
             1L,
@@ -441,5 +402,39 @@ public class OngoingSegmentReplicationsTests extends IndexShardTestCase {
         assertEquals(0, replications.size());
         assertEquals(0, replications.cachedCopyStateSize());
         closeShards(replica_2);
+    }
+
+    public void testPrepareForReplicationAlreadyReplicating() throws IOException {
+        OngoingSegmentReplications replications = new OngoingSegmentReplications(mockIndicesService, recoverySettings);
+        final String replicaAllocationId = replica.routingEntry().allocationId().getId();
+        final CheckpointInfoRequest request = new CheckpointInfoRequest(1L, replicaAllocationId, primaryDiscoveryNode, testCheckpoint);
+
+        final CopyState copyState = replications.prepareForReplication(request, mock(FileChunkWriter.class));
+
+        final SegmentReplicationSourceHandler handler = replications.getHandlers().get(replicaAllocationId);
+        assertEquals(handler.getCopyState(), copyState);
+        assertEquals(1, copyState.refCount());
+
+        ReplicationCheckpoint secondCheckpoint = new ReplicationCheckpoint(
+            testCheckpoint.getShardId(),
+            testCheckpoint.getPrimaryTerm(),
+            testCheckpoint.getSegmentsGen(),
+            testCheckpoint.getSegmentInfosVersion() + 1,
+            testCheckpoint.getCodec()
+        );
+
+        final CheckpointInfoRequest secondRequest = new CheckpointInfoRequest(
+            1L,
+            replicaAllocationId,
+            primaryDiscoveryNode,
+            secondCheckpoint
+        );
+
+        final CopyState secondCopyState = replications.prepareForReplication(secondRequest, mock(FileChunkWriter.class));
+        final SegmentReplicationSourceHandler secondHandler = replications.getHandlers().get(replicaAllocationId);
+        assertEquals(secondHandler.getCopyState(), secondCopyState);
+        assertEquals("New copy state is incref'd", 1, secondCopyState.refCount());
+        assertEquals("Old copy state is cleaned up", 0, copyState.refCount());
+
     }
 }

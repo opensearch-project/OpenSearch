@@ -45,6 +45,7 @@ import org.opensearch.cli.UserException;
 import org.opensearch.common.Randomness;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.hash.MessageDigests;
+import org.opensearch.core.common.settings.SecureString;
 
 import javax.crypto.AEADBadTagException;
 import javax.crypto.Cipher;
@@ -55,6 +56,7 @@ import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
+
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;

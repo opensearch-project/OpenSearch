@@ -32,8 +32,8 @@
 
 package org.opensearch.search.aggregations.bucket.terms;
 
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
@@ -64,16 +64,15 @@ public abstract class InternalMappedSignificantTerms<
 
     protected InternalMappedSignificantTerms(
         String name,
-        int requiredSize,
-        long minDocCount,
         Map<String, Object> metadata,
         DocValueFormat format,
         long subsetSize,
         long supersetSize,
         SignificanceHeuristic significanceHeuristic,
-        List<B> buckets
+        List<B> buckets,
+        TermsAggregator.BucketCountThresholds bucketCountThresholds
     ) {
-        super(name, requiredSize, minDocCount, metadata);
+        super(name, bucketCountThresholds, metadata);
         this.format = format;
         this.buckets = buckets;
         this.subsetSize = subsetSize;

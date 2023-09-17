@@ -32,14 +32,13 @@
 
 package org.opensearch.action.search;
 
-import com.carrotsearch.hppc.IntArrayList;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.ScoreDoc;
-import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.util.concurrent.AtomicArray;
 import org.opensearch.common.util.concurrent.CountDown;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.fetch.FetchSearchResult;
 import org.opensearch.search.fetch.ShardFetchRequest;
@@ -48,6 +47,7 @@ import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.search.query.ScrollQuerySearchResult;
 import org.opensearch.transport.Transport;
 
+import java.util.List;
 import java.util.function.BiFunction;
 
 /**
@@ -92,7 +92,7 @@ final class SearchScrollQueryThenFetchAsyncAction extends SearchScrollAsyncActio
 
     @Override
     protected SearchPhase moveToNextPhase(BiFunction<String, String, DiscoveryNode> clusterNodeLookup) {
-        return new SearchPhase("fetch") {
+        return new SearchPhase(SearchPhaseName.FETCH.getName()) {
             @Override
             public void run() {
                 final SearchPhaseController.ReducedQueryPhase reducedQueryPhase = searchPhaseController.reducedScrollQueryPhase(
@@ -104,7 +104,7 @@ final class SearchScrollQueryThenFetchAsyncAction extends SearchScrollAsyncActio
                     return;
                 }
 
-                final IntArrayList[] docIdsToLoad = searchPhaseController.fillDocIdsToLoad(queryResults.length(), scoreDocs);
+                final List<Integer>[] docIdsToLoad = searchPhaseController.fillDocIdsToLoad(queryResults.length(), scoreDocs);
                 final ScoreDoc[] lastEmittedDocPerShard = searchPhaseController.getLastEmittedDocPerShard(
                     reducedQueryPhase,
                     queryResults.length()
@@ -112,7 +112,7 @@ final class SearchScrollQueryThenFetchAsyncAction extends SearchScrollAsyncActio
                 final CountDown counter = new CountDown(docIdsToLoad.length);
                 for (int i = 0; i < docIdsToLoad.length; i++) {
                     final int index = i;
-                    final IntArrayList docIds = docIdsToLoad[index];
+                    final List<Integer> docIds = docIdsToLoad[index];
                     if (docIds != null) {
                         final QuerySearchResult querySearchResult = queryResults.get(index);
                         ScoreDoc lastEmittedDoc = lastEmittedDocPerShard[index];

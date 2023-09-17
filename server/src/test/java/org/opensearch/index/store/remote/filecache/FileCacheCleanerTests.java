@@ -8,30 +8,30 @@
 
 package org.opensearch.index.store.remote.filecache;
 
+import org.apache.lucene.store.IndexInput;
+import org.opensearch.Version;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.breaker.CircuitBreaker;
+import org.opensearch.core.common.breaker.NoopCircuitBreaker;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.env.NodeEnvironment;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.shard.ShardPath;
+import org.opensearch.indices.cluster.IndicesClusterStateService;
+import org.opensearch.test.OpenSearchTestCase;
+import org.hamcrest.MatcherAssert;
+import org.junit.After;
+import org.junit.Before;
+
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.apache.lucene.store.IndexInput;
-import org.hamcrest.MatcherAssert;
-import org.junit.After;
-import org.junit.Before;
-import org.opensearch.Version;
-import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.common.breaker.CircuitBreaker;
-import org.opensearch.common.breaker.NoopCircuitBreaker;
-import org.opensearch.common.settings.Settings;
-import org.opensearch.env.NodeEnvironment;
-import org.opensearch.index.IndexSettings;
-import org.opensearch.index.shard.ShardId;
-import org.opensearch.index.shard.ShardPath;
-import org.opensearch.indices.cluster.IndicesClusterStateService;
-import org.opensearch.test.OpenSearchTestCase;
-
-import static org.hamcrest.Matchers.equalTo;
 import static org.opensearch.index.store.remote.directory.RemoteSnapshotDirectoryFactory.LOCAL_STORE_LOCATION;
+import static org.hamcrest.Matchers.equalTo;
 
 public class FileCacheCleanerTests extends OpenSearchTestCase {
     private static final ShardId SHARD_0 = new ShardId("index", "uuid-0", 0);
@@ -48,7 +48,7 @@ public class FileCacheCleanerTests extends OpenSearchTestCase {
     );
 
     private final FileCache fileCache = FileCacheFactory.createConcurrentLRUFileCache(
-        1024 * 1024 * 1024,
+        1024 * 1024,
         1,
         new NoopCircuitBreaker(CircuitBreaker.REQUEST)
     );

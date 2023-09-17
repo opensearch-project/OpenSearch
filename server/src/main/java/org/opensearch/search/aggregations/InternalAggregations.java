@@ -32,9 +32,9 @@
 package org.opensearch.search.aggregations;
 
 import org.opensearch.Version;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.opensearch.search.aggregations.pipeline.PipelineAggregator;
 import org.opensearch.search.aggregations.pipeline.SiblingPipelineAggregator;
@@ -205,6 +205,15 @@ public final class InternalAggregations extends Aggregations implements Writeabl
             // should never happen
             throw new RuntimeException(exc);
         }
+    }
+
+    public static InternalAggregations merge(InternalAggregations first, InternalAggregations second) {
+        final List<InternalAggregation> fromFirst = first.getInternalAggregations();
+        final List<InternalAggregation> fromSecond = second.getInternalAggregations();
+        final List<InternalAggregation> mergedAggregation = new ArrayList<>(fromFirst.size() + fromSecond.size());
+        mergedAggregation.addAll(fromFirst);
+        mergedAggregation.addAll(fromSecond);
+        return new InternalAggregations(mergedAggregation);
     }
 
     /**

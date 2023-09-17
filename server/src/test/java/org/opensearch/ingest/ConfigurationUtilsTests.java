@@ -179,6 +179,16 @@ public class ConfigurationUtilsTests extends OpenSearchTestCase {
         assertThat(e2.getMetadata("opensearch.processor_tag"), equalTo(Collections.singletonList("my_second_unknown")));
         assertThat(e2.getMetadata("opensearch.processor_type"), equalTo(Collections.singletonList("second_unknown_processor")));
         assertThat(e2.getMetadata("opensearch.property_name"), is(nullValue()));
+
+        // test null config
+        List<Map<String, Object>> config3 = new ArrayList<>();
+        config3.add(Collections.singletonMap("null_processor", null));
+
+        OpenSearchParseException ex = expectThrows(
+            OpenSearchParseException.class,
+            () -> ConfigurationUtils.readProcessorConfigs(config3, scriptService, registry)
+        );
+        assertEquals(ex.getMessage(), "the config of processor [null_processor] cannot be null");
     }
 
     public void testReadProcessorNullDescription() throws Exception {
@@ -235,6 +245,12 @@ public class ConfigurationUtilsTests extends OpenSearchTestCase {
             () -> ConfigurationUtils.readProcessor(registry, scriptService, "unknown_processor", invalidConfig)
         );
         assertThat(ex.getMessage(), equalTo("property isn't a map, but of type [" + invalidConfig.getClass().getName() + "]"));
+
+        ex = expectThrows(
+            OpenSearchParseException.class,
+            () -> ConfigurationUtils.readProcessor(registry, scriptService, "null_processor", null)
+        );
+        assertEquals(ex.getMessage(), "expect the config of processor [null_processor] to be map, but is null");
     }
 
     public void testNoScriptCompilation() {

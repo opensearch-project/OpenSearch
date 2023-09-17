@@ -41,10 +41,11 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.Version;
 import org.opensearch.client.NodeSelector;
-import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -63,7 +64,7 @@ public class ClientYamlTestExecutionContext {
 
     private static final Logger logger = LogManager.getLogger(ClientYamlTestExecutionContext.class);
 
-    private static final XContentType[] STREAMING_CONTENT_TYPES = new XContentType[] { XContentType.JSON, XContentType.SMILE };
+    private static final MediaType[] STREAMING_CONTENT_TYPES = new MediaType[] { MediaTypeRegistry.JSON, XContentType.SMILE };
 
     private final Stash stash = new Stash();
     private final ClientYamlTestClient clientYamlTestClient;
@@ -138,20 +139,20 @@ public class ClientYamlTestExecutionContext {
             return null;
         }
         if (bodies.size() == 1) {
-            XContentType xContentType = getContentType(headers, XContentType.values());
-            BytesRef bytesRef = bodyAsBytesRef(bodies.get(0), xContentType);
+            MediaType mediaType = getContentType(headers, XContentType.values());
+            BytesRef bytesRef = bodyAsBytesRef(bodies.get(0), mediaType);
             return new ByteArrayEntity(
                 bytesRef.bytes,
                 bytesRef.offset,
                 bytesRef.length,
-                ContentType.create(xContentType.mediaTypeWithoutParameters(), StandardCharsets.UTF_8)
+                ContentType.create(mediaType.mediaTypeWithoutParameters(), StandardCharsets.UTF_8)
             );
         } else {
-            XContentType xContentType = getContentType(headers, STREAMING_CONTENT_TYPES);
+            MediaType mediaType = getContentType(headers, STREAMING_CONTENT_TYPES);
             List<BytesRef> bytesRefList = new ArrayList<>(bodies.size());
             int totalBytesLength = 0;
             for (Map<String, Object> body : bodies) {
-                BytesRef bytesRef = bodyAsBytesRef(body, xContentType);
+                BytesRef bytesRef = bodyAsBytesRef(body, mediaType);
                 bytesRefList.add(bytesRef);
                 totalBytesLength += bytesRef.length - bytesRef.offset + 1;
             }
@@ -161,30 +162,30 @@ public class ClientYamlTestExecutionContext {
                 for (int i = bytesRef.offset; i < bytesRef.length; i++) {
                     bytes[position++] = bytesRef.bytes[i];
                 }
-                bytes[position++] = xContentType.xContent().streamSeparator();
+                bytes[position++] = mediaType.xContent().streamSeparator();
             }
-            return new ByteArrayEntity(bytes, ContentType.create(xContentType.mediaTypeWithoutParameters(), StandardCharsets.UTF_8));
+            return new ByteArrayEntity(bytes, ContentType.create(mediaType.mediaTypeWithoutParameters(), StandardCharsets.UTF_8));
         }
     }
 
-    private XContentType getContentType(Map<String, String> headers, XContentType[] supportedContentTypes) {
-        XContentType xContentType = null;
+    private MediaType getContentType(Map<String, String> headers, MediaType[] supportedContentTypes) {
+        MediaType mediaType = null;
         String contentType = headers.get("Content-Type");
         if (contentType != null) {
-            xContentType = XContentType.fromMediaType(contentType);
+            mediaType = MediaType.fromMediaType(contentType);
         }
-        if (xContentType != null) {
-            return xContentType;
+        if (mediaType != null) {
+            return mediaType;
         }
         if (randomizeContentType) {
             return RandomizedTest.randomFrom(supportedContentTypes);
         }
-        return XContentType.JSON;
+        return MediaTypeRegistry.JSON;
     }
 
-    private BytesRef bodyAsBytesRef(Map<String, Object> bodyAsMap, XContentType xContentType) throws IOException {
+    private BytesRef bodyAsBytesRef(Map<String, Object> bodyAsMap, MediaType mediaType) throws IOException {
         Map<String, Object> finalBodyAsMap = stash.replaceStashedValues(bodyAsMap);
-        try (XContentBuilder builder = XContentFactory.contentBuilder(xContentType)) {
+        try (XContentBuilder builder = MediaTypeRegistry.contentBuilder(mediaType)) {
             return BytesReference.bytes(builder.map(finalBodyAsMap)).toBytesRef();
         }
     }

@@ -38,7 +38,6 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
@@ -46,6 +45,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -326,7 +326,7 @@ public class ShardSplittingQueryTests extends OpenSearchTestCase {
                         }
                         assertEquals(shard_id.docID(), doc);
                         long shardID = shard_id.nextValue();
-                        BytesRef id = reader.document(doc).getBinaryValue("_id");
+                        BytesRef id = reader.storedFields().document(doc).getBinaryValue("_id");
                         String actualId = Uid.decodeId(id.bytes, id.offset, id.length);
                         assertNotEquals(ctx.reader() + " docID: " + doc + " actualID: " + actualId, shardID, targetShardId);
                     }

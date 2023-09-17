@@ -32,12 +32,12 @@
 
 package org.opensearch.index.translog;
 
-import com.carrotsearch.hppc.LongHashSet;
-import com.carrotsearch.hppc.LongSet;
 import org.opensearch.common.Randomness;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
@@ -60,7 +60,7 @@ public class MultiSnapshotTests extends OpenSearchTestCase {
 
     public void testTrackSeqNoDenseRanges() throws Exception {
         final MultiSnapshot.SeqNoSet bitSet = new MultiSnapshot.SeqNoSet();
-        final LongSet normalSet = new LongHashSet();
+        final Set<Long> normalSet = new HashSet<>();
         IntStream.range(0, scaledRandomIntBetween(5_000, 10_000)).forEach(i -> {
             long seq = between(0, 5000);
             boolean existed = normalSet.add(seq) == false;
@@ -70,7 +70,7 @@ public class MultiSnapshotTests extends OpenSearchTestCase {
 
     public void testTrackSeqNoSparseRanges() throws Exception {
         final MultiSnapshot.SeqNoSet bitSet = new MultiSnapshot.SeqNoSet();
-        final LongSet normalSet = new LongHashSet();
+        final Set<Long> normalSet = new HashSet<>();
         IntStream.range(0, scaledRandomIntBetween(5_000, 10_000)).forEach(i -> {
             long seq = between(i * 10_000, i * 30_000);
             boolean existed = normalSet.add(seq) == false;
@@ -80,7 +80,7 @@ public class MultiSnapshotTests extends OpenSearchTestCase {
 
     public void testTrackSeqNoMimicTranslogRanges() throws Exception {
         final MultiSnapshot.SeqNoSet bitSet = new MultiSnapshot.SeqNoSet();
-        final LongSet normalSet = new LongHashSet();
+        final Set<Long> normalSet = new HashSet<>();
         long currentSeq = between(10_000_000, 1_000_000_000);
         final int iterations = scaledRandomIntBetween(100, 2000);
         for (long i = 0; i < iterations; i++) {

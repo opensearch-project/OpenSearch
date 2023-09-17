@@ -68,8 +68,8 @@ import static org.opensearch.search.aggregations.AggregationBuilders.global;
 import static org.opensearch.search.aggregations.AggregationBuilders.histogram;
 import static org.opensearch.search.aggregations.AggregationBuilders.range;
 import static org.opensearch.search.aggregations.AggregationBuilders.terms;
-import static org.opensearch.search.aggregations.metrics.MedianAbsoluteDeviationAggregatorTests.IsCloseToRelative.closeToRelative;
 import static org.opensearch.search.aggregations.metrics.MedianAbsoluteDeviationAggregatorTests.ExactMedianAbsoluteDeviation.calculateMAD;
+import static org.opensearch.search.aggregations.metrics.MedianAbsoluteDeviationAggregatorTests.IsCloseToRelative.closeToRelative;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResponse;
@@ -90,6 +90,10 @@ public class MedianAbsoluteDeviationIT extends AbstractNumericTestCase {
     private static long[] multiValueSample;
     private static double singleValueExactMAD;
     private static double multiValueExactMAD;
+
+    public MedianAbsoluteDeviationIT(Settings dynamicSettings) {
+        super(dynamicSettings);
+    }
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
@@ -643,5 +647,6 @@ public class MedianAbsoluteDeviationIT extends AbstractNumericTestCase {
                 .getMissCount(),
             equalTo(2L)
         );
+        internalCluster().wipeIndices("cache_test_idx");
     }
 }

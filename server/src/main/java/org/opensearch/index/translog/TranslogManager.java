@@ -126,4 +126,11 @@ public interface TranslogManager {
      * This might be required when segments are persisted via other mechanism than flush.
      */
     void setMinSeqNoToKeep(long seqNo);
+
+    /*
+    Clean up if any needed on deletion of index
+     */
+    void onDelete();
+
+    Translog.TranslogGeneration getTranslogGeneration();
 }

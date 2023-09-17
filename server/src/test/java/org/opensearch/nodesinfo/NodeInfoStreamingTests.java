@@ -36,13 +36,12 @@ import org.opensearch.Build;
 import org.opensearch.action.admin.cluster.node.info.NodeInfo;
 import org.opensearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.transport.BoundTransportAddress;
-import org.opensearch.common.transport.TransportAddress;
-import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.transport.BoundTransportAddress;
+import org.opensearch.core.common.transport.TransportAddress;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.http.HttpInfo;
@@ -119,7 +118,7 @@ public class NodeInfoStreamingTests extends OpenSearchTestCase {
         param2Builder.startObject();
         param2.toXContent(param2Builder, params);
         param2Builder.endObject();
-        assertThat(Strings.toString(param1Builder), equalTo(Strings.toString(param2Builder)));
+        assertThat(param1Builder.toString(), equalTo(param2Builder.toString()));
     }
 
     private static NodeInfo createNodeInfo() {
@@ -251,7 +250,7 @@ public class NodeInfoStreamingTests extends OpenSearchTestCase {
             for (int i = 0; i < numProcessors; i++) {
                 processors.add(new org.opensearch.search.pipeline.ProcessorInfo(randomAlphaOfLengthBetween(3, 10)));
             }
-            searchPipelineInfo = new SearchPipelineInfo(processors);
+            searchPipelineInfo = new SearchPipelineInfo(Map.of(randomAlphaOfLengthBetween(3, 10), processors));
         }
 
         return new NodeInfo(

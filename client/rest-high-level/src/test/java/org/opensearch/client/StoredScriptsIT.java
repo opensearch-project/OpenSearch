@@ -37,9 +37,9 @@ import org.opensearch.action.admin.cluster.storedscripts.DeleteStoredScriptReque
 import org.opensearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
 import org.opensearch.action.admin.cluster.storedscripts.GetStoredScriptResponse;
 import org.opensearch.action.admin.cluster.storedscripts.PutStoredScriptRequest;
-import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.rest.RestStatus;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.rest.RestStatus;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.script.Script;
 import org.opensearch.script.StoredScriptSource;
 
@@ -58,10 +58,16 @@ public class StoredScriptsIT extends OpenSearchRestHighLevelClientTestCase {
         final StoredScriptSource scriptSource = new StoredScriptSource(
             "painless",
             "Math.log(_score * 2) + params.my_modifier",
-            Collections.singletonMap(Script.CONTENT_TYPE_OPTION, XContentType.JSON.mediaType())
+            Collections.singletonMap(Script.CONTENT_TYPE_OPTION, MediaTypeRegistry.JSON.mediaType())
         );
 
-        PutStoredScriptRequest request = new PutStoredScriptRequest(id, "score", new BytesArray("{}"), XContentType.JSON, scriptSource);
+        PutStoredScriptRequest request = new PutStoredScriptRequest(
+            id,
+            "score",
+            new BytesArray("{}"),
+            MediaTypeRegistry.JSON,
+            scriptSource
+        );
         assertAcked(execute(request, highLevelClient()::putScript, highLevelClient()::putScriptAsync));
 
         GetStoredScriptRequest getRequest = new GetStoredScriptRequest("calculate-score");
@@ -76,10 +82,16 @@ public class StoredScriptsIT extends OpenSearchRestHighLevelClientTestCase {
         final StoredScriptSource scriptSource = new StoredScriptSource(
             "painless",
             "Math.log(_score * 2) + params.my_modifier",
-            Collections.singletonMap(Script.CONTENT_TYPE_OPTION, XContentType.JSON.mediaType())
+            Collections.singletonMap(Script.CONTENT_TYPE_OPTION, MediaTypeRegistry.JSON.mediaType())
         );
 
-        PutStoredScriptRequest request = new PutStoredScriptRequest(id, "score", new BytesArray("{}"), XContentType.JSON, scriptSource);
+        PutStoredScriptRequest request = new PutStoredScriptRequest(
+            id,
+            "score",
+            new BytesArray("{}"),
+            MediaTypeRegistry.JSON,
+            scriptSource
+        );
         assertAcked(execute(request, highLevelClient()::putScript, highLevelClient()::putScriptAsync));
 
         DeleteStoredScriptRequest deleteRequest = new DeleteStoredScriptRequest(id);
@@ -100,10 +112,16 @@ public class StoredScriptsIT extends OpenSearchRestHighLevelClientTestCase {
         final StoredScriptSource scriptSource = new StoredScriptSource(
             "painless",
             "Math.log(_score * 2) + params.my_modifier",
-            Collections.singletonMap(Script.CONTENT_TYPE_OPTION, XContentType.JSON.mediaType())
+            Collections.singletonMap(Script.CONTENT_TYPE_OPTION, MediaTypeRegistry.JSON.mediaType())
         );
 
-        PutStoredScriptRequest request = new PutStoredScriptRequest(id, "score", new BytesArray("{}"), XContentType.JSON, scriptSource);
+        PutStoredScriptRequest request = new PutStoredScriptRequest(
+            id,
+            "score",
+            new BytesArray("{}"),
+            MediaTypeRegistry.JSON,
+            scriptSource
+        );
         assertAcked(execute(request, highLevelClient()::putScript, highLevelClient()::putScriptAsync));
 
         Map<String, Object> script = getAsMap("/_scripts/" + id);

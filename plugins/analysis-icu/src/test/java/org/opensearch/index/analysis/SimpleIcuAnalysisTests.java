@@ -33,7 +33,7 @@
 package org.opensearch.index.analysis;
 
 import org.opensearch.common.settings.Settings;
-import org.opensearch.index.Index;
+import org.opensearch.core.index.Index;
 import org.opensearch.plugin.analysis.icu.AnalysisICUPlugin;
 import org.opensearch.test.OpenSearchTestCase;
 

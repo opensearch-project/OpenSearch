@@ -73,19 +73,19 @@ import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
 import org.opensearch.common.SuppressForbidden;
-import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.CollectionUtils;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.util.CollectionUtils;
 import org.opensearch.core.xcontent.DeprecationHandler;
+import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.mapper.MapperService;
@@ -119,7 +119,7 @@ import java.util.StringJoiner;
  * @opensearch.api
  */
 final class RequestConverters {
-    static final XContentType REQUEST_BODY_CONTENT_TYPE = XContentType.JSON;
+    static final MediaType REQUEST_BODY_CONTENT_TYPE = MediaTypeRegistry.JSON;
 
     private RequestConverters() {
         // Contains only status utility methods
@@ -157,7 +157,7 @@ final class RequestConverters {
         // Bulk API only supports newline delimited JSON or Smile. Before executing
         // the bulk, we need to check that all requests have the same content-type
         // and this content-type is supported by the Bulk API.
-        XContentType bulkContentType = null;
+        MediaType bulkContentType = null;
         for (int i = 0; i < bulkRequest.numberOfActions(); i++) {
             DocWriteRequest<?> action = bulkRequest.requests().get(i);
 
@@ -177,7 +177,7 @@ final class RequestConverters {
         }
 
         if (bulkContentType == null) {
-            bulkContentType = XContentType.JSON;
+            bulkContentType = MediaTypeRegistry.JSON;
         }
 
         final byte separator = bulkContentType.xContent().streamSeparator();
@@ -245,7 +245,7 @@ final class RequestConverters {
             if (opType == DocWriteRequest.OpType.INDEX || opType == DocWriteRequest.OpType.CREATE) {
                 IndexRequest indexRequest = (IndexRequest) action;
                 BytesReference indexSource = indexRequest.source();
-                XContentType indexXContentType = indexRequest.getContentType();
+                MediaType mediaType = indexRequest.getContentType();
 
                 try (
                     XContentParser parser = XContentHelper.createParser(
@@ -257,7 +257,7 @@ final class RequestConverters {
                         NamedXContentRegistry.EMPTY,
                         DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
                         indexSource,
-                        indexXContentType
+                        mediaType
                     )
                 ) {
                     try (XContentBuilder builder = XContentBuilder.builder(bulkContentType.xContent())) {
@@ -266,7 +266,12 @@ final class RequestConverters {
                     }
                 }
             } else if (opType == DocWriteRequest.OpType.UPDATE) {
-                source = XContentHelper.toXContent((UpdateRequest) action, bulkContentType, false).toBytesRef();
+                source = org.opensearch.core.xcontent.XContentHelper.toXContent(
+                    (UpdateRequest) action,
+                    bulkContentType,
+                    ToXContent.EMPTY_PARAMS,
+                    false
+                ).toBytesRef();
             }
 
             if (source != null) {
@@ -392,30 +397,30 @@ final class RequestConverters {
         // set for the partial document and the upsert document. This client
         // only accepts update requests that have the same content types set
         // for both doc and upsert.
-        XContentType xContentType = null;
+        MediaType mediaType = null;
         if (updateRequest.doc() != null) {
-            xContentType = updateRequest.doc().getContentType();
+            mediaType = updateRequest.doc().getContentType();
         }
         if (updateRequest.upsertRequest() != null) {
-            XContentType upsertContentType = updateRequest.upsertRequest().getContentType();
-            if ((xContentType != null) && (xContentType != upsertContentType)) {
+            MediaType upsertContentType = updateRequest.upsertRequest().getContentType();
+            if ((mediaType != null) && (mediaType != upsertContentType)) {
                 throw new IllegalStateException(
                     "Update request cannot have different content types for doc ["
-                        + xContentType
+                        + mediaType
                         + "]"
                         + " and upsert ["
                         + upsertContentType
                         + "] documents"
                 );
             } else {
-                xContentType = upsertContentType;
+                mediaType = upsertContentType;
             }
         }
-        if (xContentType == null) {
-            xContentType = Requests.INDEX_CONTENT_TYPE;
+        if (mediaType == null) {
+            mediaType = Requests.INDEX_CONTENT_TYPE;
         }
         request.addParameters(parameters.asMap());
-        request.setEntity(createEntity(updateRequest, xContentType));
+        request.setEntity(createEntity(updateRequest, mediaType));
         return request;
     }
 
@@ -816,14 +821,14 @@ final class RequestConverters {
         return request;
     }
 
-    static HttpEntity createEntity(ToXContent toXContent, XContentType xContentType) throws IOException {
-        return createEntity(toXContent, xContentType, ToXContent.EMPTY_PARAMS);
+    static HttpEntity createEntity(ToXContent toXContent, MediaType mediaType) throws IOException {
+        return createEntity(toXContent, mediaType, ToXContent.EMPTY_PARAMS);
     }
 
-    static HttpEntity createEntity(ToXContent toXContent, XContentType xContentType, ToXContent.Params toXContentParams)
-        throws IOException {
-        BytesRef source = XContentHelper.toXContent(toXContent, xContentType, toXContentParams, false).toBytesRef();
-        return new ByteArrayEntity(source.bytes, source.offset, source.length, createContentType(xContentType));
+    static HttpEntity createEntity(ToXContent toXContent, MediaType mediaType, ToXContent.Params toXContentParams) throws IOException {
+        BytesRef source = org.opensearch.core.xcontent.XContentHelper.toXContent(toXContent, mediaType, toXContentParams, false)
+            .toBytesRef();
+        return new ByteArrayEntity(source.bytes, source.offset, source.length, createContentType(mediaType));
     }
 
     static String endpoint(String index, String id) {
@@ -869,26 +874,12 @@ final class RequestConverters {
     }
 
     /**
-     * Returns a {@link ContentType} from a given {@link XContentType}.
-     *
-     * @param xContentType the {@link XContentType}
-     * @return the {@link ContentType}
-     *
-     * @deprecated use {@link #createContentType(MediaType)} instead
-     */
-    @Deprecated
-    @SuppressForbidden(reason = "Only allowed place to convert a XContentType to a ContentType")
-    public static ContentType createContentType(final XContentType xContentType) {
-        return ContentType.create(xContentType.mediaTypeWithoutParameters(), (Charset) null);
-    }
-
-    /**
-     * Returns a {@link ContentType} from a given {@link XContentType}.
+     * Returns a {@link ContentType} from a given {@link MediaType}.
      *
      * @param mediaType the {@link MediaType}
      * @return the {@link ContentType}
      */
-    @SuppressForbidden(reason = "Only allowed place to convert a XContentType to a ContentType")
+    @SuppressForbidden(reason = "Only allowed place to convert a MediaType to a ContentType")
     public static ContentType createContentType(final MediaType mediaType) {
         return ContentType.create(mediaType.mediaTypeWithoutParameters(), (Charset) null);
     }
@@ -1194,14 +1185,14 @@ final class RequestConverters {
             return this;
         }
 
-        Params withTaskId(org.opensearch.tasks.TaskId taskId) {
+        Params withTaskId(org.opensearch.core.tasks.TaskId taskId) {
             if (taskId != null && taskId.isSet()) {
                 return putParam("task_id", taskId.toString());
             }
             return this;
         }
 
-        Params withParentTaskId(org.opensearch.tasks.TaskId parentTaskId) {
+        Params withParentTaskId(org.opensearch.core.tasks.TaskId parentTaskId) {
             if (parentTaskId != null && parentTaskId.isSet()) {
                 return putParam("parent_task_id", parentTaskId.toString());
             }
@@ -1265,28 +1256,28 @@ final class RequestConverters {
      *
      * @return the {@link IndexRequest}'s content type
      */
-    static XContentType enforceSameContentType(IndexRequest indexRequest, @Nullable XContentType xContentType) {
-        XContentType requestContentType = indexRequest.getContentType();
-        if (requestContentType != XContentType.JSON && requestContentType != XContentType.SMILE) {
+    static MediaType enforceSameContentType(IndexRequest indexRequest, @Nullable MediaType mediaType) {
+        MediaType requestContentType = indexRequest.getContentType();
+        if (requestContentType != MediaTypeRegistry.JSON && requestContentType != MediaTypeRegistry.fromFormat("smile")) {
             throw new IllegalArgumentException(
                 "Unsupported content-type found for request with content-type ["
                     + requestContentType
                     + "], only JSON and SMILE are supported"
             );
         }
-        if (xContentType == null) {
+        if (mediaType == null) {
             return requestContentType;
         }
-        if (requestContentType != xContentType) {
+        if (requestContentType != mediaType) {
             throw new IllegalArgumentException(
                 "Mismatching content-type found for request with content-type ["
                     + requestContentType
                     + "], previous requests have content-type ["
-                    + xContentType
+                    + mediaType
                     + "]"
             );
         }
-        return xContentType;
+        return mediaType;
     }
 
     /**

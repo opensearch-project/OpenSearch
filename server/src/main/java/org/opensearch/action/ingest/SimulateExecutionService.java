@@ -32,8 +32,8 @@
 
 package org.opensearch.action.ingest;
 
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRunnable;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.ingest.CompoundProcessor;
 import org.opensearch.ingest.IngestDocument;
 import org.opensearch.ingest.Pipeline;

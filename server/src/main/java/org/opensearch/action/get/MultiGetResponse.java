@@ -32,14 +32,13 @@
 
 package org.opensearch.action.get;
 
-import org.opensearch.BaseOpenSearchException;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
-import org.opensearch.action.ActionResponse;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.core.ParseField;
+import org.opensearch.core.action.ActionResponse;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
@@ -131,7 +130,7 @@ public class MultiGetResponse extends ActionResponse implements Iterable<MultiGe
             builder.startObject();
             builder.field(INDEX.getPreferredName(), index);
             builder.field(ID.getPreferredName(), id);
-            BaseOpenSearchException.generateFailureXContent(builder, params, exception, true);
+            OpenSearchException.generateFailureXContent(builder, params, exception, true);
             builder.endObject();
             return builder;
         }

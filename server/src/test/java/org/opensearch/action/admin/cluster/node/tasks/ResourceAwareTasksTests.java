@@ -9,10 +9,9 @@
 package org.opensearch.action.admin.cluster.node.tasks;
 
 import com.sun.management.ThreadMXBean;
+
 import org.apache.lucene.util.Constants;
 import org.opensearch.ExceptionsHelper;
-import org.opensearch.action.ActionListener;
-import org.opensearch.action.NotifyOnceListener;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
@@ -20,14 +19,17 @@ import org.opensearch.action.support.ActionTestUtils;
 import org.opensearch.action.support.nodes.BaseNodesRequest;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.SuppressForbidden;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.action.NotifyOnceListener;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.tasks.TaskCancelledException;
+import org.opensearch.core.tasks.TaskId;
+import org.opensearch.core.tasks.resourcetracker.TaskResourceUsage;
 import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.Task;
-import org.opensearch.tasks.TaskCancelledException;
-import org.opensearch.tasks.TaskId;
 import org.opensearch.tasks.TaskInfo;
 import org.opensearch.test.tasks.MockTaskManager;
 import org.opensearch.test.tasks.MockTaskManagerListener;
@@ -48,9 +50,9 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 
+import static org.opensearch.tasks.TaskResourceTrackingService.TASK_ID;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
-import static org.opensearch.tasks.TaskResourceTrackingService.TASK_ID;
 
 @SuppressForbidden(reason = "ThreadMXBean#getThreadAllocatedBytes")
 public class ResourceAwareTasksTests extends TaskManagerTestCase {
@@ -288,6 +290,14 @@ public class ResourceAwareTasksTests extends TaskManagerTestCase {
             assertTrue(task.getResourceStats().get(threadId).get(0).isActive());
             assertEquals(0, task.getTotalResourceStats().getCpuTimeInNanos());
             assertEquals(0, task.getTotalResourceStats().getMemoryInBytes());
+            assertEquals(0, task.getAverageResourceStats().getMemoryInBytes());
+            assertEquals(0, task.getAverageResourceStats().getCpuTimeInNanos());
+            assertEquals(0, task.getMinResourceStats().getMemoryInBytes());
+            assertEquals(0, task.getMinResourceStats().getCpuTimeInNanos());
+            assertEquals(0, task.getMaxResourceStats().getMemoryInBytes());
+            assertEquals(0, task.getMaxResourceStats().getCpuTimeInNanos());
+            assertEquals(1, task.getThreadUsage().getThreadExecutions());
+            assertEquals(1, task.getThreadUsage().getActiveThreads());
         };
 
         taskTestContext.operationFinishedValidator = (task, threadId) -> {
@@ -296,6 +306,8 @@ public class ResourceAwareTasksTests extends TaskManagerTestCase {
             assertEquals(1, task.getResourceStats().size());
             assertEquals(1, task.getResourceStats().get(threadId).size());
             assertFalse(task.getResourceStats().get(threadId).get(0).isActive());
+            assertEquals(1, task.getThreadUsage().getThreadExecutions());
+            assertEquals(0, task.getThreadUsage().getActiveThreads());
 
             long expectedArrayAllocationOverhead = 2 * 4000000; // Task's memory overhead due to array allocations
             long actualTaskMemoryOverhead = task.getTotalResourceStats().getMemoryInBytes();
@@ -305,6 +317,13 @@ public class ResourceAwareTasksTests extends TaskManagerTestCase {
                 expectedArrayAllocationOverhead
             );
             assertCPUTime(task.getTotalResourceStats().getCpuTimeInNanos());
+            // In basic single threaded case min == max == average == total
+            assertEquals(task.getTotalResourceStats().getCpuTimeInNanos(), task.getAverageResourceStats().getCpuTimeInNanos());
+            assertEquals(task.getTotalResourceStats().getCpuTimeInNanos(), task.getMinResourceStats().getCpuTimeInNanos());
+            assertEquals(task.getTotalResourceStats().getCpuTimeInNanos(), task.getMaxResourceStats().getCpuTimeInNanos());
+            assertEquals(task.getTotalResourceStats().getMemoryInBytes(), task.getAverageResourceStats().getMemoryInBytes());
+            assertEquals(task.getTotalResourceStats().getMemoryInBytes(), task.getMinResourceStats().getMemoryInBytes());
+            assertEquals(task.getTotalResourceStats().getMemoryInBytes(), task.getMaxResourceStats().getMemoryInBytes());
         };
 
         startResourceAwareNodesAction(testNodes[0], false, taskTestContext, new ActionListener<NodesResponse>() {
@@ -544,8 +563,10 @@ public class ResourceAwareTasksTests extends TaskManagerTestCase {
 
             assertNotNull(taskInfo.getResourceStats());
             assertNotNull(taskInfo.getResourceStats().getResourceUsageInfo());
-            assertCPUTime(taskInfo.getResourceStats().getResourceUsageInfo().get("total").getCpuTimeInNanos());
-            assertTrue(taskInfo.getResourceStats().getResourceUsageInfo().get("total").getMemoryInBytes() > 0);
+            assertTrue(taskInfo.getResourceStats().getResourceUsageInfo().get("total") instanceof TaskResourceUsage);
+            TaskResourceUsage taskResourceUsage = (TaskResourceUsage) taskInfo.getResourceStats().getResourceUsageInfo().get("total");
+            assertCPUTime(taskResourceUsage.getCpuTimeInNanos());
+            assertTrue(taskResourceUsage.getMemoryInBytes() > 0);
         };
 
         taskTestContext.operationFinishedValidator = (task, threadId) -> { assertEquals(0, resourceTasks.size()); };
@@ -652,8 +673,8 @@ public class ResourceAwareTasksTests extends TaskManagerTestCase {
     }
 
     private void assertMemoryUsageWithinLimits(long actual, long expected) {
-        // 5% buffer up to 200 KB to account for classloading overhead.
-        long maxOverhead = Math.min(200000, expected * 5 / 100);
+        // 5% buffer up to 500 KB to account for classloading overhead.
+        long maxOverhead = Math.min(500000, expected * 5 / 100);
         assertThat(actual, lessThanOrEqualTo(expected + maxOverhead));
     }
 

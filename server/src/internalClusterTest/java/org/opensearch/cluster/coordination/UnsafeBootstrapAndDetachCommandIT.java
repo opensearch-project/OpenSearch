@@ -44,6 +44,7 @@ import org.opensearch.env.NodeEnvironment;
 import org.opensearch.env.TestEnvironment;
 import org.opensearch.gateway.GatewayMetaState;
 import org.opensearch.gateway.PersistedClusterStateService;
+import org.opensearch.gateway.remote.RemoteClusterStateService;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.node.Node.DiscoverySettings;
 import org.opensearch.test.InternalTestCluster;
@@ -55,9 +56,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.notNullValue;
 import static org.opensearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.opensearch.gateway.DanglingIndicesState.AUTO_IMPORT_DANGLING_INDICES_SETTING;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
@@ -65,6 +63,9 @@ import static org.opensearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_
 import static org.opensearch.test.NodeRoles.nonClusterManagerNode;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0, autoManageMasterNodes = false)
 public class UnsafeBootstrapAndDetachCommandIT extends OpenSearchIntegTestCase {
@@ -178,6 +179,16 @@ public class UnsafeBootstrapAndDetachCommandIT extends OpenSearchIntegTestCase {
             Settings.builder().put(nonClusterManagerNode(internalCluster().getDefaultSettings())).build()
         );
         expectThrows(() -> unsafeBootstrap(environment), UnsafeBootstrapClusterManagerCommand.NOT_CLUSTER_MANAGER_NODE_MSG);
+    }
+
+    public void testBootstrapRemoteClusterEnabled() {
+        final Environment environment = TestEnvironment.newEnvironment(
+            Settings.builder()
+                .put(internalCluster().getDefaultSettings())
+                .put(RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING.getKey(), true)
+                .build()
+        );
+        expectThrows(() -> unsafeBootstrap(environment), UnsafeBootstrapClusterManagerCommand.REMOTE_CLUSTER_STATE_ENABLED_NODE);
     }
 
     public void testBootstrapNoDataFolder() {

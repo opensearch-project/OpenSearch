@@ -69,7 +69,7 @@ final class DfsQueryPhase extends SearchPhase {
         Function<ArraySearchPhaseResults<SearchPhaseResult>, SearchPhase> nextPhaseFactory,
         SearchPhaseContext context
     ) {
-        super("dfs_query");
+        super(SearchPhaseName.DFS_QUERY.getName());
         this.progressListener = context.getTask().getProgressListener();
         this.queryResult = queryResult;
         this.searchResults = searchResults;

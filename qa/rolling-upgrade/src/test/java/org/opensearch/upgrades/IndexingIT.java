@@ -31,37 +31,32 @@
 
 package org.opensearch.upgrades;
 
-import org.apache.hc.core5.http.HttpHost;
 import org.apache.hc.core5.http.ParseException;
 import org.apache.hc.core5.http.io.entity.EntityUtils;
-import org.apache.lucene.tests.util.LuceneTestCase;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
-import org.opensearch.action.search.SearchResponse;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
-import org.opensearch.client.ResponseException;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Booleans;
+import org.opensearch.common.io.Streams;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.index.seqno.SeqNoStats;
+import org.opensearch.index.codec.CodecService;
+import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.indices.replication.common.ReplicationType;
-import org.opensearch.rest.action.document.RestBulkAction;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.rest.yaml.ObjectPath;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.opensearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
 import static org.opensearch.rest.action.search.RestSearchAction.TOTAL_HITS_AS_INT_PARAM;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.either;
+import static org.opensearch.test.OpenSearchIntegTestCase.CODECS;
 
 /**
  * Basic test that indexed documents survive the rolling restart. See
@@ -92,53 +87,62 @@ public class IndexingIT extends AbstractRollingTestCase {
     }
 
     // Verifies that for each shard copy holds same document count across all containing nodes.
-    private void waitForSearchableDocs(String index, int shardCount) throws Exception {
-        Map<Integer,String> primaryShardToNodeIDMap = new HashMap<>();
-        Map<Integer,String> replicaShardToNodeIDMap = new HashMap<>();
-        logger.info("--> _cat/shards \n{}", EntityUtils.toString(client().performRequest(new Request("GET", "/_cat/shards?v")).getEntity()));
+    private void waitForSearchableDocs(String index, int shardCount, int replicaCount) throws Exception {
+        assertTrue(shardCount > 0);
+        assertTrue(replicaCount > 0);
+        waitForClusterHealthWithNoShardMigration(index, "green");
+        logger.info("--> _cat/shards before search \n{}", EntityUtils.toString(client().performRequest(new Request("GET", "/_cat/shards?v")).getEntity()));
 
-        Request request = new Request("GET", index + "/_stats");
-        request.addParameter("level", "shards");
-        Response response = client().performRequest(request);
-        for (int shardNumber = 0; shardNumber < shardCount; shardNumber++) {
-            List<Object> shardStats = ObjectPath.createFromResponse(response).evaluate("indices." + index + ".shards." + shardNumber);
-            for (Object shard : shardStats) {
-                final String nodeId = ObjectPath.evaluate(shard, "routing.node");
-                final Boolean primary = ObjectPath.evaluate(shard, "routing.primary");
-                if (primary) {
-                    primaryShardToNodeIDMap.putIfAbsent(shardNumber, nodeId);
-                } else {
-                    replicaShardToNodeIDMap.putIfAbsent(shardNumber, nodeId);
+        // Verify segment replication stats
+        verifySegmentStats(index);
+
+        // Verify segment store
+        assertBusy(() -> {
+            /**
+             * Use default tabular output and sort response based on shard,segment,primaryOrReplica columns to allow line by
+             * line parsing where records related to a segment (e.g. _0) are chunked together with first record belonging
+             * to primary while remaining *replicaCount* records belongs to replica copies
+             * */
+            Request segrepStatsRequest = new Request("GET", "/_cat/segments/" + index + "?s=shard,segment,primaryOrReplica");
+            segrepStatsRequest.addParameter("h", "index,shard,primaryOrReplica,segment,docs.count");
+            Response segrepStatsResponse = client().performRequest(segrepStatsRequest);
+            List<String> responseList = Streams.readAllLines(segrepStatsResponse.getEntity().getContent());
+            logger.info("--> _cat/segments response\n {}", responseList.toString().replace(',', '\n'));
+            // Filter response for rows with zero doc count
+            List<String> filteredList = new ArrayList<>();
+            for(String row: responseList) {
+                String count = row.split(" +")[4];
+                if (count.equals("0") == false) {
+                    filteredList.add(row);
                 }
             }
-        }
-        logger.info("--> primaryShardToNodeIDMap {}", primaryShardToNodeIDMap);
-        logger.info("--> replicaShardToNodeIDMap {}", replicaShardToNodeIDMap);
-
-        for (int shardNumber = 0; shardNumber < shardCount; shardNumber++) {
-            logger.info("--> Verify doc count for shard number {}", shardNumber);
-            Request searchTestIndexRequest = new Request("POST", "/" + index + "/_search");
-            searchTestIndexRequest.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");
-            searchTestIndexRequest.addParameter("filter_path", "hits.total");
-            searchTestIndexRequest.addParameter("preference", "_shards:" + shardNumber + "|_only_nodes:" + primaryShardToNodeIDMap.get(shardNumber));
-            Response searchTestIndexResponse = client().performRequest(searchTestIndexRequest);
-            final int primaryHits = ObjectPath.createFromResponse(searchTestIndexResponse).evaluate("hits.total");
-            logger.info("--> primaryHits {}", primaryHits);
-            final int shardNum = shardNumber;
-            // Verify replica shard doc count only when available.
-            if (replicaShardToNodeIDMap.get(shardNum) != null) {
-                assertBusy(() -> {
-                    Request replicaRequest = new Request("POST", "/" + index + "/_search");
-                    replicaRequest.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");
-                    replicaRequest.addParameter("filter_path", "hits.total");
-                    replicaRequest.addParameter("preference", "_shards:" + shardNum + "|_only_nodes:" + replicaShardToNodeIDMap.get(shardNum));
-                    Response replicaResponse = client().performRequest(replicaRequest);
-                    int replicaHits = ObjectPath.createFromResponse(replicaResponse).evaluate("hits.total");
-                    logger.info("--> ReplicaHits {}", replicaHits);
-                    assertEquals(primaryHits, replicaHits);
-                }, 1, TimeUnit.MINUTES);
+            // Ensure there is result for replica copies before processing the result. This results in retry when there
+            // are not enough number of rows vs failing with IndexOutOfBoundsException
+            assertEquals(0, filteredList.size() % (replicaCount + 1));
+            for (int segmentsIndex=0; segmentsIndex < filteredList.size();) {
+                String[] primaryRow = filteredList.get(segmentsIndex++).split(" +");
+                String shardId = primaryRow[0] + primaryRow[1];
+                assertTrue(primaryRow[2].equals("p"));
+                for(int replicaIndex = 1; replicaIndex <= replicaCount; replicaIndex++) {
+                    String[] replicaRow = filteredList.get(segmentsIndex).split(" +");
+                    String replicaShardId = replicaRow[0] + replicaRow[1];
+                    // When segment has 0 doc count, not all replica copies posses that segment. Skip to next segment
+                    if (replicaRow[2].equals("p")) {
+                        assertTrue(primaryRow[4].equals("0"));
+                        break;
+                    }
+                    // verify same shard id
+                    assertTrue(replicaShardId.equals(shardId));
+                    // verify replica row
+                    assertTrue(replicaRow[2].equals("r"));
+                    // Verify segment name matches e.g. _0
+                    assertTrue(replicaRow[3].equals(primaryRow[3]));
+                    // Verify doc count matches
+                    assertTrue(replicaRow[4].equals(primaryRow[4]));
+                    segmentsIndex++;
+                }
             }
-        }
+        }, 1, TimeUnit.MINUTES);
     }
 
     private void waitForClusterHealthWithNoShardMigration(String indexName, String status) throws IOException {
@@ -152,7 +156,19 @@ public class IndexingIT extends AbstractRollingTestCase {
         client().performRequest(waitForStatus);
     }
 
-    public void testIndexing() throws IOException, ParseException {
+    private void verifySegmentStats(String indexName) throws Exception {
+        assertBusy(() -> {
+            Request segrepStatsRequest = new Request("GET", "/_cat/segment_replication/" + indexName);
+            segrepStatsRequest.addParameter("h", "shardId,target_node,checkpoints_behind");
+            Response segrepStatsResponse = client().performRequest(segrepStatsRequest);
+            for (String statLine : Streams.readAllLines(segrepStatsResponse.getEntity().getContent())) {
+                String[] elements = statLine.split(" +");
+                assertEquals("Replica shard " + elements[0] + "not upto date with primary ", 0, Integer.parseInt(elements[2]));
+            }
+        }, 1, TimeUnit.MINUTES);
+    }
+
+    public void testIndexing() throws Exception {
         switch (CLUSTER_TYPE) {
         case OLD:
             break;
@@ -245,10 +261,15 @@ public class IndexingIT extends AbstractRollingTestCase {
      *
      * @throws Exception
      */
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/7679")
     public void testIndexingWithSegRep() throws Exception {
+        if (UPGRADE_FROM_VERSION.before(Version.V_2_4_0)) {
+            logger.info("--> Skip test for version {} where segment replication feature is not available", UPGRADE_FROM_VERSION);
+            return;
+        }
         final String indexName = "test-index-segrep";
         final int shardCount = 3;
-        final int replicaCount = 1;
+        final int replicaCount = 2;
         logger.info("--> Case {}", CLUSTER_TYPE);
         printClusterNodes();
         logger.info("--> _cat/shards before test execution \n{}", EntityUtils.toString(client().performRequest(new Request("GET", "/_cat/shards?v")).getEntity()));
@@ -258,6 +279,14 @@ public class IndexingIT extends AbstractRollingTestCase {
                     .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), shardCount)
                     .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), replicaCount)
                     .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+                    .put(
+                        EngineConfig.INDEX_CODEC_SETTING.getKey(),
+                        randomFrom(new ArrayList<>(CODECS) {
+                            {
+                                add(CodecService.LUCENE_DEFAULT_CODEC);
+                            }
+                        })
+                    )
                     .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms");
                 createIndex(indexName, settings.build());
                 waitForClusterHealthWithNoShardMigration(indexName, "green");
@@ -292,7 +321,7 @@ public class IndexingIT extends AbstractRollingTestCase {
                 throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
         }
 
-        waitForSearchableDocs(indexName, shardCount);
+        waitForSearchableDocs(indexName, shardCount, replicaCount);
         assertCount(indexName, expectedCount);
 
         if (CLUSTER_TYPE != ClusterType.OLD) {
@@ -303,17 +332,16 @@ public class IndexingIT extends AbstractRollingTestCase {
             toBeDeleted.addParameter("refresh", "true");
             toBeDeleted.setJsonEntity("{\"f1\": \"delete-me\"}");
             client().performRequest(toBeDeleted);
-            waitForSearchableDocs(indexName, shardCount);
+            waitForSearchableDocs(indexName, shardCount, replicaCount);
             assertCount(indexName, expectedCount + 6);
 
             logger.info("--> Delete previously added doc and verify doc count");
             Request delete = new Request("DELETE", "/" + indexName + "/_doc/to_be_deleted");
             delete.addParameter("refresh", "true");
             client().performRequest(delete);
-            waitForSearchableDocs(indexName, shardCount);
+            waitForSearchableDocs(indexName, shardCount, replicaCount);
             assertCount(indexName, expectedCount + 5);
         }
-        logger.info("--> _cat/shards post execution \n{}", EntityUtils.toString(client().performRequest(new Request("GET", "/_cat/shards?v")).getEntity()));
     }
 
     public void testAutoIdWithOpTypeCreate() throws IOException {
@@ -372,12 +400,14 @@ public class IndexingIT extends AbstractRollingTestCase {
         client().performRequest(bulk);
     }
 
-    private void assertCount(String index, int count) throws IOException, ParseException {
-        Request searchTestIndexRequest = new Request("POST", "/" + index + "/_search");
-        searchTestIndexRequest.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");
-        searchTestIndexRequest.addParameter("filter_path", "hits.total");
-        Response searchTestIndexResponse = client().performRequest(searchTestIndexRequest);
-        assertEquals("{\"hits\":{\"total\":" + count + "}}",
+    private void assertCount(String index, int count) throws Exception {
+        assertBusy(() -> {
+            Request searchTestIndexRequest = new Request("POST", "/" + index + "/_search");
+            searchTestIndexRequest.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");
+            searchTestIndexRequest.addParameter("filter_path", "hits.total");
+            Response searchTestIndexResponse = client().performRequest(searchTestIndexRequest);
+            assertEquals("{\"hits\":{\"total\":" + count + "}}",
                 EntityUtils.toString(searchTestIndexResponse.getEntity(), StandardCharsets.UTF_8));
+        }, 30, TimeUnit.SECONDS);
     }
 }

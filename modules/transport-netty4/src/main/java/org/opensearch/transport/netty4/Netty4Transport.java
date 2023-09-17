@@ -31,6 +31,38 @@
 
 package org.opensearch.transport.netty4;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.ExceptionsHelper;
+import org.opensearch.Version;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.common.SuppressForbidden;
+import org.opensearch.common.lease.Releasables;
+import org.opensearch.common.network.NetworkService;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Setting.Property;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.PageCacheRecycler;
+import org.opensearch.common.util.concurrent.OpenSearchExecutors;
+import org.opensearch.common.util.net.NetUtils;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.core.indices.breaker.CircuitBreakerService;
+import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.Netty4NioSocketChannel;
+import org.opensearch.transport.NettyAllocator;
+import org.opensearch.transport.NettyByteBufSizer;
+import org.opensearch.transport.SharedGroupFactory;
+import org.opensearch.transport.TcpTransport;
+import org.opensearch.transport.TransportSettings;
+
+import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.net.SocketOption;
+import java.util.Map;
+
 import io.netty.bootstrap.Bootstrap;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.AdaptiveRecvByteBufAllocator;
@@ -45,37 +77,6 @@ import io.netty.channel.FixedRecvByteBufAllocator;
 import io.netty.channel.RecvByteBufAllocator;
 import io.netty.channel.socket.nio.NioChannelOption;
 import io.netty.util.AttributeKey;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.opensearch.ExceptionsHelper;
-import org.opensearch.Version;
-import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.common.SuppressForbidden;
-import org.opensearch.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.common.lease.Releasables;
-import org.opensearch.common.network.NetworkService;
-import org.opensearch.common.settings.Setting;
-import org.opensearch.common.settings.Setting.Property;
-import org.opensearch.common.settings.Settings;
-import org.opensearch.common.unit.ByteSizeUnit;
-import org.opensearch.common.unit.ByteSizeValue;
-import org.opensearch.common.util.PageCacheRecycler;
-import org.opensearch.common.util.concurrent.OpenSearchExecutors;
-import org.opensearch.common.util.net.NetUtils;
-import org.opensearch.indices.breaker.CircuitBreakerService;
-import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.transport.Netty4NioSocketChannel;
-import org.opensearch.transport.NettyAllocator;
-import org.opensearch.transport.NettyByteBufSizer;
-import org.opensearch.transport.SharedGroupFactory;
-import org.opensearch.transport.TcpTransport;
-import org.opensearch.transport.TransportSettings;
-
-import java.io.IOException;
-import java.net.InetSocketAddress;
-import java.net.SocketOption;
-import java.util.Map;
 
 import static org.opensearch.common.settings.Setting.byteSizeSetting;
 import static org.opensearch.common.settings.Setting.intSetting;

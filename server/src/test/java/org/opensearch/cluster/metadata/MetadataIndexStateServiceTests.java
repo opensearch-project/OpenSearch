@@ -54,9 +54,9 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.Strings;
-import org.opensearch.index.Index;
+import org.opensearch.core.index.Index;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexNotFoundException;
-import org.opensearch.index.shard.ShardId;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.snapshots.Snapshot;
 import org.opensearch.snapshots.SnapshotId;
@@ -439,7 +439,8 @@ public class MetadataIndexStateServiceTests extends OpenSearchTestCase {
             shardsBuilder,
             null,
             SnapshotInfoTests.randomUserMetadata(),
-            VersionUtils.randomVersion(random())
+            VersionUtils.randomVersion(random()),
+            false
         );
         return ClusterState.builder(newState)
             .putCustom(SnapshotsInProgress.TYPE, SnapshotsInProgress.of(Collections.singletonList(entry)))

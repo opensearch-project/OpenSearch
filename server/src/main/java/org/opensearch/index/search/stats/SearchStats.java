@@ -34,12 +34,13 @@ package org.opensearch.index.search.stats;
 
 import org.opensearch.Version;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.Strings;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.common.util.FeatureFlags;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -67,6 +68,11 @@ public class SearchStats implements Writeable, ToXContentFragment {
         private long queryTimeInMillis;
         private long queryCurrent;
 
+        private long concurrentQueryCount;
+        private long concurrentQueryTimeInMillis;
+        private long concurrentQueryCurrent;
+        private long queryConcurrency;
+
         private long fetchCount;
         private long fetchTimeInMillis;
         private long fetchCurrent;
@@ -91,6 +97,10 @@ public class SearchStats implements Writeable, ToXContentFragment {
             long queryCount,
             long queryTimeInMillis,
             long queryCurrent,
+            long concurrentQueryCount,
+            long concurrentQueryTimeInMillis,
+            long concurrentQueryCurrent,
+            long queryConcurrency,
             long fetchCount,
             long fetchTimeInMillis,
             long fetchCurrent,
@@ -107,6 +117,11 @@ public class SearchStats implements Writeable, ToXContentFragment {
             this.queryCount = queryCount;
             this.queryTimeInMillis = queryTimeInMillis;
             this.queryCurrent = queryCurrent;
+
+            this.concurrentQueryCount = concurrentQueryCount;
+            this.concurrentQueryTimeInMillis = concurrentQueryTimeInMillis;
+            this.concurrentQueryCurrent = concurrentQueryCurrent;
+            this.queryConcurrency = queryConcurrency;
 
             this.fetchCount = fetchCount;
             this.fetchTimeInMillis = fetchTimeInMillis;
@@ -147,12 +162,24 @@ public class SearchStats implements Writeable, ToXContentFragment {
                 pitTimeInMillis = in.readVLong();
                 pitCurrent = in.readVLong();
             }
+
+            if (in.getVersion().onOrAfter(Version.V_2_10_0)) {
+                concurrentQueryCount = in.readVLong();
+                concurrentQueryTimeInMillis = in.readVLong();
+                concurrentQueryCurrent = in.readVLong();
+                queryConcurrency = in.readVLong();
+            }
         }
 
         public void add(Stats stats) {
             queryCount += stats.queryCount;
             queryTimeInMillis += stats.queryTimeInMillis;
             queryCurrent += stats.queryCurrent;
+
+            concurrentQueryCount += stats.concurrentQueryCount;
+            concurrentQueryTimeInMillis += stats.concurrentQueryTimeInMillis;
+            concurrentQueryCurrent += stats.concurrentQueryCurrent;
+            queryConcurrency += stats.queryConcurrency;
 
             fetchCount += stats.fetchCount;
             fetchTimeInMillis += stats.fetchTimeInMillis;
@@ -175,6 +202,9 @@ public class SearchStats implements Writeable, ToXContentFragment {
             queryCount += stats.queryCount;
             queryTimeInMillis += stats.queryTimeInMillis;
 
+            concurrentQueryCount += stats.concurrentQueryCount;
+            concurrentQueryTimeInMillis += stats.concurrentQueryTimeInMillis;
+
             fetchCount += stats.fetchCount;
             fetchTimeInMillis += stats.fetchTimeInMillis;
 
@@ -189,6 +219,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
             pitCount += stats.pitCount;
             pitTimeInMillis += stats.pitTimeInMillis;
             pitCurrent += stats.pitCurrent;
+            queryConcurrency += stats.queryConcurrency;
         }
 
         public long getQueryCount() {
@@ -205,6 +236,30 @@ public class SearchStats implements Writeable, ToXContentFragment {
 
         public long getQueryCurrent() {
             return queryCurrent;
+        }
+
+        public long getConcurrentQueryCount() {
+            return concurrentQueryCount;
+        }
+
+        public TimeValue getConcurrentQueryTime() {
+            return new TimeValue(concurrentQueryTimeInMillis);
+        }
+
+        public double getConcurrentAvgSliceCount() {
+            if (concurrentQueryCount == 0) {
+                return 0;
+            } else {
+                return queryConcurrency / (double) concurrentQueryCount;
+            }
+        }
+
+        public long getConcurrentQueryTimeInMillis() {
+            return concurrentQueryTimeInMillis;
+        }
+
+        public long getConcurrentQueryCurrent() {
+            return concurrentQueryCurrent;
         }
 
         public long getFetchCount() {
@@ -298,6 +353,13 @@ public class SearchStats implements Writeable, ToXContentFragment {
                 out.writeVLong(pitTimeInMillis);
                 out.writeVLong(pitCurrent);
             }
+
+            if (out.getVersion().onOrAfter(Version.V_2_10_0)) {
+                out.writeVLong(concurrentQueryCount);
+                out.writeVLong(concurrentQueryTimeInMillis);
+                out.writeVLong(concurrentQueryCurrent);
+                out.writeVLong(queryConcurrency);
+            }
         }
 
         @Override
@@ -305,6 +367,13 @@ public class SearchStats implements Writeable, ToXContentFragment {
             builder.field(Fields.QUERY_TOTAL, queryCount);
             builder.humanReadableField(Fields.QUERY_TIME_IN_MILLIS, Fields.QUERY_TIME, getQueryTime());
             builder.field(Fields.QUERY_CURRENT, queryCurrent);
+
+            if (FeatureFlags.isEnabled(FeatureFlags.CONCURRENT_SEGMENT_SEARCH)) {
+                builder.field(Fields.CONCURRENT_QUERY_TOTAL, concurrentQueryCount);
+                builder.humanReadableField(Fields.CONCURRENT_QUERY_TIME_IN_MILLIS, Fields.CONCURRENT_QUERY_TIME, getConcurrentQueryTime());
+                builder.field(Fields.CONCURRENT_QUERY_CURRENT, concurrentQueryCurrent);
+                builder.field(Fields.CONCURRENT_AVG_SLICE_COUNT, getConcurrentAvgSliceCount());
+            }
 
             builder.field(Fields.FETCH_TOTAL, fetchCount);
             builder.humanReadableField(Fields.FETCH_TIME_IN_MILLIS, Fields.FETCH_TIME, getFetchTime());
@@ -414,7 +483,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
 
     @Override
     public String toString() {
-        return Strings.toString(XContentType.JSON, this, true, true);
+        return Strings.toString(MediaTypeRegistry.JSON, this, true, true);
     }
 
     /**
@@ -430,6 +499,11 @@ public class SearchStats implements Writeable, ToXContentFragment {
         static final String QUERY_TIME = "query_time";
         static final String QUERY_TIME_IN_MILLIS = "query_time_in_millis";
         static final String QUERY_CURRENT = "query_current";
+        static final String CONCURRENT_QUERY_TOTAL = "concurrent_query_total";
+        static final String CONCURRENT_QUERY_TIME = "concurrent_query_time";
+        static final String CONCURRENT_QUERY_TIME_IN_MILLIS = "concurrent_query_time_in_millis";
+        static final String CONCURRENT_QUERY_CURRENT = "concurrent_query_current";
+        static final String CONCURRENT_AVG_SLICE_COUNT = "concurrent_avg_slice_count";
         static final String FETCH_TOTAL = "fetch_total";
         static final String FETCH_TIME = "fetch_time";
         static final String FETCH_TIME_IN_MILLIS = "fetch_time_in_millis";

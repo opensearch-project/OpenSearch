@@ -45,12 +45,13 @@ import org.opensearch.action.support.WriteRequest;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.rest.RestStatus;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.ingest.AbstractProcessor;
@@ -60,12 +61,10 @@ import org.opensearch.ingest.Processor;
 import org.opensearch.plugins.IngestPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.RepositoriesService;
-import org.opensearch.rest.RestStatus;
 import org.opensearch.script.ScriptService;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.watcher.ResourceWatcherService;
-
 import org.junit.After;
 
 import java.io.IOException;
@@ -103,7 +102,10 @@ public class FinalPipelineIT extends OpenSearchIntegTestCase {
         createIndex("index", settings);
 
         final BytesReference finalPipelineBody = new BytesArray("{\"processors\": [{\"changing_dest\": {}}]}");
-        client().admin().cluster().putPipeline(new PutPipelineRequest("final_pipeline", finalPipelineBody, XContentType.JSON)).actionGet();
+        client().admin()
+            .cluster()
+            .putPipeline(new PutPipelineRequest("final_pipeline", finalPipelineBody, MediaTypeRegistry.JSON))
+            .actionGet();
 
         final IllegalStateException e = expectThrows(
             IllegalStateException.class,
@@ -122,11 +124,14 @@ public class FinalPipelineIT extends OpenSearchIntegTestCase {
         BytesReference defaultPipelineBody = new BytesArray("{\"processors\": [{\"changing_dest\": {}}]}");
         client().admin()
             .cluster()
-            .putPipeline(new PutPipelineRequest("default_pipeline", defaultPipelineBody, XContentType.JSON))
+            .putPipeline(new PutPipelineRequest("default_pipeline", defaultPipelineBody, MediaTypeRegistry.JSON))
             .actionGet();
 
         BytesReference finalPipelineBody = new BytesArray("{\"processors\": [{\"final\": {\"exists\":\"no_such_field\"}}]}");
-        client().admin().cluster().putPipeline(new PutPipelineRequest("final_pipeline", finalPipelineBody, XContentType.JSON)).actionGet();
+        client().admin()
+            .cluster()
+            .putPipeline(new PutPipelineRequest("final_pipeline", finalPipelineBody, MediaTypeRegistry.JSON))
+            .actionGet();
 
         IndexResponse indexResponse = client().prepareIndex("index")
             .setId("1")
@@ -149,11 +154,14 @@ public class FinalPipelineIT extends OpenSearchIntegTestCase {
         BytesReference defaultPipelineBody = new BytesArray("{\"processors\": [{\"changing_dest\": {}}]}");
         client().admin()
             .cluster()
-            .putPipeline(new PutPipelineRequest("default_pipeline", defaultPipelineBody, XContentType.JSON))
+            .putPipeline(new PutPipelineRequest("default_pipeline", defaultPipelineBody, MediaTypeRegistry.JSON))
             .actionGet();
 
         BytesReference finalPipelineBody = new BytesArray("{\"processors\": [{\"final\": {}}]}");
-        client().admin().cluster().putPipeline(new PutPipelineRequest("final_pipeline", finalPipelineBody, XContentType.JSON)).actionGet();
+        client().admin()
+            .cluster()
+            .putPipeline(new PutPipelineRequest("final_pipeline", finalPipelineBody, MediaTypeRegistry.JSON))
+            .actionGet();
 
         IndexResponse indexResponse = client().prepareIndex("index")
             .setId("1")
@@ -176,13 +184,13 @@ public class FinalPipelineIT extends OpenSearchIntegTestCase {
         BytesReference defaultPipelineBody = new BytesArray("{\"processors\": [{\"changing_dest\": {}}]}");
         client().admin()
             .cluster()
-            .putPipeline(new PutPipelineRequest("default_pipeline", defaultPipelineBody, XContentType.JSON))
+            .putPipeline(new PutPipelineRequest("default_pipeline", defaultPipelineBody, MediaTypeRegistry.JSON))
             .actionGet();
 
         BytesReference targetPipeline = new BytesArray("{\"processors\": [{\"final\": {}}]}");
         client().admin()
             .cluster()
-            .putPipeline(new PutPipelineRequest("target_default_pipeline", targetPipeline, XContentType.JSON))
+            .putPipeline(new PutPipelineRequest("target_default_pipeline", targetPipeline, MediaTypeRegistry.JSON))
             .actionGet();
 
         IndexResponse indexResponse = client().prepareIndex("index")
@@ -212,10 +220,13 @@ public class FinalPipelineIT extends OpenSearchIntegTestCase {
         final BytesReference requestPipelineBody = new BytesArray("{\"processors\": [{\"request\": {}}]}");
         client().admin()
             .cluster()
-            .putPipeline(new PutPipelineRequest("request_pipeline", requestPipelineBody, XContentType.JSON))
+            .putPipeline(new PutPipelineRequest("request_pipeline", requestPipelineBody, MediaTypeRegistry.JSON))
             .actionGet();
         final BytesReference finalPipelineBody = new BytesArray("{\"processors\": [{\"final\": {\"exists\":\"request\"}}]}");
-        client().admin().cluster().putPipeline(new PutPipelineRequest("final_pipeline", finalPipelineBody, XContentType.JSON)).actionGet();
+        client().admin()
+            .cluster()
+            .putPipeline(new PutPipelineRequest("final_pipeline", finalPipelineBody, MediaTypeRegistry.JSON))
+            .actionGet();
         final Settings settings = Settings.builder().put(IndexSettings.FINAL_PIPELINE.getKey(), "final_pipeline").build();
         createIndex("index", settings);
         final IndexRequestBuilder index = client().prepareIndex("index").setId("1");
@@ -238,10 +249,13 @@ public class FinalPipelineIT extends OpenSearchIntegTestCase {
         final BytesReference defaultPipelineBody = new BytesArray("{\"processors\": [{\"default\": {}}]}");
         client().admin()
             .cluster()
-            .putPipeline(new PutPipelineRequest("default_pipeline", defaultPipelineBody, XContentType.JSON))
+            .putPipeline(new PutPipelineRequest("default_pipeline", defaultPipelineBody, MediaTypeRegistry.JSON))
             .actionGet();
         final BytesReference finalPipelineBody = new BytesArray("{\"processors\": [{\"final\": {\"exists\":\"default\"}}]}");
-        client().admin().cluster().putPipeline(new PutPipelineRequest("final_pipeline", finalPipelineBody, XContentType.JSON)).actionGet();
+        client().admin()
+            .cluster()
+            .putPipeline(new PutPipelineRequest("final_pipeline", finalPipelineBody, MediaTypeRegistry.JSON))
+            .actionGet();
         final Settings settings = Settings.builder()
             .put(IndexSettings.DEFAULT_PIPELINE.getKey(), "default_pipeline")
             .put(IndexSettings.FINAL_PIPELINE.getKey(), "final_pipeline")
@@ -266,10 +280,13 @@ public class FinalPipelineIT extends OpenSearchIntegTestCase {
         final BytesReference defaultPipelineBody = new BytesArray("{\"processors\": [{\"default\": {}}]}");
         client().admin()
             .cluster()
-            .putPipeline(new PutPipelineRequest("default_pipeline", defaultPipelineBody, XContentType.JSON))
+            .putPipeline(new PutPipelineRequest("default_pipeline", defaultPipelineBody, MediaTypeRegistry.JSON))
             .actionGet();
         final BytesReference finalPipelineBody = new BytesArray("{\"processors\": [{\"final\": {\"exists\":\"default\"}}]}");
-        client().admin().cluster().putPipeline(new PutPipelineRequest("final_pipeline", finalPipelineBody, XContentType.JSON)).actionGet();
+        client().admin()
+            .cluster()
+            .putPipeline(new PutPipelineRequest("final_pipeline", finalPipelineBody, MediaTypeRegistry.JSON))
+            .actionGet();
         final int lowOrder = randomIntBetween(0, Integer.MAX_VALUE - 1);
         final int highOrder = randomIntBetween(lowOrder + 1, Integer.MAX_VALUE);
         final int finalPipelineOrder;

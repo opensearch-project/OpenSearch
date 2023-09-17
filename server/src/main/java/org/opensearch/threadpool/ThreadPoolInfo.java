@@ -32,10 +32,10 @@
 
 package org.opensearch.threadpool;
 
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.service.ReportingService;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.node.ReportingService;
 
 import java.io.IOException;
 import java.util.Collections;

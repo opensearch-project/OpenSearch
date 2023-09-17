@@ -35,10 +35,18 @@ package org.opensearch.tasks;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.ExceptionsHelper;
-import org.opensearch.action.ActionResponse;
-import org.opensearch.action.NotifyOnceListener;
-import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.common.io.stream.NamedWriteable;
+import org.opensearch.core.action.ActionResponse;
+import org.opensearch.core.action.NotifyOnceListener;
+import org.opensearch.core.common.io.stream.NamedWriteable;
+import org.opensearch.core.tasks.TaskId;
+import org.opensearch.core.tasks.resourcetracker.ResourceStats;
+import org.opensearch.core.tasks.resourcetracker.ResourceStatsType;
+import org.opensearch.core.tasks.resourcetracker.ResourceUsageInfo;
+import org.opensearch.core.tasks.resourcetracker.ResourceUsageMetric;
+import org.opensearch.core.tasks.resourcetracker.TaskResourceStats;
+import org.opensearch.core.tasks.resourcetracker.TaskResourceUsage;
+import org.opensearch.core.tasks.resourcetracker.TaskThreadUsage;
+import org.opensearch.core.tasks.resourcetracker.ThreadResourceInfo;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.ToXContentObject;
 
@@ -66,6 +74,12 @@ public class Task {
     public static final String X_OPAQUE_ID = "X-Opaque-Id";
 
     private static final String TOTAL = "total";
+
+    private static final String AVERAGE = "average";
+
+    private static final String MIN = "min";
+
+    private static final String MAX = "max";
 
     private final long id;
 
@@ -175,8 +189,11 @@ public class Task {
             resourceStats = new TaskResourceStats(new HashMap<>() {
                 {
                     put(TOTAL, getTotalResourceStats());
+                    put(AVERAGE, getAverageResourceStats());
+                    put(MIN, getMinResourceStats());
+                    put(MAX, getMaxResourceStats());
                 }
-            });
+            }, getThreadUsage());
         }
         return taskInfo(localNodeId, description, status, resourceStats);
     }
@@ -192,6 +209,11 @@ public class Task {
      * Build a proper {@link TaskInfo} for this task.
      */
     protected final TaskInfo taskInfo(String localNodeId, String description, Status status, TaskResourceStats resourceStats) {
+        boolean cancelled = this instanceof CancellableTask && ((CancellableTask) this).isCancelled();
+        Long cancellationStartTime = null;
+        if (cancelled) {
+            cancellationStartTime = ((CancellableTask) this).getCancellationStartTime();
+        }
         return new TaskInfo(
             new TaskId(localNodeId, getId()),
             getType(),
@@ -201,10 +223,11 @@ public class Task {
             startTime,
             System.nanoTime() - startTimeNanos,
             this instanceof CancellableTask,
-            this instanceof CancellableTask && ((CancellableTask) this).isCancelled(),
+            cancelled,
             parentTask,
             headers,
-            resourceStats
+            resourceStats,
+            cancellationStartTime
         );
     }
 
@@ -284,6 +307,27 @@ public class Task {
     }
 
     /**
+     * Returns current average per-execution resource usage of the task.
+     */
+    public TaskResourceUsage getAverageResourceStats() {
+        return new TaskResourceUsage(getAverageResourceUtilization(ResourceStats.CPU), getAverageResourceUtilization(ResourceStats.MEMORY));
+    }
+
+    /**
+     * Returns current min per-execution resource usage of the task.
+     */
+    public TaskResourceUsage getMinResourceStats() {
+        return new TaskResourceUsage(getMinResourceUtilization(ResourceStats.CPU), getMinResourceUtilization(ResourceStats.MEMORY));
+    }
+
+    /**
+     * Returns current max per-execution resource usage of the task.
+     */
+    public TaskResourceUsage getMaxResourceStats() {
+        return new TaskResourceUsage(getMaxResourceUtilization(ResourceStats.CPU), getMaxResourceUtilization(ResourceStats.MEMORY));
+    }
+
+    /**
      * Returns total resource consumption for a specific task stat.
      */
     public long getTotalResourceUtilization(ResourceStats stats) {
@@ -297,6 +341,76 @@ public class Task {
             }
         }
         return totalResourceConsumption;
+    }
+
+    /**
+     * Returns average per-execution resource consumption for a specific task stat.
+     */
+    private long getAverageResourceUtilization(ResourceStats stats) {
+        long totalResourceConsumption = 0L;
+        int threadResourceInfoCount = 0;
+        for (List<ThreadResourceInfo> threadResourceInfosList : resourceStats.values()) {
+            for (ThreadResourceInfo threadResourceInfo : threadResourceInfosList) {
+                final ResourceUsageInfo.ResourceStatsInfo statsInfo = threadResourceInfo.getResourceUsageInfo().getStatsInfo().get(stats);
+                if (threadResourceInfo.getStatsType().isOnlyForAnalysis() == false && statsInfo != null) {
+                    totalResourceConsumption += statsInfo.getTotalValue();
+                    threadResourceInfoCount++;
+                }
+            }
+        }
+        return (threadResourceInfoCount > 0) ? totalResourceConsumption / threadResourceInfoCount : 0;
+    }
+
+    /**
+     * Returns minimum per-execution resource consumption for a specific task stat.
+     */
+    private long getMinResourceUtilization(ResourceStats stats) {
+        if (resourceStats.size() == 0) {
+            return 0L;
+        }
+        long minResourceConsumption = Long.MAX_VALUE;
+        for (List<ThreadResourceInfo> threadResourceInfosList : resourceStats.values()) {
+            for (ThreadResourceInfo threadResourceInfo : threadResourceInfosList) {
+                final ResourceUsageInfo.ResourceStatsInfo statsInfo = threadResourceInfo.getResourceUsageInfo().getStatsInfo().get(stats);
+                if (threadResourceInfo.getStatsType().isOnlyForAnalysis() == false && statsInfo != null) {
+                    minResourceConsumption = Math.min(minResourceConsumption, statsInfo.getTotalValue());
+                }
+            }
+        }
+        return minResourceConsumption;
+    }
+
+    /**
+     * Returns maximum per-execution resource consumption for a specific task stat.
+     */
+    private long getMaxResourceUtilization(ResourceStats stats) {
+        long maxResourceConsumption = 0L;
+        for (List<ThreadResourceInfo> threadResourceInfosList : resourceStats.values()) {
+            for (ThreadResourceInfo threadResourceInfo : threadResourceInfosList) {
+                final ResourceUsageInfo.ResourceStatsInfo statsInfo = threadResourceInfo.getResourceUsageInfo().getStatsInfo().get(stats);
+                if (threadResourceInfo.getStatsType().isOnlyForAnalysis() == false && statsInfo != null) {
+                    maxResourceConsumption = Math.max(maxResourceConsumption, statsInfo.getTotalValue());
+                }
+            }
+        }
+        return maxResourceConsumption;
+    }
+
+    /**
+     * Returns the total and active number of thread executions for the task.
+     */
+    public TaskThreadUsage getThreadUsage() {
+        int numThreadExecutions = 0;
+        int activeThreads = 0;
+        for (List<ThreadResourceInfo> threadResourceInfosList : resourceStats.values()) {
+            numThreadExecutions += threadResourceInfosList.size();
+            for (ThreadResourceInfo threadResourceInfo : threadResourceInfosList) {
+                if (threadResourceInfo.isActive()) {
+                    activeThreads++;
+                }
+            }
+        }
+        return new TaskThreadUsage(numThreadExecutions, activeThreads);
     }
 
     /**
@@ -397,13 +511,13 @@ public class Task {
         return headers.get(header);
     }
 
-    public TaskResult result(DiscoveryNode node, Exception error) throws IOException {
-        return new TaskResult(taskInfo(node.getId(), true, true), error);
+    public TaskResult result(final String nodeId, Exception error) throws IOException {
+        return new TaskResult(taskInfo(nodeId, true, true), error);
     }
 
-    public TaskResult result(DiscoveryNode node, ActionResponse response) throws IOException {
+    public TaskResult result(final String nodeId, ActionResponse response) throws IOException {
         if (response instanceof ToXContent) {
-            return new TaskResult(taskInfo(node.getId(), true, true), (ToXContent) response);
+            return new TaskResult(taskInfo(nodeId, true, true), (ToXContent) response);
         } else {
             throw new IllegalStateException("response has to implement ToXContent to be able to store the results");
         }

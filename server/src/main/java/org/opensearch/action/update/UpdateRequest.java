@@ -42,23 +42,23 @@ import org.opensearch.action.support.WriteRequest;
 import org.opensearch.action.support.replication.ReplicationRequest;
 import org.opensearch.action.support.single.instance.InstanceShardOperationRequest;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
+import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.mapper.MapperService;
-import org.opensearch.index.shard.ShardId;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
@@ -106,12 +106,12 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         );
         PARSER.declareBoolean(UpdateRequest::scriptedUpsert, SCRIPTED_UPSERT_FIELD);
         PARSER.declareObject((request, builder) -> request.safeUpsertRequest().source(builder), (parser, context) -> {
-            XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType());
+            XContentBuilder builder = MediaTypeRegistry.contentBuilder(parser.contentType());
             builder.copyCurrentStructure(parser);
             return builder;
         }, UPSERT_FIELD);
         PARSER.declareObject((request, builder) -> request.safeDoc().source(builder), (parser, context) -> {
-            XContentBuilder docBuilder = XContentFactory.contentBuilder(parser.contentType());
+            XContentBuilder docBuilder = MediaTypeRegistry.contentBuilder(parser.contentType());
             docBuilder.copyCurrentStructure(parser);
             return docBuilder;
         }, DOC_FIELD);
@@ -231,6 +231,9 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         if (doc == null && docAsUpsert) {
             validationException = addValidationError("doc must be specified if doc_as_upsert is enabled", validationException);
         }
+
+        validationException = DocWriteRequest.validateDocIdLength(id, validationException);
+
         return validationException;
     }
 
@@ -659,32 +662,32 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     /**
      * Sets the doc to use for updates when a script is not specified.
      */
-    public UpdateRequest doc(Map<String, Object> source, XContentType contentType) {
-        safeDoc().source(source, contentType);
+    public UpdateRequest doc(Map<String, Object> source, MediaType mediaType) {
+        safeDoc().source(source, mediaType);
         return this;
     }
 
     /**
      * Sets the doc to use for updates when a script is not specified.
      */
-    public UpdateRequest doc(String source, XContentType xContentType) {
-        safeDoc().source(source, xContentType);
+    public UpdateRequest doc(String source, MediaType mediaType) {
+        safeDoc().source(source, mediaType);
         return this;
     }
 
     /**
      * Sets the doc to use for updates when a script is not specified.
      */
-    public UpdateRequest doc(byte[] source, XContentType xContentType) {
-        safeDoc().source(source, xContentType);
+    public UpdateRequest doc(byte[] source, MediaType mediaType) {
+        safeDoc().source(source, mediaType);
         return this;
     }
 
     /**
      * Sets the doc to use for updates when a script is not specified.
      */
-    public UpdateRequest doc(byte[] source, int offset, int length, XContentType xContentType) {
-        safeDoc().source(source, offset, length, xContentType);
+    public UpdateRequest doc(byte[] source, int offset, int length, MediaType mediaType) {
+        safeDoc().source(source, offset, length, mediaType);
         return this;
     }
 
@@ -701,8 +704,8 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
      * Sets the doc to use for updates when a script is not specified, the doc provided
      * is a field and value pairs.
      */
-    public UpdateRequest doc(XContentType xContentType, Object... source) {
-        safeDoc().source(xContentType, source);
+    public UpdateRequest doc(MediaType mediaType, Object... source) {
+        safeDoc().source(mediaType, source);
         return this;
     }
 
@@ -745,32 +748,32 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     /**
      * Sets the doc source of the update request to be used when the document does not exists.
      */
-    public UpdateRequest upsert(Map<String, Object> source, XContentType contentType) {
-        safeUpsertRequest().source(source, contentType);
+    public UpdateRequest upsert(Map<String, Object> source, MediaType mediaType) {
+        safeUpsertRequest().source(source, mediaType);
         return this;
     }
 
     /**
      * Sets the doc source of the update request to be used when the document does not exists.
      */
-    public UpdateRequest upsert(String source, XContentType xContentType) {
-        safeUpsertRequest().source(source, xContentType);
+    public UpdateRequest upsert(String source, MediaType mediaType) {
+        safeUpsertRequest().source(source, mediaType);
         return this;
     }
 
     /**
      * Sets the doc source of the update request to be used when the document does not exists.
      */
-    public UpdateRequest upsert(byte[] source, XContentType xContentType) {
-        safeUpsertRequest().source(source, xContentType);
+    public UpdateRequest upsert(byte[] source, MediaType mediaType) {
+        safeUpsertRequest().source(source, mediaType);
         return this;
     }
 
     /**
      * Sets the doc source of the update request to be used when the document does not exists.
      */
-    public UpdateRequest upsert(byte[] source, int offset, int length, XContentType xContentType) {
-        safeUpsertRequest().source(source, offset, length, xContentType);
+    public UpdateRequest upsert(byte[] source, int offset, int length, MediaType mediaType) {
+        safeUpsertRequest().source(source, offset, length, mediaType);
         return this;
     }
 
@@ -787,8 +790,8 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
      * Sets the doc source of the update request to be used when the document does not exists. The doc
      * includes field and value pairs.
      */
-    public UpdateRequest upsert(XContentType xContentType, Object... source) {
-        safeUpsertRequest().source(xContentType, source);
+    public UpdateRequest upsert(MediaType mediaType, Object... source) {
+        safeUpsertRequest().source(mediaType, source);
         return this;
     }
 
@@ -919,13 +922,13 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
             builder.field("doc_as_upsert", docAsUpsert);
         }
         if (doc != null) {
-            XContentType xContentType = doc.getContentType();
+            MediaType mediaType = doc.getContentType();
             try (
                 XContentParser parser = XContentHelper.createParser(
                     NamedXContentRegistry.EMPTY,
                     LoggingDeprecationHandler.INSTANCE,
                     doc.source(),
-                    xContentType
+                    mediaType
                 )
             ) {
                 builder.field("doc");
@@ -942,13 +945,13 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
             builder.field("script", script);
         }
         if (upsertRequest != null) {
-            XContentType xContentType = upsertRequest.getContentType();
+            MediaType mediaType = upsertRequest.getContentType();
             try (
                 XContentParser parser = XContentHelper.createParser(
                     NamedXContentRegistry.EMPTY,
                     LoggingDeprecationHandler.INSTANCE,
                     upsertRequest.source(),
-                    xContentType
+                    mediaType
                 )
             ) {
                 builder.field("upsert");

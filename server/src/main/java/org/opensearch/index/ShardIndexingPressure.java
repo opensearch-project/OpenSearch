@@ -13,14 +13,14 @@ import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.ShardIndexingPressureTracker.CommonOperationTracker;
 import org.opensearch.index.ShardIndexingPressureTracker.OperationTracker;
 import org.opensearch.index.ShardIndexingPressureTracker.PerformanceTracker;
 import org.opensearch.index.ShardIndexingPressureTracker.RejectionTracker;
 import org.opensearch.index.ShardIndexingPressureTracker.StatsTracker;
-import org.opensearch.index.shard.ShardId;
-import org.opensearch.index.stats.ShardIndexingPressureStats;
 import org.opensearch.index.stats.IndexingPressurePerShardStats;
+import org.opensearch.index.stats.ShardIndexingPressureStats;
 
 import java.util.Collections;
 import java.util.HashMap;

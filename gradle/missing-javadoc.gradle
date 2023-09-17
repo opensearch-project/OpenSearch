@@ -147,6 +147,7 @@ configure([
   project(":plugins:repository-s3"),
   project(":plugins:store-smb"),
   project(":plugins:transport-nio"),
+  project(":plugins:crypto-kms"),
   project(":qa:die-with-dignity"),
   project(":qa:wildfly"),
   project(":test:external-modules:test-delayed-aggs"),
@@ -166,6 +167,7 @@ configure([
 configure([
   project(":libs:opensearch-common"),
   project(":libs:opensearch-core"),
+  project(":libs:opensearch-compress"),
   project(":plugins:events-correlation-engine"),
   project(":server")
 ]) {

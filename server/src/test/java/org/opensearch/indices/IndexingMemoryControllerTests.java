@@ -36,9 +36,9 @@ import org.opensearch.Version;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.unit.ByteSizeUnit;
-import org.opensearch.common.unit.ByteSizeValue;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.InternalEngine;
@@ -367,9 +367,9 @@ public class IndexingMemoryControllerTests extends IndexShardTestCase {
     public void testTranslogRecoveryWorksWithIMC() throws IOException {
         IndexShard shard = newStartedShard(true);
         for (int i = 0; i < 100; i++) {
-            indexDoc(shard, Integer.toString(i), "{\"foo\" : \"bar\"}", XContentType.JSON, null);
+            indexDoc(shard, Integer.toString(i), "{\"foo\" : \"bar\"}", MediaTypeRegistry.JSON, null);
         }
-        shard.close("simon says", false);
+        shard.close("simon says", false, false);
         AtomicReference<IndexShard> shardRef = new AtomicReference<>();
         Settings settings = Settings.builder().put("indices.memory.index_buffer_size", "50kb").build();
         Iterable<IndexShard> iterable = () -> (shardRef.get() == null)
@@ -408,7 +408,7 @@ public class IndexingMemoryControllerTests extends IndexShardTestCase {
             .mergePolicy(config.getMergePolicy())
             .analyzer(config.getAnalyzer())
             .similarity(config.getSimilarity())
-            .codecService(new CodecService(null, logger))
+            .codecService(new CodecService(null, config.getIndexSettings(), logger))
             .eventListener(config.getEventListener())
             .queryCache(config.getQueryCache())
             .queryCachingPolicy(config.getQueryCachingPolicy())

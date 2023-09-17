@@ -38,22 +38,24 @@ import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.Strings;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.collect.Tuple;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.regex.Regex;
-import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.MemorySizeValue;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.DeprecationHandler;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -101,15 +103,17 @@ import java.util.stream.Stream;
  * }
  * </pre>
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class Setting<T> implements ToXContentObject {
 
     /**
      * Property of the setting
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public enum Property {
         /**
          * should be filtered in some api (mask password/credentials)
@@ -162,7 +166,12 @@ public class Setting<T> implements ToXContentObject {
         /**
          * Indicates an index-level setting that is privately managed. Such a setting can not even be set on index creation.
          */
-        PrivateIndex
+        PrivateIndex,
+
+        /**
+         * Extension scope
+         */
+        ExtensionScope
     }
 
     private final Key key;
@@ -597,7 +606,7 @@ public class Setting<T> implements ToXContentObject {
 
     @Override
     public String toString() {
-        return Strings.toString(XContentType.JSON, this, true, true);
+        return Strings.toString(MediaTypeRegistry.JSON, this, true, true);
     }
 
     /**
@@ -629,8 +638,9 @@ public class Setting<T> implements ToXContentObject {
      * Allows a setting to declare a dependency on another setting being set. Optionally, a setting can validate the value of the dependent
      * setting.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public interface SettingDependency {
 
         /**
@@ -778,8 +788,9 @@ public class Setting<T> implements ToXContentObject {
     /**
      * Allows an affix setting to declare a dependency on another affix setting.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public interface AffixSettingDependency extends SettingDependency {
 
         @Override
@@ -790,8 +801,9 @@ public class Setting<T> implements ToXContentObject {
     /**
      * An affix setting
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class AffixSetting<T> extends Setting<T> {
         private final AffixKey key;
         private final BiFunction<String, String, Setting<T>> delegateFactory;
@@ -1020,9 +1032,10 @@ public class Setting<T> implements ToXContentObject {
      *
      * @param <T> the type of the {@link Setting}
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
     @FunctionalInterface
+    @PublicApi(since = "1.0.0")
     public interface Validator<T> {
 
         /**
@@ -1099,7 +1112,7 @@ public class Setting<T> implements ToXContentObject {
                 builder.startObject();
                 subSettings.toXContent(builder, EMPTY_PARAMS);
                 builder.endObject();
-                return Strings.toString(builder);
+                return builder.toString();
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
@@ -2042,7 +2055,7 @@ public class Setting<T> implements ToXContentObject {
     }
 
     public static Setting<ByteSizeValue> byteSizeSetting(String key, ByteSizeValue value, Property... properties) {
-        return byteSizeSetting(key, (s) -> value.toString(), properties);
+        return byteSizeSetting(key, (s) -> value.getBytes() + ByteSizeUnit.BYTES.getSuffix(), properties);
     }
 
     public static Setting<ByteSizeValue> byteSizeSetting(String key, Setting<ByteSizeValue> fallbackSetting, Property... properties) {
@@ -2332,7 +2345,7 @@ public class Setting<T> implements ToXContentObject {
     private static List<String> parseableStringToList(String parsableString) {
         // fromXContent doesn't use named xcontent or deprecation.
         try (
-            XContentParser xContentParser = XContentType.JSON.xContent()
+            XContentParser xContentParser = MediaTypeRegistry.JSON.xContent()
                 .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, parsableString)
         ) {
             XContentParser.Token token = xContentParser.nextToken();
@@ -2354,13 +2367,13 @@ public class Setting<T> implements ToXContentObject {
 
     private static String arrayToParsableString(List<String> array) {
         try {
-            XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent());
+            XContentBuilder builder = XContentBuilder.builder(MediaTypeRegistry.JSON.xContent());
             builder.startArray();
             for (String element : array) {
                 builder.value(element);
             }
             builder.endArray();
-            return Strings.toString(builder);
+            return builder.toString();
         } catch (IOException ex) {
             throw new OpenSearchException(ex);
         }
@@ -2828,8 +2841,9 @@ public class Setting<T> implements ToXContentObject {
     /**
      * Key for the setting
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public interface Key {
         boolean match(String key);
     }
@@ -2837,8 +2851,9 @@ public class Setting<T> implements ToXContentObject {
     /**
      * A simple key for a setting
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class SimpleKey implements Key {
         protected final String key;
 
@@ -2912,8 +2927,9 @@ public class Setting<T> implements ToXContentObject {
      * A key that allows for static pre and suffix. This is used for settings
      * that have dynamic namespaces like for different accounts etc.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static final class AffixKey implements Key {
         private final Pattern pattern;
         private final String prefix;

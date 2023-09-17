@@ -151,6 +151,25 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
         return sortField(getNumericType(), missingValue, sortMode, nested, reverse);
     }
 
+    @Override
+    public final SortField wideSortField(Object missingValue, MultiValueMode sortMode, Nested nested, boolean reverse) {
+        // This is to support backward compatibility, the minimum number of bytes prior to OpenSearch 2.7 were 16 bytes,
+        // i.e all sort fields were upcasted to Long/Double with 16 bytes.
+        // Now from OpenSearch 2.7, the minimum number of bytes for sort field is 8 bytes, so if it comes as SortField INT,
+        // we need to up cast it to LONG to support backward compatibility info stored in segment info
+        if (getNumericType().sortFieldType == SortField.Type.INT) {
+            XFieldComparatorSource source = comparatorSource(NumericType.LONG, missingValue, sortMode, nested);
+            SortedNumericSelector.Type selectorType = sortMode == MultiValueMode.MAX
+                ? SortedNumericSelector.Type.MAX
+                : SortedNumericSelector.Type.MIN;
+            SortField sortField = new SortedNumericSortField(getFieldName(), SortField.Type.LONG, reverse, selectorType);
+            sortField.setMissingValue(source.missingObject(missingValue, reverse));
+            return sortField;
+        }
+        // If already more than INT, up cast not needed.
+        return sortField(getNumericType(), missingValue, sortMode, nested, reverse);
+    }
+
     /**
      * Builds a {@linkplain BucketedSort} for the {@code targetNumericType},
      * casting the values if their native type doesn't match.
@@ -198,24 +217,35 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
         MultiValueMode sortMode,
         Nested nested
     ) {
+        final XFieldComparatorSource source;
         switch (targetNumericType) {
             case HALF_FLOAT:
             case FLOAT:
-                return new FloatValuesComparatorSource(this, missingValue, sortMode, nested);
+                source = new FloatValuesComparatorSource(this, missingValue, sortMode, nested);
+                break;
             case DOUBLE:
-                return new DoubleValuesComparatorSource(this, missingValue, sortMode, nested);
+                source = new DoubleValuesComparatorSource(this, missingValue, sortMode, nested);
+                break;
             case UNSIGNED_LONG:
-                return new UnsignedLongValuesComparatorSource(this, missingValue, sortMode, nested);
+                source = new UnsignedLongValuesComparatorSource(this, missingValue, sortMode, nested);
+                break;
             case DATE:
-                return dateComparatorSource(missingValue, sortMode, nested);
+                source = dateComparatorSource(missingValue, sortMode, nested);
+                break;
             case DATE_NANOSECONDS:
-                return dateNanosComparatorSource(missingValue, sortMode, nested);
+                source = dateNanosComparatorSource(missingValue, sortMode, nested);
+                break;
             case LONG:
-                return new LongValuesComparatorSource(this, missingValue, sortMode, nested);
+                source = new LongValuesComparatorSource(this, missingValue, sortMode, nested);
+                break;
             default:
                 assert !targetNumericType.isFloatingPoint();
-                return new IntValuesComparatorSource(this, missingValue, sortMode, nested);
+                source = new IntValuesComparatorSource(this, missingValue, sortMode, nested);
         }
+        if (targetNumericType != getNumericType()) {
+            source.disableSkipping(); // disable skipping logic for cast of sort field
+        }
+        return source;
     }
 
     protected XFieldComparatorSource dateComparatorSource(@Nullable Object missingValue, MultiValueMode sortMode, Nested nested) {

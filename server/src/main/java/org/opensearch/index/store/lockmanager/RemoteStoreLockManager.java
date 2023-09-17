@@ -22,7 +22,7 @@ public interface RemoteStoreLockManager {
      * @param lockInfo lock info instance for which we need to acquire lock.
      * @throws IOException throws exception in case there is a problem with acquiring lock.
      */
-    public void acquire(LockInfo lockInfo) throws IOException;
+    void acquire(LockInfo lockInfo) throws IOException;
 
     /**
      *
@@ -38,4 +38,19 @@ public interface RemoteStoreLockManager {
      * @throws IOException throws exception in case there is a problem in checking if a given file is locked or not.
      */
     Boolean isAcquired(LockInfo lockInfo) throws IOException;
+
+    /**
+     * Acquires lock on the file mentioned in originalLockInfo for acquirer mentioned in clonedLockInfo.
+     * There can occur a race condition where the original file is deleted before we can use it to acquire lock for the new acquirer. Until we have a
+     * fix on LockManager side, Implementors must ensure thread safety for this operation.
+     * @param originalLockInfo lock info instance for original lock.
+     * @param clonedLockInfo lock info instance for which lock needs to be cloned.
+     * @throws IOException throws IOException if originalResource itself do not have any lock.
+     */
+    void cloneLock(LockInfo originalLockInfo, LockInfo clonedLockInfo) throws IOException;
+
+    /*
+    Deletes all lock related files and directories
+     */
+    void delete() throws IOException;
 }

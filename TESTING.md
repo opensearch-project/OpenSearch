@@ -13,6 +13,7 @@ OpenSearch uses [jUnit](https://junit.org/junit5/) for testing, it also uses ran
   - [Test groups](#test-groups)
   - [Load balancing and caches](#load-balancing-and-caches)
   - [Test compatibility](#test-compatibility)
+  - [Retries](#retries)
   - [Miscellaneous](#miscellaneous)
 - [Running verification tasks](#running-verification-tasks)
 - [Testing the REST layer](#testing-the-rest-layer)
@@ -22,6 +23,7 @@ OpenSearch uses [jUnit](https://junit.org/junit5/) for testing, it also uses ran
   - [Iterating on packaging tests](#iterating-on-packaging-tests)
 - [Testing backwards compatibility](#testing-backwards-compatibility)
   - [BWC Testing against a specific remote/branch](#bwc-testing-against-a-specific-remotebranch)
+  - [BWC Testing with security](#bwc-testing-with-security)
     - [Skip fetching latest](#skip-fetching-latest)
 - [How to write good tests?](#how-to-write-good-tests)
   - [Base classes for test cases](#base-classes-for-test-cases)
@@ -159,6 +161,10 @@ It's difficult to pick the "right" number here. Hypercores don’t count for CPU
 It is possible to provide a version that allows to adapt the tests' behaviour to older features or bugs that have been changed or fixed in the meantime.
 
     ./gradlew test -Dtests.compatibility=1.0.0
+
+## Retries
+
+The goal of tests is to be completely deterministic such that any test failure can be easily and reliably reproduced. However, the reality is that many OpenSearch integration tests have non-deterministic behavior which results in rare test failures that cannot be easily reproduced even using the same random test seed. To mitigate the pain of frequent non-reproducible test failures, limited retries have been introduced using the Gradle [test-retry](https://plugins.gradle.org/plugin/org.gradle.test-retry) plugin. The known flaky tests are explicitly listed in the test-retry configuration of the build.gradle file. This is intended as a temporary mitigation for existing flakiness, and as such new tests should not be added to the retry list. Any new addition to the retry list must provide a thorough rationale as to why adding retries is the right thing to do as opposed to fixing the underlying flakiness. Existing flaky tests are tracked in GitHub with the [Flaky Random Test Failure](https://github.com/opensearch-project/OpenSearch/issues?q=is%3Aopen+is%3Aissue+label%3A%22flaky-test%22) label.
 
 ## Miscellaneous
 
@@ -400,6 +406,29 @@ The branch needs to be available on the remote that the BWC makes of the reposit
 Example:
 
 Say you need to make a change to `main` and have a BWC layer in `5.x`. You will need to: . Create a branch called `index_req_change` off your remote `${remote}`. This will contain your change. . Create a branch called `index_req_bwc_5.x` off `5.x`. This will contain your bwc layer. . Push both branches to your remote repository. . Run the tests with `./gradlew check -Dbwc.remote=${remote} -Dbwc.refspec.5.x=index_req_bwc_5.x`.
+
+## BWC Testing with security
+
+You may want to run BWC tests for a secure OpenSearch cluster. In order to do this, you will need to follow a few additional steps:
+
+1. Clone the OpenSearch Security repository from https://github.com/opensearch-project/security.
+2. Get both the old version of the Security plugin (the version you wish to come from) and the new version of the Security plugin (the version you wish to go to). This can be done either by fetching the maven artifact with a command like `wget https://repo1.maven.org/maven2/org/opensearch/plugin/opensearch-security/<TARGET_VERSION>.0/opensearch-security-<TARGET_VERSION>.0.zip` or by running `./gradlew assemble` from the base of the Security repository. 
+3. Move both of the Security artifacts into new directories at the path `/security/bwc-test/src/test/resources/<TARGET_VERSION>.0`. You should end up with two different directories in `/security/bwc-test/src/test/resources/`, one named the old version and one the new version. 
+4. Run the following command from the base of the Security repository:
+
+```
+  ./gradlew -p bwc-test clean bwcTestSuite \
+  -Dtests.security.manager=false \
+  -Dtests.opensearch.http.protocol=https \
+  -Dtests.opensearch.username=admin \
+  -Dtests.opensearch.password=admin \
+  -PcustomDistributionUrl="/OpenSearch/distribution/archives/linux-tar/build/distributions/opensearch-min-<TARGET_VERSION>-SNAPSHOT-linux-x64.tar.gz" \
+  -i
+```
+
+`-Dtests.security.manager=false` handles access issues when attempting to read the certificates from the file system.
+`-Dtests.opensearch.http.protocol=https` tells the wait for cluster startup task to do the right thing.
+`-PcustomDistributionUrl=...` uses a custom build of the distribution of OpenSearch. This is unnecessary when running against standard/unmodified OpenSearch core distributions. 
 
 ### Skip fetching latest
 

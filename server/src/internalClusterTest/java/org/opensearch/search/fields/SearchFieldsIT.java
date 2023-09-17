@@ -32,27 +32,29 @@
 
 package org.opensearch.search.fields;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.Numbers;
-import org.opensearch.common.Strings;
-import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.common.document.DocumentField;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.time.DateUtils;
-import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.support.XContentMapValues;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.rest.RestStatus;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.fielddata.ScriptDocValues;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.rest.RestStatus;
 import org.opensearch.script.MockScriptPlugin;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
@@ -60,9 +62,8 @@ import org.opensearch.search.SearchHit;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.lookup.FieldLookup;
 import org.opensearch.search.sort.SortOrder;
-import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.InternalSettingsPlugin;
-
+import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.DateTimeFormat;
@@ -90,6 +91,7 @@ import static org.opensearch.client.Requests.refreshRequest;
 import static org.opensearch.common.util.set.Sets.newHashSet;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
+import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertFailures;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
@@ -102,7 +104,24 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class SearchFieldsIT extends OpenSearchIntegTestCase {
+public class SearchFieldsIT extends ParameterizedOpenSearchIntegTestCase {
+
+    public SearchFieldsIT(Settings dynamicSettings) {
+        super(dynamicSettings);
+    }
+
+    @ParametersFactory
+    public static Collection<Object[]> parameters() {
+        return Arrays.asList(
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
+        );
+    }
+
+    @Override
+    protected Settings featureFlagSettings() {
+        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -201,29 +220,28 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
     public void testStoredFields() throws Exception {
         createIndex("test");
 
-        String mapping = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject(MapperService.SINGLE_MAPPING_NAME)
-                .startObject("properties")
-                .startObject("field1")
-                .field("type", "text")
-                .field("store", true)
-                .endObject()
-                .startObject("field2")
-                .field("type", "text")
-                .field("store", false)
-                .endObject()
-                .startObject("field3")
-                .field("type", "text")
-                .field("store", true)
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
+        String mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject(MapperService.SINGLE_MAPPING_NAME)
+            .startObject("properties")
+            .startObject("field1")
+            .field("type", "text")
+            .field("store", true)
+            .endObject()
+            .startObject("field2")
+            .field("type", "text")
+            .field("store", false)
+            .endObject()
+            .startObject("field3")
+            .field("type", "text")
+            .field("store", true)
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
 
-        client().admin().indices().preparePutMapping().setSource(mapping, XContentType.JSON).get();
+        client().admin().indices().preparePutMapping().setSource(mapping, MediaTypeRegistry.JSON).get();
 
         client().prepareIndex("test")
             .setId("1")
@@ -304,21 +322,20 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
     public void testScriptDocAndFields() throws Exception {
         createIndex("test");
 
-        String mapping = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject(MapperService.SINGLE_MAPPING_NAME)
-                .startObject("properties")
-                .startObject("num1")
-                .field("type", "double")
-                .field("store", true)
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
+        String mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject(MapperService.SINGLE_MAPPING_NAME)
+            .startObject("properties")
+            .startObject("num1")
+            .field("type", "double")
+            .field("store", true)
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
 
-        client().admin().indices().preparePutMapping().setSource(mapping, XContentType.JSON).get();
+        client().admin().indices().preparePutMapping().setSource(mapping, MediaTypeRegistry.JSON).get();
 
         client().prepareIndex("test")
             .setId("1")
@@ -406,21 +423,20 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
     public void testScriptWithUnsignedLong() throws Exception {
         createIndex("test");
 
-        String mapping = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject(MapperService.SINGLE_MAPPING_NAME)
-                .startObject("properties")
-                .startObject("unsigned_num1")
-                .field("type", "unsigned_long")
-                .field("store", true)
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
+        String mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject(MapperService.SINGLE_MAPPING_NAME)
+            .startObject("properties")
+            .startObject("unsigned_num1")
+            .field("type", "unsigned_long")
+            .field("store", true)
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
 
-        client().admin().indices().preparePutMapping().setSource(mapping, XContentType.JSON).get();
+        client().admin().indices().preparePutMapping().setSource(mapping, MediaTypeRegistry.JSON).get();
 
         client().prepareIndex("test")
             .setId("1")
@@ -509,20 +525,19 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
     public void testScriptFieldWithNanos() throws Exception {
         createIndex("test");
 
-        String mapping = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject(MapperService.SINGLE_MAPPING_NAME)
-                .startObject("properties")
-                .startObject("date")
-                .field("type", "date_nanos")
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
+        String mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject(MapperService.SINGLE_MAPPING_NAME)
+            .startObject("properties")
+            .startObject("date")
+            .field("type", "date_nanos")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
 
-        client().admin().indices().preparePutMapping().setSource(mapping, XContentType.JSON).get();
+        client().admin().indices().preparePutMapping().setSource(mapping, MediaTypeRegistry.JSON).get();
         String date = "2019-01-31T10:00:00.123456789Z";
         indexRandom(
             true,
@@ -706,60 +721,59 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
     public void testStoredFieldsWithoutSource() throws Exception {
         createIndex("test");
 
-        String mapping = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject(MapperService.SINGLE_MAPPING_NAME)
-                .startObject("_source")
-                .field("enabled", false)
-                .endObject()
-                .startObject("properties")
-                .startObject("byte_field")
-                .field("type", "byte")
-                .field("store", true)
-                .endObject()
-                .startObject("short_field")
-                .field("type", "short")
-                .field("store", true)
-                .endObject()
-                .startObject("integer_field")
-                .field("type", "integer")
-                .field("store", true)
-                .endObject()
-                .startObject("long_field")
-                .field("type", "long")
-                .field("store", true)
-                .endObject()
-                .startObject("float_field")
-                .field("type", "float")
-                .field("store", true)
-                .endObject()
-                .startObject("double_field")
-                .field("type", "double")
-                .field("store", true)
-                .endObject()
-                .startObject("date_field")
-                .field("type", "date")
-                .field("store", true)
-                .endObject()
-                .startObject("boolean_field")
-                .field("type", "boolean")
-                .field("store", true)
-                .endObject()
-                .startObject("binary_field")
-                .field("type", "binary")
-                .field("store", true)
-                .endObject()
-                .startObject("unsigned_long_field")
-                .field("type", "unsigned_long")
-                .field("store", true)
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
+        String mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject(MapperService.SINGLE_MAPPING_NAME)
+            .startObject("_source")
+            .field("enabled", false)
+            .endObject()
+            .startObject("properties")
+            .startObject("byte_field")
+            .field("type", "byte")
+            .field("store", true)
+            .endObject()
+            .startObject("short_field")
+            .field("type", "short")
+            .field("store", true)
+            .endObject()
+            .startObject("integer_field")
+            .field("type", "integer")
+            .field("store", true)
+            .endObject()
+            .startObject("long_field")
+            .field("type", "long")
+            .field("store", true)
+            .endObject()
+            .startObject("float_field")
+            .field("type", "float")
+            .field("store", true)
+            .endObject()
+            .startObject("double_field")
+            .field("type", "double")
+            .field("store", true)
+            .endObject()
+            .startObject("date_field")
+            .field("type", "date")
+            .field("store", true)
+            .endObject()
+            .startObject("boolean_field")
+            .field("type", "boolean")
+            .field("store", true)
+            .endObject()
+            .startObject("binary_field")
+            .field("type", "binary")
+            .field("store", true)
+            .endObject()
+            .startObject("unsigned_long_field")
+            .field("type", "unsigned_long")
+            .field("store", true)
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
 
-        client().admin().indices().preparePutMapping().setSource(mapping, XContentType.JSON).get();
+        client().admin().indices().preparePutMapping().setSource(mapping, MediaTypeRegistry.JSON).get();
 
         ZonedDateTime date = ZonedDateTime.of(2012, 3, 22, 0, 0, 0, 0, ZoneOffset.UTC);
         client().prepareIndex("test")
@@ -917,7 +931,7 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
                 .endObject()
         );
 
-        client().prepareIndex("my-index").setId("1").setRefreshPolicy(IMMEDIATE).setSource(source, XContentType.JSON).get();
+        client().prepareIndex("my-index").setId("1").setRefreshPolicy(IMMEDIATE).setSource(source, MediaTypeRegistry.JSON).get();
 
         String field = "field1.field2.field3.field4";
 
@@ -944,61 +958,60 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
     public void testDocValueFields() throws Exception {
         createIndex("test");
 
-        String mapping = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject(MapperService.SINGLE_MAPPING_NAME)
-                .startObject("_source")
-                .field("enabled", false)
-                .endObject()
-                .startObject("properties")
-                .startObject("text_field")
-                .field("type", "text")
-                .field("fielddata", true)
-                .endObject()
-                .startObject("keyword_field")
-                .field("type", "keyword")
-                .endObject()
-                .startObject("byte_field")
-                .field("type", "byte")
-                .endObject()
-                .startObject("short_field")
-                .field("type", "short")
-                .endObject()
-                .startObject("integer_field")
-                .field("type", "integer")
-                .endObject()
-                .startObject("long_field")
-                .field("type", "long")
-                .endObject()
-                .startObject("float_field")
-                .field("type", "float")
-                .endObject()
-                .startObject("double_field")
-                .field("type", "double")
-                .endObject()
-                .startObject("date_field")
-                .field("type", "date")
-                .endObject()
-                .startObject("boolean_field")
-                .field("type", "boolean")
-                .endObject()
-                .startObject("binary_field")
-                .field("type", "binary")
-                .field("doc_values", true) // off by default on binary fields
-                .endObject()
-                .startObject("ip_field")
-                .field("type", "ip")
-                .endObject()
-                .startObject("flat_object_field")
-                .field("type", "flat_object")
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
+        String mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject(MapperService.SINGLE_MAPPING_NAME)
+            .startObject("_source")
+            .field("enabled", false)
+            .endObject()
+            .startObject("properties")
+            .startObject("text_field")
+            .field("type", "text")
+            .field("fielddata", true)
+            .endObject()
+            .startObject("keyword_field")
+            .field("type", "keyword")
+            .endObject()
+            .startObject("byte_field")
+            .field("type", "byte")
+            .endObject()
+            .startObject("short_field")
+            .field("type", "short")
+            .endObject()
+            .startObject("integer_field")
+            .field("type", "integer")
+            .endObject()
+            .startObject("long_field")
+            .field("type", "long")
+            .endObject()
+            .startObject("float_field")
+            .field("type", "float")
+            .endObject()
+            .startObject("double_field")
+            .field("type", "double")
+            .endObject()
+            .startObject("date_field")
+            .field("type", "date")
+            .endObject()
+            .startObject("boolean_field")
+            .field("type", "boolean")
+            .endObject()
+            .startObject("binary_field")
+            .field("type", "binary")
+            .field("doc_values", true) // off by default on binary fields
+            .endObject()
+            .startObject("ip_field")
+            .field("type", "ip")
+            .endObject()
+            .startObject("flat_object_field")
+            .field("type", "flat_object")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
 
-        client().admin().indices().preparePutMapping().setSource(mapping, XContentType.JSON).get();
+        client().admin().indices().preparePutMapping().setSource(mapping, MediaTypeRegistry.JSON).get();
 
         ZonedDateTime date = ZonedDateTime.of(2012, 3, 22, 0, 0, 0, 0, ZoneOffset.UTC);
         client().prepareIndex("test")
@@ -1066,9 +1079,6 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
                     "flat_object_field"
                 )
             )
-        );
-        String json = Strings.toString(
-            XContentFactory.jsonBuilder().startObject().startObject("flat_object_field").field("foo", "bar").endObject().endObject()
         );
         assertThat(searchResponse.getHits().getAt(0).getFields().get("byte_field").getValue().toString(), equalTo("1"));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("short_field").getValue().toString(), equalTo("2"));

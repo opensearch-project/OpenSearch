@@ -34,15 +34,15 @@ package org.opensearch.transport;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.opensearch.action.ActionListener;
 import org.opensearch.common.AsyncBiFunction;
-import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.component.Lifecycle;
 import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.lifecycle.Lifecycle;
 import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractLifecycleRunnable;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.Closeable;

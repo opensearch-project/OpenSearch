@@ -32,12 +32,12 @@
 
 package org.opensearch.index.reindex;
 
-import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.test.rest.FakeRestRequest;
 import org.opensearch.test.rest.RestActionTestCase;
 import org.junit.Before;
@@ -74,7 +74,7 @@ public class RestReindexActionTests extends RestActionTestCase {
                 body.endObject();
             }
             body.endObject();
-            request.withContent(BytesReference.bytes(body), XContentType.fromMediaType(body.contentType()));
+            request.withContent(BytesReference.bytes(body), body.contentType());
         }
         request.withParams(singletonMap("pipeline", "doesn't matter"));
         Exception e = expectThrows(
@@ -88,14 +88,14 @@ public class RestReindexActionTests extends RestActionTestCase {
     public void testSetScrollTimeout() throws IOException {
         {
             FakeRestRequest.Builder requestBuilder = new FakeRestRequest.Builder(xContentRegistry());
-            requestBuilder.withContent(new BytesArray("{}"), XContentType.JSON);
+            requestBuilder.withContent(new BytesArray("{}"), MediaTypeRegistry.JSON);
             ReindexRequest request = action.buildRequest(requestBuilder.build(), new NamedWriteableRegistry(Collections.emptyList()));
             assertEquals(AbstractBulkByScrollRequest.DEFAULT_SCROLL_TIMEOUT, request.getScrollTime());
         }
         {
             FakeRestRequest.Builder requestBuilder = new FakeRestRequest.Builder(xContentRegistry());
             requestBuilder.withParams(singletonMap("scroll", "10m"));
-            requestBuilder.withContent(new BytesArray("{}"), XContentType.JSON);
+            requestBuilder.withContent(new BytesArray("{}"), MediaTypeRegistry.JSON);
             ReindexRequest request = action.buildRequest(requestBuilder.build(), new NamedWriteableRegistry(Collections.emptyList()));
             assertEquals("10m", request.getScrollTime().toString());
         }

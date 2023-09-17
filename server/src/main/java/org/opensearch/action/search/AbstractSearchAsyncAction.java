@@ -34,12 +34,10 @@ package org.opensearch.action.search;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.opensearch.BaseOpenSearchException;
 import org.opensearch.ExceptionsHelper;
+import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.NoShardAvailableActionException;
-import org.opensearch.action.ShardOperationFailedException;
 import org.opensearch.action.support.TransportActions;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.routing.FailAwareWeightedRouting;
@@ -50,13 +48,16 @@ import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.AtomicArray;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.action.ShardOperationFailedException;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.search.internal.InternalSearchResponse;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.internal.ShardSearchRequest;
+import org.opensearch.search.pipeline.PipelinedRequest;
 import org.opensearch.transport.Transport;
 
 import java.util.ArrayDeque;
@@ -367,7 +368,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             final ShardOperationFailedException[] shardSearchFailures = ExceptionsHelper.groupBy(buildShardFailures());
             Throwable cause = shardSearchFailures.length == 0
                 ? null
-                : BaseOpenSearchException.guessRootCauses(shardSearchFailures[0].getCause())[0];
+                : OpenSearchException.guessRootCauses(shardSearchFailures[0].getCause())[0];
             logger.debug(() -> new ParameterizedMessage("All shards failed for phase: [{}]", getName()), cause);
             onPhaseFailure(currentPhase, "all shards failed", cause);
         } else {
@@ -381,7 +382,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                     if (logger.isDebugEnabled()) {
                         int numShardFailures = shardSearchFailures.length;
                         shardSearchFailures = ExceptionsHelper.groupBy(shardSearchFailures);
-                        Throwable cause = BaseOpenSearchException.guessRootCauses(shardSearchFailures[0].getCause())[0];
+                        Throwable cause = OpenSearchException.guessRootCauses(shardSearchFailures[0].getCause())[0];
                         logger.debug(
                             () -> new ParameterizedMessage("{} shards failed for phase: [{}]", numShardFailures, getName()),
                             cause
@@ -454,15 +455,27 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             .findNext(shardIt, clusterState, e, () -> totalOps.incrementAndGet());
 
         final boolean lastShard = nextShard == null;
-        logger.debug(
-            () -> new ParameterizedMessage(
-                "{}: Failed to execute [{}] lastShard [{}]",
-                shard != null ? shard : shardIt.shardId(),
-                request,
-                lastShard
-            ),
-            e
-        );
+        if (logger.isTraceEnabled()) {
+            logger.trace(
+                () -> new ParameterizedMessage(
+                    "{}: Failed to execute [{}] lastShard [{}]",
+                    shard != null ? shard : shardIt.shardId(),
+                    request,
+                    lastShard
+                ),
+                e
+            );
+        } else {
+            // Log the message without an exception.
+            logger.debug(
+                new ParameterizedMessage(
+                    "{}: Failed to execute [{}] lastShard [{}]",
+                    shard != null ? shard : shardIt.shardId(),
+                    request,
+                    lastShard
+                )
+            );
+        }
         if (lastShard) {
             onShardGroupFailure(shardIndex, shard, e);
         }
@@ -696,7 +709,11 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
      * @see #onShardResult(SearchPhaseResult, SearchShardIterator)
      */
     final void onPhaseDone() {  // as a tribute to @kimchy aka. finishHim()
-        executeNextPhase(this, getNextPhase(results, this));
+        final SearchPhase nextPhase = getNextPhase(results, this);
+        if (request instanceof PipelinedRequest && nextPhase != null) {
+            ((PipelinedRequest) request).transformSearchPhaseResults(results, this, this.getName(), nextPhase.getName());
+        }
+        executeNextPhase(this, nextPhase);
     }
 
     @Override

@@ -36,12 +36,12 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
-import org.opensearch.BaseExceptionsHelper;
+import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.index.mapper.DateFieldMapper;
@@ -60,8 +60,8 @@ import org.opensearch.search.aggregations.metrics.Stats;
 import org.opensearch.search.aggregations.metrics.StatsAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.Sum;
 import org.opensearch.search.aggregations.metrics.SumAggregationBuilder;
-import org.opensearch.search.aggregations.support.AggregationPath;
 import org.opensearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
+import org.opensearch.search.aggregations.support.AggregationPath;
 
 import java.io.IOException;
 import java.util.List;
@@ -635,7 +635,7 @@ public class DerivativeAggregatorTests extends AggregatorTestCase {
             executeTestCase(query, aggBuilder, history -> {});
             fail("Expected an Exception but didn't get one");
         } catch (Exception e) {
-            Throwable cause = BaseExceptionsHelper.unwrapCause(e);
+            Throwable cause = ExceptionsHelper.unwrapCause(e);
             if (cause == null) {
                 throw e;
             } else if (cause instanceof SearchPhaseExecutionException) {

@@ -32,8 +32,6 @@
 
 package org.opensearch.action.admin.cluster.stats;
 
-import com.carrotsearch.hppc.ObjectObjectHashMap;
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.opensearch.action.admin.indices.stats.CommonStats;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -45,7 +43,9 @@ import org.opensearch.index.store.StoreStats;
 import org.opensearch.search.suggest.completion.CompletionStats;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Cluster Stats per index
@@ -66,7 +66,7 @@ public class ClusterStatsIndices implements ToXContentFragment {
     private MappingStats mappings;
 
     public ClusterStatsIndices(List<ClusterStatsNodeResponse> nodeResponses, MappingStats mappingStats, AnalysisStats analysisStats) {
-        ObjectObjectHashMap<String, ShardStats> countsPerIndex = new ObjectObjectHashMap<>();
+        Map<String, ShardStats> countsPerIndex = new HashMap<>();
 
         this.docs = new DocsStats();
         this.store = new StoreStats();
@@ -101,8 +101,8 @@ public class ClusterStatsIndices implements ToXContentFragment {
 
         shards = new ShardStats();
         indexCount = countsPerIndex.size();
-        for (ObjectObjectCursor<String, ShardStats> indexCountsCursor : countsPerIndex) {
-            shards.addIndexShardCount(indexCountsCursor.value);
+        for (final ShardStats indexCountsCursor : countsPerIndex.values()) {
+            shards.addIndexShardCount(indexCountsCursor);
         }
 
         this.mappings = mappingStats;

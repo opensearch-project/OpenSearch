@@ -35,7 +35,6 @@ package org.opensearch.action.bulk;
 import org.opensearch.OpenSearchException;
 import org.opensearch.OpenSearchStatusException;
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.DocWriteRequest;
 import org.opensearch.action.DocWriteResponse;
 import org.opensearch.action.LatchedActionListener;
@@ -64,8 +63,12 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
-import org.opensearch.index.Index;
+import org.opensearch.core.index.Index;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.rest.RestStatus;
+import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.IndexingPressureService;
@@ -77,21 +80,19 @@ import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.Mapping;
 import org.opensearch.index.mapper.MetadataFieldMapper;
 import org.opensearch.index.mapper.RootObjectMapper;
+import org.opensearch.index.remote.RemoteStorePressureService;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
-import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.shard.ShardNotFoundException;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.SystemIndices;
-import org.opensearch.rest.RestStatus;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.threadpool.ThreadPool.Names;
 import org.opensearch.transport.TestTransportChannel;
 import org.opensearch.transport.TransportChannel;
-import org.opensearch.transport.TransportResponse;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
@@ -1072,6 +1073,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             mock(ActionFilters.class),
             mock(IndexingPressureService.class),
             mock(SegmentReplicationPressureService.class),
+            mock(RemoteStorePressureService.class),
             mock(SystemIndices.class)
         );
         action.handlePrimaryTermValidationRequest(
@@ -1102,6 +1104,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             mock(ActionFilters.class),
             mock(IndexingPressureService.class),
             mock(SegmentReplicationPressureService.class),
+            mock(RemoteStorePressureService.class),
             mock(SystemIndices.class)
         );
         action.handlePrimaryTermValidationRequest(
@@ -1132,6 +1135,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             mock(ActionFilters.class),
             mock(IndexingPressureService.class),
             mock(SegmentReplicationPressureService.class),
+            mock(RemoteStorePressureService.class),
             mock(SystemIndices.class)
         );
         action.handlePrimaryTermValidationRequest(
@@ -1173,6 +1177,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             mock(ActionFilters.class),
             mock(IndexingPressureService.class),
             mock(SegmentReplicationPressureService.class),
+            mock(RemoteStorePressureService.class),
             mock(SystemIndices.class)
         );
     }

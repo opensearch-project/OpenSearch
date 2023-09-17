@@ -31,9 +31,9 @@
 
 package org.opensearch.test.rest.yaml.restspec;
 
-import org.opensearch.common.ParsingException;
-import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.yaml.YamlXContent;
+import org.opensearch.core.common.ParsingException;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.test.OpenSearchTestCase;
 
 import static org.hamcrest.Matchers.containsString;

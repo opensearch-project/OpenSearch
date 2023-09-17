@@ -35,8 +35,8 @@ package org.opensearch.action.admin.cluster.storedscripts;
 import org.opensearch.action.support.master.AcknowledgedRequestBuilder;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.client.OpenSearchClient;
-import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.xcontent.MediaType;
 
 /**
  * Transport request builder for putting stored script
@@ -60,8 +60,8 @@ public class PutStoredScriptRequestBuilder extends AcknowledgedRequestBuilder<
     /**
      * Set the source of the script along with the content type of the source
      */
-    public PutStoredScriptRequestBuilder setContent(BytesReference source, XContentType xContentType) {
-        request.content(source, xContentType);
+    public PutStoredScriptRequestBuilder setContent(BytesReference source, MediaType mediaType) {
+        request.content(source, mediaType);
         return this;
     }
 }

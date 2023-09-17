@@ -50,6 +50,14 @@ final class SocketAccess {
 
     private SocketAccess() {}
 
+    public static void doPrivilegedVoid(Runnable action) {
+        SpecialPermission.check();
+        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+            action.run();
+            return null;
+        });
+    }
+
     public static <T> T doPrivileged(PrivilegedAction<T> operation) {
         SpecialPermission.check();
         return AccessController.doPrivileged(operation);

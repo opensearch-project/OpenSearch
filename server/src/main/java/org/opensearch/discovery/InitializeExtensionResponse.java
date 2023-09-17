@@ -32,14 +32,14 @@
 
 package org.opensearch.discovery;
 
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.transport.TransportResponse;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.transport.TransportResponse;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Objects;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * PluginResponse to intialize plugin

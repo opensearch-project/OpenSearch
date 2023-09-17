@@ -40,7 +40,6 @@ import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
@@ -78,25 +77,32 @@ import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.cache.bitset.BitsetFilterCache;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.index.shard.IndexShard;
+import org.opensearch.search.SearchService;
 import org.opensearch.search.aggregations.LeafBucketCollector;
-import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.IndexSettingsModule;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collections;
 import java.util.IdentityHashMap;
+import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
 
 import static org.opensearch.search.internal.ContextIndexSearcher.intersectScorerAndBitSet;
 import static org.opensearch.search.internal.ExitableDirectoryReader.ExitableLeafReader;
 import static org.opensearch.search.internal.ExitableDirectoryReader.ExitablePointValues;
 import static org.opensearch.search.internal.ExitableDirectoryReader.ExitableTerms;
+import static org.opensearch.search.internal.IndexReaderUtils.getLeaves;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class ContextIndexSearcherTests extends OpenSearchTestCase {
     public void testIntersectScorerAndRoleBits() throws Exception {
@@ -253,13 +259,18 @@ public class ContextIndexSearcherTests extends OpenSearchTestCase {
 
         DocumentSubsetDirectoryReader filteredReader = new DocumentSubsetDirectoryReader(reader, cache, roleQuery);
 
+        SearchContext searchContext = mock(SearchContext.class);
+        IndexShard indexShard = mock(IndexShard.class);
+        when(searchContext.indexShard()).thenReturn(indexShard);
+        when(searchContext.bucketCollectorProcessor()).thenReturn(SearchContext.NO_OP_BUCKET_COLLECTOR_PROCESSOR);
         ContextIndexSearcher searcher = new ContextIndexSearcher(
             filteredReader,
             IndexSearcher.getDefaultSimilarity(),
             IndexSearcher.getDefaultQueryCache(),
             IndexSearcher.getDefaultQueryCachingPolicy(),
             true,
-            null
+            null,
+            searchContext
         );
 
         for (LeafReaderContext context : searcher.getIndexReader().leaves()) {
@@ -294,6 +305,123 @@ public class ContextIndexSearcherTests extends OpenSearchTestCase {
         assertEquals(3f, topDocs.scoreDocs[0].score, 0);
 
         IOUtils.close(reader, w, dir);
+    }
+
+    public void testSlicesInternal() throws Exception {
+        final List<LeafReaderContext> leaves = getLeaves(10);
+        try (
+            final Directory directory = newDirectory();
+            IndexWriter iw = new IndexWriter(
+                directory,
+                new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(NoMergePolicy.INSTANCE)
+            )
+        ) {
+            Document document = new Document();
+            document.add(new StringField("field1", "value1", Field.Store.NO));
+            document.add(new StringField("field2", "value1", Field.Store.NO));
+            iw.addDocument(document);
+            iw.commit();
+            try (DirectoryReader directoryReader = DirectoryReader.open(directory)) {
+                SearchContext searchContext = mock(SearchContext.class);
+                IndexShard indexShard = mock(IndexShard.class);
+                when(searchContext.indexShard()).thenReturn(indexShard);
+                when(searchContext.bucketCollectorProcessor()).thenReturn(SearchContext.NO_OP_BUCKET_COLLECTOR_PROCESSOR);
+                ContextIndexSearcher searcher = new ContextIndexSearcher(
+                    directoryReader,
+                    IndexSearcher.getDefaultSimilarity(),
+                    IndexSearcher.getDefaultQueryCache(),
+                    IndexSearcher.getDefaultQueryCachingPolicy(),
+                    true,
+                    null,
+                    searchContext
+                );
+                // Case 1: Verify the slice count when lucene default slice computation is used
+                IndexSearcher.LeafSlice[] slices = searcher.slicesInternal(
+                    leaves,
+                    SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_DEFAULT_VALUE
+                );
+                int expectedSliceCount = 2;
+                // 2 slices will be created since max segment per slice of 5 will be reached
+                assertEquals(expectedSliceCount, slices.length);
+                for (int i = 0; i < expectedSliceCount; ++i) {
+                    assertEquals(5, slices[i].leaves.length);
+                }
+
+                // Case 2: Verify the slice count when custom max slice computation is used
+                expectedSliceCount = 4;
+                slices = searcher.slicesInternal(leaves, expectedSliceCount);
+
+                // 4 slices will be created with 3 leaves in first 2 slices and 2 leaves in other slices
+                assertEquals(expectedSliceCount, slices.length);
+                for (int i = 0; i < expectedSliceCount; ++i) {
+                    if (i < 2) {
+                        assertEquals(3, slices[i].leaves.length);
+                    } else {
+                        assertEquals(2, slices[i].leaves.length);
+                    }
+                }
+            }
+        }
+    }
+
+    public void testGetSlicesWithNonNullExecutorButCSDisabled() throws Exception {
+        final List<LeafReaderContext> leaves = getLeaves(10);
+        try (
+            final Directory directory = newDirectory();
+            IndexWriter iw = new IndexWriter(
+                directory,
+                new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(NoMergePolicy.INSTANCE)
+            )
+        ) {
+            Document document = new Document();
+            document.add(new StringField("field1", "value1", Field.Store.NO));
+            document.add(new StringField("field2", "value1", Field.Store.NO));
+            iw.addDocument(document);
+            iw.commit();
+            try (DirectoryReader directoryReader = DirectoryReader.open(directory);) {
+                SearchContext searchContext = mock(SearchContext.class);
+                IndexShard indexShard = mock(IndexShard.class);
+                when(searchContext.indexShard()).thenReturn(indexShard);
+                when(searchContext.bucketCollectorProcessor()).thenReturn(SearchContext.NO_OP_BUCKET_COLLECTOR_PROCESSOR);
+                when(searchContext.shouldUseConcurrentSearch()).thenReturn(false);
+                ContextIndexSearcher searcher = new ContextIndexSearcher(
+                    directoryReader,
+                    IndexSearcher.getDefaultSimilarity(),
+                    IndexSearcher.getDefaultQueryCache(),
+                    IndexSearcher.getDefaultQueryCachingPolicy(),
+                    true,
+                    null,
+                    searchContext
+                );
+                // Case 1: Verify getSlices return null when concurrent segment search is disabled
+                assertNull(searcher.getSlices());
+
+                // Case 2: Verify the slice count when custom max slice computation is used
+                searcher = new ContextIndexSearcher(
+                    directoryReader,
+                    IndexSearcher.getDefaultSimilarity(),
+                    IndexSearcher.getDefaultQueryCache(),
+                    IndexSearcher.getDefaultQueryCachingPolicy(),
+                    true,
+                    mock(ExecutorService.class),
+                    searchContext
+                );
+                when(searchContext.shouldUseConcurrentSearch()).thenReturn(true);
+                when(searchContext.getTargetMaxSliceCount()).thenReturn(4);
+                int expectedSliceCount = 4;
+                IndexSearcher.LeafSlice[] slices = searcher.slices(leaves);
+
+                // 4 slices will be created with 3 leaves in first 2 slices and 2 leaves in other slices
+                assertEquals(expectedSliceCount, slices.length);
+                for (int i = 0; i < expectedSliceCount; ++i) {
+                    if (i < 2) {
+                        assertEquals(3, slices[i].leaves.length);
+                    } else {
+                        assertEquals(2, slices[i].leaves.length);
+                    }
+                }
+            }
+        }
     }
 
     private SparseFixedBitSet query(LeafReaderContext leaf, String field, String value) throws IOException {
@@ -458,12 +586,12 @@ public class ContextIndexSearcherTests extends OpenSearchTestCase {
         }
 
         @Override
-        public Query rewrite(IndexReader reader) throws IOException {
-            Query queryRewritten = query.rewrite(reader);
+        public Query rewrite(IndexSearcher searcher) throws IOException {
+            Query queryRewritten = query.rewrite(searcher);
             if (query != queryRewritten) {
                 return new CreateScorerOnceQuery(queryRewritten);
             }
-            return super.rewrite(reader);
+            return super.rewrite(searcher);
         }
 
         @Override

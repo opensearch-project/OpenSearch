@@ -32,12 +32,13 @@
 
 package org.opensearch.action;
 
-import org.opensearch.BaseExceptionsHelper;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.SearchType;
 import org.opensearch.action.search.ShardSearchFailure;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -105,7 +106,7 @@ public class RejectionActionIT extends OpenSearchIntegTestCase {
                 }
             } else {
                 Exception t = (Exception) response;
-                Throwable unwrap = BaseExceptionsHelper.unwrapCause(t);
+                Throwable unwrap = ExceptionsHelper.unwrapCause(t);
                 if (unwrap instanceof SearchPhaseExecutionException) {
                     SearchPhaseExecutionException e = (SearchPhaseExecutionException) unwrap;
                     for (ShardSearchFailure failure : e.shardFailures()) {

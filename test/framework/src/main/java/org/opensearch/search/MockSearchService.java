@@ -34,8 +34,8 @@ package org.opensearch.search;
 
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.util.BigArrays;
+import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.indices.IndicesService;
-import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.node.MockNode;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.script.ScriptService;

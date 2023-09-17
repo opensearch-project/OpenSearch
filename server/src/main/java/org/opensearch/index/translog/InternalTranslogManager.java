@@ -14,9 +14,9 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.common.util.concurrent.ReleasableLock;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.engine.LifecycleAware;
 import org.opensearch.index.seqno.LocalCheckpointTracker;
-import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.translog.listener.TranslogEventListener;
 
 import java.io.Closeable;
@@ -294,6 +294,15 @@ public class InternalTranslogManager implements TranslogManager, Closeable {
     @Override
     public void setMinSeqNoToKeep(long seqNo) {
         translog.setMinSeqNoToKeep(seqNo);
+    }
+
+    public void onDelete() {
+        translog.onDelete();
+    }
+
+    @Override
+    public Translog.TranslogGeneration getTranslogGeneration() {
+        return translog.getGeneration();
     }
 
     /**

@@ -32,8 +32,6 @@
 
 package org.opensearch.cluster.routing;
 
-import org.junit.Before;
-import org.mockito.Mockito;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.OpenSearchAllocationTestCase;
@@ -43,9 +41,12 @@ import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.opensearch.common.settings.Settings;
+import org.junit.Before;
 
 import java.util.Iterator;
 import java.util.List;
+
+import org.mockito.Mockito;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -124,7 +125,7 @@ public class RoutingNodesTests extends OpenSearchAllocationTestCase {
             .numberOfShards(this.numberOfShards);
     }
 
-    public void testInterleavedShardIterator() {
+    public void testInterleavedShardIteratorPrimaryFirst() {
         // Initialize all the shards for test index 1 and 2
         initPrimaries();
         startInitializingShards(TEST_INDEX_1);
@@ -147,7 +148,8 @@ public class RoutingNodesTests extends OpenSearchAllocationTestCase {
         }
 
         // Get primary first shard iterator and assert primary shards are iterated over first
-        final Iterator<ShardRouting> iterator = this.clusterState.getRoutingNodes().nodeInterleavedShardIterator(true);
+        final Iterator<ShardRouting> iterator = this.clusterState.getRoutingNodes()
+            .nodeInterleavedShardIterator(ShardMovementStrategy.PRIMARY_FIRST);
         boolean iteratingPrimary = true;
         int shardCount = 0;
         while (iterator.hasNext()) {
@@ -155,11 +157,54 @@ public class RoutingNodesTests extends OpenSearchAllocationTestCase {
             if (iteratingPrimary) {
                 iteratingPrimary = shard.primary();
             } else {
-                assert shard.primary() == false;
+                assertFalse(shard.primary());
             }
             shardCount++;
         }
-        assert shardCount == this.totalNumberOfShards;
+        assertEquals(shardCount, this.totalNumberOfShards);
+    }
+
+    public void testInterleavedShardIteratorNoPreference() {
+        // Initialize all the shards for test index 1 and 2
+        initPrimaries();
+        startInitializingShards(TEST_INDEX_1);
+        startInitializingShards(TEST_INDEX_1);
+        startInitializingShards(TEST_INDEX_2);
+        startInitializingShards(TEST_INDEX_2);
+
+        final Iterator<ShardRouting> iterator = this.clusterState.getRoutingNodes()
+            .nodeInterleavedShardIterator(ShardMovementStrategy.NO_PREFERENCE);
+        int shardCount = 0;
+        while (iterator.hasNext()) {
+            final ShardRouting shard = iterator.next();
+            shardCount++;
+        }
+        assertEquals(shardCount, this.totalNumberOfShards);
+    }
+
+    public void testInterleavedShardIteratorReplicaFirst() {
+        // Initialize all the shards for test index 1 and 2
+        initPrimaries();
+        startInitializingShards(TEST_INDEX_1);
+        startInitializingShards(TEST_INDEX_1);
+        startInitializingShards(TEST_INDEX_2);
+        startInitializingShards(TEST_INDEX_2);
+
+        // Get replica first shard iterator and assert replica shards are iterated over first
+        final Iterator<ShardRouting> iterator = this.clusterState.getRoutingNodes()
+            .nodeInterleavedShardIterator(ShardMovementStrategy.REPLICA_FIRST);
+        boolean iteratingReplica = true;
+        int shardCount = 0;
+        while (iterator.hasNext()) {
+            final ShardRouting shard = iterator.next();
+            if (iteratingReplica) {
+                iteratingReplica = shard.primary() == false;
+            } else {
+                assertTrue(shard.primary());
+            }
+            shardCount++;
+        }
+        assertEquals(shardCount, this.totalNumberOfShards);
     }
 
     public void testSwapPrimaryWithReplica() {

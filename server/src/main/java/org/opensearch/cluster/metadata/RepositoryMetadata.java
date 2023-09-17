@@ -31,10 +31,11 @@
 
 package org.opensearch.cluster.metadata;
 
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.Version;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.repositories.RepositoryData;
 
 import java.io.IOException;
@@ -50,6 +51,7 @@ public class RepositoryMetadata implements Writeable {
     private final String name;
     private final String type;
     private final Settings settings;
+    private final CryptoMetadata cryptoMetadata;
 
     /**
      * Safe repository generation.
@@ -69,14 +71,29 @@ public class RepositoryMetadata implements Writeable {
      * @param settings repository settings
      */
     public RepositoryMetadata(String name, String type, Settings settings) {
-        this(name, type, settings, RepositoryData.UNKNOWN_REPO_GEN, RepositoryData.EMPTY_REPO_GEN);
+        this(name, type, settings, RepositoryData.UNKNOWN_REPO_GEN, RepositoryData.EMPTY_REPO_GEN, null);
+    }
+
+    public RepositoryMetadata(String name, String type, Settings settings, CryptoMetadata cryptoMetadata) {
+        this(name, type, settings, RepositoryData.UNKNOWN_REPO_GEN, RepositoryData.EMPTY_REPO_GEN, cryptoMetadata);
     }
 
     public RepositoryMetadata(RepositoryMetadata metadata, long generation, long pendingGeneration) {
-        this(metadata.name, metadata.type, metadata.settings, generation, pendingGeneration);
+        this(metadata.name, metadata.type, metadata.settings, generation, pendingGeneration, metadata.cryptoMetadata);
     }
 
     public RepositoryMetadata(String name, String type, Settings settings, long generation, long pendingGeneration) {
+        this(name, type, settings, generation, pendingGeneration, null);
+    }
+
+    public RepositoryMetadata(
+        String name,
+        String type,
+        Settings settings,
+        long generation,
+        long pendingGeneration,
+        CryptoMetadata cryptoMetadata
+    ) {
         this.name = name;
         this.type = type;
         this.settings = settings;
@@ -87,6 +104,7 @@ public class RepositoryMetadata implements Writeable {
             + "] must be greater or equal to generation ["
             + generation
             + "]";
+        this.cryptoMetadata = cryptoMetadata;
     }
 
     /**
@@ -114,6 +132,15 @@ public class RepositoryMetadata implements Writeable {
      */
     public Settings settings() {
         return this.settings;
+    }
+
+    /**
+     * Returns crypto metadata of repository
+     *
+     * @return crypto metadata of repository
+     */
+    public CryptoMetadata cryptoMetadata() {
+        return this.cryptoMetadata;
     }
 
     /**
@@ -146,6 +173,11 @@ public class RepositoryMetadata implements Writeable {
         settings = Settings.readSettingsFromStream(in);
         generation = in.readLong();
         pendingGeneration = in.readLong();
+        if (in.getVersion().onOrAfter(Version.V_2_10_0)) {
+            cryptoMetadata = in.readOptionalWriteable(CryptoMetadata::new);
+        } else {
+            cryptoMetadata = null;
+        }
     }
 
     /**
@@ -160,6 +192,9 @@ public class RepositoryMetadata implements Writeable {
         Settings.writeSettingsToStream(settings, out);
         out.writeLong(generation);
         out.writeLong(pendingGeneration);
+        if (out.getVersion().onOrAfter(Version.V_2_10_0)) {
+            out.writeOptionalWriteable(cryptoMetadata);
+        }
     }
 
     /**
@@ -169,7 +204,10 @@ public class RepositoryMetadata implements Writeable {
      * @return {@code true} if both instances equal in all fields but the generation fields
      */
     public boolean equalsIgnoreGenerations(RepositoryMetadata other) {
-        return name.equals(other.name) && type.equals(other.type()) && settings.equals(other.settings());
+        return name.equals(other.name)
+            && type.equals(other.type())
+            && settings.equals(other.settings())
+            && Objects.equals(cryptoMetadata, other.cryptoMetadata());
     }
 
     @Override
@@ -183,16 +221,21 @@ public class RepositoryMetadata implements Writeable {
         if (!type.equals(that.type)) return false;
         if (generation != that.generation) return false;
         if (pendingGeneration != that.pendingGeneration) return false;
-        return settings.equals(that.settings);
+        if (!settings.equals(that.settings)) return false;
+        return Objects.equals(cryptoMetadata, that.cryptoMetadata);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, type, settings, generation, pendingGeneration);
+        return Objects.hash(name, type, settings, generation, pendingGeneration, cryptoMetadata);
     }
 
     @Override
     public String toString() {
-        return "RepositoryMetadata{" + name + "}{" + type + "}{" + settings + "}{" + generation + "}{" + pendingGeneration + "}";
+        String toStr = "RepositoryMetadata{" + name + "}{" + type + "}{" + settings + "}{" + generation + "}{" + pendingGeneration + "}";
+        if (cryptoMetadata != null) {
+            return toStr + "{" + cryptoMetadata + "}";
+        }
+        return toStr;
     }
 }

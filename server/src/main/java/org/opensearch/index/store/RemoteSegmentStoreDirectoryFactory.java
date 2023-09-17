@@ -9,17 +9,17 @@
 package org.opensearch.index.store;
 
 import org.apache.lucene.store.Directory;
-import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.ShardPath;
+import org.opensearch.index.store.lockmanager.RemoteStoreLockManager;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManagerFactory;
-import org.opensearch.index.store.lockmanager.RemoteStoreMetadataLockManager;
 import org.opensearch.plugins.IndexStorePlugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
 import org.opensearch.repositories.RepositoryMissingException;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.function.Supplier;
@@ -34,8 +34,11 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Dire
 
     private final Supplier<RepositoriesService> repositoriesService;
 
-    public RemoteSegmentStoreDirectoryFactory(Supplier<RepositoriesService> repositoriesService) {
+    private final ThreadPool threadPool;
+
+    public RemoteSegmentStoreDirectoryFactory(Supplier<RepositoriesService> repositoriesService, ThreadPool threadPool) {
         this.repositoriesService = repositoriesService;
+        this.threadPool = threadPool;
     }
 
     @Override
@@ -43,29 +46,39 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Dire
         String repositoryName = indexSettings.getRemoteStoreRepository();
         String indexUUID = indexSettings.getIndex().getUUID();
         String shardId = String.valueOf(path.getShardId().getId());
+
+        return newDirectory(repositoryName, indexUUID, shardId);
+    }
+
+    public Directory newDirectory(String repositoryName, String indexUUID, String shardId) throws IOException {
         try (Repository repository = repositoriesService.get().repository(repositoryName)) {
             assert repository instanceof BlobStoreRepository : "repository should be instance of BlobStoreRepository";
-            BlobPath commonBlobPath = ((BlobStoreRepository) repository).basePath();
+            BlobStoreRepository blobStoreRepository = ((BlobStoreRepository) repository);
+            BlobPath commonBlobPath = blobStoreRepository.basePath();
             commonBlobPath = commonBlobPath.add(indexUUID).add(shardId).add(SEGMENTS);
 
-            RemoteDirectory dataDirectory = createRemoteDirectory(repository, commonBlobPath, "data");
-            RemoteDirectory metadataDirectory = createRemoteDirectory(repository, commonBlobPath, "metadata");
-            RemoteStoreMetadataLockManager mdLockManager = RemoteStoreLockManagerFactory.newLockManager(
+            RemoteDirectory dataDirectory = new RemoteDirectory(
+                blobStoreRepository.blobStore().blobContainer(commonBlobPath.add("data")),
+                blobStoreRepository::maybeRateLimitRemoteUploadTransfers,
+                blobStoreRepository::maybeRateLimitRemoteDownloadTransfers
+            );
+            RemoteDirectory metadataDirectory = new RemoteDirectory(
+                blobStoreRepository.blobStore().blobContainer(commonBlobPath.add("metadata"))
+            );
+            RemoteStoreLockManager mdLockManager = RemoteStoreLockManagerFactory.newLockManager(
                 repositoriesService.get(),
                 repositoryName,
                 indexUUID,
                 shardId
             );
 
-            return new RemoteSegmentStoreDirectory(dataDirectory, metadataDirectory, mdLockManager);
+            return new RemoteSegmentStoreDirectory(dataDirectory, metadataDirectory, mdLockManager, threadPool);
         } catch (RepositoryMissingException e) {
             throw new IllegalArgumentException("Repository should be created before creating index with remote_store enabled setting", e);
         }
     }
 
-    private RemoteDirectory createRemoteDirectory(Repository repository, BlobPath commonBlobPath, String extention) {
-        BlobPath extendedPath = commonBlobPath.add(extention);
-        BlobContainer dataBlobContainer = ((BlobStoreRepository) repository).blobStore().blobContainer(extendedPath);
-        return new RemoteDirectory(dataBlobContainer);
+    private RemoteDirectory createRemoteDirectory(BlobStoreRepository repository, BlobPath commonBlobPath, String extension) {
+        return new RemoteDirectory(repository.blobStore().blobContainer(commonBlobPath.add(extension)));
     }
 }

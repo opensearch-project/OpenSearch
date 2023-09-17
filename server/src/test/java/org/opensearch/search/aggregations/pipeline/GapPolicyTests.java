@@ -32,8 +32,8 @@
 
 package org.opensearch.search.aggregations.pipeline;
 
-import org.opensearch.common.ParsingException;
 import org.opensearch.common.io.stream.AbstractWriteableEnumTestCase;
+import org.opensearch.core.common.ParsingException;
 
 import java.io.IOException;
 

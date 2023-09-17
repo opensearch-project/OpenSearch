@@ -35,7 +35,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.opensearch.action.ActionListener;
+import org.opensearch.Version;
 import org.opensearch.action.ActionListenerResponseHandler;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateTaskConfig;
@@ -50,21 +50,26 @@ import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.service.ClusterManagerService;
 import org.opensearch.common.Priority;
 import org.opensearch.common.collect.Tuple;
-import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.transport.TransportResponse;
+import org.opensearch.core.transport.TransportResponse.Empty;
 import org.opensearch.monitor.NodeHealthService;
 import org.opensearch.monitor.StatusInfo;
+import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.threadpool.ThreadPool.Names;
+import org.opensearch.transport.BytesTransportRequest;
 import org.opensearch.transport.RemoteTransportException;
 import org.opensearch.transport.TransportChannel;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportRequestOptions;
-import org.opensearch.transport.TransportResponse;
-import org.opensearch.transport.TransportResponse.Empty;
 import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
 
@@ -98,6 +103,7 @@ public class JoinHelper {
 
     public static final String JOIN_ACTION_NAME = "internal:cluster/coordination/join";
     public static final String VALIDATE_JOIN_ACTION_NAME = "internal:cluster/coordination/join/validate";
+    public static final String VALIDATE_COMPRESSED_JOIN_ACTION_NAME = JOIN_ACTION_NAME + "/validate_compressed";
     public static final String START_JOIN_ACTION_NAME = "internal:cluster/coordination/start_join";
 
     // the timeout for Zen1 join attempts
@@ -122,12 +128,15 @@ public class JoinHelper {
 
     private final Supplier<JoinTaskExecutor> joinTaskExecutorGenerator;
     private final Consumer<Boolean> nodeCommissioned;
+    private final NamedWriteableRegistry namedWriteableRegistry;
+    private final AtomicReference<Tuple<Long, BytesReference>> serializedState = new AtomicReference<>();
 
     JoinHelper(
         Settings settings,
         AllocationService allocationService,
         ClusterManagerService clusterManagerService,
         TransportService transportService,
+        RemoteStoreNodeService remoteStoreNodeService,
         LongSupplier currentTermSupplier,
         Supplier<ClusterState> currentStateSupplier,
         BiConsumer<JoinRequest, JoinCallback> joinHandler,
@@ -135,14 +144,23 @@ public class JoinHelper {
         Collection<BiConsumer<DiscoveryNode, ClusterState>> joinValidators,
         RerouteService rerouteService,
         NodeHealthService nodeHealthService,
-        Consumer<Boolean> nodeCommissioned
+        Consumer<Boolean> nodeCommissioned,
+        NamedWriteableRegistry namedWriteableRegistry
     ) {
         this.clusterManagerService = clusterManagerService;
         this.transportService = transportService;
         this.nodeHealthService = nodeHealthService;
         this.joinTimeout = JOIN_TIMEOUT_SETTING.get(settings);
         this.nodeCommissioned = nodeCommissioned;
-        this.joinTaskExecutorGenerator = () -> new JoinTaskExecutor(settings, allocationService, logger, rerouteService) {
+        this.namedWriteableRegistry = namedWriteableRegistry;
+
+        this.joinTaskExecutorGenerator = () -> new JoinTaskExecutor(
+            settings,
+            allocationService,
+            logger,
+            rerouteService,
+            remoteStoreNodeService
+        ) {
 
             private final long term = currentTermSupplier.getAsLong();
 
@@ -208,22 +226,52 @@ public class JoinHelper {
             ThreadPool.Names.GENERIC,
             ValidateJoinRequest::new,
             (request, channel, task) -> {
-                final ClusterState localState = currentStateSupplier.get();
-                if (localState.metadata().clusterUUIDCommitted()
-                    && localState.metadata().clusterUUID().equals(request.getState().metadata().clusterUUID()) == false) {
-                    throw new CoordinationStateRejectedException(
-                        "join validation on cluster state"
-                            + " with a different cluster uuid "
-                            + request.getState().metadata().clusterUUID()
-                            + " than local cluster uuid "
-                            + localState.metadata().clusterUUID()
-                            + ", rejecting"
-                    );
-                }
-                joinValidators.forEach(action -> action.accept(transportService.getLocalNode(), request.getState()));
+                runJoinValidators(currentStateSupplier, request.getState(), joinValidators);
                 channel.sendResponse(Empty.INSTANCE);
             }
         );
+
+        transportService.registerRequestHandler(
+            VALIDATE_COMPRESSED_JOIN_ACTION_NAME,
+            ThreadPool.Names.GENERIC,
+            BytesTransportRequest::new,
+            (request, channel, task) -> {
+                handleCompressedValidateJoinRequest(currentStateSupplier, joinValidators, request);
+                channel.sendResponse(Empty.INSTANCE);
+            }
+        );
+
+    }
+
+    private void runJoinValidators(
+        Supplier<ClusterState> currentStateSupplier,
+        ClusterState incomingState,
+        Collection<BiConsumer<DiscoveryNode, ClusterState>> joinValidators
+    ) {
+        final ClusterState localState = currentStateSupplier.get();
+        if (localState.metadata().clusterUUIDCommitted()
+            && localState.metadata().clusterUUID().equals(incomingState.metadata().clusterUUID()) == false) {
+            throw new CoordinationStateRejectedException(
+                "join validation on cluster state"
+                    + " with a different cluster uuid "
+                    + incomingState.metadata().clusterUUID()
+                    + " than local cluster uuid "
+                    + localState.metadata().clusterUUID()
+                    + ", rejecting"
+            );
+        }
+        joinValidators.forEach(action -> action.accept(transportService.getLocalNode(), incomingState));
+    }
+
+    private void handleCompressedValidateJoinRequest(
+        Supplier<ClusterState> currentStateSupplier,
+        Collection<BiConsumer<DiscoveryNode, ClusterState>> joinValidators,
+        BytesTransportRequest request
+    ) throws IOException {
+        try (StreamInput input = CompressedStreamUtils.decompressBytes(request, namedWriteableRegistry)) {
+            ClusterState incomingState = ClusterState.readFrom(input, transportService.getLocalNode());
+            runJoinValidators(currentStateSupplier, incomingState, joinValidators);
+        }
     }
 
     private JoinCallback transportJoinCallback(TransportRequest request, TransportChannel channel) {
@@ -407,12 +455,42 @@ public class JoinHelper {
     }
 
     public void sendValidateJoinRequest(DiscoveryNode node, ClusterState state, ActionListener<TransportResponse.Empty> listener) {
-        transportService.sendRequest(
-            node,
-            VALIDATE_JOIN_ACTION_NAME,
-            new ValidateJoinRequest(state),
-            new ActionListenerResponseHandler<>(listener, i -> Empty.INSTANCE, ThreadPool.Names.GENERIC)
-        );
+        if (node.getVersion().before(Version.V_2_9_0)) {
+            transportService.sendRequest(
+                node,
+                VALIDATE_JOIN_ACTION_NAME,
+                new ValidateJoinRequest(state),
+                new ActionListenerResponseHandler<>(listener, i -> Empty.INSTANCE, ThreadPool.Names.GENERIC)
+            );
+        } else {
+            try {
+                final BytesReference bytes = serializedState.updateAndGet(cachedState -> {
+                    if (cachedState == null || cachedState.v1() != state.version()) {
+                        try {
+                            return new Tuple<>(
+                                state.version(),
+                                CompressedStreamUtils.createCompressedStream(node.getVersion(), state::writeTo)
+                            );
+                        } catch (IOException e) {
+                            // mandatory as AtomicReference doesn't rethrow IOException.
+                            throw new RuntimeException(e);
+                        }
+                    } else {
+                        return cachedState;
+                    }
+                }).v2();
+                final BytesTransportRequest request = new BytesTransportRequest(bytes, node.getVersion());
+                transportService.sendRequest(
+                    node,
+                    VALIDATE_COMPRESSED_JOIN_ACTION_NAME,
+                    request,
+                    new ActionListenerResponseHandler<>(listener, i -> Empty.INSTANCE, ThreadPool.Names.GENERIC)
+                );
+            } catch (Exception e) {
+                logger.warn("error sending cluster state to {}", node);
+                listener.onFailure(e);
+            }
+        }
     }
 
     /**

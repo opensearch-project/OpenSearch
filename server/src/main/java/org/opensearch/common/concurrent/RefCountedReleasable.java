@@ -45,6 +45,8 @@ public class RefCountedReleasable<T> extends AbstractRefCounted implements Relea
 
     @Override
     protected void closeInternal() {
-        shutdownRunnable.run();
+        if (shutdownRunnable != null) {
+            shutdownRunnable.run();
+        }
     }
 }

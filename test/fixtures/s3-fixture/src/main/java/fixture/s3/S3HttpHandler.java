@@ -37,13 +37,13 @@ import com.sun.net.httpserver.HttpHandler;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.UUIDs;
-import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.hash.MessageDigests;
 import org.opensearch.common.io.Streams;
 import org.opensearch.common.regex.Regex;
-import org.opensearch.rest.RestStatus;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.rest.RestUtils;
 
 import java.io.BufferedInputStream;
@@ -97,14 +97,14 @@ public class S3HttpHandler implements HttpHandler {
             assert read == -1 : "Request body should have been empty but saw [" + read + "]";
         }
         try {
-            if (Regex.simpleMatch("HEAD /" + path + "/*", request)) {
+            if (Regex.simpleMatch("HEAD /" + path + "*", request)) {
                 final BytesReference blob = blobs.get(exchange.getRequestURI().getPath());
                 if (blob == null) {
                     exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
                 } else {
                     exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
                 }
-            } else if (Regex.simpleMatch("POST /" + path + "/*?uploads", request)) {
+            } else if (Regex.simpleMatch("POST /" + path + "*?uploads", request)) {
                 final String uploadId = UUIDs.randomBase64UUID();
                 byte[] response = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
                     "<InitiateMultipartUploadResult>\n" +
@@ -117,7 +117,7 @@ public class S3HttpHandler implements HttpHandler {
                 exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
                 exchange.getResponseBody().write(response);
 
-            } else if (Regex.simpleMatch("PUT /" + path + "/*?uploadId=*&partNumber=*", request)) {
+            } else if (Regex.simpleMatch("PUT /" + path + "*?partNumber=*&uploadId=*", request)) {
                 final Map<String, String> params = new HashMap<>();
                 RestUtils.decodeQueryString(exchange.getRequestURI().getQuery(), 0, params);
 
@@ -132,7 +132,7 @@ public class S3HttpHandler implements HttpHandler {
                     exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
                 }
 
-            } else if (Regex.simpleMatch("POST /" + path + "/*?uploadId=*", request)) {
+            } else if (Regex.simpleMatch("POST /" + path + "*?uploadId=*", request)) {
                 Streams.readFully(exchange.getRequestBody());
                 final Map<String, String> params = new HashMap<>();
                 RestUtils.decodeQueryString(exchange.getRequestURI().getQuery(), 0, params);
@@ -164,18 +164,15 @@ public class S3HttpHandler implements HttpHandler {
                 exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
                 exchange.getResponseBody().write(response);
 
-            } else if (Regex.simpleMatch("PUT /" + path + "/*", request)) {
+            } else if (Regex.simpleMatch("PUT /" + path + "*", request)) {
                 final Tuple<String, BytesReference> blob = parseRequestBody(exchange);
                 blobs.put(exchange.getRequestURI().toString(), blob.v2());
                 exchange.getResponseHeaders().add("ETag", blob.v1());
                 exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
 
-            } else if (Regex.simpleMatch("GET /" + bucket + "/?prefix=*", request)) {
+            } else if (Regex.simpleMatch("GET /" + bucket + "?list-type=*", request)) {
                 final Map<String, String> params = new HashMap<>();
                 RestUtils.decodeQueryString(exchange.getRequestURI().getQuery(), 0, params);
-                if (params.get("list-type") != null) {
-                    throw new AssertionError("Test must be adapted for GET Bucket (List Objects) Version 2");
-                }
 
                 final StringBuilder list = new StringBuilder();
                 list.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
@@ -208,9 +205,11 @@ public class S3HttpHandler implements HttpHandler {
                     list.append("</Contents>");
                 }
                 if (commonPrefixes.isEmpty() == false) {
-                    list.append("<CommonPrefixes>");
-                    commonPrefixes.forEach(commonPrefix -> list.append("<Prefix>").append(commonPrefix).append("</Prefix>"));
-                    list.append("</CommonPrefixes>");
+                    commonPrefixes.forEach(commonPrefix -> {
+                        list.append("<CommonPrefixes>");
+                        list.append("<Prefix>").append(commonPrefix).append("</Prefix>");
+                        list.append("</CommonPrefixes>");
+                    });
 
                 }
                 list.append("</ListBucketResult>");
@@ -220,7 +219,7 @@ public class S3HttpHandler implements HttpHandler {
                 exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
                 exchange.getResponseBody().write(response);
 
-            } else if (Regex.simpleMatch("GET /" + path + "/*", request)) {
+            } else if (Regex.simpleMatch("GET /" + path + "*", request)) {
                 final BytesReference blob = blobs.get(exchange.getRequestURI().toString());
                 if (blob != null) {
                     final String range = exchange.getRequestHeaders().getFirst("Range");
@@ -248,7 +247,7 @@ public class S3HttpHandler implements HttpHandler {
                     exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
                 }
 
-            } else if (Regex.simpleMatch("DELETE /" + path + "/*", request)) {
+            } else if (Regex.simpleMatch("DELETE /" + path + "*", request)) {
                 int deletions = 0;
                 for (Iterator<Map.Entry<String, BytesReference>> iterator = blobs.entrySet().iterator(); iterator.hasNext(); ) {
                     Map.Entry<String, BytesReference> blob = iterator.next();
@@ -259,7 +258,7 @@ public class S3HttpHandler implements HttpHandler {
                 }
                 exchange.sendResponseHeaders((deletions > 0 ? RestStatus.OK : RestStatus.NO_CONTENT).getStatus(), -1);
 
-            } else if (Regex.simpleMatch("POST /" + bucket + "/?delete", request)) {
+            } else if (Regex.simpleMatch("POST /" + bucket + "?delete", request)) {
                 final String requestBody = Streams.copyToString(new InputStreamReader(exchange.getRequestBody(), UTF_8));
 
                 final StringBuilder deletes = new StringBuilder();

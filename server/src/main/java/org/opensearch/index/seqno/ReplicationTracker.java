@@ -32,12 +32,9 @@
 
 package org.opensearch.index.seqno;
 
-import com.carrotsearch.hppc.ObjectLongHashMap;
-import com.carrotsearch.hppc.ObjectLongMap;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.GroupedActionListener;
 import org.opensearch.action.support.replication.ReplicationResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -46,10 +43,12 @@ import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.collect.Tuple;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.gateway.WriteStateException;
 import org.opensearch.index.IndexSettings;
@@ -58,9 +57,10 @@ import org.opensearch.index.engine.SafeCommitInfo;
 import org.opensearch.index.shard.AbstractIndexShardComponent;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ReplicationGroup;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.index.store.Store;
+import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
-import org.opensearch.indices.replication.common.ReplicationTimer;
+import org.opensearch.indices.replication.common.SegmentReplicationLagTimer;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -249,7 +249,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
 
     private final Consumer<ReplicationGroup> onReplicationGroupUpdated;
 
-    private volatile ReplicationCheckpoint lastPublishedReplicationCheckpoint;
+    private volatile ReplicationCheckpoint latestReplicationCheckpoint;
 
     /**
      * Get all retention leases tracked on this shard.
@@ -716,7 +716,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
          * Map of ReplicationCheckpoints to ReplicationTimers.  Timers are added as new checkpoints are published, and removed when
          * the replica is caught up.
          */
-        Map<ReplicationCheckpoint, ReplicationTimer> checkpointTimers;
+        Map<ReplicationCheckpoint, SegmentReplicationLagTimer> checkpointTimers;
 
         /**
          * The time it took to complete the most recent replication event.
@@ -816,10 +816,10 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      *
      * @return a map from allocation ID to the local knowledge of the persisted global checkpoint for that allocation ID
      */
-    public synchronized ObjectLongMap<String> getInSyncGlobalCheckpoints() {
+    public synchronized Map<String, Long> getInSyncGlobalCheckpoints() {
         assert primaryMode;
         assert handoffInProgress == false;
-        final ObjectLongMap<String> globalCheckpoints = new ObjectLongHashMap<>(checkpoints.size()); // upper bound on the size
+        final Map<String, Long> globalCheckpoints = new HashMap<>(checkpoints.size()); // upper bound on the size
         checkpoints.entrySet()
             .stream()
             .filter(e -> e.getValue().inSync && e.getValue().replicated)
@@ -1056,6 +1056,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         this.fileBasedRecoveryThreshold = IndexSettings.FILE_BASED_RECOVERY_THRESHOLD_SETTING.get(indexSettings.getSettings());
         this.safeCommitInfoSupplier = safeCommitInfoSupplier;
         this.onReplicationGroupUpdated = onReplicationGroupUpdated;
+        this.latestReplicationCheckpoint = indexSettings.isSegRepEnabled() ? ReplicationCheckpoint.empty(shardId) : null;
         assert Version.V_EMPTY.equals(indexSettings.getIndexVersionCreated()) == false;
         assert invariant();
     }
@@ -1174,17 +1175,22 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         assert handoffInProgress == false;
         assert invariant();
         final CheckpointState cps = checkpoints.get(allocationId);
-        assert !this.shardAllocationId.equals(allocationId) && cps != null;
+        assert !this.shardAllocationId.equals(allocationId);
+        // Ignore if the cps is null (i.e. replica shard not in active state).
+        if (cps == null) {
+            logger.warn("Ignoring the checkpoint update for allocation ID {} as its not being tracked by primary", allocationId);
+            return;
+        }
         if (cps.checkpointTimers.isEmpty() == false) {
             // stop any timers for checkpoints up to the received cp and remove from cps.checkpointTimers.
             // Compute the max lag from the set of completed timers.
             final AtomicLong lastFinished = new AtomicLong(0L);
             cps.checkpointTimers.entrySet().removeIf((entry) -> {
-                boolean result = visibleCheckpoint.equals(entry.getKey()) || visibleCheckpoint.isAheadOf(entry.getKey());
+                boolean result = entry.getKey().isAheadOf(visibleCheckpoint) == false;
                 if (result) {
-                    final ReplicationTimer timer = entry.getValue();
+                    final SegmentReplicationLagTimer timer = entry.getValue();
                     timer.stop();
-                    lastFinished.set(Math.max(lastFinished.get(), timer.time()));
+                    lastFinished.set(Math.max(lastFinished.get(), timer.totalElapsedTime()));
                 }
                 return result;
             });
@@ -1204,33 +1210,68 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
     }
 
     /**
-     * After a new checkpoint is published, start a timer for each replica to the checkpoint.
+     * After a new checkpoint is published, create a timer for each replica to the checkpoint.
      * @param checkpoint {@link ReplicationCheckpoint}
      */
     public synchronized void setLatestReplicationCheckpoint(ReplicationCheckpoint checkpoint) {
         assert indexSettings.isSegRepEnabled();
-        assert handoffInProgress == false;
-        if (checkpoint.equals(lastPublishedReplicationCheckpoint) == false) {
-            this.lastPublishedReplicationCheckpoint = checkpoint;
-            for (Map.Entry<String, CheckpointState> entry : checkpoints.entrySet()) {
-                if (entry.getKey().equals(this.shardAllocationId) == false) {
-                    final CheckpointState cps = entry.getValue();
-                    if (cps.inSync) {
-                        cps.checkpointTimers.computeIfAbsent(checkpoint, ignored -> {
-                            final ReplicationTimer replicationTimer = new ReplicationTimer();
-                            replicationTimer.start();
-                            return replicationTimer;
-                        });
-                        logger.trace(
-                            () -> new ParameterizedMessage(
-                                "updated last published checkpoint to {} - timers [{}]",
-                                checkpoint,
-                                cps.checkpointTimers.keySet()
-                            )
-                        );
-                    }
+        if (checkpoint.equals(latestReplicationCheckpoint) == false) {
+            this.latestReplicationCheckpoint = checkpoint;
+        }
+        if (primaryMode) {
+            createReplicationLagTimers();
+        }
+    }
+
+    public ReplicationCheckpoint getLatestReplicationCheckpoint() {
+        return this.latestReplicationCheckpoint;
+    }
+
+    private void createReplicationLagTimers() {
+        for (Map.Entry<String, CheckpointState> entry : checkpoints.entrySet()) {
+            final String allocationId = entry.getKey();
+            if (allocationId.equals(this.shardAllocationId) == false) {
+                final CheckpointState cps = entry.getValue();
+                // if the shard is in checkpoints but is unavailable or out of sync we will not track its replication state.
+                // it is possible for a shard to be in-sync but not yet removed from the checkpoints collection after a failover event.
+                if (cps.inSync
+                    && replicationGroup.getUnavailableInSyncShards().contains(allocationId) == false
+                    && latestReplicationCheckpoint.isAheadOf(cps.visibleReplicationCheckpoint)) {
+                    cps.checkpointTimers.computeIfAbsent(latestReplicationCheckpoint, ignored -> new SegmentReplicationLagTimer());
+                    logger.trace(
+                        () -> new ParameterizedMessage(
+                            "updated last published checkpoint for {} at visible cp {} to {} - timers [{}]",
+                            allocationId,
+                            cps.visibleReplicationCheckpoint,
+                            latestReplicationCheckpoint,
+                            cps.checkpointTimers.keySet()
+                        )
+                    );
                 }
             }
+        }
+    }
+
+    /**
+     * After a new checkpoint is published, start a timer per replica for the checkpoint.
+     * @param checkpoint {@link ReplicationCheckpoint}
+     */
+    public synchronized void startReplicationLagTimers(ReplicationCheckpoint checkpoint) {
+        assert indexSettings.isSegRepEnabled();
+        if (checkpoint.equals(latestReplicationCheckpoint) == false) {
+            this.latestReplicationCheckpoint = checkpoint;
+        }
+        if (primaryMode) {
+            checkpoints.entrySet().stream().filter(e -> !e.getKey().equals(this.shardAllocationId)).forEach(e -> {
+                String allocationId = e.getKey();
+                final CheckpointState cps = e.getValue();
+                if (cps.inSync
+                    && replicationGroup.getUnavailableInSyncShards().contains(allocationId) == false
+                    && latestReplicationCheckpoint.isAheadOf(cps.visibleReplicationCheckpoint)
+                    && cps.checkpointTimers.containsKey(latestReplicationCheckpoint)) {
+                    cps.checkpointTimers.get(latestReplicationCheckpoint).start();
+                }
+            });
         }
     }
 
@@ -1241,31 +1282,35 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      */
     public synchronized Set<SegmentReplicationShardStats> getSegmentReplicationStats() {
         assert indexSettings.isSegRepEnabled();
-        final ReplicationCheckpoint lastPublishedCheckpoint = this.lastPublishedReplicationCheckpoint;
-        if (primaryMode && lastPublishedCheckpoint != null) {
+        if (primaryMode) {
             return this.checkpoints.entrySet()
                 .stream()
-                .filter(entry -> entry.getKey().equals(this.shardAllocationId) == false && entry.getValue().inSync)
-                .map(entry -> buildShardStats(lastPublishedCheckpoint.getLength(), entry.getKey(), entry.getValue()))
+                // filter out this shard's allocation id, any shards that are out of sync or unavailable (shard marked in-sync but has not
+                // been assigned to a node).
+                .filter(
+                    entry -> entry.getKey().equals(this.shardAllocationId) == false
+                        && entry.getValue().inSync
+                        && replicationGroup.getUnavailableInSyncShards().contains(entry.getKey()) == false
+                )
+                .map(entry -> buildShardStats(entry.getKey(), entry.getValue()))
                 .collect(Collectors.toUnmodifiableSet());
         }
         return Collections.emptySet();
     }
 
-    private SegmentReplicationShardStats buildShardStats(
-        final long latestCheckpointLength,
-        final String allocationId,
-        final CheckpointState checkpointState
-    ) {
-        final Map<ReplicationCheckpoint, ReplicationTimer> checkpointTimers = checkpointState.checkpointTimers;
+    private SegmentReplicationShardStats buildShardStats(final String allocationId, final CheckpointState cps) {
+        final Store.RecoveryDiff diff = Store.segmentReplicationDiff(
+            latestReplicationCheckpoint.getMetadataMap(),
+            cps.visibleReplicationCheckpoint != null ? cps.visibleReplicationCheckpoint.getMetadataMap() : Collections.emptyMap()
+        );
+        final long bytesBehind = diff.missing.stream().mapToLong(StoreFileMetadata::length).sum();
         return new SegmentReplicationShardStats(
             allocationId,
-            checkpointTimers.size(),
-            checkpointState.visibleReplicationCheckpoint == null
-                ? latestCheckpointLength
-                : Math.max(latestCheckpointLength - checkpointState.visibleReplicationCheckpoint.getLength(), 0),
-            checkpointTimers.values().stream().mapToLong(ReplicationTimer::time).max().orElse(0),
-            checkpointState.lastCompletedReplicationLag
+            cps.checkpointTimers.size(),
+            bytesBehind,
+            cps.checkpointTimers.values().stream().mapToLong(SegmentReplicationLagTimer::time).max().orElse(0),
+            cps.checkpointTimers.values().stream().mapToLong(SegmentReplicationLagTimer::totalElapsedTime).max().orElse(0),
+            cps.lastCompletedReplicationLag
         );
     }
 

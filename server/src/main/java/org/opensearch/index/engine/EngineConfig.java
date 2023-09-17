@@ -43,26 +43,29 @@ import org.apache.lucene.search.similarities.Similarity;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
-import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.MemorySizeValue;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.codec.CodecAliases;
 import org.opensearch.index.codec.CodecService;
+import org.opensearch.index.codec.CodecSettings;
 import org.opensearch.index.mapper.ParsedDocument;
 import org.opensearch.index.seqno.RetentionLeases;
-import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.InternalTranslogFactory;
 import org.opensearch.index.translog.TranslogConfig;
 import org.opensearch.index.translog.TranslogDeletionPolicyFactory;
 import org.opensearch.index.translog.TranslogFactory;
 import org.opensearch.indices.IndexingMemoryController;
-import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.BooleanSupplier;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
@@ -128,18 +131,94 @@ public final class EngineConfig {
     public static final Setting<String> INDEX_CODEC_SETTING = new Setting<>("index.codec", "default", s -> {
         switch (s) {
             case "default":
+            case "lz4":
             case "best_compression":
+            case "zlib":
             case "lucene_default":
                 return s;
             default:
-                if (Codec.availableCodecs().contains(s) == false) { // we don't error message the not officially supported ones
-                    throw new IllegalArgumentException(
-                        "unknown value for [index.codec] must be one of [default, best_compression] but was: " + s
-                    );
+                if (Codec.availableCodecs().contains(s)) {
+                    return s;
                 }
-                return s;
+
+                for (String codecName : Codec.availableCodecs()) {
+                    Codec codec = Codec.forName(codecName);
+                    if (codec instanceof CodecAliases) {
+                        CodecAliases codecWithAlias = (CodecAliases) codec;
+                        if (codecWithAlias.aliases().contains(s)) {
+                            return s;
+                        }
+                    }
+                }
+
+                throw new IllegalArgumentException(
+                    "unknown value for [index.codec] must be one of [default, lz4, best_compression, zlib] but was: " + s
+                );
         }
     }, Property.IndexScope, Property.NodeScope);
+
+    /**
+     * Index setting to change the compression level of zstd and zstd_no_dict lucene codecs.
+     * Compression Level gives a trade-off between compression ratio and speed. The higher compression level results in higher compression ratio but slower compression and decompression speeds.
+     * This setting is <b>not</b> realtime updateable.
+     */
+
+    public static final Setting<Integer> INDEX_CODEC_COMPRESSION_LEVEL_SETTING = new Setting<>(
+        "index.codec.compression_level",
+        Integer.toString(3),
+        new Setting.IntegerParser(1, 6, "index.codec.compression_level", false),
+        Property.IndexScope
+    ) {
+        @Override
+        public Set<SettingDependency> getSettingsDependencies(String key) {
+            return Set.of(new SettingDependency() {
+                @Override
+                public Setting<String> getSetting() {
+                    return INDEX_CODEC_SETTING;
+                }
+
+                @Override
+                public void validate(String key, Object value, Object dependency) {
+                    if (!(dependency instanceof String)) {
+                        throw new IllegalArgumentException("Codec should be of string type.");
+                    }
+                    doValidateCodecSettings((String) dependency);
+                }
+            });
+        }
+    };
+
+    private static void doValidateCodecSettings(final String codec) {
+        switch (codec) {
+            case "best_compression":
+            case "zlib":
+            case "lucene_default":
+            case "default":
+            case "lz4":
+                break;
+            default:
+                if (Codec.availableCodecs().contains(codec)) {
+                    Codec luceneCodec = Codec.forName(codec);
+                    if (luceneCodec instanceof CodecSettings
+                        && ((CodecSettings) luceneCodec).supports(INDEX_CODEC_COMPRESSION_LEVEL_SETTING)) {
+                        return;
+                    }
+                }
+                for (String codecName : Codec.availableCodecs()) {
+                    Codec availableCodec = Codec.forName(codecName);
+                    if (availableCodec instanceof CodecAliases) {
+                        CodecAliases availableCodecWithAlias = (CodecAliases) availableCodec;
+                        if (availableCodecWithAlias.aliases().contains(codec)) {
+                            if (availableCodec instanceof CodecSettings
+                                && ((CodecSettings) availableCodec).supports(INDEX_CODEC_COMPRESSION_LEVEL_SETTING)) {
+                                return;
+                            }
+                        }
+                    }
+                }
+        }
+        throw new IllegalArgumentException("Compression level cannot be set for the " + codec + " codec.");
+    }
 
     /**
      * Configures an index to optimize documents with auto generated ids for append only. If this setting is updated from <code>false</code>
@@ -177,6 +256,7 @@ public final class EngineConfig {
         this.codecService = builder.codecService;
         this.eventListener = builder.eventListener;
         codecName = builder.indexSettings.getValue(INDEX_CODEC_SETTING);
+
         // We need to make the indexing buffer for this shard at least as large
         // as the amount of memory that is available for all engines on the
         // local node so that decisions to flush segments to disk are made by

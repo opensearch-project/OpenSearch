@@ -9,8 +9,8 @@
 package org.opensearch.index;
 
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.shard.IndexShard;
-import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.IndicesService;
 
 import java.util.HashMap;
@@ -59,7 +59,7 @@ public class SegmentReplicationStatsTracker {
     public SegmentReplicationPerGroupStats getStatsForShard(IndexShard indexShard) {
         return new SegmentReplicationPerGroupStats(
             indexShard.shardId(),
-            indexShard.getReplicationStats(),
+            indexShard.getReplicationStatsForTrackedReplicas(),
             Optional.ofNullable(rejectionCount.get(indexShard.shardId())).map(AtomicInteger::get).orElse(0)
         );
     }

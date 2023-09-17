@@ -32,15 +32,12 @@
 
 package org.opensearch.cluster.metadata;
 
-import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRunnable;
-import org.opensearch.action.NotifyOnceListener;
 import org.opensearch.action.admin.indices.close.CloseIndexClusterStateUpdateRequest;
 import org.opensearch.action.admin.indices.close.CloseIndexResponse;
 import org.opensearch.action.admin.indices.close.CloseIndexResponse.IndexResult;
@@ -70,7 +67,6 @@ import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
 import org.opensearch.common.UUIDs;
-import org.opensearch.common.collect.ImmutableOpenIntMap;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.Setting;
@@ -79,17 +75,19 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AtomicArray;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.util.concurrent.CountDown;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.action.NotifyOnceListener;
 import org.opensearch.core.common.Strings;
-import org.opensearch.index.Index;
+import org.opensearch.core.index.Index;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.rest.RestStatus;
+import org.opensearch.core.tasks.TaskId;
 import org.opensearch.index.IndexNotFoundException;
-import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.ShardLimitValidator;
-import org.opensearch.rest.RestStatus;
 import org.opensearch.snapshots.RestoreService;
 import org.opensearch.snapshots.SnapshotInProgressException;
 import org.opensearch.snapshots.SnapshotsService;
-import org.opensearch.tasks.TaskId;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
@@ -638,12 +636,12 @@ public class MetadataIndexStateService {
                 return;
             }
 
-            final ImmutableOpenIntMap<IndexShardRoutingTable> shards = indexRoutingTable.getShards();
+            final Map<Integer, IndexShardRoutingTable> shards = indexRoutingTable.getShards();
             final AtomicArray<ShardResult> results = new AtomicArray<>(shards.size());
             final CountDown countDown = new CountDown(shards.size());
 
-            for (IntObjectCursor<IndexShardRoutingTable> shard : shards) {
-                final IndexShardRoutingTable shardRoutingTable = shard.value;
+            for (final IndexShardRoutingTable shard : shards.values()) {
+                final IndexShardRoutingTable shardRoutingTable = shard;
                 final int shardId = shardRoutingTable.shardId().id();
                 sendVerifyShardBeforeCloseRequest(shardRoutingTable, closingBlock, new NotifyOnceListener<ReplicationResponse>() {
                     @Override
@@ -771,12 +769,12 @@ public class MetadataIndexStateService {
                 return;
             }
 
-            final ImmutableOpenIntMap<IndexShardRoutingTable> shards = indexRoutingTable.getShards();
+            final Map<Integer, IndexShardRoutingTable> shards = indexRoutingTable.getShards();
             final AtomicArray<AddBlockShardResult> results = new AtomicArray<>(shards.size());
             final CountDown countDown = new CountDown(shards.size());
 
-            for (IntObjectCursor<IndexShardRoutingTable> shard : shards) {
-                final IndexShardRoutingTable shardRoutingTable = shard.value;
+            for (final IndexShardRoutingTable shard : shards.values()) {
+                final IndexShardRoutingTable shardRoutingTable = shard;
                 final int shardId = shardRoutingTable.shardId().id();
                 sendVerifyShardBlockRequest(shardRoutingTable, clusterBlock, new NotifyOnceListener<ReplicationResponse>() {
                     @Override

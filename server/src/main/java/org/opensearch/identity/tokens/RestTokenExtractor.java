@@ -7,9 +7,9 @@
  */
 package org.opensearch.identity.tokens;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
-import org.opensearch.common.Strings;
+import org.apache.logging.log4j.Logger;
+import org.opensearch.core.common.Strings;
 import org.opensearch.rest.RestRequest;
 
 import java.util.Collections;
@@ -40,7 +40,7 @@ public class RestTokenExtractor {
         if (authHeaderValue.isPresent()) {
             final String authHeaderValueStr = authHeaderValue.get();
 
-            if (authHeaderValueStr.startsWith(BasicAuthToken.TOKEN_IDENIFIER)) {
+            if (authHeaderValueStr.startsWith(BasicAuthToken.TOKEN_IDENTIFIER)) {
                 return new BasicAuthToken(authHeaderValueStr);
             } else {
                 if (logger.isDebugEnabled()) {

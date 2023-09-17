@@ -13,14 +13,17 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.Query;
+import org.opensearch.OpenSearchException;
+import org.opensearch.search.aggregations.AggregationProcessor;
+import org.opensearch.search.aggregations.ConcurrentAggregationProcessor;
 import org.opensearch.search.internal.ContextIndexSearcher;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.profile.query.ProfileCollectorManager;
 import org.opensearch.search.query.QueryPhase.DefaultQueryPhaseSearcher;
-import org.opensearch.search.query.QueryPhase.TimeExceededException;
 
 import java.io.IOException;
 import java.util.LinkedList;
+import java.util.concurrent.ExecutionException;
 
 import static org.opensearch.search.query.TopDocsCollectorContext.createTopDocsCollectorContext;
 
@@ -30,6 +33,7 @@ import static org.opensearch.search.query.TopDocsCollectorContext.createTopDocsC
  */
 public class ConcurrentQueryPhaseSearcher extends DefaultQueryPhaseSearcher {
     private static final Logger LOGGER = LogManager.getLogger(ConcurrentQueryPhaseSearcher.class);
+    private final AggregationProcessor aggregationProcessor = new ConcurrentAggregationProcessor();
 
     /**
      * Default constructor
@@ -45,20 +49,7 @@ public class ConcurrentQueryPhaseSearcher extends DefaultQueryPhaseSearcher {
         boolean hasFilterCollector,
         boolean hasTimeout
     ) throws IOException {
-        boolean couldUseConcurrentSegmentSearch = allowConcurrentSegmentSearch(searcher);
-
-        // TODO: support aggregations
-        if (searchContext.aggregations() != null) {
-            couldUseConcurrentSegmentSearch = false;
-            LOGGER.debug("Unable to use concurrent search over index segments (experimental): aggregations are present");
-        }
-
-        if (couldUseConcurrentSegmentSearch) {
-            LOGGER.debug("Using concurrent search over index segments (experimental)");
-            return searchWithCollectorManager(searchContext, searcher, query, collectors, hasFilterCollector, hasTimeout);
-        } else {
-            return super.searchWithCollector(searchContext, searcher, query, collectors, hasFilterCollector, hasTimeout);
-        }
+        return searchWithCollectorManager(searchContext, searcher, query, collectors, hasFilterCollector, hasTimeout);
     }
 
     private static boolean searchWithCollectorManager(
@@ -77,30 +68,25 @@ public class ConcurrentQueryPhaseSearcher extends DefaultQueryPhaseSearcher {
         final QuerySearchResult queryResult = searchContext.queryResult();
         final CollectorManager<?, ReduceableSearchResult> collectorManager;
 
-        // TODO: support aggregations in concurrent segment search flow
-        if (searchContext.aggregations() != null) {
-            throw new UnsupportedOperationException("The concurrent segment search does not support aggregations yet");
-        }
-
         if (searchContext.getProfilers() != null) {
             final ProfileCollectorManager<? extends Collector, ReduceableSearchResult> profileCollectorManager =
                 QueryCollectorManagerContext.createQueryCollectorManagerWithProfiler(collectorContexts);
             searchContext.getProfilers().getCurrentQueryProfiler().setCollector(profileCollectorManager);
             collectorManager = profileCollectorManager;
         } else {
-            // Create multi collector manager instance
-            collectorManager = QueryCollectorManagerContext.createMultiCollectorManager(collectorContexts);
+            // Create collector manager tree
+            collectorManager = QueryCollectorManagerContext.createQueryCollectorManager(collectorContexts);
         }
 
         try {
             final ReduceableSearchResult result = searcher.search(query, collectorManager);
             result.reduce(queryResult);
-        } catch (EarlyTerminatingCollector.EarlyTerminationException e) {
-            queryResult.terminatedEarly(true);
-        } catch (TimeExceededException e) {
+        } catch (RuntimeException re) {
+            rethrowCauseIfPossible(re, searchContext);
+        }
+        if (searchContext.isSearchTimedOut()) {
             assert timeoutSet : "TimeExceededException thrown even though timeout wasn't set";
             if (searchContext.request().allowPartialSearchResults() == false) {
-                // Can't rethrow TimeExceededException because not serializable
                 throw new QueryPhaseExecutionException(searchContext.shardTarget(), "Time exceeded");
             }
             queryResult.searchTimedOut(true);
@@ -112,8 +98,30 @@ public class ConcurrentQueryPhaseSearcher extends DefaultQueryPhaseSearcher {
         return topDocsFactory.shouldRescore();
     }
 
-    private static boolean allowConcurrentSegmentSearch(final ContextIndexSearcher searcher) {
-        return (searcher.getExecutor() != null);
+    @Override
+    public AggregationProcessor aggregationProcessor(SearchContext searchContext) {
+        return aggregationProcessor;
     }
 
+    private static <T extends Exception> void rethrowCauseIfPossible(RuntimeException re, SearchContext searchContext) throws T {
+        // Rethrow exception if cause is null or if it's an instance of OpenSearchException
+        if (re.getCause() == null || re instanceof OpenSearchException) {
+            throw re;
+        }
+
+        // Unwrap the RuntimeException and ExecutionException from Lucene concurrent search method and rethrow
+        if (re.getCause() instanceof ExecutionException || re.getCause() instanceof InterruptedException) {
+            Throwable t = re.getCause();
+            if (t.getCause() != null) {
+                throw (T) t.getCause();
+            }
+        }
+
+        // Rethrow any unexpected exception types
+        throw new QueryPhaseExecutionException(
+            searchContext.shardTarget(),
+            "Failed to execute concurrent segment search thread",
+            re.getCause()
+        );
+    }
 }

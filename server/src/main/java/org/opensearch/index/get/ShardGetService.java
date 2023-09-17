@@ -43,7 +43,6 @@ import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.document.DocumentField;
 import org.opensearch.common.lucene.uid.Versions;
@@ -51,10 +50,11 @@ import org.opensearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVersion
 import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.common.metrics.MeanMetric;
 import org.opensearch.common.util.set.Sets;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.support.XContentMapValues;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.engine.Engine;
@@ -276,7 +276,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         );
         if (fieldVisitor != null) {
             try {
-                docIdAndVersion.reader.document(docIdAndVersion.docId, fieldVisitor);
+                docIdAndVersion.reader.storedFields().document(docIdAndVersion.docId, fieldVisitor);
             } catch (IOException e) {
                 throw new OpenSearchException("Failed to get id [" + id + "]", e);
             }
@@ -299,7 +299,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                         shardId.getIndexName(),
                         id,
                         source,
-                        XContentHelper.xContentType(source),
+                        MediaTypeRegistry.xContentType(source),
                         fieldVisitor.routing()
                     );
                     ParsedDocument doc = indexShard.mapperService().documentMapper().parse(sourceToParse);
@@ -378,7 +378,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                 sourceAsMap = typeMapTuple.v2();
                 sourceAsMap = XContentMapValues.filter(sourceAsMap, fetchSourceContext.includes(), fetchSourceContext.excludes());
                 try {
-                    source = BytesReference.bytes(XContentFactory.contentBuilder(sourceContentType).map(sourceAsMap));
+                    source = BytesReference.bytes(MediaTypeRegistry.contentBuilder(sourceContentType).map(sourceAsMap));
                 } catch (IOException e) {
                     throw new OpenSearchException("Failed to get id [" + id + "] with includes/excludes set", e);
                 }
@@ -406,7 +406,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             sourceAsMap = typeMapTuple.v2();
             sourceAsMap = XContentMapValues.filter(sourceAsMap, fetchSourceContext.includes(), fetchSourceContext.excludes());
             try {
-                source = BytesReference.bytes(XContentFactory.contentBuilder(sourceContentType).map(sourceAsMap));
+                source = BytesReference.bytes(MediaTypeRegistry.contentBuilder(sourceContentType).map(sourceAsMap));
             } catch (IOException e) {
                 throw new OpenSearchException("Failed to get id [" + id + "] with includes/excludes set", e);
             }

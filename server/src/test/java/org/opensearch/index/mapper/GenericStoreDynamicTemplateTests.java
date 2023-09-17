@@ -33,8 +33,8 @@
 package org.opensearch.index.mapper;
 
 import org.apache.lucene.index.IndexableField;
-import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.mapper.ParseContext.Document;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
@@ -47,17 +47,17 @@ public class GenericStoreDynamicTemplateTests extends OpenSearchSingleNodeTestCa
     public void testSimple() throws Exception {
         String mapping = copyToStringFromClasspath("/org/opensearch/index/mapper/dynamictemplate/genericstore/test-mapping.json");
         IndexService index = createIndex("test");
-        client().admin().indices().preparePutMapping("test").setSource(mapping, XContentType.JSON).get();
+        client().admin().indices().preparePutMapping("test").setSource(mapping, MediaTypeRegistry.JSON).get();
 
         MapperService mapperService = index.mapperService();
 
         byte[] json = copyToBytesFromClasspath("/org/opensearch/index/mapper/dynamictemplate/genericstore/test-data.json");
         ParsedDocument parsedDoc = mapperService.documentMapper()
-            .parse(new SourceToParse("test", "1", new BytesArray(json), XContentType.JSON));
+            .parse(new SourceToParse("test", "1", new BytesArray(json), MediaTypeRegistry.JSON));
         client().admin()
             .indices()
             .preparePutMapping("test")
-            .setSource(parsedDoc.dynamicMappingsUpdate().toString(), XContentType.JSON)
+            .setSource(parsedDoc.dynamicMappingsUpdate().toString(), MediaTypeRegistry.JSON)
             .get();
         Document doc = parsedDoc.rootDoc();
 

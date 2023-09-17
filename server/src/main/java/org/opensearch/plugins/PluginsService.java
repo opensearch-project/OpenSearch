@@ -44,14 +44,14 @@ import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.opensearch.bootstrap.JarHell;
 import org.opensearch.common.collect.Tuple;
-import org.opensearch.common.component.LifecycleComponent;
 import org.opensearch.common.inject.Module;
+import org.opensearch.common.lifecycle.LifecycleComponent;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.service.ReportingService;
 import org.opensearch.index.IndexModule;
-import org.opensearch.node.ReportingService;
 import org.opensearch.threadpool.ExecutorBuilder;
 import org.opensearch.transport.TransportSettings;
 

@@ -180,6 +180,10 @@ public abstract class AbstractInternalProfileTree<PB extends AbstractProfileBrea
         // calculating the same times over and over...but worth the effort?
         String type = getTypeFromElement(element);
         String description = getDescriptionFromElement(element);
+        return createProfileResult(type, description, breakdown, childrenProfileResults);
+    }
+
+    protected ProfileResult createProfileResult(String type, String description, PB breakdown, List<ProfileResult> childrenProfileResults) {
         return new ProfileResult(
             type,
             description,

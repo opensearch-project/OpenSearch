@@ -33,16 +33,18 @@
 package org.opensearch.tasks;
 
 import org.opensearch.Version;
-import org.opensearch.common.Strings;
-import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.core.xcontent.ConstructingObjectParser;
-import org.opensearch.common.xcontent.ObjectParserHelper;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.ParseField;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.tasks.TaskId;
+import org.opensearch.core.tasks.resourcetracker.TaskResourceStats;
+import org.opensearch.core.xcontent.ConstructingObjectParser;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.core.xcontent.ObjectParserHelper;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
@@ -85,6 +87,8 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
 
     private final boolean cancelled;
 
+    private final Long cancellationStartTime;
+
     private final TaskId parentTaskId;
 
     private final Map<String, String> headers;
@@ -105,6 +109,38 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         Map<String, String> headers,
         TaskResourceStats resourceStats
     ) {
+        this(
+            taskId,
+            type,
+            action,
+            description,
+            status,
+            startTime,
+            runningTimeNanos,
+            cancellable,
+            cancelled,
+            parentTaskId,
+            headers,
+            resourceStats,
+            null
+        );
+    }
+
+    public TaskInfo(
+        TaskId taskId,
+        String type,
+        String action,
+        String description,
+        Task.Status status,
+        long startTime,
+        long runningTimeNanos,
+        boolean cancellable,
+        boolean cancelled,
+        TaskId parentTaskId,
+        Map<String, String> headers,
+        TaskResourceStats resourceStats,
+        Long cancellationStartTime
+    ) {
         if (cancellable == false && cancelled == true) {
             throw new IllegalArgumentException("task cannot be cancelled");
         }
@@ -120,6 +156,7 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         this.parentTaskId = parentTaskId;
         this.headers = headers;
         this.resourceStats = resourceStats;
+        this.cancellationStartTime = cancellationStartTime;
     }
 
     /**
@@ -150,6 +187,11 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         } else {
             resourceStats = null;
         }
+        if (in.getVersion().onOrAfter(Version.V_2_8_0)) {
+            cancellationStartTime = in.readOptionalLong();
+        } else {
+            cancellationStartTime = null;
+        }
     }
 
     @Override
@@ -169,6 +211,9 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
         if (out.getVersion().onOrAfter(Version.V_2_1_0)) {
             out.writeOptionalWriteable(resourceStats);
+        }
+        if (out.getVersion().onOrAfter(Version.V_2_8_0)) {
+            out.writeOptionalLong(cancellationStartTime);
         }
     }
 
@@ -228,6 +273,10 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         return cancelled;
     }
 
+    public Long getCancellationStartTime() {
+        return cancellationStartTime;
+    }
+
     /**
      * Returns the parent task id
      */
@@ -281,6 +330,9 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
             resourceStats.toXContent(builder, params);
             builder.endObject();
         }
+        if (cancellationStartTime != null) {
+            builder.humanReadableField("cancellation_time_millis", "cancellation_time", new TimeValue(cancellationStartTime));
+        }
         return builder;
     }
 
@@ -308,6 +360,7 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         }
         @SuppressWarnings("unchecked")
         TaskResourceStats resourceStats = (TaskResourceStats) a[i++];
+        Long cancellationStartTime = (Long) a[i++];
         RawTaskStatus status = statusBytes == null ? null : new RawTaskStatus(statusBytes);
         TaskId parentTaskId = parentTaskIdString == null ? TaskId.EMPTY_TASK_ID : new TaskId(parentTaskIdString);
         return new TaskInfo(
@@ -322,7 +375,8 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
             cancelled,
             parentTaskId,
             headers,
-            resourceStats
+            resourceStats,
+            cancellationStartTime
         );
     });
     static {
@@ -341,11 +395,12 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         PARSER.declareString(optionalConstructorArg(), new ParseField("parent_task_id"));
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.mapStrings(), new ParseField("headers"));
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> TaskResourceStats.fromXContent(p), new ParseField("resource_stats"));
+        PARSER.declareLong(optionalConstructorArg(), new ParseField("cancellation_time_millis"));
     }
 
     @Override
     public String toString() {
-        return Strings.toString(XContentType.JSON, this, true, true);
+        return Strings.toString(MediaTypeRegistry.JSON, this, true, true);
     }
 
     // Implements equals and hashCode for testing
@@ -366,7 +421,8 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
             && Objects.equals(cancelled, other.cancelled)
             && Objects.equals(status, other.status)
             && Objects.equals(headers, other.headers)
-            && Objects.equals(resourceStats, other.resourceStats);
+            && Objects.equals(resourceStats, other.resourceStats)
+            && Objects.equals(cancellationStartTime, other.cancellationStartTime);
     }
 
     @Override
@@ -383,7 +439,8 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
             cancelled,
             status,
             headers,
-            resourceStats
+            resourceStats,
+            cancellationStartTime
         );
     }
 }
