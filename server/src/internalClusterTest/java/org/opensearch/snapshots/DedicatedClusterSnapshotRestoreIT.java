@@ -92,6 +92,7 @@ import org.opensearch.test.TestCustomMetadata;
 import org.opensearch.test.disruption.BusyClusterManagerServiceDisruption;
 import org.opensearch.test.disruption.ServiceDisruptionScheme;
 import org.opensearch.test.rest.FakeRestRequest;
+import org.opensearch.test.telemetry.annotation.SkipTracingStrictValidation;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.transport.TransportMessageListener;
 import org.opensearch.transport.TransportRequest;
@@ -870,6 +871,9 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         assertEquals(0, snapshotInfo.failedShards());
     }
 
+    @SkipTracingStrictValidation(reason = "ClusterManager stop/restart is leaving the already submitted snapshot actions un-ended "
+        + "which is leaving the spans un-ended as well. I have verified and all the parent spans in the hierarchy to these"
+        + "spans are closed with the failure reason as node disconnected")
     public void testClusterManagerAndDataShutdownDuringSnapshot() throws Exception {
         logger.info("-->  starting three cluster-manager nodes and two data nodes");
         internalCluster().startClusterManagerOnlyNodes(3);

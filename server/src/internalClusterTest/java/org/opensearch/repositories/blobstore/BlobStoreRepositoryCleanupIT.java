@@ -41,6 +41,7 @@ import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.opensearch.snapshots.SnapshotState;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.telemetry.annotation.SkipTracingStrictValidation;
 
 import java.io.ByteArrayInputStream;
 import java.util.concurrent.ExecutionException;
@@ -51,6 +52,9 @@ import static org.hamcrest.Matchers.is;
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class BlobStoreRepositoryCleanupIT extends AbstractSnapshotIntegTestCase {
 
+    @SkipTracingStrictValidation(reason = "ClusterManager stop/restart is leaving the already submitted repositiry cleanup actions un-ended "
+        + "which is leaving the spans un-ended as well. I have verified and all the parent spans in the hierarchy to these"
+        + "spans are closed with the failure reason as node disconnected")
     public void testClusterManagerFailoverDuringCleanup() throws Exception {
         startBlockedCleanup("test-repo");
 

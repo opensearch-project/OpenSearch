@@ -59,6 +59,7 @@ import org.opensearch.snapshots.mockstore.MockRepository;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.disruption.NetworkDisruption;
+import org.opensearch.test.telemetry.annotation.SkipTracingStrictValidation;
 import org.opensearch.test.transport.MockTransportService;
 
 import java.io.IOException;
@@ -444,6 +445,9 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertThat(client().admin().cluster().prepareGetSnapshots(repoName).get().getSnapshots(), empty());
     }
 
+    @SkipTracingStrictValidation(reason = "ClusterManager stop/restart is leaving the already submitted snapshot actions un-ended "
+        + "which is leaving the spans un-ended as well. I have verified and all the parent spans in the hierarchy to these"
+        + "spans are closed with the failure reason as node disconnected")
     public void testClusterManagerFailOverWithQueuedDeletes() throws Exception {
         internalCluster().startClusterManagerOnlyNodes(3);
         final String dataNode = internalCluster().startDataOnlyNode();
@@ -637,6 +641,9 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertThat(client().admin().cluster().prepareGetSnapshots(repoName).get().getSnapshots(), empty());
     }
 
+    @SkipTracingStrictValidation(reason = "ClusterManager stop/restart is leaving the already submitted snapshot actions un-ended "
+        + "which is leaving the spans un-ended as well. I have verified and all the parent spans in the hierarchy to these"
+        + "spans are closed with the failure reason as node disconnected")
     public void testQueuedOperationsOnClusterManagerRestart() throws Exception {
         internalCluster().startClusterManagerOnlyNodes(3);
         internalCluster().startDataOnlyNode();
@@ -746,6 +753,9 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         awaitNoMoreRunningOperations();
     }
 
+    @SkipTracingStrictValidation(reason = "ClusterManager stop/restart is leaving the already submitted snapshot actions un-ended "
+        + "which is leaving the spans un-ended as well. I have verified and all the parent spans in the hierarchy to these"
+        + "spans are closed with the failure reason as node disconnected")
     public void testQueuedOperationsAndBrokenRepoOnClusterManagerFailOver() throws Exception {
         disableRepoConsistencyCheck("This test corrupts the repository on purpose");
 
@@ -775,6 +785,9 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         expectThrows(RepositoryException.class, deleteFuture::actionGet);
     }
 
+    @SkipTracingStrictValidation(reason = "ClusterManager stop/restart is leaving the already submitted snapshot actions un-ended "
+        + "which is leaving the spans un-ended as well. I have verified and all the parent spans in the hierarchy to these"
+        + "spans are closed with the failure reason as node disconnected")
     public void testQueuedSnapshotOperationsAndBrokenRepoOnClusterManagerFailOver() throws Exception {
         disableRepoConsistencyCheck("This test corrupts the repository on purpose");
 
@@ -836,6 +849,9 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         expectThrows(OpenSearchException.class, snapshotFour::actionGet);
     }
 
+    @SkipTracingStrictValidation(reason = "ClusterManager stop/restart is leaving the already submitted snapshot actions un-ended "
+        + "which is leaving the spans un-ended as well. I have verified and all the parent spans in the hierarchy to these"
+        + "spans are closed with the failure reason as node disconnected")
     public void testQueuedSnapshotOperationsAndBrokenRepoOnClusterManagerFailOverMultipleRepos() throws Exception {
         disableRepoConsistencyCheck("This test corrupts the repository on purpose");
 

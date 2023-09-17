@@ -196,7 +196,7 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
 
             RequestFilterChain<Request, Response> requestFilterChain = new RequestFilterChain<>(this, logger);
             requestFilterChain.proceed(task, actionName, request, listener);
-        }catch(Exception e){
+        } catch (Exception e) {
             span.setError(e);
             span.endSpan();
             throw e;

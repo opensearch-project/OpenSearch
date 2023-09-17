@@ -17,6 +17,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Strict check span processor to validate the spans.
@@ -28,10 +29,13 @@ public class StrictCheckSpanProcessor implements SpanProcessor {
     public StrictCheckSpanProcessor() {}
 
     private static Map<String, MockSpanData> spanMap = new ConcurrentHashMap<>();
+    private final static AtomicBoolean enabled = new AtomicBoolean(true);
 
     @Override
     public void onStart(Span span) {
-        spanMap.put(span.getSpanId(), toMockSpanData(span));
+        if (enabled.get() == true) {
+            spanMap.put(span.getSpanId(), toMockSpanData(span));
+        }
     }
 
     @Override
@@ -83,5 +87,23 @@ public class StrictCheckSpanProcessor implements SpanProcessor {
             }
         }
 
+    }
+
+    /**
+     * Pauses the strict validation check.
+     */
+    public static void pauseStrictValidation() {
+        if (enabled.get() == true) {
+            enabled.set(false);
+        }
+    }
+
+    /**
+     * Resumes the strict validation check.
+     */
+    public static void resumeStrictValidation() {
+        if (enabled.get() == false) {
+            enabled.set(true);
+        }
     }
 }
