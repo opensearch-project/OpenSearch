@@ -32,16 +32,16 @@
 
 package org.opensearch.action.admin.indices.rollover;
 
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
 
 /**
- * Condition for minimum index docs. Evaluates to <code>true</code>
- * when the index has at least {@link #value} docs.
+ * Condition for minimum index docs.
+ * Evaluates to <code>true</code> when the index has at least {@link #value} docs.
  * If it evaluates to <code>false</code> then it prevents rollover
  *
  * @opensearch.internal
