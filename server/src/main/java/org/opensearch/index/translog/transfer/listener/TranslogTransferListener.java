@@ -10,6 +10,7 @@ package org.opensearch.index.translog.transfer.listener;
 
 import org.opensearch.index.translog.transfer.TransferSnapshot;
 
+import java.io.Closeable;
 import java.io.IOException;
 
 /**
@@ -17,7 +18,7 @@ import java.io.IOException;
  *
  * @opensearch.internal
  */
-public interface TranslogTransferListener {
+public interface TranslogTransferListener extends Closeable {
     /**
      * Invoked when the transfer of {@link TransferSnapshot} succeeds
      * @param transferSnapshot the transfer snapshot
@@ -32,8 +33,4 @@ public interface TranslogTransferListener {
      * @throws IOException the exception during the transfer of data
      */
     void onUploadFailed(TransferSnapshot transferSnapshot, Exception ex) throws IOException;
-
-    default void close() {
-
-    }
 }

@@ -292,6 +292,17 @@ public class RemoteFsTranslog extends Translog {
         }
     }
 
+    /**
+     * This method does the remote store upload by first acquiring the lock on the uploadMutex monitor. The synchronized
+     * is required to restrict multiple uploads happening concurrently. The read lock is required to ensure that the
+     * underlying translog readers are not deleted and the current writer is not converted to a reader at the time of
+     * upload.
+     *
+     * @param primaryTerm current primary term
+     * @param generation  current generation
+     * @return true if upload is successful
+     * @throws IOException if the upload fails due to any underlying exceptions.
+     */
     private boolean performUpload(Long primaryTerm, Long generation) throws IOException {
         synchronized (uploadMutex) {
             try (Releasable ignored = readLock.acquire()) {
@@ -362,10 +373,8 @@ public class RemoteFsTranslog extends Translog {
     @Override
     public void sync() throws IOException {
         try {
-            if (syncToDisk() || syncNeeded()) {
-                if (prepareForUpload(null)) {
-                    performUpload(primaryTermSupplier.getAsLong(), null);
-                }
+            if (syncToDisk() || syncNeeded() || prepareForUpload(null)) {
+                performUpload(primaryTermSupplier.getAsLong(), null);
             }
         } catch (final Exception e) {
             tragedy.setTragicException(e);
