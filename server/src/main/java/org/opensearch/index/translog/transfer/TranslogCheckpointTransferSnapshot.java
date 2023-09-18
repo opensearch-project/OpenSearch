@@ -164,7 +164,6 @@ public class TranslogCheckpointTransferSnapshot implements TransferSnapshot, Clo
             translogTransferSnapshot.setMinTranslogGeneration(highestGenMinTranslogGeneration);
 
             assert this.primaryTerm == highestGenPrimaryTerm : "inconsistent primary term";
-            assert this.generation == highestGeneration : " inconsistent generation ";
             final long finalHighestGeneration = highestGeneration;
             assert LongStream.iterate(lowestGeneration, i -> i + 1)
                 .limit(highestGeneration)

@@ -60,6 +60,7 @@ public class RemoteFsTranslog extends Translog {
     private final BooleanSupplier primaryModeSupplier;
     private final RemoteTranslogTransferTracker remoteTranslogTransferTracker;
     private volatile long maxRemoteTranslogGenerationUploaded;
+    private final Object uploadMutex = new Object();
 
     private volatile long minSeqNoToKeep;
 
@@ -237,11 +238,20 @@ public class RemoteFsTranslog extends Translog {
 
     @Override
     public boolean ensureSynced(Location location) throws IOException {
-        try (ReleasableLock ignored = writeLock.acquire()) {
-            assert location.generation <= current.getGeneration();
-            if (location.generation == current.getGeneration()) {
-                ensureOpen();
-                return prepareAndUpload(primaryTermSupplier.getAsLong(), location.generation);
+        try {
+            boolean shouldUpload = false;
+            try (ReleasableLock ignored = writeLock.acquire()) {
+                assert location.generation <= current.getGeneration();
+                if (location.generation == current.getGeneration()) {
+                    ensureOpen();
+                    if (prepareForUpload(location.generation) == false) {
+                        return false;
+                    }
+                    shouldUpload = true;
+                }
+            }
+            if (shouldUpload) {
+                return performUpload(primaryTermSupplier.getAsLong(), location.generation);
             }
         } catch (final Exception ex) {
             closeOnTragicEvent(ex);
@@ -256,10 +266,12 @@ public class RemoteFsTranslog extends Translog {
         if (current.totalOperations() == 0 && primaryTermSupplier.getAsLong() == current.getPrimaryTerm()) {
             return;
         }
-        prepareAndUpload(primaryTermSupplier.getAsLong(), null);
+        if (prepareForUpload(null)) {
+            performUpload(primaryTermSupplier.getAsLong(), null);
+        }
     }
 
-    private boolean prepareAndUpload(Long primaryTerm, Long generation) throws IOException {
+    private boolean prepareForUpload(Long generation) throws IOException {
         try (Releasable ignored = writeLock.acquire()) {
             if (generation == null || generation == current.getGeneration()) {
                 try {
@@ -275,23 +287,41 @@ public class RemoteFsTranslog extends Translog {
                     closeOnTragicEvent(e);
                     throw e;
                 }
-            } else if (generation < current.getGeneration()) {
-                return false;
-            }
+                return true;
+            } else return generation >= current.getGeneration();
+        }
+    }
 
-            // Do we need remote writes in sync fashion ?
-            // If we don't , we should swallow FileAlreadyExistsException while writing to remote store
-            // and also verify for same during primary-primary relocation
-            // Writing remote in sync fashion doesn't hurt as global ckp update
-            // is not updated in remote translog except in primary to primary recovery.
-            if (generation == null) {
-                if (closed.get() == false) {
-                    return upload(primaryTerm, current.getGeneration() - 1);
+    /**
+     * This method does the remote store upload by first acquiring the lock on the uploadMutex monitor. The synchronized
+     * is required to restrict multiple uploads happening concurrently. The read lock is required to ensure that the
+     * underlying translog readers are not deleted and the current writer is not converted to a reader at the time of
+     * upload.
+     *
+     * @param primaryTerm current primary term
+     * @param generation  current generation
+     * @return true if upload is successful
+     * @throws IOException if the upload fails due to any underlying exceptions.
+     */
+    private boolean performUpload(Long primaryTerm, Long generation) throws IOException {
+        synchronized (uploadMutex) {
+            try (Releasable ignored = readLock.acquire()) {
+                // Do we need remote writes in sync fashion ?
+                // If we don't , we should swallow FileAlreadyExistsException while writing to remote store
+                // and also verify for same during primary-primary relocation
+                // Writing remote in sync fashion doesn't hurt as global ckp update
+                // is not updated in remote translog except in primary to primary recovery.
+                long generationToUpload;
+                if (generation == null) {
+                    if (closed.get() == false) {
+                        generationToUpload = current.getGeneration() - 1;
+                    } else {
+                        generationToUpload = current.getGeneration();
+                    }
                 } else {
-                    return upload(primaryTerm, current.getGeneration());
+                    generationToUpload = generation;
                 }
-            } else {
-                return upload(primaryTerm, generation);
+                return upload(primaryTerm, generationToUpload);
             }
         }
     }
@@ -343,8 +373,8 @@ public class RemoteFsTranslog extends Translog {
     @Override
     public void sync() throws IOException {
         try {
-            if (syncToDisk() || syncNeeded()) {
-                prepareAndUpload(primaryTermSupplier.getAsLong(), null);
+            if ((syncToDisk() || syncNeeded()) && prepareForUpload(null)) {
+                performUpload(primaryTermSupplier.getAsLong(), null);
             }
         } catch (final Exception e) {
             tragedy.setTragicException(e);
@@ -528,8 +558,6 @@ public class RemoteFsTranslog extends Translog {
 
         @Override
         public void onUploadComplete(TransferSnapshot transferSnapshot) throws IOException {
-            transferReleasable.close();
-            closeFilesIfNoPendingRetentionLocks();
             maxRemoteTranslogGenerationUploaded = generation;
             minRemoteGenReferenced = getMinFileGeneration();
             logger.trace("uploaded translog for {} {} ", primaryTerm, generation);
@@ -537,13 +565,16 @@ public class RemoteFsTranslog extends Translog {
 
         @Override
         public void onUploadFailed(TransferSnapshot transferSnapshot, Exception ex) throws IOException {
-            transferReleasable.close();
-            closeFilesIfNoPendingRetentionLocks();
             if (ex instanceof IOException) {
                 throw (IOException) ex;
             } else {
                 throw (RuntimeException) ex;
             }
+        }
+
+        @Override
+        public void close() {
+            transferReleasable.close();
         }
     }
 }
