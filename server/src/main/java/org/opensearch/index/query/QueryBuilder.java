@@ -95,4 +95,13 @@ public interface QueryBuilder extends NamedWriteable, ToXContentObject, Rewritea
     default QueryBuilder rewrite(QueryRewriteContext queryShardContext) throws IOException {
         return this;
     }
+
+    /**
+     * Recurse through the QueryBuilder tree, visiting any child QueryBuilder.
+     * @param visitor a query builder visitor to be called by each query builder in the tree.
+     */
+    default void visit(QueryBuilderVisitor visitor) {
+        visitor.accept(this);
+    };
+
 }
