@@ -33,7 +33,6 @@ import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_ST
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY;
-import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 public abstract class AbstractRemoteStoreMockRepositoryIntegTestCase extends AbstractSnapshotIntegTestCase {
 
@@ -107,13 +106,11 @@ public abstract class AbstractRemoteStoreMockRepositoryIntegTestCase extends Abs
             .build();
     }
 
-    protected void deleteRepo() {
-        logger.info("--> Deleting all the indices");
-        internalCluster().wipeIndices("_all");
-        logger.info("--> Deleting the repository={}", REPOSITORY_NAME);
-        assertAcked(clusterAdmin().prepareDeleteRepository(REPOSITORY_NAME));
-        logger.info("--> Deleting the repository={}", TRANSLOG_REPOSITORY_NAME);
-        assertAcked(clusterAdmin().prepareDeleteRepository(TRANSLOG_REPOSITORY_NAME));
+    protected void cleanupRepo() {
+        logger.info("--> Cleanup the repository={}", REPOSITORY_NAME);
+        clusterAdmin().prepareCleanupRepository(REPOSITORY_NAME).execute().actionGet();
+        logger.info("--> Cleanup the repository={}", TRANSLOG_REPOSITORY_NAME);
+        clusterAdmin().prepareCleanupRepository(TRANSLOG_REPOSITORY_NAME).execute().actionGet();
     }
 
     protected String setup(Path repoLocation, double ioFailureRate, String skipExceptionBlobList, long maxFailure) {
@@ -126,6 +123,8 @@ public abstract class AbstractRemoteStoreMockRepositoryIntegTestCase extends Abs
         if (randomBoolean()) {
             settings.put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT);
         }
+
+        disableRepoConsistencyCheck("Remote Store Creates System Repository");
 
         internalCluster().startClusterManagerOnlyNode(settings.build());
         String dataNodeName = internalCluster().startDataOnlyNode(settings.build());
