@@ -40,6 +40,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.tasks.Task;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.transport.TransportService;
 
 import java.util.HashMap;
@@ -67,9 +68,10 @@ public class TransportGetFieldMappingsAction extends HandledTransportAction<GetF
         ClusterService clusterService,
         TransportGetFieldMappingsIndexAction shardAction,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Tracer tracer
     ) {
-        super(GetFieldMappingsAction.NAME, transportService, actionFilters, GetFieldMappingsRequest::new);
+        super(GetFieldMappingsAction.NAME, transportService, actionFilters, GetFieldMappingsRequest::new, tracer);
         this.clusterService = clusterService;
         this.shardAction = shardAction;
         this.indexNameExpressionResolver = indexNameExpressionResolver;

@@ -43,6 +43,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.node.Node;
 import org.opensearch.tasks.Task;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.transport.TransportService;
 
 /**
@@ -60,9 +61,10 @@ public class TransportMainAction extends HandledTransportAction<MainRequest, Mai
         Settings settings,
         TransportService transportService,
         ActionFilters actionFilters,
-        ClusterService clusterService
+        ClusterService clusterService,
+        Tracer tracer
     ) {
-        super(MainAction.NAME, transportService, actionFilters, MainRequest::new);
+        super(MainAction.NAME, transportService, actionFilters, MainRequest::new, tracer);
         this.nodeName = Node.NODE_NAME_SETTING.get(settings);
         this.clusterService = clusterService;
     }

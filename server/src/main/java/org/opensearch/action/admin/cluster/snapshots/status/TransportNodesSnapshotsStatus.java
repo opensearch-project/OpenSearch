@@ -49,6 +49,7 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
 import org.opensearch.snapshots.Snapshot;
 import org.opensearch.snapshots.SnapshotShardsService;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportService;
@@ -82,7 +83,8 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<
         ClusterService clusterService,
         TransportService transportService,
         SnapshotShardsService snapshotShardsService,
-        ActionFilters actionFilters
+        ActionFilters actionFilters,
+        Tracer tracer
     ) {
         super(
             ACTION_NAME,
@@ -93,7 +95,8 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<
             Request::new,
             NodeRequest::new,
             ThreadPool.Names.GENERIC,
-            NodeSnapshotStatus.class
+            NodeSnapshotStatus.class,
+            tracer
         );
         this.snapshotShardsService = snapshotShardsService;
     }

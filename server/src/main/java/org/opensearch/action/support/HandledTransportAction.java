@@ -35,6 +35,7 @@ import org.opensearch.action.ActionRequest;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.tasks.Task;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportChannel;
 import org.opensearch.transport.TransportRequestHandler;
@@ -53,9 +54,10 @@ public abstract class HandledTransportAction<Request extends ActionRequest, Resp
         String actionName,
         TransportService transportService,
         ActionFilters actionFilters,
-        Writeable.Reader<Request> requestReader
+        Writeable.Reader<Request> requestReader,
+        Tracer tracer
     ) {
-        this(actionName, true, transportService, actionFilters, requestReader);
+        this(actionName, true, transportService, actionFilters, requestReader, tracer);
     }
 
     protected HandledTransportAction(
@@ -63,19 +65,10 @@ public abstract class HandledTransportAction<Request extends ActionRequest, Resp
         TransportService transportService,
         ActionFilters actionFilters,
         Writeable.Reader<Request> requestReader,
-        String executor
+        String executor,
+        Tracer tracer
     ) {
-        this(actionName, true, transportService, actionFilters, requestReader, executor);
-    }
-
-    protected HandledTransportAction(
-        String actionName,
-        boolean canTripCircuitBreaker,
-        TransportService transportService,
-        ActionFilters actionFilters,
-        Writeable.Reader<Request> requestReader
-    ) {
-        this(actionName, canTripCircuitBreaker, transportService, actionFilters, requestReader, ThreadPool.Names.SAME);
+        this(actionName, true, transportService, actionFilters, requestReader, executor, tracer);
     }
 
     protected HandledTransportAction(
@@ -84,9 +77,21 @@ public abstract class HandledTransportAction<Request extends ActionRequest, Resp
         TransportService transportService,
         ActionFilters actionFilters,
         Writeable.Reader<Request> requestReader,
-        String executor
+        Tracer tracer
     ) {
-        super(actionName, actionFilters, transportService.getTaskManager());
+        this(actionName, canTripCircuitBreaker, transportService, actionFilters, requestReader, ThreadPool.Names.SAME, tracer);
+    }
+
+    protected HandledTransportAction(
+        String actionName,
+        boolean canTripCircuitBreaker,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        Writeable.Reader<Request> requestReader,
+        String executor,
+        Tracer tracer
+    ) {
+        super(actionName, actionFilters, transportService.getTaskManager(), tracer);
         transportService.registerRequestHandler(actionName, executor, false, canTripCircuitBreaker, requestReader, new TransportHandler());
     }
 

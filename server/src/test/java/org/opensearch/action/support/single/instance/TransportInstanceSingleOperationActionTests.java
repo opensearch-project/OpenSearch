@@ -129,7 +129,8 @@ public class TransportInstanceSingleOperationActionTests extends OpenSearchTestC
                 transportService,
                 actionFilters,
                 indexNameExpressionResolver,
-                request
+                request,
+                NoopTracer.INSTANCE
             );
         }
 

@@ -42,6 +42,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.support.DefaultShardOperationFailedException;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.transport.TransportService;
 
 import java.util.List;
@@ -63,7 +64,8 @@ public class TransportRefreshAction extends TransportBroadcastReplicationAction<
         TransportService transportService,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        TransportShardRefreshAction shardRefreshAction
+        TransportShardRefreshAction shardRefreshAction,
+        Tracer tracer
     ) {
         super(
             RefreshAction.NAME,
@@ -72,7 +74,8 @@ public class TransportRefreshAction extends TransportBroadcastReplicationAction<
             transportService,
             actionFilters,
             indexNameExpressionResolver,
-            shardRefreshAction
+            shardRefreshAction,
+            tracer
         );
     }
 

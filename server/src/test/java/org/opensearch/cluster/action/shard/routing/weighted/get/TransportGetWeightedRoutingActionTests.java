@@ -110,7 +110,8 @@ public class TransportGetWeightedRoutingActionTests extends OpenSearchTestCase {
             weightedRoutingService,
             threadPool,
             new ActionFilters(emptySet()),
-            mock(IndexNameExpressionResolver.class)
+            mock(IndexNameExpressionResolver.class),
+            NoopTracer.INSTANCE
         );
         client = new NodeClient(Settings.EMPTY, threadPool);
     }

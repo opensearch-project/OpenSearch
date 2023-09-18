@@ -384,7 +384,13 @@ public class RestSendToExtensionActionTests extends OpenSearchTestCase {
         DynamicActionRegistry dynamicActionRegistry = actionModule.getDynamicActionRegistry();
         ActionFilters emptyFilters = new ActionFilters(Collections.emptySet());
         ExtensionAction testExtensionAction = new ExtensionAction("extensionId", "test:action/name");
-        ExtensionTransportAction testExtensionTransportAction = new ExtensionTransportAction("test:action/name", emptyFilters, null, null);
+        ExtensionTransportAction testExtensionTransportAction = new ExtensionTransportAction(
+            "test:action/name",
+            emptyFilters,
+            null,
+            null,
+            NoopTracer.INSTANCE
+        );
         assertNull(dynamicActionRegistry.get(testExtensionAction));
         dynamicActionRegistry.registerDynamicAction(testExtensionAction, testExtensionTransportAction);
 

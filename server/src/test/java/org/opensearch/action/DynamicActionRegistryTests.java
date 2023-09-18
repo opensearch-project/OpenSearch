@@ -23,6 +23,7 @@ import org.opensearch.rest.NamedRoute;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskManager;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -48,7 +49,13 @@ public class DynamicActionRegistryTests extends OpenSearchTestCase {
 
         // ExtensionsAction not yet registered
         ExtensionAction testExtensionAction = new ExtensionAction("extensionId", "actionName");
-        ExtensionTransportAction testExtensionTransportAction = new ExtensionTransportAction("test-action", emptyFilters, null, null);
+        ExtensionTransportAction testExtensionTransportAction = new ExtensionTransportAction(
+            "test-action",
+            emptyFilters,
+            null,
+            null,
+            NoopTracer.INSTANCE
+        );
         assertNull(dynamicActionRegistry.get(testExtensionAction));
 
         // Register an extension action
@@ -141,7 +148,7 @@ public class DynamicActionRegistryTests extends OpenSearchTestCase {
 
     private static final class TestTransportAction extends TransportAction<ActionRequest, ActionResponse> {
         protected TestTransportAction(String actionName, ActionFilters actionFilters, TaskManager taskManager) {
-            super(actionName, actionFilters, taskManager);
+            super(actionName, actionFilters, taskManager, NoopTracer.INSTANCE);
         }
 
         @Override

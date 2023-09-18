@@ -47,14 +47,15 @@ import org.opensearch.search.internal.InternalSearchResponse;
 import org.opensearch.search.profile.SearchProfileShardResults;
 import org.opensearch.search.suggest.Suggest;
 import org.opensearch.tasks.Task;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.transport.TransportService;
 
 import java.util.Collections;
 
 public class TransportNoopSearchAction extends HandledTransportAction<SearchRequest, SearchResponse> {
     @Inject
-    public TransportNoopSearchAction(TransportService transportService, ActionFilters actionFilters) {
-        super(NoopSearchAction.NAME, transportService, actionFilters, (Writeable.Reader<SearchRequest>) SearchRequest::new);
+    public TransportNoopSearchAction(TransportService transportService, ActionFilters actionFilters, Tracer tracer) {
+        super(NoopSearchAction.NAME, transportService, actionFilters, (Writeable.Reader<SearchRequest>) SearchRequest::new, tracer);
     }
 
     @Override

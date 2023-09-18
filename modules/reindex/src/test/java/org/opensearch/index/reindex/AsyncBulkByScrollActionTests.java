@@ -89,6 +89,7 @@ import org.opensearch.search.SearchHits;
 import org.opensearch.search.internal.InternalSearchResponse;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskManager;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.client.NoOpClient;
 import org.opensearch.threadpool.TestThreadPool;
@@ -818,8 +819,13 @@ public class AsyncBulkByScrollActionTests extends OpenSearchTestCase {
         DummyAbstractBulkByScrollRequest,
         BulkByScrollResponse> {
 
-        protected DummyTransportAsyncBulkByScrollAction(String actionName, ActionFilters actionFilters, TaskManager taskManager) {
-            super(actionName, actionFilters, taskManager);
+        protected DummyTransportAsyncBulkByScrollAction(
+            String actionName,
+            ActionFilters actionFilters,
+            TaskManager taskManager,
+            Tracer tracer
+        ) {
+            super(actionName, actionFilters, taskManager, tracer);
         }
 
         @Override

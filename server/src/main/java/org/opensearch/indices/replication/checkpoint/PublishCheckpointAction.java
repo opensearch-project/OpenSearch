@@ -34,6 +34,7 @@ import org.opensearch.indices.replication.SegmentReplicationTargetService;
 import org.opensearch.indices.replication.common.ReplicationTimer;
 import org.opensearch.node.NodeClosedException;
 import org.opensearch.tasks.Task;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportResponseHandler;
@@ -67,7 +68,8 @@ public class PublishCheckpointAction extends TransportReplicationAction<
         ThreadPool threadPool,
         ShardStateAction shardStateAction,
         ActionFilters actionFilters,
-        SegmentReplicationTargetService targetService
+        SegmentReplicationTargetService targetService,
+        Tracer tracer
     ) {
         super(
             settings,
@@ -80,7 +82,8 @@ public class PublishCheckpointAction extends TransportReplicationAction<
             actionFilters,
             PublishCheckpointRequest::new,
             PublishCheckpointRequest::new,
-            ThreadPool.Names.REFRESH
+            ThreadPool.Names.REFRESH,
+            tracer
         );
         this.replicationService = targetService;
     }

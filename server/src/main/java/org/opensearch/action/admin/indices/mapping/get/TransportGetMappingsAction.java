@@ -44,6 +44,7 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -68,7 +69,8 @@ public class TransportGetMappingsAction extends TransportClusterInfoAction<GetMa
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        IndicesService indicesService
+        IndicesService indicesService,
+        Tracer tracer
     ) {
         super(
             GetMappingsAction.NAME,
@@ -77,7 +79,8 @@ public class TransportGetMappingsAction extends TransportClusterInfoAction<GetMa
             threadPool,
             actionFilters,
             GetMappingsRequest::new,
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            tracer
         );
         this.indicesService = indicesService;
     }

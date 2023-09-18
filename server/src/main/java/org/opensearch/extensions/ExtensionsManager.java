@@ -41,6 +41,7 @@ import org.opensearch.extensions.rest.RestActionsRequestHandler;
 import org.opensearch.extensions.settings.CustomSettingsRequestHandler;
 import org.opensearch.extensions.settings.RegisterCustomSettingsRequest;
 import org.opensearch.identity.IdentityService;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.ConnectTransportException;
 import org.opensearch.transport.TransportException;
@@ -143,7 +144,8 @@ public class ExtensionsManager {
         ClusterService clusterService,
         Settings initialEnvironmentSettings,
         NodeClient client,
-        IdentityService identityService
+        IdentityService identityService,
+        Tracer tracer
     ) {
         this.restActionsRequestHandler = new RestActionsRequestHandler(
             actionModule.getRestController(),
@@ -167,7 +169,8 @@ public class ExtensionsManager {
             transportService,
             client,
             actionModule,
-            this
+            this,
+            tracer
         );
         registerRequestHandler(actionModule.getDynamicActionRegistry());
     }

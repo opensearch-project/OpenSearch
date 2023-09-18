@@ -52,6 +52,7 @@ import org.opensearch.env.Environment;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.plugins.ReloadablePlugin;
 import org.opensearch.tasks.Task;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportService;
@@ -81,7 +82,8 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
         TransportService transportService,
         ActionFilters actionFilters,
         Environment environment,
-        PluginsService pluginService
+        PluginsService pluginService,
+        Tracer tracer
     ) {
         super(
             NodesReloadSecureSettingsAction.NAME,
@@ -92,7 +94,8 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
             NodesReloadSecureSettingsRequest::new,
             NodeRequest::new,
             ThreadPool.Names.GENERIC,
-            NodesReloadSecureSettingsResponse.NodeResponse.class
+            NodesReloadSecureSettingsResponse.NodeResponse.class,
+            tracer
         );
         this.environment = environment;
         this.pluginsService = pluginService;

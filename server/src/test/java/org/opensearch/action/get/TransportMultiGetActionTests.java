@@ -213,7 +213,8 @@ public class TransportMultiGetActionTests extends OpenSearchTestCase {
             mock(IndicesService.class),
             threadPool,
             new ActionFilters(emptySet()),
-            new Resolver()
+            new Resolver(),
+            NoopTracer.INSTANCE
         ) {
             @Override
             protected void doExecute(Task task, MultiGetShardRequest request, ActionListener<MultiGetShardResponse> listener) {}
@@ -243,7 +244,8 @@ public class TransportMultiGetActionTests extends OpenSearchTestCase {
             clusterService,
             shardAction,
             new ActionFilters(emptySet()),
-            new Resolver()
+            new Resolver(),
+            NoopTracer.INSTANCE
         ) {
             @Override
             protected void executeShardAction(
@@ -275,7 +277,8 @@ public class TransportMultiGetActionTests extends OpenSearchTestCase {
             clusterService,
             shardAction,
             new ActionFilters(emptySet()),
-            new Resolver()
+            new Resolver(),
+            NoopTracer.INSTANCE
         ) {
             @Override
             protected void executeShardAction(

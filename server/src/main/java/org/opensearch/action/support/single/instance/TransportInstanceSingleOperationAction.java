@@ -55,6 +55,7 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.node.NodeClosedException;
 import org.opensearch.tasks.Task;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.threadpool.ThreadPool.Names;
 import org.opensearch.transport.ConnectTransportException;
@@ -92,9 +93,10 @@ public abstract class TransportInstanceSingleOperationAction<
         TransportService transportService,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        Writeable.Reader<Request> request
+        Writeable.Reader<Request> request,
+        Tracer tracer
     ) {
-        super(actionName, transportService, actionFilters, request);
+        super(actionName, transportService, actionFilters, request, tracer);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.transportService = transportService;

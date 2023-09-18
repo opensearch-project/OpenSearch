@@ -49,6 +49,7 @@ import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -74,7 +75,8 @@ public class TransportPutIndexTemplateAction extends TransportClusterManagerNode
         MetadataIndexTemplateService indexTemplateService,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        IndexScopedSettings indexScopedSettings
+        IndexScopedSettings indexScopedSettings,
+        Tracer tracer
     ) {
         super(
             PutIndexTemplateAction.NAME,
@@ -83,7 +85,8 @@ public class TransportPutIndexTemplateAction extends TransportClusterManagerNode
             threadPool,
             actionFilters,
             PutIndexTemplateRequest::new,
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            tracer
         );
         this.indexTemplateService = indexTemplateService;
         this.indexScopedSettings = indexScopedSettings;

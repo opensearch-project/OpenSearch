@@ -44,6 +44,7 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.repositories.RepositoriesService;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -65,7 +66,8 @@ public class TransportDeleteRepositoryAction extends TransportClusterManagerNode
         RepositoriesService repositoriesService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Tracer tracer
     ) {
         super(
             DeleteRepositoryAction.NAME,
@@ -74,7 +76,8 @@ public class TransportDeleteRepositoryAction extends TransportClusterManagerNode
             threadPool,
             actionFilters,
             DeleteRepositoryRequest::new,
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            tracer
         );
         this.repositoriesService = repositoriesService;
     }

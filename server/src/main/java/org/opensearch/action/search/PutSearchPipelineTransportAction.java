@@ -25,6 +25,7 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.search.pipeline.SearchPipelineInfo;
 import org.opensearch.search.pipeline.SearchPipelineService;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -51,7 +52,8 @@ public class PutSearchPipelineTransportAction extends TransportClusterManagerNod
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         SearchPipelineService searchPipelineService,
-        NodeClient client
+        NodeClient client,
+        Tracer tracer
     ) {
         super(
             PutSearchPipelineAction.NAME,
@@ -60,7 +62,8 @@ public class PutSearchPipelineTransportAction extends TransportClusterManagerNod
             threadPool,
             actionFilters,
             PutSearchPipelineRequest::new,
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            tracer
         );
         this.client = new OriginSettingClient(client, SEARCH_PIPELINE_ORIGIN);
         this.searchPipelineService = searchPipelineService;

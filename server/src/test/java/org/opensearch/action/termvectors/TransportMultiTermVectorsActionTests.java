@@ -205,7 +205,8 @@ public class TransportMultiTermVectorsActionTests extends OpenSearchTestCase {
             mock(IndicesService.class),
             threadPool,
             new ActionFilters(emptySet()),
-            new Resolver()
+            new Resolver(),
+            NoopTracer.INSTANCE
         ) {
             @Override
             protected void doExecute(
@@ -239,7 +240,8 @@ public class TransportMultiTermVectorsActionTests extends OpenSearchTestCase {
             clusterService,
             shardAction,
             new ActionFilters(emptySet()),
-            new Resolver()
+            new Resolver(),
+            NoopTracer.INSTANCE
         ) {
             @Override
             protected void executeShardAction(
@@ -271,7 +273,8 @@ public class TransportMultiTermVectorsActionTests extends OpenSearchTestCase {
             clusterService,
             shardAction,
             new ActionFilters(emptySet()),
-            new Resolver()
+            new Resolver(),
+            NoopTracer.INSTANCE
         ) {
             @Override
             protected void executeShardAction(

@@ -50,6 +50,7 @@ import org.opensearch.core.action.support.DefaultShardOperationFailedException;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.tasks.Task;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.transport.TransportService;
 
 import java.util.ArrayList;
@@ -80,9 +81,10 @@ public abstract class TransportBroadcastReplicationAction<
         TransportService transportService,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        TransportReplicationAction replicatedBroadcastShardAction
+        TransportReplicationAction replicatedBroadcastShardAction,
+        Tracer tracer
     ) {
-        super(name, transportService, actionFilters, requestReader);
+        super(name, transportService, actionFilters, requestReader, tracer);
         this.replicatedBroadcastShardAction = replicatedBroadcastShardAction;
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;

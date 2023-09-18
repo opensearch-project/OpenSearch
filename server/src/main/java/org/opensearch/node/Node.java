@@ -874,6 +874,7 @@ public class Node implements Closeable {
                 clusterService.getClusterSettings(),
                 tracer
             );
+
             Collection<UnaryOperator<Map<String, IndexTemplateMetadata>>> indexTemplateMetadataUpgraders = pluginsService.filterPlugins(
                 Plugin.class
             ).stream().map(Plugin::getIndexTemplateMetadataUpgrader).collect(Collectors.toList());
@@ -914,7 +915,8 @@ public class Node implements Closeable {
                 clusterService,
                 environment.settings(),
                 client,
-                identityService
+                identityService,
+                tracer
             );
             final PersistedStateRegistry persistedStateRegistry = new PersistedStateRegistry();
             final GatewayMetaState gatewayMetaState = new GatewayMetaState();
@@ -970,7 +972,8 @@ public class Node implements Closeable {
                 clusterModule.getIndexNameExpressionResolver(),
                 repositoryService,
                 transportService,
-                actionModule.getActionFilters()
+                actionModule.getActionFilters(),
+                tracer
             );
             SnapshotShardsService snapshotShardsService = new SnapshotShardsService(
                 settings,
@@ -984,7 +987,8 @@ public class Node implements Closeable {
                 clusterService,
                 transportService,
                 snapshotShardsService,
-                actionModule.getActionFilters()
+                actionModule.getActionFilters(),
+                tracer
             );
             RestoreService restoreService = new RestoreService(
                 clusterService,

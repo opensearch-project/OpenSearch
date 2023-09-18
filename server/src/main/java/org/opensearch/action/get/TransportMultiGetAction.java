@@ -46,6 +46,7 @@ import org.opensearch.common.util.concurrent.AtomicArray;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.tasks.Task;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.transport.TransportService;
 
 import java.util.HashMap;
@@ -69,9 +70,10 @@ public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequ
         ClusterService clusterService,
         TransportShardMultiGetAction shardAction,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver resolver
+        IndexNameExpressionResolver resolver,
+        Tracer tracer
     ) {
-        super(MultiGetAction.NAME, transportService, actionFilters, MultiGetRequest::new);
+        super(MultiGetAction.NAME, transportService, actionFilters, MultiGetRequest::new, tracer);
         this.clusterService = clusterService;
         this.shardAction = shardAction;
         this.indexNameExpressionResolver = resolver;

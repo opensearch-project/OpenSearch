@@ -82,7 +82,7 @@ public class TelemetryTracerEnabledSanityIT extends OpenSearchIntegTestCase {
             Arrays.asList(
                 new AllSpansAreEndedProperly(),
                 new AllSpansHaveUniqueId(),
-                new NumberOfTraceIDsEqualToRequests(Attributes.create().addAttribute("action", "indices:data/read/search[phase/query]")),
+                new NumberOfTraceIDsEqualToRequests(Attributes.create().addAttribute("action", "indices:data/read/search")),
                 new TotalRootSpansEqualToRequests()
             )
         );

@@ -45,6 +45,7 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.tasks.Task;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.transport.TransportService;
 
 import java.util.HashMap;
@@ -68,9 +69,10 @@ public class TransportMultiTermVectorsAction extends HandledTransportAction<Mult
         ClusterService clusterService,
         TransportShardMultiTermsVectorAction shardAction,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Tracer tracer
     ) {
-        super(MultiTermVectorsAction.NAME, transportService, actionFilters, MultiTermVectorsRequest::new);
+        super(MultiTermVectorsAction.NAME, transportService, actionFilters, MultiTermVectorsRequest::new, tracer);
         this.clusterService = clusterService;
         this.shardAction = shardAction;
         this.indexNameExpressionResolver = indexNameExpressionResolver;

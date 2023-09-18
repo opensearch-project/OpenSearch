@@ -54,6 +54,7 @@ import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestToXContentListener;
 import org.opensearch.script.ScriptContext;
 import org.opensearch.tasks.Task;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
@@ -166,8 +167,13 @@ public class PainlessContextAction extends ActionType<PainlessContextAction.Resp
         private final PainlessScriptEngine painlessScriptEngine;
 
         @Inject
-        public TransportAction(TransportService transportService, ActionFilters actionFilters, PainlessScriptEngine painlessScriptEngine) {
-            super(NAME, transportService, actionFilters, (Writeable.Reader<Request>) Request::new);
+        public TransportAction(
+            TransportService transportService,
+            ActionFilters actionFilters,
+            PainlessScriptEngine painlessScriptEngine,
+            Tracer tracer
+        ) {
+            super(NAME, transportService, actionFilters, (Writeable.Reader<Request>) Request::new, tracer);
             this.painlessScriptEngine = painlessScriptEngine;
         }
 

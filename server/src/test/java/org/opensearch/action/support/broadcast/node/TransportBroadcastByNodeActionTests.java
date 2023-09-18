@@ -152,7 +152,8 @@ public class TransportBroadcastByNodeActionTests extends OpenSearchTestCase {
                 actionFilters,
                 indexNameExpressionResolver,
                 request,
-                executor
+                executor,
+                NoopTracer.INSTANCE
             );
         }
 

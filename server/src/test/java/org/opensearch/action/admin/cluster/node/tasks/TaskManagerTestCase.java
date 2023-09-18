@@ -177,7 +177,8 @@ public abstract class TaskManagerTestCase extends OpenSearchTestCase {
                 request,
                 nodeRequest,
                 ThreadPool.Names.GENERIC,
-                NodeResponse.class
+                NodeResponse.class,
+                NoopTracer.INSTANCE
             );
         }
 
@@ -245,9 +246,15 @@ public abstract class TaskManagerTestCase extends OpenSearchTestCase {
                 clusterService,
                 transportService,
                 actionFilters,
-                taskResourceTrackingService
+                taskResourceTrackingService,
+                NoopTracer.INSTANCE
             );
-            transportCancelTasksAction = new TransportCancelTasksAction(clusterService, transportService, actionFilters);
+            transportCancelTasksAction = new TransportCancelTasksAction(
+                clusterService,
+                transportService,
+                actionFilters,
+                NoopTracer.INSTANCE
+            );
             transportService.acceptIncomingRequests();
         }
 

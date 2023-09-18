@@ -53,6 +53,7 @@ import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.NetworkPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.PluginsService;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.transport.MockTransportService;
@@ -118,7 +119,8 @@ public class TransportReplicationActionRetryOnClosedNodeIT extends OpenSearchInt
             IndicesService indicesService,
             ThreadPool threadPool,
             ShardStateAction shardStateAction,
-            ActionFilters actionFilters
+            ActionFilters actionFilters,
+            Tracer tracer
         ) {
             super(
                 settings,
@@ -131,7 +133,8 @@ public class TransportReplicationActionRetryOnClosedNodeIT extends OpenSearchInt
                 actionFilters,
                 Request::new,
                 Request::new,
-                ThreadPool.Names.GENERIC
+                ThreadPool.Names.GENERIC,
+                tracer
             );
         }
 

@@ -62,6 +62,7 @@ import org.opensearch.index.shard.ShardStateMetadata;
 import org.opensearch.index.store.Store;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportService;
@@ -104,7 +105,8 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
         ActionFilters actionFilters,
         NodeEnvironment env,
         IndicesService indicesService,
-        NamedXContentRegistry namedXContentRegistry
+        NamedXContentRegistry namedXContentRegistry,
+        Tracer tracer
     ) {
         super(
             ACTION_NAME,
@@ -115,7 +117,8 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
             Request::new,
             NodeRequest::new,
             ThreadPool.Names.FETCH_SHARD_STARTED,
-            NodeGatewayStartedShards.class
+            NodeGatewayStartedShards.class,
+            tracer
         );
         this.settings = settings;
         this.nodeEnv = env;

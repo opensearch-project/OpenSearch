@@ -59,6 +59,7 @@ import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.snapshots.SnapshotInfo;
 import org.opensearch.snapshots.SnapshotMissingException;
 import org.opensearch.snapshots.SnapshotsService;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -92,7 +93,8 @@ public class TransportGetSnapshotsAction extends TransportClusterManagerNodeActi
         ThreadPool threadPool,
         RepositoriesService repositoriesService,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Tracer tracer
     ) {
         super(
             GetSnapshotsAction.NAME,
@@ -101,7 +103,8 @@ public class TransportGetSnapshotsAction extends TransportClusterManagerNodeActi
             threadPool,
             actionFilters,
             GetSnapshotsRequest::new,
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            tracer
         );
         this.repositoriesService = repositoriesService;
     }

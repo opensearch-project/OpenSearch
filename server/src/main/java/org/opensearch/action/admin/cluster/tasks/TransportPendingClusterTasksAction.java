@@ -44,6 +44,7 @@ import org.opensearch.cluster.service.PendingClusterTask;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -69,7 +70,8 @@ public class TransportPendingClusterTasksAction extends TransportClusterManagerN
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Tracer tracer
     ) {
         super(
             PendingClusterTasksAction.NAME,
@@ -78,7 +80,8 @@ public class TransportPendingClusterTasksAction extends TransportClusterManagerN
             threadPool,
             actionFilters,
             PendingClusterTasksRequest::new,
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            tracer
         );
         this.clusterService = clusterService;
     }

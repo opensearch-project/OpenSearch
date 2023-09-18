@@ -43,6 +43,7 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.snapshots.SnapshotsService;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -63,7 +64,8 @@ public class TransportCreateSnapshotAction extends TransportClusterManagerNodeAc
         ThreadPool threadPool,
         SnapshotsService snapshotsService,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Tracer tracer
     ) {
         super(
             CreateSnapshotAction.NAME,
@@ -72,7 +74,8 @@ public class TransportCreateSnapshotAction extends TransportClusterManagerNodeAc
             threadPool,
             actionFilters,
             CreateSnapshotRequest::new,
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            tracer
         );
         this.snapshotsService = snapshotsService;
     }

@@ -130,6 +130,7 @@ import org.opensearch.script.ScriptType;
 import org.opensearch.search.MockSearchService;
 import org.opensearch.test.junit.listeners.LoggingListener;
 import org.opensearch.test.junit.listeners.ReproduceInfoPrinter;
+import org.opensearch.test.telemetry.annotation.SkipTracingStrictValidationRule;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 import org.opensearch.transport.nio.MockNioTransportPlugin;
@@ -217,6 +218,9 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
 
     private static final Collection<String> nettyLoggedLeaks = new ArrayList<>();
     private HeaderWarningAppender headerWarningAppender;
+
+    @Rule
+    public SkipTracingStrictValidationRule skipTracingStrictValidationRule = new SkipTracingStrictValidationRule();
 
     @AfterClass
     public static void resetPortCounter() {

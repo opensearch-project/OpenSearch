@@ -104,7 +104,8 @@ public class PublishCheckpointActionTests extends OpenSearchTestCase {
             threadPool,
             shardStateAction,
             new ActionFilters(Collections.emptySet()),
-            mockTargetService
+            mockTargetService,
+            NoopTracer.INSTANCE
         );
 
         final ReplicationCheckpoint checkpoint = new ReplicationCheckpoint(indexShard.shardId(), 1111, 11, 1, Codec.getDefault().getName());
@@ -139,7 +140,8 @@ public class PublishCheckpointActionTests extends OpenSearchTestCase {
             threadPool,
             shardStateAction,
             new ActionFilters(Collections.emptySet()),
-            mockTargetService
+            mockTargetService,
+            NoopTracer.INSTANCE
         );
 
         final ReplicationCheckpoint checkpoint = new ReplicationCheckpoint(indexShard.shardId(), 1111, 11, 1, Codec.getDefault().getName());
@@ -183,7 +185,8 @@ public class PublishCheckpointActionTests extends OpenSearchTestCase {
             threadPool,
             shardStateAction,
             new ActionFilters(Collections.emptySet()),
-            mock(SegmentReplicationTargetService.class)
+            mock(SegmentReplicationTargetService.class),
+            NoopTracer.INSTANCE
         );
     }
 

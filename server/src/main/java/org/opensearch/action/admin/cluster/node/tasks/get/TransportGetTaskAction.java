@@ -57,6 +57,7 @@ import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskInfo;
 import org.opensearch.tasks.TaskResult;
 import org.opensearch.tasks.TaskResultsService;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportRequestOptions;
 import org.opensearch.transport.TransportService;
@@ -91,9 +92,10 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
         ActionFilters actionFilters,
         ClusterService clusterService,
         Client client,
-        NamedXContentRegistry xContentRegistry
+        NamedXContentRegistry xContentRegistry,
+        Tracer tracer
     ) {
-        super(GetTaskAction.NAME, transportService, actionFilters, GetTaskRequest::new);
+        super(GetTaskAction.NAME, transportService, actionFilters, GetTaskRequest::new, tracer);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.transportService = transportService;

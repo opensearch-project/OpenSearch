@@ -68,6 +68,7 @@ import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.tasks.Task;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportChannel;
 import org.opensearch.transport.TransportException;
@@ -118,9 +119,10 @@ public class TransportFieldCapabilitiesIndexAction extends HandledTransportActio
         SearchService searchService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Tracer tracer
     ) {
-        super(ACTION_NAME, transportService, actionFilters, FieldCapabilitiesIndexRequest::new);
+        super(ACTION_NAME, transportService, actionFilters, FieldCapabilitiesIndexRequest::new, tracer);
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.searchService = searchService;

@@ -60,6 +60,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.index.Index;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -91,7 +92,8 @@ public class TransportDeleteDanglingIndexAction extends TransportClusterManagerN
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         Settings settings,
-        NodeClient nodeClient
+        NodeClient nodeClient,
+        Tracer tracer
     ) {
         super(
             DeleteDanglingIndexAction.NAME,
@@ -100,7 +102,8 @@ public class TransportDeleteDanglingIndexAction extends TransportClusterManagerN
             threadPool,
             actionFilters,
             DeleteDanglingIndexRequest::new,
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            tracer
         );
         this.settings = settings;
         this.nodeClient = nodeClient;

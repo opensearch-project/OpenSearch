@@ -46,6 +46,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.telemetry.annotation.SkipTracingStrictValidation;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -349,6 +350,9 @@ public class ClusterHealthIT extends OpenSearchIntegTestCase {
         }
     }
 
+    @SkipTracingStrictValidation(reason = "ClusterManager stop/restart is leaving the already submitted cluster health actions un-ended "
+        + "which is leaving the spans un-ended as well. I have verified and all the parent spans in the hierarchy to these"
+        + "spans are closed with the failure reason as node disconnected")
     public void testHealthOnClusterManagerFailover() throws Exception {
         final String node = internalCluster().startDataOnlyNode();
         final boolean withIndex = randomBoolean();

@@ -87,6 +87,7 @@ import org.opensearch.index.shard.ShardNotInPrimaryModeException;
 import org.opensearch.indices.IndexClosedException;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.cluster.ClusterStateChanges;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.CapturingTransport;
@@ -985,7 +986,8 @@ public class TransportReplicationActionTests extends OpenSearchTestCase {
             clusterService,
             shardStateAction,
             threadPool,
-            indicesService
+            indicesService,
+            NoopTracer.INSTANCE
         );
 
         action.handlePrimaryRequest(concreteShardRequest, createTransportChannel(listener), null);
@@ -1501,7 +1503,16 @@ public class TransportReplicationActionTests extends OpenSearchTestCase {
             ShardStateAction shardStateAction,
             ThreadPool threadPool
         ) {
-            this(settings, actionName, transportService, clusterService, shardStateAction, threadPool, mockIndicesService(clusterService));
+            this(
+                settings,
+                actionName,
+                transportService,
+                clusterService,
+                shardStateAction,
+                threadPool,
+                mockIndicesService(clusterService),
+                NoopTracer.INSTANCE
+            );
         }
 
         TestAction(
@@ -1511,7 +1522,8 @@ public class TransportReplicationActionTests extends OpenSearchTestCase {
             ClusterService clusterService,
             ShardStateAction shardStateAction,
             ThreadPool threadPool,
-            IndicesService indicesService
+            IndicesService indicesService,
+            Tracer tracer
         ) {
             super(
                 settings,
@@ -1526,7 +1538,8 @@ public class TransportReplicationActionTests extends OpenSearchTestCase {
                 Request::new,
                 ThreadPool.Names.SAME,
                 false,
-                forceExecute
+                forceExecute,
+                tracer
             );
         }
 

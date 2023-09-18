@@ -44,6 +44,7 @@ import org.opensearch.common.util.concurrent.CountDown;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.Strings;
 import org.opensearch.tasks.Task;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.RemoteClusterAware;
 import org.opensearch.transport.RemoteClusterService;
@@ -77,9 +78,10 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         ThreadPool threadPool,
         TransportFieldCapabilitiesIndexAction shardAction,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Tracer tracer
     ) {
-        super(FieldCapabilitiesAction.NAME, transportService, actionFilters, FieldCapabilitiesRequest::new);
+        super(FieldCapabilitiesAction.NAME, transportService, actionFilters, FieldCapabilitiesRequest::new, tracer);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.remoteClusterService = transportService.getRemoteClusterService();

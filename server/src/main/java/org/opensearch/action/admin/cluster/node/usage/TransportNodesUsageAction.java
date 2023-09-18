@@ -40,6 +40,7 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.search.aggregations.support.AggregationUsageService;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportService;
@@ -71,7 +72,8 @@ public class TransportNodesUsageAction extends TransportNodesAction<
         TransportService transportService,
         ActionFilters actionFilters,
         UsageService restUsageService,
-        AggregationUsageService aggregationUsageService
+        AggregationUsageService aggregationUsageService,
+        Tracer tracer
     ) {
         super(
             NodesUsageAction.NAME,
@@ -82,7 +84,8 @@ public class TransportNodesUsageAction extends TransportNodesAction<
             NodesUsageRequest::new,
             NodeUsageRequest::new,
             ThreadPool.Names.MANAGEMENT,
-            NodeUsage.class
+            NodeUsage.class,
+            tracer
         );
         this.restUsageService = restUsageService;
         this.aggregationUsageService = aggregationUsageService;

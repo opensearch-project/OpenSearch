@@ -14,6 +14,7 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.tasks.Task;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.transport.TransportService;
 
 import java.util.ArrayList;
@@ -36,9 +37,10 @@ public class TransportDeletePitAction extends HandledTransportAction<DeletePitRe
         TransportService transportService,
         ActionFilters actionFilters,
         NamedWriteableRegistry namedWriteableRegistry,
-        PitService pitService
+        PitService pitService,
+        Tracer tracer
     ) {
-        super(DeletePitAction.NAME, transportService, actionFilters, DeletePitRequest::new);
+        super(DeletePitAction.NAME, transportService, actionFilters, DeletePitRequest::new, tracer);
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.pitService = pitService;
     }

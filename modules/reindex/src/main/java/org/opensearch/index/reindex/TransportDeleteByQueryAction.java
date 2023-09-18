@@ -42,6 +42,7 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.script.ScriptService;
 import org.opensearch.tasks.Task;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -59,13 +60,15 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
         Client client,
         TransportService transportService,
         ScriptService scriptService,
-        ClusterService clusterService
+        ClusterService clusterService,
+        Tracer tracer
     ) {
         super(
             DeleteByQueryAction.NAME,
             transportService,
             actionFilters,
-            (Writeable.Reader<DeleteByQueryRequest>) DeleteByQueryRequest::new
+            (Writeable.Reader<DeleteByQueryRequest>) DeleteByQueryRequest::new,
+            tracer
         );
         this.threadPool = threadPool;
         this.client = client;

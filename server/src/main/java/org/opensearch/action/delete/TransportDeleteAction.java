@@ -36,6 +36,7 @@ import org.opensearch.action.bulk.TransportBulkAction;
 import org.opensearch.action.bulk.TransportSingleItemBulkWriteAction;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.common.inject.Inject;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.transport.TransportService;
 
 /**
@@ -49,7 +50,12 @@ import org.opensearch.transport.TransportService;
 public class TransportDeleteAction extends TransportSingleItemBulkWriteAction<DeleteRequest, DeleteResponse> {
 
     @Inject
-    public TransportDeleteAction(TransportService transportService, ActionFilters actionFilters, TransportBulkAction bulkAction) {
-        super(DeleteAction.NAME, transportService, actionFilters, DeleteRequest::new, bulkAction);
+    public TransportDeleteAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        TransportBulkAction bulkAction,
+        Tracer tracer
+    ) {
+        super(DeleteAction.NAME, transportService, actionFilters, DeleteRequest::new, bulkAction, tracer);
     }
 }

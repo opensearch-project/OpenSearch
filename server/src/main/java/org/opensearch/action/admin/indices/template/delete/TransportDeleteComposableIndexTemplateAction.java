@@ -46,6 +46,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -71,7 +72,8 @@ public class TransportDeleteComposableIndexTemplateAction extends TransportClust
         ThreadPool threadPool,
         MetadataIndexTemplateService indexTemplateService,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Tracer tracer
     ) {
         super(
             DeleteComposableIndexTemplateAction.NAME,
@@ -80,7 +82,8 @@ public class TransportDeleteComposableIndexTemplateAction extends TransportClust
             threadPool,
             actionFilters,
             DeleteComposableIndexTemplateAction.Request::new,
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            tracer
         );
         this.indexTemplateService = indexTemplateService;
     }

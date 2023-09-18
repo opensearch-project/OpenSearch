@@ -16,6 +16,7 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
@@ -50,7 +51,8 @@ public class TransportShardRefreshActionTests extends OpenSearchTestCase {
             mock(IndicesService.class),
             mock(ThreadPool.class),
             mock(ShardStateAction.class),
-            mock(ActionFilters.class)
+            mock(ActionFilters.class),
+            NoopTracer.INSTANCE
         );
     }
 }

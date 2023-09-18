@@ -38,6 +38,7 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.script.ScriptService;
 import org.opensearch.tasks.Task;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.transport.TransportService;
 
 /**
@@ -49,8 +50,13 @@ public class TransportGetScriptLanguageAction extends HandledTransportAction<Get
     private final ScriptService scriptService;
 
     @Inject
-    public TransportGetScriptLanguageAction(TransportService transportService, ActionFilters actionFilters, ScriptService scriptService) {
-        super(GetScriptLanguageAction.NAME, transportService, actionFilters, GetScriptLanguageRequest::new);
+    public TransportGetScriptLanguageAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        ScriptService scriptService,
+        Tracer tracer
+    ) {
+        super(GetScriptLanguageAction.NAME, transportService, actionFilters, GetScriptLanguageRequest::new, tracer);
         this.scriptService = scriptService;
     }
 

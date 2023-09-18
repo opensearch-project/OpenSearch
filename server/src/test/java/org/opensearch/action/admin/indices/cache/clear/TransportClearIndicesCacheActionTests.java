@@ -30,6 +30,7 @@ import org.opensearch.index.store.remote.filecache.FileCacheFactory;
 import org.opensearch.index.store.remote.filecache.FileCacheTests;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.node.Node;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.TransportService;
 
@@ -49,7 +50,8 @@ public class TransportClearIndicesCacheActionTests extends OpenSearchTestCase {
         mock(IndicesService.class),
         testNode,
         mock(ActionFilters.class),
-        mock(IndexNameExpressionResolver.class)
+        mock(IndexNameExpressionResolver.class),
+        NoopTracer.INSTANCE
     );
 
     private final ClusterBlock writeClusterBlock = new ClusterBlock(

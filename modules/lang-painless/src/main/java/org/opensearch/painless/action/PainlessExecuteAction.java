@@ -90,6 +90,7 @@ import org.opensearch.script.Script;
 import org.opensearch.script.ScriptContext;
 import org.opensearch.script.ScriptService;
 import org.opensearch.script.ScriptType;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -475,7 +476,8 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
             IndexNameExpressionResolver indexNameExpressionResolver,
             ScriptService scriptService,
             ClusterService clusterService,
-            IndicesService indicesServices
+            IndicesService indicesServices,
+            Tracer tracer
         ) {
             super(
                 NAME,
@@ -488,7 +490,8 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                 // Creating a in-memory index is not light weight
                 // TODO: is MANAGEMENT TP the right TP? Right now this is an admin api (see action name).
                 Request::new,
-                ThreadPool.Names.MANAGEMENT
+                ThreadPool.Names.MANAGEMENT,
+                tracer
             );
             this.scriptService = scriptService;
             this.indicesServices = indicesServices;

@@ -49,6 +49,7 @@ import org.opensearch.index.IndexService;
 import org.opensearch.index.engine.Segment;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -73,7 +74,8 @@ public class TransportUpgradeStatusAction extends TransportBroadcastByNodeAction
         TransportService transportService,
         IndicesService indicesService,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Tracer tracer
     ) {
         super(
             UpgradeStatusAction.NAME,
@@ -82,7 +84,8 @@ public class TransportUpgradeStatusAction extends TransportBroadcastByNodeAction
             actionFilters,
             indexNameExpressionResolver,
             UpgradeStatusRequest::new,
-            ThreadPool.Names.MANAGEMENT
+            ThreadPool.Names.MANAGEMENT,
+            tracer
         );
         this.indicesService = indicesService;
     }

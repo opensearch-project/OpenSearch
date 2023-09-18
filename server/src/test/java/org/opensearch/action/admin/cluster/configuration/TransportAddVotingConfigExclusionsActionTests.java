@@ -161,7 +161,8 @@ public class TransportAddVotingConfigExclusionsActionTests extends OpenSearchTes
             clusterService,
             threadPool,
             new ActionFilters(emptySet()),
-            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY))
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
+            NoopTracer.INSTANCE
         ); // registers action
 
         transportService.start();

@@ -46,6 +46,7 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.index.reindex.spi.RemoteReindexExtension;
 import org.opensearch.script.ScriptService;
 import org.opensearch.tasks.Task;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -87,9 +88,10 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         AutoCreateIndex autoCreateIndex,
         Client client,
         TransportService transportService,
-        ReindexSslConfig sslConfig
+        ReindexSslConfig sslConfig,
+        Tracer tracer
     ) {
-        super(ReindexAction.NAME, transportService, actionFilters, ReindexRequest::new);
+        super(ReindexAction.NAME, transportService, actionFilters, ReindexRequest::new, tracer);
         this.reindexValidator = new ReindexValidator(settings, clusterService, indexNameExpressionResolver, autoCreateIndex);
         this.reindexer = new Reindexer(clusterService, client, threadPool, scriptService, sslConfig, remoteExtension);
     }

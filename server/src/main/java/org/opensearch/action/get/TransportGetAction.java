@@ -49,6 +49,7 @@ import org.opensearch.index.IndexService;
 import org.opensearch.index.get.GetResult;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -70,7 +71,8 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
         IndicesService indicesService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Tracer tracer
     ) {
         super(
             GetAction.NAME,
@@ -80,7 +82,8 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
             actionFilters,
             indexNameExpressionResolver,
             GetRequest::new,
-            ThreadPool.Names.GET
+            ThreadPool.Names.GET,
+            tracer
         );
         this.indicesService = indicesService;
     }

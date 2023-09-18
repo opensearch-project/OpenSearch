@@ -41,6 +41,7 @@ import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.TransportService;
 
@@ -84,7 +85,8 @@ public class GrokProcessorGetActionTests extends OpenSearchTestCase {
         GrokProcessorGetAction.TransportAction transportAction = new GrokProcessorGetAction.TransportAction(
             mock(TransportService.class),
             mock(ActionFilters.class),
-            TEST_PATTERNS
+            TEST_PATTERNS,
+            NoopTracer.INSTANCE
         );
         GrokProcessorGetAction.Response[] receivedResponse = new GrokProcessorGetAction.Response[1];
         transportAction.doExecute(null, new GrokProcessorGetAction.Request(true), new ActionListener<GrokProcessorGetAction.Response>() {

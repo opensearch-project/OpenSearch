@@ -46,6 +46,7 @@ import org.opensearch.core.action.support.DefaultShardOperationFailedException;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -70,7 +71,8 @@ public class TransportForceMergeAction extends TransportBroadcastByNodeAction<
         TransportService transportService,
         IndicesService indicesService,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Tracer tracer
     ) {
         super(
             ForceMergeAction.NAME,
@@ -79,7 +81,8 @@ public class TransportForceMergeAction extends TransportBroadcastByNodeAction<
             actionFilters,
             indexNameExpressionResolver,
             ForceMergeRequest::new,
-            ThreadPool.Names.FORCE_MERGE
+            ThreadPool.Names.FORCE_MERGE,
+            tracer
         );
         this.indicesService = indicesService;
     }

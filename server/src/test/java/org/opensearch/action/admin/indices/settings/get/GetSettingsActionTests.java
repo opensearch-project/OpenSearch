@@ -80,7 +80,8 @@ public class GetSettingsActionTests extends OpenSearchTestCase {
                 settingsFilter,
                 new ActionFilters(Collections.emptySet()),
                 new Resolver(),
-                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS
+                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+                NoopTracer.INSTANCE
             );
         }
 

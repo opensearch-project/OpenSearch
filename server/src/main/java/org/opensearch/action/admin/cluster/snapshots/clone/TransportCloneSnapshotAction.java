@@ -44,6 +44,7 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.snapshots.SnapshotsService;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -65,7 +66,8 @@ public final class TransportCloneSnapshotAction extends TransportClusterManagerN
         ThreadPool threadPool,
         SnapshotsService snapshotsService,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Tracer tracer
     ) {
         super(
             CloneSnapshotAction.NAME,
@@ -74,7 +76,8 @@ public final class TransportCloneSnapshotAction extends TransportClusterManagerN
             threadPool,
             actionFilters,
             CloneSnapshotRequest::new,
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            tracer
         );
         this.snapshotsService = snapshotsService;
     }

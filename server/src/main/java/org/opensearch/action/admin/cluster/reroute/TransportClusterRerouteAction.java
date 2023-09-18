@@ -61,6 +61,7 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -89,7 +90,8 @@ public class TransportClusterRerouteAction extends TransportClusterManagerNodeAc
         ThreadPool threadPool,
         AllocationService allocationService,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Tracer tracer
     ) {
         super(
             ClusterRerouteAction.NAME,
@@ -98,7 +100,8 @@ public class TransportClusterRerouteAction extends TransportClusterManagerNodeAc
             threadPool,
             actionFilters,
             ClusterRerouteRequest::new,
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            tracer
         );
         this.allocationService = allocationService;
         // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.

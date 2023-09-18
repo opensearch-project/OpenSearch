@@ -49,6 +49,7 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.ingest.IngestInfo;
 import org.opensearch.ingest.IngestService;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -75,7 +76,8 @@ public class PutPipelineTransportAction extends TransportClusterManagerNodeActio
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         IngestService ingestService,
-        NodeClient client
+        NodeClient client,
+        Tracer tracer
     ) {
         super(
             PutPipelineAction.NAME,
@@ -84,7 +86,8 @@ public class PutPipelineTransportAction extends TransportClusterManagerNodeActio
             threadPool,
             actionFilters,
             PutPipelineRequest::new,
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            tracer
         );
         // This client is only used to perform an internal implementation detail,
         // so uses an internal origin context rather than the user context

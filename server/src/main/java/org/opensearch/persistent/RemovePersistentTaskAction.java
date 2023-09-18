@@ -47,6 +47,7 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -150,7 +151,8 @@ public class RemovePersistentTaskAction extends ActionType<PersistentTaskRespons
             ThreadPool threadPool,
             ActionFilters actionFilters,
             PersistentTasksClusterService persistentTasksClusterService,
-            IndexNameExpressionResolver indexNameExpressionResolver
+            IndexNameExpressionResolver indexNameExpressionResolver,
+            Tracer tracer
         ) {
             super(
                 RemovePersistentTaskAction.NAME,
@@ -159,7 +161,8 @@ public class RemovePersistentTaskAction extends ActionType<PersistentTaskRespons
                 threadPool,
                 actionFilters,
                 Request::new,
-                indexNameExpressionResolver
+                indexNameExpressionResolver,
+                tracer
             );
             this.persistentTasksClusterService = persistentTasksClusterService;
         }

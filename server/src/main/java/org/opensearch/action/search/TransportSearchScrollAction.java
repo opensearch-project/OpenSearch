@@ -39,6 +39,7 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.tasks.Task;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.transport.TransportService;
 
 /**
@@ -58,9 +59,16 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
         ClusterService clusterService,
         ActionFilters actionFilters,
         SearchTransportService searchTransportService,
-        SearchPhaseController searchPhaseController
+        SearchPhaseController searchPhaseController,
+        Tracer tracer
     ) {
-        super(SearchScrollAction.NAME, transportService, actionFilters, (Writeable.Reader<SearchScrollRequest>) SearchScrollRequest::new);
+        super(
+            SearchScrollAction.NAME,
+            transportService,
+            actionFilters,
+            (Writeable.Reader<SearchScrollRequest>) SearchScrollRequest::new,
+            tracer
+        );
         this.clusterService = clusterService;
         this.searchTransportService = searchTransportService;
         this.searchPhaseController = searchPhaseController;

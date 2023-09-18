@@ -44,6 +44,7 @@ import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.script.ScriptService;
 import org.opensearch.search.builder.SearchSourceBuilder;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.TransportService;
 
@@ -103,7 +104,8 @@ public class TransportRankEvalActionTests extends OpenSearchTestCase {
             client,
             mock(TransportService.class),
             mock(ScriptService.class),
-            NamedXContentRegistry.EMPTY
+            NamedXContentRegistry.EMPTY,
+            NoopTracer.INSTANCE
         );
         action.doExecute(null, rankEvalRequest, null);
     }

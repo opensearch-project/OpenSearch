@@ -296,7 +296,8 @@ public class TransportNodesActionTests extends OpenSearchTestCase {
                 request,
                 nodeRequest,
                 nodeExecutor,
-                TestNodeResponse.class
+                TestNodeResponse.class,
+                NoopTracer.INSTANCE
             );
         }
 

@@ -52,6 +52,7 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -89,7 +90,8 @@ public class RetentionLeaseActions {
             final ActionFilters actionFilters,
             final IndexNameExpressionResolver indexNameExpressionResolver,
             final IndicesService indicesService,
-            final Writeable.Reader<T> requestSupplier
+            final Writeable.Reader<T> requestSupplier,
+            final Tracer tracer
         ) {
             super(
                 name,
@@ -99,7 +101,8 @@ public class RetentionLeaseActions {
                 actionFilters,
                 indexNameExpressionResolver,
                 requestSupplier,
-                ThreadPool.Names.MANAGEMENT
+                ThreadPool.Names.MANAGEMENT,
+                tracer
             );
             this.indicesService = Objects.requireNonNull(indicesService);
         }
@@ -167,7 +170,8 @@ public class RetentionLeaseActions {
                 final TransportService transportService,
                 final ActionFilters actionFilters,
                 final IndexNameExpressionResolver indexNameExpressionResolver,
-                final IndicesService indicesService
+                final IndicesService indicesService,
+                final Tracer tracer
             ) {
                 super(
                     ACTION_NAME,
@@ -177,7 +181,8 @@ public class RetentionLeaseActions {
                     actionFilters,
                     indexNameExpressionResolver,
                     indicesService,
-                    AddRequest::new
+                    AddRequest::new,
+                    tracer
                 );
             }
 
@@ -227,7 +232,8 @@ public class RetentionLeaseActions {
                 final TransportService transportService,
                 final ActionFilters actionFilters,
                 final IndexNameExpressionResolver indexNameExpressionResolver,
-                final IndicesService indicesService
+                final IndicesService indicesService,
+                final Tracer tracer
             ) {
                 super(
                     ACTION_NAME,
@@ -237,7 +243,8 @@ public class RetentionLeaseActions {
                     actionFilters,
                     indexNameExpressionResolver,
                     indicesService,
-                    RenewRequest::new
+                    RenewRequest::new,
+                    tracer
                 );
             }
 
@@ -278,7 +285,8 @@ public class RetentionLeaseActions {
                 final TransportService transportService,
                 final ActionFilters actionFilters,
                 final IndexNameExpressionResolver indexNameExpressionResolver,
-                final IndicesService indicesService
+                final IndicesService indicesService,
+                final Tracer tracer
             ) {
                 super(
                     ACTION_NAME,
@@ -288,7 +296,8 @@ public class RetentionLeaseActions {
                     actionFilters,
                     indexNameExpressionResolver,
                     indicesService,
-                    RemoveRequest::new
+                    RemoveRequest::new,
+                    tracer
                 );
             }
 

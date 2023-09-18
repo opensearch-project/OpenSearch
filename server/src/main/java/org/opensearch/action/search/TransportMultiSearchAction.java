@@ -45,6 +45,7 @@ import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.tasks.Task;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -74,9 +75,16 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
         TransportService transportService,
         ClusterService clusterService,
         ActionFilters actionFilters,
-        NodeClient client
+        NodeClient client,
+        Tracer tracer
     ) {
-        super(MultiSearchAction.NAME, transportService, actionFilters, (Writeable.Reader<MultiSearchRequest>) MultiSearchRequest::new);
+        super(
+            MultiSearchAction.NAME,
+            transportService,
+            actionFilters,
+            (Writeable.Reader<MultiSearchRequest>) MultiSearchRequest::new,
+            tracer
+        );
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.allocatedProcessors = OpenSearchExecutors.allocatedProcessors(settings);
@@ -91,9 +99,16 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
         ClusterService clusterService,
         int allocatedProcessors,
         LongSupplier relativeTimeProvider,
-        NodeClient client
+        NodeClient client,
+        Tracer tracer
     ) {
-        super(MultiSearchAction.NAME, transportService, actionFilters, (Writeable.Reader<MultiSearchRequest>) MultiSearchRequest::new);
+        super(
+            MultiSearchAction.NAME,
+            transportService,
+            actionFilters,
+            (Writeable.Reader<MultiSearchRequest>) MultiSearchRequest::new,
+            tracer
+        );
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.allocatedProcessors = allocatedProcessors;

@@ -46,6 +46,11 @@ import org.opensearch.core.tasks.TaskId;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskListener;
 import org.opensearch.tasks.TaskManager;
+import org.opensearch.telemetry.tracing.Span;
+import org.opensearch.telemetry.tracing.SpanBuilder;
+import org.opensearch.telemetry.tracing.SpanScope;
+import org.opensearch.telemetry.tracing.Tracer;
+import org.opensearch.telemetry.tracing.listener.TraceableActionListener;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -59,16 +64,18 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
     public final String actionName;
     private final ActionFilter[] filters;
     protected final TaskManager taskManager;
+    private final Tracer tracer;
     /**
      * @deprecated declare your own logger.
      */
     @Deprecated
     protected Logger logger = LogManager.getLogger(getClass());
 
-    protected TransportAction(String actionName, ActionFilters actionFilters, TaskManager taskManager) {
+    protected TransportAction(String actionName, ActionFilters actionFilters, TaskManager taskManager, Tracer tracer) {
         this.actionName = actionName;
         this.filters = actionFilters.filters();
         this.taskManager = taskManager;
+        this.tracer = tracer;
     }
 
     private Releasable registerChildNode(TaskId parentTask) {
@@ -174,18 +181,27 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
      * Use this method when the transport action should continue to run in the context of the current task
      */
     public final void execute(Task task, Request request, ActionListener<Response> listener) {
-        ActionRequestValidationException validationException = request.validate();
-        if (validationException != null) {
-            listener.onFailure(validationException);
-            return;
-        }
+        final Span span = tracer.startSpan(SpanBuilder.from(task, actionName));
+        try (final SpanScope spanScope = tracer.withSpanInScope(span)) {
+            listener = TraceableActionListener.create(listener, span, tracer);
+            ActionRequestValidationException validationException = request.validate();
+            if (validationException != null) {
+                listener.onFailure(validationException);
+                return;
+            }
 
-        if (task != null && request.getShouldStoreResult()) {
-            listener = new TaskResultStoringActionListener<>(taskManager, task, listener);
-        }
+            if (task != null && request.getShouldStoreResult()) {
+                listener = new TaskResultStoringActionListener<>(taskManager, task, listener);
+            }
 
-        RequestFilterChain<Request, Response> requestFilterChain = new RequestFilterChain<>(this, logger);
-        requestFilterChain.proceed(task, actionName, request, listener);
+            RequestFilterChain<Request, Response> requestFilterChain = new RequestFilterChain<>(this, logger);
+            requestFilterChain.proceed(task, actionName, request, listener);
+        } catch (Exception e) {
+            // Some validation scenarios throws the RuntimeException other than validationException.
+            span.setError(e);
+            span.endSpan();
+            throw e;
+        }
     }
 
     protected abstract void doExecute(Task task, Request request, ActionListener<Response> listener);

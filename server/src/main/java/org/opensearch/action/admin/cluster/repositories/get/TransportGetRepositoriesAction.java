@@ -47,6 +47,7 @@ import org.opensearch.common.regex.Regex;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.repositories.RepositoryMissingException;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -70,7 +71,8 @@ public class TransportGetRepositoriesAction extends TransportClusterManagerNodeR
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Tracer tracer
     ) {
         super(
             GetRepositoriesAction.NAME,
@@ -79,7 +81,8 @@ public class TransportGetRepositoriesAction extends TransportClusterManagerNodeR
             threadPool,
             actionFilters,
             GetRepositoriesRequest::new,
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            tracer
         );
     }
 

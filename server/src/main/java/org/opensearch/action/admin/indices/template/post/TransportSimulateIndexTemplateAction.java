@@ -58,6 +58,7 @@ import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -99,7 +100,8 @@ public class TransportSimulateIndexTemplateAction extends TransportClusterManage
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         NamedXContentRegistry xContentRegistry,
-        IndicesService indicesService
+        IndicesService indicesService,
+        Tracer tracer
     ) {
         super(
             SimulateIndexTemplateAction.NAME,
@@ -108,7 +110,8 @@ public class TransportSimulateIndexTemplateAction extends TransportClusterManage
             threadPool,
             actionFilters,
             SimulateIndexTemplateRequest::new,
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            tracer
         );
         this.indexTemplateService = indexTemplateService;
         this.xContentRegistry = xContentRegistry;

@@ -42,6 +42,7 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.TaskInfo;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportService;
@@ -60,7 +61,12 @@ import java.util.function.Consumer;
 public class TransportCancelTasksAction extends TransportTasksAction<CancellableTask, CancelTasksRequest, CancelTasksResponse, TaskInfo> {
 
     @Inject
-    public TransportCancelTasksAction(ClusterService clusterService, TransportService transportService, ActionFilters actionFilters) {
+    public TransportCancelTasksAction(
+        ClusterService clusterService,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        Tracer tracer
+    ) {
         super(
             CancelTasksAction.NAME,
             clusterService,
@@ -69,7 +75,8 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
             CancelTasksRequest::new,
             CancelTasksResponse::new,
             TaskInfo::new,
-            ThreadPool.Names.MANAGEMENT
+            ThreadPool.Names.MANAGEMENT,
+            tracer
         );
     }
 

@@ -53,6 +53,7 @@ import org.opensearch.script.TemplateScript;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.tasks.Task;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
@@ -90,9 +91,10 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
         Client client,
         TransportService transportService,
         ScriptService scriptService,
-        NamedXContentRegistry namedXContentRegistry
+        NamedXContentRegistry namedXContentRegistry,
+        Tracer tracer
     ) {
-        super(RankEvalAction.NAME, transportService, actionFilters, (Writeable.Reader<RankEvalRequest>) RankEvalRequest::new);
+        super(RankEvalAction.NAME, transportService, actionFilters, (Writeable.Reader<RankEvalRequest>) RankEvalRequest::new, tracer);
         this.scriptService = scriptService;
         this.namedXContentRegistry = namedXContentRegistry;
         this.client = client;

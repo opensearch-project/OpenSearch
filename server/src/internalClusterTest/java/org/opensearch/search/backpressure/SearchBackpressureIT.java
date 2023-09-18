@@ -36,6 +36,7 @@ import org.opensearch.search.backpressure.settings.SearchShardTaskSettings;
 import org.opensearch.search.backpressure.settings.SearchTaskSettings;
 import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.Task;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
 import org.opensearch.threadpool.ThreadPool;
@@ -407,8 +408,8 @@ public class SearchBackpressureIT extends ParameterizedOpenSearchIntegTestCase {
         private final ThreadPool threadPool;
 
         @Inject
-        public TestTransportAction(TransportService transportService, ThreadPool threadPool, ActionFilters actionFilters) {
-            super(ACTION.name(), transportService, actionFilters, TestRequest::new);
+        public TestTransportAction(TransportService transportService, ThreadPool threadPool, ActionFilters actionFilters, Tracer tracer) {
+            super(ACTION.name(), transportService, actionFilters, TestRequest::new, tracer);
             this.threadPool = threadPool;
         }
 

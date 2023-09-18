@@ -51,6 +51,7 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardClosedException;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -78,7 +79,8 @@ public class GlobalCheckpointSyncAction extends TransportReplicationAction<
         final IndicesService indicesService,
         final ThreadPool threadPool,
         final ShardStateAction shardStateAction,
-        final ActionFilters actionFilters
+        final ActionFilters actionFilters,
+        final Tracer tracer
     ) {
         super(
             settings,
@@ -91,7 +93,8 @@ public class GlobalCheckpointSyncAction extends TransportReplicationAction<
             actionFilters,
             Request::new,
             Request::new,
-            ThreadPool.Names.MANAGEMENT
+            ThreadPool.Names.MANAGEMENT,
+            tracer
         );
     }
 

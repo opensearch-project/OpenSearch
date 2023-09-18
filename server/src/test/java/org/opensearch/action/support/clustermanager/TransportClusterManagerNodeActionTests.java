@@ -63,6 +63,7 @@ import org.opensearch.core.rest.RestStatus;
 import org.opensearch.discovery.ClusterManagerNotDiscoveredException;
 import org.opensearch.node.NodeClosedException;
 import org.opensearch.tasks.Task;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.CapturingTransport;
@@ -205,7 +206,7 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
     }
 
     class Action extends TransportClusterManagerNodeAction<Request, Response> {
-        Action(String actionName, TransportService transportService, ClusterService clusterService, ThreadPool threadPool) {
+        Action(String actionName, TransportService transportService, ClusterService clusterService, ThreadPool threadPool, Tracer tracer) {
             super(
                 actionName,
                 transportService,
@@ -213,7 +214,8 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
                 threadPool,
                 new ActionFilters(new HashSet<>()),
                 Request::new,
-                new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY))
+                new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
+                tracer
             );
         }
 
@@ -256,7 +258,7 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
 
         setState(clusterService, ClusterStateCreationUtils.state(localNode, localNode, allNodes));
 
-        new Action("internal:testAction", transportService, clusterService, threadPool) {
+        new Action("internal:testAction", transportService, clusterService, threadPool, NoopTracer.INSTANCE) {
             @Override
             protected void clusterManagerOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) {
                 if (clusterManagerOperationFailure) {
@@ -293,7 +295,7 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
 
         setState(clusterService, ClusterStateCreationUtils.state(localNode, localNode, allNodes));
 
-        new Action("internal:testAction", transportService, clusterService, threadPool) {
+        new Action("internal:testAction", transportService, clusterService, threadPool, NoopTracer.INSTANCE) {
             @Override
             protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) {
                 if (clusterManagerOperationFailure) {
@@ -330,7 +332,7 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
             .build();
         setState(clusterService, stateWithBlock);
 
-        new Action("internal:testAction", transportService, clusterService, threadPool) {
+        new Action("internal:testAction", transportService, clusterService, threadPool, NoopTracer.INSTANCE) {
             @Override
             protected ClusterBlockException checkBlock(Request request, ClusterState state) {
                 Set<ClusterBlock> blocks = state.blocks().global();
@@ -376,7 +378,7 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
             .build();
         setState(clusterService, stateWithBlock);
 
-        new Action("internal:testAction", transportService, clusterService, threadPool) {
+        new Action("internal:testAction", transportService, clusterService, threadPool, NoopTracer.INSTANCE) {
             @Override
             protected ClusterBlockException checkBlock(Request request, ClusterState state) {
                 Set<ClusterBlock> blocks = state.blocks().global();
@@ -408,7 +410,7 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
 
         setState(clusterService, ClusterStateCreationUtils.state(localNode, randomFrom(localNode, remoteNode, null), allNodes));
 
-        new Action("internal:testAction", transportService, clusterService, threadPool) {
+        new Action("internal:testAction", transportService, clusterService, threadPool, NoopTracer.INSTANCE) {
             @Override
             protected boolean localExecute(Request request) {
                 return true;
@@ -423,7 +425,7 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
         Request request = new Request().clusterManagerNodeTimeout(TimeValue.timeValueSeconds(0));
         setState(clusterService, ClusterStateCreationUtils.state(localNode, null, allNodes));
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
-        new Action("internal:testAction", transportService, clusterService, threadPool).execute(request, listener);
+        new Action("internal:testAction", transportService, clusterService, threadPool, NoopTracer.INSTANCE).execute(request, listener);
         assertTrue(listener.isDone());
         assertListenerThrows("ClusterManagerNotDiscoveredException should be thrown", listener, ClusterManagerNotDiscoveredException.class);
     }
@@ -432,7 +434,7 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
         Request request = new Request();
         setState(clusterService, ClusterStateCreationUtils.state(localNode, null, allNodes));
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
-        new Action("internal:testAction", transportService, clusterService, threadPool).execute(request, listener);
+        new Action("internal:testAction", transportService, clusterService, threadPool, NoopTracer.INSTANCE).execute(request, listener);
         assertFalse(listener.isDone());
         setState(clusterService, ClusterStateCreationUtils.state(localNode, localNode, allNodes));
         assertTrue(listener.isDone());
@@ -444,7 +446,7 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
         setState(clusterService, ClusterStateCreationUtils.state(localNode, remoteNode, allNodes));
 
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
-        new Action("internal:testAction", transportService, clusterService, threadPool).execute(request, listener);
+        new Action("internal:testAction", transportService, clusterService, threadPool, NoopTracer.INSTANCE).execute(request, listener);
 
         assertThat(transport.capturedRequests().length, equalTo(1));
         CapturingTransport.CapturedRequest capturedRequest = transport.capturedRequests()[0];
@@ -470,7 +472,7 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
         );
 
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
-        new Action("internal:testAction", transportService, clusterService, threadPool).execute(request, listener);
+        new Action("internal:testAction", transportService, clusterService, threadPool, NoopTracer.INSTANCE).execute(request, listener);
 
         CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
         assertThat(capturedRequests.length, equalTo(1));
@@ -552,7 +554,7 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
 
         setState(clusterService, ClusterStateCreationUtils.state(localNode, localNode, allNodes));
 
-        new Action("internal:testAction", transportService, clusterService, threadPool) {
+        new Action("internal:testAction", transportService, clusterService, threadPool, NoopTracer.INSTANCE) {
             @Override
             protected void clusterManagerOperation(Request request, ClusterState state, ActionListener<Response> listener)
                 throws Exception {
@@ -599,7 +601,7 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
         setState(clusterService, ClusterStateCreationUtils.state(localNode, remoteNode, allNodes));
 
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
-        new Action("internal:testAction", transportService, clusterService, threadPool).execute(request, listener);
+        new Action("internal:testAction", transportService, clusterService, threadPool, NoopTracer.INSTANCE).execute(request, listener);
 
         assertThat(transport.capturedRequests().length, equalTo(1));
         CapturingTransport.CapturedRequest capturedRequest = transport.capturedRequests()[0];
@@ -621,7 +623,13 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
         CyclicBarrier barrier = new CyclicBarrier(2);
         setState(clusterService, ClusterStateCreationUtils.state(localNode, localNode, new DiscoveryNode[] { localNode }));
 
-        TransportClusterManagerNodeAction action = new Action("internal:testAction", transportService, clusterService, threadPool) {
+        TransportClusterManagerNodeAction action = new Action(
+            "internal:testAction",
+            transportService,
+            clusterService,
+            threadPool,
+            NoopTracer.INSTANCE
+        ) {
             @Override
             protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) {
                 if (exception.getAndSet(false)) {
@@ -654,7 +662,13 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
         );
 
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
-        TransportClusterManagerNodeAction action = new Action("internal:testAction", transportService, clusterService, threadPool);
+        TransportClusterManagerNodeAction action = new Action(
+            "internal:testAction",
+            transportService,
+            clusterService,
+            threadPool,
+            NoopTracer.INSTANCE
+        );
         action.execute(request, listener);
 
         CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
@@ -692,7 +706,13 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
         CyclicBarrier barrier = new CyclicBarrier(2);
         setState(clusterService, ClusterStateCreationUtils.state(localNode, localNode, new DiscoveryNode[] { localNode }));
 
-        TransportClusterManagerNodeAction action = new Action("internal:testAction", transportService, clusterService, threadPool) {
+        TransportClusterManagerNodeAction action = new Action(
+            "internal:testAction",
+            transportService,
+            clusterService,
+            threadPool,
+            NoopTracer.INSTANCE
+        ) {
             @Override
             protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener)
                 throws Exception {

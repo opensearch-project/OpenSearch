@@ -61,6 +61,7 @@ import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.tasks.Task;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -91,7 +92,8 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
         TransportService transportService,
         SearchService searchService,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Tracer tracer
     ) {
         super(
             ValidateQueryAction.NAME,
@@ -101,7 +103,8 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
             indexNameExpressionResolver,
             ValidateQueryRequest::new,
             ShardValidateQueryRequest::new,
-            ThreadPool.Names.SEARCH
+            ThreadPool.Names.SEARCH,
+            tracer
         );
         this.searchService = searchService;
     }

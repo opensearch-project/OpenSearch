@@ -59,6 +59,7 @@ import org.opensearch.index.shard.IndexShardClosedException;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.node.NodeClosedException;
 import org.opensearch.tasks.Task;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportResponseHandler;
@@ -96,7 +97,8 @@ public class RetentionLeaseBackgroundSyncAction extends TransportReplicationActi
         final IndicesService indicesService,
         final ThreadPool threadPool,
         final ShardStateAction shardStateAction,
-        final ActionFilters actionFilters
+        final ActionFilters actionFilters,
+        final Tracer tracer
     ) {
         super(
             settings,
@@ -109,7 +111,8 @@ public class RetentionLeaseBackgroundSyncAction extends TransportReplicationActi
             actionFilters,
             Request::new,
             Request::new,
-            ThreadPool.Names.MANAGEMENT
+            ThreadPool.Names.MANAGEMENT,
+            tracer
         );
     }
 

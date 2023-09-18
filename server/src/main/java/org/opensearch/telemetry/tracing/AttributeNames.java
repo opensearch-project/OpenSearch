@@ -64,4 +64,14 @@ public final class AttributeNames {
      * Action Name.
      */
     public static final String TRANSPORT_ACTION = "action";
+
+    /**
+     * task id.
+     */
+    public static final String TASK_ID = "task_id";
+
+    /**
+     * parent task id.
+     */
+    public static final String PARENT_TASK_ID = "p_task_id";
 }

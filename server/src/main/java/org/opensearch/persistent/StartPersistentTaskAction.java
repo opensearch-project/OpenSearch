@@ -48,6 +48,7 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -214,7 +215,8 @@ public class StartPersistentTaskAction extends ActionType<PersistentTaskResponse
             PersistentTasksClusterService persistentTasksClusterService,
             PersistentTasksExecutorRegistry persistentTasksExecutorRegistry,
             PersistentTasksService persistentTasksService,
-            IndexNameExpressionResolver indexNameExpressionResolver
+            IndexNameExpressionResolver indexNameExpressionResolver,
+            Tracer tracer
         ) {
             super(
                 StartPersistentTaskAction.NAME,
@@ -223,7 +225,8 @@ public class StartPersistentTaskAction extends ActionType<PersistentTaskResponse
                 threadPool,
                 actionFilters,
                 Request::new,
-                indexNameExpressionResolver
+                indexNameExpressionResolver,
+                tracer
             );
             this.persistentTasksClusterService = persistentTasksClusterService;
             NodePersistentTasksExecutor executor = new NodePersistentTasksExecutor(threadPool);

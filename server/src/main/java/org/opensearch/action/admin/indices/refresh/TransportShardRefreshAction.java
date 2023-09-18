@@ -44,6 +44,7 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -69,7 +70,8 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
         IndicesService indicesService,
         ThreadPool threadPool,
         ShardStateAction shardStateAction,
-        ActionFilters actionFilters
+        ActionFilters actionFilters,
+        Tracer tracer
     ) {
         super(
             settings,
@@ -82,7 +84,8 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
             actionFilters,
             BasicReplicationRequest::new,
             BasicReplicationRequest::new,
-            ThreadPool.Names.REFRESH
+            ThreadPool.Names.REFRESH,
+            tracer
         );
     }
 

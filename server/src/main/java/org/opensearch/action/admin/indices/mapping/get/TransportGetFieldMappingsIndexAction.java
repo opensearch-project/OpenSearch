@@ -55,6 +55,7 @@ import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.Mapper;
 import org.opensearch.index.mapper.MappingLookup;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -87,7 +88,8 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleShardAc
         IndicesService indicesService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Tracer tracer
     ) {
         super(
             ACTION_NAME,
@@ -97,7 +99,8 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleShardAc
             actionFilters,
             indexNameExpressionResolver,
             GetFieldMappingsIndexRequest::new,
-            ThreadPool.Names.MANAGEMENT
+            ThreadPool.Names.MANAGEMENT,
+            tracer
         );
         this.clusterService = clusterService;
         this.indicesService = indicesService;

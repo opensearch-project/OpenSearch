@@ -61,6 +61,7 @@ import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.tasks.Task;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.RemoteClusterAware;
 import org.opensearch.transport.RemoteClusterService;
@@ -504,9 +505,10 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             ClusterService clusterService,
             ThreadPool threadPool,
             ActionFilters actionFilters,
-            IndexNameExpressionResolver indexNameExpressionResolver
+            IndexNameExpressionResolver indexNameExpressionResolver,
+            Tracer tracer
         ) {
-            super(NAME, transportService, actionFilters, Request::new);
+            super(NAME, transportService, actionFilters, Request::new, tracer);
             this.threadPool = threadPool;
             this.clusterService = clusterService;
             this.remoteClusterService = transportService.getRemoteClusterService();

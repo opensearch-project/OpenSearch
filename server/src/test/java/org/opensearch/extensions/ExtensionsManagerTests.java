@@ -774,7 +774,8 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             clusterService,
             settings,
             client,
-            identityService
+            identityService,
+            NoopTracer.INSTANCE
         );
         verify(mockTransportService, times(9)).registerRequestHandler(anyString(), anyString(), anyBoolean(), anyBoolean(), any(), any());
 
@@ -892,7 +893,8 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             clusterService,
             settings,
             client,
-            identityService
+            identityService,
+            NoopTracer.INSTANCE
         );
     }
 }

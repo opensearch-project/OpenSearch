@@ -50,6 +50,7 @@ import org.opensearch.rest.RestRequest;
 import org.opensearch.search.AbstractSearchTestCase;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskManager;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.rest.FakeRestChannel;
 import org.opensearch.test.rest.FakeRestRequest;
 import org.opensearch.threadpool.TestThreadPool;
@@ -98,7 +99,8 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
         final TransportAction<?, ?> transportAction = new TransportAction<>(
             ValidateQueryAction.NAME,
             new ActionFilters(Collections.emptySet()),
-            taskManager
+            taskManager,
+            NoopTracer.INSTANCE
         ) {
             @Override
             protected void doExecute(Task task, ActionRequest request, ActionListener listener) {}

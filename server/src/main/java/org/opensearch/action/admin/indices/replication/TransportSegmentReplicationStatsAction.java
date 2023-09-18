@@ -29,6 +29,7 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.replication.SegmentReplicationState;
 import org.opensearch.indices.replication.SegmentReplicationTargetService;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -63,7 +64,8 @@ public class TransportSegmentReplicationStatsAction extends TransportBroadcastBy
         SegmentReplicationTargetService targetService,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        SegmentReplicationPressureService pressureService
+        SegmentReplicationPressureService pressureService,
+        Tracer tracer
     ) {
         super(
             SegmentReplicationStatsAction.NAME,
@@ -72,7 +74,8 @@ public class TransportSegmentReplicationStatsAction extends TransportBroadcastBy
             actionFilters,
             indexNameExpressionResolver,
             SegmentReplicationStatsRequest::new,
-            ThreadPool.Names.MANAGEMENT
+            ThreadPool.Names.MANAGEMENT,
+            tracer
         );
         this.indicesService = indicesService;
         this.targetService = targetService;

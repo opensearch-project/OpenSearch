@@ -47,6 +47,7 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.tasks.Task;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportChannel;
 import org.opensearch.transport.TransportRequest;
@@ -72,7 +73,8 @@ public class TransportShardFlushAction extends TransportReplicationAction<ShardF
         IndicesService indicesService,
         ThreadPool threadPool,
         ShardStateAction shardStateAction,
-        ActionFilters actionFilters
+        ActionFilters actionFilters,
+        Tracer tracer
     ) {
         super(
             settings,
@@ -85,7 +87,8 @@ public class TransportShardFlushAction extends TransportReplicationAction<ShardF
             actionFilters,
             ShardFlushRequest::new,
             ShardFlushRequest::new,
-            ThreadPool.Names.FLUSH
+            ThreadPool.Names.FLUSH,
+            tracer
         );
         transportService.registerRequestHandler(
             PRE_SYNCED_FLUSH_ACTION_NAME,

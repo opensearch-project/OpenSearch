@@ -68,6 +68,7 @@ import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskInfo;
 import org.opensearch.tasks.TaskManager;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
 import org.opensearch.threadpool.ThreadPool;
@@ -495,8 +496,8 @@ public class CancellableTasksIT extends ParameterizedOpenSearchIntegTestCase {
         private final NodeClient client;
 
         @Inject
-        public TransportTestAction(TransportService transportService, NodeClient client, ActionFilters actionFilters) {
-            super(ACTION.name(), transportService, actionFilters, TestRequest::new, ThreadPool.Names.GENERIC);
+        public TransportTestAction(TransportService transportService, NodeClient client, ActionFilters actionFilters, Tracer tracer) {
+            super(ACTION.name(), transportService, actionFilters, TestRequest::new, ThreadPool.Names.GENERIC, tracer);
             this.transportService = transportService;
             this.client = client;
         }

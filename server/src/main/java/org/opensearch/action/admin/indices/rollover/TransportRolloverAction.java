@@ -58,6 +58,7 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.index.shard.DocsStats;
 import org.opensearch.tasks.Task;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -89,7 +90,8 @@ public class TransportRolloverAction extends TransportClusterManagerNodeAction<R
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         MetadataRolloverService rolloverService,
-        Client client
+        Client client,
+        Tracer tracer
     ) {
         super(
             RolloverAction.NAME,
@@ -98,7 +100,8 @@ public class TransportRolloverAction extends TransportClusterManagerNodeAction<R
             threadPool,
             actionFilters,
             RolloverRequest::new,
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            tracer
         );
         this.rolloverService = rolloverService;
         this.client = client;

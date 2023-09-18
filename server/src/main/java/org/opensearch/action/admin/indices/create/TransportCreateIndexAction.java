@@ -43,6 +43,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -64,7 +65,8 @@ public class TransportCreateIndexAction extends TransportClusterManagerNodeActio
         ThreadPool threadPool,
         MetadataCreateIndexService createIndexService,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Tracer tracer
     ) {
         super(
             CreateIndexAction.NAME,
@@ -73,7 +75,8 @@ public class TransportCreateIndexAction extends TransportClusterManagerNodeActio
             threadPool,
             actionFilters,
             CreateIndexRequest::new,
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            tracer
         );
         this.createIndexService = createIndexService;
     }

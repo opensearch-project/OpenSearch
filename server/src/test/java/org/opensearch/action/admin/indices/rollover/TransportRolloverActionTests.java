@@ -80,6 +80,7 @@ import org.opensearch.index.store.StoreStats;
 import org.opensearch.index.warmer.WarmerStats;
 import org.opensearch.search.suggest.completion.CompletionStats;
 import org.opensearch.tasks.Task;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
@@ -290,7 +291,8 @@ public class TransportRolloverActionTests extends OpenSearchTestCase {
             mockActionFilters,
             mockIndexNameExpressionResolver,
             rolloverService,
-            mockClient
+            mockClient,
+            NoopTracer.INSTANCE
         );
 
         // For given alias, verify that condition evaluation fails when the condition doc count is greater than the primaries doc count

@@ -38,6 +38,7 @@ import org.opensearch.indices.IndicesService;
 import org.opensearch.search.SearchService;
 import org.opensearch.search.internal.PitReaderContext;
 import org.opensearch.tasks.Task;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -72,7 +73,8 @@ public class TransportPitSegmentsAction extends TransportBroadcastByNodeAction<P
         IndexNameExpressionResolver indexNameExpressionResolver,
         SearchService searchService,
         NamedWriteableRegistry namedWriteableRegistry,
-        PitService pitService
+        PitService pitService,
+        Tracer tracer
     ) {
         super(
             PitSegmentsAction.NAME,
@@ -81,7 +83,8 @@ public class TransportPitSegmentsAction extends TransportBroadcastByNodeAction<P
             actionFilters,
             indexNameExpressionResolver,
             PitSegmentsRequest::new,
-            ThreadPool.Names.MANAGEMENT
+            ThreadPool.Names.MANAGEMENT,
+            tracer
         );
         this.clusterService = clusterService;
         this.indicesService = indicesService;

@@ -38,6 +38,7 @@ import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.tasks.Task;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.transport.RemoteClusterService;
 import org.opensearch.transport.TransportService;
 
@@ -56,9 +57,10 @@ public final class TransportRemoteInfoAction extends HandledTransportAction<Remo
     public TransportRemoteInfoAction(
         TransportService transportService,
         ActionFilters actionFilters,
-        SearchTransportService searchTransportService
+        SearchTransportService searchTransportService,
+        Tracer tracer
     ) {
-        super(RemoteInfoAction.NAME, transportService, actionFilters, RemoteInfoRequest::new);
+        super(RemoteInfoAction.NAME, transportService, actionFilters, RemoteInfoRequest::new, tracer);
         this.remoteClusterService = searchTransportService.getRemoteClusterService();
     }
 

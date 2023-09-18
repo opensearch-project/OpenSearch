@@ -19,6 +19,7 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.search.pipeline.SearchPipelineService;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -39,7 +40,8 @@ public class GetSearchPipelineTransportAction extends TransportClusterManagerNod
         ClusterService clusterService,
         TransportService transportService,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Tracer tracer
     ) {
         super(
             GetSearchPipelineAction.NAME,
@@ -48,7 +50,8 @@ public class GetSearchPipelineTransportAction extends TransportClusterManagerNod
             threadPool,
             actionFilters,
             GetSearchPipelineRequest::new,
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            tracer
         );
     }
 
