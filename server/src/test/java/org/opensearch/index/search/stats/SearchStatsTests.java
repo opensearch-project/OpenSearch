@@ -32,6 +32,7 @@
 
 package org.opensearch.index.search.stats;
 
+import org.opensearch.action.search.SearchPhaseName;
 import org.opensearch.action.search.SearchRequestStats;
 import org.opensearch.index.search.stats.SearchStats.Stats;
 import org.opensearch.test.OpenSearchTestCase;
@@ -65,26 +66,18 @@ public class SearchStatsTests extends OpenSearchTestCase {
         searchStats1.add(searchStats2);
         assertStats(groupStats1.get("group1"), 3);
 
-        long paramValue = 1;
+        long paramValue = randomIntBetween(2, 50);
 
         // Testing for request stats
         SearchRequestStats testRequestStats = new SearchRequestStats();
-        testRequestStats.totalStats.dfsPreQueryMetric.inc(paramValue);
-        testRequestStats.totalStats.dfsPreQueryCurrent.inc(paramValue);
-        testRequestStats.totalStats.dfsPreQueryTotal.inc(paramValue);
-        testRequestStats.totalStats.canMatchMetric.inc(paramValue);
-        testRequestStats.totalStats.canMatchCurrent.inc(paramValue);
-        testRequestStats.totalStats.canMatchTotal.inc(paramValue);
-        testRequestStats.totalStats.queryMetric.inc(paramValue);
-        testRequestStats.totalStats.queryCurrent.inc(paramValue);
-        testRequestStats.totalStats.queryTotal.inc(paramValue);
-        testRequestStats.totalStats.fetchMetric.inc(paramValue);
-        testRequestStats.totalStats.fetchCurrent.inc(paramValue);
-        testRequestStats.totalStats.fetchTotal.inc(paramValue);
-        testRequestStats.totalStats.expandSearchMetric.inc(paramValue);
-        testRequestStats.totalStats.expandSearchCurrent.inc(paramValue);
-        testRequestStats.totalStats.expandSearchTotal.inc(paramValue);
-
+        for (SearchPhaseName searchPhaseName : SearchPhaseName.values()) {
+            if (SearchPhaseName.DFS_QUERY.equals(searchPhaseName)) {
+                continue;
+            }
+            testRequestStats.totalStats.getQueryCurrentMap().get(searchPhaseName).inc(paramValue);
+            testRequestStats.totalStats.getQueryTotalMap().get(searchPhaseName).inc(paramValue);
+            testRequestStats.totalStats.getQueryMetricMap().get(searchPhaseName).inc(paramValue);
+        }
         searchStats1.setSearchRequestStats(testRequestStats);
         assertRequestStats(searchStats1.getTotal(), paramValue);
 
@@ -114,21 +107,13 @@ public class SearchStatsTests extends OpenSearchTestCase {
     }
 
     private static void assertRequestStats(Stats stats, long equalTo) {
-        assertEquals(equalTo, stats.getRequestStatsLongHolder().dfsPreQueryMetric);
-        assertEquals(equalTo, stats.getRequestStatsLongHolder().dfsPreQueryCurrent);
-        assertEquals(equalTo, stats.getRequestStatsLongHolder().dfsPreQueryTotal);
-        assertEquals(equalTo, stats.getRequestStatsLongHolder().canMatchMetric);
-        assertEquals(equalTo, stats.getRequestStatsLongHolder().canMatchCurrent);
-        assertEquals(equalTo, stats.getRequestStatsLongHolder().canMatchTotal);
-        assertEquals(equalTo, stats.getRequestStatsLongHolder().queryMetric);
-        assertEquals(equalTo, stats.getRequestStatsLongHolder().queryCurrent);
-        assertEquals(equalTo, stats.getRequestStatsLongHolder().queryTotal);
-        assertEquals(equalTo, stats.getRequestStatsLongHolder().fetchMetric);
-        assertEquals(equalTo, stats.getRequestStatsLongHolder().fetchCurrent);
-        assertEquals(equalTo, stats.getRequestStatsLongHolder().fetchTotal);
-        assertEquals(equalTo, stats.getRequestStatsLongHolder().expandSearchMetric);
-        assertEquals(equalTo, stats.getRequestStatsLongHolder().expandSearchCurrent);
-        assertEquals(equalTo, stats.getRequestStatsLongHolder().expandSearchTotal);
+        for (SearchPhaseName searchPhaseName : SearchPhaseName.values()) {
+            if (SearchPhaseName.DFS_QUERY.equals(searchPhaseName)) {
+                continue;
+            }
+            assertEquals(equalTo, stats.getRequestStatsLongHolder().getSearchPhaseCurrentMap().get(searchPhaseName.getName()).longValue());
+            assertEquals(equalTo, stats.getRequestStatsLongHolder().getSearchPhaseTotalMap().get(searchPhaseName.getName()).longValue());
+            assertEquals(equalTo, stats.getRequestStatsLongHolder().getSearchPhaseMetricMap().get(searchPhaseName.getName()).longValue());
+        }
     }
-
 }

@@ -86,7 +86,7 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
         List<SearchRequestOperationsListener> searchListenersList
     ) {
         super(
-            "query",
+            SearchPhaseName.QUERY.getName(),
             logger,
             searchTransportService,
             nodeIdToConnection,

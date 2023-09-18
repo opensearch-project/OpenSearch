@@ -35,6 +35,7 @@ package org.opensearch.search.stats;
 import org.opensearch.action.admin.cluster.node.stats.NodeStats;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.opensearch.action.search.SearchPhaseName;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.routing.GroupShardsIterator;
@@ -175,11 +176,23 @@ public class SearchStatsIT extends OpenSearchIntegTestCase {
 
         for (NodeStats stat : nodeStats.getNodes()) {
             Stats total = stat.getIndices().getSearch().getTotal();
-            if (total.getRequestStatsLongHolder().queryMetric > 0) {
-                assertEquals(total.getRequestStatsLongHolder().queryTotal, iters);
-                assertThat(total.getRequestStatsLongHolder().fetchMetric, greaterThan(0L));
-                assertEquals(total.getRequestStatsLongHolder().fetchTotal, iters);
-                assertEquals(total.getRequestStatsLongHolder().expandSearchTotal, iters);
+            if (total.getRequestStatsLongHolder().getSearchPhaseMetricMap().get(SearchPhaseName.QUERY.getName()) > 0) {
+                assertEquals(
+                    iters,
+                    total.getRequestStatsLongHolder().getSearchPhaseTotalMap().get(SearchPhaseName.QUERY.getName()).intValue()
+                );
+                assertThat(
+                    total.getRequestStatsLongHolder().getSearchPhaseMetricMap().get(SearchPhaseName.FETCH.getName()),
+                    greaterThan(0L)
+                );
+                assertEquals(
+                    iters,
+                    total.getRequestStatsLongHolder().getSearchPhaseTotalMap().get(SearchPhaseName.FETCH.getName()).intValue()
+                );
+                assertEquals(
+                    iters,
+                    total.getRequestStatsLongHolder().getSearchPhaseTotalMap().get(SearchPhaseName.EXPAND.getName()).intValue()
+                );
                 numOfCoordinators += 1;
             }
             if (nodeIdsWithIndex.contains(stat.getNode().getId())) {

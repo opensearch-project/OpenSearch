@@ -64,13 +64,11 @@ import org.opensearch.transport.Transport;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
@@ -124,9 +122,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
 
     private SearchRequestOperationsListener searchRequestOperationsListener;
     private List<SearchRequestOperationsListener> searchListenersList;
-    Map<String, Runnable> searchPhaseStartTrackingMap;
-    Map<String, Runnable> searchPhaseEndTrackingMap;
-    Map<String, Runnable> searchPhaseFailureTrackingMap;
 
     AbstractSearchAsyncAction(
         String name,
@@ -185,116 +180,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         if (!CollectionUtils.isEmpty(searchListenersList)) {
             this.searchListenersList = searchListenersList;
             this.searchRequestOperationsListener = new SearchRequestOperationsListener.CompositeListener(this.searchListenersList, logger);
-            instantiateSearchPhaseStartMap();
-            instantiateSearchPhaseEndMap();
-            instantiateSearchPhaseFailMap();
         }
-    }
-
-    private void instantiateSearchPhaseStartMap() {
-        Map<String, Runnable> searchPhaseStartTrackingMapModifiable = new HashMap<String, Runnable>();
-        searchPhaseStartTrackingMapModifiable.put(
-            SearchPhaseName.DFS_PRE_QUERY.getName(),
-            () -> searchRequestOperationsListener.onDFSPreQueryPhaseStart(this)
-        );
-        searchPhaseStartTrackingMapModifiable.put(
-            SearchPhaseName.CAN_MATCH.getName(),
-            () -> searchRequestOperationsListener.onCanMatchPhaseStart(this)
-        );
-        searchPhaseStartTrackingMapModifiable.put(
-            SearchPhaseName.DFS_QUERY.getName(),
-            () -> searchRequestOperationsListener.onQueryPhaseStart(this)
-        );
-        searchPhaseStartTrackingMapModifiable.put(
-            SearchPhaseName.QUERY.getName(),
-            () -> searchRequestOperationsListener.onQueryPhaseStart(this)
-        );
-        searchPhaseStartTrackingMapModifiable.put(
-            SearchPhaseName.FETCH.getName(),
-            () -> searchRequestOperationsListener.onFetchPhaseStart(this)
-        );
-        searchPhaseStartTrackingMapModifiable.put(
-            SearchPhaseName.EXPAND.getName(),
-            () -> searchRequestOperationsListener.onExpandSearchPhaseStart(this)
-        );
-        searchPhaseStartTrackingMap = Collections.unmodifiableMap(searchPhaseStartTrackingMapModifiable);
-    }
-
-    private void instantiateSearchPhaseEndMap() {
-        Map<String, Runnable> searchPhaseEndTrackingMapModifiable = new HashMap<String, Runnable>();
-        searchPhaseEndTrackingMapModifiable.put(
-            SearchPhaseName.DFS_PRE_QUERY.getName(),
-            () -> searchRequestOperationsListener.onDFSPreQueryPhaseEnd(
-                this,
-                TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - this.getCurrentPhase().getStartTime())
-            )
-        );
-        searchPhaseEndTrackingMapModifiable.put(
-            SearchPhaseName.CAN_MATCH.getName(),
-            () -> searchRequestOperationsListener.onCanMatchPhaseEnd(
-                this,
-                TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - this.getCurrentPhase().getStartTime())
-            )
-        );
-        searchPhaseEndTrackingMapModifiable.put(
-            SearchPhaseName.DFS_QUERY.getName(),
-            () -> searchRequestOperationsListener.onQueryPhaseEnd(
-                this,
-                TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - this.getCurrentPhase().getStartTime())
-            )
-        );
-        searchPhaseEndTrackingMapModifiable.put(
-            SearchPhaseName.QUERY.getName(),
-            () -> searchRequestOperationsListener.onQueryPhaseEnd(
-                this,
-                TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - this.getCurrentPhase().getStartTime())
-            )
-        );
-        searchPhaseEndTrackingMapModifiable.put(
-            SearchPhaseName.FETCH.getName(),
-            () -> searchRequestOperationsListener.onFetchPhaseEnd(
-                this,
-                TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - this.getCurrentPhase().getStartTime())
-            )
-        );
-        searchPhaseEndTrackingMapModifiable.put(
-            SearchPhaseName.EXPAND.getName(),
-            () -> searchRequestOperationsListener.onExpandSearchPhaseEnd(
-                this,
-                TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - this.getCurrentPhase().getStartTime())
-            )
-        );
-        searchPhaseEndTrackingMap = Collections.unmodifiableMap(searchPhaseEndTrackingMapModifiable);
-    }
-
-    private void instantiateSearchPhaseFailMap() {
-        Map<String, Runnable> searchPhaseFailureTrackingMapModifiable = new HashMap<String, Runnable>();
-        searchPhaseFailureTrackingMapModifiable.put(
-            SearchPhaseName.DFS_PRE_QUERY.getName(),
-            () -> searchRequestOperationsListener.onDFSPreQueryPhaseFailure(this)
-        );
-        searchPhaseFailureTrackingMapModifiable.put(
-            SearchPhaseName.CAN_MATCH.getName(),
-            () -> searchRequestOperationsListener.onCanMatchPhaseFailure(this)
-        );
-        searchPhaseFailureTrackingMapModifiable.put(
-            SearchPhaseName.DFS_QUERY.getName(),
-            () -> searchRequestOperationsListener.onQueryPhaseFailure(this)
-        );
-        searchPhaseFailureTrackingMapModifiable.put(
-            SearchPhaseName.QUERY.getName(),
-            () -> searchRequestOperationsListener.onQueryPhaseFailure(this)
-        );
-        searchPhaseFailureTrackingMapModifiable.put(
-            SearchPhaseName.FETCH.getName(),
-            () -> searchRequestOperationsListener.onFetchPhaseFailure(this)
-        );
-        searchPhaseFailureTrackingMapModifiable.put(
-            SearchPhaseName.EXPAND.getName(),
-            () -> searchRequestOperationsListener.onExpandSearchPhaseFailure(this)
-        );
-        searchPhaseFailureTrackingMap = Collections.unmodifiableMap(searchPhaseFailureTrackingMapModifiable);
-
     }
 
     @Override
@@ -544,35 +430,28 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                     clusterState.version()
                 );
             }
-            onPhaseEnd(this);
+            onPhaseEnd();
             executePhase(nextPhase);
         }
     }
 
-    private void onPhaseEnd(SearchPhaseContext searchPhaseContext) {
-        if (!(searchListenersList == null) && !searchListenersList.isEmpty()) {
-            if (searchPhaseContext.getCurrentPhase() != null
-                && searchPhaseEndTrackingMap.containsKey(searchPhaseContext.getCurrentPhase().getName())) {
-                searchPhaseEndTrackingMap.get(searchPhaseContext.getCurrentPhase().getName()).run();
-            }
+    private void onPhaseEnd() {
+        if (!CollectionUtils.isEmpty(searchListenersList)) {
+            searchRequestOperationsListener.onPhaseEnd(this);
         }
     }
 
-    private void onPhaseStart(SearchPhase phase, SearchPhaseContext searchPhaseContext) {
+    private void onPhaseStart(SearchPhase phase) {
         setCurrentPhase(phase);
-        phase.setStartTimeInNanos(System.nanoTime());
         if (!CollectionUtils.isEmpty(searchListenersList)) {
-            if (searchPhaseContext.getCurrentPhase() != null
-                && searchPhaseStartTrackingMap.containsKey(searchPhaseContext.getCurrentPhase().getName())) {
-                searchPhaseStartTrackingMap.get(searchPhaseContext.getCurrentPhase().getName()).run();
-            }
+            searchRequestOperationsListener.onPhaseStart(this);
         }
     }
 
     private void executePhase(SearchPhase phase) {
         try {
-            onPhaseStart(phase, this);
-            phase.run();
+            onPhaseStart(phase);
+            phase.recordAndRun();
         } catch (Exception e) {
             if (logger.isDebugEnabled()) {
                 logger.debug(new ParameterizedMessage("Failed to execute [{}] while moving to [{}] phase", request, phase.getName()), e);
@@ -825,16 +704,14 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             }
             listener.onResponse(buildSearchResponse(internalSearchResponse, failures, scrollId, searchContextId));
         }
-        onPhaseEnd(this);
+        onPhaseEnd();
         setCurrentPhase(null);
     }
 
     @Override
     public final void onPhaseFailure(SearchPhase phase, String msg, Throwable cause) {
         if (!CollectionUtils.isEmpty(searchListenersList)) {
-            if (this.getCurrentPhase() != null && searchPhaseFailureTrackingMap.containsKey(this.getCurrentPhase().getName())) {
-                searchPhaseFailureTrackingMap.get(this.getCurrentPhase().getName()).run();
-            }
+            searchRequestOperationsListener.onPhaseFailure(this);
         }
         raisePhaseFailure(new SearchPhaseExecutionException(phase.getName(), msg, cause, buildShardFailures()));
     }

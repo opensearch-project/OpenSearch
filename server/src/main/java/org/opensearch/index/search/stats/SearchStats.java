@@ -33,6 +33,7 @@
 package org.opensearch.index.search.stats;
 
 import org.opensearch.Version;
+import org.opensearch.action.search.SearchPhaseName;
 import org.opensearch.action.search.SearchRequestStats;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.unit.TimeValue;
@@ -65,21 +66,30 @@ public class SearchStats implements Writeable, ToXContentFragment {
      */
 
     public static class RequestStatsLongHolder {
-        public long dfsPreQueryMetric;
-        public long dfsPreQueryCurrent;
-        public long dfsPreQueryTotal;
-        public long canMatchMetric;
-        public long canMatchCurrent;
-        public long canMatchTotal;
-        public long queryMetric;
-        public long queryCurrent;
-        public long queryTotal;
-        public long fetchMetric;
-        public long fetchCurrent;
-        public long fetchTotal;
-        public long expandSearchMetric;
-        public long expandSearchCurrent;
-        public long expandSearchTotal;
+
+        Map<String, Long> searchPhaseCurrentMap = new HashMap<>();
+        Map<String, Long> searchPhaseTotalMap = new HashMap<>();
+        Map<String, Long> searchPhaseMetricMap = new HashMap<>();
+
+        public Map<String, Long> getSearchPhaseCurrentMap() {
+            return searchPhaseCurrentMap;
+        }
+
+        public Map<String, Long> getSearchPhaseTotalMap() {
+            return searchPhaseTotalMap;
+        }
+
+        public Map<String, Long> getSearchPhaseMetricMap() {
+            return searchPhaseMetricMap;
+        }
+
+        RequestStatsLongHolder() {
+            for (SearchPhaseName searchPhaseName : SearchPhaseName.values()) {
+                searchPhaseCurrentMap.put(searchPhaseName.getName(), 0L);
+                searchPhaseTotalMap.put(searchPhaseName.getName(), 0L);
+                searchPhaseMetricMap.put(searchPhaseName.getName(), 0L);
+            }
+        }
     }
 
     /**
@@ -199,25 +209,9 @@ public class SearchStats implements Writeable, ToXContentFragment {
 
             if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
                 this.requestStatsLongHolder = new RequestStatsLongHolder();
-                requestStatsLongHolder.dfsPreQueryMetric = in.readVLong();
-                requestStatsLongHolder.dfsPreQueryCurrent = in.readVLong();
-                requestStatsLongHolder.dfsPreQueryTotal = in.readVLong();
-
-                requestStatsLongHolder.canMatchMetric = in.readVLong();
-                requestStatsLongHolder.canMatchCurrent = in.readVLong();
-                requestStatsLongHolder.canMatchTotal = in.readVLong();
-
-                requestStatsLongHolder.queryMetric = in.readVLong();
-                requestStatsLongHolder.queryCurrent = in.readVLong();
-                requestStatsLongHolder.queryTotal = in.readVLong();
-
-                requestStatsLongHolder.fetchMetric = in.readVLong();
-                requestStatsLongHolder.fetchCurrent = in.readVLong();
-                requestStatsLongHolder.fetchTotal = in.readVLong();
-
-                requestStatsLongHolder.expandSearchMetric = in.readVLong();
-                requestStatsLongHolder.expandSearchCurrent = in.readVLong();
-                requestStatsLongHolder.expandSearchTotal = in.readVLong();
+                requestStatsLongHolder.searchPhaseCurrentMap = in.readMap(StreamInput::readString, StreamInput::readVLong);
+                requestStatsLongHolder.searchPhaseTotalMap = in.readMap(StreamInput::readString, StreamInput::readVLong);
+                requestStatsLongHolder.searchPhaseMetricMap = in.readMap(StreamInput::readString, StreamInput::readVLong);
             }
             if (in.getVersion().onOrAfter(Version.V_2_10_0)) {
                 concurrentQueryCount = in.readVLong();
@@ -414,25 +408,9 @@ public class SearchStats implements Writeable, ToXContentFragment {
                 if (requestStatsLongHolder == null) {
                     requestStatsLongHolder = new RequestStatsLongHolder();
                 }
-                out.writeVLong(requestStatsLongHolder.dfsPreQueryMetric);
-                out.writeVLong(requestStatsLongHolder.dfsPreQueryCurrent);
-                out.writeVLong(requestStatsLongHolder.dfsPreQueryTotal);
-
-                out.writeVLong(requestStatsLongHolder.canMatchMetric);
-                out.writeVLong(requestStatsLongHolder.canMatchCurrent);
-                out.writeVLong(requestStatsLongHolder.canMatchTotal);
-
-                out.writeVLong(requestStatsLongHolder.queryMetric);
-                out.writeVLong(requestStatsLongHolder.queryCurrent);
-                out.writeVLong(requestStatsLongHolder.queryTotal);
-
-                out.writeVLong(requestStatsLongHolder.fetchMetric);
-                out.writeVLong(requestStatsLongHolder.fetchCurrent);
-                out.writeVLong(requestStatsLongHolder.fetchTotal);
-
-                out.writeVLong(requestStatsLongHolder.expandSearchMetric);
-                out.writeVLong(requestStatsLongHolder.expandSearchCurrent);
-                out.writeVLong(requestStatsLongHolder.expandSearchTotal);
+                out.writeMap(requestStatsLongHolder.getSearchPhaseCurrentMap(), StreamOutput::writeString, StreamOutput::writeVLong);
+                out.writeMap(requestStatsLongHolder.getSearchPhaseTotalMap(), StreamOutput::writeString, StreamOutput::writeVLong);
+                out.writeMap(requestStatsLongHolder.getSearchPhaseMetricMap(), StreamOutput::writeString, StreamOutput::writeVLong);
             }
 
             if (out.getVersion().onOrAfter(Version.V_2_10_0)) {
@@ -478,42 +456,51 @@ public class SearchStats implements Writeable, ToXContentFragment {
                 builder.humanReadableField(
                     Fields.DFS_PREQUERY_TIME_IN_MILLIS,
                     Fields.QUERY_TIME,
-                    new TimeValue(requestStatsLongHolder.dfsPreQueryMetric)
+                    new TimeValue(requestStatsLongHolder.searchPhaseMetricMap.get(SearchPhaseName.DFS_PRE_QUERY.getName()))
                 );
-                builder.field(Fields.DFS_PREQUERY_CURRENT, requestStatsLongHolder.dfsPreQueryCurrent);
-                builder.field(Fields.DFS_PREQUERY_TOTAL, requestStatsLongHolder.dfsPreQueryTotal);
+                builder.field(
+                    Fields.DFS_PREQUERY_CURRENT,
+                    requestStatsLongHolder.searchPhaseCurrentMap.get(SearchPhaseName.DFS_PRE_QUERY.getName())
+                );
+                builder.field(
+                    Fields.DFS_PREQUERY_TOTAL,
+                    requestStatsLongHolder.searchPhaseTotalMap.get(SearchPhaseName.DFS_PRE_QUERY.getName())
+                );
 
                 builder.humanReadableField(
                     Fields.CANMATCH_TIME_IN_MILLIS,
                     Fields.QUERY_TIME,
-                    new TimeValue(requestStatsLongHolder.canMatchMetric)
+                    new TimeValue(requestStatsLongHolder.searchPhaseMetricMap.get(SearchPhaseName.CAN_MATCH.getName()))
                 );
-                builder.field(Fields.CANMATCH_CURRENT, requestStatsLongHolder.canMatchCurrent);
-                builder.field(Fields.CANMATCH_TOTAL, requestStatsLongHolder.canMatchTotal);
+                builder.field(
+                    Fields.CANMATCH_CURRENT,
+                    requestStatsLongHolder.searchPhaseCurrentMap.get(SearchPhaseName.CAN_MATCH.getName())
+                );
+                builder.field(Fields.CANMATCH_TOTAL, requestStatsLongHolder.searchPhaseTotalMap.get(SearchPhaseName.CAN_MATCH.getName()));
 
                 builder.humanReadableField(
                     Fields.QUERY_TIME_IN_MILLIS,
                     Fields.QUERY_TIME,
-                    new TimeValue(requestStatsLongHolder.queryMetric)
+                    new TimeValue(requestStatsLongHolder.searchPhaseMetricMap.get(SearchPhaseName.QUERY.getName()))
                 );
-                builder.field(Fields.QUERY_CURRENT, requestStatsLongHolder.queryCurrent);
-                builder.field(Fields.QUERY_TOTAL, requestStatsLongHolder.queryTotal);
+                builder.field(Fields.QUERY_CURRENT, requestStatsLongHolder.searchPhaseCurrentMap.get(SearchPhaseName.QUERY.getName()));
+                builder.field(Fields.QUERY_TOTAL, requestStatsLongHolder.searchPhaseTotalMap.get(SearchPhaseName.QUERY.getName()));
 
                 builder.humanReadableField(
                     Fields.FETCH_TIME_IN_MILLIS,
                     Fields.FETCH_TIME,
-                    new TimeValue(requestStatsLongHolder.fetchMetric)
+                    new TimeValue(requestStatsLongHolder.searchPhaseMetricMap.get(SearchPhaseName.FETCH.getName()))
                 );
-                builder.field(Fields.FETCH_CURRENT, requestStatsLongHolder.fetchCurrent);
-                builder.field(Fields.FETCH_TOTAL, requestStatsLongHolder.fetchTotal);
+                builder.field(Fields.FETCH_CURRENT, requestStatsLongHolder.searchPhaseCurrentMap.get(SearchPhaseName.FETCH.getName()));
+                builder.field(Fields.FETCH_TOTAL, requestStatsLongHolder.searchPhaseTotalMap.get(SearchPhaseName.FETCH.getName()));
 
                 builder.humanReadableField(
                     Fields.EXPAND_TIME_IN_MILLIS,
                     Fields.FETCH_TIME,
-                    new TimeValue(requestStatsLongHolder.expandSearchMetric)
+                    new TimeValue(requestStatsLongHolder.searchPhaseMetricMap.get(SearchPhaseName.EXPAND.getName()))
                 );
-                builder.field(Fields.EXPAND_CURRENT, requestStatsLongHolder.expandSearchCurrent);
-                builder.field(Fields.EXPAND_TOTAL, requestStatsLongHolder.expandSearchTotal);
+                builder.field(Fields.EXPAND_CURRENT, requestStatsLongHolder.searchPhaseCurrentMap.get(SearchPhaseName.EXPAND.getName()));
+                builder.field(Fields.EXPAND_TOTAL, requestStatsLongHolder.searchPhaseTotalMap.get(SearchPhaseName.EXPAND.getName()));
 
                 builder.endObject();
             }
@@ -536,25 +523,21 @@ public class SearchStats implements Writeable, ToXContentFragment {
         if (totalStats.requestStatsLongHolder == null) {
             totalStats.requestStatsLongHolder = new RequestStatsLongHolder();
         }
-        totalStats.requestStatsLongHolder.dfsPreQueryMetric = searchRequestStats.getDFSPreQueryMetric();
-        totalStats.requestStatsLongHolder.dfsPreQueryCurrent = searchRequestStats.getDFSPreQueryCurrent();
-        totalStats.requestStatsLongHolder.dfsPreQueryTotal = searchRequestStats.getDFSPreQueryTotal();
 
-        totalStats.requestStatsLongHolder.canMatchMetric = searchRequestStats.getCanMatchMetric();
-        totalStats.requestStatsLongHolder.canMatchCurrent = searchRequestStats.getCanMatchCurrent();
-        totalStats.requestStatsLongHolder.canMatchTotal = searchRequestStats.getCanMatchTotal();
-
-        totalStats.requestStatsLongHolder.queryMetric = searchRequestStats.getQueryMetric();
-        totalStats.requestStatsLongHolder.queryCurrent = searchRequestStats.getQueryCurrent();
-        totalStats.requestStatsLongHolder.queryTotal = searchRequestStats.getQueryTotal();
-
-        totalStats.requestStatsLongHolder.fetchMetric = searchRequestStats.getFetchMetric();
-        totalStats.requestStatsLongHolder.fetchCurrent = searchRequestStats.getFetchCurrent();
-        totalStats.requestStatsLongHolder.fetchTotal = searchRequestStats.getFetchTotal();
-
-        totalStats.requestStatsLongHolder.expandSearchMetric = searchRequestStats.getExpandSearchMetric();
-        totalStats.requestStatsLongHolder.expandSearchCurrent = searchRequestStats.getExpandSearchCurrent();
-        totalStats.requestStatsLongHolder.expandSearchTotal = searchRequestStats.getExpandSearchTotal();
+        for (SearchPhaseName searchPhaseName : SearchPhaseName.values()) {
+            totalStats.requestStatsLongHolder.searchPhaseCurrentMap.put(
+                searchPhaseName.getName(),
+                searchRequestStats.getPhaseCurrent(searchPhaseName)
+            );
+            totalStats.requestStatsLongHolder.searchPhaseTotalMap.put(
+                searchPhaseName.getName(),
+                searchRequestStats.getPhaseTotal(searchPhaseName)
+            );
+            totalStats.requestStatsLongHolder.searchPhaseMetricMap.put(
+                searchPhaseName.getName(),
+                searchRequestStats.getPhaseMetric(searchPhaseName)
+            );
+        }
     }
 
     public SearchStats(Stats totalStats, long openContexts, @Nullable Map<String, Stats> groupStats) {
