@@ -37,6 +37,10 @@
 //// SecurityManager impl:
 //// Must have all permissions to properly perform access checks
 
+grant {
+  permission java.lang.RuntimePermission "getClassLoader";
+};
+
 grant codeBase "${codebase.opensearch-secure-sm}" {
   permission java.security.AllPermission;
 };
@@ -48,6 +52,8 @@ grant codeBase "${codebase.opensearch}" {
   permission java.lang.RuntimePermission "setContextClassLoader";
   // needed for SPI class loading
   permission java.lang.RuntimePermission "accessDeclaredMembers";
+
+  permission java.lang.RuntimePermission "getClassLoader";
 };
 
 //// Very special jar permissions:
