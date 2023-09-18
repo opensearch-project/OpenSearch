@@ -27,4 +27,22 @@ public interface QueryBuilderVisitor {
      * @return a child queryBuilder Visitor Object.
      */
     QueryBuilderVisitor getChildVisitor(BooleanClause.Occur occur);
+
+    /**
+     *  NoopQueryVisitor is a default implementation of QueryBuilderVisitor.
+     *  When a user does not want to implement QueryBuilderVisitor and have to just pass an empty object then this class will be used.
+     *
+     */
+    QueryBuilderVisitor NO_OP_VISITOR = new QueryBuilderVisitor() {
+        @Override
+        public void accept(QueryBuilder qb) {
+            // Do nothing
+        }
+
+        @Override
+        public QueryBuilderVisitor getChildVisitor(BooleanClause.Occur occur) {
+            return this;
+        }
+    };
+
 }
