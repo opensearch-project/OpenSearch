@@ -23,7 +23,7 @@ import java.lang.annotation.Target;
 public @interface SkipTracingStrictValidation {
     /**
      * Users should define the reason for using this annotation.
-     * @return
+     * @return reason for skipping the validation.
      */
     String reason();
 }
