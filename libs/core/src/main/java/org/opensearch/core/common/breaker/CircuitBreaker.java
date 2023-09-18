@@ -71,17 +71,23 @@ public interface CircuitBreaker {
 
     /**
      * The type of breaker
-     *
+     * can be {@link #MEMORY}, {@link #PARENT}, or {@link #NOOP}
      * @opensearch.internal
      */
     enum Type {
-        // A regular or ChildMemoryCircuitBreaker
+        /** A regular or ChildMemoryCircuitBreaker */
         MEMORY,
-        // A special parent-type for the hierarchy breaker service
+        /** A special parent-type for the hierarchy breaker service */
         PARENT,
-        // A breaker where every action is a noop, it never breaks
+        /** A breaker where every action is a noop, it never breaks */
         NOOP;
 
+        /**
+         * Converts string (case-insensitive) to breaker {@link Type}
+         * @param value "noop", "parent", or "memory" (case-insensitive)
+         * @return the breaker {@link Type}
+         * @throws IllegalArgumentException if value is not "noop", "parent", or "memory"
+         */
         public static Type parseValue(String value) {
             switch (value.toLowerCase(Locale.ROOT)) {
                 case "noop":
@@ -98,13 +104,13 @@ public interface CircuitBreaker {
 
     /**
      * The breaker durability
-     *
+     * can be {@link #TRANSIENT} or {@link #PERMANENT}
      * @opensearch.internal
      */
     enum Durability {
-        // The condition that tripped the circuit breaker fixes itself eventually.
+        /** The condition that tripped the circuit breaker fixes itself eventually. */
         TRANSIENT,
-        // The condition that tripped the circuit breaker requires manual intervention.
+        /** The condition that tripped the circuit breaker requires manual intervention. */
         PERMANENT
     }
 
@@ -120,11 +126,14 @@ public interface CircuitBreaker {
      * @param bytes number of bytes to add
      * @param label string label describing the bytes being added
      * @return the number of "used" bytes for the circuit breaker
+     * @throws CircuitBreakingException if the breaker tripped
      */
     double addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException;
 
     /**
      * Adjust the circuit breaker without tripping
+     * @param bytes number of bytes to add
+     * @return the number of "used" bytes for the circuit breaker
      */
     long addWithoutBreaking(long bytes);
 
@@ -154,7 +163,10 @@ public interface CircuitBreaker {
     String getName();
 
     /**
-     * @return whether a tripped circuit breaker will reset itself (transient) or requires manual intervention (permanent).
+     * Returns the {@link Durability} of this breaker
+     * @return whether a tripped circuit breaker will
+     * reset itself ({@link Durability#TRANSIENT})
+     * or requires manual intervention ({@link Durability#PERMANENT}).
      */
     Durability getDurability();
 

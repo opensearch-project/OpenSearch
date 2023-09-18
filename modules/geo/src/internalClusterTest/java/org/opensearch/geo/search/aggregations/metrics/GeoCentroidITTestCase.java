@@ -34,6 +34,7 @@ package org.opensearch.geo.search.aggregations.metrics;
 
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.geo.GeoPoint;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.geo.search.aggregations.bucket.geogrid.GeoGrid;
 import org.opensearch.geo.tests.common.AggregationBuilders;
 import org.opensearch.search.aggregations.metrics.GeoCentroid;
@@ -50,6 +51,10 @@ import static org.hamcrest.Matchers.notNullValue;
 @OpenSearchIntegTestCase.SuiteScopeTestCase
 public class GeoCentroidITTestCase extends AbstractGeoAggregatorModulePluginTestCase {
     private static final String aggName = "geoCentroid";
+
+    public GeoCentroidITTestCase(Settings dynamicSettings) {
+        super(dynamicSettings);
+    }
 
     public void testSingleValueFieldAsSubAggToGeohashGrid() throws Exception {
         SearchResponse response = client().prepareSearch(HIGH_CARD_IDX_NAME)

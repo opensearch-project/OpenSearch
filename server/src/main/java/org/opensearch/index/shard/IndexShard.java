@@ -196,6 +196,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.channels.ClosedByInterruptException;
+import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
@@ -2355,19 +2356,38 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         synchronized (engineMutex) {
             assert currentEngineReference.get() == null : "engine is running";
             verifyNotClosed();
-            if (indexSettings.isRemoteStoreEnabled() && syncFromRemote) {
-                syncSegmentsFromRemoteSegmentStore(false);
-            }
-            if (indexSettings.isRemoteTranslogStoreEnabled() && shardRouting.primary()) {
+            if (indexSettings.isRemoteStoreEnabled()) {
+                // Download missing segments from remote segment store.
                 if (syncFromRemote) {
-                    syncRemoteTranslogAndUpdateGlobalCheckpoint();
-                } else {
-                    // we will enter this block when we do not want to recover from remote translog.
-                    // currently only during snapshot restore, we are coming into this block.
-                    // here, as while initiliazing remote translog we cannot skip downloading translog files,
-                    // so before that step, we are deleting the translog files present in remote store.
-                    deleteTranslogFilesFromRemoteTranslog();
-
+                    syncSegmentsFromRemoteSegmentStore(false);
+                }
+                if (shardRouting.primary()) {
+                    if (syncFromRemote) {
+                        syncRemoteTranslogAndUpdateGlobalCheckpoint();
+                    } else {
+                        // we will enter this block when we do not want to recover from remote translog.
+                        // currently only during snapshot restore, we are coming into this block.
+                        // here, as while initiliazing remote translog we cannot skip downloading translog files,
+                        // so before that step, we are deleting the translog files present in remote store.
+                        deleteTranslogFilesFromRemoteTranslog();
+                    }
+                } else if (syncFromRemote) {
+                    // For replicas, when we download segments from remote segment store, we need to make sure that local
+                    // translog is having the same UUID that is referred by the segments. If they are different, engine open
+                    // fails with TranslogCorruptedException. It is safe to create empty translog for remote store enabled
+                    // indices as replica would only need to read translog in failover scenario and we always fetch data
+                    // from remote translog at the time of failover.
+                    final SegmentInfos lastCommittedSegmentInfos = store().readLastCommittedSegmentsInfo();
+                    final String translogUUID = lastCommittedSegmentInfos.userData.get(TRANSLOG_UUID_KEY);
+                    final long checkpoint = Long.parseLong(lastCommittedSegmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
+                    Translog.createEmptyTranslog(
+                        shardPath().resolveTranslog(),
+                        shardId(),
+                        checkpoint,
+                        getPendingPrimaryTerm(),
+                        translogUUID,
+                        FileChannel::open
+                    );
                 }
             }
             // we must create a new engine under mutex (see IndexShard#snapshotStoreMetadata).

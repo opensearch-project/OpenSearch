@@ -16,6 +16,7 @@ import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPu
 import org.opensearch.action.get.MultiGetRequest;
 import org.opensearch.action.get.MultiGetResponse;
 import org.opensearch.action.index.IndexRequestBuilder;
+import org.opensearch.action.search.SearchPhaseName;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
@@ -188,11 +189,23 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
 
         for (NodeStats stat : nodeStats.getNodes()) {
             SearchStats.Stats searchStats = stat.getIndices().getSearch().getTotal();
-            if (searchStats.getRequestStatsLongHolder().queryMetric > 0) {
-                assertThat(searchStats.getRequestStatsLongHolder().queryTotal, greaterThan(0L));
-                assertThat(searchStats.getRequestStatsLongHolder().fetchMetric, greaterThan(0L));
-                assertThat(searchStats.getRequestStatsLongHolder().fetchTotal, greaterThan(0L));
-                assertThat(searchStats.getRequestStatsLongHolder().expandSearchTotal, greaterThan(0L));
+            if (searchStats.getRequestStatsLongHolder().getSearchPhaseMetricMap().get(SearchPhaseName.QUERY.getName()) > 0) {
+                assertThat(
+                    searchStats.getRequestStatsLongHolder().getSearchPhaseTotalMap().get(SearchPhaseName.QUERY.getName()).longValue(),
+                    greaterThan(0L)
+                );
+                assertThat(
+                    searchStats.getRequestStatsLongHolder().getSearchPhaseMetricMap().get(SearchPhaseName.FETCH.getName()).longValue(),
+                    greaterThan(0L)
+                );
+                assertThat(
+                    searchStats.getRequestStatsLongHolder().getSearchPhaseTotalMap().get(SearchPhaseName.FETCH.getName()).longValue(),
+                    greaterThan(0L)
+                );
+                assertThat(
+                    searchStats.getRequestStatsLongHolder().getSearchPhaseTotalMap().get(SearchPhaseName.EXPAND.getName()).longValue(),
+                    greaterThan(0L)
+                );
                 coordNumber += 1;
             }
             Assert.assertTrue(searchStats.getQueryCount() > 0L);

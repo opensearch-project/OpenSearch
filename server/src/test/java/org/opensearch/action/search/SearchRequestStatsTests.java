@@ -10,299 +10,201 @@ package org.opensearch.action.search;
 
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Phaser;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
+
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class SearchRequestStatsTests extends OpenSearchTestCase {
     public void testSearchRequestPhaseFailure() {
         SearchRequestStats testRequestStats = new SearchRequestStats();
-        SearchPhaseContext ctx = new MockSearchPhaseContext(1);
+        SearchPhaseContext ctx = mock(SearchPhaseContext.class);
+        SearchPhase mockSearchPhase = mock(SearchPhase.class);
+        when(ctx.getCurrentPhase()).thenReturn(mockSearchPhase);
 
-        testRequestStats.onDFSPreQueryPhaseStart(ctx);
-        assertEquals(1, testRequestStats.getDFSPreQueryCurrent());
-
-        testRequestStats.onDFSPreQueryPhaseFailure(ctx);
-        assertEquals(0, testRequestStats.getDFSPreQueryCurrent());
-
-        testRequestStats.onCanMatchPhaseStart(ctx);
-        assertEquals(1, testRequestStats.getCanMatchCurrent());
-
-        testRequestStats.onCanMatchPhaseFailure(ctx);
-        assertEquals(0, testRequestStats.getCanMatchCurrent());
-
-        testRequestStats.onQueryPhaseStart(ctx);
-        assertEquals(1, testRequestStats.getQueryCurrent());
-
-        testRequestStats.onQueryPhaseFailure(ctx);
-        assertEquals(0, testRequestStats.getQueryCurrent());
-
-        testRequestStats.onFetchPhaseStart(ctx);
-        assertEquals(1, testRequestStats.getFetchCurrent());
-
-        testRequestStats.onFetchPhaseFailure(ctx);
-        assertEquals(0, testRequestStats.getFetchCurrent());
-
-        testRequestStats.onExpandSearchPhaseStart(ctx);
-        assertEquals(1, testRequestStats.getExpandSearchCurrent());
-
-        testRequestStats.onExpandSearchPhaseFailure(ctx);
-        assertEquals(0, testRequestStats.getExpandSearchCurrent());
+        for (SearchPhaseName searchPhaseName : SearchPhaseName.values()) {
+            when(mockSearchPhase.getName()).thenReturn(searchPhaseName.getName());
+            testRequestStats.onPhaseStart(ctx);
+            assertEquals(getExpectedCount(1).apply(searchPhaseName).intValue(), testRequestStats.getPhaseCurrent(searchPhaseName));
+            testRequestStats.onPhaseFailure(ctx);
+            assertEquals(0, testRequestStats.getPhaseCurrent(searchPhaseName));
+        }
     }
 
     public void testSearchRequestStats() {
         SearchRequestStats testRequestStats = new SearchRequestStats();
 
-        SearchPhaseContext ctx = new MockSearchPhaseContext(1);
-        long tookTime = randomIntBetween(1, 10);
+        SearchPhaseContext ctx = mock(SearchPhaseContext.class);
+        SearchPhase mockSearchPhase = mock(SearchPhase.class);
+        when(ctx.getCurrentPhase()).thenReturn(mockSearchPhase);
 
-        testRequestStats.onDFSPreQueryPhaseStart(ctx);
-        assertEquals(1, testRequestStats.getDFSPreQueryCurrent());
-
-        testRequestStats.onDFSPreQueryPhaseEnd(ctx, tookTime);
-        assertEquals(0, testRequestStats.getDFSPreQueryCurrent());
-        assertEquals(1, testRequestStats.getDFSPreQueryTotal());
-        assertEquals(tookTime, testRequestStats.getDFSPreQueryMetric());
-
-        testRequestStats.onCanMatchPhaseStart(ctx);
-        assertEquals(1, testRequestStats.getCanMatchCurrent());
-
-        testRequestStats.onCanMatchPhaseEnd(ctx, tookTime);
-        assertEquals(0, testRequestStats.getCanMatchCurrent());
-        assertEquals(1, testRequestStats.getCanMatchTotal());
-        assertEquals(tookTime, testRequestStats.getCanMatchMetric());
-
-        testRequestStats.onQueryPhaseStart(ctx);
-        assertEquals(1, testRequestStats.getQueryCurrent());
-
-        testRequestStats.onQueryPhaseEnd(ctx, tookTime);
-        assertEquals(0, testRequestStats.getQueryCurrent());
-        assertEquals(1, testRequestStats.getQueryTotal());
-        assertEquals(tookTime, testRequestStats.getQueryMetric());
-
-        testRequestStats.onFetchPhaseStart(ctx);
-        assertEquals(1, testRequestStats.getFetchCurrent());
-
-        testRequestStats.onFetchPhaseEnd(ctx, tookTime);
-        assertEquals(0, testRequestStats.getFetchCurrent());
-        assertEquals(1, testRequestStats.getFetchTotal());
-        assertEquals(tookTime, testRequestStats.getFetchMetric());
-
-        testRequestStats.onExpandSearchPhaseStart(ctx);
-        assertEquals(1, testRequestStats.getExpandSearchCurrent());
-
-        testRequestStats.onExpandSearchPhaseEnd(ctx, tookTime);
-        assertEquals(0, testRequestStats.getExpandSearchCurrent());
-        assertEquals(1, testRequestStats.getExpandSearchTotal());
-        assertEquals(tookTime, testRequestStats.getExpandSearchMetric());
+        for (SearchPhaseName searchPhaseName : SearchPhaseName.values()) {
+            when(mockSearchPhase.getName()).thenReturn(searchPhaseName.getName());
+            long tookTimeInMillis = randomIntBetween(1, 10);
+            testRequestStats.onPhaseStart(ctx);
+            long startTime = System.nanoTime() - TimeUnit.MILLISECONDS.toNanos(tookTimeInMillis);
+            when(mockSearchPhase.getStartTimeInNanos()).thenReturn(startTime);
+            assertEquals(getExpectedCount(1).apply(searchPhaseName).intValue(), testRequestStats.getPhaseCurrent(searchPhaseName));
+            testRequestStats.onPhaseEnd(ctx);
+            assertEquals(0, testRequestStats.getPhaseCurrent(searchPhaseName));
+            assertEquals(getExpectedCount(1).apply(searchPhaseName).intValue(), testRequestStats.getPhaseTotal(searchPhaseName));
+            assertThat(
+                testRequestStats.getPhaseMetric(searchPhaseName),
+                greaterThanOrEqualTo(getExpectedCount((int) tookTimeInMillis).apply(searchPhaseName).longValue())
+            );
+        }
     }
 
-    public void testSearchRequestStatsOnDFSPreQueryStartConcurrently() throws InterruptedException {
+    public void testSearchRequestStatsOnPhaseStartConcurrently() throws InterruptedException {
         SearchRequestStats testRequestStats = new SearchRequestStats();
-        SearchPhaseContext ctx = new MockSearchPhaseContext(1);
         int numTasks = randomIntBetween(5, 50);
-        Thread[] threads = new Thread[numTasks];
-        Phaser phaser = new Phaser(numTasks + 1);
-        CountDownLatch countDownLatch = new CountDownLatch(numTasks);
-        for (int i = 0; i < numTasks; i++) {
-            threads[i] = new Thread(() -> {
-                phaser.arriveAndAwaitAdvance();
-                testRequestStats.onDFSPreQueryPhaseStart(ctx);
-                countDownLatch.countDown();
-            });
-            threads[i].start();
+        Thread[] threads = new Thread[numTasks * SearchPhaseName.values().length];
+        Phaser phaser = new Phaser(numTasks * SearchPhaseName.values().length + 1);
+        CountDownLatch countDownLatch = new CountDownLatch(numTasks * SearchPhaseName.values().length);
+        for (SearchPhaseName searchPhaseName : SearchPhaseName.values()) {
+            SearchPhaseContext ctx = mock(SearchPhaseContext.class);
+            SearchPhase mockSearchPhase = mock(SearchPhase.class);
+            when(ctx.getCurrentPhase()).thenReturn(mockSearchPhase);
+            when(mockSearchPhase.getName()).thenReturn(searchPhaseName.getName());
+            for (int i = 0; i < numTasks; i++) {
+                threads[i] = new Thread(() -> {
+                    phaser.arriveAndAwaitAdvance();
+                    testRequestStats.onPhaseStart(ctx);
+                    countDownLatch.countDown();
+                });
+                threads[i].start();
+            }
         }
         phaser.arriveAndAwaitAdvance();
         countDownLatch.await();
-        assertEquals(numTasks, testRequestStats.getDFSPreQueryCurrent());
+        for (SearchPhaseName searchPhaseName : getSearchPhaseNames()) {
+            if (SearchPhaseName.QUERY.equals(searchPhaseName)) {
+                assertEquals(numTasks * 2, testRequestStats.getPhaseCurrent(searchPhaseName));
+                continue;
+            } else {
+                assertEquals(
+                    getExpectedCount(numTasks).apply(searchPhaseName).intValue(),
+                    testRequestStats.getPhaseCurrent(searchPhaseName)
+                );
+            }
+        }
     }
 
-    public void testSearchRequestStatsOnCanMatchStartConcurrently() throws InterruptedException {
+    public void testSearchRequestStatsOnPhaseEndConcurrently() throws InterruptedException {
         SearchRequestStats testRequestStats = new SearchRequestStats();
-        SearchPhaseContext ctx = new MockSearchPhaseContext(1);
         int numTasks = randomIntBetween(5, 50);
-        Thread[] threads = new Thread[numTasks];
-        Phaser phaser = new Phaser(numTasks + 1);
-        CountDownLatch countDownLatch = new CountDownLatch(numTasks);
-        for (int i = 0; i < numTasks; i++) {
-            threads[i] = new Thread(() -> {
-                phaser.arriveAndAwaitAdvance();
-                testRequestStats.onCanMatchPhaseStart(ctx);
-                countDownLatch.countDown();
-            });
-            threads[i].start();
+        Thread[] threads = new Thread[numTasks * SearchPhaseName.values().length];
+        Phaser phaser = new Phaser(numTasks * SearchPhaseName.values().length + 1);
+        CountDownLatch countDownLatch = new CountDownLatch(numTasks * SearchPhaseName.values().length);
+        Map<SearchPhaseName, Long> searchPhaseNameLongMap = new HashMap<>();
+        for (SearchPhaseName searchPhaseName : SearchPhaseName.values()) {
+            SearchPhaseContext ctx = mock(SearchPhaseContext.class);
+            SearchPhase mockSearchPhase = mock(SearchPhase.class);
+            when(ctx.getCurrentPhase()).thenReturn(mockSearchPhase);
+            when(mockSearchPhase.getName()).thenReturn(searchPhaseName.getName());
+            long tookTimeInMillis = randomIntBetween(1, 10);
+            long startTime = System.nanoTime() - TimeUnit.MILLISECONDS.toNanos(tookTimeInMillis);
+            when(mockSearchPhase.getStartTimeInNanos()).thenReturn(startTime);
+            for (int i = 0; i < numTasks; i++) {
+                threads[i] = new Thread(() -> {
+                    phaser.arriveAndAwaitAdvance();
+                    testRequestStats.onPhaseEnd(ctx);
+                    countDownLatch.countDown();
+                });
+                threads[i].start();
+            }
+            searchPhaseNameLongMap.put(searchPhaseName, tookTimeInMillis);
         }
         phaser.arriveAndAwaitAdvance();
         countDownLatch.await();
-        assertEquals(numTasks, testRequestStats.getCanMatchCurrent());
+        for (SearchPhaseName searchPhaseName : getSearchPhaseNames()) {
+            if (SearchPhaseName.QUERY.equals(searchPhaseName)) {
+                assertEquals(numTasks * 2, testRequestStats.getPhaseTotal(searchPhaseName));
+                assertThat(
+                    testRequestStats.getPhaseMetric(searchPhaseName),
+                    greaterThanOrEqualTo(searchPhaseNameLongMap.get(searchPhaseName) * numTasks * 2)
+                );
+            } else {
+                assertEquals(getExpectedCount(numTasks).apply(searchPhaseName).intValue(), testRequestStats.getPhaseTotal(searchPhaseName));
+                assertThat(
+                    testRequestStats.getPhaseMetric(searchPhaseName),
+                    greaterThanOrEqualTo(
+                        getExpectedCount((int) (searchPhaseNameLongMap.get(searchPhaseName) * numTasks)).apply(searchPhaseName).longValue()
+                    )
+                );
+            }
+        }
     }
 
-    public void testSearchRequestStatsOnQueryStartConcurrently() throws InterruptedException {
+    public void testSearchRequestStatsOnPhaseFailureConcurrently() throws InterruptedException {
         SearchRequestStats testRequestStats = new SearchRequestStats();
-        SearchPhaseContext ctx = new MockSearchPhaseContext(1);
         int numTasks = randomIntBetween(5, 50);
-        Thread[] threads = new Thread[numTasks];
-        Phaser phaser = new Phaser(numTasks + 1);
-        CountDownLatch countDownLatch = new CountDownLatch(numTasks);
-        for (int i = 0; i < numTasks; i++) {
-            threads[i] = new Thread(() -> {
-                phaser.arriveAndAwaitAdvance();
-                testRequestStats.onQueryPhaseStart(ctx);
-                countDownLatch.countDown();
-            });
-            threads[i].start();
+        Thread[] threads = new Thread[numTasks * SearchPhaseName.values().length];
+        Phaser phaser = new Phaser(numTasks * SearchPhaseName.values().length + 1);
+        CountDownLatch countDownLatch = new CountDownLatch(numTasks * SearchPhaseName.values().length);
+        for (SearchPhaseName searchPhaseName : SearchPhaseName.values()) {
+            SearchPhaseContext ctx = mock(SearchPhaseContext.class);
+            SearchPhase mockSearchPhase = mock(SearchPhase.class);
+            when(ctx.getCurrentPhase()).thenReturn(mockSearchPhase);
+            when(mockSearchPhase.getName()).thenReturn(searchPhaseName.getName());
+            for (int i = 0; i < numTasks; i++) {
+                threads[i] = new Thread(() -> {
+                    phaser.arriveAndAwaitAdvance();
+                    testRequestStats.onPhaseStart(ctx);
+                    testRequestStats.onPhaseFailure(ctx);
+                    countDownLatch.countDown();
+                });
+                threads[i].start();
+            }
         }
         phaser.arriveAndAwaitAdvance();
         countDownLatch.await();
-        assertEquals(numTasks, testRequestStats.getQueryCurrent());
+        for (SearchPhaseName searchPhaseName : getSearchPhaseNames()) {
+            assertEquals(0, testRequestStats.getPhaseCurrent(searchPhaseName));
+        }
     }
 
-    public void testSearchRequestStatsOnFetchStartConcurrently() throws InterruptedException {
+    public void testSearchRequestStatsWithInvalidPhaseName() {
         SearchRequestStats testRequestStats = new SearchRequestStats();
-        SearchPhaseContext ctx = new MockSearchPhaseContext(1);
-        int numTasks = randomIntBetween(5, 50);
-        Thread[] threads = new Thread[numTasks];
-        Phaser phaser = new Phaser(numTasks + 1);
-        CountDownLatch countDownLatch = new CountDownLatch(numTasks);
-        for (int i = 0; i < numTasks; i++) {
-            threads[i] = new Thread(() -> {
-                phaser.arriveAndAwaitAdvance();
-                testRequestStats.onFetchPhaseStart(ctx);
-                countDownLatch.countDown();
-            });
-            threads[i].start();
+        Map<String, String> stringStringMap = new HashMap<>();
+        stringStringMap.computeIfAbsent(null, s -> { return "dummy"; });
+        SearchPhaseContext ctx = mock(SearchPhaseContext.class);
+        SearchPhase mockSearchPhase = mock(SearchPhase.class);
+        when(ctx.getCurrentPhase()).thenReturn(mockSearchPhase);
+        when(mockSearchPhase.getName()).thenReturn("dummy");
+        testRequestStats.onPhaseStart(ctx);
+        testRequestStats.onPhaseEnd(ctx);
+        testRequestStats.onPhaseFailure(ctx);
+        for (SearchPhaseName searchPhaseName : getSearchPhaseNames()) {
+            assertEquals(0, testRequestStats.getPhaseCurrent(searchPhaseName));
+            assertEquals(0, testRequestStats.getPhaseTotal(searchPhaseName));
+            assertEquals(0, testRequestStats.getPhaseMetric(searchPhaseName));
         }
-        phaser.arriveAndAwaitAdvance();
-        countDownLatch.await();
-        assertEquals(numTasks, testRequestStats.getFetchCurrent());
     }
 
-    public void testSearchRequestStatsOnExpandSearchStartConcurrently() throws InterruptedException {
-        SearchRequestStats testRequestStats = new SearchRequestStats();
-        SearchPhaseContext ctx = new MockSearchPhaseContext(1);
-        int numTasks = randomIntBetween(5, 50);
-        Thread[] threads = new Thread[numTasks];
-        Phaser phaser = new Phaser(numTasks + 1);
-        CountDownLatch countDownLatch = new CountDownLatch(numTasks);
-        for (int i = 0; i < numTasks; i++) {
-            threads[i] = new Thread(() -> {
-                phaser.arriveAndAwaitAdvance();
-                testRequestStats.onExpandSearchPhaseStart(ctx);
-                countDownLatch.countDown();
-            });
-            threads[i].start();
-        }
-        phaser.arriveAndAwaitAdvance();
-        countDownLatch.await();
-        assertEquals(numTasks, testRequestStats.getExpandSearchCurrent());
+    private List<SearchPhaseName> getSearchPhaseNames() {
+        List<SearchPhaseName> searchPhaseNames = new ArrayList<>(Arrays.asList(SearchPhaseName.values()));
+        searchPhaseNames.remove(SearchPhaseName.DFS_QUERY);
+        return searchPhaseNames;
     }
 
-    public void testSearchRequestStatsOnDFSPreQueryEndConcurrently() throws InterruptedException {
-        SearchRequestStats testRequestStats = new SearchRequestStats();
-        SearchPhaseContext ctx = new MockSearchPhaseContext(1);
-        int numTasks = randomIntBetween(5, 50);
-        long tookTime = randomIntBetween(1, 10);
-        Thread[] threads = new Thread[numTasks];
-        Phaser phaser = new Phaser(numTasks + 1);
-        CountDownLatch countDownLatch = new CountDownLatch(numTasks);
-        for (int i = 0; i < numTasks; i++) {
-            threads[i] = new Thread(() -> {
-                phaser.arriveAndAwaitAdvance();
-                testRequestStats.onDFSPreQueryPhaseEnd(ctx, tookTime);
-                countDownLatch.countDown();
-            });
-            threads[i].start();
-        }
-        phaser.arriveAndAwaitAdvance();
-        countDownLatch.await();
-        assertEquals(numTasks, testRequestStats.getDFSPreQueryTotal());
-        assertEquals(tookTime * numTasks, testRequestStats.getDFSPreQueryMetric());
-    }
-
-    public void testSearchRequestStatsOnCanMatchQueryEndConcurrently() throws InterruptedException {
-        SearchRequestStats testRequestStats = new SearchRequestStats();
-        SearchPhaseContext ctx = new MockSearchPhaseContext(1);
-        int numTasks = randomIntBetween(5, 50);
-        long tookTime = randomIntBetween(1, 10);
-        Thread[] threads = new Thread[numTasks];
-        Phaser phaser = new Phaser(numTasks + 1);
-        CountDownLatch countDownLatch = new CountDownLatch(numTasks);
-        for (int i = 0; i < numTasks; i++) {
-            threads[i] = new Thread(() -> {
-                phaser.arriveAndAwaitAdvance();
-                testRequestStats.onCanMatchPhaseEnd(ctx, tookTime);
-                countDownLatch.countDown();
-            });
-            threads[i].start();
-        }
-        phaser.arriveAndAwaitAdvance();
-        countDownLatch.await();
-        assertEquals(numTasks, testRequestStats.getCanMatchTotal());
-        assertEquals(tookTime * numTasks, testRequestStats.getCanMatchMetric());
-    }
-
-    public void testSearchRequestStatsOnQueryEndConcurrently() throws InterruptedException {
-        SearchRequestStats testRequestStats = new SearchRequestStats();
-        SearchPhaseContext ctx = new MockSearchPhaseContext(1);
-        int numTasks = randomIntBetween(5, 50);
-        long tookTime = randomIntBetween(1, 10);
-        Thread[] threads = new Thread[numTasks];
-        Phaser phaser = new Phaser(numTasks + 1);
-        CountDownLatch countDownLatch = new CountDownLatch(numTasks);
-        for (int i = 0; i < numTasks; i++) {
-            threads[i] = new Thread(() -> {
-                phaser.arriveAndAwaitAdvance();
-                testRequestStats.onQueryPhaseEnd(ctx, tookTime);
-                countDownLatch.countDown();
-            });
-            threads[i].start();
-        }
-        phaser.arriveAndAwaitAdvance();
-        countDownLatch.await();
-        assertEquals(numTasks, testRequestStats.getQueryTotal());
-        assertEquals(tookTime * numTasks, testRequestStats.getQueryMetric());
-    }
-
-    public void testSearchRequestStatsOnFetchEndConcurrently() throws InterruptedException {
-        SearchRequestStats testRequestStats = new SearchRequestStats();
-        SearchPhaseContext ctx = new MockSearchPhaseContext(1);
-        int numTasks = randomIntBetween(5, 50);
-        long tookTime = randomIntBetween(1, 10);
-        Thread[] threads = new Thread[numTasks];
-        Phaser phaser = new Phaser(numTasks + 1);
-        CountDownLatch countDownLatch = new CountDownLatch(numTasks);
-        for (int i = 0; i < numTasks; i++) {
-            threads[i] = new Thread(() -> {
-                phaser.arriveAndAwaitAdvance();
-                testRequestStats.onFetchPhaseEnd(ctx, tookTime);
-                countDownLatch.countDown();
-            });
-            threads[i].start();
-        }
-        phaser.arriveAndAwaitAdvance();
-        countDownLatch.await();
-        assertEquals(numTasks, testRequestStats.getFetchTotal());
-        assertEquals(tookTime * numTasks, testRequestStats.getFetchMetric());
-    }
-
-    public void testSearchRequestStatsOnExpandSearchEndConcurrently() throws InterruptedException {
-        SearchRequestStats testRequestStats = new SearchRequestStats();
-        SearchPhaseContext ctx = new MockSearchPhaseContext(1);
-        int numTasks = randomIntBetween(5, 50);
-        long tookTime = randomIntBetween(1, 10);
-        Thread[] threads = new Thread[numTasks];
-        Phaser phaser = new Phaser(numTasks + 1);
-        CountDownLatch countDownLatch = new CountDownLatch(numTasks);
-        for (int i = 0; i < numTasks; i++) {
-            threads[i] = new Thread(() -> {
-                phaser.arriveAndAwaitAdvance();
-                testRequestStats.onExpandSearchPhaseEnd(ctx, tookTime);
-                countDownLatch.countDown();
-            });
-            threads[i].start();
-        }
-        phaser.arriveAndAwaitAdvance();
-        countDownLatch.await();
-        assertEquals(numTasks, testRequestStats.getExpandSearchTotal());
-        assertEquals(tookTime * numTasks, testRequestStats.getExpandSearchMetric());
+    private Function<SearchPhaseName, Integer> getExpectedCount(int expected) {
+        Function<SearchPhaseName, Integer> currentCount = searchPhaseName -> {
+            if (SearchPhaseName.DFS_QUERY.equals(searchPhaseName)) {
+                return 0;
+            } else {
+                return expected;
+            }
+        };
+        return currentCount;
     }
 }
