@@ -33,8 +33,6 @@ import org.opensearch.extensions.ExtensionsSettings.Extension;
 import org.opensearch.extensions.action.ExtensionActionRequest;
 import org.opensearch.extensions.action.ExtensionActionResponse;
 import org.opensearch.extensions.action.ExtensionTransportActionsHandler;
-import org.opensearch.extensions.action.IssueServiceAccountRequest;
-import org.opensearch.extensions.action.IssueServiceAccountResponse;
 import org.opensearch.extensions.action.RegisterTransportActionsRequest;
 import org.opensearch.extensions.action.RemoteExtensionActionResponse;
 import org.opensearch.extensions.action.TransportActionRequestFromExtension;
@@ -406,7 +404,7 @@ public class ExtensionsManager {
                 transportService.sendRequest(
                     extension,
                     REQUEST_EXTENSION_ACTION_NAME,
-                    new InitializeExtensionRequest(transportService.getLocalNode(), extension),
+                    new InitializeExtensionRequest(transportService.getLocalNode(), extension, issueServiceAccount(extension)),
                     initializeExtensionResponseHandler
                 );
             }
@@ -450,51 +448,12 @@ public class ExtensionsManager {
     }
 
     /**
-     * A separate transport action handler used to issue service accounts to extensions during initialization
+     * A helper method called during initialization that issues a service accounts to extensions
      * @param extension The extension to be issued a service account
      */
-    public void issueServiceAccount(Extension extension) {
-        DiscoveryExtensionNode discoveryExtensionNode = extensionIdMap.get(extension.getUniqueId());
-        AuthToken serviceAccountToken = identityService.getTokenManager().issueServiceAccountToken(extension.getUniqueId());
-        String authTokenAsString = serviceAccountToken.asAuthHeaderValue();
-        final CompletableFuture<IssueServiceAccountResponse> inProgressFuture = new CompletableFuture<>();
-        final TransportResponseHandler<IssueServiceAccountResponse> issueServiceAccountResponseHandler = new TransportResponseHandler<
-            IssueServiceAccountResponse>() {
-
-            @Override
-            public IssueServiceAccountResponse read(StreamInput in) throws IOException {
-                return new IssueServiceAccountResponse(in);
-            }
-
-            @Override
-            public void handleResponse(IssueServiceAccountResponse response) {
-                for (DiscoveryExtensionNode extension : extensionIdMap.values()) {
-                    if (extension.getName().equals(response.getName()) && (serviceAccountToken.equals(response.getServiceAccount()))) {
-                        logger.info("Successfully issued service account token to extension: " + extension.getName());
-                        break;
-                    }
-                }
-                inProgressFuture.complete(response);
-            }
-
-            @Override
-            public void handleException(TransportException exp) {
-                logger.error(new ParameterizedMessage("Issuance of service account token failed"), exp);
-                inProgressFuture.completeExceptionally(exp);
-            }
-
-            @Override
-            public String executor() {
-                return ThreadPool.Names.GENERIC;
-            }
-        };
-
-        transportService.sendRequest(
-            discoveryExtensionNode,
-            REQUEST_EXTENSION_ISSUE_SERVICE_ACCOUNT,
-            new IssueServiceAccountRequest(authTokenAsString),
-            issueServiceAccountResponseHandler
-        );
+    public String issueServiceAccount(DiscoveryExtensionNode extension) {
+        AuthToken serviceAccountToken = identityService.getTokenManager().issueServiceAccountToken(extension.getId());
+        return serviceAccountToken.asAuthHeaderValue();
     }
 
     static String getRequestExtensionActionName() {
