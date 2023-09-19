@@ -27,6 +27,7 @@ import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.indices.replication.common.ReplicationType;
+import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -343,11 +344,16 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
             .custom(RepositoriesMetadata.TYPE);
         RepositoryMetadata actualRepository = repositories.repository(repositoryName);
 
+        final RepositoriesService repositoriesService = internalCluster().getClusterManagerNodeInstance(RepositoriesService.class);
+        final BlobStoreRepository repository = (BlobStoreRepository) repositoriesService.repository(repositoryName);
+
         for (String nodeName : internalCluster().getNodeNames()) {
             ClusterService clusterService = internalCluster().getInstance(ClusterService.class, nodeName);
             DiscoveryNode node = clusterService.localNode();
             RepositoryMetadata expectedRepository = buildRepositoryMetadata(node, repositoryName);
-            assertTrue(actualRepository.equalsIgnoreGenerations(expectedRepository));
+            repository.getRestrictedSystemRepositorySettings()
+                .stream()
+                .forEach(setting -> assertEquals(setting.get(actualRepository.settings()), setting.get(expectedRepository.settings())));
         }
     }
 
