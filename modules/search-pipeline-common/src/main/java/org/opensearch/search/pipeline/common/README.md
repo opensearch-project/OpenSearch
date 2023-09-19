@@ -14,7 +14,17 @@ Search pipelines allow cluster operators to create and reuse [components](#searc
 
 With search pipelines, the operator can combine multiple [search processors](#search-processors) to create a transform which acts on the search request and/or search response.
 
-The primary benefit of search pipelines is that they live entirely inside OpenSearch and therefore require less development time. Further, search pipelines support standard APIs for accessing metrics and disaster recovery.
+Search pipelines offer numerous benefits: 
+
+1. search processors living in OpenSearch can be used by _all_ calling applications;
+2. search pipeline operations occur inside the OpenSearch cluster, so large results can be processed before returning to the calling application\*;
+3. search processors can be distributed in plugins to be shared with other OpenSearch users;
+4. search pipelines only need to be modified once (and without changing or redeploying any calling applications) to have a change occur on all incoming queries\*\*;
+5. search pipelines support standard APIs for accessing metrics and disaster recovery.
+
+*Within a cluster, results are passed using a more efficient, but version-specific binary protocol. You can pass result information back to a coordinator, allow it to post-process (e.g. rerank or collapse), and finally truncate it before sending it to the client over the less efficient but flexible JSON API. 
+
+**For example, the `FilterQueryRequestProcessor` could be used to exclude search results immediately, without needing to make a code change in the application layer and deploy the change across your fleet. 
 
 ## Search Processors
 
@@ -30,8 +40,7 @@ You can find all existing search processors registered in `SearchPipelineCommonM
 New search processors can be created in two different ways. 
 
 Generally, a search processor can be created in your own `SearchPipelinePlugin`. This method is best for when you are creating a unique search
-processor for your niche application. This method should also be used when your processor relies on an outside service. For an example of a 
-processor which was implemented in this manner, you can reference the [`personalized_search_ranking` processor](https://github.com/opensearch-project/search-processor/blob/7e56847fa9d9e6e8201eb92d91802ec54abedcaf/amazon-personalize-ranking/src/main/java/org/opensearch/search/relevance/AmazonPersonalizeRankingPlugin.java). 
+processor for your niche application. This method should also be used when your processor relies on an outside service. To get started creating a search processor in a `SearchPipelinePlugin`, you can use the [plugin template](https://github.com/opensearch-project/opensearch-plugin-template-java ). 
 
 Alternatively, if you think your processor may be valuable to _all_ OpenSearch users you can follow these steps:
 
@@ -125,6 +134,8 @@ To test your new search processor, you can make use of the test [`SearchPipeline
 
 Following the format of the YAML files in [`rest-api-spec.test.search_pipeline`](../../../../../../../yamlRestTest/resources/rest-api-spec/test/search_pipeline), you should be able to create your own YAML test file to exercise your new processor. 
 
+To run the tests, from the root of the OpenSearch repository, you can run `./gradlew :modules:search-pipeline-common:yamlRestTest`.
+
 7. Finally, the processor is ready to used in a cluster. 
 
 To use the new processor, make sure the cluster is reloaded and that the new processor is accessible.
@@ -181,3 +192,11 @@ PUT /_search/pipeline/my_pipeline2
   ]
 }
 ```
+
+## Running a search request using a search pipeline
+
+To run a search request using a search pipeline, you first need to create the pipeline using the request format shown above.
+
+After that is completed, you can run a request using the format: `POST /myindex/_search?search_pipeline=<pipeline_name>`.
+
+In the example of the `DeleteFieldResponseProcessor` this would be called with `POST /myindex/_search?search_pipeline=my_pipeline2`.
