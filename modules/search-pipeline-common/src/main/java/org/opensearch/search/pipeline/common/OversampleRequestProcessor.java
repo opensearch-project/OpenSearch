@@ -10,7 +10,9 @@ package org.opensearch.search.pipeline.common;
 
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.ingest.ConfigurationUtils;
+import org.opensearch.search.SearchService;
 import org.opensearch.search.pipeline.AbstractProcessor;
+import org.opensearch.search.pipeline.PipelinedRequestContext;
 import org.opensearch.search.pipeline.Processor;
 import org.opensearch.search.pipeline.SearchRequestProcessor;
 import org.opensearch.search.pipeline.StatefulSearchRequestProcessor;
@@ -42,10 +44,13 @@ public class OversampleRequestProcessor extends AbstractProcessor implements Sta
     }
 
     @Override
-    public SearchRequest processRequest(SearchRequest request, Map<String, Object> requestContext) {
+    public SearchRequest processRequest(SearchRequest request, PipelinedRequestContext requestContext) {
         if (request.source() != null) {
             int originalSize = request.source().size();
-            requestContext.put(applyContextPrefix(contextPrefix, ORIGINAL_SIZE), originalSize);
+            if (originalSize == -1) {
+                originalSize = SearchService.DEFAULT_SIZE;
+            }
+            requestContext.getGenericRequestContext().put(applyContextPrefix(contextPrefix, ORIGINAL_SIZE), originalSize);
             int newSize = (int) Math.ceil(originalSize * sampleFactor);
             request.source().size(newSize);
         }

@@ -33,6 +33,22 @@ public interface SearchPhaseResultsProcessor extends Processor {
     );
 
     /**
+     * Processes the {@link SearchPhaseResults} obtained from a SearchPhase which will be returned to next
+     * SearchPhase. Receives the {@link PipelinedRequestContext} passed to other processors.
+     * @param searchPhaseResult {@link SearchPhaseResults}
+     * @param searchPhaseContext {@link SearchContext}
+     * @param requestContext {@link PipelinedRequestContext}
+     * @param <Result> {@link SearchPhaseResult}
+     */
+    default <Result extends SearchPhaseResult> void process(
+        final SearchPhaseResults<Result> searchPhaseResult,
+        final SearchPhaseContext searchPhaseContext,
+        final PipelinedRequestContext requestContext
+    ) {
+        process(searchPhaseResult, searchPhaseContext);
+    }
+
+    /**
      * The phase which should have run before, this processor can start executing.
      * @return {@link SearchPhaseName}
      */

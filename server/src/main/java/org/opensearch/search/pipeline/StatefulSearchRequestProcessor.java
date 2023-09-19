@@ -9,18 +9,17 @@
 package org.opensearch.search.pipeline;
 
 import org.opensearch.action.search.SearchRequest;
-import org.opensearch.core.action.ActionListener;
-
-import java.util.Map;
 
 /**
  * A specialization of {@link SearchRequestProcessor} that makes use of the request-scoped processor state.
+ * Implementors must implement the processRequest method that accepts request-scoped processor state.
  */
 public interface StatefulSearchRequestProcessor extends SearchRequestProcessor {
     @Override
     default SearchRequest processRequest(SearchRequest request) {
         throw new UnsupportedOperationException();
     }
+
     @Override
-    SearchRequest processRequest(SearchRequest request, Map<String, Object> requestContext) throws Exception;
+    SearchRequest processRequest(SearchRequest request, PipelinedRequestContext requestContext) throws Exception;
 }

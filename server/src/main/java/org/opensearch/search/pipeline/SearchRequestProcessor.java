@@ -11,26 +11,28 @@ package org.opensearch.search.pipeline;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.core.action.ActionListener;
 
-import java.util.Map;
-
 /**
  * Interface for a search pipeline processor that modifies a search request.
  */
 public interface SearchRequestProcessor extends Processor {
-
     /**
-     * Transform a {@link SearchRequest}. Executed on the coordinator node before any {@link org.opensearch.action.search.SearchPhase}
-     * executes.
-     * <p>
+     * Process a SearchRequest without receiving request-scoped state.
      * Implement this method if the processor makes no asynchronous calls.
-     * @param request the executed {@link SearchRequest}
-     * @return a new {@link SearchRequest} (or the input {@link SearchRequest} if no changes)
-     * @throws Exception if an error occurs during processing
+     * @param request the search request (which may have been modified by an earlier processor)
+     * @return the modified search request
+     * @throws Exception implementation-specific processing exception
      */
     SearchRequest processRequest(SearchRequest request) throws Exception;
 
-
-    default SearchRequest processRequest(SearchRequest request, Map<String, Object> requestContext) throws Exception {
+    /**
+     * Process a SearchRequest, with request-scoped state shared across processors in the pipeline
+     * Implement this method if the processor makes no asynchronous calls.
+     * @param request the search request (which may have been modified by an earlier processor)
+     * @param requestContext request-scoped state shared across processors in the pipeline
+     * @return the modified search request
+     * @throws Exception implementation-specific processing exception
+     */
+    default SearchRequest processRequest(SearchRequest request, PipelinedRequestContext requestContext) throws Exception {
         return processRequest(request);
     }
 
@@ -42,7 +44,11 @@ public interface SearchRequestProcessor extends Processor {
      * @param request the executed {@link SearchRequest}
      * @param requestListener callback to be invoked on successful processing or on failure
      */
-    default void processRequestAsync(SearchRequest request, Map<String, Object> requestContext, ActionListener<SearchRequest> requestListener) {
+    default void processRequestAsync(
+        SearchRequest request,
+        PipelinedRequestContext requestContext,
+        ActionListener<SearchRequest> requestListener
+    ) {
         try {
             requestListener.onResponse(processRequest(request, requestContext));
         } catch (Exception e) {

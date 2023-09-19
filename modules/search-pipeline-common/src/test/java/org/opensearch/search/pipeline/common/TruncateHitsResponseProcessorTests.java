@@ -14,6 +14,7 @@ import org.opensearch.action.search.SearchResponse;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
 import org.opensearch.search.internal.InternalSearchResponse;
+import org.opensearch.search.pipeline.PipelinedRequestContext;
 import org.opensearch.search.pipeline.common.helpers.ContextUtils;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -31,7 +32,7 @@ public class TruncateHitsResponseProcessorTests extends OpenSearchTestCase {
 
         int numHits = randomInt(100);
         SearchResponse response = constructResponse(numHits);
-        SearchResponse transformedResponse = processor.processResponse(new SearchRequest(), response, Collections.emptyMap());
+        SearchResponse transformedResponse = processor.processResponse(new SearchRequest(), response, new PipelinedRequestContext());
         assertEquals(Math.min(targetSize, numHits), transformedResponse.getHits().getHits().length);
     }
 
@@ -42,7 +43,9 @@ public class TruncateHitsResponseProcessorTests extends OpenSearchTestCase {
         int targetSize = randomInt(50);
         int numHits = randomInt(100);
         SearchResponse response = constructResponse(numHits);
-        SearchResponse transformedResponse = processor.processResponse(new SearchRequest(), response, Map.of("original_size", targetSize));
+        PipelinedRequestContext requestContext = new PipelinedRequestContext();
+        requestContext.getGenericRequestContext().put("original_size", targetSize);
+        SearchResponse transformedResponse = processor.processResponse(new SearchRequest(), response, requestContext);
         assertEquals(Math.min(targetSize, numHits), transformedResponse.getHits().getHits().length);
     }
 
@@ -54,11 +57,9 @@ public class TruncateHitsResponseProcessorTests extends OpenSearchTestCase {
         int targetSize = randomInt(50);
         int numHits = randomInt(100);
         SearchResponse response = constructResponse(numHits);
-        SearchResponse transformedResponse = processor.processResponse(
-            new SearchRequest(),
-            response,
-            Map.of("foo.original_size", targetSize)
-        );
+        PipelinedRequestContext requestContext = new PipelinedRequestContext();
+        requestContext.getGenericRequestContext().put("foo.original_size", targetSize);
+        SearchResponse transformedResponse = processor.processResponse(new SearchRequest(), response, requestContext);
         assertEquals(Math.min(targetSize, numHits), transformedResponse.getHits().getHits().length);
     }
 
@@ -68,7 +69,10 @@ public class TruncateHitsResponseProcessorTests extends OpenSearchTestCase {
 
         int numHits = randomInt(100);
         SearchResponse response = constructResponse(numHits);
-        assertThrows(IllegalStateException.class, () -> processor.processResponse(new SearchRequest(), response, Collections.emptyMap()));
+        assertThrows(
+            IllegalStateException.class,
+            () -> processor.processResponse(new SearchRequest(), response, new PipelinedRequestContext())
+        );
     }
 
     private static SearchResponse constructResponse(int numHits) {

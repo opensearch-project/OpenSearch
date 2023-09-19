@@ -10,6 +10,7 @@ package org.opensearch.search.pipeline.common;
 
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.search.builder.SearchSourceBuilder;
+import org.opensearch.search.pipeline.PipelinedRequestContext;
 import org.opensearch.search.pipeline.common.helpers.ContextUtils;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -25,10 +26,10 @@ public class OversampleRequestProcessorTests extends OpenSearchTestCase {
         OversampleRequestProcessor processor = factory.create(Collections.emptyMap(), null, null, false, config, null);
 
         SearchRequest request = new SearchRequest();
-        Map<String, Object> context = new HashMap<>();
+        PipelinedRequestContext context = new PipelinedRequestContext();
         SearchRequest transformedRequest = processor.processRequest(request, context);
         assertEquals(request, transformedRequest);
-        assertTrue(context.isEmpty());
+        assertTrue(context.getGenericRequestContext().isEmpty());
     }
 
     public void testBasicBehavior() {
@@ -38,11 +39,11 @@ public class OversampleRequestProcessorTests extends OpenSearchTestCase {
 
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().size(10);
         SearchRequest request = new SearchRequest().source(sourceBuilder);
-        Map<String, Object> context = new HashMap<>();
+        PipelinedRequestContext context = new PipelinedRequestContext();
         SearchRequest transformedRequest = processor.processRequest(request, context);
         assertEquals(30, transformedRequest.source().size());
-        assertEquals(1, context.size());
-        assertEquals(10, context.get("original_size"));
+        assertEquals(1, context.getGenericRequestContext().size());
+        assertEquals(10, context.getGenericRequestContext().get("original_size"));
     }
 
     public void testContextPrefix() {
@@ -54,10 +55,10 @@ public class OversampleRequestProcessorTests extends OpenSearchTestCase {
 
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().size(10);
         SearchRequest request = new SearchRequest().source(sourceBuilder);
-        Map<String, Object> context = new HashMap<>();
+        PipelinedRequestContext context = new PipelinedRequestContext();
         SearchRequest transformedRequest = processor.processRequest(request, context);
         assertEquals(30, transformedRequest.source().size());
-        assertEquals(1, context.size());
-        assertEquals(10, context.get("foo.original_size"));
+        assertEquals(1, context.getGenericRequestContext().size());
+        assertEquals(10, context.getGenericRequestContext().get("foo.original_size"));
     }
 }

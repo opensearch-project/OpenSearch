@@ -15,8 +15,6 @@ import org.opensearch.action.search.SearchResponse;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.search.SearchPhaseResult;
 
-import java.util.Map;
-
 /**
  * Groups a search pipeline based on a request and the request after being transformed by the pipeline.
  *
@@ -24,9 +22,9 @@ import java.util.Map;
  */
 public final class PipelinedRequest extends SearchRequest {
     private final Pipeline pipeline;
-    private final Map<String, Object> requestContext;
+    private final PipelinedRequestContext requestContext;
 
-    PipelinedRequest(Pipeline pipeline, SearchRequest transformedRequest, Map<String, Object> requestContext) {
+    PipelinedRequest(Pipeline pipeline, SearchRequest transformedRequest, PipelinedRequestContext requestContext) {
         super(transformedRequest);
         this.pipeline = pipeline;
         this.requestContext = requestContext;
@@ -46,7 +44,7 @@ public final class PipelinedRequest extends SearchRequest {
         final String currentPhase,
         final String nextPhase
     ) {
-        pipeline.runSearchPhaseResultsTransformer(searchPhaseResult, searchPhaseContext, currentPhase, nextPhase);
+        pipeline.runSearchPhaseResultsTransformer(searchPhaseResult, searchPhaseContext, currentPhase, nextPhase, requestContext);
     }
 
     // Visible for testing

@@ -23,6 +23,7 @@ import org.opensearch.script.ScriptService;
 import org.opensearch.script.ScriptType;
 import org.opensearch.script.SearchScript;
 import org.opensearch.search.pipeline.AbstractProcessor;
+import org.opensearch.search.pipeline.PipelinedRequestContext;
 import org.opensearch.search.pipeline.Processor;
 import org.opensearch.search.pipeline.SearchRequestProcessor;
 import org.opensearch.search.pipeline.StatefulSearchRequestProcessor;
@@ -74,7 +75,7 @@ public final class ScriptRequestProcessor extends AbstractProcessor implements S
     }
 
     @Override
-    public SearchRequest processRequest(SearchRequest request, Map<String, Object> requestContext) throws Exception {
+    public SearchRequest processRequest(SearchRequest request, PipelinedRequestContext requestContext) throws Exception {
         // assert request is not null and source is not null
         if (request == null || request.source() == null) {
             throw new IllegalArgumentException("search request must not be null");
@@ -87,7 +88,9 @@ public final class ScriptRequestProcessor extends AbstractProcessor implements S
             searchScript = precompiledSearchScript;
         }
         // execute the script with the search request in context
-        searchScript.execute(Map.of("_source", new SearchRequestMap(request), "request_context", requestContext));
+        searchScript.execute(
+            Map.of("_source", new SearchRequestMap(request), "request_context", requestContext.getGenericRequestContext())
+        );
         return request;
     }
 

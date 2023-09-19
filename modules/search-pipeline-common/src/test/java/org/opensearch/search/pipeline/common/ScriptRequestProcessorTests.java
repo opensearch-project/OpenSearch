@@ -18,6 +18,7 @@ import org.opensearch.script.ScriptService;
 import org.opensearch.script.ScriptType;
 import org.opensearch.script.SearchScript;
 import org.opensearch.search.builder.SearchSourceBuilder;
+import org.opensearch.search.pipeline.PipelinedRequestContext;
 import org.opensearch.search.pipeline.common.helpers.SearchRequestMap;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
@@ -85,7 +86,7 @@ public class ScriptRequestProcessorTests extends OpenSearchTestCase {
         searchRequest.source(createSearchSourceBuilder());
 
         assertNotNull(searchRequest);
-        processor.processRequest(searchRequest, new HashMap<>());
+        processor.processRequest(searchRequest, new PipelinedRequestContext());
         assertSearchRequest(searchRequest);
     }
 
@@ -102,7 +103,7 @@ public class ScriptRequestProcessorTests extends OpenSearchTestCase {
         searchRequest.source(createSearchSourceBuilder());
 
         assertNotNull(searchRequest);
-        processor.processRequest(searchRequest, new HashMap<>());
+        processor.processRequest(searchRequest, new PipelinedRequestContext());
         assertSearchRequest(searchRequest);
     }
 

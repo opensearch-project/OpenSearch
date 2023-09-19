@@ -41,8 +41,8 @@ import org.opensearch.common.metrics.OperationStats;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.AtomicArray;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
-import org.opensearch.core.action.ActionListener;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.breaker.NoopCircuitBreaker;
 import org.opensearch.core.common.bytes.BytesArray;
@@ -1397,8 +1397,8 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
         }
 
         @Override
-        public SearchRequest processRequest(SearchRequest request, Map<String, Object> requestContext) throws Exception {
-            stateConsumer.accept(requestContext);
+        public SearchRequest processRequest(SearchRequest request, PipelinedRequestContext requestContext) throws Exception {
+            stateConsumer.accept(requestContext.getGenericRequestContext());
             return request;
         }
     }
@@ -1419,9 +1419,9 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
         }
 
         @Override
-        public SearchResponse processResponse(SearchRequest request, SearchResponse response, Map<String, Object> requestContext)
+        public SearchResponse processResponse(SearchRequest request, SearchResponse response, PipelinedRequestContext requestContext)
             throws Exception {
-            stateConsumer.accept(requestContext);
+            stateConsumer.accept(requestContext.getGenericRequestContext());
             return response;
         }
     }

@@ -10,12 +10,10 @@ package org.opensearch.search.pipeline;
 
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
-import org.opensearch.core.action.ActionListener;
-
-import java.util.Map;
 
 /**
  * A specialization of {@link SearchResponseProcessor} that makes use of the request-scoped processor state.
+ * Implementors must implement the processResponse method that accepts request-scoped processor state.
  */
 public interface StatefulSearchResponseProcessor extends SearchResponseProcessor {
     @Override
@@ -24,5 +22,5 @@ public interface StatefulSearchResponseProcessor extends SearchResponseProcessor
     }
 
     @Override
-    SearchResponse processResponse(SearchRequest request, SearchResponse response, Map<String, Object> requestContext) throws Exception;
+    SearchResponse processResponse(SearchRequest request, SearchResponse response, PipelinedRequestContext requestContext) throws Exception;
 }

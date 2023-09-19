@@ -25,7 +25,6 @@ import org.opensearch.search.SearchPhaseResult;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.LongSupplier;
 
@@ -120,7 +119,8 @@ class Pipeline {
 
     protected void onResponseProcessorFailed(Processor processor) {}
 
-    void transformRequest(SearchRequest request, ActionListener<SearchRequest> requestListener, Map<String, Object> requestContext) throws SearchPipelineProcessingException {
+    void transformRequest(SearchRequest request, ActionListener<SearchRequest> requestListener, PipelinedRequestContext requestContext)
+        throws SearchPipelineProcessingException {
         if (searchRequestProcessors.isEmpty()) {
             requestListener.onResponse(request);
             return;
@@ -177,7 +177,10 @@ class Pipeline {
         currentListener.onResponse(request);
     }
 
-    private ActionListener<SearchRequest> getTerminalSearchRequestActionListener(ActionListener<SearchRequest> requestListener, Map<String, Object> requestContext) {
+    private ActionListener<SearchRequest> getTerminalSearchRequestActionListener(
+        ActionListener<SearchRequest> requestListener,
+        PipelinedRequestContext requestContext
+    ) {
         final long pipelineStart = relativeTimeSupplier.getAsLong();
 
         return ActionListener.wrap(r -> {
@@ -192,7 +195,11 @@ class Pipeline {
         });
     }
 
-    ActionListener<SearchResponse> transformResponseListener(SearchRequest request, ActionListener<SearchResponse> responseListener, Map<String, Object> requestContext) {
+    ActionListener<SearchResponse> transformResponseListener(
+        SearchRequest request,
+        ActionListener<SearchResponse> responseListener,
+        PipelinedRequestContext requestContext
+    ) {
         if (searchResponseProcessors.isEmpty()) {
             // No response transformation necessary
             return responseListener;
@@ -258,14 +265,15 @@ class Pipeline {
         SearchPhaseResults<Result> searchPhaseResult,
         SearchPhaseContext context,
         String currentPhase,
-        String nextPhase
+        String nextPhase,
+        PipelinedRequestContext requestContext
     ) throws SearchPipelineProcessingException {
         try {
             for (SearchPhaseResultsProcessor searchPhaseResultsProcessor : searchPhaseResultsProcessors) {
                 if (currentPhase.equals(searchPhaseResultsProcessor.getBeforePhase().getName())
                     && nextPhase.equals(searchPhaseResultsProcessor.getAfterPhase().getName())) {
                     try {
-                        searchPhaseResultsProcessor.process(searchPhaseResult, context);
+                        searchPhaseResultsProcessor.process(searchPhaseResult, context, requestContext);
                     } catch (Exception e) {
                         if (searchPhaseResultsProcessor.isIgnoreFailure()) {
                             logger.warn(

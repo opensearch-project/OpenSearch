@@ -13,6 +13,7 @@ import org.opensearch.action.search.SearchResponse;
 import org.opensearch.ingest.ConfigurationUtils;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.pipeline.AbstractProcessor;
+import org.opensearch.search.pipeline.PipelinedRequestContext;
 import org.opensearch.search.pipeline.Processor;
 import org.opensearch.search.pipeline.SearchResponseProcessor;
 import org.opensearch.search.pipeline.StatefulSearchResponseProcessor;
@@ -48,11 +49,11 @@ public class TruncateHitsResponseProcessor extends AbstractProcessor implements 
     }
 
     @Override
-    public SearchResponse processResponse(SearchRequest request, SearchResponse response, Map<String, Object> requestContext) {
+    public SearchResponse processResponse(SearchRequest request, SearchResponse response, PipelinedRequestContext requestContext) {
         int size;
         if (targetSize < 0) { // No value specified in processor config. Use context value instead.
             String key = applyContextPrefix(contextPrefix, OversampleRequestProcessor.ORIGINAL_SIZE);
-            Object o = requestContext.get(key);
+            Object o = requestContext.getGenericRequestContext().get(key);
             if (o == null) {
                 throw new IllegalStateException("Must specify " + TARGET_SIZE + " unless an earlier processor set " + key);
             }
