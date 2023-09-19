@@ -56,7 +56,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Return 409 Conflict HTTP status instead of 503 on failure to concurrently execute snapshots ([#8986](https://github.com/opensearch-project/OpenSearch/pull/5855))
 - Add task completion count in search backpressure stats API ([#10028](https://github.com/opensearch-project/OpenSearch/pull/10028/))
 - Performance improvement for Datetime field caching ([#4558](https://github.com/opensearch-project/OpenSearch/issues/4558))
-- Add task completionCount in search_backpressure stats API([#10028](https://github.com/opensearch-project/OpenSearch/pull/10028/))
+- Add task completionCount in search backpressure stats API([#10028](https://github.com/opensearch-project/OpenSearch/pull/10028/))
+
 
 ### Deprecated
 
