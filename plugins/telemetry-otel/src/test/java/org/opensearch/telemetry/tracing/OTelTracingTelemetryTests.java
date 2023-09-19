@@ -35,6 +35,7 @@ public class OTelTracingTelemetryTests extends OpenSearchTestCase {
         when(mockTracer.spanBuilder("span_name")).thenReturn(mockSpanBuilder);
         when(mockSpanBuilder.setAllAttributes(any(io.opentelemetry.api.common.Attributes.class))).thenReturn(mockSpanBuilder);
         when(mockSpanBuilder.startSpan()).thenReturn(mock(io.opentelemetry.api.trace.Span.class));
+        when(mockSpanBuilder.setSpanKind(any(io.opentelemetry.api.trace.SpanKind.class))).thenReturn(mockSpanBuilder);
         Map<String, String> attributeMap = Collections.singletonMap("name", "value");
         Attributes attributes = Attributes.create().addAttribute("name", "value");
         TracingTelemetry tracingTelemetry = new OTelTracingTelemetry(mockOpenTelemetry);
@@ -53,6 +54,7 @@ public class OTelTracingTelemetryTests extends OpenSearchTestCase {
         when(mockSpanBuilder.setParent(any())).thenReturn(mockSpanBuilder);
         when(mockSpanBuilder.setAllAttributes(any(io.opentelemetry.api.common.Attributes.class))).thenReturn(mockSpanBuilder);
         when(mockSpanBuilder.startSpan()).thenReturn(mock(io.opentelemetry.api.trace.Span.class));
+        when(mockSpanBuilder.setSpanKind(any(io.opentelemetry.api.trace.SpanKind.class))).thenReturn(mockSpanBuilder);
 
         Span parentSpan = new OTelSpan("parent_span", mock(io.opentelemetry.api.trace.Span.class), null);
 
@@ -76,6 +78,7 @@ public class OTelTracingTelemetryTests extends OpenSearchTestCase {
         when(mockSpanBuilder.setParent(any())).thenReturn(mockSpanBuilder);
         when(mockSpanBuilder.setAllAttributes(any(io.opentelemetry.api.common.Attributes.class))).thenReturn(mockSpanBuilder);
         when(mockSpanBuilder.startSpan()).thenReturn(mock(io.opentelemetry.api.trace.Span.class));
+        when(mockSpanBuilder.setSpanKind(any(io.opentelemetry.api.trace.SpanKind.class))).thenReturn(mockSpanBuilder);
 
         Span parentSpan = new OTelSpan("parent_span", mock(io.opentelemetry.api.trace.Span.class), null);
 
