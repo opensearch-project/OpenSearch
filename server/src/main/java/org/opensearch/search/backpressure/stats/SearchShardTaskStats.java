@@ -31,11 +31,7 @@ import java.util.Objects;
 public class SearchShardTaskStats implements ToXContentObject, Writeable {
     private final long cancellationCount;
     private final long limitReachedCount;
-<<<<<<< HEAD
-    private final long completionCount;
-=======
     private long completionCount;
->>>>>>> 3324fa1aaea (add taskCompletionCount in search_backpressure)
     private final Map<TaskResourceUsageTrackerType, TaskResourceUsageTracker.Stats> resourceUsageTrackerStats;
 
     public SearchShardTaskStats(

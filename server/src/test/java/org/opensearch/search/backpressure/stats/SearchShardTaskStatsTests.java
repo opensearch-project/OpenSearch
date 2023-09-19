@@ -39,15 +39,11 @@ public class SearchShardTaskStatsTests extends AbstractWireSerializingTestCase<S
             new ElapsedTimeTracker.Stats(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong())
         );
 
-<<<<<<< HEAD
         return new SearchShardTaskStats(
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             resourceUsageTrackerStats
         );
-=======
-        return new SearchShardTaskStats(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), resourceUsageTrackerStats);
->>>>>>> 3324fa1aaea (add taskCompletionCount in search_backpressure)
     }
 }
