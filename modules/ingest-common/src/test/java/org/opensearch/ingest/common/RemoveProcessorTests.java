@@ -64,23 +64,24 @@ public class RemoveProcessorTests extends OpenSearchTestCase {
         config.put("field", fieldName);
         String processorTag = randomAlphaOfLength(10);
         Processor processor = new RemoveProcessor.Factory(TestTemplateService.instance()).create(null, processorTag, null, config);
-        try {
+        assertThrows("field [" + fieldName + "] doesn't exist", IllegalArgumentException.class, () -> {
             processor.execute(ingestDocument);
             fail("remove field should have failed");
-        } catch (IllegalArgumentException e) {
-            assertEquals(e.getMessage(), "field [" + fieldName + "] doesn't exist");
-        }
+        });
 
         Map<String, Object> configWithEmptyField = new HashMap<>();
         configWithEmptyField.put("field", "");
         processorTag = randomAlphaOfLength(10);
-        processor = new RemoveProcessor.Factory(TestTemplateService.instance()).create(null, processorTag, null, configWithEmptyField);
-        try {
-            processor.execute(ingestDocument);
+        Processor removeProcessorWithEmptyField = new RemoveProcessor.Factory(TestTemplateService.instance()).create(
+            null,
+            processorTag,
+            null,
+            configWithEmptyField
+        );
+        assertThrows("field path cannot be null nor empty", IllegalArgumentException.class, () -> {
+            removeProcessorWithEmptyField.execute(ingestDocument);
             fail("remove empty field should have failed");
-        } catch (IllegalArgumentException e) {
-            assertEquals(e.getMessage(), "field path cannot be null nor empty");
-        }
+        });
     }
 
     public void testIgnoreMissing() throws Exception {
