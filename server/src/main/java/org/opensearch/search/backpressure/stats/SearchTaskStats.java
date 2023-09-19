@@ -32,7 +32,7 @@ import java.util.Objects;
 public class SearchTaskStats implements ToXContentObject, Writeable {
     private final long cancellationCount;
     private final long limitReachedCount;
-    private Long completionCount;
+    private final Long completionCount;
     private final Map<TaskResourceUsageTrackerType, TaskResourceUsageTracker.Stats> resourceUsageTrackerStats;
 
     public SearchTaskStats(
@@ -52,6 +52,8 @@ public class SearchTaskStats implements ToXContentObject, Writeable {
         this.limitReachedCount = in.readVLong();
         if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
             this.completionCount = in.readOptionalVLong();
+        } else {
+            this.completionCount = null;
         }
 
 

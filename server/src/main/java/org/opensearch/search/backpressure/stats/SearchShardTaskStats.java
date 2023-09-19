@@ -31,7 +31,7 @@ import java.util.Objects;
 public class SearchShardTaskStats implements ToXContentObject, Writeable {
     private final long cancellationCount;
     private final long limitReachedCount;
-    private Long completionCount;
+    private final Long completionCount;
     private final Map<TaskResourceUsageTrackerType, TaskResourceUsageTracker.Stats> resourceUsageTrackerStats;
 
     public SearchShardTaskStats(
@@ -51,6 +51,8 @@ public class SearchShardTaskStats implements ToXContentObject, Writeable {
         this.limitReachedCount = in.readVLong();
         if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
             completionCount = in.readOptionalVLong();
+        } else {
+            completionCount = null;
         }
 
         MapBuilder<TaskResourceUsageTrackerType, TaskResourceUsageTracker.Stats> builder = new MapBuilder<>();
