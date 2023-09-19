@@ -118,6 +118,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Consumer;
 
+import static java.lang.Character.MAX_RADIX;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.opensearch.index.seqno.SequenceNumbers.LOCAL_CHECKPOINT_KEY;
@@ -985,11 +986,13 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             beforeDownload(fileSize);
             boolean success = false;
             long startTime = System.currentTimeMillis();
-            try (IndexInput is = from.openInput(src, context); IndexOutput os = createOutput(dest, context)) {
+            try {
                 if (from instanceof RemoteSegmentStoreDirectory) {
-                    copyFileAndValidateChecksum(from, is, os, dest, fileSize);
+                    try (IndexInput is = from.openInput(src, context); IndexOutput os = createOutput(dest, context)) {
+                        copyFileAndValidateChecksum(from, is, os, dest, fileSize);
+                    }
                 } else {
-                    os.copyBytes(is, is.length());
+                    super.copyFrom(from, src, dest, context);
                 }
                 success = true;
                 afterDownload(fileSize, startTime);
@@ -1005,24 +1008,34 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             RemoteSegmentStoreDirectory.UploadedSegmentMetadata metadata = ((RemoteSegmentStoreDirectory) from)
                 .getSegmentsUploadedToRemoteStore()
                 .get(dest);
+            boolean success = false;
             try {
                 // Here, we don't need the exact version as LuceneVerifyingIndexOutput does not verify version
                 // It is just used to emit logs when the entire metadata object is provided as parameter. Also,
                 // we can't provide null version as StoreFileMetadata has non-null check on writtenBy field.
                 Version luceneMajorVersion = Version.parse(metadata.getWrittenByMajor() + ".0.0");
-                StoreFileMetadata storeFileMetadata = new StoreFileMetadata(dest, fileSize, metadata.getChecksum(), luceneMajorVersion);
+                Long checksum = Long.parseLong(metadata.getChecksum());
+                StoreFileMetadata storeFileMetadata = new StoreFileMetadata(
+                    dest,
+                    fileSize,
+                    Long.toString(checksum, MAX_RADIX),
+                    luceneMajorVersion
+                );
                 VerifyingIndexOutput verifyingIndexOutput = new LuceneVerifyingIndexOutput(storeFileMetadata, os);
                 verifyingIndexOutput.copyBytes(is, is.length());
                 verifyingIndexOutput.verify();
+                success = true;
             } catch (ParseException e) {
                 throw new IOException("Exception while reading version info for segment file from remote store: " + dest, e);
             } finally {
-                // If the exception is thrown after file is created, we clean up the file.
-                // We ignore the exception as the deletion is best-effort basis and can fail if file does not exist.
-                try {
-                    deleteFile("Quietly deleting", dest);
-                } catch (Exception e) {
-                    // Ignore
+                if (success == false) {
+                    // If the exception is thrown after file is created, we clean up the file.
+                    // We ignore the exception as the deletion is best-effort basis and can fail if file does not exist.
+                    try {
+                        deleteFile("Quietly deleting", dest);
+                    } catch (Exception e) {
+                        // Ignore
+                    }
                 }
             }
         }
@@ -1518,7 +1531,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * Produces a string representation of the given digest value.
      */
     public static String digestToString(long digest) {
-        return Long.toString(digest, Character.MAX_RADIX);
+        return Long.toString(digest, MAX_RADIX);
     }
 
     public void deleteQuiet(String... files) {
