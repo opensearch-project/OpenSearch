@@ -45,7 +45,6 @@ import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.transport.Transport;
 
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
@@ -83,7 +82,7 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
         ClusterState clusterState,
         SearchTask task,
         SearchResponse.Clusters clusters,
-        List<SearchRequestOperationsListener> searchListenersList
+        SearchRequestOperationsListener searchRequestOperationsListener
     ) {
         super(
             SearchPhaseName.QUERY.getName(),
@@ -103,7 +102,7 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
             resultConsumer,
             request.getMaxConcurrentShardRequests(),
             clusters,
-            searchListenersList
+            searchRequestOperationsListener
         );
         this.topDocsSize = SearchPhaseController.getTopDocsSize(request);
         this.trackTotalHitsUpTo = request.resolveTrackTotalHitsUpTo();

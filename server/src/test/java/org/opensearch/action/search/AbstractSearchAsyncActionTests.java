@@ -333,29 +333,29 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
         final List<SearchRequestOperationsListener> requestOperationListeners = new ArrayList<>(List.of(testListener));
         SearchQueryThenFetchAsyncAction action = createSearchQueryThenFetchAsyncAction(requestOperationListeners);
         action.start();
-        assertEquals(1, testListener.getPhaseCurrent(SearchPhaseName.getSearchPhaseName(action.getName())));
+        assertEquals(1, testListener.getPhaseCurrent(action.getSearchPhaseName()));
         action.onPhaseFailure(new SearchPhase("test") {
             @Override
             public void run() {
 
             }
         }, "message", null);
-        assertEquals(0, testListener.getPhaseCurrent(SearchPhaseName.getSearchPhaseName(action.getName())));
-        assertEquals(0, testListener.getPhaseTotal(SearchPhaseName.getSearchPhaseName(action.getName())));
+        assertEquals(0, testListener.getPhaseCurrent(action.getSearchPhaseName()));
+        assertEquals(0, testListener.getPhaseTotal(action.getSearchPhaseName()));
 
         SearchDfsQueryThenFetchAsyncAction searchDfsQueryThenFetchAsyncAction = createSearchDfsQueryThenFetchAsyncAction(
             requestOperationListeners
         );
         searchDfsQueryThenFetchAsyncAction.start();
-        assertEquals(1, testListener.getPhaseCurrent(SearchPhaseName.getSearchPhaseName(searchDfsQueryThenFetchAsyncAction.getName())));
+        assertEquals(1, testListener.getPhaseCurrent(searchDfsQueryThenFetchAsyncAction.getSearchPhaseName()));
         searchDfsQueryThenFetchAsyncAction.onPhaseFailure(new SearchPhase("test") {
             @Override
             public void run() {
 
             }
         }, "message", null);
-        assertEquals(0, testListener.getPhaseCurrent(SearchPhaseName.getSearchPhaseName(action.getName())));
-        assertEquals(0, testListener.getPhaseTotal(SearchPhaseName.getSearchPhaseName(action.getName())));
+        assertEquals(0, testListener.getPhaseCurrent(action.getSearchPhaseName()));
+        assertEquals(0, testListener.getPhaseTotal(action.getSearchPhaseName()));
 
         FetchSearchPhase fetchPhase = createFetchSearchPhase();
         ShardId shardId = new ShardId(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLength(10), randomInt());
@@ -363,15 +363,15 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
         searchShardIterator.resetAndSkip();
         action.skipShard(searchShardIterator);
         action.executeNextPhase(action, fetchPhase);
-        assertEquals(1, testListener.getPhaseCurrent(SearchPhaseName.getSearchPhaseName(fetchPhase.getName())));
+        assertEquals(1, testListener.getPhaseCurrent(fetchPhase.getSearchPhaseName()));
         action.onPhaseFailure(new SearchPhase("test") {
             @Override
             public void run() {
 
             }
         }, "message", null);
-        assertEquals(0, testListener.getPhaseCurrent(SearchPhaseName.getSearchPhaseName(fetchPhase.getName())));
-        assertEquals(0, testListener.getPhaseTotal(SearchPhaseName.getSearchPhaseName(fetchPhase.getName())));
+        assertEquals(0, testListener.getPhaseCurrent(fetchPhase.getSearchPhaseName()));
+        assertEquals(0, testListener.getPhaseTotal(fetchPhase.getSearchPhaseName()));
     }
 
     public void testOnPhaseFailure() {
@@ -601,7 +601,7 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
         action.start();
 
         // Verify queryPhase current metric
-        assertEquals(1, testListener.getPhaseCurrent(SearchPhaseName.getSearchPhaseName(action.getName())));
+        assertEquals(1, testListener.getPhaseCurrent(action.getSearchPhaseName()));
         TimeUnit.MILLISECONDS.sleep(delay);
 
         FetchSearchPhase fetchPhase = createFetchSearchPhase();
@@ -612,12 +612,12 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
         action.executeNextPhase(action, fetchPhase);
 
         // Verify queryPhase total, current and latency metrics
-        assertEquals(0, testListener.getPhaseCurrent(SearchPhaseName.getSearchPhaseName(action.getName())));
-        assertThat(testListener.getPhaseMetric(SearchPhaseName.getSearchPhaseName(action.getName())), greaterThanOrEqualTo(delay));
-        assertEquals(1, testListener.getPhaseTotal(SearchPhaseName.getSearchPhaseName(action.getName())));
+        assertEquals(0, testListener.getPhaseCurrent(action.getSearchPhaseName()));
+        assertThat(testListener.getPhaseMetric(action.getSearchPhaseName()), greaterThanOrEqualTo(delay));
+        assertEquals(1, testListener.getPhaseTotal(action.getSearchPhaseName()));
 
         // Verify fetchPhase current metric
-        assertEquals(1, testListener.getPhaseCurrent(SearchPhaseName.getSearchPhaseName(fetchPhase.getName())));
+        assertEquals(1, testListener.getPhaseCurrent(fetchPhase.getSearchPhaseName()));
         TimeUnit.MILLISECONDS.sleep(delay);
 
         ExpandSearchPhase expandPhase = createExpandSearchPhase();
@@ -625,18 +625,18 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
         TimeUnit.MILLISECONDS.sleep(delay);
 
         // Verify fetchPhase total, current and latency metrics
-        assertThat(testListener.getPhaseMetric(SearchPhaseName.getSearchPhaseName(fetchPhase.getName())), greaterThanOrEqualTo(delay));
-        assertEquals(1, testListener.getPhaseTotal(SearchPhaseName.getSearchPhaseName(fetchPhase.getName())));
-        assertEquals(0, testListener.getPhaseCurrent(SearchPhaseName.getSearchPhaseName(fetchPhase.getName())));
+        assertThat(testListener.getPhaseMetric(fetchPhase.getSearchPhaseName()), greaterThanOrEqualTo(delay));
+        assertEquals(1, testListener.getPhaseTotal(fetchPhase.getSearchPhaseName()));
+        assertEquals(0, testListener.getPhaseCurrent(fetchPhase.getSearchPhaseName()));
 
-        assertEquals(1, testListener.getPhaseCurrent(SearchPhaseName.getSearchPhaseName(expandPhase.getName())));
+        assertEquals(1, testListener.getPhaseCurrent(expandPhase.getSearchPhaseName()));
 
         action.executeNextPhase(expandPhase, fetchPhase);
 
         action.sendSearchResponse(mock(InternalSearchResponse.class), mock(String.valueOf(QuerySearchResult.class)));
-        assertThat(testListener.getPhaseMetric(SearchPhaseName.getSearchPhaseName(expandPhase.getName())), greaterThanOrEqualTo(delay));
-        assertEquals(1, testListener.getPhaseTotal(SearchPhaseName.getSearchPhaseName(expandPhase.getName())));
-        assertEquals(0, testListener.getPhaseCurrent(SearchPhaseName.getSearchPhaseName(expandPhase.getName())));
+        assertThat(testListener.getPhaseMetric(expandPhase.getSearchPhaseName()), greaterThanOrEqualTo(delay));
+        assertEquals(1, testListener.getPhaseTotal(expandPhase.getSearchPhaseName()));
+        assertEquals(0, testListener.getPhaseCurrent(expandPhase.getSearchPhaseName()));
     }
 
     public void testOnPhaseListenersWithDfsType() throws InterruptedException {
@@ -650,7 +650,7 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
 
         FetchSearchPhase fetchPhase = createFetchSearchPhase();
         searchDfsQueryThenFetchAsyncAction.start();
-        assertEquals(1, testListener.getPhaseCurrent(SearchPhaseName.getSearchPhaseName(searchDfsQueryThenFetchAsyncAction.getName())));
+        assertEquals(1, testListener.getPhaseCurrent(searchDfsQueryThenFetchAsyncAction.getSearchPhaseName()));
         TimeUnit.MILLISECONDS.sleep(delay);
         ShardId shardId = new ShardId(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLength(10), randomInt());
         SearchShardIterator searchShardIterator = new SearchShardIterator(null, shardId, Collections.emptyList(), OriginalIndices.NONE);
@@ -659,12 +659,9 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
         searchDfsQueryThenFetchAsyncAction.skipShard(searchShardIterator);
         searchDfsQueryThenFetchAsyncAction.executeNextPhase(searchDfsQueryThenFetchAsyncAction, fetchPhase);
 
-        assertThat(
-            testListener.getPhaseMetric(SearchPhaseName.getSearchPhaseName(searchDfsQueryThenFetchAsyncAction.getName())),
-            greaterThanOrEqualTo(delay)
-        );
-        assertEquals(1, testListener.getPhaseTotal(SearchPhaseName.getSearchPhaseName(searchDfsQueryThenFetchAsyncAction.getName())));
-        assertEquals(0, testListener.getPhaseCurrent(SearchPhaseName.getSearchPhaseName(searchDfsQueryThenFetchAsyncAction.getName())));
+        assertThat(testListener.getPhaseMetric(searchDfsQueryThenFetchAsyncAction.getSearchPhaseName()), greaterThanOrEqualTo(delay));
+        assertEquals(1, testListener.getPhaseTotal(searchDfsQueryThenFetchAsyncAction.getSearchPhaseName()));
+        assertEquals(0, testListener.getPhaseCurrent(searchDfsQueryThenFetchAsyncAction.getSearchPhaseName()));
     }
 
     private SearchDfsQueryThenFetchAsyncAction createSearchDfsQueryThenFetchAsyncAction(
@@ -709,7 +706,7 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
             null,
             task,
             SearchResponse.Clusters.EMPTY,
-            searchRequestOperationsListeners
+            new SearchRequestOperationsListener.CompositeListener(searchRequestOperationsListeners, logger)
         );
     }
 
@@ -754,7 +751,7 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
             null,
             task,
             SearchResponse.Clusters.EMPTY,
-            searchRequestOperationsListeners
+            new SearchRequestOperationsListener.CompositeListener(searchRequestOperationsListeners, logger)
         ) {
             @Override
             ShardSearchFailure[] buildShardFailures() {

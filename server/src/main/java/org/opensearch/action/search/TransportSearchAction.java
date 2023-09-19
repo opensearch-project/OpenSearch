@@ -67,6 +67,7 @@ import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.common.util.CollectionUtils;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
@@ -332,6 +333,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         ActionListener<SearchResponse> listener
     ) {
         final List<SearchRequestOperationsListener> searchListenersList = createSearchListenerList();
+        final SearchRequestOperationsListener searchRequestOperationsListener;
+        if (!CollectionUtils.isEmpty(searchListenersList)) {
+            searchRequestOperationsListener = new SearchRequestOperationsListener.CompositeListener(searchListenersList, logger);
+        } else {
+            searchRequestOperationsListener = null;
+        }
         executeRequest(task, searchRequest, new SearchAsyncActionProvider() {
             @Override
             public AbstractSearchAsyncAction<? extends SearchPhaseResult> asyncSearchAction(
@@ -368,7 +375,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     new ArraySearchPhaseResults<>(shardsIts.size()),
                     searchRequest.getMaxConcurrentShardRequests(),
                     clusters,
-                    searchListenersList
+                    searchRequestOperationsListener
                 ) {
                     @Override
                     protected void executePhaseOnShard(
@@ -1149,6 +1156,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         SearchResponse.Clusters clusters
     ) {
         final List<SearchRequestOperationsListener> searchListenersList = createSearchListenerList();
+        final SearchRequestOperationsListener searchRequestOperationsListener;
+        if (!CollectionUtils.isEmpty(searchListenersList)) {
+            searchRequestOperationsListener = new SearchRequestOperationsListener.CompositeListener(searchListenersList, logger);
+        } else {
+            searchRequestOperationsListener = null;
+        }
         if (preFilter) {
             return new CanMatchPreFilterSearchPhase(
                 logger,
@@ -1189,7 +1202,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     };
                 },
                 clusters,
-                searchListenersList
+                searchRequestOperationsListener
             );
         } else {
             final QueryPhaseResultConsumer queryResultConsumer = searchPhaseController.newSearchPhaseResults(
@@ -1220,7 +1233,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         clusterState,
                         task,
                         clusters,
-                        searchListenersList
+                        searchRequestOperationsListener
                     );
                     break;
                 case QUERY_THEN_FETCH:
@@ -1241,7 +1254,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         clusterState,
                         task,
                         clusters,
-                        searchListenersList
+                        searchRequestOperationsListener
                     );
                     break;
                 default:

@@ -33,7 +33,6 @@
 package org.opensearch.action.admin.indices.stats;
 
 import org.apache.lucene.store.AlreadyClosedException;
-import org.opensearch.action.RequestStats;
 import org.opensearch.common.Nullable;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -283,14 +282,6 @@ public class CommonStats implements Writeable, ToXContentFragment {
         out.writeOptionalWriteable(translog);
         out.writeOptionalWriteable(requestCache);
         out.writeOptionalWriteable(recoveryStats);
-    }
-
-    // We are adding request stats with a separate setter method since SearchStats was tightly coupled with Shard Search Stats, and all
-    // nodes won't share the same response in requestStats
-    public void addRequestStats(RequestStats requestStats) {
-        if (requestStats.getSearchRequestStats() != null && this.search != null) {
-            search.setSearchRequestStats(requestStats.getSearchRequestStats());
-        }
     }
 
     public void add(CommonStats stats) {

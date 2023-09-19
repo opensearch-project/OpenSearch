@@ -32,6 +32,8 @@
 
 package org.opensearch.index.search.stats;
 
+import org.opensearch.action.search.SearchPhase;
+import org.opensearch.action.search.SearchPhaseContext;
 import org.opensearch.action.search.SearchPhaseName;
 import org.opensearch.action.search.SearchRequestStats;
 import org.opensearch.index.search.stats.SearchStats.Stats;
@@ -39,6 +41,11 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
+
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class SearchStatsTests extends OpenSearchTestCase {
 
@@ -70,17 +77,32 @@ public class SearchStatsTests extends OpenSearchTestCase {
 
         // Testing for request stats
         SearchRequestStats testRequestStats = new SearchRequestStats();
+        SearchPhaseContext ctx = mock(SearchPhaseContext.class);
         for (SearchPhaseName searchPhaseName : SearchPhaseName.values()) {
-            if (SearchPhaseName.DFS_QUERY.equals(searchPhaseName)) {
-                continue;
+            SearchPhase mockSearchPhase = mock(SearchPhase.class);
+            when(ctx.getCurrentPhase()).thenReturn(mockSearchPhase);
+            when(mockSearchPhase.getStartTimeInNanos()).thenReturn(System.nanoTime() - TimeUnit.SECONDS.toNanos(paramValue));
+            when(mockSearchPhase.getSearchPhaseName()).thenReturn(searchPhaseName);
+            for (int iterator = 0; iterator < paramValue; iterator++) {
+                testRequestStats.onPhaseStart(ctx);
+                testRequestStats.onPhaseEnd(ctx);
             }
-            testRequestStats.totalStats.getQueryCurrentMap().get(searchPhaseName).inc(paramValue);
-            testRequestStats.totalStats.getQueryTotalMap().get(searchPhaseName).inc(paramValue);
-            testRequestStats.totalStats.getQueryMetricMap().get(searchPhaseName).inc(paramValue);
         }
         searchStats1.setSearchRequestStats(testRequestStats);
-        assertRequestStats(searchStats1.getTotal(), paramValue);
-
+        for (SearchPhaseName searchPhaseName : SearchPhaseName.values()) {
+            assertEquals(
+                0,
+                searchStats1.getTotal().getRequestStatsLongHolder().getRequestStatsHolder().get(searchPhaseName.getName()).current
+            );
+            assertEquals(
+                paramValue,
+                searchStats1.getTotal().getRequestStatsLongHolder().getRequestStatsHolder().get(searchPhaseName.getName()).total
+            );
+            assertThat(
+                searchStats1.getTotal().getRequestStatsLongHolder().getRequestStatsHolder().get(searchPhaseName.getName()).timeInMillis,
+                greaterThanOrEqualTo(paramValue)
+            );
+        }
     }
 
     private static void assertStats(Stats stats, long equalTo) {
@@ -104,16 +126,5 @@ public class SearchStatsTests extends OpenSearchTestCase {
         assertEquals(equalTo, stats.getSuggestCurrent());
         // avg_concurrency is not summed up across stats
         assertEquals(1, stats.getConcurrentAvgSliceCount(), 0);
-    }
-
-    private static void assertRequestStats(Stats stats, long equalTo) {
-        for (SearchPhaseName searchPhaseName : SearchPhaseName.values()) {
-            if (SearchPhaseName.DFS_QUERY.equals(searchPhaseName)) {
-                continue;
-            }
-            assertEquals(equalTo, stats.getRequestStatsLongHolder().getSearchPhaseCurrentMap().get(searchPhaseName.getName()).longValue());
-            assertEquals(equalTo, stats.getRequestStatsLongHolder().getSearchPhaseTotalMap().get(searchPhaseName.getName()).longValue());
-            assertEquals(equalTo, stats.getRequestStatsLongHolder().getSearchPhaseMetricMap().get(searchPhaseName.getName()).longValue());
-        }
     }
 }

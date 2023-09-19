@@ -12,11 +12,9 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.common.metrics.MeanMetric;
 
+import java.util.EnumMap;
 import java.util.Map;
-import java.util.Optional;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Consumer;
 
 /**
  * Request level search stats to track coordinator level node search latencies
@@ -26,77 +24,43 @@ import java.util.function.Consumer;
 public final class SearchRequestStats implements SearchRequestOperationsListener {
     public StatsHolder totalStats = new StatsHolder();
 
-    ConcurrentHashMap<SearchPhaseName, Consumer<SearchPhaseContext>> phaseEndTracker = new ConcurrentHashMap<>();
-    ConcurrentHashMap<SearchPhaseName, Consumer<SearchPhaseContext>> phaseStartTracker = new ConcurrentHashMap<>();
-    ConcurrentHashMap<SearchPhaseName, Consumer<SearchPhaseContext>> phaseFailureTracker = new ConcurrentHashMap<>();
+    Map<SearchPhaseName, StatsHolder> phaseStatsMap = new EnumMap<>(SearchPhaseName.class);
 
     @Inject
     public SearchRequestStats() {
-        for (SearchPhaseName searchPhase : SearchPhaseName.values()) {
-            phaseEndTracker.put(searchPhase, searchPhaseContext -> {
-                if (SearchPhaseName.DFS_QUERY.equals(SearchPhaseName.getSearchPhaseName(searchPhaseContext.getCurrentPhase().getName()))) {
-                    totalStats.queryCurrentMap.get(SearchPhaseName.QUERY).dec();
-                    totalStats.queryTotalMap.get(SearchPhaseName.QUERY).inc();
-                    totalStats.queryMetricMap.get(SearchPhaseName.QUERY)
-                        .inc(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - searchPhaseContext.getCurrentPhase().getStartTimeInNanos()));
-                } else {
-                    totalStats.queryCurrentMap.get(searchPhase).dec();
-                    totalStats.queryTotalMap.get(searchPhase).inc();
-                    totalStats.queryMetricMap.get(searchPhase)
-                        .inc(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - searchPhaseContext.getCurrentPhase().getStartTimeInNanos()));
-                }
-            });
-            phaseStartTracker.put(searchPhase, searchPhaseContext -> {
-                if (SearchPhaseName.DFS_QUERY.equals(SearchPhaseName.getSearchPhaseName(searchPhaseContext.getCurrentPhase().getName()))) {
-                    totalStats.queryCurrentMap.get(SearchPhaseName.QUERY).inc();
-                } else {
-                    totalStats.queryCurrentMap.get(searchPhase).inc();
-                }
-            });
-            phaseFailureTracker.put(searchPhase, searchPhaseContext -> {
-                if (SearchPhaseName.DFS_QUERY.equals(SearchPhaseName.getSearchPhaseName(searchPhaseContext.getCurrentPhase().getName()))) {
-                    totalStats.queryCurrentMap.get(SearchPhaseName.QUERY).dec();
-                } else {
-                    totalStats.queryCurrentMap.get(searchPhase).dec();
-                }
-            });
+        for (SearchPhaseName searchPhaseName : SearchPhaseName.values()) {
+            phaseStatsMap.put(searchPhaseName, new StatsHolder());
         }
     }
 
     public long getPhaseCurrent(SearchPhaseName searchPhaseName) {
-        return totalStats.queryCurrentMap.computeIfAbsent(searchPhaseName, searchPhase -> new CounterMetric()).count();
+        return phaseStatsMap.get(searchPhaseName).current.count();
     }
 
     public long getPhaseTotal(SearchPhaseName searchPhaseName) {
-        return totalStats.queryTotalMap.computeIfAbsent(searchPhaseName, searchPhase -> new CounterMetric()).count();
+        return phaseStatsMap.get(searchPhaseName).total.count();
     }
 
     public long getPhaseMetric(SearchPhaseName searchPhaseName) {
-        return totalStats.queryMetricMap.computeIfAbsent(searchPhaseName, searchPhase -> new MeanMetric()).sum();
+        return phaseStatsMap.get(searchPhaseName).timing.sum();
     }
 
     @Override
     public void onPhaseStart(SearchPhaseContext context) {
-        Optional.ofNullable(SearchPhaseName.getSearchPhaseName(context.getCurrentPhase().getName())).map(searchPhaseName -> {
-            phaseStartTracker.get(searchPhaseName).accept(context);
-            return null;
-        });
+        phaseStatsMap.get(context.getCurrentPhase().getSearchPhaseName()).current.inc();
     }
 
     @Override
     public void onPhaseEnd(SearchPhaseContext context) {
-        Optional.ofNullable(SearchPhaseName.getSearchPhaseName(context.getCurrentPhase().getName())).map(searchPhaseName -> {
-            phaseEndTracker.get(searchPhaseName).accept(context);
-            return null;
-        });
+        StatsHolder phaseStats = phaseStatsMap.get(context.getCurrentPhase().getSearchPhaseName());
+        phaseStats.current.dec();
+        phaseStats.total.inc();
+        phaseStats.timing.inc(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - context.getCurrentPhase().getStartTimeInNanos()));
     }
 
     @Override
     public void onPhaseFailure(SearchPhaseContext context) {
-        Optional.ofNullable(SearchPhaseName.getSearchPhaseName(context.getCurrentPhase().getName())).map(searchPhaseName -> {
-            phaseFailureTracker.get(searchPhaseName).accept(context);
-            return null;
-        });
+        phaseStatsMap.get(context.getCurrentPhase().getSearchPhaseName()).current.dec();
     }
 
     /**
@@ -106,32 +70,8 @@ public final class SearchRequestStats implements SearchRequestOperationsListener
      */
 
     public static final class StatsHolder {
-
-        Map<SearchPhaseName, CounterMetric> queryCurrentMap = new ConcurrentHashMap<>();
-        Map<SearchPhaseName, CounterMetric> queryTotalMap = new ConcurrentHashMap<>();
-        Map<SearchPhaseName, MeanMetric> queryMetricMap = new ConcurrentHashMap<>();
-
-        StatsHolder() {
-            for (SearchPhaseName searchPhaseName : SearchPhaseName.values()) {
-                if (SearchPhaseName.DFS_QUERY.equals(searchPhaseName)) {
-                    continue;
-                }
-                queryCurrentMap.put(searchPhaseName, new CounterMetric());
-                queryTotalMap.put(searchPhaseName, new CounterMetric());
-                queryMetricMap.put(searchPhaseName, new MeanMetric());
-            }
-        }
-
-        public Map<SearchPhaseName, CounterMetric> getQueryCurrentMap() {
-            return queryCurrentMap;
-        }
-
-        public Map<SearchPhaseName, CounterMetric> getQueryTotalMap() {
-            return queryTotalMap;
-        }
-
-        public Map<SearchPhaseName, MeanMetric> getQueryMetricMap() {
-            return queryMetricMap;
-        }
+        CounterMetric current = new CounterMetric();
+        CounterMetric total = new CounterMetric();
+        MeanMetric timing = new MeanMetric();
     }
 }

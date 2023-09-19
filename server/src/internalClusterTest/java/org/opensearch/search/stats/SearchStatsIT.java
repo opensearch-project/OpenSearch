@@ -199,22 +199,22 @@ public class SearchStatsIT extends ParameterizedOpenSearchIntegTestCase {
 
         for (NodeStats stat : nodeStats.getNodes()) {
             Stats total = stat.getIndices().getSearch().getTotal();
-            if (total.getRequestStatsLongHolder().getSearchPhaseMetricMap().get(SearchPhaseName.QUERY.getName()) > 0) {
-                assertEquals(
-                    iters,
-                    total.getRequestStatsLongHolder().getSearchPhaseTotalMap().get(SearchPhaseName.QUERY.getName()).intValue()
-                );
+            if (total.getRequestStatsLongHolder().getRequestStatsHolder().get(SearchPhaseName.QUERY.getName()).getTimeInMillis() > 0) {
                 assertThat(
-                    total.getRequestStatsLongHolder().getSearchPhaseMetricMap().get(SearchPhaseName.FETCH.getName()),
+                    total.getRequestStatsLongHolder().getRequestStatsHolder().get(SearchPhaseName.FETCH.getName()).getTimeInMillis(),
                     greaterThan(0L)
                 );
                 assertEquals(
                     iters,
-                    total.getRequestStatsLongHolder().getSearchPhaseTotalMap().get(SearchPhaseName.FETCH.getName()).intValue()
+                    total.getRequestStatsLongHolder().getRequestStatsHolder().get(SearchPhaseName.FETCH.getName()).getTotal()
                 );
                 assertEquals(
                     iters,
-                    total.getRequestStatsLongHolder().getSearchPhaseTotalMap().get(SearchPhaseName.EXPAND.getName()).intValue()
+                    total.getRequestStatsLongHolder().getRequestStatsHolder().get(SearchPhaseName.EXPAND.getName()).getTotal()
+                );
+                assertEquals(
+                    iters,
+                    total.getRequestStatsLongHolder().getRequestStatsHolder().get(SearchPhaseName.FETCH.getName()).getTotal()
                 );
                 numOfCoordinators += 1;
             }
