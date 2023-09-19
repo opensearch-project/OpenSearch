@@ -22,8 +22,6 @@ import java.util.concurrent.TimeUnit;
  * @opensearch.internal
  */
 public final class SearchRequestStats implements SearchRequestOperationsListener {
-    public StatsHolder totalStats = new StatsHolder();
-
     Map<SearchPhaseName, StatsHolder> phaseStatsMap = new EnumMap<>(SearchPhaseName.class);
 
     @Inject
