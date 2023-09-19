@@ -8,28 +8,17 @@
 
 package org.opensearch.action.search;
 
-import java.util.HashMap;
-import java.util.Map;
-
 /**
  * Enum for different Search Phases in OpenSearch
  * @opensearch.internal
  */
 public enum SearchPhaseName {
-    DFS_PRE_QUERY("dfs"),
+    DFS_PRE_QUERY("dfs_pre_query"),
     QUERY("query"),
     FETCH("fetch"),
     DFS_QUERY("dfs_query"),
     EXPAND("expand"),
     CAN_MATCH("can_match");
-
-    private static final Map<String, SearchPhaseName> STRING_TO_ENUM = new HashMap<>();
-
-    static {
-        for (SearchPhaseName searchPhaseName : values()) {
-            STRING_TO_ENUM.put(searchPhaseName.getName(), searchPhaseName);
-        }
-    }
 
     private final String name;
 
@@ -39,9 +28,5 @@ public enum SearchPhaseName {
 
     public String getName() {
         return name;
-    }
-
-    public static SearchPhaseName getSearchPhaseName(String value) {
-        return STRING_TO_ENUM.get(value);
     }
 }

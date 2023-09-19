@@ -10,15 +10,11 @@ package org.opensearch.action.search;
 
 import org.opensearch.test.OpenSearchTestCase;
 
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Phaser;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
 
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.mockito.Mockito.mock;
@@ -32,9 +28,9 @@ public class SearchRequestStatsTests extends OpenSearchTestCase {
         when(ctx.getCurrentPhase()).thenReturn(mockSearchPhase);
 
         for (SearchPhaseName searchPhaseName : SearchPhaseName.values()) {
-            when(mockSearchPhase.getName()).thenReturn(searchPhaseName.getName());
+            when(mockSearchPhase.getSearchPhaseName()).thenReturn(searchPhaseName);
             testRequestStats.onPhaseStart(ctx);
-            assertEquals(getExpectedCount(1).apply(searchPhaseName).intValue(), testRequestStats.getPhaseCurrent(searchPhaseName));
+            assertEquals(1, testRequestStats.getPhaseCurrent(searchPhaseName));
             testRequestStats.onPhaseFailure(ctx);
             assertEquals(0, testRequestStats.getPhaseCurrent(searchPhaseName));
         }
@@ -48,19 +44,16 @@ public class SearchRequestStatsTests extends OpenSearchTestCase {
         when(ctx.getCurrentPhase()).thenReturn(mockSearchPhase);
 
         for (SearchPhaseName searchPhaseName : SearchPhaseName.values()) {
-            when(mockSearchPhase.getName()).thenReturn(searchPhaseName.getName());
+            when(mockSearchPhase.getSearchPhaseName()).thenReturn(searchPhaseName);
             long tookTimeInMillis = randomIntBetween(1, 10);
             testRequestStats.onPhaseStart(ctx);
             long startTime = System.nanoTime() - TimeUnit.MILLISECONDS.toNanos(tookTimeInMillis);
             when(mockSearchPhase.getStartTimeInNanos()).thenReturn(startTime);
-            assertEquals(getExpectedCount(1).apply(searchPhaseName).intValue(), testRequestStats.getPhaseCurrent(searchPhaseName));
+            assertEquals(1, testRequestStats.getPhaseCurrent(searchPhaseName));
             testRequestStats.onPhaseEnd(ctx);
             assertEquals(0, testRequestStats.getPhaseCurrent(searchPhaseName));
-            assertEquals(getExpectedCount(1).apply(searchPhaseName).intValue(), testRequestStats.getPhaseTotal(searchPhaseName));
-            assertThat(
-                testRequestStats.getPhaseMetric(searchPhaseName),
-                greaterThanOrEqualTo(getExpectedCount((int) tookTimeInMillis).apply(searchPhaseName).longValue())
-            );
+            assertEquals(1, testRequestStats.getPhaseTotal(searchPhaseName));
+            assertThat(testRequestStats.getPhaseMetric(searchPhaseName), greaterThanOrEqualTo(tookTimeInMillis));
         }
     }
 
@@ -74,7 +67,7 @@ public class SearchRequestStatsTests extends OpenSearchTestCase {
             SearchPhaseContext ctx = mock(SearchPhaseContext.class);
             SearchPhase mockSearchPhase = mock(SearchPhase.class);
             when(ctx.getCurrentPhase()).thenReturn(mockSearchPhase);
-            when(mockSearchPhase.getName()).thenReturn(searchPhaseName.getName());
+            when(mockSearchPhase.getSearchPhaseName()).thenReturn(searchPhaseName);
             for (int i = 0; i < numTasks; i++) {
                 threads[i] = new Thread(() -> {
                     phaser.arriveAndAwaitAdvance();
@@ -86,16 +79,8 @@ public class SearchRequestStatsTests extends OpenSearchTestCase {
         }
         phaser.arriveAndAwaitAdvance();
         countDownLatch.await();
-        for (SearchPhaseName searchPhaseName : getSearchPhaseNames()) {
-            if (SearchPhaseName.QUERY.equals(searchPhaseName)) {
-                assertEquals(numTasks * 2, testRequestStats.getPhaseCurrent(searchPhaseName));
-                continue;
-            } else {
-                assertEquals(
-                    getExpectedCount(numTasks).apply(searchPhaseName).intValue(),
-                    testRequestStats.getPhaseCurrent(searchPhaseName)
-                );
-            }
+        for (SearchPhaseName searchPhaseName : SearchPhaseName.values()) {
+            assertEquals(numTasks, testRequestStats.getPhaseCurrent(searchPhaseName));
         }
     }
 
@@ -110,7 +95,7 @@ public class SearchRequestStatsTests extends OpenSearchTestCase {
             SearchPhaseContext ctx = mock(SearchPhaseContext.class);
             SearchPhase mockSearchPhase = mock(SearchPhase.class);
             when(ctx.getCurrentPhase()).thenReturn(mockSearchPhase);
-            when(mockSearchPhase.getName()).thenReturn(searchPhaseName.getName());
+            when(mockSearchPhase.getSearchPhaseName()).thenReturn(searchPhaseName);
             long tookTimeInMillis = randomIntBetween(1, 10);
             long startTime = System.nanoTime() - TimeUnit.MILLISECONDS.toNanos(tookTimeInMillis);
             when(mockSearchPhase.getStartTimeInNanos()).thenReturn(startTime);
@@ -126,22 +111,12 @@ public class SearchRequestStatsTests extends OpenSearchTestCase {
         }
         phaser.arriveAndAwaitAdvance();
         countDownLatch.await();
-        for (SearchPhaseName searchPhaseName : getSearchPhaseNames()) {
-            if (SearchPhaseName.QUERY.equals(searchPhaseName)) {
-                assertEquals(numTasks * 2, testRequestStats.getPhaseTotal(searchPhaseName));
-                assertThat(
-                    testRequestStats.getPhaseMetric(searchPhaseName),
-                    greaterThanOrEqualTo(searchPhaseNameLongMap.get(searchPhaseName) * numTasks * 2)
-                );
-            } else {
-                assertEquals(getExpectedCount(numTasks).apply(searchPhaseName).intValue(), testRequestStats.getPhaseTotal(searchPhaseName));
-                assertThat(
-                    testRequestStats.getPhaseMetric(searchPhaseName),
-                    greaterThanOrEqualTo(
-                        getExpectedCount((int) (searchPhaseNameLongMap.get(searchPhaseName) * numTasks)).apply(searchPhaseName).longValue()
-                    )
-                );
-            }
+        for (SearchPhaseName searchPhaseName : SearchPhaseName.values()) {
+            assertEquals(numTasks, testRequestStats.getPhaseTotal(searchPhaseName));
+            assertThat(
+                testRequestStats.getPhaseMetric(searchPhaseName),
+                greaterThanOrEqualTo((searchPhaseNameLongMap.get(searchPhaseName) * numTasks))
+            );
         }
     }
 
@@ -155,7 +130,7 @@ public class SearchRequestStatsTests extends OpenSearchTestCase {
             SearchPhaseContext ctx = mock(SearchPhaseContext.class);
             SearchPhase mockSearchPhase = mock(SearchPhase.class);
             when(ctx.getCurrentPhase()).thenReturn(mockSearchPhase);
-            when(mockSearchPhase.getName()).thenReturn(searchPhaseName.getName());
+            when(mockSearchPhase.getSearchPhaseName()).thenReturn(searchPhaseName);
             for (int i = 0; i < numTasks; i++) {
                 threads[i] = new Thread(() -> {
                     phaser.arriveAndAwaitAdvance();
@@ -168,43 +143,8 @@ public class SearchRequestStatsTests extends OpenSearchTestCase {
         }
         phaser.arriveAndAwaitAdvance();
         countDownLatch.await();
-        for (SearchPhaseName searchPhaseName : getSearchPhaseNames()) {
+        for (SearchPhaseName searchPhaseName : SearchPhaseName.values()) {
             assertEquals(0, testRequestStats.getPhaseCurrent(searchPhaseName));
         }
-    }
-
-    public void testSearchRequestStatsWithInvalidPhaseName() {
-        SearchRequestStats testRequestStats = new SearchRequestStats();
-        Map<String, String> stringStringMap = new HashMap<>();
-        stringStringMap.computeIfAbsent(null, s -> { return "dummy"; });
-        SearchPhaseContext ctx = mock(SearchPhaseContext.class);
-        SearchPhase mockSearchPhase = mock(SearchPhase.class);
-        when(ctx.getCurrentPhase()).thenReturn(mockSearchPhase);
-        when(mockSearchPhase.getName()).thenReturn("dummy");
-        testRequestStats.onPhaseStart(ctx);
-        testRequestStats.onPhaseEnd(ctx);
-        testRequestStats.onPhaseFailure(ctx);
-        for (SearchPhaseName searchPhaseName : getSearchPhaseNames()) {
-            assertEquals(0, testRequestStats.getPhaseCurrent(searchPhaseName));
-            assertEquals(0, testRequestStats.getPhaseTotal(searchPhaseName));
-            assertEquals(0, testRequestStats.getPhaseMetric(searchPhaseName));
-        }
-    }
-
-    private List<SearchPhaseName> getSearchPhaseNames() {
-        List<SearchPhaseName> searchPhaseNames = new ArrayList<>(Arrays.asList(SearchPhaseName.values()));
-        searchPhaseNames.remove(SearchPhaseName.DFS_QUERY);
-        return searchPhaseNames;
-    }
-
-    private Function<SearchPhaseName, Integer> getExpectedCount(int expected) {
-        Function<SearchPhaseName, Integer> currentCount = searchPhaseName -> {
-            if (SearchPhaseName.DFS_QUERY.equals(searchPhaseName)) {
-                return 0;
-            } else {
-                return expected;
-            }
-        };
-        return currentCount;
     }
 }

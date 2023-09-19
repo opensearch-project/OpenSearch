@@ -189,21 +189,24 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
 
         for (NodeStats stat : nodeStats.getNodes()) {
             SearchStats.Stats searchStats = stat.getIndices().getSearch().getTotal();
-            if (searchStats.getRequestStatsLongHolder().getSearchPhaseMetricMap().get(SearchPhaseName.QUERY.getName()) > 0) {
+            if (searchStats.getRequestStatsLongHolder()
+                .getRequestStatsHolder()
+                .get(SearchPhaseName.QUERY.getName())
+                .getTimeInMillis() > 0) {
                 assertThat(
-                    searchStats.getRequestStatsLongHolder().getSearchPhaseTotalMap().get(SearchPhaseName.QUERY.getName()).longValue(),
+                    searchStats.getRequestStatsLongHolder().getRequestStatsHolder().get(SearchPhaseName.QUERY.getName()).getTotal(),
                     greaterThan(0L)
                 );
                 assertThat(
-                    searchStats.getRequestStatsLongHolder().getSearchPhaseMetricMap().get(SearchPhaseName.FETCH.getName()).longValue(),
+                    searchStats.getRequestStatsLongHolder().getRequestStatsHolder().get(SearchPhaseName.FETCH.getName()).getTimeInMillis(),
                     greaterThan(0L)
                 );
                 assertThat(
-                    searchStats.getRequestStatsLongHolder().getSearchPhaseTotalMap().get(SearchPhaseName.FETCH.getName()).longValue(),
+                    searchStats.getRequestStatsLongHolder().getRequestStatsHolder().get(SearchPhaseName.FETCH.getName()).getTotal(),
                     greaterThan(0L)
                 );
                 assertThat(
-                    searchStats.getRequestStatsLongHolder().getSearchPhaseTotalMap().get(SearchPhaseName.EXPAND.getName()).longValue(),
+                    searchStats.getRequestStatsLongHolder().getRequestStatsHolder().get(SearchPhaseName.EXPAND.getName()).getTotal(),
                     greaterThan(0L)
                 );
                 coordNumber += 1;

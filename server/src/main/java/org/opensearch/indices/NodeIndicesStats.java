@@ -32,10 +32,10 @@
 
 package org.opensearch.indices;
 
-import org.opensearch.action.RequestStats;
 import org.opensearch.action.admin.indices.stats.CommonStats;
 import org.opensearch.action.admin.indices.stats.IndexShardStats;
 import org.opensearch.action.admin.indices.stats.ShardStats;
+import org.opensearch.action.search.SearchRequestStats;
 import org.opensearch.common.Nullable;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -92,7 +92,7 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
         }
     }
 
-    public NodeIndicesStats(CommonStats oldStats, Map<Index, List<IndexShardStats>> statsByShard, RequestStats requestStats) {
+    public NodeIndicesStats(CommonStats oldStats, Map<Index, List<IndexShardStats>> statsByShard, SearchRequestStats searchRequestStats) {
         // this.stats = stats;
         this.statsByShard = statsByShard;
 
@@ -105,7 +105,9 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
                 }
             }
         }
-        this.stats.addRequestStats(requestStats);
+        if (this.stats.search != null) {
+            this.stats.search.setSearchRequestStats(searchRequestStats);
+        }
     }
 
     @Nullable

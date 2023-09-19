@@ -50,7 +50,6 @@ import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.AtomicArray;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.ShardOperationFailedException;
-import org.opensearch.core.common.util.CollectionUtils;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.SearchShardTarget;
@@ -66,6 +65,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
@@ -120,8 +120,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
 
     private final List<Releasable> releasables = new ArrayList<>();
 
-    private SearchRequestOperationsListener searchRequestOperationsListener;
-    private List<SearchRequestOperationsListener> searchListenersList;
+    private Optional<SearchRequestOperationsListener> searchRequestOperationsListener;
 
     AbstractSearchAsyncAction(
         String name,
@@ -141,7 +140,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         SearchPhaseResults<Result> resultConsumer,
         int maxConcurrentRequestsPerNode,
         SearchResponse.Clusters clusters,
-        List<SearchRequestOperationsListener> searchListenersList
+        SearchRequestOperationsListener searchRequestOperationsListener
     ) {
         super(name);
         final List<SearchShardIterator> toSkipIterators = new ArrayList<>();
@@ -177,10 +176,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         this.indexRoutings = indexRoutings;
         this.results = resultConsumer;
         this.clusters = clusters;
-        if (!CollectionUtils.isEmpty(searchListenersList)) {
-            this.searchListenersList = searchListenersList;
-            this.searchRequestOperationsListener = new SearchRequestOperationsListener.CompositeListener(this.searchListenersList, logger);
-        }
+        this.searchRequestOperationsListener = Optional.ofNullable(searchRequestOperationsListener);
     }
 
     @Override
@@ -436,16 +432,12 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     }
 
     private void onPhaseEnd() {
-        if (!CollectionUtils.isEmpty(searchListenersList)) {
-            searchRequestOperationsListener.onPhaseEnd(this);
-        }
+        this.searchRequestOperationsListener.ifPresent(searchRequestOperations -> { searchRequestOperations.onPhaseEnd(this); });
     }
 
     private void onPhaseStart(SearchPhase phase) {
         setCurrentPhase(phase);
-        if (!CollectionUtils.isEmpty(searchListenersList)) {
-            searchRequestOperationsListener.onPhaseStart(this);
-        }
+        this.searchRequestOperationsListener.ifPresent(searchRequestOperations -> { searchRequestOperations.onPhaseStart(this); });
     }
 
     private void executePhase(SearchPhase phase) {
@@ -710,9 +702,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
 
     @Override
     public final void onPhaseFailure(SearchPhase phase, String msg, Throwable cause) {
-        if (!CollectionUtils.isEmpty(searchListenersList)) {
-            searchRequestOperationsListener.onPhaseFailure(this);
-        }
+        this.searchRequestOperationsListener.ifPresent(searchRequestOperations -> searchRequestOperations.onPhaseFailure(this));
         raisePhaseFailure(new SearchPhaseExecutionException(phase.getName(), msg, cause, buildShardFailures()));
     }
 

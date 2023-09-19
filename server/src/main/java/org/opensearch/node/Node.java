@@ -43,7 +43,6 @@ import org.opensearch.Version;
 import org.opensearch.action.ActionModule;
 import org.opensearch.action.ActionModule.DynamicActionRegistry;
 import org.opensearch.action.ActionType;
-import org.opensearch.action.RequestStats;
 import org.opensearch.action.admin.cluster.snapshots.status.TransportNodesSnapshotsStatus;
 import org.opensearch.action.search.SearchExecutionStatsCollector;
 import org.opensearch.action.search.SearchPhaseController;
@@ -763,7 +762,7 @@ public class Node implements Closeable {
                 threadPool
             );
 
-            final RequestStats requestStats = new RequestStats();
+            final SearchRequestStats searchRequestStats = new SearchRequestStats();
 
             remoteStoreStatsTrackerFactory = new RemoteStoreStatsTrackerFactory(clusterService, settings);
             final IndicesService indicesService = new IndicesService(
@@ -790,7 +789,7 @@ public class Node implements Closeable {
                 remoteDirectoryFactory,
                 repositoriesServiceReference::get,
                 fileCacheCleaner,
-                requestStats,
+                searchRequestStats,
                 remoteStoreStatsTrackerFactory
             );
 
@@ -1204,7 +1203,7 @@ public class Node implements Closeable {
                 b.bind(SystemIndices.class).toInstance(systemIndices);
                 b.bind(IdentityService.class).toInstance(identityService);
                 b.bind(Tracer.class).toInstance(tracer);
-                b.bind(SearchRequestStats.class).toInstance(requestStats.getSearchRequestStats());
+                b.bind(SearchRequestStats.class).toInstance(searchRequestStats);
                 b.bind(RemoteClusterStateService.class).toProvider(() -> remoteClusterStateService);
                 b.bind(PersistedStateRegistry.class).toInstance(persistedStateRegistry);
             });

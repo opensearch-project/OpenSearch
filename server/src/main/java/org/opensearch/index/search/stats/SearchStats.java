@@ -64,30 +64,60 @@ public class SearchStats implements Writeable, ToXContentFragment {
      *
      * @opensearch.internal
      */
+    public static class PhaseStatsLongHolder implements Writeable {
+
+        long current;
+        long total;
+        long timeInMillis;
+
+        public long getCurrent() {
+            return current;
+        }
+
+        public long getTotal() {
+            return total;
+        }
+
+        public long getTimeInMillis() {
+            return timeInMillis;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeVLong(current);
+            out.writeVLong(total);
+            out.writeVLong(timeInMillis);
+        }
+
+        PhaseStatsLongHolder() {
+            this(0, 0, 0);
+        }
+
+        PhaseStatsLongHolder(long current, long total, long timeInMillis) {
+            this.current = current;
+            this.total = total;
+            this.timeInMillis = timeInMillis;
+        }
+
+        PhaseStatsLongHolder(StreamInput in) throws IOException {
+            this.current = in.readVLong();
+            this.total = in.readVLong();
+            this.timeInMillis = in.readVLong();
+        }
+
+    }
 
     public static class RequestStatsLongHolder {
 
-        Map<String, Long> searchPhaseCurrentMap = new HashMap<>();
-        Map<String, Long> searchPhaseTotalMap = new HashMap<>();
-        Map<String, Long> searchPhaseMetricMap = new HashMap<>();
+        Map<String, PhaseStatsLongHolder> requestStatsHolder = new HashMap<>();
 
-        public Map<String, Long> getSearchPhaseCurrentMap() {
-            return searchPhaseCurrentMap;
-        }
-
-        public Map<String, Long> getSearchPhaseTotalMap() {
-            return searchPhaseTotalMap;
-        }
-
-        public Map<String, Long> getSearchPhaseMetricMap() {
-            return searchPhaseMetricMap;
+        public Map<String, PhaseStatsLongHolder> getRequestStatsHolder() {
+            return requestStatsHolder;
         }
 
         RequestStatsLongHolder() {
             for (SearchPhaseName searchPhaseName : SearchPhaseName.values()) {
-                searchPhaseCurrentMap.put(searchPhaseName.getName(), 0L);
-                searchPhaseTotalMap.put(searchPhaseName.getName(), 0L);
-                searchPhaseMetricMap.put(searchPhaseName.getName(), 0L);
+                requestStatsHolder.put(searchPhaseName.getName(), new PhaseStatsLongHolder());
             }
         }
     }
@@ -209,9 +239,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
 
             if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
                 this.requestStatsLongHolder = new RequestStatsLongHolder();
-                requestStatsLongHolder.searchPhaseCurrentMap = in.readMap(StreamInput::readString, StreamInput::readVLong);
-                requestStatsLongHolder.searchPhaseTotalMap = in.readMap(StreamInput::readString, StreamInput::readVLong);
-                requestStatsLongHolder.searchPhaseMetricMap = in.readMap(StreamInput::readString, StreamInput::readVLong);
+                requestStatsLongHolder.requestStatsHolder = in.readMap(StreamInput::readString, PhaseStatsLongHolder::new);
             }
             if (in.getVersion().onOrAfter(Version.V_2_10_0)) {
                 concurrentQueryCount = in.readVLong();
@@ -408,9 +436,11 @@ public class SearchStats implements Writeable, ToXContentFragment {
                 if (requestStatsLongHolder == null) {
                     requestStatsLongHolder = new RequestStatsLongHolder();
                 }
-                out.writeMap(requestStatsLongHolder.getSearchPhaseCurrentMap(), StreamOutput::writeString, StreamOutput::writeVLong);
-                out.writeMap(requestStatsLongHolder.getSearchPhaseTotalMap(), StreamOutput::writeString, StreamOutput::writeVLong);
-                out.writeMap(requestStatsLongHolder.getSearchPhaseMetricMap(), StreamOutput::writeString, StreamOutput::writeVLong);
+                out.writeMap(
+                    requestStatsLongHolder.getRequestStatsHolder(),
+                    StreamOutput::writeString,
+                    (stream, stats) -> stats.writeTo(stream)
+                );
             }
 
             if (out.getVersion().onOrAfter(Version.V_2_10_0)) {
@@ -453,55 +483,17 @@ public class SearchStats implements Writeable, ToXContentFragment {
             if (requestStatsLongHolder != null) {
                 builder.startObject(Fields.REQUEST);
 
-                builder.humanReadableField(
-                    Fields.DFS_PREQUERY_TIME_IN_MILLIS,
-                    Fields.QUERY_TIME,
-                    new TimeValue(requestStatsLongHolder.searchPhaseMetricMap.get(SearchPhaseName.DFS_PRE_QUERY.getName()))
-                );
-                builder.field(
-                    Fields.DFS_PREQUERY_CURRENT,
-                    requestStatsLongHolder.searchPhaseCurrentMap.get(SearchPhaseName.DFS_PRE_QUERY.getName())
-                );
-                builder.field(
-                    Fields.DFS_PREQUERY_TOTAL,
-                    requestStatsLongHolder.searchPhaseTotalMap.get(SearchPhaseName.DFS_PRE_QUERY.getName())
-                );
-
-                builder.humanReadableField(
-                    Fields.CANMATCH_TIME_IN_MILLIS,
-                    Fields.QUERY_TIME,
-                    new TimeValue(requestStatsLongHolder.searchPhaseMetricMap.get(SearchPhaseName.CAN_MATCH.getName()))
-                );
-                builder.field(
-                    Fields.CANMATCH_CURRENT,
-                    requestStatsLongHolder.searchPhaseCurrentMap.get(SearchPhaseName.CAN_MATCH.getName())
-                );
-                builder.field(Fields.CANMATCH_TOTAL, requestStatsLongHolder.searchPhaseTotalMap.get(SearchPhaseName.CAN_MATCH.getName()));
-
-                builder.humanReadableField(
-                    Fields.QUERY_TIME_IN_MILLIS,
-                    Fields.QUERY_TIME,
-                    new TimeValue(requestStatsLongHolder.searchPhaseMetricMap.get(SearchPhaseName.QUERY.getName()))
-                );
-                builder.field(Fields.QUERY_CURRENT, requestStatsLongHolder.searchPhaseCurrentMap.get(SearchPhaseName.QUERY.getName()));
-                builder.field(Fields.QUERY_TOTAL, requestStatsLongHolder.searchPhaseTotalMap.get(SearchPhaseName.QUERY.getName()));
-
-                builder.humanReadableField(
-                    Fields.FETCH_TIME_IN_MILLIS,
-                    Fields.FETCH_TIME,
-                    new TimeValue(requestStatsLongHolder.searchPhaseMetricMap.get(SearchPhaseName.FETCH.getName()))
-                );
-                builder.field(Fields.FETCH_CURRENT, requestStatsLongHolder.searchPhaseCurrentMap.get(SearchPhaseName.FETCH.getName()));
-                builder.field(Fields.FETCH_TOTAL, requestStatsLongHolder.searchPhaseTotalMap.get(SearchPhaseName.FETCH.getName()));
-
-                builder.humanReadableField(
-                    Fields.EXPAND_TIME_IN_MILLIS,
-                    Fields.FETCH_TIME,
-                    new TimeValue(requestStatsLongHolder.searchPhaseMetricMap.get(SearchPhaseName.EXPAND.getName()))
-                );
-                builder.field(Fields.EXPAND_CURRENT, requestStatsLongHolder.searchPhaseCurrentMap.get(SearchPhaseName.EXPAND.getName()));
-                builder.field(Fields.EXPAND_TOTAL, requestStatsLongHolder.searchPhaseTotalMap.get(SearchPhaseName.EXPAND.getName()));
-
+                for (SearchPhaseName searchPhaseName : SearchPhaseName.values()) {
+                    PhaseStatsLongHolder statsLongHolder = requestStatsLongHolder.requestStatsHolder.get(searchPhaseName.getName());
+                    if (statsLongHolder == null) {
+                        continue;
+                    }
+                    builder.startObject(searchPhaseName.getName());
+                    builder.humanReadableField(Fields.TIME_IN_MILLIS, Fields.TIME, new TimeValue(statsLongHolder.timeInMillis));
+                    builder.field(Fields.CURRENT, statsLongHolder.current);
+                    builder.field(Fields.TOTAL, statsLongHolder.total);
+                    builder.endObject();
+                }
                 builder.endObject();
             }
             return builder;
@@ -525,17 +517,13 @@ public class SearchStats implements Writeable, ToXContentFragment {
         }
 
         for (SearchPhaseName searchPhaseName : SearchPhaseName.values()) {
-            totalStats.requestStatsLongHolder.searchPhaseCurrentMap.put(
+            totalStats.requestStatsLongHolder.requestStatsHolder.put(
                 searchPhaseName.getName(),
-                searchRequestStats.getPhaseCurrent(searchPhaseName)
-            );
-            totalStats.requestStatsLongHolder.searchPhaseTotalMap.put(
-                searchPhaseName.getName(),
-                searchRequestStats.getPhaseTotal(searchPhaseName)
-            );
-            totalStats.requestStatsLongHolder.searchPhaseMetricMap.put(
-                searchPhaseName.getName(),
-                searchRequestStats.getPhaseMetric(searchPhaseName)
+                new PhaseStatsLongHolder(
+                    searchRequestStats.getPhaseCurrent(searchPhaseName),
+                    searchRequestStats.getPhaseTotal(searchPhaseName),
+                    searchRequestStats.getPhaseMetric(searchPhaseName)
+                )
             );
         }
     }
@@ -656,15 +644,11 @@ public class SearchStats implements Writeable, ToXContentFragment {
         static final String SUGGEST_TIME_IN_MILLIS = "suggest_time_in_millis";
         static final String SUGGEST_CURRENT = "suggest_current";
         static final String REQUEST = "request";
-        static final String DFS_PREQUERY_TIME_IN_MILLIS = "dfs_prequery_time_in_millis";
-        static final String DFS_PREQUERY_CURRENT = "dfs_prequery_current";
-        static final String DFS_PREQUERY_TOTAL = "dfs_prequery_total";
-        static final String CANMATCH_TIME_IN_MILLIS = "canmatch_time_in_millis";
-        static final String CANMATCH_CURRENT = "canmatch_current";
-        static final String CANMATCH_TOTAL = "canmatch_total";
-        static final String EXPAND_TIME_IN_MILLIS = "expand_time_in_millis";
-        static final String EXPAND_CURRENT = "expand_current";
-        static final String EXPAND_TOTAL = "expand_total";
+        static final String TIME_IN_MILLIS = "time_in_millis";
+        static final String TIME = "time";
+        static final String CURRENT = "current";
+        static final String TOTAL = "total";
+
     }
 
     @Override

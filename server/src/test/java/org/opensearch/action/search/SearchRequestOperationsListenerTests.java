@@ -35,17 +35,17 @@ public class SearchRequestOperationsListenerTests extends OpenSearchTestCase {
 
             @Override
             public void onPhaseStart(SearchPhaseContext context) {
-                searchPhaseStartMap.get(SearchPhaseName.getSearchPhaseName(context.getCurrentPhase().getName())).incrementAndGet();
+                searchPhaseStartMap.get(context.getCurrentPhase().getSearchPhaseName()).incrementAndGet();
             }
 
             @Override
             public void onPhaseEnd(SearchPhaseContext context) {
-                searchPhaseEndMap.get(SearchPhaseName.getSearchPhaseName(context.getCurrentPhase().getName())).incrementAndGet();
+                searchPhaseEndMap.get(context.getCurrentPhase().getSearchPhaseName()).incrementAndGet();
             }
 
             @Override
             public void onPhaseFailure(SearchPhaseContext context) {
-                searchPhaseFailureMap.get(SearchPhaseName.getSearchPhaseName(context.getCurrentPhase().getName())).incrementAndGet();
+                searchPhaseFailureMap.get(context.getCurrentPhase().getSearchPhaseName()).incrementAndGet();
             }
         };
 
