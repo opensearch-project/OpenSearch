@@ -127,7 +127,7 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
         }
         // add first, before it's created
         tempFileNames.put(tempFileName, fileName);
-        IndexOutput indexOutput = store.createVerifyingOutput(tempFileName, metadata, IOContext.DEFAULT);
+        IndexOutput indexOutput = Store.createVerifyingOutput(store.directory(), tempFileName, metadata, IOContext.DEFAULT);
         openIndexOutputs.put(fileName, indexOutput);
         return indexOutput;
     }

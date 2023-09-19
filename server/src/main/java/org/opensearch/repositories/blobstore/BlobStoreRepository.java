@@ -2932,7 +2932,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     private static boolean assertFileContentsMatchHash(BlobStoreIndexShardSnapshot.FileInfo fileInfo, Store store) {
-        try (IndexInput indexInput = store.openVerifyingInput(fileInfo.physicalName(), IOContext.READONCE, fileInfo.metadata())) {
+        try (
+            IndexInput indexInput = Store.openVerifyingInput(
+                store.directory(),
+                fileInfo.physicalName(),
+                IOContext.READONCE,
+                fileInfo.metadata()
+            )
+        ) {
             final byte[] tmp = new byte[Math.toIntExact(fileInfo.metadata().length())];
             indexInput.readBytes(tmp, 0, tmp.length);
             assert fileInfo.metadata().hash().bytesEquals(new BytesRef(tmp));
@@ -3021,7 +3028,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     logger.trace(() -> new ParameterizedMessage("[{}] restoring [{}] to [{}]", metadata.name(), fileInfo, store));
                     boolean success = false;
                     try (
-                        IndexOutput indexOutput = store.createVerifyingOutput(
+                        IndexOutput indexOutput = Store.createVerifyingOutput(
+                            store.directory(),
                             fileInfo.physicalName(),
                             fileInfo.metadata(),
                             IOContext.DEFAULT
@@ -3452,7 +3460,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     ) throws IOException {
         final BlobContainer shardContainer = shardContainer(indexId, shardId);
         final String file = fileInfo.physicalName();
-        try (IndexInput indexInput = store.openVerifyingInput(file, IOContext.READONCE, fileInfo.metadata())) {
+        try (IndexInput indexInput = Store.openVerifyingInput(store.directory(), file, IOContext.READONCE, fileInfo.metadata())) {
             for (int i = 0; i < fileInfo.numberOfParts(); i++) {
                 final long partBytes = fileInfo.partBytes(i);
 

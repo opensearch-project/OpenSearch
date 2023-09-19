@@ -49,9 +49,7 @@ import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.apache.lucene.store.BufferedChecksum;
 import org.apache.lucene.store.BufferedChecksumIndexInput;
-import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
@@ -67,6 +65,7 @@ import org.apache.lucene.util.Version;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.annotation.InternalApi;
+import org.opensearch.common.inject.Provider;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.lucene.Lucene;
@@ -105,6 +104,7 @@ import java.io.PrintStream;
 import java.io.UncheckedIOException;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -117,8 +117,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Consumer;
-import java.util.zip.CRC32;
-import java.util.zip.Checksum;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
@@ -626,9 +624,13 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * Note: Checksums are calculated by default since version 4.8.0. This method only adds the
      * verification against the checksum in the given metadata and does not add any significant overhead.
      */
-    public IndexOutput createVerifyingOutput(String fileName, final StoreFileMetadata metadata, final IOContext context)
-        throws IOException {
-        IndexOutput output = directory().createOutput(fileName, context);
+    public static IndexOutput createVerifyingOutput(
+        Directory directory,
+        String fileName,
+        final StoreFileMetadata metadata,
+        final IOContext context
+    ) throws IOException {
+        IndexOutput output = directory.createOutput(fileName, context);
         boolean success = false;
         try {
             assert metadata.writtenBy() != null;
@@ -648,9 +650,10 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         }
     }
 
-    public IndexInput openVerifyingInput(String filename, IOContext context, StoreFileMetadata metadata) throws IOException {
+    public static IndexInput openVerifyingInput(Directory directory, String filename, IOContext context, StoreFileMetadata metadata)
+        throws IOException {
         assert metadata.writtenBy() != null;
-        return new VerifyingIndexInput(directory().openInput(filename, context));
+        return new VerifyingIndexInput(directory.openInput(filename, context));
     }
 
     public static void verify(IndexInput input) throws IOException {
@@ -922,6 +925,15 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         public final DirectoryFileTransferTracker directoryFileTransferTracker;
 
         StoreDirectory(ByteSizeCachingDirectory delegateDirectory, Logger deletesLogger) {
+            this(delegateDirectory, deletesLogger, null, null);
+        }
+
+        StoreDirectory(
+            ByteSizeCachingDirectory delegateDirectory,
+            Logger deletesLogger,
+            Provider<String> checksumProvider,
+            Provider<Version> versionProvider
+        ) {
             super(delegateDirectory);
             this.deletesLogger = deletesLogger;
             this.directoryFileTransferTracker = new DirectoryFileTransferTracker();
@@ -973,13 +985,44 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             beforeDownload(fileSize);
             boolean success = false;
             long startTime = System.currentTimeMillis();
-            try {
-                super.copyFrom(from, src, dest, context);
+            try (IndexInput is = from.openInput(src, context); IndexOutput os = createOutput(dest, context)) {
+                if (from instanceof RemoteSegmentStoreDirectory) {
+                    copyFileAndValidateChecksum(from, is, os, dest, fileSize);
+                } else {
+                    os.copyBytes(is, is.length());
+                }
                 success = true;
                 afterDownload(fileSize, startTime);
             } finally {
                 if (!success) {
                     downloadFailed(fileSize, startTime);
+                }
+            }
+        }
+
+        private void copyFileAndValidateChecksum(Directory from, IndexInput is, IndexOutput os, String dest, long fileSize)
+            throws IOException {
+            RemoteSegmentStoreDirectory.UploadedSegmentMetadata metadata = ((RemoteSegmentStoreDirectory) from)
+                .getSegmentsUploadedToRemoteStore()
+                .get(dest);
+            try {
+                // Here, we don't need the exact version as LuceneVerifyingIndexOutput does not verify version
+                // It is just used to emit logs when the entire metadata object is provided as parameter. Also,
+                // we can't provide null version as StoreFileMetadata has non-null check on writtenBy field.
+                Version luceneMajorVersion = Version.parse(metadata.getWrittenByMajor() + ".0.0");
+                StoreFileMetadata storeFileMetadata = new StoreFileMetadata(dest, fileSize, metadata.getChecksum(), luceneMajorVersion);
+                VerifyingIndexOutput verifyingIndexOutput = new LuceneVerifyingIndexOutput(storeFileMetadata, os);
+                verifyingIndexOutput.copyBytes(is, is.length());
+                verifyingIndexOutput.verify();
+            } catch (ParseException e) {
+                throw new IOException("Exception while reading version info for segment file from remote store: " + dest, e);
+            } finally {
+                // If the exception is thrown after file is created, we clean up the file.
+                // We ignore the exception as the deletion is best-effort basis and can fail if file does not exist.
+                try {
+                    deleteFile("Quietly deleting", dest);
+                } catch (Exception e) {
+                    // Ignore
                 }
             }
         }
@@ -1476,245 +1519,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      */
     public static String digestToString(long digest) {
         return Long.toString(digest, Character.MAX_RADIX);
-    }
-
-    /**
-     * Class to verify the lucene index output
-     *
-     * @opensearch.internal
-     */
-    public static class LuceneVerifyingIndexOutput extends VerifyingIndexOutput {
-
-        private final StoreFileMetadata metadata;
-        private long writtenBytes;
-        private final long checksumPosition;
-        private String actualChecksum;
-        private final byte[] footerChecksum = new byte[8]; // this holds the actual footer checksum data written by to this output
-
-        public LuceneVerifyingIndexOutput(StoreFileMetadata metadata, IndexOutput out) {
-            super(out);
-            this.metadata = metadata;
-            checksumPosition = metadata.length() - 8; // the last 8 bytes are the checksum - we store it in footerChecksum
-        }
-
-        @Override
-        public void verify() throws IOException {
-            String footerDigest = null;
-            if (metadata.checksum().equals(actualChecksum) && writtenBytes == metadata.length()) {
-                ByteArrayIndexInput indexInput = new ByteArrayIndexInput("checksum", this.footerChecksum);
-                footerDigest = digestToString(CodecUtil.readBELong(indexInput));
-                if (metadata.checksum().equals(footerDigest)) {
-                    return;
-                }
-            }
-            throw new CorruptIndexException(
-                "verification failed (hardware problem?) : expected="
-                    + metadata.checksum()
-                    + " actual="
-                    + actualChecksum
-                    + " footer="
-                    + footerDigest
-                    + " writtenLength="
-                    + writtenBytes
-                    + " expectedLength="
-                    + metadata.length()
-                    + " (resource="
-                    + metadata.toString()
-                    + ")",
-                "VerifyingIndexOutput(" + metadata.name() + ")"
-            );
-        }
-
-        @Override
-        public void writeByte(byte b) throws IOException {
-            final long writtenBytes = this.writtenBytes++;
-            if (writtenBytes >= checksumPosition) { // we are writing parts of the checksum....
-                if (writtenBytes == checksumPosition) {
-                    readAndCompareChecksum();
-                }
-                final int index = Math.toIntExact(writtenBytes - checksumPosition);
-                if (index < footerChecksum.length) {
-                    footerChecksum[index] = b;
-                    if (index == footerChecksum.length - 1) {
-                        verify(); // we have recorded the entire checksum
-                    }
-                } else {
-                    verify(); // fail if we write more than expected
-                    throw new AssertionError("write past EOF expected length: " + metadata.length() + " writtenBytes: " + writtenBytes);
-                }
-            }
-            out.writeByte(b);
-        }
-
-        private void readAndCompareChecksum() throws IOException {
-            actualChecksum = digestToString(getChecksum());
-            if (!metadata.checksum().equals(actualChecksum)) {
-                throw new CorruptIndexException(
-                    "checksum failed (hardware problem?) : expected="
-                        + metadata.checksum()
-                        + " actual="
-                        + actualChecksum
-                        + " (resource="
-                        + metadata.toString()
-                        + ")",
-                    "VerifyingIndexOutput(" + metadata.name() + ")"
-                );
-            }
-        }
-
-        @Override
-        public void writeBytes(byte[] b, int offset, int length) throws IOException {
-            if (writtenBytes + length > checksumPosition) {
-                for (int i = 0; i < length; i++) { // don't optimze writing the last block of bytes
-                    writeByte(b[offset + i]);
-                }
-            } else {
-                out.writeBytes(b, offset, length);
-                writtenBytes += length;
-            }
-        }
-    }
-
-    /**
-     * Index input that calculates checksum as data is read from the input.
-     * <p>
-     * This class supports random access (it is possible to seek backward and forward) in order to accommodate retry
-     * mechanism that is used in some repository plugins (S3 for example). However, the checksum is only calculated on
-     * the first read. All consecutive reads of the same data are not used to calculate the checksum.
-     *
-     * @opensearch.internal
-     */
-    static class VerifyingIndexInput extends ChecksumIndexInput {
-        private final IndexInput input;
-        private final Checksum digest;
-        private final long checksumPosition;
-        private final byte[] checksum = new byte[8];
-        private long verifiedPosition = 0;
-
-        VerifyingIndexInput(IndexInput input) {
-            this(input, new BufferedChecksum(new CRC32()));
-        }
-
-        VerifyingIndexInput(IndexInput input, Checksum digest) {
-            super("VerifyingIndexInput(" + input + ")");
-            this.input = input;
-            this.digest = digest;
-            checksumPosition = input.length() - 8;
-        }
-
-        @Override
-        public byte readByte() throws IOException {
-            long pos = input.getFilePointer();
-            final byte b = input.readByte();
-            pos++;
-            if (pos > verifiedPosition) {
-                if (pos <= checksumPosition) {
-                    digest.update(b);
-                } else {
-                    checksum[(int) (pos - checksumPosition - 1)] = b;
-                }
-                verifiedPosition = pos;
-            }
-            return b;
-        }
-
-        @Override
-        public void readBytes(byte[] b, int offset, int len) throws IOException {
-            long pos = input.getFilePointer();
-            input.readBytes(b, offset, len);
-            if (pos + len > verifiedPosition) {
-                // Conversion to int is safe here because (verifiedPosition - pos) can be at most len, which is integer
-                int alreadyVerified = (int) Math.max(0, verifiedPosition - pos);
-                if (pos < checksumPosition) {
-                    if (pos + len < checksumPosition) {
-                        digest.update(b, offset + alreadyVerified, len - alreadyVerified);
-                    } else {
-                        int checksumOffset = (int) (checksumPosition - pos);
-                        if (checksumOffset - alreadyVerified > 0) {
-                            digest.update(b, offset + alreadyVerified, checksumOffset - alreadyVerified);
-                        }
-                        System.arraycopy(b, offset + checksumOffset, checksum, 0, len - checksumOffset);
-                    }
-                } else {
-                    // Conversion to int is safe here because checksumPosition is (file length - 8) so
-                    // (pos - checksumPosition) cannot be bigger than 8 unless we are reading after the end of file
-                    assert pos - checksumPosition < 8;
-                    System.arraycopy(b, offset, checksum, (int) (pos - checksumPosition), len);
-                }
-                verifiedPosition = pos + len;
-            }
-        }
-
-        @Override
-        public long getChecksum() {
-            return digest.getValue();
-        }
-
-        @Override
-        public void seek(long pos) throws IOException {
-            if (pos < verifiedPosition) {
-                // going within verified region - just seek there
-                input.seek(pos);
-            } else {
-                if (verifiedPosition > getFilePointer()) {
-                    // portion of the skip region is verified and portion is not
-                    // skipping the verified portion
-                    input.seek(verifiedPosition);
-                    // and checking unverified
-                    super.seek(pos);
-                } else {
-                    super.seek(pos);
-                }
-            }
-        }
-
-        @Override
-        public void close() throws IOException {
-            input.close();
-        }
-
-        @Override
-        public long getFilePointer() {
-            return input.getFilePointer();
-        }
-
-        @Override
-        public long length() {
-            return input.length();
-        }
-
-        @Override
-        public IndexInput clone() {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public IndexInput slice(String sliceDescription, long offset, long length) throws IOException {
-            throw new UnsupportedOperationException();
-        }
-
-        public long getStoredChecksum() {
-            try {
-                return CodecUtil.readBELong(new ByteArrayDataInput(checksum));
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
-        }
-
-        public long verify() throws CorruptIndexException, IOException {
-            long storedChecksum = getStoredChecksum();
-            if (getChecksum() == storedChecksum) {
-                return storedChecksum;
-            }
-            throw new CorruptIndexException(
-                "verification failed : calculated="
-                    + Store.digestToString(getChecksum())
-                    + " stored="
-                    + Store.digestToString(storedChecksum),
-                this
-            );
-        }
-
     }
 
     public void deleteQuiet(String... files) {

@@ -199,7 +199,7 @@ public class StoreTests extends OpenSearchTestCase {
         indexInput.seek(0);
         BytesRef ref = new BytesRef(scaledRandomIntBetween(1, 1024));
         long length = indexInput.length();
-        IndexOutput verifyingOutput = new Store.LuceneVerifyingIndexOutput(
+        IndexOutput verifyingOutput = new LuceneVerifyingIndexOutput(
             new StoreFileMetadata("foo1.bar", length, checksum, MIN_SUPPORTED_LUCENE_VERSION),
             dir.createOutput("foo1.bar", IOContext.DEFAULT)
         );
@@ -233,7 +233,7 @@ public class StoreTests extends OpenSearchTestCase {
 
     public void testVerifyingIndexOutputOnEmptyFile() throws IOException {
         Directory dir = newDirectory();
-        IndexOutput verifyingOutput = new Store.LuceneVerifyingIndexOutput(
+        IndexOutput verifyingOutput = new LuceneVerifyingIndexOutput(
             new StoreFileMetadata("foo.bar", 0, Store.digestToString(0), MIN_SUPPORTED_LUCENE_VERSION),
             dir.createOutput("foo1.bar", IOContext.DEFAULT)
         );
@@ -264,7 +264,7 @@ public class StoreTests extends OpenSearchTestCase {
         indexInput.seek(0);
         BytesRef ref = new BytesRef(scaledRandomIntBetween(1, 1024));
         long length = indexInput.length();
-        IndexOutput verifyingOutput = new Store.LuceneVerifyingIndexOutput(
+        IndexOutput verifyingOutput = new LuceneVerifyingIndexOutput(
             new StoreFileMetadata("foo1.bar", length, checksum, MIN_SUPPORTED_LUCENE_VERSION),
             dir.createOutput("foo1.bar", IOContext.DEFAULT)
         );
@@ -321,7 +321,7 @@ public class StoreTests extends OpenSearchTestCase {
     public void testVerifyingIndexOutputWithBogusInput() throws IOException {
         Directory dir = newDirectory();
         int length = scaledRandomIntBetween(10, 1024);
-        IndexOutput verifyingOutput = new Store.LuceneVerifyingIndexOutput(
+        IndexOutput verifyingOutput = new LuceneVerifyingIndexOutput(
             new StoreFileMetadata("foo1.bar", length, "", MIN_SUPPORTED_LUCENE_VERSION),
             dir.createOutput("foo1.bar", IOContext.DEFAULT)
         );
@@ -447,7 +447,7 @@ public class StoreTests extends OpenSearchTestCase {
         IndexInput indexInput = dir.openInput("foo.bar", IOContext.DEFAULT);
         long checksum = CodecUtil.retrieveChecksum(indexInput);
         indexInput.seek(0);
-        IndexInput verifyingIndexInput = new Store.VerifyingIndexInput(dir.openInput("foo.bar", IOContext.DEFAULT));
+        IndexInput verifyingIndexInput = new VerifyingIndexInput(dir.openInput("foo.bar", IOContext.DEFAULT));
         readIndexInputFullyWithRandomSeeks(verifyingIndexInput);
         Store.verify(verifyingIndexInput);
         assertThat(checksum, equalTo(((ChecksumIndexInput) verifyingIndexInput).getChecksum()));
@@ -455,7 +455,7 @@ public class StoreTests extends OpenSearchTestCase {
 
         // Corrupt file and check again
         corruptFile(dir, "foo.bar", "foo1.bar");
-        verifyingIndexInput = new Store.VerifyingIndexInput(dir.openInput("foo1.bar", IOContext.DEFAULT));
+        verifyingIndexInput = new VerifyingIndexInput(dir.openInput("foo1.bar", IOContext.DEFAULT));
         readIndexInputFullyWithRandomSeeks(verifyingIndexInput);
         try {
             Store.verify(verifyingIndexInput);
