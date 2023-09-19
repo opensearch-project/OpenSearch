@@ -47,8 +47,8 @@ public class OTelTracingTelemetry implements TracingTelemetry {
     }
 
     @Override
-    public Span createSpan(String spanName, Span parentSpan, Attributes attributes) {
-        return createOtelSpan(spanName, parentSpan, attributes);
+    public Span createSpan(String spanName, Span parentSpan, Attributes attributes, SpanKind spanKind) {
+        return createOtelSpan(spanName, parentSpan, attributes, spanKind);
     }
 
     @Override
@@ -56,18 +56,29 @@ public class OTelTracingTelemetry implements TracingTelemetry {
         return new OTelTracingContextPropagator(openTelemetry);
     }
 
-    private Span createOtelSpan(String spanName, Span parentSpan, Attributes attributes) {
-        io.opentelemetry.api.trace.Span otelSpan = otelSpan(spanName, parentSpan, OTelAttributesConverter.convert(attributes));
+    private Span createOtelSpan(String spanName, Span parentSpan, Attributes attributes, SpanKind spanKind) {
+        io.opentelemetry.api.trace.Span otelSpan = otelSpan(
+            spanName,
+            parentSpan,
+            OTelAttributesConverter.convert(attributes),
+            OTelSpanKindConverter.convert(spanKind)
+        );
         Span newSpan = new OTelSpan(spanName, otelSpan, parentSpan);
         return newSpan;
     }
 
-    io.opentelemetry.api.trace.Span otelSpan(String spanName, Span parentOTelSpan, io.opentelemetry.api.common.Attributes attributes) {
+    io.opentelemetry.api.trace.Span otelSpan(
+        String spanName,
+        Span parentOTelSpan,
+        io.opentelemetry.api.common.Attributes attributes,
+        io.opentelemetry.api.trace.SpanKind spanKind
+    ) {
         return parentOTelSpan == null || !(parentOTelSpan instanceof OTelSpan)
             ? otelTracer.spanBuilder(spanName).setAllAttributes(attributes).startSpan()
             : otelTracer.spanBuilder(spanName)
                 .setParent(Context.current().with(((OTelSpan) parentOTelSpan).getDelegateSpan()))
                 .setAllAttributes(attributes)
+                .setSpanKind(spanKind)
                 .startSpan();
     }
 }

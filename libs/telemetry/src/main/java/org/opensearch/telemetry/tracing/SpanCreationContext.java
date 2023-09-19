@@ -20,6 +20,7 @@ import org.opensearch.telemetry.tracing.attributes.Attributes;
 public final class SpanCreationContext {
     private final String spanName;
     private final Attributes attributes;
+    private final SpanKind spanKind;
 
     /**
      * Constructor.
@@ -27,8 +28,19 @@ public final class SpanCreationContext {
      * @param attributes attributes.
      */
     public SpanCreationContext(String spanName, Attributes attributes) {
+        this(spanName, attributes, SpanKind.INTERNAL);
+    }
+
+    /**
+     * Constructor
+     * @param spanName span name.
+     * @param attributes attributes.
+     * @param spanKind span type.
+     */
+    public SpanCreationContext(String spanName, Attributes attributes, SpanKind spanKind) {
         this.spanName = spanName;
         this.attributes = attributes;
+        this.spanKind = spanKind;
     }
 
     /**
@@ -45,5 +57,13 @@ public final class SpanCreationContext {
      */
     public Attributes getAttributes() {
         return attributes;
+    }
+
+    /**
+     * Returns the span kind.
+     * @return spankind.
+     */
+    public SpanKind getSpanKind() {
+        return spanKind;
     }
 }

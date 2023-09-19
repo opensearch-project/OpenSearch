@@ -36,9 +36,10 @@ public interface Tracer extends HttpTracer, Closeable {
      * Starts the {@link Span} with given name
      *
      * @param spanName span name
+     * @param spanKind type of span.
      * @return span, must be closed.
      */
-    Span startSpan(String spanName);
+    Span startSpan(String spanName, SpanKind spanKind);
 
     /**
      * Starts the {@link Span} with given name and attributes. This is required in cases when some attribute based
@@ -46,9 +47,10 @@ public interface Tracer extends HttpTracer, Closeable {
      *
      * @param spanName   span name.
      * @param attributes attributes to be added.
+     * @param spanKind type of span.
      * @return span, must be closed.
      */
-    Span startSpan(String spanName, Attributes attributes);
+    Span startSpan(String spanName, Attributes attributes, SpanKind spanKind);
 
     /**
      * Starts the {@link Span} with the given name, parent and attributes.
@@ -56,9 +58,10 @@ public interface Tracer extends HttpTracer, Closeable {
      * @param spanName   span name.
      * @param parentSpan parent span.
      * @param attributes attributes to be added.
+     * @param spanKind type of span.
      * @return span, must be closed.
      */
-    Span startSpan(String spanName, SpanContext parentSpan, Attributes attributes);
+    Span startSpan(String spanName, SpanContext parentSpan, Attributes attributes, SpanKind spanKind);
 
     /**
      * Returns the current span.

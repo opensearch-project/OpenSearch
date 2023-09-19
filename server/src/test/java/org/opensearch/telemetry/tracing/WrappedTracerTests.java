@@ -36,9 +36,9 @@ public class WrappedTracerTests extends OpenSearchTestCase {
         DefaultTracer mockDefaultTracer = mock(DefaultTracer.class);
 
         try (WrappedTracer wrappedTracer = new WrappedTracer(telemetrySettings, mockDefaultTracer)) {
-            wrappedTracer.startSpan("foo");
+            wrappedTracer.startSpan("foo", SpanKind.INTERNAL);
             assertTrue(wrappedTracer.getDelegateTracer() instanceof NoopTracer);
-            verify(mockDefaultTracer, never()).startSpan("foo");
+            verify(mockDefaultTracer, never()).startSpan("foo", SpanKind.INTERNAL);
         }
     }
 
@@ -48,10 +48,10 @@ public class WrappedTracerTests extends OpenSearchTestCase {
         DefaultTracer mockDefaultTracer = mock(DefaultTracer.class);
 
         try (WrappedTracer wrappedTracer = new WrappedTracer(telemetrySettings, mockDefaultTracer)) {
-            wrappedTracer.startSpan("foo");
+            wrappedTracer.startSpan("foo", SpanKind.INTERNAL);
 
             assertTrue(wrappedTracer.getDelegateTracer() instanceof DefaultTracer);
-            verify(mockDefaultTracer).startSpan(eq("foo"), eq((SpanContext) null), any(Attributes.class));
+            verify(mockDefaultTracer).startSpan(eq("foo"), eq((SpanContext) null), any(Attributes.class), eq(SpanKind.INTERNAL));
         }
     }
 
@@ -61,10 +61,10 @@ public class WrappedTracerTests extends OpenSearchTestCase {
         DefaultTracer mockDefaultTracer = mock(DefaultTracer.class);
         Attributes attributes = Attributes.create().addAttribute("key", "value");
         try (WrappedTracer wrappedTracer = new WrappedTracer(telemetrySettings, mockDefaultTracer)) {
-            wrappedTracer.startSpan("foo", attributes);
+            wrappedTracer.startSpan("foo", attributes, SpanKind.INTERNAL);
 
             assertTrue(wrappedTracer.getDelegateTracer() instanceof DefaultTracer);
-            verify(mockDefaultTracer).startSpan("foo", (SpanContext) null, attributes);
+            verify(mockDefaultTracer).startSpan("foo", (SpanContext) null, attributes, SpanKind.INTERNAL);
         }
     }
 

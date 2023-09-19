@@ -38,8 +38,7 @@ public class OTelTracingTelemetryTests extends OpenSearchTestCase {
         Map<String, String> attributeMap = Collections.singletonMap("name", "value");
         Attributes attributes = Attributes.create().addAttribute("name", "value");
         TracingTelemetry tracingTelemetry = new OTelTracingTelemetry(mockOpenTelemetry);
-        Span span = tracingTelemetry.createSpan("span_name", null, attributes);
-
+        Span span = tracingTelemetry.createSpan("span_name", null, attributes, SpanKind.INTERNAL);
         verify(mockSpanBuilder, never()).setParent(any());
         verify(mockSpanBuilder).setAllAttributes(createAttribute(attributes));
         assertNull(span.getParentSpan());
@@ -59,7 +58,7 @@ public class OTelTracingTelemetryTests extends OpenSearchTestCase {
 
         TracingTelemetry tracingTelemetry = new OTelTracingTelemetry(mockOpenTelemetry);
         Attributes attributes = Attributes.create().addAttribute("name", 1l);
-        Span span = tracingTelemetry.createSpan("span_name", parentSpan, attributes);
+        Span span = tracingTelemetry.createSpan("span_name", parentSpan, attributes, SpanKind.INTERNAL);
 
         verify(mockSpanBuilder).setParent(any());
         verify(mockSpanBuilder).setAllAttributes(createAttributeLong(attributes));
@@ -86,7 +85,7 @@ public class OTelTracingTelemetryTests extends OpenSearchTestCase {
             .addAttribute("key2", 2.0)
             .addAttribute("key3", true)
             .addAttribute("key4", "key4");
-        Span span = tracingTelemetry.createSpan("span_name", parentSpan, attributes);
+        Span span = tracingTelemetry.createSpan("span_name", parentSpan, attributes, SpanKind.INTERNAL);
 
         io.opentelemetry.api.common.Attributes otelAttributes = io.opentelemetry.api.common.Attributes.builder()
             .put("key1", 1l)

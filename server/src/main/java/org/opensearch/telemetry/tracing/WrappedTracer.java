@@ -41,17 +41,17 @@ final class WrappedTracer implements Tracer {
 
     @Override
     public Span startSpan(SpanCreationContext context) {
-        return startSpan(context.getSpanName(), context.getAttributes());
+        return startSpan(context.getSpanName(), context.getAttributes(), context.getSpanKind());
     }
 
     @Override
-    public Span startSpan(String spanName) {
-        return startSpan(spanName, Attributes.EMPTY);
+    public Span startSpan(String spanName, SpanKind spanKind) {
+        return startSpan(spanName, Attributes.EMPTY, spanKind);
     }
 
     @Override
-    public Span startSpan(String spanName, Attributes attributes) {
-        return startSpan(spanName, (SpanContext) null, attributes);
+    public Span startSpan(String spanName, Attributes attributes, SpanKind spanKind) {
+        return startSpan(spanName, (SpanContext) null, attributes, spanKind);
     }
 
     @Override
@@ -76,9 +76,9 @@ final class WrappedTracer implements Tracer {
     }
 
     @Override
-    public Span startSpan(String spanName, SpanContext parentSpan, Attributes attributes) {
+    public Span startSpan(String spanName, SpanContext parentSpan, Attributes attributes, SpanKind spanKind) {
         Tracer delegateTracer = getDelegateTracer();
-        return delegateTracer.startSpan(spanName, parentSpan, attributes);
+        return delegateTracer.startSpan(spanName, parentSpan, attributes, spanKind);
     }
 
     @Override

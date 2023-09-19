@@ -13,6 +13,7 @@ import org.opensearch.telemetry.tracing.ScopedSpan;
 import org.opensearch.telemetry.tracing.Span;
 import org.opensearch.telemetry.tracing.SpanContext;
 import org.opensearch.telemetry.tracing.SpanCreationContext;
+import org.opensearch.telemetry.tracing.SpanKind;
 import org.opensearch.telemetry.tracing.SpanScope;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.telemetry.tracing.attributes.Attributes;
@@ -41,17 +42,17 @@ public class NoopTracer implements Tracer {
     }
 
     @Override
-    public Span startSpan(String spanName) {
+    public Span startSpan(String spanName, SpanKind spanKind) {
         return NoopSpan.INSTANCE;
     }
 
     @Override
-    public Span startSpan(String spanName, Attributes attributes) {
+    public Span startSpan(String spanName, Attributes attributes, SpanKind spanKind) {
         return NoopSpan.INSTANCE;
     }
 
     @Override
-    public Span startSpan(String spanName, SpanContext parentSpan, Attributes attributes) {
+    public Span startSpan(String spanName, SpanContext parentSpan, Attributes attributes, SpanKind spanKind) {
         return NoopSpan.INSTANCE;
     }
 

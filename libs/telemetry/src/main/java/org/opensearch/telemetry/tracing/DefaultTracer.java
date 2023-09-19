@@ -44,26 +44,26 @@ class DefaultTracer implements Tracer {
 
     @Override
     public Span startSpan(SpanCreationContext context) {
-        return startSpan(context.getSpanName(), context.getAttributes());
+        return startSpan(context.getSpanName(), context.getAttributes(), context.getSpanKind());
     }
 
     @Override
-    public Span startSpan(String spanName) {
-        return startSpan(spanName, Attributes.EMPTY);
+    public Span startSpan(String spanName, SpanKind spanKind) {
+        return startSpan(spanName, Attributes.EMPTY, spanKind);
     }
 
     @Override
-    public Span startSpan(String spanName, Attributes attributes) {
-        return startSpan(spanName, (SpanContext) null, attributes);
+    public Span startSpan(String spanName, Attributes attributes, SpanKind spanKind) {
+        return startSpan(spanName, (SpanContext) null, attributes, spanKind);
     }
 
     @Override
-    public Span startSpan(String spanName, SpanContext parentSpan, Attributes attributes) {
+    public Span startSpan(String spanName, SpanContext parentSpan, Attributes attributes, SpanKind spanKind) {
         Span span = null;
         if (parentSpan != null) {
-            span = createSpan(spanName, parentSpan.getSpan(), attributes);
+            span = createSpan(spanName, parentSpan.getSpan(), attributes, spanKind);
         } else {
-            span = createSpan(spanName, getCurrentSpanInternal(), attributes);
+            span = createSpan(spanName, getCurrentSpanInternal(), attributes, spanKind);
         }
         setCurrentSpanInContext(span);
         addDefaultAttributes(span);
@@ -92,7 +92,12 @@ class DefaultTracer implements Tracer {
 
     @Override
     public ScopedSpan startScopedSpan(SpanCreationContext spanCreationContext, SpanContext parentSpan) {
-        Span span = startSpan(spanCreationContext.getSpanName(), parentSpan, spanCreationContext.getAttributes());
+        Span span = startSpan(
+            spanCreationContext.getSpanName(),
+            parentSpan,
+            spanCreationContext.getAttributes(),
+            spanCreationContext.getSpanKind()
+        );
         SpanScope spanScope = withSpanInScope(span);
         return new DefaultScopedSpan(span, spanScope);
     }
@@ -102,8 +107,8 @@ class DefaultTracer implements Tracer {
         return DefaultSpanScope.create(span, tracerContextStorage).attach();
     }
 
-    private Span createSpan(String spanName, Span parentSpan, Attributes attributes) {
-        return tracingTelemetry.createSpan(spanName, parentSpan, attributes);
+    private Span createSpan(String spanName, Span parentSpan, Attributes attributes, SpanKind spanKind) {
+        return tracingTelemetry.createSpan(spanName, parentSpan, attributes, spanKind);
     }
 
     private void setCurrentSpanInContext(Span span) {
@@ -124,7 +129,8 @@ class DefaultTracer implements Tracer {
         return startSpan(
             spanCreationContext.getSpanName(),
             propagatedSpan.map(SpanContext::new).orElse(null),
-            spanCreationContext.getAttributes()
+            spanCreationContext.getAttributes(),
+            spanCreationContext.getSpanKind()
         );
     }
 
