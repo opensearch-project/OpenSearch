@@ -10,7 +10,6 @@ package org.opensearch.test.engine;
 
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.SegmentInfos;
-import org.opensearch.ExceptionsHelper;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.index.engine.EngineConfig;
@@ -24,9 +23,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
-import java.util.function.Function;
-
-import static org.opensearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
 
 public class MockNRTReplicationEngine extends NRTReplicationEngine {
 
@@ -40,7 +36,7 @@ public class MockNRTReplicationEngine extends NRTReplicationEngine {
     public synchronized void updateSegments(final SegmentInfos infos) throws IOException {
         super.updateSegments(infos);
         if (checkpointListeners.isEmpty() == false) {
-            fireListeners(getLatestSegmentInfos().getVersion(), checkpointListeners);
+            fireListeners(getProcessedLocalCheckpoint(), checkpointListeners);
         }
     }
 
@@ -54,11 +50,12 @@ public class MockNRTReplicationEngine extends NRTReplicationEngine {
     }
 
     private synchronized void awaitCheckpointUpdate(Consumer<Boolean> listener) {
-        final long localVersion = getLatestSegmentInfos().getVersion();
-        if (latestReceivedCheckpoint <= localVersion) {
+        final long localVersion = getProcessedLocalCheckpoint();
+        final long maxSeqNo = getLocalCheckpointTracker().getMaxSeqNo();
+        if (maxSeqNo <= localVersion) {
             listener.accept(true);
         } else {
-            checkpointListeners.add(new Tuple<>(latestReceivedCheckpoint, listener));
+            checkpointListeners.add(new Tuple<>(maxSeqNo, listener));
         }
     }
 
@@ -74,11 +71,16 @@ public class MockNRTReplicationEngine extends NRTReplicationEngine {
     }
 
     @Override
-    public void forceMerge(boolean flush, int maxNumSegments, boolean onlyExpungeDeletes, boolean upgrade, boolean upgradeOnlyAncientSegments, String forceMergeUUID) throws EngineException, IOException {
+    public void forceMerge(
+        boolean flush,
+        int maxNumSegments,
+        boolean onlyExpungeDeletes,
+        boolean upgrade,
+        boolean upgradeOnlyAncientSegments,
+        String forceMergeUUID
+    ) throws EngineException, IOException {
         mergePending.compareAndSet(false, true);
-        awaitCheckpointUpdate((b) -> {
-            mergePending.compareAndSet(true, false);
-        });
+        awaitCheckpointUpdate((b) -> { mergePending.compareAndSet(true, false); });
     }
 
     @Override
@@ -86,9 +88,7 @@ public class MockNRTReplicationEngine extends NRTReplicationEngine {
         // wait until we are caught up to return this.
         if (mergePending.get()) {
             CountDownLatch latch = new CountDownLatch(1);
-            awaitCheckpointUpdate((b) -> {
-                latch.countDown();
-            });
+            awaitCheckpointUpdate((b) -> { latch.countDown(); });
             try {
                 latch.await(1, TimeUnit.SECONDS);
             } catch (InterruptedException e) {

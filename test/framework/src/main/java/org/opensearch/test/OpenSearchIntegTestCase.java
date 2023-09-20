@@ -42,7 +42,6 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.tests.util.LuceneTestCase;
-import org.junit.Assert;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.DocWriteResponse;
@@ -172,6 +171,7 @@ import org.opensearch.transport.TransportService;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.AfterClass;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
@@ -208,7 +208,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.opensearch.cluster.metadata.IndexMetadata.*;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
 import static org.opensearch.common.unit.TimeValue.timeValueMillis;
 import static org.opensearch.core.common.util.CollectionUtils.eagerPartition;
 import static org.opensearch.discovery.DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING;
@@ -218,6 +220,9 @@ import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
 import static org.opensearch.indices.IndicesService.CLUSTER_REPLICATION_TYPE_SETTING;
 import static org.opensearch.test.XContentTestUtils.convertToMap;
 import static org.opensearch.test.XContentTestUtils.differenceBetweenMapsIgnoringArrayOrder;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoTimeout;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
@@ -225,7 +230,6 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.startsWith;
-import static org.opensearch.test.hamcrest.OpenSearchAssertions.*;
 
 /**
  * {@link OpenSearchIntegTestCase} is an abstract base class to run integration
@@ -1974,7 +1978,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             // when tests are run with concurrent segment search enabled
             builder.put(SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_KEY, 2);
         }
-//        if (FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL_SETTING.get(featureFlagSettings)) {
+        // if (FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL_SETTING.get(featureFlagSettings)) {
         if (useSegmentReplication()) {
             builder.put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT);
         }
@@ -1982,7 +1986,12 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
     }
 
     public boolean isSegRepEnabled(String index) {
-        return client().admin().indices().prepareGetSettings().get().getSetting(index, SETTING_REPLICATION_TYPE).equals(ReplicationType.SEGMENT.name());
+        return client().admin()
+            .indices()
+            .prepareGetSettings()
+            .get()
+            .getSetting(index, SETTING_REPLICATION_TYPE)
+            .equals(ReplicationType.SEGMENT.name());
     }
 
     protected Path nodeConfigPath(int nodeOrdinal) {

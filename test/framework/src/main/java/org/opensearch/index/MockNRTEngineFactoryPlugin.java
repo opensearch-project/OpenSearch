@@ -33,16 +33,12 @@ package org.opensearch.index;
 
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.tests.index.AssertingDirectoryReader;
-import org.opensearch.common.settings.Setting;
 import org.opensearch.index.engine.EngineFactory;
 import org.opensearch.plugins.EnginePlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.engine.MockEngineFactory;
-import org.opensearch.test.engine.MockEngineSupport;
 import org.opensearch.test.engine.MockNRTEngineFactory;
 
-import java.util.Arrays;
-import java.util.List;
 import java.util.Optional;
 
 /**
