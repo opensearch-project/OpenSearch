@@ -10,6 +10,7 @@ package org.opensearch.search.profile.query;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Collector;
+import org.opensearch.OpenSearchException;
 import org.opensearch.search.profile.AbstractProfileBreakdown;
 import org.opensearch.search.profile.ContextualProfileBreakdown;
 
@@ -73,9 +74,9 @@ public final class ConcurrentQueryProfileBreakdown extends ContextualProfileBrea
             // If there are no leaf contexts, then return the default concurrent query level breakdown, which will include the
             // create_weight time/count
             queryNodeTime = createWeightTime;
-            maxSliceNodeTime = 0;
-            minSliceNodeTime = 0;
-            avgSliceNodeTime = 0;
+            maxSliceNodeTime = 0L;
+            minSliceNodeTime = 0L;
+            avgSliceNodeTime = 0L;
             return buildDefaultQueryBreakdownMap(createWeightTime);
         }
 
@@ -129,7 +130,7 @@ public final class ConcurrentQueryProfileBreakdown extends ContextualProfileBrea
      */
     Map<Collector, Map<String, Long>> buildSliceLevelBreakdown() {
         final Map<Collector, Map<String, Long>> sliceLevelBreakdowns = new HashMap<>();
-        long totalSliceNodeTime = 0;
+        long totalSliceNodeTime = 0L;
         for (Map.Entry<Collector, List<LeafReaderContext>> slice : sliceCollectorsToLeaves.entrySet()) {
             final Collector sliceCollector = slice.getKey();
             // initialize each slice level breakdown
@@ -204,9 +205,21 @@ public final class ConcurrentQueryProfileBreakdown extends ContextualProfileBrea
                 );
             }
             // currentSliceNodeTime does not include the create weight time, as that is computed in non-concurrent part
-            long currentSliceNodeTime = (sliceMaxEndTime == Long.MIN_VALUE && sliceMinStartTime == Long.MAX_VALUE)
-                ? 0
-                : sliceMaxEndTime - sliceMinStartTime;
+            long currentSliceNodeTime;
+            if (sliceMinStartTime == Long.MAX_VALUE && sliceMaxEndTime == Long.MIN_VALUE) {
+                currentSliceNodeTime = 0L;
+            } else if (sliceMinStartTime == Long.MAX_VALUE || sliceMaxEndTime == Long.MIN_VALUE) {
+                throw new OpenSearchException(
+                    "Unexpected value of sliceMinStartTime ["
+                        + sliceMinStartTime
+                        + "] or sliceMaxEndTime ["
+                        + sliceMaxEndTime
+                        + "] while computing the slice level timing profile breakdowns"
+                );
+            } else {
+                currentSliceNodeTime = sliceMaxEndTime - sliceMinStartTime;
+            }
+
             // compute max/min slice times
             maxSliceNodeTime = Math.max(maxSliceNodeTime, currentSliceNodeTime);
             minSliceNodeTime = Math.min(minSliceNodeTime, currentSliceNodeTime);
@@ -250,7 +263,7 @@ public final class ConcurrentQueryProfileBreakdown extends ContextualProfileBrea
 
             long queryTimingTypeEndTime = Long.MIN_VALUE;
             long queryTimingTypeStartTime = Long.MAX_VALUE;
-            long queryTimingTypeCount = 0;
+            long queryTimingTypeCount = 0L;
 
             // the create weight time is computed at the query level and is called only once per query
             if (queryTimingType == QueryTimingType.CREATE_WEIGHT) {
@@ -302,17 +315,28 @@ public final class ConcurrentQueryProfileBreakdown extends ContextualProfileBrea
                 );
                 queryTimingTypeCount += sliceBreakdownTypeCount;
             }
-            assert queryTimingTypeStartTime != Long.MAX_VALUE && queryTimingTypeEndTime != Long.MIN_VALUE : "Unexpected queryTimingType "
-                + timingTypeKey
-                + "start and end time";
+
+            if (queryTimingTypeStartTime == Long.MAX_VALUE || queryTimingTypeEndTime == Long.MIN_VALUE) {
+                throw new OpenSearchException(
+                    "Unexpected timing type ["
+                        + timingTypeKey
+                        + "] start ["
+                        + queryTimingTypeStartTime
+                        + "] or end time ["
+                        + queryTimingTypeEndTime
+                        + "] computed across slices for profile results"
+                );
+            }
             queryBreakdownMap.put(timingTypeKey, queryTimingTypeEndTime - queryTimingTypeStartTime);
             queryBreakdownMap.put(timingTypeCountKey, queryTimingTypeCount);
-            queryBreakdownMap.compute(avgBreakdownTypeTime, (key, value) -> (value == null) ? 0 : value / sliceLevelBreakdowns.size());
-            queryBreakdownMap.compute(avgBreakdownTypeCount, (key, value) -> (value == null) ? 0 : value / sliceLevelBreakdowns.size());
+            queryBreakdownMap.compute(avgBreakdownTypeTime, (key, value) -> (value == null) ? 0L : value / sliceLevelBreakdowns.size());
+            queryBreakdownMap.compute(avgBreakdownTypeCount, (key, value) -> (value == null) ? 0L : value / sliceLevelBreakdowns.size());
             // compute query end time using max of query end time across all timing types
             queryEndTime = Math.max(queryEndTime, queryTimingTypeEndTime);
         }
-        assert queryEndTime != Long.MIN_VALUE : "Unexpected value of queryEndTime";
+        if (queryEndTime == Long.MIN_VALUE) {
+            throw new OpenSearchException("Unexpected error while computing the query end time across slices in profile result");
+        }
         queryNodeTime = queryEndTime - createWeightStartTime;
         return queryBreakdownMap;
     }
