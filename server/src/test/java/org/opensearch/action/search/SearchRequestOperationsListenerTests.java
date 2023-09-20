@@ -14,7 +14,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -22,30 +21,27 @@ import static org.mockito.Mockito.when;
 public class SearchRequestOperationsListenerTests extends OpenSearchTestCase {
 
     public void testListenersAreExecuted() {
-        Map<SearchPhaseName, AtomicInteger> searchPhaseStartMap = new HashMap<>();
-        Map<SearchPhaseName, AtomicInteger> searchPhaseEndMap = new HashMap<>();
-        Map<SearchPhaseName, AtomicInteger> searchPhaseFailureMap = new HashMap<>();
+        Map<SearchPhaseName, SearchRequestStats.StatsHolder> searchPhaseMap = new HashMap<>();
 
         for (SearchPhaseName searchPhaseName : SearchPhaseName.values()) {
-            searchPhaseStartMap.put(searchPhaseName, new AtomicInteger());
-            searchPhaseEndMap.put(searchPhaseName, new AtomicInteger());
-            searchPhaseFailureMap.put(searchPhaseName, new AtomicInteger());
+            searchPhaseMap.put(searchPhaseName, new SearchRequestStats.StatsHolder());
         }
         SearchRequestOperationsListener testListener = new SearchRequestOperationsListener() {
 
             @Override
             public void onPhaseStart(SearchPhaseContext context) {
-                searchPhaseStartMap.get(context.getCurrentPhase().getSearchPhaseName()).incrementAndGet();
+                searchPhaseMap.get(context.getCurrentPhase().getSearchPhaseName()).current.inc();
             }
 
             @Override
             public void onPhaseEnd(SearchPhaseContext context) {
-                searchPhaseEndMap.get(context.getCurrentPhase().getSearchPhaseName()).incrementAndGet();
+                searchPhaseMap.get(context.getCurrentPhase().getSearchPhaseName()).current.dec();
+                searchPhaseMap.get(context.getCurrentPhase().getSearchPhaseName()).total.inc();
             }
 
             @Override
             public void onPhaseFailure(SearchPhaseContext context) {
-                searchPhaseFailureMap.get(context.getCurrentPhase().getSearchPhaseName()).incrementAndGet();
+                searchPhaseMap.get(context.getCurrentPhase().getSearchPhaseName()).current.dec();
             }
         };
 
@@ -65,9 +61,9 @@ public class SearchRequestOperationsListenerTests extends OpenSearchTestCase {
 
         for (SearchPhaseName searchPhaseName : SearchPhaseName.values()) {
             when(ctx.getCurrentPhase()).thenReturn(searchPhase);
-            when(searchPhase.getName()).thenReturn(searchPhaseName.getName());
+            when(searchPhase.getSearchPhaseName()).thenReturn(searchPhaseName);
             compositeListener.onPhaseStart(ctx);
-            assertEquals(totalListeners, searchPhaseStartMap.get(searchPhaseName).get());
+            assertEquals(totalListeners, searchPhaseMap.get(searchPhaseName).current.count());
         }
     }
 }
