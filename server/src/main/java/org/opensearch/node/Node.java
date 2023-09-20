@@ -272,6 +272,7 @@ import static org.opensearch.common.util.FeatureFlags.TELEMETRY;
 import static org.opensearch.env.NodeEnvironment.collectFileCacheDataPath;
 import static org.opensearch.index.ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENABLED_ATTRIBUTE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteStoreAttributePresent;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteStoreClusterStateEnabled;
 
 /**
  * A node represent a node within a cluster ({@code cluster.name}). The {@link #client()} can be used
@@ -587,6 +588,19 @@ public class Node implements Closeable {
                     new ConsistentSettingsService(settings, clusterService, consistentSettings).newHashPublisher()
                 );
             }
+
+            TracerFactory tracerFactory;
+            if (FeatureFlags.isEnabled(TELEMETRY)) {
+                final TelemetrySettings telemetrySettings = new TelemetrySettings(settings, clusterService.getClusterSettings());
+                List<TelemetryPlugin> telemetryPlugins = pluginsService.filterPlugins(TelemetryPlugin.class);
+                TelemetryModule telemetryModule = new TelemetryModule(telemetryPlugins, telemetrySettings);
+                tracerFactory = new TracerFactory(telemetrySettings, telemetryModule.getTelemetry(), threadPool.getThreadContext());
+            } else {
+                tracerFactory = new NoopTracerFactory();
+            }
+
+            tracer = tracerFactory.getTracer();
+            resourcesToClose.add(tracer::close);
             final IngestService ingestService = new IngestService(
                 clusterService,
                 threadPool,
@@ -681,13 +695,14 @@ public class Node implements Closeable {
                 threadPool::relativeTimeInMillis
             );
             final RemoteClusterStateService remoteClusterStateService;
-            if (RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING.get(settings) == true) {
+            if (isRemoteStoreClusterStateEnabled(settings)) {
                 remoteClusterStateService = new RemoteClusterStateService(
                     nodeEnvironment.nodeId(),
                     repositoriesServiceReference::get,
                     settings,
                     clusterService.getClusterSettings(),
-                    threadPool::preciseRelativeTimeInNanos
+                    threadPool::preciseRelativeTimeInNanos,
+                    threadPool
                 );
             } else {
                 remoteClusterStateService = null;
@@ -856,7 +871,8 @@ public class Node implements Closeable {
                 xContentRegistry,
                 networkService,
                 restController,
-                clusterService.getClusterSettings()
+                clusterService.getClusterSettings(),
+                tracer
             );
             Collection<UnaryOperator<Map<String, IndexTemplateMetadata>>> indexTemplateMetadataUpgraders = pluginsService.filterPlugins(
                 Plugin.class
@@ -886,7 +902,8 @@ public class Node implements Closeable {
                 networkModule.getTransportInterceptor(),
                 localNodeFactory,
                 settingsModule.getClusterSettings(),
-                taskHeaders
+                taskHeaders,
+                tracer
             );
             TopNSearchTasksLogger taskConsumer = new TopNSearchTasksLogger(settings, settingsModule.getClusterSettings());
             transportService.getTaskManager().registerTaskResourceConsumer(taskConsumer);
@@ -1074,18 +1091,6 @@ public class Node implements Closeable {
                 searchModule.getIndexSearcherExecutor(threadPool)
             );
 
-            TracerFactory tracerFactory;
-            if (FeatureFlags.isEnabled(TELEMETRY)) {
-                final TelemetrySettings telemetrySettings = new TelemetrySettings(settings, clusterService.getClusterSettings());
-                List<TelemetryPlugin> telemetryPlugins = pluginsService.filterPlugins(TelemetryPlugin.class);
-                TelemetryModule telemetryModule = new TelemetryModule(telemetryPlugins, telemetrySettings);
-                tracerFactory = new TracerFactory(telemetrySettings, telemetryModule.getTelemetry(), threadPool.getThreadContext());
-            } else {
-                tracerFactory = new NoopTracerFactory();
-            }
-            tracer = tracerFactory.getTracer();
-            resourcesToClose.add(tracer::close);
-
             final List<PersistentTasksExecutor<?>> tasksExecutors = pluginsService.filterPlugins(PersistentTaskPlugin.class)
                 .stream()
                 .map(
@@ -1248,9 +1253,10 @@ public class Node implements Closeable {
         TransportInterceptor interceptor,
         Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
         ClusterSettings clusterSettings,
-        Set<String> taskHeaders
+        Set<String> taskHeaders,
+        Tracer tracer
     ) {
-        return new TransportService(settings, transport, threadPool, interceptor, localNodeFactory, clusterSettings, taskHeaders);
+        return new TransportService(settings, transport, threadPool, interceptor, localNodeFactory, clusterSettings, taskHeaders, tracer);
     }
 
     protected void processRecoverySettings(ClusterSettings clusterSettings, RecoverySettings recoverySettings) {
@@ -1334,6 +1340,10 @@ public class Node implements Closeable {
         injector.getInstance(PeerRecoverySourceService.class).start();
         injector.getInstance(SegmentReplicationSourceService.class).start();
 
+        final RemoteClusterStateService remoteClusterStateService = injector.getInstance(RemoteClusterStateService.class);
+        if (remoteClusterStateService != null) {
+            remoteClusterStateService.start();
+        }
         // Load (and maybe upgrade) the metadata stored on disk
         final GatewayMetaState gatewayMetaState = injector.getInstance(GatewayMetaState.class);
         gatewayMetaState.start(
@@ -1345,7 +1355,8 @@ public class Node implements Closeable {
             injector.getInstance(MetadataUpgrader.class),
             injector.getInstance(PersistedClusterStateService.class),
             injector.getInstance(RemoteClusterStateService.class),
-            injector.getInstance(PersistedStateRegistry.class)
+            injector.getInstance(PersistedStateRegistry.class),
+            injector.getInstance(RemoteStoreRestoreService.class)
         );
         if (Assertions.ENABLED) {
             try {

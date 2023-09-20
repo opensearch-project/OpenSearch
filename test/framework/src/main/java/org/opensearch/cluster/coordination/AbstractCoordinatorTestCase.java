@@ -88,6 +88,7 @@ import org.opensearch.monitor.NodeHealthService;
 import org.opensearch.monitor.StatusInfo;
 import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.repositories.RepositoriesService;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.disruption.DisruptableMockTransport;
 import org.opensearch.test.disruption.DisruptableMockTransport.ConnectionStatus;
@@ -844,14 +845,16 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
             private final CoordinationState.PersistedState delegate;
             private final NodeEnvironment nodeEnvironment;
 
+            private MockGatewayMetaState mockGatewayMetaState;
+
             MockPersistedState(DiscoveryNode localNode) {
                 try {
                     if (rarely()) {
                         nodeEnvironment = newNodeEnvironment();
                         nodeEnvironments.add(nodeEnvironment);
-                        final MockGatewayMetaState gatewayMetaState = new MockGatewayMetaState(localNode, bigArrays);
-                        gatewayMetaState.start(Settings.EMPTY, nodeEnvironment, xContentRegistry(), persistedStateRegistry());
-                        delegate = gatewayMetaState.getPersistedState();
+                        mockGatewayMetaState = new MockGatewayMetaState(localNode, bigArrays);
+                        mockGatewayMetaState.start(Settings.EMPTY, nodeEnvironment, xContentRegistry(), persistedStateRegistry());
+                        delegate = mockGatewayMetaState.getPersistedState();
                     } else {
                         nodeEnvironment = null;
                         delegate = new InMemoryPersistedState(
@@ -1114,7 +1117,8 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
                     getTransportInterceptor(localNode, threadPool),
                     a -> localNode,
                     null,
-                    emptySet()
+                    emptySet(),
+                    NoopTracer.INSTANCE
                 );
                 clusterManagerService = new AckedFakeThreadPoolClusterManagerService(
                     localNode.getId(),

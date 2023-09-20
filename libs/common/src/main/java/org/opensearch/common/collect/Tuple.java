@@ -61,6 +61,20 @@ public class Tuple<V1, V2> {
         return v2;
     }
 
+    /**
+     * Returns {@code true} if the given object is also a tuple and the two tuples
+     * have equal {@link #v1()} and {@link #v2()} values.
+     * <p>
+     * Returns {@code false} otherwise, including for {@code null} values or
+     * objects of different types.
+     * <p>
+     * Note: {@code Tuple} instances are equal if the underlying values are
+     * equal, even if the types are different.
+     *
+     * @param o the object to compare to
+     * @return {@code true} if the given object is also a tuple and the two tuples
+     * have equal {@link #v1()} and {@link #v2()} values.
+     */
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -74,6 +88,10 @@ public class Tuple<V1, V2> {
         return true;
     }
 
+    /**
+     * Returns the hash code value for this Tuple.
+     * @return the hash code value for this Tuple.
+     */
     @Override
     public int hashCode() {
         int result = v1 != null ? v1.hashCode() : 0;
@@ -81,6 +99,10 @@ public class Tuple<V1, V2> {
         return result;
     }
 
+    /**
+     * Returns a string representation of a Tuple
+     * @return {@code "Tuple [v1=value1, v2=value2]"}
+     */
     @Override
     public String toString() {
         return "Tuple [v1=" + v1 + ", v2=" + v2 + "]";

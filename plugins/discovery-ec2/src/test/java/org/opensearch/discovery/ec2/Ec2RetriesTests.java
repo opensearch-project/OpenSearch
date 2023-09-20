@@ -47,6 +47,7 @@ import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.discovery.SeedHostsProvider;
 import org.opensearch.discovery.SeedHostsResolver;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.transport.TransportService;
 import org.opensearch.transport.nio.MockNioTransport;
@@ -80,7 +81,8 @@ public class Ec2RetriesTests extends AbstractEc2MockAPITestCase {
             ),
             threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-            null
+            null,
+            NoopTracer.INSTANCE
         );
     }
 

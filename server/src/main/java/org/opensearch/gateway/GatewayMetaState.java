@@ -63,6 +63,8 @@ import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.env.NodeMetadata;
 import org.opensearch.gateway.remote.ClusterMetadataManifest;
 import org.opensearch.gateway.remote.RemoteClusterStateService;
+import org.opensearch.index.recovery.RemoteStoreRestoreService;
+import org.opensearch.index.recovery.RemoteStoreRestoreService.RemoteRestoreResult;
 import org.opensearch.node.Node;
 import org.opensearch.plugins.MetadataUpgrader;
 import org.opensearch.repositories.RepositoryMissingException;
@@ -76,6 +78,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
@@ -84,7 +87,7 @@ import java.util.function.Function;
 import java.util.function.UnaryOperator;
 
 import static org.opensearch.common.util.concurrent.OpenSearchExecutors.daemonThreadFactory;
-import static org.opensearch.gateway.remote.RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteStoreClusterStateEnabled;
 
 /**
  * Loads (and maybe upgrades) cluster metadata at startup, and persistently stores cluster metadata for future restarts.
@@ -126,7 +129,8 @@ public class GatewayMetaState implements Closeable {
         MetadataUpgrader metadataUpgrader,
         PersistedClusterStateService persistedClusterStateService,
         RemoteClusterStateService remoteClusterStateService,
-        PersistedStateRegistry persistedStateRegistry
+        PersistedStateRegistry persistedStateRegistry,
+        RemoteStoreRestoreService remoteStoreRestoreService
     ) {
         assert this.persistedStateRegistry == null : "Persisted state registry should only be set once";
         this.persistedStateRegistry = persistedStateRegistry;
@@ -154,7 +158,7 @@ public class GatewayMetaState implements Closeable {
                 PersistedState remotePersistedState = null;
                 boolean success = false;
                 try {
-                    final ClusterState clusterState = prepareInitialClusterState(
+                    ClusterState clusterState = prepareInitialClusterState(
                         transportService,
                         clusterService,
                         ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(settings))
@@ -164,10 +168,29 @@ public class GatewayMetaState implements Closeable {
                     );
 
                     if (DiscoveryNode.isClusterManagerNode(settings)) {
-                        persistedState = new LucenePersistedState(persistedClusterStateService, currentTerm, clusterState);
-                        if (REMOTE_CLUSTER_STATE_ENABLED_SETTING.get(settings) == true) {
-                            remotePersistedState = new RemotePersistedState(remoteClusterStateService);
+                        if (isRemoteStoreClusterStateEnabled(settings)) {
+                            // If the cluster UUID loaded from local is unknown (_na_) then fetch the best state from remote
+                            // If there is no valid state on remote, continue with initial empty state
+                            // If there is a valid state, then restore index metadata using this state
+                            String lastKnownClusterUUID = ClusterState.UNKNOWN_UUID;
+                            if (ClusterState.UNKNOWN_UUID.equals(clusterState.metadata().clusterUUID())) {
+                                lastKnownClusterUUID = remoteClusterStateService.getLastKnownUUIDFromRemote(
+                                    clusterState.getClusterName().value()
+                                );
+                                if (ClusterState.UNKNOWN_UUID.equals(lastKnownClusterUUID) == false) {
+                                    // Load state from remote
+                                    final RemoteRestoreResult remoteRestoreResult = remoteStoreRestoreService.restore(
+                                        clusterState,
+                                        lastKnownClusterUUID,
+                                        false,
+                                        new String[] {}
+                                    );
+                                    clusterState = remoteRestoreResult.getClusterState();
+                                }
+                            }
+                            remotePersistedState = new RemotePersistedState(remoteClusterStateService, lastKnownClusterUUID);
                         }
+                        persistedState = new LucenePersistedState(persistedClusterStateService, currentTerm, clusterState);
                     } else {
                         persistedState = new AsyncLucenePersistedState(
                             settings,
@@ -626,9 +649,11 @@ public class GatewayMetaState implements Closeable {
         private ClusterState lastAcceptedState;
         private ClusterMetadataManifest lastAcceptedManifest;
         private final RemoteClusterStateService remoteClusterStateService;
+        private String previousClusterUUID;
 
-        public RemotePersistedState(final RemoteClusterStateService remoteClusterStateService) {
+        public RemotePersistedState(final RemoteClusterStateService remoteClusterStateService, final String previousClusterUUID) {
             this.remoteClusterStateService = remoteClusterStateService;
+            this.previousClusterUUID = previousClusterUUID;
         }
 
         @Override
@@ -651,15 +676,28 @@ public class GatewayMetaState implements Closeable {
         @Override
         public void setLastAcceptedState(ClusterState clusterState) {
             try {
-                if (lastAcceptedState == null || lastAcceptedState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
-                    // On the initial bootstrap, repository will not be available. So we do not persist the cluster state and bail out.
-                    logger.info("Cluster is not yet ready to publish state to remote store");
-                    lastAcceptedState = clusterState;
-                    return;
-                }
                 final ClusterMetadataManifest manifest;
                 if (shouldWriteFullClusterState(clusterState)) {
-                    manifest = remoteClusterStateService.writeFullMetadata(clusterState);
+                    if (clusterState.metadata().clusterUUIDCommitted() == true) {
+                        final Optional<ClusterMetadataManifest> latestManifest = remoteClusterStateService.getLatestClusterMetadataManifest(
+                            clusterState.getClusterName().value(),
+                            clusterState.metadata().clusterUUID()
+                        );
+                        if (latestManifest.isPresent()) {
+                            // The previous UUID should not change for the current UUID. So fetching the latest manifest
+                            // from remote store and getting the previous UUID.
+                            previousClusterUUID = latestManifest.get().getPreviousClusterUUID();
+                        } else {
+                            // When the user starts the cluster with remote state disabled but later enables the remote state,
+                            // there will not be any manifest for the current cluster UUID.
+                            logger.error(
+                                "Latest manifest is not present in remote store for cluster UUID: {}",
+                                clusterState.metadata().clusterUUID()
+                            );
+                            previousClusterUUID = ClusterState.UNKNOWN_UUID;
+                        }
+                    }
+                    manifest = remoteClusterStateService.writeFullMetadata(clusterState, previousClusterUUID);
                 } else {
                     assert verifyManifestAndClusterState(lastAcceptedManifest, lastAcceptedState) == true
                         : "Previous manifest and previous ClusterState are not in sync";
@@ -706,18 +744,21 @@ public class GatewayMetaState implements Closeable {
         @Override
         public void markLastAcceptedStateAsCommitted() {
             try {
-                if (lastAcceptedState == null
-                    || lastAcceptedManifest == null
-                    || lastAcceptedState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
-                    // On the initial bootstrap, repository will not be available. So we do not persist the cluster state and bail out.
-                    logger.trace("Cluster is not yet ready to publish state to remote store");
-                    return;
+                assert lastAcceptedState != null : "Last accepted state is not present";
+                assert lastAcceptedManifest != null : "Last accepted manifest is not present";
+                ClusterState clusterState = lastAcceptedState;
+                if (lastAcceptedState.metadata().clusterUUID().equals(Metadata.UNKNOWN_CLUSTER_UUID) == false
+                    && lastAcceptedState.metadata().clusterUUIDCommitted() == false) {
+                    Metadata.Builder metadataBuilder = Metadata.builder(lastAcceptedState.metadata());
+                    metadataBuilder.clusterUUIDCommitted(true);
+                    clusterState = ClusterState.builder(lastAcceptedState).metadata(metadataBuilder).build();
                 }
                 final ClusterMetadataManifest committedManifest = remoteClusterStateService.markLastStateAsCommitted(
-                    lastAcceptedState,
+                    clusterState,
                     lastAcceptedManifest
                 );
                 lastAcceptedManifest = committedManifest;
+                lastAcceptedState = clusterState;
             } catch (Exception e) {
                 handleExceptionOnWrite(e);
             }

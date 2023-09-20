@@ -9,7 +9,6 @@
 package org.opensearch.remotestore;
 
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.SegmentReplicationPressureIT;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.junit.After;
@@ -22,8 +21,6 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 /**
  * This class executes the SegmentReplicationPressureIT suite with remote store integration enabled.
- * Setup is similar to SegmentReplicationPressureIT but this also enables the segment replication using remote store which
- * is behind SEGMENT_REPLICATION_EXPERIMENTAL flag.
  */
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class SegmentReplicationWithRemoteStorePressureIT extends SegmentReplicationPressureIT {
@@ -34,15 +31,6 @@ public class SegmentReplicationWithRemoteStorePressureIT extends SegmentReplicat
     @Override
     protected boolean segmentReplicationWithRemoteEnabled() {
         return true;
-    }
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder()
-            .put(super.featureFlagSettings())
-            .put(FeatureFlags.REMOTE_STORE, "true")
-            .put(FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL, "true")
-            .build();
     }
 
     @Override
