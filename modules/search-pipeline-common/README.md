@@ -14,7 +14,7 @@ Search pipelines allow cluster operators to create and reuse [components](#searc
 
 With search pipelines, the operator can combine multiple [search processors](#search-processors) to create a transform which acts on the search request and/or search response.
 
-Search pipelines offer numerous benefits: 
+Search pipelines offer numerous benefits:
 
 1. search processors living in OpenSearch can be used by _all_ calling applications;
 2. search pipeline operations occur inside the OpenSearch cluster, so large results can be processed before returning to the calling application\*;
@@ -22,9 +22,9 @@ Search pipelines offer numerous benefits:
 4. search pipelines only need to be modified once (and without changing or redeploying any calling applications) to have a change occur on all incoming queries\*\*;
 5. search pipelines support standard APIs for accessing metrics and disaster recovery.
 
-*Within a cluster, results are passed using a more efficient, but version-specific binary protocol. You can pass result information back to a coordinator, allow it to post-process (e.g. rerank or collapse), and finally truncate it before sending it to the client over the less efficient but flexible JSON API. 
+*Within a cluster, results are passed using a more efficient, but version-specific binary protocol. You can pass result information back to a coordinator, allow it to post-process (e.g. rerank or collapse), and finally truncate it before sending it to the client over the less efficient but flexible JSON API.
 
-**For example, the `FilterQueryRequestProcessor` could be used to exclude search results immediately, without needing to make a code change in the application layer and deploy the change across your fleet. 
+**For example, the `FilterQueryRequestProcessor` could be used to exclude search results immediately, without needing to make a code change in the application layer and deploy the change across your fleet.
 
 ## Search Processors
 
@@ -37,10 +37,10 @@ You can find all existing search processors registered in `SearchPipelineCommonM
 
 ### Creating a search processor
 
-New search processors can be created in two different ways. 
+New search processors can be created in two different ways.
 
 Generally, a search processor can be created in your own `SearchPipelinePlugin`. This method is best for when you are creating a unique search
-processor for your niche application. This method should also be used when your processor relies on an outside service. To get started creating a search processor in a `SearchPipelinePlugin`, you can use the [plugin template](https://github.com/opensearch-project/opensearch-plugin-template-java ). 
+processor for your niche application. This method should also be used when your processor relies on an outside service. To get started creating a search processor in a `SearchPipelinePlugin`, you can use the [plugin template](https://github.com/opensearch-project/opensearch-plugin-template-java ).
 
 Alternatively, if you think your processor may be valuable to _all_ OpenSearch users you can follow these steps:
 
@@ -61,28 +61,28 @@ public SearchResponse processResponse(SearchRequest request, SearchResponse resp
   boolean foundField = false;
   SearchHit[] hits = response.getHits().getHits();
   for (SearchHit hit : hits) {
-       
-    // Process each hit as desired 
-    
+
+    // Process each hit as desired
+
     if (hit.hasSource()) {
-      // Change hit source if needed 
+      // Change hit source if needed
     );
 
     Map<String, Object> sourceAsMap = typeAndSourceMap.v2();
     if (sourceAsMap.containsKey(field)) {
-      // Handle source as map 
+      // Handle source as map
     }
   }
-    
+
   if (!foundField && !ignoreMissing) {
-      // Handle error scenarios 
+      // Handle error scenarios
   }
-    
+
   return response;
 }
 ```
 
-4. Create a factory to parse processor-specific JSON configurations. These are used for constructing a processor instance. 
+4. Create a factory to parse processor-specific JSON configurations. These are used for constructing a processor instance.
 
 In the `DeleteFieldResponseProcessor`, this would look something like:
 
@@ -110,7 +110,7 @@ public static final class Factory implements Processor.Factory<SearchResponsePro
 }
 ```
 
-In this example, we provide specific configurations for which field should be deleted and whether the processor should ignore attempts to remove a non-existent field.  
+In this example, we provide specific configurations for which field should be deleted and whether the processor should ignore attempts to remove a non-existent field.
 
 5. Add the newly added search processor to the `SearchPieplineCommonModulePlugin` getter for the corresponding processor type.
 
@@ -118,9 +118,9 @@ For the `DeleteFieldResponseProcessor`, you would modify the response processor 
 
 ```
 @Override
-public Map<String, Processor.Factory<SearchResponseProcessor>> getResponseProcessors(Parameters parameters) { 
+public Map<String, Processor.Factory<SearchResponseProcessor>> getResponseProcessors(Parameters parameters) {
   return Map.of(
-    RenameFieldResponseProcessor.TYPE, 
+    RenameFieldResponseProcessor.TYPE,
     new RenameFieldResponseProcessor.Factory(),
     DeleteFieldResponseProcessor.TYPE,
     new DeleteFieldResponseProcessor.Factory()
@@ -128,15 +128,15 @@ public Map<String, Processor.Factory<SearchResponseProcessor>> getResponseProces
 }
 ```
 
-6. After creating a search processor, the processor is ready to be tested in a search pipeline. 
+6. After creating a search processor, the processor is ready to be tested in a search pipeline.
 
-To test your new search processor, you can make use of the test [`SearchPipelineCommonYamlTestSuiteIT`](src/yamlRestTest/java/org/opensearch/search/pipeline/common). 
+To test your new search processor, you can make use of the test [`SearchPipelineCommonYamlTestSuiteIT`](src/yamlRestTest/java/org/opensearch/search/pipeline/common).
 
-Following the format of the YAML files in [`rest-api-spec.test.search_pipeline`](src/yamlRestTest/resources/rest-api-spec/test/search_pipeline), you should be able to create your own YAML test file to exercise your new processor. 
+Following the format of the YAML files in [`rest-api-spec.test.search_pipeline`](src/yamlRestTest/resources/rest-api-spec/test/search_pipeline), you should be able to create your own YAML test file to exercise your new processor.
 
 To run the tests, from the root of the OpenSearch repository, you can run `./gradlew :modules:search-pipeline-common:yamlRestTest`.
 
-7. Finally, the processor is ready to used in a cluster. 
+7. Finally, the processor is ready to used in a cluster.
 
 To use the new processor, make sure the cluster is reloaded and that the new processor is accessible.
 
@@ -151,7 +151,7 @@ To create a search pipeline, you must create an ordered list of search processor
 An example creation request is:
 
 ```
-PUT /_search/pipeline/my_pipeline 
+PUT /_search/pipeline/my_pipeline
 {
   "request_processors": [
     {
@@ -186,7 +186,7 @@ PUT /_search/pipeline/my_pipeline2
   "response_processors": [
     {
       "delete_field": {
-        "field": "message" 
+        "field": "message"
       }
     }
   ]
