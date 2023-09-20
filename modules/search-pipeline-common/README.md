@@ -130,9 +130,9 @@ public Map<String, Processor.Factory<SearchResponseProcessor>> getResponseProces
 
 6. After creating a search processor, the processor is ready to be tested in a search pipeline. 
 
-To test your new search processor, you can make use of the test [`SearchPipelineCommonYamlTestSuiteIT`](../../../../../../../yamlRestTest/java/org/opensearch/search/pipeline/common). 
+To test your new search processor, you can make use of the test [`SearchPipelineCommonYamlTestSuiteIT`](src/yamlRestTest/java/org/opensearch/search/pipeline/common). 
 
-Following the format of the YAML files in [`rest-api-spec.test.search_pipeline`](../../../../../../../yamlRestTest/resources/rest-api-spec/test/search_pipeline), you should be able to create your own YAML test file to exercise your new processor. 
+Following the format of the YAML files in [`rest-api-spec.test.search_pipeline`](src/yamlRestTest/resources/rest-api-spec/test/search_pipeline), you should be able to create your own YAML test file to exercise your new processor. 
 
 To run the tests, from the root of the OpenSearch repository, you can run `./gradlew :modules:search-pipeline-common:yamlRestTest`.
 
