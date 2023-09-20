@@ -33,6 +33,7 @@ dependencies {
   api "io.opentelemetry:opentelemetry-exporter-otlp:${versions.opentelemetry}"
   api "io.opentelemetry:opentelemetry-exporter-common:${versions.opentelemetry}"
   api "io.opentelemetry:opentelemetry-exporter-otlp-common:${versions.opentelemetry}"
+  api "io.opentelemetry:opentelemetry-exporter-sender-okhttp:${versions.opentelemetry}"
   api "com.squareup.okhttp3:okhttp:4.10.0"
   api "org.jetbrains.kotlin:kotlin-stdlib:1.6.20"
   api "com.squareup.okio:okio-jvm:3.0.0"
