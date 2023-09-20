@@ -100,7 +100,8 @@ public class FileBasedSeedHostsProviderTests extends OpenSearchTestCase {
             new NetworkService(Collections.emptyList()),
             PageCacheRecycler.NON_RECYCLING_INSTANCE,
             new NamedWriteableRegistry(Collections.emptyList()),
-            new NoneCircuitBreakerService()
+            new NoneCircuitBreakerService(),
+            NoopTracer.INSTANCE
         ) {
             @Override
             public BoundTransportAddress boundAddress() {
