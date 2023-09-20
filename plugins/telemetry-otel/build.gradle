@@ -30,7 +30,6 @@ dependencies {
   api "io.opentelemetry:opentelemetry-exporter-logging:${versions.opentelemetry}"
   api "io.opentelemetry:opentelemetry-semconv:${versions.opentelemetry}-alpha"
   api "io.opentelemetry:opentelemetry-sdk-logs:${versions.opentelemetry}"
-  api "io.opentelemetry:opentelemetry-api-logs:${versions.opentelemetry}-alpha"
   api "io.opentelemetry:opentelemetry-exporter-otlp:${versions.opentelemetry}"
   api "io.opentelemetry:opentelemetry-exporter-common:${versions.opentelemetry}"
   api "io.opentelemetry:opentelemetry-exporter-otlp-common:${versions.opentelemetry}"
@@ -57,31 +56,19 @@ thirdPartyAudit {
     'android.security.NetworkSecurityPolicy',
     'android.util.Log',
     'com.google.common.io.ByteStreams',
-    'com.google.common.util.concurrent.FutureCallback',
-    'com.google.common.util.concurrent.Futures',
     'com.google.common.util.concurrent.ListenableFuture',
-    'com.google.common.util.concurrent.MoreExecutors',
     'io.grpc.CallOptions',
     'io.grpc.Channel',
-    'io.grpc.ClientInterceptor',
-    'io.grpc.ClientInterceptors',
-    'io.grpc.Codec',
-    'io.grpc.Codec$Identity',
     'io.grpc.Drainable',
     'io.grpc.KnownLength',
     'io.grpc.ManagedChannel',
-    'io.grpc.Metadata',
-    'io.grpc.Metadata$Key',
     'io.grpc.MethodDescriptor',
     'io.grpc.MethodDescriptor$Builder',
     'io.grpc.MethodDescriptor$Marshaller',
     'io.grpc.MethodDescriptor$MethodType',
-    'io.grpc.Status',
-    'io.grpc.Status$Code',
     'io.grpc.stub.AbstractFutureStub',
     'io.grpc.stub.AbstractStub',
     'io.grpc.stub.ClientCalls',
-    'io.grpc.stub.MetadataUtils',
     'org.bouncycastle.jsse.BCSSLParameters',
     'org.bouncycastle.jsse.BCSSLSocket',
     'org.conscrypt.Conscrypt',
