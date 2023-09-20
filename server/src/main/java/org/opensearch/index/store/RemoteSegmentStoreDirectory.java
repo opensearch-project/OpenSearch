@@ -25,6 +25,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.Version;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.blobstore.AsyncMultiStreamBlobContainer;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.VersionedCodecStreamWrapper;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
@@ -51,6 +52,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -113,6 +115,8 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
     protected final AtomicBoolean canDeleteStaleCommits = new AtomicBoolean(true);
 
     private final AtomicLong metadataUploadCounter = new AtomicLong(0);
+
+    public static final int METADATA_FILES_TO_FETCH = 100;
 
     public RemoteSegmentStoreDirectory(
         RemoteDirectory remoteDataDirectory,
@@ -187,8 +191,10 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
 
         List<String> metadataFiles = remoteMetadataDirectory.listFilesByPrefixInLexicographicOrder(
             MetadataFilenameUtils.METADATA_PREFIX,
-            1
+            METADATA_FILES_TO_FETCH
         );
+
+        verifyMultipleWriters(metadataFiles);
 
         if (metadataFiles.isEmpty() == false) {
             String latestMetadataFile = metadataFiles.get(0);
@@ -202,10 +208,32 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
     }
 
     private RemoteSegmentMetadata readMetadataFile(String metadataFilename) throws IOException {
+
         try (InputStream inputStream = remoteMetadataDirectory.getBlobStream(metadataFilename)) {
             byte[] metadataBytes = inputStream.readAllBytes();
             return metadataStreamWrapper.readStream(new ByteArrayIndexInput(metadataFilename, metadataBytes));
         }
+    }
+
+    // Visible for testing
+    public static void verifyMultipleWriters(List<String> mdFiles) {
+        Map<Tuple<Long, Long>, String> nodesByPrimaryTermAndGeneration = new HashMap<>();
+        mdFiles.forEach(mdFile -> {
+            Tuple<Tuple<Long, Long>, String> nodeIdByPrimaryTermAndGeneration = MetadataFilenameUtils.getNodeIdByPrimaryTermAndGeneration(
+                mdFile
+            );
+            if (nodeIdByPrimaryTermAndGeneration != null
+                && nodesByPrimaryTermAndGeneration.get(nodeIdByPrimaryTermAndGeneration.v1()) != null
+                && !Objects.equals(
+                    nodesByPrimaryTermAndGeneration.get(nodeIdByPrimaryTermAndGeneration.v1()),
+                    nodeIdByPrimaryTermAndGeneration.v2()
+                )) {
+                throw new IllegalStateException("Multiple metadata files having same primary term and generations detected");
+            }
+            if (nodeIdByPrimaryTermAndGeneration != null) {
+                nodesByPrimaryTermAndGeneration.put(nodeIdByPrimaryTermAndGeneration.v1(), nodeIdByPrimaryTermAndGeneration.v2());
+            }
+        });
     }
 
     /**
@@ -311,7 +339,8 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
             long generation,
             long translogGeneration,
             long uploadCounter,
-            int metadataVersion
+            int metadataVersion,
+            String nodeId
         ) {
             return String.join(
                 SEPARATOR,
@@ -321,7 +350,9 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
                 RemoteStoreUtils.invertLong(translogGeneration),
                 RemoteStoreUtils.invertLong(uploadCounter),
                 RemoteStoreUtils.invertLong(System.currentTimeMillis()),
-                String.valueOf(metadataVersion)
+                String.valueOf(metadataVersion),
+                UUIDs.base64UUID(),
+                nodeId
             );
         }
 
@@ -333,6 +364,15 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         // Visible for testing
         static long getGeneration(String[] filenameTokens) {
             return RemoteStoreUtils.invertLong(filenameTokens[2]);
+        }
+
+        public static Tuple<Tuple<Long, Long>, String> getNodeIdByPrimaryTermAndGeneration(String filename) {
+            String[] tokens = filename.split(SEPARATOR);
+            if (tokens.length < 9) {
+                // For versions < 2.11, we don't have node id.
+                return null;
+            }
+            return new Tuple<>(new Tuple<>(RemoteStoreUtils.invertLong(tokens[1]), RemoteStoreUtils.invertLong(tokens[2])), tokens[8]);
         }
     }
 
@@ -600,7 +640,8 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         SegmentInfos segmentInfosSnapshot,
         Directory storeDirectory,
         long translogGeneration,
-        ReplicationCheckpoint replicationCheckpoint
+        ReplicationCheckpoint replicationCheckpoint,
+        String nodeId
     ) throws IOException {
         synchronized (this) {
             String metadataFilename = MetadataFilenameUtils.getMetadataFilename(
@@ -608,7 +649,8 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
                 segmentInfosSnapshot.getGeneration(),
                 translogGeneration,
                 metadataUploadCounter.incrementAndGet(),
-                RemoteSegmentMetadata.CURRENT_VERSION
+                RemoteSegmentMetadata.CURRENT_VERSION,
+                nodeId
             );
             try {
                 try (IndexOutput indexOutput = storeDirectory.createOutput(metadataFilename, IOContext.DEFAULT)) {

@@ -93,6 +93,7 @@ public class RemoteFsTranslog extends Translog {
         this.primaryModeSupplier = primaryModeSupplier;
         this.remoteTranslogTransferTracker = remoteTranslogTransferTracker;
         fileTransferTracker = new FileTransferTracker(shardId, remoteTranslogTransferTracker);
+
         this.translogTransferManager = buildTranslogTransferManager(
             blobStoreRepository,
             threadPool,
@@ -327,7 +328,8 @@ public class RemoteFsTranslog extends Translog {
                 generation,
                 location,
                 readers,
-                Translog::getCommitCheckpointFileName
+                Translog::getCommitCheckpointFileName,
+                config.getNodeId()
             ).build()
         ) {
             return translogTransferManager.transferSnapshot(

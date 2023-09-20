@@ -17,6 +17,7 @@ import org.opensearch.common.SetOnce;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.VersionedCodecStreamWrapper;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.logging.Loggers;
@@ -38,6 +39,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -63,6 +65,8 @@ public class TranslogTransferManager {
     private final RemoteTranslogTransferTracker remoteTranslogTransferTracker;
 
     private static final long TRANSFER_TIMEOUT_IN_MILLIS = 30000;
+
+    private static final int METADATA_FILES_TO_FETCH = 100;
 
     private final Logger logger;
     private final static String METADATA_DIR = "metadata";
@@ -268,6 +272,25 @@ public class TranslogTransferManager {
         fileTransferTracker.add(fileName, true);
     }
 
+    static public void verifyMultipleWriters(List<BlobMetadata> mdFiles) {
+        Map<Tuple<Long, Long>, String> nodesByPrimaryTermAndGeneration = new HashMap<>();
+        mdFiles.forEach(blobMetadata -> {
+            Tuple<Tuple<Long, Long>, String> nodeIdByPrimaryTermAndGeneration = TranslogTransferMetadata
+                .getNodeIdByPrimaryTermAndGeneration(blobMetadata.toString());
+            if (nodeIdByPrimaryTermAndGeneration != null
+                && nodesByPrimaryTermAndGeneration.get(nodeIdByPrimaryTermAndGeneration.v1()) != null
+                && !Objects.equals(
+                    nodesByPrimaryTermAndGeneration.get(nodeIdByPrimaryTermAndGeneration.v1()),
+                    nodeIdByPrimaryTermAndGeneration.v2()
+                )) {
+                throw new IllegalStateException("Multiple metadata files having same primary term and generation");
+            }
+            if (nodeIdByPrimaryTermAndGeneration != null) {
+                nodesByPrimaryTermAndGeneration.put(nodeIdByPrimaryTermAndGeneration.v1(), nodeIdByPrimaryTermAndGeneration.v2());
+            }
+        });
+    }
+
     public TranslogTransferMetadata readMetadata() throws IOException {
         SetOnce<TranslogTransferMetadata> metadataSetOnce = new SetOnce<>();
         SetOnce<IOException> exceptionSetOnce = new SetOnce<>();
@@ -275,6 +298,7 @@ public class TranslogTransferManager {
         LatchedActionListener<List<BlobMetadata>> latchedActionListener = new LatchedActionListener<>(
             ActionListener.wrap(blobMetadataList -> {
                 if (blobMetadataList.isEmpty()) return;
+                verifyMultipleWriters(blobMetadataList);
                 String filename = blobMetadataList.get(0).name();
                 boolean downloadStatus = false;
                 long downloadStartTime = System.nanoTime(), bytesToRead = 0;
@@ -295,6 +319,9 @@ public class TranslogTransferManager {
                     }
                 }
             }, e -> {
+                if (e instanceof RuntimeException) {
+                    throw (RuntimeException) e;
+                }
                 logger.error(() -> new ParameterizedMessage("Exception while listing metadata files"), e);
                 exceptionSetOnce.set((IOException) e);
             }),
@@ -305,7 +332,7 @@ public class TranslogTransferManager {
             transferService.listAllInSortedOrder(
                 remoteMetadataTransferPath,
                 TranslogTransferMetadata.METADATA_PREFIX,
-                1,
+                METADATA_FILES_TO_FETCH,
                 latchedActionListener
             );
             latch.await();
