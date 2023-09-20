@@ -109,7 +109,7 @@ public class TranslogTransferManager {
         long prevUploadBytesSucceeded = remoteTranslogTransferTracker.getUploadBytesSucceeded();
         long prevUploadTimeInMillis = remoteTranslogTransferTracker.getTotalUploadTimeInMillis();
 
-        try {
+        try (translogTransferListener) {
             toUpload.addAll(fileTransferTracker.exclusionFilter(transferSnapshot.getTranslogFileSnapshots()));
             toUpload.addAll(fileTransferTracker.exclusionFilter((transferSnapshot.getCheckpointFileSnapshots())));
             if (toUpload.isEmpty()) {
