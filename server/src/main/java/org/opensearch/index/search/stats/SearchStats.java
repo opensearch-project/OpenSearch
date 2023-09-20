@@ -60,7 +60,7 @@ import java.util.Map;
 public class SearchStats implements Writeable, ToXContentFragment {
 
     /**
-     * Statistics for search
+     * Holds statistic values for a particular phase.
      *
      * @opensearch.internal
      */
@@ -107,6 +107,11 @@ public class SearchStats implements Writeable, ToXContentFragment {
 
     }
 
+    /**
+     * Holds requests stats for different phases.
+     *
+     * @opensearch.internal
+     */
     public static class RequestStatsLongHolder {
 
         Map<String, PhaseStatsLongHolder> requestStatsHolder = new HashMap<>();
