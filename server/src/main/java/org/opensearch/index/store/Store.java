@@ -977,9 +977,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             long startTime = System.currentTimeMillis();
             try {
                 if (from instanceof RemoteSegmentStoreDirectory) {
-                    try (IndexInput is = from.openInput(src, context); IndexOutput os = createOutput(dest, context)) {
-                        copyFileAndValidateChecksum(from, is, os, dest, fileSize);
-                    }
+                    copyFileAndValidateChecksum(from, src, dest, context, fileSize);
                 } else {
                     super.copyFrom(from, src, dest, context);
                 }
@@ -992,18 +990,18 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             }
         }
 
-        private void copyFileAndValidateChecksum(Directory from, IndexInput is, IndexOutput os, String dest, long fileSize)
+        private void copyFileAndValidateChecksum(Directory from, String src, String dest, IOContext context, long fileSize)
             throws IOException {
             RemoteSegmentStoreDirectory.UploadedSegmentMetadata metadata = ((RemoteSegmentStoreDirectory) from)
                 .getSegmentsUploadedToRemoteStore()
                 .get(dest);
             boolean success = false;
-            try {
+            try (IndexInput is = from.openInput(src, context); IndexOutput os = createOutput(dest, context)) {
                 // Here, we don't need the exact version as LuceneVerifyingIndexOutput does not verify version
                 // It is just used to emit logs when the entire metadata object is provided as parameter. Also,
                 // we can't provide null version as StoreFileMetadata has non-null check on writtenBy field.
                 Version luceneMajorVersion = Version.parse(metadata.getWrittenByMajor() + ".0.0");
-                Long checksum = Long.parseLong(metadata.getChecksum());
+                long checksum = Long.parseLong(metadata.getChecksum());
                 StoreFileMetadata storeFileMetadata = new StoreFileMetadata(
                     dest,
                     fileSize,
