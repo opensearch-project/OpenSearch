@@ -469,7 +469,7 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         boolQueryBuilder.filter(new TermQueryBuilder(TEXT_FIELD_NAME, "filter"));
         List<QueryBuilder> visitedQueries = new ArrayList<>();
         boolQueryBuilder.visit(createTestVisitor(visitedQueries));
-        assertEquals(5, visitedQueries.size());
+        assertEquals(6, visitedQueries.size());
         Set<Object> set = new HashSet<>(Arrays.asList("should", "must1", "must2", "mustNot", "filter"));
 
         for (QueryBuilder qb : visitedQueries) {
