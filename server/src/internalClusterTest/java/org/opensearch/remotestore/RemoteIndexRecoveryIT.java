@@ -56,7 +56,6 @@ public class RemoteIndexRecoveryIT extends IndexRecoveryIT {
 
     @After
     public void teardown() {
-        internalCluster().wipeIndices("_all");
         clusterAdmin().prepareCleanupRepository(REPOSITORY_NAME).get();
     }
 

@@ -48,7 +48,6 @@ public class SegmentReplicationWithRemoteStorePressureIT extends SegmentReplicat
 
     @After
     public void teardown() {
-        internalCluster().wipeIndices("_all");
         clusterAdmin().prepareCleanupRepository(REPOSITORY_NAME).get();
     }
 }

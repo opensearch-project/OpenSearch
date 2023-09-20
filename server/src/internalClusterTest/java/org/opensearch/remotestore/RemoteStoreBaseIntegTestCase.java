@@ -314,7 +314,6 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
         clusterSettingsSuppliedByTest = false;
         assertRemoteStoreRepositoryOnAllNodes(REPOSITORY_NAME);
         assertRemoteStoreRepositoryOnAllNodes(REPOSITORY_2_NAME);
-        internalCluster().wipeIndices("_all");
         clusterAdmin().prepareCleanupRepository(REPOSITORY_NAME).get();
         clusterAdmin().prepareCleanupRepository(REPOSITORY_2_NAME).get();
     }
@@ -351,6 +350,8 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
             ClusterService clusterService = internalCluster().getInstance(ClusterService.class, nodeName);
             DiscoveryNode node = clusterService.localNode();
             RepositoryMetadata expectedRepository = buildRepositoryMetadata(node, repositoryName);
+
+            // Validated that all the restricted settings are entact on all the nodes.
             repository.getRestrictedSystemRepositorySettings()
                 .stream()
                 .forEach(setting -> assertEquals(setting.get(actualRepository.settings()), setting.get(expectedRepository.settings())));
