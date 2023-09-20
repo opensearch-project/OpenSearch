@@ -47,10 +47,13 @@ import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.opensearch.index.query.QueryBuilders.boolQuery;
 import static org.opensearch.index.query.QueryBuilders.termQuery;
@@ -459,12 +462,23 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
 
     public void testVisit() {
         BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
-        boolQueryBuilder.should(new BoolQueryBuilder());
-        boolQueryBuilder.must(new BoolQueryBuilder());
-        boolQueryBuilder.mustNot(new BoolQueryBuilder());
-        boolQueryBuilder.filter(new BoolQueryBuilder());
+        boolQueryBuilder.should(new TermQueryBuilder(TEXT_FIELD_NAME, "should"));
+        boolQueryBuilder.must(new TermQueryBuilder(TEXT_FIELD_NAME, "must1"));
+        boolQueryBuilder.must(new TermQueryBuilder(TEXT_FIELD_NAME, "must2")); // Add a second one to confirm that they both get visited
+        boolQueryBuilder.mustNot(new TermQueryBuilder(TEXT_FIELD_NAME, "mustNot"));
+        boolQueryBuilder.filter(new TermQueryBuilder(TEXT_FIELD_NAME, "filter"));
         List<QueryBuilder> visitedQueries = new ArrayList<>();
         boolQueryBuilder.visit(createTestVisitor(visitedQueries));
         assertEquals(5, visitedQueries.size());
+        Set<Object> set = new HashSet<>(Arrays.asList("should", "must1", "must2", "mustNot", "filter"));
+
+        for (QueryBuilder qb : visitedQueries) {
+            if (qb instanceof TermQueryBuilder) {
+                set.remove(((TermQueryBuilder) qb).value());
+            }
+        }
+
+        assertEquals(0, set.size());
+
     }
 }
