@@ -1099,11 +1099,7 @@ public class LocalStorePeerRecoverySourceHandlerTests extends OpenSearchTestCase
                 Store.digestToString(digest.getValue()),
                 org.apache.lucene.util.Version.LATEST
             );
-            try (
-                OutputStream out = new IndexOutputOutputStream(
-                    Store.createVerifyingOutput(store.directory(), md.name(), md, IOContext.DEFAULT)
-                )
-            ) {
+            try (OutputStream out = new IndexOutputOutputStream(store.createVerifyingOutput(md.name(), md, IOContext.DEFAULT))) {
                 out.write(buffer);
                 out.write(Numbers.longToBytes(digest.getValue()));
             }
