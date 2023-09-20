@@ -156,4 +156,12 @@ public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBu
         assertEquals(rewrittenAgain, expected);
         assertEquals(Rewriteable.rewrite(dismax, createShardContext()), expected);
     }
+
+    public void testVisit() {
+        DisMaxQueryBuilder dismax = new DisMaxQueryBuilder();
+        dismax.add(new WrapperQueryBuilder(new WrapperQueryBuilder(new MatchAllQueryBuilder().toString()).toString()));
+
+        IOException e = expectThrows(IOException.class, () -> dismax.visit(createTestVisitor()));
+        assertEquals("DisMax Query Builder Traversed", e.getMessage());
+    }
 }

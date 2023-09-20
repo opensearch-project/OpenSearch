@@ -153,4 +153,14 @@ public class BoostingQueryBuilderTests extends AbstractQueryTestCase<BoostingQue
         e = expectThrows(IllegalStateException.class, () -> queryBuilder2.toQuery(context));
         assertEquals("Rewrite first", e.getMessage());
     }
+
+    public void testVisit() {
+        BoostingQueryBuilder builder = new BoostingQueryBuilder(
+            new TermQueryBuilder("unmapped_field", "value"),
+            new TermQueryBuilder(KEYWORD_FIELD_NAME, "other_value")
+        );
+
+        IOException e = expectThrows(IOException.class, () -> builder.visit(createTestVisitor()));
+        assertEquals("Boosting Query Builder Traversed", e.getMessage());
+    }
 }

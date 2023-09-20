@@ -147,4 +147,9 @@ public class FieldMaskingSpanQueryBuilderTests extends AbstractQueryTestCase<Fie
             "Deprecated field [field_masking_span] used, expected [" + SPAN_FIELD_MASKING_FIELD.getPreferredName() + "] instead"
         );
     }
+
+    public void testVisit() {
+        IOException e = expectThrows(IOException.class, () -> doCreateTestQueryBuilder().visit(createTestVisitor()));
+        assertEquals("Field Masking Query Builder Traversed", e.getMessage());
+    }
 }

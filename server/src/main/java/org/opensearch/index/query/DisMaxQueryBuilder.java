@@ -249,10 +249,8 @@ public class DisMaxQueryBuilder extends AbstractQueryBuilder<DisMaxQueryBuilder>
     }
 
     @Override
-    public void visit(QueryBuilderVisitor visitor) {
+    public void visit(QueryBuilderVisitor visitor) throws IOException {
         visitor.accept(this);
-
-        QueryBuilderVisitor qbv = QueryBuilderVisitor.NO_OP_VISITOR;
         if (queries.isEmpty() == false) {
             QueryBuilderVisitor subVisitor = visitor.getChildVisitor(BooleanClause.Occur.SHOULD);
             for (QueryBuilder subQb : queries) {

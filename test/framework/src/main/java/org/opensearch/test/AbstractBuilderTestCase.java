@@ -35,6 +35,7 @@ package org.opensearch.test;
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.SeedUtils;
 
+import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.Accountable;
 import org.opensearch.Version;
@@ -69,6 +70,12 @@ import org.opensearch.index.fielddata.IndexFieldDataCache;
 import org.opensearch.index.fielddata.IndexFieldDataService;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.query.BoolQueryBuilder;
+import org.opensearch.index.query.BoostingQueryBuilder;
+import org.opensearch.index.query.DisMaxQueryBuilder;
+import org.opensearch.index.query.FieldMaskingSpanQueryBuilder;
+import org.opensearch.index.query.QueryBuilder;
+import org.opensearch.index.query.QueryBuilderVisitor;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.similarity.SimilarityService;
 import org.opensearch.indices.IndicesModule;
@@ -314,6 +321,28 @@ public abstract class AbstractBuilderTestCase extends OpenSearchTestCase {
      */
     protected static QueryShardContext createShardContext() {
         return createShardContext(null);
+    }
+
+    protected static QueryBuilderVisitor createTestVisitor() {
+        return new QueryBuilderVisitor() {
+            @Override
+            public void accept(QueryBuilder qb) throws IOException {
+                if (qb instanceof BoolQueryBuilder) {
+                    throw new IOException("Bool Query Builder Traversed");
+                } else if (qb instanceof BoostingQueryBuilder) {
+                    throw new IOException("Boosting Query Builder Traversed");
+                } else if (qb instanceof DisMaxQueryBuilder) {
+                    throw new IOException("DisMax Query Builder Traversed");
+                } else if (qb instanceof FieldMaskingSpanQueryBuilder) {
+                    throw new IOException("Field Masking Query Builder Traversed");
+                }
+            }
+
+            @Override
+            public QueryBuilderVisitor getChildVisitor(BooleanClause.Occur occur) {
+                return NO_OP_VISITOR;
+            }
+        };
     }
 
     private static class ClientInvocationHandler implements InvocationHandler {

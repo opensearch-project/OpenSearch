@@ -216,7 +216,7 @@ public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTer
     }
 
     @Override
-    public void visit(QueryBuilderVisitor visitor) {
+    public void visit(QueryBuilderVisitor visitor) throws IOException {
         visitor.accept(this);
         if (multiTermQueryBuilder != null) {
             visitor.getChildVisitor(BooleanClause.Occur.MUST).accept(multiTermQueryBuilder);

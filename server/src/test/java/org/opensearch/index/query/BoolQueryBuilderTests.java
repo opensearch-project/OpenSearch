@@ -456,4 +456,14 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> boolQuery.toQuery(context));
         assertEquals("Rewrite first", e.getMessage());
     }
+
+    public void testVisit() {
+        BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
+        boolQueryBuilder.should(new BoolQueryBuilder());
+        boolQueryBuilder.must(new BoolQueryBuilder());
+        boolQueryBuilder.mustNot(new BoolQueryBuilder());
+        boolQueryBuilder.filter(new BoolQueryBuilder());
+        IOException e = expectThrows(IOException.class, () -> boolQueryBuilder.visit(QueryBuilderVisitor.NO_OP_VISITOR));
+        assertEquals("Boosting Query Builder Traversed", e.getMessage());
+    }
 }
