@@ -58,7 +58,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeMap;
@@ -143,15 +142,16 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
     private static NodeShardStates adaptToNodeShardStates(FetchResult<NodeGatewayStartedShards> shardsState) {
         NodeShardStates nodeShardStates = new NodeShardStates();
         shardsState.getData().forEach((node, nodeGatewayStartedShard) -> {
-            nodeShardStates.getNodeShardStates().add(
-                new NodeShardState(
-                    node,
-                    nodeGatewayStartedShard.allocationId(),
-                    nodeGatewayStartedShard.primary(),
-                    nodeGatewayStartedShard.replicationCheckpoint(),
-                    nodeGatewayStartedShard.storeException()
-                )
-            );
+            nodeShardStates.getNodeShardStates()
+                .add(
+                    new NodeShardState(
+                        node,
+                        nodeGatewayStartedShard.allocationId(),
+                        nodeGatewayStartedShard.primary(),
+                        nodeGatewayStartedShard.replicationCheckpoint(),
+                        nodeGatewayStartedShard.storeException()
+                    )
+                );
         });
         return nodeShardStates;
     }
@@ -323,8 +323,7 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
                     })
                     .collect(Collectors.toList())
             );
-            ineligibleShards = fetchedShardData
-                .getNodeShardStates()
+            ineligibleShards = fetchedShardData.getNodeShardStates()
                 .stream()
                 .filter(shardData -> discoNodes.contains(shardData.getNode()) == false)
                 .collect(Collectors.toList());
@@ -392,24 +391,24 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
                 final String finalAllocationId = allocationId;
                 if (nodeShardState.storeException() instanceof ShardLockObtainFailedException) {
                     logger.trace(
-                            () -> new ParameterizedMessage(
-                                    "[{}] on node [{}] has allocation id [{}] but the store can not be "
-                                            + "opened as it's locked, treating as valid shard",
-                                    shard,
-                                    nodeShardState.getNode(),
-                                    finalAllocationId
-                            ),
-                            nodeShardState.storeException()
+                        () -> new ParameterizedMessage(
+                            "[{}] on node [{}] has allocation id [{}] but the store can not be "
+                                + "opened as it's locked, treating as valid shard",
+                            shard,
+                            nodeShardState.getNode(),
+                            finalAllocationId
+                        ),
+                        nodeShardState.storeException()
                     );
                 } else {
                     logger.trace(
-                            () -> new ParameterizedMessage(
-                                    "[{}] on node [{}] has allocation id [{}] but the store can not be " + "opened, treating as no allocation id",
-                                    shard,
-                                    nodeShardState.getNode(),
-                                    finalAllocationId
-                            ),
-                            nodeShardState.storeException()
+                        () -> new ParameterizedMessage(
+                            "[{}] on node [{}] has allocation id [{}] but the store can not be " + "opened, treating as no allocation id",
+                            shard,
+                            nodeShardState.getNode(),
+                            finalAllocationId
+                        ),
+                        nodeShardState.storeException()
                     );
                     allocationId = null;
                 }
@@ -417,7 +416,7 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
 
             if (allocationId != null) {
                 assert nodeShardState.storeException() == null || nodeShardState.storeException() instanceof ShardLockObtainFailedException
-                        : "only allow store that can be opened or that throws a ShardLockObtainFailedException while being opened but got a "
+                    : "only allow store that can be opened or that throws a ShardLockObtainFailedException while being opened but got a "
                         + "store throwing "
                         + nodeShardState.storeException();
                 numberOfAllocationsFound++;
@@ -482,8 +481,8 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
             }
 
             Decision decision = forceAllocate
-                    ? allocation.deciders().canForceAllocatePrimary(shardRouting, node, allocation)
-                    : allocation.deciders().canAllocate(shardRouting, node, allocation);
+                ? allocation.deciders().canForceAllocatePrimary(shardRouting, node, allocation)
+                : allocation.deciders().canAllocate(shardRouting, node, allocation);
             DecidedNode decidedNode = new DecidedNode(nodeShardState, decision);
             if (decision.type() == Type.THROTTLE) {
                 throttledNodeShards.add(decidedNode);
