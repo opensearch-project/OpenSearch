@@ -264,15 +264,6 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         return metadata();
     }
 
-    public boolean isSegmentReplicationEnabled(String indexName) {
-        return Optional.ofNullable(getMetadata().index(indexName))
-            .map(
-                indexMetadata -> ReplicationType.parseString(indexMetadata.getSettings().get(IndexMetadata.SETTING_REPLICATION_TYPE))
-                    .equals(ReplicationType.SEGMENT)
-            )
-            .orElse(false);
-    }
-
     public CoordinationMetadata coordinationMetadata() {
         return metadata.coordinationMetadata();
     }

@@ -39,8 +39,7 @@ import org.opensearch.index.engine.InternalEngine;
 
 public final class MockNRTEngineFactory implements EngineFactory {
 
-    public MockNRTEngineFactory(Class<? extends FilterDirectoryReader> wrapper) {
-    }
+    public MockNRTEngineFactory(Class<? extends FilterDirectoryReader> wrapper) {}
 
     @Override
     public Engine newReadWriteEngine(EngineConfig config) {

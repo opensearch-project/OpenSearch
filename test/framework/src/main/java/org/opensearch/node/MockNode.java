@@ -51,7 +51,6 @@ import org.opensearch.env.Environment;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.recovery.RecoverySettings;
-import org.opensearch.indices.replication.SegmentReplicationTargetService;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.script.MockScriptService;
 import org.opensearch.script.ScriptContext;
@@ -185,10 +184,11 @@ public class MockNode extends Node {
         );
     }
 
-//    @Override
-//    protected SegmentReplicationTargetService newSegmentReplicationTargetService(ThreadPool threadPool, ClusterService clusterService, IndicesService indicesService, TransportService transportService, RecoverySettings recoverySettings) {
-//        return new MockSegmentReplicationTargetService
-//    }
+    // @Override
+    // protected SegmentReplicationTargetService newSegmentReplicationTargetService(ThreadPool threadPool, ClusterService clusterService,
+    // IndicesService indicesService, TransportService transportService, RecoverySettings recoverySettings) {
+    // return new MockSegmentReplicationTargetService
+    // }
 
     @Override
     protected ScriptService newScriptService(Settings settings, Map<String, ScriptEngine> engines, Map<String, ScriptContext<?>> contexts) {

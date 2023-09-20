@@ -46,7 +46,6 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
 import static org.opensearch.index.seqno.SequenceNumbers.MAX_SEQ_NO;
-import static org.opensearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
 
 /**
  * This is an {@link Engine} implementation intended for replica shards when Segment Replication
@@ -64,7 +63,6 @@ public class NRTReplicationEngine extends Engine {
     private final WriteOnlyTranslogManager translogManager;
     private final Lock flushLock = new ReentrantLock();
     protected final ReplicaFileTracker replicaFileTracker;
-    protected volatile Long latestReceivedCheckpoint = NO_OPS_PERFORMED;
 
     private volatile long lastReceivedPrimaryGen = SequenceNumbers.NO_OPS_PERFORMED;
 
@@ -526,10 +524,6 @@ public class NRTReplicationEngine extends Engine {
     private DirectoryReader getDirectoryReader() throws IOException {
         // for segment replication: replicas should create the reader from store, we don't want an open IW on replicas.
         return new SoftDeletesDirectoryReaderWrapper(DirectoryReader.open(store.directory()), Lucene.SOFT_DELETES_FIELD);
-    }
-
-    public void updateLatestReceivedCheckpoint(Long cp) {
-        this.latestReceivedCheckpoint = cp;
     }
 
     public void awaitCurrent(Consumer<Boolean> listener) {

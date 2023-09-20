@@ -215,8 +215,6 @@ public class SegmentReplicationTargetService implements IndexEventListener {
             logger.trace(() -> "Ignoring checkpoint, Shard is closed");
             return;
         }
-        replicaShard.getReplicationEngine()
-            .ifPresent(engine -> engine.updateLatestReceivedCheckpoint(receivedCheckpoint.getSegmentInfosVersion()));
         updateLatestReceivedCheckpoint(receivedCheckpoint, replicaShard);
         // Checks if replica shard is in the correct STARTED state to process checkpoints (avoids parallel replication events taking place)
         // This check ensures we do not try to process a received checkpoint while the shard is still recovering, yet we stored the latest
