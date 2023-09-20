@@ -108,6 +108,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 @LuceneTestCase.SuppressFileSystems("ExtrasFS")
+
 public class RemoteFsTranslogTests extends OpenSearchTestCase {
 
     protected final ShardId shardId = new ShardId("index", "_na_", 1);
