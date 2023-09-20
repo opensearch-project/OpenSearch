@@ -463,7 +463,8 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         boolQueryBuilder.must(new BoolQueryBuilder());
         boolQueryBuilder.mustNot(new BoolQueryBuilder());
         boolQueryBuilder.filter(new BoolQueryBuilder());
-        IOException e = expectThrows(IOException.class, () -> boolQueryBuilder.visit(QueryBuilderVisitor.NO_OP_VISITOR));
-        assertEquals("Boosting Query Builder Traversed", e.getMessage());
+        List<QueryBuilder> visitedQueries = new ArrayList<>();
+        boolQueryBuilder.visit(createTestVisitor(visitedQueries));
+        assertEquals(5, visitedQueries.size());
     }
 }

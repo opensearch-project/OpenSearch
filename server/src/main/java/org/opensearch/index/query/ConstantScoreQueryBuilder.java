@@ -186,7 +186,7 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
     }
 
     @Override
-    public void visit(QueryBuilderVisitor visitor) throws IOException {
+    public void visit(QueryBuilderVisitor visitor) {
         visitor.accept(this);
         visitor.getChildVisitor(BooleanClause.Occur.FILTER).accept(filterBuilder);
     }

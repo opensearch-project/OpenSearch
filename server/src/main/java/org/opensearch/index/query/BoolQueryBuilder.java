@@ -429,7 +429,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
     }
 
     @Override
-    public void visit(QueryBuilderVisitor visitor) throws IOException {
+    public void visit(QueryBuilderVisitor visitor) {
         visitor.accept(this);
         if (mustClauses.isEmpty() == false) {
             QueryBuilderVisitor subVisitor = visitor.getChildVisitor(Occur.MUST);

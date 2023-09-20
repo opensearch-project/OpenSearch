@@ -41,6 +41,7 @@ import org.apache.lucene.search.Query;
 import org.opensearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -161,7 +162,9 @@ public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBu
         DisMaxQueryBuilder dismax = new DisMaxQueryBuilder();
         dismax.add(new WrapperQueryBuilder(new WrapperQueryBuilder(new MatchAllQueryBuilder().toString()).toString()));
 
-        IOException e = expectThrows(IOException.class, () -> dismax.visit(createTestVisitor()));
-        assertEquals("DisMax Query Builder Traversed", e.getMessage());
+        List<QueryBuilder> visitedQueries = new ArrayList<>();
+        dismax.visit(createTestVisitor(visitedQueries));
+
+        assertEquals(2, visitedQueries.size());
     }
 }

@@ -10,8 +10,6 @@ package org.opensearch.index.query;
 
 import org.apache.lucene.search.BooleanClause;
 
-import java.io.IOException;
-
 /**
  * QueryBuilderVisitor is an interface to define Visitor Object to be traversed in QueryBuilder tree.
  */
@@ -21,7 +19,7 @@ public interface QueryBuilderVisitor {
      * Accept method is called when the visitor accepts the queryBuilder object to be traversed in the query tree.
      * @param qb is a queryBuilder object which is accepeted by the visitor.
      */
-    void accept(QueryBuilder qb) throws IOException;
+    void accept(QueryBuilder qb);
 
     /**
      * Fetches the child sub visitor from the main QueryBuilderVisitor Object.

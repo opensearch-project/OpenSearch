@@ -287,7 +287,7 @@ public class SpanNotQueryBuilder extends AbstractQueryBuilder<SpanNotQueryBuilde
     }
 
     @Override
-    public void visit(QueryBuilderVisitor visitor) throws IOException {
+    public void visit(QueryBuilderVisitor visitor) {
         visitor.accept(this);
         if (include != null) {
             visitor.getChildVisitor(BooleanClause.Occur.MUST).accept(include);

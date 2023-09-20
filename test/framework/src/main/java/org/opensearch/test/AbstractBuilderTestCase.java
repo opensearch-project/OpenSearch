@@ -70,10 +70,6 @@ import org.opensearch.index.fielddata.IndexFieldDataCache;
 import org.opensearch.index.fielddata.IndexFieldDataService;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
-import org.opensearch.index.query.BoolQueryBuilder;
-import org.opensearch.index.query.BoostingQueryBuilder;
-import org.opensearch.index.query.DisMaxQueryBuilder;
-import org.opensearch.index.query.FieldMaskingSpanQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryBuilderVisitor;
 import org.opensearch.index.query.QueryShardContext;
@@ -323,24 +319,16 @@ public abstract class AbstractBuilderTestCase extends OpenSearchTestCase {
         return createShardContext(null);
     }
 
-    protected static QueryBuilderVisitor createTestVisitor() {
+    protected static QueryBuilderVisitor createTestVisitor(List<QueryBuilder> visitedQueries) {
         return new QueryBuilderVisitor() {
             @Override
-            public void accept(QueryBuilder qb) throws IOException {
-                if (qb instanceof BoolQueryBuilder) {
-                    throw new IOException("Bool Query Builder Traversed");
-                } else if (qb instanceof BoostingQueryBuilder) {
-                    throw new IOException("Boosting Query Builder Traversed");
-                } else if (qb instanceof DisMaxQueryBuilder) {
-                    throw new IOException("DisMax Query Builder Traversed");
-                } else if (qb instanceof FieldMaskingSpanQueryBuilder) {
-                    throw new IOException("Field Masking Query Builder Traversed");
-                }
+            public void accept(QueryBuilder qb) {
+                visitedQueries.add(qb);
             }
 
             @Override
             public QueryBuilderVisitor getChildVisitor(BooleanClause.Occur occur) {
-                return NO_OP_VISITOR;
+                return this;
             }
         };
     }

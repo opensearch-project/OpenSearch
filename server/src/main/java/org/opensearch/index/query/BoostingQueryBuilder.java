@@ -255,7 +255,7 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
     }
 
     @Override
-    public void visit(QueryBuilderVisitor visitor) throws IOException {
+    public void visit(QueryBuilderVisitor visitor) {
         visitor.accept(this);
         if (positiveQuery != null) {
             visitor.getChildVisitor(BooleanClause.Occur.MUST).accept(positiveQuery);

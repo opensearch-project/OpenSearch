@@ -200,7 +200,7 @@ public class SpanWithinQueryBuilder extends AbstractQueryBuilder<SpanWithinQuery
     }
 
     @Override
-    public void visit(QueryBuilderVisitor visitor) throws IOException {
+    public void visit(QueryBuilderVisitor visitor) {
         visitor.accept(this);
         visitor.getChildVisitor(BooleanClause.Occur.MUST).accept(big);
         visitor.getChildVisitor(BooleanClause.Occur.MUST).accept(little);

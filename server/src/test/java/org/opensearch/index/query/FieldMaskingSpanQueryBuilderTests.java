@@ -41,6 +41,8 @@ import org.opensearch.core.common.ParsingException;
 import org.opensearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.opensearch.index.query.FieldMaskingSpanQueryBuilder.SPAN_FIELD_MASKING_FIELD;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -149,7 +151,8 @@ public class FieldMaskingSpanQueryBuilderTests extends AbstractQueryTestCase<Fie
     }
 
     public void testVisit() {
-        IOException e = expectThrows(IOException.class, () -> doCreateTestQueryBuilder().visit(createTestVisitor()));
-        assertEquals("Field Masking Query Builder Traversed", e.getMessage());
+        List<QueryBuilder> visitedQueries = new ArrayList<>();
+        doCreateTestQueryBuilder().visit(createTestVisitor(visitedQueries));
+        assertEquals(2, visitedQueries.size());
     }
 }

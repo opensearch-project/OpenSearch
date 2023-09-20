@@ -38,6 +38,8 @@ import org.apache.lucene.search.Query;
 import org.opensearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.nullValue;
@@ -160,7 +162,9 @@ public class BoostingQueryBuilderTests extends AbstractQueryTestCase<BoostingQue
             new TermQueryBuilder(KEYWORD_FIELD_NAME, "other_value")
         );
 
-        IOException e = expectThrows(IOException.class, () -> builder.visit(createTestVisitor()));
-        assertEquals("Boosting Query Builder Traversed", e.getMessage());
+        List<QueryBuilder> visitedQueries = new ArrayList<>();
+        builder.visit(createTestVisitor(visitedQueries));
+
+        assertEquals(3, visitedQueries.size());
     }
 }
