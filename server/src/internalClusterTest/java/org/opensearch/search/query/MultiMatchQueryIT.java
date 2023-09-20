@@ -130,7 +130,23 @@ public class MultiMatchQueryIT extends ParameterizedOpenSearchIntegTestCase {
                 .put("index.analysis.analyzer.category.tokenizer", "standard")
                 .put("index.analysis.analyzer.category.filter", "lowercase")
         );
+
+        CreateIndexRequestBuilder synonym_builder = prepareCreate("synonym_test").setSettings(
+            Settings.builder()
+                .put(indexSettings())
+                .put(SETTING_NUMBER_OF_SHARDS, 1)
+                .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("index.analysis.filter.synonyms.type", "synonym")
+                .put("index.analysis.filter.synonyms.lenient", "true")
+                .putList("index.analysis.filter.synonyms.synonyms", "term1", "term2")
+                .put("index.analysis.analyzer.synonym_1.tokenizer", "standard")
+                .putList("index.analysis.analyzer.synonym_1.filter", "synonyms")
+                .put("index.analysis.analyzer.synonym_2.tokenizer", "standard")
+                .putList("index.analysis.analyzer.synonym_2.filter", "synonyms")
+        );
+
         assertAcked(builder.setMapping(createMapping()));
+        assertAcked(synonym_builder.setMapping(createSynonymMapping()));
         ensureGreen();
         int numDocs = scaledRandomIntBetween(50, 100);
         List<IndexRequestBuilder> builders = new ArrayList<>();
@@ -310,6 +326,22 @@ public class MultiMatchQueryIT extends ParameterizedOpenSearchIntegTestCase {
             .endObject();
     }
 
+    private XContentBuilder createSynonymMapping() throws IOException {
+        return XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("text")
+            .field("type", "text")
+            .field("search_analyzer", "synonym_1")
+            .endObject()
+            .startObject("title")
+            .field("type", "text")
+            .field("search_analyzer", "synonym_2")
+            .endObject()
+            .endObject()
+            .endObject();
+    }
+
     public void testDefaults() throws ExecutionException, InterruptedException {
         MatchQuery.Type type = MatchQuery.Type.BOOLEAN;
         SearchResponse searchResponse = client().prepareSearch("test")
@@ -367,6 +399,15 @@ public class MultiMatchQueryIT extends ParameterizedOpenSearchIntegTestCase {
             .get();
         assertHitCount(searchResponse, 1L);
         assertFirstHit(searchResponse, hasId("theone"));
+    }
+
+    public void testSingleSynonymQuery() throws ExecutionException, InterruptedException {
+        SearchResponse searchResponse = client().prepareSearch("synonym_test")
+            .setQuery(
+                multiMatchQuery("term1","text^1.0", "title^1.0").boost(1).type(MultiMatchQueryBuilder.Type.BEST_FIELDS)
+            )
+            .get();
+        assertHitCount(searchResponse, 1L);
     }
 
     public void testPhraseType() {
