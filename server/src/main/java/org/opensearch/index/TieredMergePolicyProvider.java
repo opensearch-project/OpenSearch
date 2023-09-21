@@ -227,20 +227,6 @@ public final class TieredMergePolicyProvider implements MergePolicyProvider {
         tieredMergePolicy.setMaxMergedSegmentMB(maxMergedSegment.getMbFrac());
         tieredMergePolicy.setSegmentsPerTier(segmentsPerTier);
         tieredMergePolicy.setDeletesPctAllowed(deletesPctAllowed);
-
-        if (logger.isTraceEnabled()) {
-            logger.trace(
-                "using [tiered] merge mergePolicy with expunge_deletes_allowed[{}], floor_segment[{}],"
-                    + " max_merge_at_once[{}], max_merged_segment[{}], segments_per_tier[{}],"
-                    + " deletes_pct_allowed[{}]",
-                forceMergeDeletesPctAllowed,
-                floorSegment,
-                maxMergeAtOnce,
-                maxMergedSegment,
-                segmentsPerTier,
-                deletesPctAllowed
-            );
-        }
     }
 
     void setSegmentsPerTier(Double segmentsPerTier) {
