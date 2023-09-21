@@ -16,6 +16,7 @@ import org.opensearch.telemetry.OTelTelemetrySettings;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
+import java.lang.reflect.Method;
 import java.security.AccessController;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
@@ -55,9 +56,17 @@ public class OTelSpanExporterFactory {
             // Check we ourselves are not being called by unprivileged code.
             SpecialPermission.check();
             return AccessController.doPrivileged((PrivilegedExceptionAction<SpanExporter>) () -> {
+                String methodName = "create";
+                String getDefaultMethod = "getDefault";
+                for (Method m : spanExporterProviderClass.getMethods()) {
+                    if (m.getName().equals(getDefaultMethod)) {
+                        methodName = getDefaultMethod;
+                        break;
+                    }
+                }
                 try {
                     return (SpanExporter) MethodHandles.publicLookup()
-                        .findStatic(spanExporterProviderClass, "create", MethodType.methodType(spanExporterProviderClass))
+                        .findStatic(spanExporterProviderClass, methodName, MethodType.methodType(spanExporterProviderClass))
                         .asType(MethodType.methodType(SpanExporter.class))
                         .invokeExact();
                 } catch (Throwable e) {
