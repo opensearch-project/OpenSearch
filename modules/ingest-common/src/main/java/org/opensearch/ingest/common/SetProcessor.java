@@ -42,6 +42,8 @@ import org.opensearch.script.TemplateScript;
 
 import java.util.Map;
 
+import static org.opensearch.ingest.ConfigurationUtils.newConfigurationException;
+
 /**
  * Processor that adds new fields with their corresponding values. If the field is already present, its value
  * will be replaced with the provided one.
@@ -54,9 +56,10 @@ public final class SetProcessor extends AbstractProcessor {
     private final TemplateScript.Factory field;
     private final ValueSource value;
     private final boolean ignoreEmptyValue;
+    private final String copyFrom;
 
-    SetProcessor(String tag, String description, TemplateScript.Factory field, ValueSource value) {
-        this(tag, description, field, value, true, false);
+    SetProcessor(String tag, String description, TemplateScript.Factory field, ValueSource value, String copyFrom) {
+        this(tag, description, field, value, true, false, copyFrom);
     }
 
     SetProcessor(
@@ -65,13 +68,15 @@ public final class SetProcessor extends AbstractProcessor {
         TemplateScript.Factory field,
         ValueSource value,
         boolean overrideEnabled,
-        boolean ignoreEmptyValue
+        boolean ignoreEmptyValue,
+        String copyFrom
     ) {
         super(tag, description);
         this.overrideEnabled = overrideEnabled;
         this.field = field;
         this.value = value;
         this.ignoreEmptyValue = ignoreEmptyValue;
+        this.copyFrom = copyFrom;
     }
 
     public boolean isOverrideEnabled() {
@@ -90,10 +95,27 @@ public final class SetProcessor extends AbstractProcessor {
         return ignoreEmptyValue;
     }
 
+    public String getCopyFrom() {
+        return copyFrom;
+    }
+
     @Override
     public IngestDocument execute(IngestDocument document) {
         if (overrideEnabled || document.hasField(field) == false || document.getFieldValue(field, Object.class) == null) {
-            document.setFieldValue(field, value, ignoreEmptyValue);
+            if (copyFrom != null) {
+                String path = document.renderTemplate(field);
+                if (copyFrom.isEmpty()) {
+                    throw new IllegalArgumentException("copy_from cannot be empty");
+                }
+                Object sourceFieldValue = document.getFieldValue(copyFrom, Object.class, ignoreEmptyValue);
+                if (ignoreEmptyValue
+                    && (sourceFieldValue == null || sourceFieldValue instanceof String && ((String) sourceFieldValue).isEmpty())) {
+                    return document;
+                }
+                document.setFieldValue(path, IngestDocument.deepCopy(sourceFieldValue));
+            } else {
+                document.setFieldValue(field, value, ignoreEmptyValue);
+            }
         }
         return document;
     }
@@ -119,18 +141,20 @@ public final class SetProcessor extends AbstractProcessor {
             Map<String, Object> config
         ) throws Exception {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
-            Object value = ConfigurationUtils.readObject(TYPE, processorTag, config, "value");
             boolean overrideEnabled = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "override", true);
             TemplateScript.Factory compiledTemplate = ConfigurationUtils.compileTemplate(TYPE, processorTag, "field", field, scriptService);
             boolean ignoreEmptyValue = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_empty_value", false);
-            return new SetProcessor(
-                processorTag,
-                description,
-                compiledTemplate,
-                ValueSource.wrap(value, scriptService),
-                overrideEnabled,
-                ignoreEmptyValue
-            );
+            String copyFrom = ConfigurationUtils.readOptionalStringProperty(TYPE, processorTag, config, "copy_from");
+
+            ValueSource valueSource = null;
+            if (copyFrom == null) {
+                Object value = ConfigurationUtils.readObject(TYPE, processorTag, config, "value");
+                valueSource = ValueSource.wrap(value, scriptService);
+            } else if (config.get("value") != null) {
+                throw newConfigurationException(TYPE, processorTag, "copy_from", "either copy_from or value can be set");
+            }
+
+            return new SetProcessor(processorTag, description, compiledTemplate, valueSource, overrideEnabled, ignoreEmptyValue, copyFrom);
         }
     }
 }

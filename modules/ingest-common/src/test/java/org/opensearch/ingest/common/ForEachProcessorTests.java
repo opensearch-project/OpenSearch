@@ -160,7 +160,8 @@ public class ForEachProcessorTests extends OpenSearchTestCase {
                 "_tag",
                 null,
                 new TestTemplateService.MockTemplateScript.Factory("_ingest._value.new_field"),
-                (model) -> model.get("other")
+                (model) -> model.get("other"),
+                null
             ),
             false
         );

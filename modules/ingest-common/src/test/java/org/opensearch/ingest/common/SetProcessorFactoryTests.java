@@ -124,4 +124,16 @@ public class SetProcessorFactoryTests extends OpenSearchTestCase {
         assertThat(exception.getMetadata("opensearch.processor_tag").get(0), equalTo(processorTag));
     }
 
+    public void testCopyFrom() throws Exception {
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "field1");
+        config.put("value", "value1");
+        config.put("copy_from", "field2");
+        String processorTag = randomAlphaOfLength(10);
+        assertThrows(
+            "either copy_from or value can be set",
+            OpenSearchParseException.class,
+            () -> factory.create(null, processorTag, null, config)
+        );
+    }
 }

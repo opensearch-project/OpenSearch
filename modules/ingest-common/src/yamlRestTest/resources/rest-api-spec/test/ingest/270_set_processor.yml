@@ -101,3 +101,158 @@ teardown:
         pipeline: 1
         require_alias: true
         body:    { foo: bar }
+
+---
+"Test set processor with both value and copy_from":
+  - do:
+      catch: '/either copy_from or value can be set/'
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "set" : {
+                  "field" : "foo",
+                  "value" : "bar",
+                  "copy_from" : "zoo"
+                }
+              }
+            ]
+          }
+
+---
+"Test set processor with copy_from and ignore_empty_value":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "set" : {
+                  "field" : "foo",
+                  "copy_from" : "zoo"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+  - do:
+      catch: '/field \[zoo\] not present as part of path \[zoo\]/'
+      index:
+        index: test
+        id: 1
+        pipeline: "my_pipeline"
+        body: {
+          foo: "foo"
+        }
+
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "set" : {
+                  "field" : "foo",
+                  "copy_from" : "zoo",
+                  "ignore_empty_value" : true
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+  # field zoo does not exist
+  - do:
+      index:
+        index: test
+        id: 1
+        pipeline: "my_pipeline"
+        body: {
+          foo: "foo"
+        }
+
+  - do:
+      get:
+        index: test
+        id: 1
+  - match: { _source: {foo: "foo"} }
+
+  # field zoo is empty string
+  - do:
+      index:
+        index: test
+        id: 1
+        pipeline: "my_pipeline"
+        body: {
+          foo: "foo",
+          zoo: ""
+        }
+
+  - do:
+      get:
+        index: test
+        id: 1
+  - match: { _source: { foo: "foo", zoo: "" } }
+
+---
+"Test set processor with copy_from":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "set" : {
+                  "field" : "foo",
+                  "copy_from" : "zoo"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: 1
+        pipeline: "my_pipeline"
+        body: {
+          foo: "bar",
+          zoo: {
+            stringField: "string",
+            intField: 1,
+            floatField: 1.0,
+            booleanField: true,
+            stringArrayField: ["a", "b", "c"],
+            intArrayField: [1, 2, 3],
+            booleanArrayField: [true, false, true],
+            floatArrayField: [1.0, 2.0, 3.0],
+            mapField: {
+              field_a: "value_a",
+              field_b: {
+                field_c: "value_c"
+              }
+            }
+          }
+        }
+  - do:
+      get:
+        index: test
+        id: 1
+  - match: { _source.foo.stringField: "string" }
+  - match: { _source.foo.intField: 1 }
+  - match: { _source.foo.floatField: 1.0 }
+  - match: { _source.foo.booleanField: true }
+  - match: { _source.foo.stringArrayField: ["a", "b", "c"] }
+  - match: { _source.foo.intArrayField: [1, 2, 3] }
+  - match: { _source.foo.booleanArrayField: [true, false, true] }
+  - match: { _source.foo.floatArrayField: [1.0, 2.0, 3.0] }
+  - match: { _source.foo.mapField: { field_a: "value_a", field_b: { field_c: "value_c"}}}

@@ -42,6 +42,8 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.Matchers;
 
 import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -51,7 +53,7 @@ public class SetProcessorTests extends OpenSearchTestCase {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         String fieldName = RandomDocumentPicks.randomExistingFieldName(random(), ingestDocument);
         Object fieldValue = RandomDocumentPicks.randomFieldValue(random());
-        Processor processor = createSetProcessor(fieldName, fieldValue, true, false);
+        Processor processor = createSetProcessor(fieldName, fieldValue, true, false, null);
         processor.execute(ingestDocument);
         assertThat(ingestDocument.hasField(fieldName), equalTo(true));
         assertThat(ingestDocument.getFieldValue(fieldName, Object.class), equalTo(fieldValue));
@@ -63,7 +65,7 @@ public class SetProcessorTests extends OpenSearchTestCase {
         IngestDocument testIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         Object fieldValue = RandomDocumentPicks.randomFieldValue(random());
         String fieldName = RandomDocumentPicks.addRandomField(random(), testIngestDocument, fieldValue);
-        Processor processor = createSetProcessor(fieldName, fieldValue, true, false);
+        Processor processor = createSetProcessor(fieldName, fieldValue, true, false, null);
         processor.execute(ingestDocument);
         assertThat(ingestDocument.hasField(fieldName), equalTo(true));
         assertThat(ingestDocument.getFieldValue(fieldName, Object.class), equalTo(fieldValue));
@@ -72,7 +74,7 @@ public class SetProcessorTests extends OpenSearchTestCase {
     public void testSetFieldsTypeMismatch() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         ingestDocument.setFieldValue("field", "value");
-        Processor processor = createSetProcessor("field.inner", "value", true, false);
+        Processor processor = createSetProcessor("field.inner", "value", true, false, null);
         try {
             processor.execute(ingestDocument);
             fail("processor execute should have failed");
@@ -88,7 +90,7 @@ public class SetProcessorTests extends OpenSearchTestCase {
         IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
         String fieldName = RandomDocumentPicks.randomFieldName(random());
         Object fieldValue = RandomDocumentPicks.randomFieldValue(random());
-        Processor processor = createSetProcessor(fieldName, fieldValue, false, false);
+        Processor processor = createSetProcessor(fieldName, fieldValue, false, false, null);
         processor.execute(ingestDocument);
         assertThat(ingestDocument.hasField(fieldName), equalTo(true));
         assertThat(ingestDocument.getFieldValue(fieldName, Object.class), equalTo(fieldValue));
@@ -98,7 +100,7 @@ public class SetProcessorTests extends OpenSearchTestCase {
         IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
         Object fieldValue = "foo";
         String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, fieldValue);
-        Processor processor = createSetProcessor(fieldName, "bar", false, false);
+        Processor processor = createSetProcessor(fieldName, "bar", false, false, null);
         processor.execute(ingestDocument);
         assertThat(ingestDocument.hasField(fieldName), equalTo(true));
         assertThat(ingestDocument.getFieldValue(fieldName, Object.class), equalTo(fieldValue));
@@ -109,7 +111,7 @@ public class SetProcessorTests extends OpenSearchTestCase {
         Object fieldValue = null;
         Object newValue = "bar";
         String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, fieldValue);
-        Processor processor = createSetProcessor(fieldName, newValue, false, false);
+        Processor processor = createSetProcessor(fieldName, newValue, false, false, null);
         processor.execute(ingestDocument);
         assertThat(ingestDocument.hasField(fieldName), equalTo(true));
         assertThat(ingestDocument.getFieldValue(fieldName, Object.class), equalTo(newValue));
@@ -117,7 +119,7 @@ public class SetProcessorTests extends OpenSearchTestCase {
 
     public void testSetMetadataExceptVersion() throws Exception {
         Metadata randomMetadata = randomFrom(Metadata.INDEX, Metadata.ID, Metadata.ROUTING);
-        Processor processor = createSetProcessor(randomMetadata.getFieldName(), "_value", true, false);
+        Processor processor = createSetProcessor(randomMetadata.getFieldName(), "_value", true, false, null);
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         processor.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue(randomMetadata.getFieldName(), String.class), Matchers.equalTo("_value"));
@@ -125,7 +127,7 @@ public class SetProcessorTests extends OpenSearchTestCase {
 
     public void testSetMetadataVersion() throws Exception {
         long version = randomNonNegativeLong();
-        Processor processor = createSetProcessor(Metadata.VERSION.getFieldName(), version, true, false);
+        Processor processor = createSetProcessor(Metadata.VERSION.getFieldName(), version, true, false, null);
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         processor.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue(Metadata.VERSION.getFieldName(), Long.class), Matchers.equalTo(version));
@@ -133,7 +135,7 @@ public class SetProcessorTests extends OpenSearchTestCase {
 
     public void testSetMetadataVersionType() throws Exception {
         String versionType = randomFrom("internal", "external", "external_gte");
-        Processor processor = createSetProcessor(Metadata.VERSION_TYPE.getFieldName(), versionType, true, false);
+        Processor processor = createSetProcessor(Metadata.VERSION_TYPE.getFieldName(), versionType, true, false, null);
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         processor.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue(Metadata.VERSION_TYPE.getFieldName(), String.class), Matchers.equalTo(versionType));
@@ -141,7 +143,7 @@ public class SetProcessorTests extends OpenSearchTestCase {
 
     public void testSetMetadataIfSeqNo() throws Exception {
         long ifSeqNo = randomNonNegativeLong();
-        Processor processor = createSetProcessor(Metadata.IF_SEQ_NO.getFieldName(), ifSeqNo, true, false);
+        Processor processor = createSetProcessor(Metadata.IF_SEQ_NO.getFieldName(), ifSeqNo, true, false, null);
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         processor.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue(Metadata.IF_SEQ_NO.getFieldName(), Long.class), Matchers.equalTo(ifSeqNo));
@@ -149,20 +151,70 @@ public class SetProcessorTests extends OpenSearchTestCase {
 
     public void testSetMetadataIfPrimaryTerm() throws Exception {
         long ifPrimaryTerm = randomNonNegativeLong();
-        Processor processor = createSetProcessor(Metadata.IF_PRIMARY_TERM.getFieldName(), ifPrimaryTerm, true, false);
+        Processor processor = createSetProcessor(Metadata.IF_PRIMARY_TERM.getFieldName(), ifPrimaryTerm, true, false, null);
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         processor.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue(Metadata.IF_PRIMARY_TERM.getFieldName(), Long.class), Matchers.equalTo(ifPrimaryTerm));
     }
 
-    private static Processor createSetProcessor(String fieldName, Object fieldValue, boolean overrideEnabled, boolean ignoreEmptyValue) {
+    public void testCopyFromWithIgnoreEmptyValue() throws Exception {
+        // do nothing if copy_from field does not exist
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
+        String newFieldName = RandomDocumentPicks.randomFieldName(random());
+        Processor processor = createSetProcessor(newFieldName, null, true, true, RandomDocumentPicks.randomFieldName(random()));
+        processor.execute(ingestDocument);
+        assertFalse(ingestDocument.hasField(newFieldName));
+
+        // throw illegalArgumentException if copy_from is empty string
+        Processor processorWithEmptyCopyFrom = createSetProcessor(newFieldName, null, true, true, "");
+        assertThrows("copy_from cannot be empty", IllegalArgumentException.class, () -> processorWithEmptyCopyFrom.execute(ingestDocument));
+    }
+
+    public void testCopyFromOtherField() throws Exception {
+        // can copy different types of data from one field to another
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
+        Object existingFieldValue = RandomDocumentPicks.randomFieldValue(random());
+        String existingFieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, existingFieldValue);
+        String newFieldName = RandomDocumentPicks.randomFieldName(random());
+        Processor processor = createSetProcessor(newFieldName, null, true, false, existingFieldName);
+        processor.execute(ingestDocument);
+        assertTrue(ingestDocument.hasField(newFieldName));
+        assertDeepCopiedObjectEquals(ingestDocument.getFieldValue(newFieldName, Object.class), existingFieldValue);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void assertDeepCopiedObjectEquals(Object expected, Object actual) {
+        if (expected instanceof Map) {
+            Map<String, Object> expectedMap = (Map<String, Object>) expected;
+            Map<String, Object> actualMap = (Map<String, Object>) actual;
+            assertEquals(expectedMap.size(), actualMap.size());
+            for (Map.Entry<String, Object> expectedEntry : expectedMap.entrySet()) {
+                assertDeepCopiedObjectEquals(expectedEntry.getValue(), actualMap.get(expectedEntry.getKey()));
+            }
+        } else if (expected instanceof List) {
+            assertArrayEquals(((List<?>) expected).toArray(), ((List<?>) actual).toArray());
+        } else if (expected instanceof byte[]) {
+            assertArrayEquals((byte[]) expected, (byte[]) actual);
+        } else {
+            assertEquals(expected, actual);
+        }
+    }
+
+    private static Processor createSetProcessor(
+        String fieldName,
+        Object fieldValue,
+        boolean overrideEnabled,
+        boolean ignoreEmptyValue,
+        String copyFrom
+    ) {
         return new SetProcessor(
             randomAlphaOfLength(10),
             null,
             new TestTemplateService.MockTemplateScript.Factory(fieldName),
             ValueSource.wrap(fieldValue, TestTemplateService.instance()),
             overrideEnabled,
-            ignoreEmptyValue
+            ignoreEmptyValue,
+            copyFrom
         );
     }
 }
