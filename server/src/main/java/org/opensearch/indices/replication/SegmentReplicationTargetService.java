@@ -143,7 +143,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
     @Override
     public void afterIndexShardCreated(IndexShard indexShard) {
         final ShardId shardId = indexShard.shardId();
-        replicaTrackers.putIfAbsent(shardId, new SegmentReplicationReplicaStatsTracker(indexShard.getLatestReplicationCheckpoint()));
+        replicaTrackers.putIfAbsent(shardId, new SegmentReplicationReplicaStatsTracker(indexShard::getLatestReplicationCheckpoint));
         logger.info("Created SegmentReplicationReplicaTracker for shardId={}", shardId);
     }
 
@@ -212,9 +212,9 @@ public class SegmentReplicationTargetService implements IndexEventListener {
     }
 
     @Nullable
-    public ReplicationStats.ShardReplicationStats getStatsForShard(ReplicationCheckpoint checkpoint) {
-        return Optional.ofNullable(replicaTrackers.get(checkpoint.getShardId()))
-            .map(tracker -> new ReplicationStats.ShardReplicationStats(tracker.getBytesBehind(checkpoint), tracker.getReplicationLag()))
+    public ReplicationStats getStatsForShard(ShardId shardId) {
+        return Optional.ofNullable(replicaTrackers.get(shardId))
+            .map(SegmentReplicationReplicaStatsTracker::getReplicationStats)
             .orElse(null);
     }
 
@@ -533,7 +533,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
                 logger.info(() -> new ParameterizedMessage("Finished replicating {} marking as done.", target.description()));
                 final SegmentReplicationReplicaStatsTracker tracker = replicaTrackers.get(target.shardId());
                 if (tracker != null) {
-                    tracker.clearUpToCheckpoint(target.indexShard().getLatestReplicationCheckpoint());
+                    tracker.clearUpToCheckpoint();
                 } else {
                     logger.info("Tracker null for shard {}", target.shardId());
                 }

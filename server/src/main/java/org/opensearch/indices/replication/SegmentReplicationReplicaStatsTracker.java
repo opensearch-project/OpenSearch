@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
+import org.opensearch.index.ReplicationStats;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
@@ -23,6 +24,7 @@ import java.util.Deque;
 import java.util.List;
 import java.util.Optional;
 import java.util.Queue;
+import java.util.function.Supplier;
 
 /**
  * Class responsible for capturing Segment Replication stats for a replic shard.
@@ -34,8 +36,10 @@ public class SegmentReplicationReplicaStatsTracker {
     public static final Logger logger = LogManager.getLogger(SegmentReplicationReplicaStatsTracker.class);
 
     private final Deque<TimedReplicationCheckpoint> checkpointTimers;
+    private final Supplier<ReplicationCheckpoint> replicationCheckpointSupplier;
 
-    public SegmentReplicationReplicaStatsTracker(ReplicationCheckpoint currentCheckpoint) {
+    public SegmentReplicationReplicaStatsTracker(Supplier<ReplicationCheckpoint> replicationCheckpointSupplier) {
+        this.replicationCheckpointSupplier = replicationCheckpointSupplier;
         this.checkpointTimers = ConcurrentCollections.newDeque();
     }
 
@@ -46,6 +50,7 @@ public class SegmentReplicationReplicaStatsTracker {
 
     /**
      * Add a new checkpoint received from the primary Shard.
+     *
      * @param checkpoint - {@link ReplicationCheckpoint}
      */
     public synchronized void addCheckpoint(ReplicationCheckpoint checkpoint) {
@@ -59,21 +64,30 @@ public class SegmentReplicationReplicaStatsTracker {
 
     /**
      * Clear timers up to the given checkpoint
-     * @param checkpoint {@link ReplicationCheckpoint}
      */
-    public synchronized void clearUpToCheckpoint(ReplicationCheckpoint checkpoint) {
-        while (checkpointTimers.peekFirst() != null && checkpointTimers.peekFirst().checkpoint.isAheadOf(checkpoint) == false) {
+    public synchronized void clearUpToCheckpoint() {
+        final ReplicationCheckpoint latestCheckpoint = replicationCheckpointSupplier.get();
+        while (checkpointTimers.peekFirst() != null && checkpointTimers.peekFirst().checkpoint.isAheadOf(latestCheckpoint) == false) {
             checkpointTimers.removeFirst();
         }
     }
 
     /**
+     * Get replication stats for this replica.
+     *
+     * @return {@link ReplicationStats}
+     */
+    public ReplicationStats getReplicationStats() {
+        return new ReplicationStats(getBytesBehind(), getReplicationLag());
+    }
+
+    /**
      * Compute the amount of bytes the replica is to its latest received checkpoint.
-     * @param latest {@link ReplicationCheckpoint} latest local checkpoint.
+     *
      * @return bytes behind
      */
-    public long getBytesBehind(ReplicationCheckpoint latest) {
-        return getMissingFiles(latest).stream().mapToLong(StoreFileMetadata::length).sum();
+    public long getBytesBehind() {
+        return getMissingFiles().stream().mapToLong(StoreFileMetadata::length).sum();
     }
 
     public long getReplicationLag() {
@@ -85,13 +99,15 @@ public class SegmentReplicationReplicaStatsTracker {
         return checkpointTimers;
     }
 
-    private List<StoreFileMetadata> getMissingFiles(ReplicationCheckpoint latestReplicationCheckpoint) {
+    private List<StoreFileMetadata> getMissingFiles() {
+        final ReplicationCheckpoint latestReplicationCheckpoint = replicationCheckpointSupplier.get();
         final ReplicationCheckpoint latestReceivedCheckpoint = getLatestReceivedCheckpoint();
         if (latestReplicationCheckpoint != null && latestReceivedCheckpoint != null) {
-            return Store.segmentReplicationDiff(
-                latestReplicationCheckpoint.getMetadataMap(),
-                latestReceivedCheckpoint.getMetadataMap()
+            List<StoreFileMetadata> missing = Store.segmentReplicationDiff(
+                latestReceivedCheckpoint.getMetadataMap(),
+                latestReplicationCheckpoint.getMetadataMap()
             ).missing;
+            return missing;
         }
         return Collections.emptyList();
     }

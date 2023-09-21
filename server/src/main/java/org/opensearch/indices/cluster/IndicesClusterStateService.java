@@ -84,7 +84,6 @@ import org.opensearch.indices.recovery.RecoveryListener;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.replication.SegmentReplicationSourceService;
 import org.opensearch.indices.replication.SegmentReplicationTargetService;
-import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.replication.common.ReplicationState;
 import org.opensearch.repositories.RepositoriesService;
@@ -1045,7 +1044,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             DiscoveryNode targetNode,
             @Nullable DiscoveryNode sourceNode,
             RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory,
-            Function<ReplicationCheckpoint, ReplicationStats.ShardReplicationStats> segmentReplicationShardStatsSupplier
+            Function<ShardId, ReplicationStats> segmentReplicationShardStatsSupplier
         ) throws IOException;
 
         /**

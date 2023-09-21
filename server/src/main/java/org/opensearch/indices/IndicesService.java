@@ -145,7 +145,6 @@ import org.opensearch.indices.mapper.MapperRegistry;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoveryListener;
 import org.opensearch.indices.recovery.RecoveryState;
-import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.node.Node;
@@ -975,7 +974,7 @@ public class IndicesService extends AbstractLifecycleComponent
         final DiscoveryNode targetNode,
         final DiscoveryNode sourceNode,
         final RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory,
-        final Function<ReplicationCheckpoint, ReplicationStats.ShardReplicationStats> segmentReplicationStatsSupplier
+        final Function<ShardId, ReplicationStats> segmentReplicationStatsSupplier
     ) throws IOException {
         Objects.requireNonNull(retentionLeaseSyncer);
         ensureChangesAllowed();

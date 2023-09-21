@@ -16,8 +16,12 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Collections;
 import java.util.Map;
+import java.util.function.Supplier;
 
-public class SegmentReplicationReplicaStatsTrackerTest extends OpenSearchTestCase {
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
+public class SegmentReplicationReplicaStatsTrackerTests extends OpenSearchTestCase {
 
     private final ShardId shardId = new ShardId("index", "_na_", 1);
     long initialInfosVersion = 1;
@@ -32,7 +36,9 @@ public class SegmentReplicationReplicaStatsTrackerTest extends OpenSearchTestCas
     );
 
     public void testStatsComputedAsCheckpointsAreAdded() {
-        SegmentReplicationReplicaStatsTracker tracker = new SegmentReplicationReplicaStatsTracker(initialCheckpoint);
+        Supplier<ReplicationCheckpoint> supplier = mock(Supplier.class);
+        when(supplier.get()).thenReturn(initialCheckpoint);
+        SegmentReplicationReplicaStatsTracker tracker = new SegmentReplicationReplicaStatsTracker(supplier);
         final StoreFileMetadata segment_0 = new StoreFileMetadata("_0.si", 20, "test", Version.CURRENT.luceneVersion);
         final StoreFileMetadata segment_1 = new StoreFileMetadata("_1.si", 20, "test", Version.CURRENT.luceneVersion);
         Map<String, StoreFileMetadata> metadataMap = Map.of("_0.si", segment_0);
@@ -48,7 +54,7 @@ public class SegmentReplicationReplicaStatsTrackerTest extends OpenSearchTestCas
         tracker.addCheckpoint(checkpoint);
         assertEquals(checkpoint, tracker.getLatestReceivedCheckpoint());
         assertEquals(1, tracker.getActiveTimers().size());
-        assertEquals(20L, tracker.getBytesBehind(initialCheckpoint));
+        assertEquals(20L, tracker.getBytesBehind());
 
         metadataMap = Map.of("_0.si", segment_0, "_1.si", segment_1);
         final ReplicationCheckpoint checkpoint_2 = new ReplicationCheckpoint(
@@ -63,21 +69,25 @@ public class SegmentReplicationReplicaStatsTrackerTest extends OpenSearchTestCas
         tracker.addCheckpoint(checkpoint_2);
         assertEquals(checkpoint_2, tracker.getLatestReceivedCheckpoint());
         assertEquals(2, tracker.getActiveTimers().size());
-        assertEquals(40L, tracker.getBytesBehind(initialCheckpoint));
+        assertEquals(40L, tracker.getBytesBehind());
 
         if (randomBoolean()) {
-            tracker.clearUpToCheckpoint(checkpoint);
+            when(supplier.get()).thenReturn(checkpoint);
+            tracker.clearUpToCheckpoint();
             assertEquals(1, tracker.getActiveTimers().size());
-            assertEquals(20L, tracker.getBytesBehind(checkpoint));
+            assertEquals(20L, tracker.getBytesBehind());
         }
 
-        tracker.clearUpToCheckpoint(checkpoint_2);
+        when(supplier.get()).thenReturn(checkpoint_2);
+        tracker.clearUpToCheckpoint();
         assertEquals(0, tracker.getActiveTimers().size());
-        assertEquals(0L, tracker.getBytesBehind(checkpoint_2));
+        assertEquals(0L, tracker.getBytesBehind());
     }
 
     public void testAddSameCheckpointTwice() {
-        SegmentReplicationReplicaStatsTracker tracker = new SegmentReplicationReplicaStatsTracker(initialCheckpoint);
+        Supplier<ReplicationCheckpoint> supplier = mock(Supplier.class);
+        when(supplier.get()).thenReturn(initialCheckpoint);
+        SegmentReplicationReplicaStatsTracker tracker = new SegmentReplicationReplicaStatsTracker(supplier);
         final StoreFileMetadata segment_0 = new StoreFileMetadata("_0.si", 20, "test", Version.CURRENT.luceneVersion);
         Map<String, StoreFileMetadata> metadataMap = Map.of("_0.si", segment_0);
         final ReplicationCheckpoint checkpoint = new ReplicationCheckpoint(
@@ -93,6 +103,6 @@ public class SegmentReplicationReplicaStatsTrackerTest extends OpenSearchTestCas
         tracker.addCheckpoint(checkpoint);
         assertEquals(checkpoint, tracker.getLatestReceivedCheckpoint());
         assertEquals(1, tracker.getActiveTimers().size());
-        assertEquals(20L, tracker.getBytesBehind(initialCheckpoint));
+        assertEquals(20L, tracker.getBytesBehind());
     }
 }

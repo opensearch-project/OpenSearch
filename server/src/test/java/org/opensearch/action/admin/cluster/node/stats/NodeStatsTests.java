@@ -474,32 +474,11 @@ public class NodeStatsTests extends OpenSearchTestCase {
                     assertEquals(remoteTranslogStats, deserializedRemoteTranslogStats);
 
                     ReplicationStats replicationStats = nodeIndicesStats.getSegments().getReplicationStats();
+
                     ReplicationStats deserializedReplicationStats = deserializedNodeIndicesStats.getSegments().getReplicationStats();
-
-                    // primary stats
-                    final ReplicationStats.ShardReplicationStats deserializedReplicationStatsPrimaryStats = deserializedReplicationStats
-                        .getPrimaryStats();
-                    final ReplicationStats.ShardReplicationStats primaryStats = replicationStats.getPrimaryStats();
-                    assertEquals(primaryStats.getMaxBytes(), deserializedReplicationStatsPrimaryStats.getMaxBytes());
-                    assertEquals(primaryStats.getTotalBytes(), deserializedReplicationStatsPrimaryStats.getTotalBytes());
-                    assertEquals(primaryStats.getMaxReplicationLag(), deserializedReplicationStatsPrimaryStats.getMaxReplicationLag());
-
-                    // replica stats
-                    final ReplicationStats.ShardReplicationStats deserializedReplicationStatsReplicaStats = deserializedReplicationStats
-                        .getReplicaStats();
-                    final ReplicationStats.ShardReplicationStats replicaStats = replicationStats.getReplicaStats();
-                    assertEquals(
-                        deserializedReplicationStatsReplicaStats.getMaxBytes(),
-                        deserializedReplicationStatsReplicaStats.getMaxBytes()
-                    );
-                    assertEquals(
-                        deserializedReplicationStatsReplicaStats.getTotalBytes(),
-                        deserializedReplicationStatsReplicaStats.getTotalBytes()
-                    );
-                    assertEquals(
-                        deserializedReplicationStatsReplicaStats.getMaxReplicationLag(),
-                        deserializedReplicationStatsReplicaStats.getMaxReplicationLag()
-                    );
+                    assertEquals(replicationStats.getMaxBytesBehind(), deserializedReplicationStats.getMaxBytesBehind());
+                    assertEquals(replicationStats.getTotalBytesBehind(), deserializedReplicationStats.getTotalBytesBehind());
+                    assertEquals(replicationStats.getMaxReplicationLag(), deserializedReplicationStats.getMaxReplicationLag());
                 }
             }
         }

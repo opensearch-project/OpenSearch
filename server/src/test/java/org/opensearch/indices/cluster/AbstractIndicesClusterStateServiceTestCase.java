@@ -60,7 +60,6 @@ import org.opensearch.indices.cluster.IndicesClusterStateService.Shard;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoveryListener;
 import org.opensearch.indices.recovery.RecoveryState;
-import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.test.OpenSearchTestCase;
@@ -268,7 +267,7 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends OpenSea
             final DiscoveryNode targetNode,
             final DiscoveryNode sourceNode,
             final RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory,
-            final Function<ReplicationCheckpoint, ReplicationStats.ShardReplicationStats> segmentReplicationShardStatsSupplier
+            final Function<ShardId, ReplicationStats> segmentReplicationShardStatsSupplier
         ) throws IOException {
             failRandomly();
             RecoveryState recoveryState = new RecoveryState(shardRouting, targetNode, sourceNode);

@@ -26,67 +26,79 @@ import java.io.IOException;
  */
 public class ReplicationStats implements ToXContentFragment, Writeable {
 
-    private final ShardReplicationStats primaryStats;
-    private final ShardReplicationStats replicaStats;
+    public long maxBytesBehind;
+    public long maxReplicationLag;
+    public long totalBytesBehind;
+
+    public ReplicationStats(long maxBytesBehind, long totalBytesBehind, long maxReplicationLag) {
+        this.maxBytesBehind = maxBytesBehind;
+        this.totalBytesBehind = totalBytesBehind;
+        this.maxReplicationLag = maxReplicationLag;
+    }
 
     public ReplicationStats(StreamInput in) throws IOException {
-        this.primaryStats = new ShardReplicationStats(in);
-        this.replicaStats = new ShardReplicationStats(in);
+        this.maxBytesBehind = in.readVLong();
+        this.totalBytesBehind = in.readVLong();
+        this.maxReplicationLag = in.readVLong();
     }
 
     public ReplicationStats() {
-        primaryStats = new ShardReplicationStats();
-        replicaStats = new ShardReplicationStats();
+
+    }
+
+    public ReplicationStats(long bytesBehind, long replicationLag) {
+        this.maxBytesBehind = bytesBehind;
+        this.totalBytesBehind = bytesBehind;
+        this.maxReplicationLag = replicationLag;
     }
 
     public void add(ReplicationStats other) {
         if (other != null) {
-            primaryStats.add(other.primaryStats);
-            replicaStats.add(other.replicaStats);
+            maxBytesBehind = Math.max(other.maxBytesBehind, maxBytesBehind);
+            totalBytesBehind += other.totalBytesBehind;
+            maxReplicationLag = Math.max(other.maxReplicationLag, maxReplicationLag);
         }
     }
 
-    public ShardReplicationStats getPrimaryStats() {
-        return primaryStats;
+    public long getMaxBytesBehind() {
+        return this.maxBytesBehind;
     }
 
-    public ShardReplicationStats getReplicaStats() {
-        return primaryStats;
+    public long getTotalBytesBehind() {
+        return this.totalBytesBehind;
+    }
+
+    public long getMaxReplicationLag() {
+        return this.maxReplicationLag;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        primaryStats.writeTo(out);
-        replicaStats.writeTo(out);
+        out.writeVLong(maxBytesBehind);
+        out.writeVLong(totalBytesBehind);
+        out.writeVLong(maxReplicationLag);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.SEGMENT_REPLICATION);
-        builder.startObject(Fields.PRIMARY_STATS);
-        builder.field(Fields.MAX_BYTES_AHEAD, new ByteSizeValue(primaryStats.maxBytes).toString());
-        builder.field(Fields.TOTAL_BYTES_AHEAD, new ByteSizeValue(primaryStats.totalBytes).toString());
-        builder.field(Fields.MAX_REPLICATION_LAG, new TimeValue(primaryStats.maxReplicationLag));
-        builder.endObject();
-        builder.startObject(Fields.REPLICA_STATS);
-        builder.field(Fields.MAX_BYTES_BEHIND, new ByteSizeValue(replicaStats.maxBytes).toString());
-        builder.field(Fields.TOTAL_BYTES_BEHIND, new ByteSizeValue(replicaStats.totalBytes).toString());
-        builder.field(Fields.MAX_REPLICATION_LAG, new TimeValue(replicaStats.maxReplicationLag));
-        builder.endObject();
+        builder.field(Fields.MAX_BYTES_BEHIND, new ByteSizeValue(maxBytesBehind).toString());
+        builder.field(Fields.TOTAL_BYTES_BEHIND, new ByteSizeValue(totalBytesBehind).toString());
+        builder.field(Fields.MAX_REPLICATION_LAG, new TimeValue(maxReplicationLag));
         builder.endObject();
         return builder;
     }
 
-    public void addReplicaStats(ShardReplicationStats other) {
-        if (other != null) {
-            replicaStats.add(other);
-        }
-    }
-
-    public void addPrimaryStats(ShardReplicationStats other) {
-        if (other != null) {
-            primaryStats.add(other);
-        }
+    @Override
+    public String toString() {
+        return "ReplicationStats{"
+            + "maxBytesBehind="
+            + maxBytesBehind
+            + ", maxReplicationLag="
+            + maxReplicationLag
+            + ", totalBytesBehind="
+            + totalBytesBehind
+            + '}';
     }
 
     /**
@@ -96,66 +108,8 @@ public class ReplicationStats implements ToXContentFragment, Writeable {
      */
     static final class Fields {
         static final String SEGMENT_REPLICATION = "segment_replication";
-        static final String REPLICA_STATS = "replica_stats";
-        static final String PRIMARY_STATS = "primary_stats";
         static final String MAX_BYTES_BEHIND = "max_bytes_behind";
         static final String TOTAL_BYTES_BEHIND = "total_bytes_behind";
         static final String MAX_REPLICATION_LAG = "max_replication_lag";
-        static final String MAX_BYTES_AHEAD = "max_bytes_ahead";
-        static final String TOTAL_BYTES_AHEAD = "total_bytes_ahead";
-    }
-
-    /**
-     * Replication stats for a shard. This class is reused by primary and replicas
-     */
-    public static class ShardReplicationStats implements Writeable {
-        public long maxBytes;
-        public long totalBytes;
-        public long maxReplicationLag;
-
-        public ShardReplicationStats() {}
-
-        public ShardReplicationStats(long bytesBehind, long replicationLag) {
-            this(bytesBehind, bytesBehind, replicationLag);
-        }
-
-        public ShardReplicationStats(long maxBytes, long totalBytes, long maxReplicationLag) {
-            this.maxBytes = maxBytes;
-            this.totalBytes = totalBytes;
-            this.maxReplicationLag = maxReplicationLag;
-        }
-
-        public ShardReplicationStats(StreamInput in) throws IOException {
-            this.maxBytes = in.readVLong();
-            this.totalBytes = in.readVLong();
-            this.maxReplicationLag = in.readVLong();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeVLong(maxBytes);
-            out.writeVLong(totalBytes);
-            out.writeVLong(maxReplicationLag);
-        }
-
-        public long getMaxBytes() {
-            return this.maxBytes;
-        }
-
-        public long getTotalBytes() {
-            return this.totalBytes;
-        }
-
-        public long getMaxReplicationLag() {
-            return this.maxReplicationLag;
-        }
-
-        public void add(ShardReplicationStats other) {
-            if (other != null) {
-                maxBytes = Math.max(other.maxBytes, maxBytes);
-                totalBytes += other.totalBytes;
-                maxReplicationLag = Math.max(other.maxReplicationLag, maxReplicationLag);
-            }
-        }
     }
 }

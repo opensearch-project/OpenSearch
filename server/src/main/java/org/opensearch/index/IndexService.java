@@ -96,7 +96,6 @@ import org.opensearch.indices.cluster.IndicesClusterStateService;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.opensearch.indices.mapper.MapperRegistry;
 import org.opensearch.indices.recovery.RecoveryState;
-import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.plugins.IndexStorePlugin;
 import org.opensearch.script.ScriptService;
@@ -450,7 +449,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         final RetentionLeaseSyncer retentionLeaseSyncer,
         final SegmentReplicationCheckpointPublisher checkpointPublisher,
         final RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory,
-        final Function<ReplicationCheckpoint, ReplicationStats.ShardReplicationStats> segmentReplicationShardStatsSupplier
+        final Function<ShardId, ReplicationStats> segmentReplicationShardStatsSupplier
     ) throws IOException {
         Objects.requireNonNull(retentionLeaseSyncer);
         /*
