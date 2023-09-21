@@ -8,6 +8,7 @@
 
 package org.opensearch.index.query;
 
+import org.apache.lucene.search.BooleanClause;
 import org.opensearch.test.AbstractBuilderTestCase;
 
 import java.util.ArrayList;
@@ -19,8 +20,11 @@ public class QueryBuilderVisitorTests extends AbstractBuilderTestCase {
         BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
 
         List<QueryBuilder> visitedQueries = new ArrayList<>();
-        boolQueryBuilder.visit(createTestVisitor(visitedQueries));
+        QueryBuilderVisitor qbv = createTestVisitor(visitedQueries);
+        boolQueryBuilder.visit(qbv);
+        QueryBuilderVisitor subQbv = qbv.getChildVisitor(BooleanClause.Occur.MUST_NOT);
         assertEquals(0, visitedQueries.size());
+        assertEquals(qbv, subQbv);
     }
 
     protected static QueryBuilderVisitor createTestVisitor(List<QueryBuilder> visitedQueries) {
