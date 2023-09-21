@@ -14,6 +14,8 @@ import org.opensearch.telemetry.tracing.exporter.OTelSpanExporterFactory;
 import org.opensearch.telemetry.tracing.sampler.ProbabilisticSampler;
 import org.opensearch.telemetry.tracing.sampler.RequestSampler;
 
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.concurrent.TimeUnit;
 
 import io.opentelemetry.api.OpenTelemetry;
@@ -45,11 +47,13 @@ public final class OTelResourceProvider {
      * @return OpenTelemetry instance
      */
     public static OpenTelemetry get(TelemetrySettings telemetrySettings, Settings settings) {
-        return get(
-            settings,
-            OTelSpanExporterFactory.create(settings),
-            ContextPropagators.create(W3CTraceContextPropagator.getInstance()),
-            Sampler.parentBased(new RequestSampler(new ProbabilisticSampler(telemetrySettings)))
+        return AccessController.doPrivileged(
+            (PrivilegedAction<OpenTelemetry>) () -> get(
+                settings,
+                OTelSpanExporterFactory.create(settings),
+                ContextPropagators.create(W3CTraceContextPropagator.getInstance()),
+                Sampler.parentBased(new RequestSampler(new ProbabilisticSampler(telemetrySettings)))
+            )
         );
     }
 
