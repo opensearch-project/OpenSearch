@@ -83,7 +83,7 @@ import static org.opensearch.index.store.remote.directory.RemoteSnapshotDirector
  */
 @PublicApi(since = "1.0.0")
 public final class IndexSettings {
-    private static final String DEFAULT = "default";
+    private static final String DEFAULT_POLICY = "default";
     private static final String MERGE_ON_FLUSH_MERGE_POLICY = "merge-on-flush";
     public static final String TIERED_MERGE_POLICY = "tiered";
     public static final String LOG_BYTE_SIZE_MERGE_POLICY = "log_byte_size";
@@ -567,14 +567,14 @@ public final class IndexSettings {
 
     public static final Setting<String> INDEX_MERGE_ON_FLUSH_POLICY = Setting.simpleString(
         "index.merge_on_flush.policy",
-        DEFAULT,
+        DEFAULT_POLICY,
         Property.IndexScope,
         Property.Dynamic
     );
 
-    public static final Setting<String> INDEX_MERGE_POLICY = Setting.simpleString("index.merge.policy", DEFAULT, policy -> {
+    public static final Setting<String> INDEX_MERGE_POLICY = Setting.simpleString("index.merge.policy", DEFAULT_POLICY, policy -> {
         if (!(policy.isEmpty()
-            || policy.equals(DEFAULT)
+            || policy.equals(DEFAULT_POLICY)
             || policy.equals(TIERED_MERGE_POLICY)
             || policy.equals(LOG_BYTE_SIZE_MERGE_POLICY))) {
             throw new IllegalArgumentException(
@@ -583,7 +583,7 @@ public final class IndexSettings {
                     + " has unsupported policy specified: "
                     + policy
                     + ". Please use one of: "
-                    + DEFAULT
+                    + DEFAULT_POLICY
                     + ", "
                     + TIERED_MERGE_POLICY
                     + ", "
@@ -594,10 +594,10 @@ public final class IndexSettings {
 
     public static final Setting<String> TIME_INDEX_MERGE_POLICY = Setting.simpleString(
         "indices.time_index.default_index_merge_policy",
-        DEFAULT,
+        DEFAULT_POLICY,
         policy -> {
             if (!(policy.isEmpty()
-                || policy.equals(DEFAULT)
+                || policy.equals(DEFAULT_POLICY)
                 || policy.equals(TIERED_MERGE_POLICY)
                 || policy.equals(LOG_BYTE_SIZE_MERGE_POLICY))) {
                 throw new IllegalArgumentException(
@@ -606,7 +606,7 @@ public final class IndexSettings {
                         + " has unsupported policy specified: "
                         + policy
                         + ". Please use one of: "
-                        + DEFAULT
+                        + DEFAULT_POLICY
                         + ", "
                         + TIERED_MERGE_POLICY
                         + ", "
@@ -1522,7 +1522,7 @@ public final class IndexSettings {
             mergePolicyProvider = tieredMergePolicyProvider;
         } else if (indexScopedPolicy.equals(LOG_BYTE_SIZE_MERGE_POLICY)) {
             mergePolicyProvider = logByteSizeMergePolicyProvider;
-        } else if (indexScopedPolicy.equals(DEFAULT) || Strings.isEmpty(indexScopedPolicy)) {
+        } else if (indexScopedPolicy.equals(DEFAULT_POLICY) || Strings.isEmpty(indexScopedPolicy)) {
             if (!isTimeIndex) {
                 mergePolicyProvider = tieredMergePolicyProvider;
             } else {
@@ -1531,7 +1531,7 @@ public final class IndexSettings {
                     mergePolicyProvider = tieredMergePolicyProvider;
                 } else if (nodeScopedTimeIndexPolicy.equals(LOG_BYTE_SIZE_MERGE_POLICY)) {
                     mergePolicyProvider = logByteSizeMergePolicyProvider;
-                } else if (nodeScopedTimeIndexPolicy.equals(DEFAULT) || Strings.isEmpty(nodeScopedTimeIndexPolicy)) {
+                } else if (nodeScopedTimeIndexPolicy.equals(DEFAULT_POLICY) || Strings.isEmpty(nodeScopedTimeIndexPolicy)) {
                     mergePolicyProvider = tieredMergePolicyProvider;
                 } else {
                     throw new IllegalArgumentException(
@@ -1540,7 +1540,7 @@ public final class IndexSettings {
                             + " has unsupported policy specified: "
                             + nodeScopedTimeIndexPolicy
                             + ". Please use one of: "
-                            + DEFAULT
+                            + DEFAULT_POLICY
                             + ", "
                             + TIERED_MERGE_POLICY
                             + ", "
@@ -1555,7 +1555,7 @@ public final class IndexSettings {
                     + " has unsupported policy specified: "
                     + indexScopedPolicy
                     + ". Please use one of: "
-                    + DEFAULT
+                    + DEFAULT_POLICY
                     + ", "
                     + TIERED_MERGE_POLICY
                     + ", "
@@ -1756,7 +1756,7 @@ public final class IndexSettings {
     }
 
     private void setMergeOnFlushPolicy(String policy) {
-        if (Strings.isEmpty(policy) || DEFAULT.equalsIgnoreCase(policy)) {
+        if (Strings.isEmpty(policy) || DEFAULT_POLICY.equalsIgnoreCase(policy)) {
             mergeOnFlushPolicy = null;
         } else if (MERGE_ON_FLUSH_MERGE_POLICY.equalsIgnoreCase(policy)) {
             this.mergeOnFlushPolicy = MergeOnFlushMergePolicy::new;
@@ -1767,7 +1767,7 @@ public final class IndexSettings {
                     + " has unsupported policy specified: "
                     + policy
                     + ". Please use one of: "
-                    + DEFAULT
+                    + DEFAULT_POLICY
                     + ", "
                     + MERGE_ON_FLUSH_MERGE_POLICY
             );
