@@ -40,6 +40,7 @@ import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.transport.TransportResponse;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.threadpool.TestThreadPool;
@@ -85,7 +86,7 @@ public class TransportActionProxyTests extends OpenSearchTestCase {
     }
 
     private MockTransportService buildService(final Version version) {
-        MockTransportService service = MockTransportService.createNewService(Settings.EMPTY, version, threadPool, null);
+        MockTransportService service = MockTransportService.createNewService(Settings.EMPTY, version, threadPool, NoopTracer.INSTANCE);
         service.start();
         service.acceptIncomingRequests();
         return service;

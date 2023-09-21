@@ -50,7 +50,6 @@ import java.time.ZonedDateTime;
 import static org.opensearch.common.util.BitMixer.mix32;
 import static org.opensearch.index.query.functionscore.TermFrequencyFunctionFactory.TermFrequencyFunctionName.SUM_TOTAL_TERM_FREQ;
 import static org.opensearch.index.query.functionscore.TermFrequencyFunctionFactory.TermFrequencyFunctionName.TERM_FREQ;
-import static org.opensearch.index.query.functionscore.TermFrequencyFunctionFactory.TermFrequencyFunctionName.TF;
 import static org.opensearch.index.query.functionscore.TermFrequencyFunctionFactory.TermFrequencyFunctionName.TOTAL_TERM_FREQ;
 
 /**
@@ -89,27 +88,6 @@ public final class ScoreScriptUtils {
         public int termFreq(String field, String term) {
             try {
                 return (int) scoreScript.getTermFrequency(TERM_FREQ, field, term);
-            } catch (Exception e) {
-                throw ExceptionsHelper.convertToOpenSearchException(e);
-            }
-        }
-    }
-
-    /**
-     * Calculates the term frequency-inverse document frequency (tf-idf) for a specific term within a field.
-     *
-     * @opensearch.internal
-     */
-    public static final class TF {
-        private final ScoreScript scoreScript;
-
-        public TF(ScoreScript scoreScript) {
-            this.scoreScript = scoreScript;
-        }
-
-        public float tf(String field, String term) {
-            try {
-                return (float) scoreScript.getTermFrequency(TF, field, term);
             } catch (Exception e) {
                 throw ExceptionsHelper.convertToOpenSearchException(e);
             }

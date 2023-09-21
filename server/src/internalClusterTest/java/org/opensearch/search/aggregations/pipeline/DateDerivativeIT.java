@@ -32,10 +32,14 @@
 
 package org.opensearch.search.aggregations.pipeline;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.time.DateFormatters;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.InternalMultiBucketAggregation;
 import org.opensearch.search.aggregations.bucket.histogram.DateHistogramInterval;
@@ -44,6 +48,7 @@ import org.opensearch.search.aggregations.bucket.histogram.Histogram.Bucket;
 import org.opensearch.search.aggregations.metrics.Sum;
 import org.opensearch.search.aggregations.support.AggregationPath;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
 import org.hamcrest.Matcher;
 import org.junit.After;
 
@@ -55,9 +60,11 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.search.aggregations.AggregationBuilders.dateHistogram;
 import static org.opensearch.search.aggregations.AggregationBuilders.sum;
 import static org.opensearch.search.aggregations.PipelineAggregatorBuilders.derivative;
@@ -69,12 +76,29 @@ import static org.hamcrest.core.IsNull.notNullValue;
 import static org.hamcrest.core.IsNull.nullValue;
 
 @OpenSearchIntegTestCase.SuiteScopeTestCase
-public class DateDerivativeIT extends OpenSearchIntegTestCase {
+public class DateDerivativeIT extends ParameterizedOpenSearchIntegTestCase {
 
     // some index names used during these tests
     private static final String IDX_DST_START = "idx_dst_start";
     private static final String IDX_DST_END = "idx_dst_end";
     private static final String IDX_DST_KATHMANDU = "idx_dst_kathmandu";
+
+    public DateDerivativeIT(Settings dynamicSettings) {
+        super(dynamicSettings);
+    }
+
+    @ParametersFactory
+    public static Collection<Object[]> parameters() {
+        return Arrays.asList(
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
+        );
+    }
+
+    @Override
+    protected Settings featureFlagSettings() {
+        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
+    }
 
     private ZonedDateTime date(int month, int day) {
         return ZonedDateTime.of(2012, month, day, 0, 0, 0, 0, ZoneOffset.UTC);

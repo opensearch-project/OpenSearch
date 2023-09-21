@@ -65,6 +65,7 @@ import org.opensearch.index.engine.InternalEngineFactory;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.transport.MockTransport;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportException;
@@ -232,7 +233,8 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             bta -> node1,
             null,
-            emptySet()
+            emptySet(),
+            NoopTracer.INSTANCE
         );
         transportService.start();
         transportService.acceptIncomingRequests();

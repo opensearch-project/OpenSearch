@@ -51,6 +51,8 @@ import java.util.Locale;
  * which allows {@link #println(Verbosity,String)} calls which act like a logger,
  * only actually printing if the verbosity level of the terminal is above
  * the verbosity of the message.
+ * @see ConsoleTerminal
+ * @see SystemTerminal
 */
 public abstract class Terminal {
 
@@ -65,35 +67,57 @@ public abstract class Terminal {
         return new PrintWriter(System.err);
     }
 
-    /** Defines the available verbosity levels of messages to be printed. */
+    /** Defines the available verbosity levels of messages to be printed.*/
     public enum Verbosity {
-        SILENT, /* always printed */
-        NORMAL, /* printed when no options are given to cli */
-        VERBOSE /* printed only when cli is passed verbose option */
+        /** always printed */
+        SILENT,
+        /** printed when no options are given to cli */
+        NORMAL,
+        /** printed only when cli is passed verbose option */
+        VERBOSE
     }
 
     /** The current verbosity for the terminal, defaulting to {@link Verbosity#NORMAL}. */
     private Verbosity verbosity = Verbosity.NORMAL;
 
-    /** The newline used when calling println. */
+    /** The newline separator used when calling println. */
     private final String lineSeparator;
 
+    /** Constructs a new terminal with the given line separator.
+     * @param lineSeparator the line separator to use when calling println
+     * */
     protected Terminal(String lineSeparator) {
         this.lineSeparator = lineSeparator;
     }
 
-    /** Sets the verbosity of the terminal. */
+    /** Sets the {@link Terminal#verbosity} of the terminal. (Default is {@link Verbosity#NORMAL})
+     * @param verbosity the {@link Verbosity} level that will be used for printing
+     * */
     public void setVerbosity(Verbosity verbosity) {
         this.verbosity = verbosity;
     }
 
-    /** Reads clear text from the terminal input. See {@link Console#readLine()}. */
+    /** Reads clear text from the terminal input.
+     * @see Console#readLine()
+     * @param prompt message to display to the user
+     * @return the text entered by the user
+     * */
     public abstract String readText(String prompt);
 
-    /** Reads password text from the terminal input. See {@link Console#readPassword()}}. */
+    /** Reads secret text from the terminal input with echoing disabled.
+     * @see Console#readPassword()
+     * @param prompt message to display to the user
+     * @return the secret as a character array
+     * */
     public abstract char[] readSecret(String prompt);
 
-    /** Read password text form terminal input up to a maximum length. */
+    /** Read secret text from terminal input with echoing disabled, up to a maximum length.
+     * @see Console#readPassword()
+     * @param prompt message to display to the user
+     * @param maxLength the maximum length of the secret
+     * @return the secret as a character array
+     * @throws IllegalStateException if the secret exceeds the maximum length
+     * */
     public char[] readSecret(String prompt, int maxLength) {
         char[] result = readSecret(prompt);
         if (result.length > maxLength) {
@@ -103,30 +127,48 @@ public abstract class Terminal {
         return result;
     }
 
-    /** Returns a Writer which can be used to write to the terminal directly using standard output. */
+    /** Returns a Writer which can be used to write to the terminal directly using standard output.
+     * @return a writer to {@link Terminal#DEFAULT} output
+     * @see Terminal.ConsoleTerminal
+     * @see Terminal.SystemTerminal
+     * */
     public abstract PrintWriter getWriter();
 
-    /** Returns a Writer which can be used to write to the terminal directly using standard error. */
+    /** Returns a Writer which can be used to write to the terminal directly using standard error.
+     * @return a writer to stderr
+     * */
     public PrintWriter getErrorWriter() {
         return ERROR_WRITER;
     }
 
-    /** Prints a line to the terminal at {@link Verbosity#NORMAL} verbosity level. */
+    /** Prints a line to the terminal at {@link Verbosity#NORMAL} verbosity level, with a {@link Terminal#lineSeparator}
+     * @param msg the message to print
+     * */
     public final void println(String msg) {
         println(Verbosity.NORMAL, msg);
     }
 
-    /** Prints a line to the terminal at {@code verbosity} level. */
+    /** Prints message to the terminal's standard output at {@link Verbosity} level, with a {@link Terminal#lineSeparator}.
+     * @param verbosity the {@link Verbosity} level at which to print
+     * @param msg the message to print
+     * */
     public final void println(Verbosity verbosity, String msg) {
         print(verbosity, msg + lineSeparator);
     }
 
-    /** Prints message to the terminal's standard output at {@code verbosity} level, without a newline. */
+    /** Prints message to the terminal's standard output at {@link Verbosity} level, without adding a {@link Terminal#lineSeparator}.
+     * @param verbosity the {@link Verbosity} level at which to print
+     * @param msg the message to print
+     * */
     public final void print(Verbosity verbosity, String msg) {
         print(verbosity, msg, false);
     }
 
-    /** Prints message to the terminal at {@code verbosity} level, without a newline. */
+    /** Prints message to either standard or error output at {@link Verbosity} level, without adding a {@link Terminal#lineSeparator}.
+     * @param verbosity the {@link Verbosity} level at which to print.
+     * @param msg the message to print
+     * @param isError if true, prints to standard error instead of standard output
+     * */
     private void print(Verbosity verbosity, String msg, boolean isError) {
         if (isPrintable(verbosity)) {
             PrintWriter writer = isError ? getErrorWriter() : getWriter();
@@ -135,29 +177,44 @@ public abstract class Terminal {
         }
     }
 
-    /** Prints a line to the terminal's standard error at {@link Verbosity#NORMAL} verbosity level, without a newline. */
+    /** Prints a line to the terminal's standard error at {@link Verbosity} level, without adding a {@link Terminal#lineSeparator}.
+     * @param verbosity the {@link Verbosity} level at which to print.
+     * @param msg the message to print
+     * */
     public final void errorPrint(Verbosity verbosity, String msg) {
         print(verbosity, msg, true);
     }
 
-    /** Prints a line to the terminal's standard error at {@link Verbosity#NORMAL} verbosity level. */
+    /** Prints a line to the terminal's standard error at {@link Verbosity#NORMAL} verbosity level, with a {@link Terminal#lineSeparator}
+     * @param msg the message to print
+     * */
     public final void errorPrintln(String msg) {
         errorPrintln(Verbosity.NORMAL, msg);
     }
 
-    /** Prints a line to the terminal's standard error at {@code verbosity} level. */
+    /** Prints a line to the terminal's standard error at {@link Verbosity} level, with a {@link Terminal#lineSeparator}.
+     * @param verbosity the {@link Verbosity} level at which to print.
+     * @param msg the message to print
+     * */
     public final void errorPrintln(Verbosity verbosity, String msg) {
         errorPrint(verbosity, msg + lineSeparator);
     }
 
-    /** Checks if is enough {@code verbosity} level to be printed */
+    /** Checks if given {@link Verbosity} level is high enough to be printed at the level defined by {@link Terminal#verbosity}
+     * @param verbosity the {@link Verbosity} level to check
+     * @return true if the {@link Verbosity} level is high enough to be printed
+     * @see Terminal#setVerbosity(Verbosity)
+     * */
     public final boolean isPrintable(Verbosity verbosity) {
         return this.verbosity.ordinal() >= verbosity.ordinal();
     }
 
     /**
-     * Prompt for a yes or no answer from the user. This method will loop until 'y' or 'n'
+     * Prompt for a yes or no answer from the user. This method will loop until 'y', 'n'
      * (or the default empty value) is entered.
+     * @param prompt the prompt to display to the user
+     * @param defaultYes if true, the default answer is 'y', otherwise it is 'n'
+     * @return true if the user answered 'y', false if the user answered 'n' or the defaultYes value if the user entered nothing
      */
     public final boolean promptYesNo(String prompt, boolean defaultYes) {
         String answerPrompt = defaultYes ? " [Y/n]" : " [y/N]";
@@ -181,6 +238,11 @@ public abstract class Terminal {
      * character is immediately preceded by a carriage return, we have
      * a Windows-style newline, so we discard the carriage return as well
      * as the newline.
+     * @param reader the reader to read from
+     * @param maxLength the maximum length of the line to read
+     * @return the line read from the reader
+     * @throws RuntimeException if the line read exceeds the maximum length
+     * @throws RuntimeException if an IOException occurs while reading
      */
     public static char[] readLineToCharArray(Reader reader, int maxLength) {
         char[] buf = new char[maxLength + 2];
@@ -215,6 +277,7 @@ public abstract class Terminal {
         }
     }
 
+    /** Flushes the terminal's standard output and standard error. */
     public void flush() {
         this.getWriter().flush();
         this.getErrorWriter().flush();

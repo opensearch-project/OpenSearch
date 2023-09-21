@@ -82,7 +82,9 @@ public final class SpanBuilder {
 
     private static void populateHeader(HttpRequest httpRequest, Attributes attributes) {
         HEADERS_TO_BE_ADDED_AS_ATTRIBUTES.forEach(x -> {
-            if (httpRequest.getHeaders() != null && httpRequest.getHeaders().get(x) != null) {
+            if (httpRequest.getHeaders() != null
+                && httpRequest.getHeaders().get(x) != null
+                && (httpRequest.getHeaders().get(x).isEmpty() == false)) {
                 attributes.addAttribute(x, Strings.collectionToCommaDelimitedString(httpRequest.getHeaders().get(x)));
             }
         });

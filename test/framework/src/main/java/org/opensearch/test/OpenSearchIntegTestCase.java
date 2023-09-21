@@ -2090,7 +2090,11 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         return true;
     }
 
-    /** Returns {@code true} if this test cluster should have tracing enabled with MockTelemetryPlugin */
+    /**
+     * Returns {@code true} if this test cluster should have tracing enabled with MockTelemetryPlugin
+     * Disabling this for now as the existing way of strict check do not support multiple nodes internal cluster.
+     * @return boolean.
+     */
     protected boolean addMockTelemetryPlugin() {
         return true;
     }
@@ -2296,9 +2300,8 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
                 INSTANCE.printTestMessage("cleaning up after");
                 INSTANCE.afterInternal(true);
                 checkStaticState(true);
-                StrictCheckSpanProcessor.validateTracingStateOnShutdown();
             }
-
+            StrictCheckSpanProcessor.validateTracingStateOnShutdown();
         } finally {
             SUITE_SEED = null;
             currentCluster = null;

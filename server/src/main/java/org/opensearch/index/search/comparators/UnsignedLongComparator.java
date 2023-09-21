@@ -87,14 +87,6 @@ public class UnsignedLongComparator extends NumericComparator<BigInteger> {
         }
 
         @Override
-        protected boolean isMissingValueCompetitive() {
-            int result = missingValue.compareTo(bottom);
-            // in reverse (desc) sort missingValue is competitive when it's greater or equal to bottom,
-            // in asc sort missingValue is competitive when it's smaller or equal to bottom
-            return reverse ? (result >= 0) : (result <= 0);
-        }
-
-        @Override
         protected void encodeBottom(byte[] packedValue) {
             BigIntegerPoint.encodeDimension(bottom, packedValue, 0);
         }
@@ -102,6 +94,16 @@ public class UnsignedLongComparator extends NumericComparator<BigInteger> {
         @Override
         protected void encodeTop(byte[] packedValue) {
             BigIntegerPoint.encodeDimension(topValue, packedValue, 0);
+        }
+
+        @Override
+        protected int compareMissingValueWithBottomValue() {
+            return missingValue.compareTo(bottom);
+        }
+
+        @Override
+        protected int compareMissingValueWithTopValue() {
+            return missingValue.compareTo(topValue);
         }
     }
 }

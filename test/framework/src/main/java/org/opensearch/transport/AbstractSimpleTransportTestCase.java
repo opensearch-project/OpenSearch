@@ -67,6 +67,7 @@ import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.node.Node;
 import org.opensearch.tasks.Task;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.MockLogAppender;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
@@ -227,7 +228,8 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
             threadPool,
             clusterSettings,
             Collections.emptySet(),
-            interceptor
+            interceptor,
+            NoopTracer.INSTANCE
         );
         service.start();
         if (acceptRequests) {
