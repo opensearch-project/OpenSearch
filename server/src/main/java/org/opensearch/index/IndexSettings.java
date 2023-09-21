@@ -85,7 +85,10 @@ import static org.opensearch.index.store.remote.directory.RemoteSnapshotDirector
 public final class IndexSettings {
     private static final String MERGE_ON_FLUSH_DEFAULT_POLICY = "default";
     private static final String MERGE_ON_FLUSH_MERGE_POLICY = "merge-on-flush";
-
+    public static final String TIERED_MERGE_POLICY = "tiered";
+    public static final String LOG_BYTE_SIZE_MERGE_POLICY = "log_byte_size";
+    private static final String DEFAULT_MERGE_POLICY = "default_merge_policy";
+    private static final String DEFAULT_TIME_INDEX_MERGE_POLICY = "default_time_index_merge_policy";
     public static final Setting<List<String>> DEFAULT_FIELD_SETTING = Setting.listSetting(
         "index.query.default_field",
         Collections.singletonList("*"),
@@ -571,6 +574,18 @@ public final class IndexSettings {
         Property.Dynamic
     );
 
+    public static final Setting<String> INDEX_MERGE_POLICY = Setting.simpleString(
+        "index.merge.policy",
+        DEFAULT_MERGE_POLICY,
+        Property.IndexScope
+    );
+
+    public static final Setting<String> TIME_INDEX_MERGE_POLICY = Setting.simpleString(
+        "indices.time_index.merge.policy",
+        DEFAULT_TIME_INDEX_MERGE_POLICY,
+        Property.NodeScope
+    );
+
     public static final Setting<String> SEARCHABLE_SNAPSHOT_REPOSITORY = Setting.simpleString(
         "index.searchable_snapshot.repository",
         Property.IndexScope,
@@ -651,7 +666,10 @@ public final class IndexSettings {
     private volatile ByteSizeValue generationThresholdSize;
     private volatile ByteSizeValue flushAfterMergeThresholdSize;
     private final MergeSchedulerConfig mergeSchedulerConfig;
-    private final MergePolicyConfig mergePolicyConfig;
+    private final TieredMergePolicyProvider tieredMergePolicyProvider;
+    private final LogByteSizeMergePolicyProvider logByteSizeMergePolicyProvider;
+    private final MergePolicyProvider defaultMergePolicyProvider;
+    private final MergePolicyProvider defaultTimeIndexMergePolicyProvider;
     private final IndexSortConfig indexSortConfig;
     private final IndexScopedSettings scopedSettings;
     private long gcDeletesInMillis = DEFAULT_GC_DELETES.millis();
@@ -728,6 +746,9 @@ public final class IndexSettings {
      * Specialized merge-on-flush policy if provided
      */
     private volatile UnaryOperator<MergePolicy> mergeOnFlushPolicy;
+
+    private volatile MergePolicyProvider mergePolicyProvider;
+    private volatile MergePolicyProvider timeIndexMergePolicyProvider;
 
     /**
      * Returns the default search fields for this index.
@@ -844,7 +865,12 @@ public final class IndexSettings {
         maxAnalyzedOffset = scopedSettings.get(MAX_ANALYZED_OFFSET_SETTING);
         maxTermsCount = scopedSettings.get(MAX_TERMS_COUNT_SETTING);
         maxRegexLength = scopedSettings.get(MAX_REGEX_LENGTH_SETTING);
-        this.mergePolicyConfig = new MergePolicyConfig(logger, this);
+        this.tieredMergePolicyProvider = new TieredMergePolicyProvider(logger, this);
+        this.logByteSizeMergePolicyProvider = new LogByteSizeMergePolicyProvider(logger, this);
+        this.defaultMergePolicyProvider = tieredMergePolicyProvider;
+        this.defaultTimeIndexMergePolicyProvider = tieredMergePolicyProvider;
+        setMergePolicyProvider(scopedSettings.get(INDEX_MERGE_POLICY));
+        setTimeIndexMergePolicy(scopedSettings.get(INDEX_MERGE_POLICY), TIME_INDEX_MERGE_POLICY.get(nodeSettings));
         this.indexSortConfig = new IndexSortConfig(this);
         searchIdleAfter = scopedSettings.get(INDEX_SEARCH_IDLE_AFTER);
         defaultPipeline = scopedSettings.get(DEFAULT_PIPELINE);
@@ -866,33 +892,59 @@ public final class IndexSettings {
          * Now this sortField (IndexSort) is stored in SegmentInfo and we need to maintain backward compatibility for them.
          */
         widenIndexSortType = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings).before(V_2_7_0);
+        scopedSettings.addSettingsUpdateConsumer(
+            TieredMergePolicyProvider.INDEX_COMPOUND_FORMAT_SETTING,
+            tieredMergePolicyProvider::setNoCFSRatio
+        );
+        scopedSettings.addSettingsUpdateConsumer(
+            TieredMergePolicyProvider.INDEX_MERGE_POLICY_DELETES_PCT_ALLOWED_SETTING,
+            tieredMergePolicyProvider::setDeletesPctAllowed
+        );
+        scopedSettings.addSettingsUpdateConsumer(
+            TieredMergePolicyProvider.INDEX_MERGE_POLICY_EXPUNGE_DELETES_ALLOWED_SETTING,
+            tieredMergePolicyProvider::setExpungeDeletesAllowed
+        );
+        scopedSettings.addSettingsUpdateConsumer(
+            TieredMergePolicyProvider.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING,
+            tieredMergePolicyProvider::setFloorSegmentSetting
+        );
+        scopedSettings.addSettingsUpdateConsumer(
+            TieredMergePolicyProvider.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING,
+            tieredMergePolicyProvider::setMaxMergesAtOnce
+        );
+        scopedSettings.addSettingsUpdateConsumer(
+            TieredMergePolicyProvider.INDEX_MERGE_POLICY_MAX_MERGED_SEGMENT_SETTING,
+            tieredMergePolicyProvider::setMaxMergedSegment
+        );
+        scopedSettings.addSettingsUpdateConsumer(
+            TieredMergePolicyProvider.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING,
+            tieredMergePolicyProvider::setSegmentsPerTier
+        );
 
-        scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING, mergePolicyConfig::setNoCFSRatio);
         scopedSettings.addSettingsUpdateConsumer(
-            MergePolicyConfig.INDEX_MERGE_POLICY_DELETES_PCT_ALLOWED_SETTING,
-            mergePolicyConfig::setDeletesPctAllowed
+            LogByteSizeMergePolicyProvider.INDEX_LBS_MERGE_POLICY_MERGE_FACTOR_SETTING,
+            logByteSizeMergePolicyProvider::setLBSMergeFactor
         );
         scopedSettings.addSettingsUpdateConsumer(
-            MergePolicyConfig.INDEX_MERGE_POLICY_EXPUNGE_DELETES_ALLOWED_SETTING,
-            mergePolicyConfig::setExpungeDeletesAllowed
+            LogByteSizeMergePolicyProvider.INDEX_LBS_MERGE_POLICY_MIN_MERGE_MB_SETTING,
+            logByteSizeMergePolicyProvider::setLBSMinMergedMB
         );
         scopedSettings.addSettingsUpdateConsumer(
-            MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING,
-            mergePolicyConfig::setFloorSegmentSetting
+            LogByteSizeMergePolicyProvider.INDEX_LBS_MAX_MERGE_SEGMENT_MB_SETTING,
+            logByteSizeMergePolicyProvider::setLBSMaxMergeSegment
         );
         scopedSettings.addSettingsUpdateConsumer(
-            MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING,
-            mergePolicyConfig::setMaxMergesAtOnce
+            LogByteSizeMergePolicyProvider.INDEX_LBS_MAX_MERGE_SEGMENT_MB_FOR_FORCED_MERGE_SETTING,
+            logByteSizeMergePolicyProvider::setLBSMaxMergeMBForForcedMerge
         );
         scopedSettings.addSettingsUpdateConsumer(
-            MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGED_SEGMENT_SETTING,
-            mergePolicyConfig::setMaxMergedSegment
+            LogByteSizeMergePolicyProvider.INDEX_LBS_MAX_MERGED_DOCS_SETTING,
+            logByteSizeMergePolicyProvider::setLBSMaxMergeDocs
         );
         scopedSettings.addSettingsUpdateConsumer(
-            MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING,
-            mergePolicyConfig::setSegmentsPerTier
+            LogByteSizeMergePolicyProvider.INDEX_LBS_NO_CFS_RATIO_SETTING,
+            logByteSizeMergePolicyProvider::setLBSNoCFSRatio
         );
-
         scopedSettings.addSettingsUpdateConsumer(
             MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING,
             MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING,
@@ -1439,9 +1491,14 @@ public final class IndexSettings {
 
     /**
      * Returns the merge policy that should be used for this index.
+     * @param isTimeIndex true if index contains @timestamp field
      */
-    public MergePolicy getMergePolicy() {
-        return mergePolicyConfig.getMergePolicy();
+    public MergePolicy getMergePolicy(boolean isTimeIndex) {
+        if (isTimeIndex) {
+            return timeIndexMergePolicyProvider.getMergePolicy();
+        } else {
+            return mergePolicyProvider.getMergePolicy();
+        }
     }
 
     public <T> T getValue(Setting<T> setting) {
@@ -1647,6 +1704,71 @@ public final class IndexSettings {
                     + ", "
                     + MERGE_ON_FLUSH_MERGE_POLICY
             );
+        }
+    }
+
+    private void setMergePolicyProvider(String indexScopedPolicy) {
+        if (indexScopedPolicy.equals(TIERED_MERGE_POLICY)) {
+            this.mergePolicyProvider = tieredMergePolicyProvider;
+        } else if (indexScopedPolicy.equals(LOG_BYTE_SIZE_MERGE_POLICY)) {
+            this.mergePolicyProvider = logByteSizeMergePolicyProvider;
+        } else if (indexScopedPolicy.equals(DEFAULT_MERGE_POLICY) || Strings.isEmpty(indexScopedPolicy)) {
+            this.mergePolicyProvider = defaultMergePolicyProvider;
+        } else {
+            throw new IllegalArgumentException(
+                "The "
+                    + IndexSettings.INDEX_MERGE_POLICY.getKey()
+                    + " has unsupported policy specified: "
+                    + indexScopedPolicy
+                    + ". Please use one of: "
+                    + TIERED_MERGE_POLICY
+                    + ", "
+                    + LOG_BYTE_SIZE_MERGE_POLICY
+            );
+        }
+        if (logger.isTraceEnabled()) {
+            logger.trace("Merge policy used: " + mergePolicyProvider.toString());
+        }
+    }
+
+    private void setTimeIndexMergePolicy(String indexScopedPolicy, String nodeScopedTimeIndexPolicy) {
+        if (indexScopedPolicy.equals(TIERED_MERGE_POLICY)) {
+            this.timeIndexMergePolicyProvider = tieredMergePolicyProvider;
+        } else if (indexScopedPolicy.equals(LOG_BYTE_SIZE_MERGE_POLICY)) {
+            this.timeIndexMergePolicyProvider = logByteSizeMergePolicyProvider;
+        } else if (indexScopedPolicy.equals(DEFAULT_MERGE_POLICY) || Strings.isEmpty(indexScopedPolicy)) {
+            if (nodeScopedTimeIndexPolicy.equals(TIERED_MERGE_POLICY)) {
+                this.timeIndexMergePolicyProvider = tieredMergePolicyProvider;
+            } else if (nodeScopedTimeIndexPolicy.equals(LOG_BYTE_SIZE_MERGE_POLICY)) {
+                this.timeIndexMergePolicyProvider = logByteSizeMergePolicyProvider;
+            } else if (nodeScopedTimeIndexPolicy.equals(DEFAULT_TIME_INDEX_MERGE_POLICY) || Strings.isEmpty(nodeScopedTimeIndexPolicy)) {
+                this.timeIndexMergePolicyProvider = defaultTimeIndexMergePolicyProvider;
+            } else {
+                throw new IllegalArgumentException(
+                    "The "
+                        + IndexSettings.TIME_INDEX_MERGE_POLICY.getKey()
+                        + " has unsupported policy specified: "
+                        + nodeScopedTimeIndexPolicy
+                        + ". Please use one of: "
+                        + TIERED_MERGE_POLICY
+                        + ", "
+                        + LOG_BYTE_SIZE_MERGE_POLICY
+                );
+            }
+        } else {
+            throw new IllegalArgumentException(
+                "The "
+                    + IndexSettings.INDEX_MERGE_POLICY.getKey()
+                    + " has unsupported policy specified: "
+                    + indexScopedPolicy
+                    + ". Please use one of: "
+                    + TIERED_MERGE_POLICY
+                    + ", "
+                    + LOG_BYTE_SIZE_MERGE_POLICY
+            );
+        }
+        if (logger.isTraceEnabled()) {
+            logger.trace("Time index merge policy used: " + timeIndexMergePolicyProvider.toString());
         }
     }
 

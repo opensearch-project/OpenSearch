@@ -66,8 +66,8 @@ import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.index.MergePolicyConfig;
 import org.opensearch.index.MergeSchedulerConfig;
+import org.opensearch.index.TieredMergePolicyProvider;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.cache.query.QueryCacheStats;
 import org.opensearch.index.engine.VersionConflictEngineException;
@@ -589,8 +589,8 @@ public class IndexStatsIT extends ParameterizedOpenSearchIntegTestCase {
             prepareCreate("test").setSettings(
                 settingsBuilder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, "1")
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "0")
-                    .put(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING.getKey(), "2")
-                    .put(MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING.getKey(), "2")
+                    .put(TieredMergePolicyProvider.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING.getKey(), "2")
+                    .put(TieredMergePolicyProvider.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING.getKey(), "2")
                     .put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), "1")
                     .put(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.getKey(), "10000")
             )
@@ -621,8 +621,8 @@ public class IndexStatsIT extends ParameterizedOpenSearchIntegTestCase {
             prepareCreate("test").setSettings(
                 settingsBuilder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, "1")
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "0")
-                    .put(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING.getKey(), "2")
-                    .put(MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING.getKey(), "2")
+                    .put(TieredMergePolicyProvider.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING.getKey(), "2")
+                    .put(TieredMergePolicyProvider.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING.getKey(), "2")
                     .put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), "1")
                     .put(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.getKey(), "1")
                     .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.ASYNC.name())
