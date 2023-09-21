@@ -33,9 +33,9 @@ dependencies {
   api "io.opentelemetry:opentelemetry-exporter-otlp:${versions.opentelemetry}"
   api "io.opentelemetry:opentelemetry-exporter-common:${versions.opentelemetry}"
   api "io.opentelemetry:opentelemetry-exporter-otlp-common:${versions.opentelemetry}"
-  api "com.squareup.okhttp3:okhttp:4.10.0"
-  api "org.jetbrains.kotlin:kotlin-stdlib:1.6.20"
-  api "com.squareup.okio:okio-jvm:3.0.0"
+  runtimeOnly "org.jetbrains.kotlin:kotlin-stdlib:${versions.kotlin}"
+  runtimeOnly "com.squareup.okhttp3:okhttp:4.11.0"
+  runtimeOnly "com.squareup.okio:okio-jvm:3.5.0"
   runtimeOnly "io.opentelemetry:opentelemetry-exporter-sender-okhttp:${versions.opentelemetry}"
   testImplementation "io.opentelemetry:opentelemetry-sdk-testing:${versions.opentelemetry}"
 }
@@ -101,7 +101,8 @@ thirdPartyAudit {
     'io.opentelemetry.extension.incubator.metrics.LongGauge',
     'io.opentelemetry.extension.incubator.metrics.LongGaugeAdviceConfigurer',
     'io.opentelemetry.extension.incubator.metrics.LongHistogramAdviceConfigurer',
-    'io.opentelemetry.extension.incubator.metrics.LongUpDownCounterAdviceConfigurer'
+    'io.opentelemetry.extension.incubator.metrics.LongUpDownCounterAdviceConfigurer',
+    'kotlin.io.path.PathsKt'
   )
 }
 
