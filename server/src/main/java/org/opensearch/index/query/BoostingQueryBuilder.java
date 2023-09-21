@@ -33,6 +33,7 @@
 package org.opensearch.index.query;
 
 import org.apache.lucene.queries.function.FunctionScoreQuery;
+import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.Query;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.ParsingException;
@@ -251,5 +252,16 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
     protected void extractInnerHitBuilders(Map<String, InnerHitContextBuilder> innerHits) {
         InnerHitContextBuilder.extractInnerHits(positiveQuery, innerHits);
         InnerHitContextBuilder.extractInnerHits(negativeQuery, innerHits);
+    }
+
+    @Override
+    public void visit(QueryBuilderVisitor visitor) {
+        visitor.accept(this);
+        if (positiveQuery != null) {
+            visitor.getChildVisitor(BooleanClause.Occur.MUST).accept(positiveQuery);
+        }
+        if (negativeQuery != null) {
+            visitor.getChildVisitor(BooleanClause.Occur.SHOULD).accept(negativeQuery);
+        }
     }
 }
