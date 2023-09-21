@@ -39,7 +39,9 @@ import org.opensearch.core.common.ParsingException;
 import org.opensearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -136,5 +138,13 @@ public class SpanOrQueryBuilderTests extends AbstractQueryTestCase<SpanOrQueryBu
 
         Exception exception = expectThrows(ParsingException.class, () -> parseQuery(json));
         assertThat(exception.getMessage(), equalTo("span_or [clauses] as a nested span clause can't have non-default boost value [2.0]"));
+    }
+
+    public void testVisit() {
+        SpanTermQueryBuilder spanTermQueryBuilder = new SpanTermQueryBuilder("demo", "demo");
+        SpanOrQueryBuilder spanOrQueryBuilder = new SpanOrQueryBuilder(spanTermQueryBuilder);
+        List<QueryBuilder> visitedQueries = new ArrayList<>();
+        spanOrQueryBuilder.visit(createTestVisitor(visitedQueries));
+        assertEquals(2, visitedQueries.size());
     }
 }

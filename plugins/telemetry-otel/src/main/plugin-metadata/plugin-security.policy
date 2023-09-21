@@ -9,6 +9,8 @@
 grant {
     permission java.lang.RuntimePermission "getClassLoader";
     permission java.lang.RuntimePermission "accessDeclaredMembers";
+    permission java.net.NetPermission "getProxySelector";
+    permission java.net.SocketPermission "*", "connect,resolve";
 };
 
 
