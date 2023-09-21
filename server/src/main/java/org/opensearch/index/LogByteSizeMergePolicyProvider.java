@@ -60,10 +60,8 @@ public class LogByteSizeMergePolicyProvider implements MergePolicyProvider {
         ByteSizeUnit.GB
     );
 
-    // settings for LogByteSizeMergePolicy
-
     public static final Setting<Integer> INDEX_LBS_MERGE_POLICY_MERGE_FACTOR_SETTING = Setting.intSetting(
-        "index.merge.policy.log_byte_size.merge_factor",
+        "index.merge.log_byte_size_policy.merge_factor",
         DEFAULT_MERGE_FACTOR, // keeping it same as default max merge at once for tiered merge policy
         2,
         Setting.Property.Dynamic,
@@ -71,35 +69,35 @@ public class LogByteSizeMergePolicyProvider implements MergePolicyProvider {
     );
 
     public static final Setting<ByteSizeValue> INDEX_LBS_MERGE_POLICY_MIN_MERGE_MB_SETTING = Setting.byteSizeSetting(
-        "index.merge.policy.log_byte_size.min_merge_mb",
+        "index.merge.log_byte_size_policy.min_merge_mb",
         DEFAULT_MIN_MERGE_MB, // keeping it same as default floor segment for tiered merge policy
         Setting.Property.Dynamic,
         Setting.Property.IndexScope
     );
 
     public static final Setting<ByteSizeValue> INDEX_LBS_MAX_MERGE_SEGMENT_MB_SETTING = Setting.byteSizeSetting(
-        "index.merge.policy.log_byte_size.max_merge_segment_mb",
+        "index.merge.log_byte_size_policy.max_merge_segment_mb",
         DEFAULT_MAX_MERGED_SEGMENT, // keeping default same as tiered merge policy
         Setting.Property.Dynamic,
         Setting.Property.IndexScope
     );
 
     public static final Setting<ByteSizeValue> INDEX_LBS_MAX_MERGE_SEGMENT_MB_FOR_FORCED_MERGE_SETTING = Setting.byteSizeSetting(
-        "index.merge.policy.log_byte_size.max_merge_segment_mb_forced_merge",
+        "index.merge.log_byte_size_policy.max_merge_segment_mb_forced_merge",
         DEFAULT_MAX_MERGE_SEGMENT_MB_FORCE_MERGE,
         Setting.Property.Dynamic,
         Setting.Property.IndexScope
     );
 
     public static final Setting<Integer> INDEX_LBS_MAX_MERGED_DOCS_SETTING = Setting.intSetting(
-        "index.merge.policy.log_byte_size.max_merged_docs",
+        "index.merge.log_byte_size_policy.max_merged_docs",
         DEFAULT_MAX_MERGE_DOCS,
         Setting.Property.Dynamic,
         Setting.Property.IndexScope
     );
 
     public static final Setting<Double> INDEX_LBS_NO_CFS_RATIO_SETTING = new Setting<>(
-        "index.merge.policy.log_byte_size.no_cfs_ratio",
+        "index.merge.log_byte_size_policy.no_cfs_ratio",
         Double.toString(DEFAULT_NO_CFS_RATIO),
         TieredMergePolicyProvider::parseNoCFSRatio,
         Setting.Property.Dynamic,

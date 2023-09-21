@@ -172,20 +172,35 @@ public class MergePolicySettingsTests extends OpenSearchTestCase {
     }
 
     public void testInvalidMergePolicy() throws IOException {
+
+        final Settings invalidSettings = Settings.builder().put(IndexSettings.INDEX_MERGE_POLICY.getKey(), "invalid").build();
         IllegalArgumentException exc1 = expectThrows(
             IllegalArgumentException.class,
-            () -> indexSettings(Settings.builder().put(IndexSettings.INDEX_MERGE_POLICY.getKey(), "invalid").build())
+            () -> IndexSettings.INDEX_MERGE_POLICY.get(invalidSettings)
         );
-
         assertThat(exc1.getMessage(), containsString(IndexSettings.INDEX_MERGE_POLICY.getKey() + " has unsupported policy specified: "));
-
-        Settings nodeSettings = Settings.builder().put(IndexSettings.TIME_INDEX_MERGE_POLICY.getKey(), "invalid").build();
         IllegalArgumentException exc2 = expectThrows(
             IllegalArgumentException.class,
-            () -> new IndexSettings(newIndexMeta("test", Settings.EMPTY), nodeSettings)
+            () -> indexSettings(invalidSettings).getMergePolicy(false)
+        );
+        assertThat(exc2.getMessage(), containsString(IndexSettings.INDEX_MERGE_POLICY.getKey() + " has unsupported policy specified: "));
+
+        final Settings invalidSettings2 = Settings.builder().put(IndexSettings.TIME_INDEX_MERGE_POLICY.getKey(), "invalid").build();
+        IllegalArgumentException exc3 = expectThrows(
+            IllegalArgumentException.class,
+            () -> IndexSettings.TIME_INDEX_MERGE_POLICY.get(invalidSettings2)
         );
         assertThat(
-            exc2.getMessage(),
+            exc3.getMessage(),
+            containsString(IndexSettings.TIME_INDEX_MERGE_POLICY.getKey() + " has unsupported policy specified: ")
+        );
+
+        IllegalArgumentException exc4 = expectThrows(
+            IllegalArgumentException.class,
+            () -> new IndexSettings(newIndexMeta("test", Settings.EMPTY), invalidSettings2).getMergePolicy(true)
+        );
+        assertThat(
+            exc4.getMessage(),
             containsString(IndexSettings.TIME_INDEX_MERGE_POLICY.getKey() + " has unsupported policy specified: ")
         );
     }
@@ -482,7 +497,8 @@ public class MergePolicySettingsTests extends OpenSearchTestCase {
         );
         assertEquals(
             ((LogByteSizeMergePolicy) indexSettings.getMergePolicy(true)).getMaxMergeMBForForcedMerge(),
-            new ByteSizeValue(LogByteSizeMergePolicyProvider.DEFAULT_MAX_MERGE_SEGMENT_MB_FORCE_MERGE.getMb() + 1, ByteSizeUnit.MB).getMbFrac(),
+            new ByteSizeValue(LogByteSizeMergePolicyProvider.DEFAULT_MAX_MERGE_SEGMENT_MB_FORCE_MERGE.getMb() + 1, ByteSizeUnit.MB)
+                .getMbFrac(),
             0.001
         );
 
