@@ -32,6 +32,8 @@
 
 package org.opensearch.indices;
 
+import org.opensearch.action.admin.indices.stats.CommonStats;
+import org.opensearch.action.search.SearchRequestStats;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -43,7 +45,9 @@ import static org.hamcrest.object.HasToString.hasToString;
 public class NodeIndicesStatsTests extends OpenSearchTestCase {
 
     public void testInvalidLevel() {
-        final NodeIndicesStats stats = new NodeIndicesStats(null, Collections.emptyMap());
+        CommonStats oldStats = new CommonStats();
+        SearchRequestStats requestStats = new SearchRequestStats();
+        final NodeIndicesStats stats = new NodeIndicesStats(oldStats, Collections.emptyMap(), requestStats);
         final String level = randomAlphaOfLength(16);
         final ToXContent.Params params = new ToXContent.MapParams(Collections.singletonMap("level", level));
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> stats.toXContent(null, params));
