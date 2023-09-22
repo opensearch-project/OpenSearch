@@ -33,6 +33,7 @@
 package org.opensearch.action.search;
 
 import org.apache.lucene.search.TotalHits;
+import org.opensearch.Version;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.StatusToXContentObject;
@@ -63,6 +64,7 @@ import org.opensearch.search.suggest.Suggest;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -113,7 +115,11 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         clusters = new Clusters(in);
         scrollId = in.readOptionalString();
         tookInMillis = in.readVLong();
-        phaseTook = new PhaseTook(in);
+        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+            phaseTook = new PhaseTook(in);
+        } else {
+            phaseTook = PhaseTook.NULL;
+        }
         skippedShards = in.readVInt();
         pointInTimeId = in.readOptionalString();
     }
@@ -428,34 +434,23 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
                         }
                     }
                 } else if (PhaseTook.PHASE_TOOK.match(currentFieldName, parser.getDeprecationHandler())) {
-                    long dfsPreQueryTotal = -1;
-                    long canMatchTotal = -1;
-                    long queryTotal = -1;
-                    long fetchTotal = -1;
-                    long expandSearchTotal = -1;
+                    Map<String, Long> phaseTookMap = new HashMap<>();
 
                     while ((token = parser.nextToken()) != Token.END_OBJECT) {
                         if (token == Token.FIELD_NAME) {
                             currentFieldName = parser.currentName();
                         } else if (token.isValue()) {
-                            if (PhaseTook.DFS_PREQUERY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                                dfsPreQueryTotal = parser.longValue(); // we don't need it but need to consume it
-                            } else if (PhaseTook.CAN_MATCH_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                                canMatchTotal = parser.longValue();
-                            } else if (PhaseTook.QUERY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                                queryTotal = parser.longValue();
-                            } else if (PhaseTook.FETCH_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                                fetchTotal = parser.longValue();
-                            } else if (PhaseTook.EXPAND_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                                expandSearchTotal = parser.longValue();
-                            } else {
+                            try {
+                                Enum.valueOf(SearchPhaseName.class, currentFieldName);
+                                phaseTookMap.put(currentFieldName, parser.longValue());
+                            } catch (final IllegalArgumentException ex) {
                                 parser.skipChildren();
                             }
                         } else {
                             parser.skipChildren();
                         }
                     }
-                    phaseTook = new PhaseTook(dfsPreQueryTotal, canMatchTotal, queryTotal, fetchTotal, expandSearchTotal);
+                    phaseTook = new PhaseTook(phaseTookMap);
                 } else if (Clusters._CLUSTERS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     int successful = -1;
                     int total = -1;
@@ -547,7 +542,9 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         clusters.writeTo(out);
         out.writeOptionalString(scrollId);
         out.writeVLong(tookInMillis);
-        phaseTook.writeTo(out);
+        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+            phaseTook.writeTo(out);
+        }
         out.writeVInt(skippedShards);
         out.writeOptionalString(pointInTimeId);
     }
@@ -668,87 +665,43 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
      * @opensearch.internal
      */
     public static class PhaseTook implements ToXContentFragment, Writeable {
-        public static final PhaseTook NULL = new PhaseTook(-1, -1, -1, -1, -1);
+        public static final PhaseTook NULL = new PhaseTook();
 
         static final ParseField PHASE_TOOK = new ParseField("phase_took");
-        static final ParseField DFS_PREQUERY_FIELD = new ParseField("dfs_prequery");
-        static final ParseField CAN_MATCH_FIELD = new ParseField("can_match");
-        static final ParseField QUERY_FIELD = new ParseField("query");
-        static final ParseField FETCH_FIELD = new ParseField("fetch");
-        static final ParseField EXPAND_FIELD = new ParseField("expand_search");
+        private final Map<String, Long> phaseStatsMap;
 
-        private final long dfsPreQueryTotal;
-        private final long canMatchTotal;
-        private final long queryTotal;
-        private final long fetchTotal;
-        private final long expandSearchTotal;
+        private PhaseTook() {
+            Map<String, Long> nullPhaseTookMap = new HashMap<>();
+            for (SearchPhaseName searchPhaseName : SearchPhaseName.values()) {
+                nullPhaseTookMap.put(searchPhaseName.getName(), (long) -1);
+            }
+            this.phaseStatsMap = nullPhaseTookMap;
+        }
 
-        public PhaseTook(long dfsPreQueryTotal, long canMatchTotal, long queryTotal, long fetchTotal, long expandSearchTotal) {
-            this.dfsPreQueryTotal = dfsPreQueryTotal;
-            this.canMatchTotal = canMatchTotal;
-            this.queryTotal = queryTotal;
-            this.fetchTotal = fetchTotal;
-            this.expandSearchTotal = expandSearchTotal;
+        public PhaseTook(Map<String, Long> phaseStatsMap) {
+            this.phaseStatsMap = phaseStatsMap;
         }
 
         private PhaseTook(StreamInput in) throws IOException {
-            this(in.readLong(), in.readLong(), in.readLong(), in.readLong(), in.readLong());
+            this(in.readMap(StreamInput::readString, StreamInput::readLong));
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeLong(dfsPreQueryTotal);
-            out.writeLong(canMatchTotal);
-            out.writeLong(queryTotal);
-            out.writeLong(fetchTotal);
-            out.writeLong(expandSearchTotal);
+            for (SearchPhaseName searchPhaseName : SearchPhaseName.values()) {
+                out.writeLong(phaseStatsMap.get(searchPhaseName.getName()));
+            }
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject(PHASE_TOOK.getPreferredName());
-            builder.field(DFS_PREQUERY_FIELD.getPreferredName(), dfsPreQueryTotal);
-            builder.field(CAN_MATCH_FIELD.getPreferredName(), canMatchTotal);
-            builder.field(QUERY_FIELD.getPreferredName(), queryTotal);
-            builder.field(FETCH_FIELD.getPreferredName(), fetchTotal);
-            builder.field(EXPAND_FIELD.getPreferredName(), expandSearchTotal);
+
+            for (SearchPhaseName searchPhaseName : SearchPhaseName.values()) {
+                builder.field(searchPhaseName.getName(), phaseStatsMap.get(searchPhaseName.getName()));
+            }
             builder.endObject();
             return builder;
-        }
-
-        /**
-         * Returns time spent in DFS Prequery phase during the execution of the search request
-         */
-        public long getDfsPreQueryTotal() {
-            return dfsPreQueryTotal;
-        }
-
-        /**
-         * Returns time spent in canMatch phase during the execution of the search request
-         */
-        public long getCanMatchTotal() {
-            return canMatchTotal;
-        }
-
-        /**
-         * Returns time spent in query phase during the execution of the search request
-         */
-        public long getQueryTotal() {
-            return queryTotal;
-        }
-
-        /**
-         * Returns time spent in fetch phase during the execution of the search request
-         */
-        public long getFetchTotal() {
-            return fetchTotal;
-        }
-
-        /**
-         * Returns time spent in expand phase during the execution of the search request
-         */
-        public long getExpandSearchTotal() {
-            return expandSearchTotal;
         }
 
         @Override
@@ -760,16 +713,19 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
                 return false;
             }
             PhaseTook phaseTook = (PhaseTook) o;
-            return dfsPreQueryTotal == phaseTook.dfsPreQueryTotal
-                && queryTotal == phaseTook.queryTotal
-                && canMatchTotal == phaseTook.canMatchTotal
-                && fetchTotal == phaseTook.fetchTotal
-                && expandSearchTotal == phaseTook.expandSearchTotal;
+
+            for (SearchPhaseName searchPhaseName : SearchPhaseName.values()) {
+                String searchPhaseNameString = searchPhaseName.getName();
+                if (!phaseStatsMap.get(searchPhaseNameString).equals(phaseTook.phaseStatsMap.get(searchPhaseNameString))) {
+                    return false;
+                }
+            }
+            return true;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(dfsPreQueryTotal, queryTotal, canMatchTotal, fetchTotal, expandSearchTotal);
+            return Objects.hash(phaseStatsMap);
         }
     }
 
