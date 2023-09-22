@@ -54,9 +54,11 @@ import org.opensearch.ingest.IngestService;
 import org.opensearch.node.Node;
 import org.opensearch.search.pipeline.SearchPipelineService;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -85,8 +87,32 @@ import static org.opensearch.index.store.remote.directory.RemoteSnapshotDirector
 public final class IndexSettings {
     private static final String DEFAULT_POLICY = "default";
     private static final String MERGE_ON_FLUSH_MERGE_POLICY = "merge-on-flush";
-    public static final String TIERED_MERGE_POLICY = "tiered";
-    public static final String LOG_BYTE_SIZE_MERGE_POLICY = "log_byte_size";
+
+    public enum IndexMergePolicy {
+        TIERED("tiered"),
+        LOG_BYTE_SIZE("log_byte_size"),
+        DEFAULT_POLICY(IndexSettings.DEFAULT_POLICY);
+
+        private final String value;
+
+        IndexMergePolicy(String value) {
+            this.value = value;
+        }
+
+        public String getValue() {
+            return value;
+        }
+
+        public static IndexMergePolicy fromString(String text) {
+            for (IndexMergePolicy policy : IndexMergePolicy.values()) {
+                if (policy.value.equals(text)) {
+                    return policy;
+                }
+            }
+            return null;
+        }
+    }
+
     public static final Setting<List<String>> DEFAULT_FIELD_SETTING = Setting.listSetting(
         "index.query.default_field",
         Collections.singletonList("*"),
@@ -573,21 +599,14 @@ public final class IndexSettings {
     );
 
     public static final Setting<String> INDEX_MERGE_POLICY = Setting.simpleString("index.merge.policy", DEFAULT_POLICY, policy -> {
-        if (!(policy.isEmpty()
-            || policy.equals(DEFAULT_POLICY)
-            || policy.equals(TIERED_MERGE_POLICY)
-            || policy.equals(LOG_BYTE_SIZE_MERGE_POLICY))) {
+        if (IndexMergePolicy.fromString(policy) == null) {
             throw new IllegalArgumentException(
                 "The "
                     + IndexSettings.INDEX_MERGE_POLICY.getKey()
                     + " has unsupported policy specified: "
                     + policy
                     + ". Please use one of: "
-                    + DEFAULT_POLICY
-                    + ", "
-                    + TIERED_MERGE_POLICY
-                    + ", "
-                    + LOG_BYTE_SIZE_MERGE_POLICY
+                    + String.join(", ", Arrays.stream(IndexMergePolicy.values()).map(IndexMergePolicy::getValue).toArray(String[]::new))
             );
         }
     }, Property.IndexScope);
@@ -596,21 +615,14 @@ public final class IndexSettings {
         "indices.time_index.default_index_merge_policy",
         DEFAULT_POLICY,
         policy -> {
-            if (!(policy.isEmpty()
-                || policy.equals(DEFAULT_POLICY)
-                || policy.equals(TIERED_MERGE_POLICY)
-                || policy.equals(LOG_BYTE_SIZE_MERGE_POLICY))) {
+            if (IndexMergePolicy.fromString(policy) == null) {
                 throw new IllegalArgumentException(
                     "The "
                         + IndexSettings.TIME_INDEX_MERGE_POLICY.getKey()
                         + " has unsupported policy specified: "
                         + policy
                         + ". Please use one of: "
-                        + DEFAULT_POLICY
-                        + ", "
-                        + TIERED_MERGE_POLICY
-                        + ", "
-                        + LOG_BYTE_SIZE_MERGE_POLICY
+                        + String.join(", ", Arrays.stream(IndexMergePolicy.values()).map(IndexMergePolicy::getValue).toArray(String[]::new))
                 );
             }
         },
@@ -1517,53 +1529,37 @@ public final class IndexSettings {
      */
     public MergePolicy getMergePolicy(boolean isTimeIndex) {
         String indexScopedPolicy = scopedSettings.get(INDEX_MERGE_POLICY);
-        MergePolicyProvider mergePolicyProvider;
-        if (indexScopedPolicy.equals(TIERED_MERGE_POLICY)) {
-            mergePolicyProvider = tieredMergePolicyProvider;
-        } else if (indexScopedPolicy.equals(LOG_BYTE_SIZE_MERGE_POLICY)) {
-            mergePolicyProvider = logByteSizeMergePolicyProvider;
-        } else if (indexScopedPolicy.equals(DEFAULT_POLICY) || Strings.isEmpty(indexScopedPolicy)) {
-            if (!isTimeIndex) {
+        MergePolicyProvider mergePolicyProvider = null;
+        IndexMergePolicy indexMergePolicy = IndexMergePolicy.fromString(indexScopedPolicy);
+        switch (Objects.requireNonNull(indexMergePolicy)) {
+            case TIERED:
                 mergePolicyProvider = tieredMergePolicyProvider;
-            } else {
-                String nodeScopedTimeIndexPolicy = TIME_INDEX_MERGE_POLICY.get(nodeSettings);
-                if (nodeScopedTimeIndexPolicy.equals(TIERED_MERGE_POLICY)) {
-                    mergePolicyProvider = tieredMergePolicyProvider;
-                } else if (nodeScopedTimeIndexPolicy.equals(LOG_BYTE_SIZE_MERGE_POLICY)) {
-                    mergePolicyProvider = logByteSizeMergePolicyProvider;
-                } else if (nodeScopedTimeIndexPolicy.equals(DEFAULT_POLICY) || Strings.isEmpty(nodeScopedTimeIndexPolicy)) {
-                    mergePolicyProvider = tieredMergePolicyProvider;
+                break;
+            case LOG_BYTE_SIZE:
+                mergePolicyProvider = logByteSizeMergePolicyProvider;
+                break;
+            case DEFAULT_POLICY:
+                if (isTimeIndex) {
+                    String nodeScopedTimeIndexPolicy = TIME_INDEX_MERGE_POLICY.get(nodeSettings);
+                    IndexMergePolicy nodeMergePolicy = IndexMergePolicy.fromString(nodeScopedTimeIndexPolicy);
+                    switch (Objects.requireNonNull(nodeMergePolicy)) {
+                        case TIERED:
+                        case DEFAULT_POLICY:
+                            mergePolicyProvider = tieredMergePolicyProvider;
+                            break;
+                        case LOG_BYTE_SIZE:
+                            mergePolicyProvider = logByteSizeMergePolicyProvider;
+                            break;
+                    }
                 } else {
-                    throw new IllegalArgumentException(
-                        "The "
-                            + IndexSettings.TIME_INDEX_MERGE_POLICY.getKey()
-                            + " has unsupported policy specified: "
-                            + nodeScopedTimeIndexPolicy
-                            + ". Please use one of: "
-                            + DEFAULT_POLICY
-                            + ", "
-                            + TIERED_MERGE_POLICY
-                            + ", "
-                            + LOG_BYTE_SIZE_MERGE_POLICY
-                    );
+                    mergePolicyProvider = tieredMergePolicyProvider;
                 }
-            }
-        } else {
-            throw new IllegalArgumentException(
-                "The "
-                    + IndexSettings.INDEX_MERGE_POLICY.getKey()
-                    + " has unsupported policy specified: "
-                    + indexScopedPolicy
-                    + ". Please use one of: "
-                    + DEFAULT_POLICY
-                    + ", "
-                    + TIERED_MERGE_POLICY
-                    + ", "
-                    + LOG_BYTE_SIZE_MERGE_POLICY
-            );
+                break;
         }
+        assert mergePolicyProvider != null : "should not happen as validation for invalid merge policy values "
+            + "are part of setting definition";
         if (logger.isTraceEnabled()) {
-            logger.trace("Index: " + this.index.getName() + ", Merge policy used: " + mergePolicyProvider.toString());
+            logger.trace("Index: " + this.index.getName() + ", Merge policy used: " + mergePolicyProvider);
         }
         return mergePolicyProvider.getMergePolicy();
     }
