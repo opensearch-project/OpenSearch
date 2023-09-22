@@ -24,6 +24,7 @@ import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.IndexShard;
+import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.plugins.Plugin;
@@ -321,6 +322,67 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
             "failed to parse value [-1] for setting [cluster.remote_store.translog.buffer_interval], must be >= [0ms]",
             exception.getMessage()
         );
+    }
+
+    public void testAnyTranslogDurabilityWhenRestrictSettingFalse() throws ExecutionException, InterruptedException {
+        String clusterManagerName;
+        if (randomBoolean()) {
+            clusterManagerName = internalCluster().startClusterManagerOnlyNode(
+                Settings.builder().put(IndicesService.CLUSTER_REMOTE_INDEX_RESTRICT_ASYNC_DURABILITY_SETTING.getKey(), false).build()
+            );
+        } else {
+            clusterManagerName = internalCluster().startClusterManagerOnlyNode();
+        }
+        String dataNode = internalCluster().startDataOnlyNodes(1).get(0);
+        Translog.Durability durability = randomFrom(Translog.Durability.values());
+        Settings indexSettings = Settings.builder()
+            .put(indexSettings())
+            .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), durability)
+            .build();
+        createIndex(INDEX_NAME, indexSettings);
+        IndexShard indexShard = getIndexShard(dataNode);
+        assertEquals(durability, indexShard.indexSettings().getTranslogDurability());
+
+        durability = randomFrom(Translog.Durability.values());
+        client(clusterManagerName).admin()
+            .indices()
+            .updateSettings(
+                new UpdateSettingsRequest(INDEX_NAME).settings(
+                    Settings.builder().put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), durability)
+                )
+            )
+            .get();
+        assertEquals(durability, indexShard.indexSettings().getTranslogDurability());
+    }
+
+    public void testAsyncDurabilityThrowsExceptionWhenRestrictSettingTrue() throws ExecutionException, InterruptedException {
+        String expectedExceptionMsg =
+            "index setting [index.translog.durability=async] is not allowed as cluster setting [cluster.remote_store.index.restrict.async-durability=true]";
+        String clusterManagerName = internalCluster().startClusterManagerOnlyNode(
+            Settings.builder().put(IndicesService.CLUSTER_REMOTE_INDEX_RESTRICT_ASYNC_DURABILITY_SETTING.getKey(), true).build()
+        );
+        String dataNode = internalCluster().startDataOnlyNodes(1).get(0);
+
+        // Case 1 - Test create index fails
+        Settings indexSettings = Settings.builder()
+            .put(indexSettings())
+            .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.ASYNC)
+            .build();
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> createIndex(INDEX_NAME, indexSettings));
+        assertEquals(expectedExceptionMsg, exception.getMessage());
+
+        // Case 2 - Test update index fails
+        createIndex(INDEX_NAME);
+        IndexShard indexShard = getIndexShard(dataNode);
+        assertEquals(Translog.Durability.REQUEST, indexShard.indexSettings().getTranslogDurability());
+        exception = assertThrows(
+            IllegalArgumentException.class,
+            () -> client(clusterManagerName).admin()
+                .indices()
+                .updateSettings(new UpdateSettingsRequest(INDEX_NAME).settings(indexSettings))
+                .actionGet()
+        );
+        assertEquals(expectedExceptionMsg, exception.getMessage());
     }
 
     private IndexShard getIndexShard(String dataNode) throws ExecutionException, InterruptedException {

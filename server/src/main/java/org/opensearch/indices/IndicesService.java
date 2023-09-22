@@ -286,6 +286,18 @@ public class IndicesService extends AbstractLifecycleComponent
     );
 
     /**
+     * This setting is used to restrict creation or updation of index where the `index.translog.durability` index setting
+     * is set as ASYNC if enabled. If disabled, any of the durability mode can be used and switched at any later time from
+     * one to another.
+     */
+    public static final Setting<Boolean> CLUSTER_REMOTE_INDEX_RESTRICT_ASYNC_DURABILITY_SETTING = Setting.boolSetting(
+        "cluster.remote_store.index.restrict.async-durability",
+        false,
+        Property.NodeScope,
+        Property.Final
+    );
+
+    /**
      * The node's settings.
      */
     private final Settings settings;
