@@ -54,6 +54,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -104,7 +105,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
         this.logger = logger;
         this.type = type;
         shardToCustomDataPath = new HashMap<>();
-        shardToCustomDataPath.put(shardId, customDataPath);
+        shardToCustomDataPath.put(Objects.requireNonNull(shardId), Objects.requireNonNull(customDataPath));
         this.action = (Lister<BaseNodesResponse<T>, T>) action;
         this.logKey = "ShardId=[" + shardId.toString() + "]";
         enableBatchMode = false;
@@ -120,7 +121,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
     ) {
         this.logger = logger;
         this.type = type;
-        this.shardToCustomDataPath = shardToCustomDataPath;
+        this.shardToCustomDataPath = Objects.requireNonNull(shardToCustomDataPath);
         this.action = (Lister<BaseNodesResponse<T>, T>) action;
         this.logKey = "BatchID=[" + batchId + "]";
         enableBatchMode = true;
@@ -221,6 +222,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
             shardToIgnoreNodes.clear();
             // if at least one node failed, make sure to have a protective reroute
             // here, just case this round won't find anything, and we need to retry fetching data
+            // If ignore node even for a single shard in batch of shards then also do a reroute
             if (failedNodes.isEmpty() == false
                 || allIgnoreNodesMap.values().stream().anyMatch(ignoreNodeSet -> ignoreNodeSet.isEmpty() == false)) {
                 reroute(
@@ -326,7 +328,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
     /**
      * Implement this in order to scheduled another round that causes a call to fetch data.
      */
-    protected abstract void reroute(String logKey, String reason);
+    protected abstract void reroute(String reroutingKey, String reason);
 
     /**
      * Clear cache for node, ensuring next fetch will fetch a fresh copy.
