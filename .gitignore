@@ -65,3 +65,4 @@ testfixtures_shared/
 
 # build files generated
 doc-tools/missing-doclet/bin/
+server/src/main/java/org/opensearch/indices/KLSPerformanceTest.java
