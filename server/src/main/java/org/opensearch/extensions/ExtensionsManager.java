@@ -41,6 +41,7 @@ import org.opensearch.extensions.rest.RestActionsRequestHandler;
 import org.opensearch.extensions.settings.CustomSettingsRequestHandler;
 import org.opensearch.extensions.settings.RegisterCustomSettingsRequest;
 import org.opensearch.identity.IdentityService;
+import org.opensearch.identity.tokens.AuthToken;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.ConnectTransportException;
 import org.opensearch.transport.TransportException;
@@ -101,6 +102,7 @@ public class ExtensionsManager {
     private Settings environmentSettings;
     private AddSettingsUpdateConsumerRequestHandler addSettingsUpdateConsumerRequestHandler;
     private NodeClient client;
+    private IdentityService identityService;
 
     /**
      * Instantiate a new ExtensionsManager object to handle requests and responses from extensions. This is called during Node bootstrap.
@@ -108,7 +110,7 @@ public class ExtensionsManager {
      * @param additionalSettings  Additional settings to read in from extension initialization request
      * @throws IOException  If the extensions discovery file is not properly retrieved.
      */
-    public ExtensionsManager(Set<Setting<?>> additionalSettings) throws IOException {
+    public ExtensionsManager(Set<Setting<?>> additionalSettings, IdentityService identityService) throws IOException {
         logger.info("ExtensionsManager initialized");
         this.initializedExtensions = new HashMap<String, DiscoveryExtensionNode>();
         this.extensionIdMap = new HashMap<String, DiscoveryExtensionNode>();
@@ -123,6 +125,7 @@ public class ExtensionsManager {
         }
         this.client = null;
         this.extensionTransportActionsHandler = null;
+        this.identityService = identityService;
     }
 
     /**
@@ -406,7 +409,7 @@ public class ExtensionsManager {
                 transportService.sendRequest(
                     extensionNode,
                     REQUEST_EXTENSION_ACTION_NAME,
-                    new InitializeExtensionRequest(transportService.getLocalNode(), extensionNode),
+                    new InitializeExtensionRequest(transportService.getLocalNode(), extension, issueServiceAccount(extension)),
                     initializeExtensionResponseHandler
                 );
             }
@@ -447,6 +450,15 @@ public class ExtensionsManager {
             default:
                 throw new IllegalArgumentException("Handler not present for the provided request");
         }
+    }
+
+    /**
+     * A helper method called during initialization that issues a service accounts to extensions
+     * @param extension The extension to be issued a service account
+     */
+    private String issueServiceAccount(DiscoveryExtensionNode extension) {
+        AuthToken serviceAccountToken = identityService.getTokenManager().issueServiceAccountToken(extension.getId());
+        return serviceAccountToken.asAuthHeaderValue();
     }
 
     static String getRequestExtensionActionName() {
