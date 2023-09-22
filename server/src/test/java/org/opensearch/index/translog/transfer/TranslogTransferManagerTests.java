@@ -168,9 +168,6 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
             public void onUploadFailed(TransferSnapshot transferSnapshot, Exception ex) {
                 translogTransferFailed.incrementAndGet();
             }
-
-            @Override
-            public void close() {}
         }));
         assertEquals(4, fileTransferSucceeded.get());
         assertEquals(0, fileTransferFailed.get());
