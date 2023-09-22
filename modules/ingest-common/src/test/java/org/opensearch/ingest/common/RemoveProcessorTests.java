@@ -66,7 +66,6 @@ public class RemoveProcessorTests extends OpenSearchTestCase {
         Processor processor = new RemoveProcessor.Factory(TestTemplateService.instance()).create(null, processorTag, null, config);
         assertThrows("field [" + fieldName + "] doesn't exist", IllegalArgumentException.class, () -> {
             processor.execute(ingestDocument);
-            fail("remove field should have failed");
         });
 
         Map<String, Object> configWithEmptyField = new HashMap<>();
@@ -80,7 +79,6 @@ public class RemoveProcessorTests extends OpenSearchTestCase {
         );
         assertThrows("field path cannot be null nor empty", IllegalArgumentException.class, () -> {
             removeProcessorWithEmptyField.execute(ingestDocument);
-            fail("remove empty field should have failed");
         });
     }
 
