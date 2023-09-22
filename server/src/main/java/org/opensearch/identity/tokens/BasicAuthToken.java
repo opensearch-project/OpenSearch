@@ -23,7 +23,7 @@ public final class BasicAuthToken implements AuthToken {
 
     public BasicAuthToken(final String headerValue) {
         final String base64Encoded = headerValue.substring(TOKEN_IDENTIFIER.length()).trim();
-        final byte[] rawDecoded = Base64.getDecoder().decode(base64Encoded);
+        final byte[] rawDecoded = Base64.getUrlDecoder().decode(base64Encoded);
         final String usernamepassword = new String(rawDecoded, StandardCharsets.UTF_8);
 
         final String[] tokenParts = usernamepassword.split(":", 2);
