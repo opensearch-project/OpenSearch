@@ -88,6 +88,9 @@ public final class IndexSettings {
     private static final String DEFAULT_POLICY = "default";
     private static final String MERGE_ON_FLUSH_MERGE_POLICY = "merge-on-flush";
 
+    /**
+     * Enum representing supported merge policies
+     */
     public enum IndexMergePolicy {
         TIERED("tiered"),
         LOG_BYTE_SIZE("log_byte_size"),
