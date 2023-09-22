@@ -122,4 +122,26 @@ public class RegexTests extends OpenSearchTestCase {
             assertFalse("[" + pattern + "] should not match [" + matchingString + "]", Regex.simpleMatch(pattern, matchingString));
         }
     }
+
+    public void testArbitraryWildcardMatch() {
+        final String prefix = randomAlphaOfLengthBetween(1, 20);
+        final String suffix = randomAlphaOfLengthBetween(1, 20);
+        final String pattern1 = "*".repeat(randomIntBetween(1, 1000));
+        // dd***
+        assertTrue(Regex.simpleMatch(prefix + pattern1, prefix + randomAlphaOfLengthBetween(10, 20), randomBoolean()));
+        // ***dd
+        assertTrue(Regex.simpleMatch(pattern1 + suffix, randomAlphaOfLengthBetween(10, 20) + suffix, randomBoolean()));
+        // dd***dd
+        assertTrue(Regex.simpleMatch(prefix + pattern1 + suffix, prefix + randomAlphaOfLengthBetween(10, 20) + suffix, randomBoolean()));
+        // dd***dd***dd
+        final String middle = randomAlphaOfLengthBetween(1, 20);
+        final String pattern2 = "*".repeat(randomIntBetween(1, 1000));
+        assertTrue(
+            Regex.simpleMatch(
+                prefix + pattern1 + middle + pattern2 + suffix,
+                prefix + randomAlphaOfLengthBetween(10, 20) + middle + randomAlphaOfLengthBetween(10, 20) + suffix,
+                randomBoolean()
+            )
+        );
+    }
 }
