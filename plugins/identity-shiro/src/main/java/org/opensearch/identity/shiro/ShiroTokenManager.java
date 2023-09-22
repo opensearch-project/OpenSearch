@@ -57,7 +57,6 @@ class ShiroTokenManager implements TokenManager {
             final BasicAuthToken basicAuthToken = (BasicAuthToken) authenticationToken;
             return Optional.of(new UsernamePasswordToken(basicAuthToken.getUser(), basicAuthToken.getPassword()));
         }
-
         return Optional.empty();
     }
 
@@ -65,8 +64,9 @@ class ShiroTokenManager implements TokenManager {
     public AuthToken issueOnBehalfOfToken(Subject subject, OnBehalfOfClaims claims) {
 
         String password = generatePassword();
+        // Make a new ShiroSubject audience as name
         final byte[] rawEncoded = Base64.getUrlEncoder().encode((claims.getAudience() + ":" + password).getBytes(UTF_8));
-        // Make a new ShiroSubject w/ audience as name
+
         final String usernamePassword = new String(rawEncoded, UTF_8);
         final String header = "Basic " + usernamePassword;
         BasicAuthToken token = new BasicAuthToken(header);
@@ -79,12 +79,12 @@ class ShiroTokenManager implements TokenManager {
     public AuthToken issueServiceAccountToken(String audience) {
 
         String password = generatePassword();
-        final byte[] rawEncoded = Base64.getUrlEncoder().withoutPadding().encode((audience + ":" + password).getBytes(UTF_8));
+        final byte[] rawEncoded = Base64.getUrlEncoder().withoutPadding().encode((audience + ":" + password).getBytes(UTF_8)); // Make a new
         final String usernamePassword = new String(rawEncoded, UTF_8);
         final String header = "Basic " + usernamePassword;
+
         BasicAuthToken token = new BasicAuthToken(header);
         shiroTokenPasswordMap.put(token, password);
-
         return token;
     }
 

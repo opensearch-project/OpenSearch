@@ -32,7 +32,7 @@ import java.util.Set;
 public class NoopExtensionsManager extends ExtensionsManager {
 
     public NoopExtensionsManager() throws IOException {
-        super(Set.of());
+        super(Set.of(), new IdentityService(Settings.EMPTY, List.of()));
     }
 
     @Override

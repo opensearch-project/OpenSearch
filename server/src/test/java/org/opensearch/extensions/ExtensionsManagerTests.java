@@ -184,7 +184,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
 
         Set<Setting<?>> additionalSettings = extAwarePlugin.getExtensionSettings().stream().collect(Collectors.toSet());
         ExtensionScopedSettings extensionScopedSettings = new ExtensionScopedSettings(additionalSettings);
-        ExtensionsManager extensionsManager = new ExtensionsManager(additionalSettings);
+        ExtensionsManager extensionsManager = new ExtensionsManager(additionalSettings, identityService);
         ExtensionDependency dependentExtension = new ExtensionDependency("uniqueid0", Version.fromString("2.0.0"));
 
         Extension firstExtension = new Extension(
@@ -280,7 +280,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             null,
             null
         );
-        ExtensionsManager extensionsManager = new ExtensionsManager(Set.of());
+        ExtensionsManager extensionsManager = new ExtensionsManager(Set.of(), identityService);
         extensionsManager.loadExtension(firstExtension);
         IOException exception = expectThrows(IOException.class, () -> extensionsManager.loadExtension(secondExtension));
         assertEquals(
@@ -321,7 +321,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
     public void testMissingRequiredFieldsWhileLoadingExtension() throws Exception {
 
         Extension firstExtension = new Extension("firstExtension", "uniqueid1", "127.0.0.0", "9300", "0.0.7", "3.0.0", "", null, null);
-        ExtensionsManager extensionsManager = new ExtensionsManager(Set.of());
+        ExtensionsManager extensionsManager = new ExtensionsManager(Set.of(), identityService);
 
         IOException exception = expectThrows(IOException.class, () -> extensionsManager.loadExtension(firstExtension));
         assertEquals("Required field [minimum opensearch version] is missing in the request", exception.getMessage());
@@ -378,7 +378,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
     }
 
     public void testInitialize() throws Exception {
-        ExtensionsManager extensionsManager = new ExtensionsManager(Set.of());
+        ExtensionsManager extensionsManager = new ExtensionsManager(Set.of(), identityService);
 
         initialize(extensionsManager);
 
@@ -420,7 +420,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
 
     public void testHandleRegisterRestActionsRequest() throws Exception {
 
-        ExtensionsManager extensionsManager = new ExtensionsManager(Set.of());
+        ExtensionsManager extensionsManager = new ExtensionsManager(Set.of(), identityService);
         initialize(extensionsManager);
 
         String uniqueIdStr = "uniqueid1";
@@ -434,7 +434,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
     }
 
     public void testHandleRegisterSettingsRequest() throws Exception {
-        ExtensionsManager extensionsManager = new ExtensionsManager(Set.of());
+        ExtensionsManager extensionsManager = new ExtensionsManager(Set.of(), identityService);
         initialize(extensionsManager);
 
         String uniqueIdStr = "uniqueid1";
@@ -450,7 +450,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
     }
 
     public void testHandleRegisterRestActionsRequestWithInvalidMethod() throws Exception {
-        ExtensionsManager extensionsManager = new ExtensionsManager(Set.of());
+        ExtensionsManager extensionsManager = new ExtensionsManager(Set.of(), identityService);
         initialize(extensionsManager);
 
         String uniqueIdStr = "uniqueid1";
@@ -465,7 +465,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
     }
 
     public void testHandleRegisterRestActionsRequestWithInvalidDeprecatedMethod() throws Exception {
-        ExtensionsManager extensionsManager = new ExtensionsManager(Set.of());
+        ExtensionsManager extensionsManager = new ExtensionsManager(Set.of(), identityService);
         initialize(extensionsManager);
 
         String uniqueIdStr = "uniqueid1";
@@ -480,7 +480,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
     }
 
     public void testHandleRegisterRestActionsRequestWithInvalidUri() throws Exception {
-        ExtensionsManager extensionsManager = new ExtensionsManager(Set.of());
+        ExtensionsManager extensionsManager = new ExtensionsManager(Set.of(), identityService);
         initialize(extensionsManager);
         String uniqueIdStr = "uniqueid1";
         List<String> actionsList = List.of("GET", "PUT /bar", "POST /baz");
@@ -494,7 +494,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
     }
 
     public void testHandleRegisterRestActionsRequestWithInvalidDeprecatedUri() throws Exception {
-        ExtensionsManager extensionsManager = new ExtensionsManager(Set.of());
+        ExtensionsManager extensionsManager = new ExtensionsManager(Set.of(), identityService);
         initialize(extensionsManager);
         String uniqueIdStr = "uniqueid1";
         List<String> actionsList = List.of("GET /foo", "PUT /bar", "POST /baz");
@@ -508,7 +508,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
     }
 
     public void testHandleExtensionRequest() throws Exception {
-        ExtensionsManager extensionsManager = new ExtensionsManager(Set.of());
+        ExtensionsManager extensionsManager = new ExtensionsManager(Set.of(), identityService);
         initialize(extensionsManager);
 
         ExtensionRequest clusterStateRequest = new ExtensionRequest(ExtensionRequestProto.RequestType.REQUEST_EXTENSION_CLUSTER_STATE);
@@ -662,7 +662,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
     }
 
     public void testAddSettingsUpdateConsumerRequest() throws Exception {
-        ExtensionsManager extensionsManager = new ExtensionsManager(Set.of());
+        ExtensionsManager extensionsManager = new ExtensionsManager(Set.of(), identityService);
         initialize(extensionsManager);
 
         List<Setting<?>> componentSettings = List.of(
@@ -706,7 +706,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
     }
 
     public void testHandleAddSettingsUpdateConsumerRequest() throws Exception {
-        ExtensionsManager extensionsManager = new ExtensionsManager(Set.of());
+        ExtensionsManager extensionsManager = new ExtensionsManager(Set.of(), identityService);
         initialize(extensionsManager);
 
         List<Setting<?>> componentSettings = List.of(
@@ -726,7 +726,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
     }
 
     public void testUpdateSettingsRequest() throws Exception {
-        ExtensionsManager extensionsManager = new ExtensionsManager(Set.of());
+        ExtensionsManager extensionsManager = new ExtensionsManager(Set.of(), identityService);
         initialize(extensionsManager);
 
         Setting<?> componentSetting = Setting.boolSetting("falseSetting", false, Property.Dynamic);
@@ -755,7 +755,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
 
     public void testRegisterHandler() throws Exception {
 
-        ExtensionsManager extensionsManager = new ExtensionsManager(Set.of());
+        ExtensionsManager extensionsManager = new ExtensionsManager(Set.of(), identityService);
 
         TransportService mockTransportService = spy(
             new TransportService(
@@ -783,7 +783,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
     }
 
     public void testIncompatibleExtensionRegistration() throws IOException {
-        ExtensionsManager extensionsManager = new ExtensionsManager(Set.of());
+        ExtensionsManager extensionsManager = new ExtensionsManager(Set.of(), identityService);
         Extension firstExtension = new Extension(
             "firstExtension",
             "uniqueid1",
@@ -824,7 +824,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             extensionScopedSettings
         );
 
-        ExtensionsManager extensionsManager = new ExtensionsManager(additionalSettings);
+        ExtensionsManager extensionsManager = new ExtensionsManager(additionalSettings, identityService);
         extensionsManager.loadExtension(firstExtension);
 
         DiscoveryExtensionNode extension = new DiscoveryExtensionNode(
@@ -862,7 +862,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             extensionScopedSettings
         );
 
-        ExtensionsManager extensionsManager = new ExtensionsManager(additionalSettings);
+        ExtensionsManager extensionsManager = new ExtensionsManager(additionalSettings, identityService);
         extensionsManager.loadExtension(firstExtension);
 
         DiscoveryExtensionNode extension = new DiscoveryExtensionNode(
