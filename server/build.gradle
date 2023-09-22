@@ -161,6 +161,9 @@ dependencies {
   api "org.ehcache:ehcache:${versions.ehcache}"
   api "org.slf4j:slf4j-api:${versions.slf4j}"
 
+  // roaring bitmaps
+  api 'org.roaringbitmap:RoaringBitmap:0.9.49'
+  runtimeOnly 'org.roaringbitmap:shims:0.9.49'
 
   testImplementation(project(":test:framework")) {
     // tests use the locally compiled version of server
