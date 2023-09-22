@@ -3508,6 +3508,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // }
         // }}
         // }
+        logger.debug("startRecovery type={}", recoveryState.getRecoverySource().getType());
         assert recoveryState.getRecoverySource().equals(shardRouting.recoverySource());
         switch (recoveryState.getRecoverySource().getType()) {
             case EMPTY_STORE:

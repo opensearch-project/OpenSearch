@@ -137,7 +137,7 @@ public class PublishCheckpointAction extends TransportReplicationAction<
                     @Override
                     public void handleResponse(ReplicationResponse response) {
                         timer.stop();
-                        logger.trace(
+                        logger.debug(
                             () -> new ParameterizedMessage(
                                 "[shardId {}] Completed publishing checkpoint [{}], timing: {}",
                                 indexShard.shardId().getId(),
@@ -152,7 +152,7 @@ public class PublishCheckpointAction extends TransportReplicationAction<
                     @Override
                     public void handleException(TransportException e) {
                         timer.stop();
-                        logger.trace("[shardId {}] Failed to publish checkpoint, timing: {}", indexShard.shardId().getId(), timer.time());
+                        logger.debug("[shardId {}] Failed to publish checkpoint, timing: {}", indexShard.shardId().getId(), timer.time());
                         task.setPhase("finished");
                         taskManager.unregister(task);
                         if (ExceptionsHelper.unwrap(

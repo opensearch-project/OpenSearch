@@ -399,7 +399,7 @@ final class StoreRecovery {
                 RemoteSegmentStoreDirectory sourceRemoteDirectory = (RemoteSegmentStoreDirectory) directoryFactory.newDirectory(
                     remoteStoreRepository,
                     indexUUID,
-                    String.valueOf(shardId.id())
+                    shardId
                 );
                 indexShard.syncSegmentsFromGivenRemoteSegmentStore(true, sourceRemoteDirectory, primaryTerm, commitGeneration);
                 final Store store = indexShard.store();
