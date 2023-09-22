@@ -37,6 +37,20 @@ public class NoopTokenManager implements TokenManager {
         };
     }
 
+    /**
+     * Issue a new Noop Token
+     * @return a new Noop Token
+     */
+    @Override
+    public AuthToken issueServiceAccountToken(final String audience) {
+        return new AuthToken() {
+            @Override
+            public String asAuthHeaderValue() {
+                return "noopToken";
+            }
+        };
+    }
+
     @Override
     public Subject authenticateToken(AuthToken authToken) {
         return null;

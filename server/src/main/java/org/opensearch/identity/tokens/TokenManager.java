@@ -24,6 +24,14 @@ public interface TokenManager {
     public AuthToken issueOnBehalfOfToken(final Subject subject, final OnBehalfOfClaims claims);
 
     /**
+     * Create a new service account token
+     *
+     * @param audience: A string representing the unique id of the extension for which a service account token should be generated
+     * @return a new auth token
+     */
+    public AuthToken issueServiceAccountToken(final String audience);
+
+    /**
      * Authenticates a provided authToken
      * @param authToken: The authToken to authenticate
      * @return The authenticated subject
