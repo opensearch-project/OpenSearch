@@ -10,7 +10,6 @@ package org.opensearch.telemetry.tracing;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.telemetry.tracing.attributes.Attributes;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -47,8 +46,8 @@ public class OTelTracingTelemetry implements TracingTelemetry {
     }
 
     @Override
-    public Span createSpan(String spanName, Span parentSpan, Attributes attributes, SpanKind spanKind) {
-        return createOtelSpan(spanName, parentSpan, attributes, spanKind);
+    public Span createSpan(SpanCreationContext spanCreationContext, Span parentSpan) {
+        return createOtelSpan(spanCreationContext, parentSpan);
     }
 
     @Override
@@ -56,14 +55,14 @@ public class OTelTracingTelemetry implements TracingTelemetry {
         return new OTelTracingContextPropagator(openTelemetry);
     }
 
-    private Span createOtelSpan(String spanName, Span parentSpan, Attributes attributes, SpanKind spanKind) {
+    private Span createOtelSpan(SpanCreationContext spanCreationContext, Span parentSpan) {
         io.opentelemetry.api.trace.Span otelSpan = otelSpan(
-            spanName,
+            spanCreationContext.getSpanName(),
             parentSpan,
-            OTelAttributesConverter.convert(attributes),
-            OTelSpanKindConverter.convert(spanKind)
+            OTelAttributesConverter.convert(spanCreationContext.getAttributes()),
+            OTelSpanKindConverter.convert(spanCreationContext.getSpanKind())
         );
-        Span newSpan = new OTelSpan(spanName, otelSpan, parentSpan);
+        Span newSpan = new OTelSpan(spanCreationContext.getSpanName(), otelSpan, parentSpan);
         return newSpan;
     }
 

@@ -10,6 +10,7 @@ package org.opensearch.test.telemetry.tracing;
 
 import org.opensearch.telemetry.tracing.AbstractSpan;
 import org.opensearch.telemetry.tracing.Span;
+import org.opensearch.telemetry.tracing.SpanCreationContext;
 import org.opensearch.telemetry.tracing.SpanKind;
 import org.opensearch.telemetry.tracing.attributes.Attributes;
 
@@ -39,38 +40,18 @@ public class MockSpan extends AbstractSpan {
     /**
      * Base Constructor.
      *
-     * @param spanName      Span Name
+     * @param spanCreationContext      Span Creation context.
      * @param parentSpan    Parent Span
      * @param spanProcessor Span Processor
-     * @param attributes    attributes
-     * @param spanKind      type of span.
      */
-    public MockSpan(String spanName, Span parentSpan, SpanProcessor spanProcessor, Attributes attributes, SpanKind spanKind) {
+    public MockSpan(SpanCreationContext spanCreationContext, Span parentSpan, SpanProcessor spanProcessor) {
         this(
-            spanName,
+            spanCreationContext.getSpanName(),
             parentSpan,
             parentSpan != null ? parentSpan.getTraceId() : IdGenerator.generateTraceId(),
             IdGenerator.generateSpanId(),
             spanProcessor,
-            attributes,
-            SpanKind.INTERNAL
-        );
-    }
-
-    /**
-     * Constructor.
-     * @param spanName span name.
-     * @param parentSpan parent span name
-     * @param spanProcessor span processor.
-     */
-    public MockSpan(String spanName, Span parentSpan, SpanProcessor spanProcessor) {
-        this(
-            spanName,
-            parentSpan,
-            parentSpan != null ? parentSpan.getTraceId() : IdGenerator.generateTraceId(),
-            IdGenerator.generateSpanId(),
-            spanProcessor,
-            Attributes.EMPTY,
+            spanCreationContext.getAttributes(),
             SpanKind.INTERNAL
         );
     }

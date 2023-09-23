@@ -10,7 +10,6 @@ package org.opensearch.telemetry.tracing;
 
 import org.opensearch.common.annotation.InternalApi;
 import org.opensearch.telemetry.TelemetrySettings;
-import org.opensearch.telemetry.tracing.attributes.Attributes;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
 
 import java.io.IOException;
@@ -41,17 +40,7 @@ final class WrappedTracer implements Tracer {
 
     @Override
     public Span startSpan(SpanCreationContext context) {
-        return startSpan(context.getSpanName(), context.getAttributes(), context.getSpanKind());
-    }
-
-    @Override
-    public Span startSpan(String spanName, SpanKind spanKind) {
-        return startSpan(spanName, Attributes.EMPTY, spanKind);
-    }
-
-    @Override
-    public Span startSpan(String spanName, Attributes attributes, SpanKind spanKind) {
-        return startSpan(spanName, (SpanContext) null, attributes, spanKind);
+        return getDelegateTracer().startSpan(context);
     }
 
     @Override
@@ -62,23 +51,12 @@ final class WrappedTracer implements Tracer {
 
     @Override
     public ScopedSpan startScopedSpan(SpanCreationContext spanCreationContext) {
-        return startScopedSpan(spanCreationContext, null);
-    }
-
-    @Override
-    public ScopedSpan startScopedSpan(SpanCreationContext spanCreationContext, SpanContext parentSpan) {
-        return getDelegateTracer().startScopedSpan(spanCreationContext, parentSpan);
+        return getDelegateTracer().startScopedSpan(spanCreationContext);
     }
 
     @Override
     public SpanScope withSpanInScope(Span span) {
         return getDelegateTracer().withSpanInScope(span);
-    }
-
-    @Override
-    public Span startSpan(String spanName, SpanContext parentSpan, Attributes attributes, SpanKind spanKind) {
-        Tracer delegateTracer = getDelegateTracer();
-        return delegateTracer.startSpan(spanName, parentSpan, attributes, spanKind);
     }
 
     @Override
