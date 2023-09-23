@@ -12,12 +12,14 @@ import org.opensearch.common.StreamContext;
 import org.opensearch.common.blobstore.stream.read.ReadContext;
 import org.opensearch.common.blobstore.stream.write.WriteContext;
 import org.opensearch.common.crypto.CryptoHandler;
+import org.opensearch.common.crypto.DecryptedRangedStreamProvider;
 import org.opensearch.common.io.InputStreamContainer;
 import org.opensearch.core.action.ActionListener;
-import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.nio.file.Path;
+import java.io.InputStream;
+import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * EncryptedBlobContainer is an encrypted BlobContainer that is backed by a
@@ -44,12 +46,17 @@ public class AsyncMultiStreamEncryptedBlobContainer<T, U> extends EncryptedBlobC
 
     @Override
     public void readBlobAsync(String blobName, ActionListener<ReadContext> listener) {
-        throw new UnsupportedOperationException();
-    }
+        try {
+            final U cryptoContext = cryptoHandler.loadEncryptionMetadata(getEncryptedHeaderContentSupplier(blobName));
+            ActionListener<ReadContext> decryptingCompletionListener = ActionListener.map(
+                listener,
+                readContext -> new DecryptedReadContext<>(readContext, cryptoHandler, cryptoContext)
+            );
 
-    @Override
-    public void asyncBlobDownload(String blobName, Path fileLocation, ThreadPool threadPool, ActionListener<String> completionListener) {
-        throw new UnsupportedOperationException();
+            blobContainer.readBlobAsync(blobName, decryptingCompletionListener);
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
     }
 
     @Override
@@ -107,5 +114,59 @@ public class AsyncMultiStreamEncryptedBlobContainer<T, U> extends EncryptedBlobC
             return cryptoHandler.createEncryptingStreamOfPart(encryptionMetadata, inputStreamContainer, getNumberOfParts(), partNumber);
         }
 
+    }
+
+    /**
+     * DecryptedReadContext decrypts the encrypted {@link ReadContext} by acting as a transformation wrapper around
+     * the encrypted object
+     * @param <T> Encryption Metadata / CryptoContext for the {@link CryptoHandler} instance
+     * @param <U> Parsed Encryption Metadata / CryptoContext for the {@link CryptoHandler} instance
+     */
+    static class DecryptedReadContext<T, U> extends ReadContext {
+
+        private final CryptoHandler<T, U> cryptoHandler;
+        private final U cryptoContext;
+        private Long blobSize;
+
+        public DecryptedReadContext(ReadContext readContext, CryptoHandler<T, U> cryptoHandler, U cryptoContext) {
+            super(readContext);
+            this.cryptoHandler = cryptoHandler;
+            this.cryptoContext = cryptoContext;
+        }
+
+        @Override
+        public long getBlobSize() {
+            // initializes the value lazily
+            if (blobSize == null) {
+                this.blobSize = this.cryptoHandler.estimateDecryptedLength(cryptoContext, super.getBlobSize());
+            }
+            return this.blobSize;
+        }
+
+        @Override
+        public List<InputStreamContainer> getPartStreams() {
+            return super.getPartStreams().stream().map(this::decryptInputStreamContainer).collect(Collectors.toList());
+        }
+
+        /**
+         * Transforms an encrypted {@link InputStreamContainer} to a decrypted instance
+         * @param inputStreamContainer encrypted input stream container instance
+         * @return decrypted input stream container instance
+         */
+        private InputStreamContainer decryptInputStreamContainer(InputStreamContainer inputStreamContainer) {
+            long startOfStream = inputStreamContainer.getOffset();
+            long endOfStream = startOfStream + inputStreamContainer.getContentLength() - 1;
+            DecryptedRangedStreamProvider decryptedStreamProvider = cryptoHandler.createDecryptingStreamOfRange(
+                cryptoContext,
+                startOfStream,
+                endOfStream
+            );
+
+            long adjustedPos = decryptedStreamProvider.getAdjustedRange()[0];
+            long adjustedLength = decryptedStreamProvider.getAdjustedRange()[1] - adjustedPos + 1;
+            final InputStream decryptedStream = decryptedStreamProvider.getDecryptedStreamProvider()
+                .apply(inputStreamContainer.getInputStream());
+            return new InputStreamContainer(decryptedStream, adjustedLength, adjustedPos);
+        }
     }
 }

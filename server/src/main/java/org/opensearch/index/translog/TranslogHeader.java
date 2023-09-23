@@ -147,7 +147,11 @@ public final class TranslogHeader {
         if (actualUUID.bytesEquals(expectedUUID) == false) {
             throw new TranslogCorruptedException(
                 path.toString(),
-                "expected shard UUID " + expectedUUID + " but got: " + actualUUID + " this translog file belongs to a different translog"
+                "expected shard UUID "
+                    + translogUUID
+                    + " but got: "
+                    + translogHeader.translogUUID
+                    + " this translog file belongs to a different translog"
             );
         }
         return translogHeader;

@@ -32,6 +32,8 @@
 
 package org.opensearch.repositories.s3;
 
+import software.amazon.awssdk.core.ResponseInputStream;
+import software.amazon.awssdk.core.async.AsyncResponseTransformer;
 import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
@@ -44,10 +46,15 @@ import software.amazon.awssdk.services.s3.model.CreateMultipartUploadRequest;
 import software.amazon.awssdk.services.s3.model.Delete;
 import software.amazon.awssdk.services.s3.model.DeleteObjectsRequest;
 import software.amazon.awssdk.services.s3.model.DeleteObjectsResponse;
+import software.amazon.awssdk.services.s3.model.GetObjectAttributesRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectAttributesResponse;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
+import software.amazon.awssdk.services.s3.model.ObjectAttributes;
 import software.amazon.awssdk.services.s3.model.ObjectIdentifier;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.S3Error;
@@ -63,6 +70,7 @@ import org.opensearch.ExceptionsHelper;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.StreamContext;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.blobstore.AsyncMultiStreamBlobContainer;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
@@ -75,11 +83,13 @@ import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.blobstore.support.AbstractBlobContainer;
 import org.opensearch.common.blobstore.support.PlainBlobMetadata;
 import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.io.InputStreamContainer;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.repositories.s3.async.UploadRequest;
+import org.opensearch.repositories.s3.utils.HttpRangeUtils;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -212,9 +222,45 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
         }
     }
 
+    @ExperimentalApi
     @Override
     public void readBlobAsync(String blobName, ActionListener<ReadContext> listener) {
-        throw new UnsupportedOperationException();
+        try (AmazonAsyncS3Reference amazonS3Reference = SocketAccess.doPrivileged(blobStore::asyncClientReference)) {
+            final S3AsyncClient s3AsyncClient = amazonS3Reference.get().client();
+            final String bucketName = blobStore.bucket();
+
+            final GetObjectAttributesResponse blobMetadata = getBlobMetadata(s3AsyncClient, bucketName, blobName).get();
+
+            final long blobSize = blobMetadata.objectSize();
+            final int numberOfParts = blobMetadata.objectParts().totalPartsCount();
+            final String blobChecksum = blobMetadata.checksum().checksumCRC32();
+
+            final List<InputStreamContainer> blobPartStreams = new ArrayList<>();
+            final List<CompletableFuture<InputStreamContainer>> blobPartInputStreamFutures = new ArrayList<>();
+            // S3 multipart files use 1 to n indexing
+            for (int partNumber = 1; partNumber <= numberOfParts; partNumber++) {
+                blobPartInputStreamFutures.add(getBlobPartInputStreamContainer(s3AsyncClient, bucketName, blobName, partNumber));
+            }
+
+            CompletableFuture.allOf(blobPartInputStreamFutures.toArray(CompletableFuture[]::new)).whenComplete((unused, throwable) -> {
+                if (throwable == null) {
+                    listener.onResponse(
+                        new ReadContext(
+                            blobSize,
+                            blobPartInputStreamFutures.stream().map(CompletableFuture::join).collect(Collectors.toList()),
+                            blobChecksum
+                        )
+                    );
+                } else {
+                    Exception ex = throwable.getCause() instanceof Exception
+                        ? (Exception) throwable.getCause()
+                        : new Exception(throwable.getCause());
+                    listener.onFailure(ex);
+                }
+            });
+        } catch (Exception ex) {
+            listener.onFailure(SdkException.create("Error occurred while fetching blob parts from the repository", ex));
+        }
     }
 
     public boolean remoteIntegrityCheckSupported() {
@@ -632,5 +678,66 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
         } else {
             return Tuple.tuple(parts + 1, remaining);
         }
+    }
+
+    /**
+     * Fetches a part of the blob from the S3 bucket and transforms it to an {@link InputStreamContainer}, which holds
+     * the stream and its related metadata.
+     * @param s3AsyncClient Async client to be utilized to fetch the object part
+     * @param bucketName Name of the S3 bucket
+     * @param blobName Identifier of the blob for which the parts will be fetched
+     * @param partNumber Part number for the blob to be retrieved
+     * @return A future of {@link InputStreamContainer} containing the stream and stream metadata.
+     */
+    CompletableFuture<InputStreamContainer> getBlobPartInputStreamContainer(
+        S3AsyncClient s3AsyncClient,
+        String bucketName,
+        String blobName,
+        int partNumber
+    ) {
+        final GetObjectRequest.Builder getObjectRequestBuilder = GetObjectRequest.builder()
+            .bucket(bucketName)
+            .key(blobName)
+            .partNumber(partNumber);
+
+        return SocketAccess.doPrivileged(
+            () -> s3AsyncClient.getObject(getObjectRequestBuilder.build(), AsyncResponseTransformer.toBlockingInputStream())
+                .thenApply(S3BlobContainer::transformResponseToInputStreamContainer)
+        );
+    }
+
+    /**
+     * Transforms the stream response object from S3 into an {@link InputStreamContainer}
+     * @param streamResponse Response stream object from S3
+     * @return {@link InputStreamContainer} containing the stream and stream metadata
+     */
+    // Package-Private for testing.
+    static InputStreamContainer transformResponseToInputStreamContainer(ResponseInputStream<GetObjectResponse> streamResponse) {
+        final GetObjectResponse getObjectResponse = streamResponse.response();
+        final String contentRange = getObjectResponse.contentRange();
+        final Long contentLength = getObjectResponse.contentLength();
+        if (contentRange == null || contentLength == null) {
+            throw SdkException.builder().message("Failed to fetch required metadata for blob part").build();
+        }
+        final Long offset = HttpRangeUtils.getStartOffsetFromRangeHeader(getObjectResponse.contentRange());
+        return new InputStreamContainer(streamResponse, getObjectResponse.contentLength(), offset);
+    }
+
+    /**
+     * Retrieves the metadata like checksum, object size and parts for the provided blob within the S3 bucket.
+     * @param s3AsyncClient Async client to be utilized to fetch the metadata
+     * @param bucketName Name of the S3 bucket
+     * @param blobName Identifier of the blob for which the metadata will be fetched
+     * @return A future containing the metadata within {@link GetObjectAttributesResponse}
+     */
+    CompletableFuture<GetObjectAttributesResponse> getBlobMetadata(S3AsyncClient s3AsyncClient, String bucketName, String blobName) {
+        // Fetch blob metadata - part info, size, checksum
+        final GetObjectAttributesRequest getObjectAttributesRequest = GetObjectAttributesRequest.builder()
+            .bucket(bucketName)
+            .key(blobName)
+            .objectAttributes(ObjectAttributes.CHECKSUM, ObjectAttributes.OBJECT_SIZE, ObjectAttributes.OBJECT_PARTS)
+            .build();
+
+        return SocketAccess.doPrivileged(() -> s3AsyncClient.getObjectAttributes(getObjectAttributesRequest));
     }
 }
