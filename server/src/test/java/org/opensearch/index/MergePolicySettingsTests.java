@@ -462,8 +462,8 @@ public class MergePolicySettingsTests extends OpenSearchTestCase {
                 Settings.builder()
                     .put(IndexSettings.INDEX_MERGE_POLICY.getKey(), "log_byte_size")
                     .put(
-                        LogByteSizeMergePolicyProvider.INDEX_LBS_MERGE_POLICY_MIN_MERGE_MB_SETTING.getKey(),
-                        new ByteSizeValue(LogByteSizeMergePolicyProvider.DEFAULT_MIN_MERGE_MB.getMb() + 1, ByteSizeUnit.MB)
+                        LogByteSizeMergePolicyProvider.INDEX_LBS_MERGE_POLICY_MIN_MERGE_SETTING.getKey(),
+                        new ByteSizeValue(LogByteSizeMergePolicyProvider.DEFAULT_MIN_MERGE.getMb() + 1, ByteSizeUnit.MB)
                     )
                     .build()
             )
@@ -471,7 +471,7 @@ public class MergePolicySettingsTests extends OpenSearchTestCase {
 
         assertEquals(
             ((LogByteSizeMergePolicy) indexSettings.getMergePolicy(true)).getMinMergeMB(),
-            new ByteSizeValue(LogByteSizeMergePolicyProvider.DEFAULT_MIN_MERGE_MB.getMb() + 1, ByteSizeUnit.MB).getMbFrac(),
+            new ByteSizeValue(LogByteSizeMergePolicyProvider.DEFAULT_MIN_MERGE.getMb() + 1, ByteSizeUnit.MB).getMbFrac(),
             0.001
         );
 
@@ -481,7 +481,7 @@ public class MergePolicySettingsTests extends OpenSearchTestCase {
                 Settings.builder()
                     .put(IndexSettings.INDEX_MERGE_POLICY.getKey(), "log_byte_size")
                     .put(
-                        LogByteSizeMergePolicyProvider.INDEX_LBS_MAX_MERGE_SEGMENT_MB_SETTING.getKey(),
+                        LogByteSizeMergePolicyProvider.INDEX_LBS_MAX_MERGE_SEGMENT_SETTING.getKey(),
                         new ByteSizeValue(LogByteSizeMergePolicyProvider.DEFAULT_MAX_MERGED_SEGMENT.getMb() + 100, ByteSizeUnit.MB)
                     )
                     .build()
@@ -500,9 +500,9 @@ public class MergePolicySettingsTests extends OpenSearchTestCase {
                 Settings.builder()
                     .put(IndexSettings.INDEX_MERGE_POLICY.getKey(), "log_byte_size")
                     .put(
-                        LogByteSizeMergePolicyProvider.INDEX_LBS_MAX_MERGE_SEGMENT_MB_FOR_FORCED_MERGE_SETTING.getKey(),
+                        LogByteSizeMergePolicyProvider.INDEX_LBS_MAX_MERGE_SEGMENT_FOR_FORCED_MERGE_SETTING.getKey(),
                         new ByteSizeValue(
-                            LogByteSizeMergePolicyProvider.DEFAULT_MAX_MERGE_SEGMENT_MB_FORCE_MERGE.getMb() + 1,
+                            LogByteSizeMergePolicyProvider.DEFAULT_MAX_MERGE_SEGMENT_FORCE_MERGE.getMb() - 100,
                             ByteSizeUnit.MB
                         )
                     )
@@ -511,7 +511,7 @@ public class MergePolicySettingsTests extends OpenSearchTestCase {
         );
         assertEquals(
             ((LogByteSizeMergePolicy) indexSettings.getMergePolicy(true)).getMaxMergeMBForForcedMerge(),
-            new ByteSizeValue(LogByteSizeMergePolicyProvider.DEFAULT_MAX_MERGE_SEGMENT_MB_FORCE_MERGE.getMb() + 1, ByteSizeUnit.MB)
+            new ByteSizeValue(LogByteSizeMergePolicyProvider.DEFAULT_MAX_MERGE_SEGMENT_FORCE_MERGE.getMb() - 100, ByteSizeUnit.MB)
                 .getMbFrac(),
             0.001
         );

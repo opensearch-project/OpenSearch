@@ -50,15 +50,12 @@ public class LogByteSizeMergePolicyProvider implements MergePolicyProvider {
     private final Logger logger;
     private final boolean mergesEnabled;
 
-    public static final ByteSizeValue DEFAULT_MIN_MERGE_MB = new ByteSizeValue(2, ByteSizeUnit.MB);
+    public static final ByteSizeValue DEFAULT_MIN_MERGE = new ByteSizeValue(2, ByteSizeUnit.MB);
     public static final int DEFAULT_MERGE_FACTOR = 10;
 
     public static final ByteSizeValue DEFAULT_MAX_MERGED_SEGMENT = new ByteSizeValue(5, ByteSizeUnit.GB);
 
-    public static final ByteSizeValue DEFAULT_MAX_MERGE_SEGMENT_MB_FORCE_MERGE = new ByteSizeValue(
-        Long.MAX_VALUE / ByteSizeUnit.GB.toBytes(1),
-        ByteSizeUnit.GB
-    );
+    public static final ByteSizeValue DEFAULT_MAX_MERGE_SEGMENT_FORCE_MERGE = new ByteSizeValue(Long.MAX_VALUE);
 
     public static final Setting<Integer> INDEX_LBS_MERGE_POLICY_MERGE_FACTOR_SETTING = Setting.intSetting(
         "index.merge.log_byte_size_policy.merge_factor",
@@ -68,23 +65,23 @@ public class LogByteSizeMergePolicyProvider implements MergePolicyProvider {
         Setting.Property.IndexScope
     );
 
-    public static final Setting<ByteSizeValue> INDEX_LBS_MERGE_POLICY_MIN_MERGE_MB_SETTING = Setting.byteSizeSetting(
-        "index.merge.log_byte_size_policy.min_merge_mb",
-        DEFAULT_MIN_MERGE_MB, // keeping it same as default floor segment for tiered merge policy
+    public static final Setting<ByteSizeValue> INDEX_LBS_MERGE_POLICY_MIN_MERGE_SETTING = Setting.byteSizeSetting(
+        "index.merge.log_byte_size_policy.min_merge",
+        DEFAULT_MIN_MERGE, // keeping it same as default floor segment for tiered merge policy
         Setting.Property.Dynamic,
         Setting.Property.IndexScope
     );
 
-    public static final Setting<ByteSizeValue> INDEX_LBS_MAX_MERGE_SEGMENT_MB_SETTING = Setting.byteSizeSetting(
-        "index.merge.log_byte_size_policy.max_merge_segment_mb",
+    public static final Setting<ByteSizeValue> INDEX_LBS_MAX_MERGE_SEGMENT_SETTING = Setting.byteSizeSetting(
+        "index.merge.log_byte_size_policy.max_merge_segment",
         DEFAULT_MAX_MERGED_SEGMENT, // keeping default same as tiered merge policy
         Setting.Property.Dynamic,
         Setting.Property.IndexScope
     );
 
-    public static final Setting<ByteSizeValue> INDEX_LBS_MAX_MERGE_SEGMENT_MB_FOR_FORCED_MERGE_SETTING = Setting.byteSizeSetting(
-        "index.merge.log_byte_size_policy.max_merge_segment_mb_forced_merge",
-        DEFAULT_MAX_MERGE_SEGMENT_MB_FORCE_MERGE,
+    public static final Setting<ByteSizeValue> INDEX_LBS_MAX_MERGE_SEGMENT_FOR_FORCED_MERGE_SETTING = Setting.byteSizeSetting(
+        "index.merge.log_byte_size_policy.max_merge_segment_forced_merge",
+        DEFAULT_MAX_MERGE_SEGMENT_FORCE_MERGE,
         Setting.Property.Dynamic,
         Setting.Property.IndexScope
     );
@@ -110,10 +107,10 @@ public class LogByteSizeMergePolicyProvider implements MergePolicyProvider {
 
         // Undocumented settings, works great with defaults
         logByteSizeMergePolicy.setMergeFactor(indexSettings.getValue(INDEX_LBS_MERGE_POLICY_MERGE_FACTOR_SETTING));
-        logByteSizeMergePolicy.setMinMergeMB(indexSettings.getValue(INDEX_LBS_MERGE_POLICY_MIN_MERGE_MB_SETTING).getMbFrac());
-        logByteSizeMergePolicy.setMaxMergeMB(indexSettings.getValue(INDEX_LBS_MAX_MERGE_SEGMENT_MB_SETTING).getMbFrac());
+        logByteSizeMergePolicy.setMinMergeMB(indexSettings.getValue(INDEX_LBS_MERGE_POLICY_MIN_MERGE_SETTING).getMbFrac());
+        logByteSizeMergePolicy.setMaxMergeMB(indexSettings.getValue(INDEX_LBS_MAX_MERGE_SEGMENT_SETTING).getMbFrac());
         logByteSizeMergePolicy.setMaxMergeMBForForcedMerge(
-            indexSettings.getValue(INDEX_LBS_MAX_MERGE_SEGMENT_MB_FOR_FORCED_MERGE_SETTING).getMbFrac()
+            indexSettings.getValue(INDEX_LBS_MAX_MERGE_SEGMENT_FOR_FORCED_MERGE_SETTING).getMbFrac()
         );
         logByteSizeMergePolicy.setMaxMergeDocs(indexSettings.getValue(INDEX_LBS_MAX_MERGED_DOCS_SETTING));
         logByteSizeMergePolicy.setNoCFSRatio(indexSettings.getValue(INDEX_LBS_NO_CFS_RATIO_SETTING));
@@ -132,12 +129,12 @@ public class LogByteSizeMergePolicyProvider implements MergePolicyProvider {
         logByteSizeMergePolicy.setMaxMergeMB(maxMergeSegment.getMbFrac());
     }
 
-    void setLBSMinMergedMB(ByteSizeValue minMergedMB) {
-        logByteSizeMergePolicy.setMinMergeMB(minMergedMB.getMbFrac());
+    void setLBSMinMergedMB(ByteSizeValue minMergedSize) {
+        logByteSizeMergePolicy.setMinMergeMB(minMergedSize.getMbFrac());
     }
 
-    void setLBSMaxMergeMBForForcedMerge(ByteSizeValue maxMergeMBForcedMerge) {
-        logByteSizeMergePolicy.setMaxMergeMBForForcedMerge(maxMergeMBForcedMerge.getMbFrac());
+    void setLBSMaxMergeMBForForcedMerge(ByteSizeValue maxMergeForcedMerge) {
+        logByteSizeMergePolicy.setMaxMergeMBForForcedMerge(maxMergeForcedMerge.getMbFrac());
     }
 
     void setLBSMaxMergeDocs(int maxMergeDocs) {

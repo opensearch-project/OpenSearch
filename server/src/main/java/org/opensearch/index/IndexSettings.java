@@ -963,15 +963,15 @@ public final class IndexSettings {
             logByteSizeMergePolicyProvider::setLBSMergeFactor
         );
         scopedSettings.addSettingsUpdateConsumer(
-            LogByteSizeMergePolicyProvider.INDEX_LBS_MERGE_POLICY_MIN_MERGE_MB_SETTING,
+            LogByteSizeMergePolicyProvider.INDEX_LBS_MERGE_POLICY_MIN_MERGE_SETTING,
             logByteSizeMergePolicyProvider::setLBSMinMergedMB
         );
         scopedSettings.addSettingsUpdateConsumer(
-            LogByteSizeMergePolicyProvider.INDEX_LBS_MAX_MERGE_SEGMENT_MB_SETTING,
+            LogByteSizeMergePolicyProvider.INDEX_LBS_MAX_MERGE_SEGMENT_SETTING,
             logByteSizeMergePolicyProvider::setLBSMaxMergeSegment
         );
         scopedSettings.addSettingsUpdateConsumer(
-            LogByteSizeMergePolicyProvider.INDEX_LBS_MAX_MERGE_SEGMENT_MB_FOR_FORCED_MERGE_SETTING,
+            LogByteSizeMergePolicyProvider.INDEX_LBS_MAX_MERGE_SEGMENT_FOR_FORCED_MERGE_SETTING,
             logByteSizeMergePolicyProvider::setLBSMaxMergeMBForForcedMerge
         );
         scopedSettings.addSettingsUpdateConsumer(
