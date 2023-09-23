@@ -42,6 +42,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.equalTo;
+
 public class RemoveProcessorTests extends OpenSearchTestCase {
 
     public void testRemoveFields() throws Exception {
@@ -54,7 +56,7 @@ public class RemoveProcessorTests extends OpenSearchTestCase {
             false
         );
         processor.execute(ingestDocument);
-        assertFalse(ingestDocument.hasField(field));
+        assertThat(ingestDocument.hasField(field), equalTo(false));
     }
 
     public void testRemoveNonExistingField() throws Exception {
@@ -64,9 +66,11 @@ public class RemoveProcessorTests extends OpenSearchTestCase {
         config.put("field", fieldName);
         String processorTag = randomAlphaOfLength(10);
         Processor processor = new RemoveProcessor.Factory(TestTemplateService.instance()).create(null, processorTag, null, config);
-        assertThrows("field [" + fieldName + "] doesn't exist", IllegalArgumentException.class, () -> {
-            processor.execute(ingestDocument);
-        });
+        assertThrows(
+            "field [" + fieldName + "] doesn't exist",
+            IllegalArgumentException.class,
+            () -> { processor.execute(ingestDocument); }
+        );
 
         Map<String, Object> configWithEmptyField = new HashMap<>();
         configWithEmptyField.put("field", "");
