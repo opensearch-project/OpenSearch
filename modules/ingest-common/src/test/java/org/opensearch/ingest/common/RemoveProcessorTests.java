@@ -81,9 +81,29 @@ public class RemoveProcessorTests extends OpenSearchTestCase {
             null,
             configWithEmptyField
         );
-        assertThrows("field path cannot be null nor empty", IllegalArgumentException.class, () -> {
-            removeProcessorWithEmptyField.execute(ingestDocument);
-        });
+        assertThrows(
+            "field path cannot be null nor empty",
+            IllegalArgumentException.class,
+            () -> removeProcessorWithEmptyField.execute(ingestDocument)
+        );
+    }
+
+    public void testRemoveEmptyField() throws Exception {
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "");
+        String processorTag = randomAlphaOfLength(10);
+        Processor removeProcessorWithEmptyField = new RemoveProcessor.Factory(TestTemplateService.instance()).create(
+            null,
+            processorTag,
+            null,
+            config
+        );
+        assertThrows(
+            "field path cannot be null nor empty",
+            IllegalArgumentException.class,
+            () -> removeProcessorWithEmptyField.execute(ingestDocument)
+        );
     }
 
     public void testIgnoreMissing() throws Exception {
