@@ -92,15 +92,22 @@ public class NodePerformanceTracker extends AbstractLifecycleComponent {
         cpuUsageTracker = new AverageCpuUsageTracker(
             threadPool,
             performanceTrackerSettings.getCpuPollingInterval(),
-            performanceTrackerSettings.getCpuWindowDuration(),
-            clusterSettings
+            performanceTrackerSettings.getCpuWindowDuration()
+        );
+
+        clusterSettings.addSettingsUpdateConsumer(
+            PerformanceTrackerSettings.GLOBAL_CPU_USAGE_AC_WINDOW_DURATION_SETTING,
+            cpuUsageTracker::setWindowDuration
         );
 
         memoryUsageTracker = new AverageMemoryUsageTracker(
             threadPool,
             performanceTrackerSettings.getMemoryPollingInterval(),
-            performanceTrackerSettings.getMemoryWindowDuration(),
-            clusterSettings
+            performanceTrackerSettings.getMemoryWindowDuration()
+        );
+        clusterSettings.addSettingsUpdateConsumer(
+            PerformanceTrackerSettings.GLOBAL_JVM_USAGE_AC_WINDOW_DURATION_SETTING,
+            memoryUsageTracker::setWindowDuration
         );
     }
 

@@ -10,7 +10,6 @@ package org.opensearch.throttling.tracker;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -27,17 +26,8 @@ public class AverageMemoryUsageTracker extends AbstractAverageUsageTracker {
 
     private static final MemoryMXBean MEMORY_MX_BEAN = ManagementFactory.getMemoryMXBean();
 
-    public AverageMemoryUsageTracker(
-        ThreadPool threadPool,
-        TimeValue pollingInterval,
-        TimeValue windowDuration,
-        ClusterSettings clusterSettings
-    ) {
+    public AverageMemoryUsageTracker(ThreadPool threadPool, TimeValue pollingInterval, TimeValue windowDuration) {
         super(threadPool, pollingInterval, windowDuration);
-        clusterSettings.addSettingsUpdateConsumer(
-            PerformanceTrackerSettings.GLOBAL_JVM_USAGE_AC_WINDOW_DURATION_SETTING,
-            this::setWindowDuration
-        );
     }
 
     @Override

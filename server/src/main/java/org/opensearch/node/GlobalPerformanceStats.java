@@ -21,37 +21,40 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 /**
- * This class represents collected performance stats of all downstream nodes and the local node
+ * This class represents performance stats such as CPU, Memory and IO resource usage of each node along with the time
+ * elapsed from when the stats were recorded.
  */
-public class NodesPerformanceStats implements Writeable, ToXContentFragment {
-    private final Map<String, NodePerformanceStatistics> nodePerfStats;
+public class GlobalPerformanceStats implements Writeable, ToXContentFragment {
 
-    public NodesPerformanceStats(Map<String, NodePerformanceStatistics> nodePerfStats) {
-        this.nodePerfStats = nodePerfStats;
+    // Map of node id to perf stats of the corresponding node.
+    private final Map<String, NodePerformanceStatistics> nodeIdToPerfStatsMap;
+
+    public GlobalPerformanceStats(Map<String, NodePerformanceStatistics> nodeIdToPerfStatsMap) {
+        this.nodeIdToPerfStatsMap = nodeIdToPerfStatsMap;
     }
 
-    public NodesPerformanceStats(StreamInput in) throws IOException {
-        this.nodePerfStats = in.readMap(StreamInput::readString, NodePerformanceStatistics::new);
+    public GlobalPerformanceStats(StreamInput in) throws IOException {
+        this.nodeIdToPerfStatsMap = in.readMap(StreamInput::readString, NodePerformanceStatistics::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(this.nodePerfStats, StreamOutput::writeString, (stream, stats) -> stats.writeTo(stream));
+        out.writeMap(this.nodeIdToPerfStatsMap, StreamOutput::writeString, (stream, stats) -> stats.writeTo(stream));
     }
 
     /**
-     * Returns map of node id to perf stats
+     * Returns map of node id to perf stats of the corresponding node.
      */
     public Map<String, NodePerformanceStatistics> getNodeIdToNodePerfStatsMap() {
-        return nodePerfStats;
+        return nodeIdToPerfStatsMap;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject("nodes_performance_stats");
-        for (String nodeId : nodePerfStats.keySet()) {
+        builder.startObject("performance_stats");
+        for (String nodeId : nodeIdToPerfStatsMap.keySet()) {
             builder.startObject(nodeId);
-            NodePerformanceStatistics perfStats = nodePerfStats.get(nodeId);
+            NodePerformanceStatistics perfStats = nodeIdToPerfStatsMap.get(nodeId);
             if (perfStats != null) {
 
                 builder.field("cpu_utilization_percent", String.format(Locale.ROOT, "%.1f", perfStats.cpuUtilizationPercent));

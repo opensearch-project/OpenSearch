@@ -74,8 +74,8 @@ public class PerformanceCollectorService implements ClusterStateListener {
         return Optional.ofNullable(nodeIdToPerfStats.get(nodeId)).map(perfStats -> new NodePerformanceStatistics(perfStats));
     }
 
-    public NodesPerformanceStats stats() {
-        return new NodesPerformanceStats(getAllNodeStatistics());
+    public GlobalPerformanceStats stats() {
+        return new GlobalPerformanceStats(getAllNodeStatistics());
     }
 
 }
