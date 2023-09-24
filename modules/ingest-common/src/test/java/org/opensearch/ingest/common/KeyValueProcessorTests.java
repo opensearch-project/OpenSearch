@@ -124,7 +124,7 @@ public class KeyValueProcessorTests extends OpenSearchTestCase {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.emptyMap());
         Processor processor = createKvProcessor("unknown", "&", "=", null, null, "target", false);
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
-        assertEquals(exception.getMessage(), "field [unknown] doesn't exist");
+        assertThat(exception.getMessage(), equalTo("field [unknown] doesn't exist"));
 
         // when using template snippet, the resolved field path maybe empty
         Processor processorWithEmptyFieldPath = createKvProcessor("", "&", "=", null, null, "target", false);
