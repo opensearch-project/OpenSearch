@@ -48,6 +48,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.opensearch.ingest.IngestDocumentMatcher.assertIngestDocument;
+import static org.hamcrest.Matchers.equalTo;
 
 public class KeyValueProcessorTests extends OpenSearchTestCase {
 
@@ -58,8 +59,8 @@ public class KeyValueProcessorTests extends OpenSearchTestCase {
         String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, "first=hello&second=world&second=universe");
         Processor processor = createKvProcessor(fieldName, "&", "=", null, null, "target", false);
         processor.execute(ingestDocument);
-        assertEquals(ingestDocument.getFieldValue("target.first", String.class), "hello");
-        assertEquals(ingestDocument.getFieldValue("target.second", List.class), Arrays.asList("world", "universe"));
+        assertThat(ingestDocument.getFieldValue("target.first", String.class), equalTo("hello"));
+        assertThat(ingestDocument.getFieldValue("target.second", List.class), equalTo(Arrays.asList("world", "universe")));
     }
 
     public void testRootTarget() throws Exception {
@@ -67,8 +68,8 @@ public class KeyValueProcessorTests extends OpenSearchTestCase {
         ingestDocument.setFieldValue("myField", "first=hello&second=world&second=universe");
         Processor processor = createKvProcessor("myField", "&", "=", null, null, null, false);
         processor.execute(ingestDocument);
-        assertEquals(ingestDocument.getFieldValue("first", String.class), "hello");
-        assertEquals(ingestDocument.getFieldValue("second", List.class), Arrays.asList("world", "universe"));
+        assertThat(ingestDocument.getFieldValue("first", String.class), equalTo("hello"));
+        assertThat(ingestDocument.getFieldValue("second", List.class), equalTo(Arrays.asList("world", "universe")));
     }
 
     public void testKeySameAsSourceField() throws Exception {
@@ -76,7 +77,7 @@ public class KeyValueProcessorTests extends OpenSearchTestCase {
         ingestDocument.setFieldValue("first", "first=hello");
         Processor processor = createKvProcessor("first", "&", "=", null, null, null, false);
         processor.execute(ingestDocument);
-        assertEquals(ingestDocument.getFieldValue("first", List.class), Arrays.asList("first=hello", "hello"));
+        assertThat(ingestDocument.getFieldValue("first", List.class), equalTo(Arrays.asList("first=hello", "hello")));
     }
 
     public void testIncludeKeys() throws Exception {
@@ -84,7 +85,7 @@ public class KeyValueProcessorTests extends OpenSearchTestCase {
         String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, "first=hello&second=world&second=universe");
         Processor processor = createKvProcessor(fieldName, "&", "=", Sets.newHashSet("first"), null, "target", false);
         processor.execute(ingestDocument);
-        assertEquals(ingestDocument.getFieldValue("target.first", String.class), "hello");
+        assertThat(ingestDocument.getFieldValue("target.first", String.class), equalTo("hello"));
         assertFalse(ingestDocument.hasField("target.second"));
     }
 
@@ -93,7 +94,7 @@ public class KeyValueProcessorTests extends OpenSearchTestCase {
         String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, "first=hello&second=world&second=universe");
         Processor processor = createKvProcessor(fieldName, "&", "=", null, Sets.newHashSet("second"), "target", false);
         processor.execute(ingestDocument);
-        assertEquals(ingestDocument.getFieldValue("target.first", String.class), "hello");
+        assertThat(ingestDocument.getFieldValue("target.first", String.class), equalTo("hello"));
         assertFalse(ingestDocument.hasField("target.second"));
     }
 
@@ -128,7 +129,7 @@ public class KeyValueProcessorTests extends OpenSearchTestCase {
         // when using template snippet, the resolved field path maybe empty
         Processor processorWithEmptyFieldPath = createKvProcessor("", "&", "=", null, null, "target", false);
         exception = expectThrows(IllegalArgumentException.class, () -> processorWithEmptyFieldPath.execute(ingestDocument));
-        assertEquals(exception.getMessage(), "field path cannot be null nor empty");
+        assertThat(exception.getMessage(), equalTo("field path cannot be null nor empty"));
     }
 
     public void testNullValueWithIgnoreMissing() throws Exception {
@@ -156,7 +157,7 @@ public class KeyValueProcessorTests extends OpenSearchTestCase {
         String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, "first=hello|second=world|second=universe");
         Processor processor = createKvProcessor(fieldName, "&", "=", null, null, "target", false);
         processor.execute(ingestDocument);
-        assertEquals(ingestDocument.getFieldValue("target.first", String.class), "hello|second=world|second=universe");
+        assertThat(ingestDocument.getFieldValue("target.first", String.class), equalTo("hello|second=world|second=universe"));
         assertFalse(ingestDocument.hasField("target.second"));
     }
 
@@ -164,7 +165,7 @@ public class KeyValueProcessorTests extends OpenSearchTestCase {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.singletonMap("foo", "bar"));
         Processor processor = createKvProcessor("foo", "&", "=", null, null, "target", false);
         Exception exception = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
-        assertEquals(exception.getMessage(), "field [foo] does not contain value_split [=]");
+        assertThat(exception.getMessage(), equalTo("field [foo] does not contain value_split [=]"));
     }
 
     public void testTrimKeyAndValue() throws Exception {
@@ -172,8 +173,8 @@ public class KeyValueProcessorTests extends OpenSearchTestCase {
         String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, "first= hello &second=world& second =universe");
         Processor processor = createKvProcessor(fieldName, "&", "=", null, null, "target", false, " ", " ", false, null);
         processor.execute(ingestDocument);
-        assertEquals(ingestDocument.getFieldValue("target.first", String.class), "hello");
-        assertEquals(ingestDocument.getFieldValue("target.second", List.class), Arrays.asList("world", "universe"));
+        assertThat(ingestDocument.getFieldValue("target.first", String.class), equalTo("hello"));
+        assertThat(ingestDocument.getFieldValue("target.second", List.class), equalTo(Arrays.asList("world", "universe")));
     }
 
     public void testTrimMultiCharSequence() throws Exception {
@@ -186,13 +187,13 @@ public class KeyValueProcessorTests extends OpenSearchTestCase {
         );
         Processor processor = createKvProcessor(fieldName, " ", "=", null, null, "target", false, "%+", "<>,", false, null);
         processor.execute(ingestDocument);
-        assertEquals(ingestDocument.getFieldValue("target.to", String.class), "foo@example.com");
-        assertEquals(ingestDocument.getFieldValue("target.orig_to", String.class), "bar@example.com");
-        assertEquals(ingestDocument.getFieldValue("target.relay", String.class), "mail.example.com[private/dovecot-lmtp]");
-        assertEquals(ingestDocument.getFieldValue("target.delay", String.class), "2.2");
-        assertEquals(ingestDocument.getFieldValue("target.delays", String.class), "1.9/0.01/0.01/0.21");
-        assertEquals(ingestDocument.getFieldValue("target.dsn", String.class), "2.0.0");
-        assertEquals(ingestDocument.getFieldValue("target.status", String.class), "sent");
+        assertThat(ingestDocument.getFieldValue("target.to", String.class), equalTo("foo@example.com"));
+        assertThat(ingestDocument.getFieldValue("target.orig_to", String.class), equalTo("bar@example.com"));
+        assertThat(ingestDocument.getFieldValue("target.relay", String.class), equalTo("mail.example.com[private/dovecot-lmtp]"));
+        assertThat(ingestDocument.getFieldValue("target.delay", String.class), equalTo("2.2"));
+        assertThat(ingestDocument.getFieldValue("target.delays", String.class), equalTo("1.9/0.01/0.01/0.21"));
+        assertThat(ingestDocument.getFieldValue("target.dsn", String.class), equalTo("2.0.0"));
+        assertThat(ingestDocument.getFieldValue("target.status", String.class), equalTo("sent"));
     }
 
     public void testStripBrackets() throws Exception {
@@ -204,11 +205,11 @@ public class KeyValueProcessorTests extends OpenSearchTestCase {
         );
         Processor processor = createKvProcessor(fieldName, "&", "=", null, null, "target", false, null, null, true, null);
         processor.execute(ingestDocument);
-        assertEquals(ingestDocument.getFieldValue("target.first", String.class), "hello");
-        assertEquals(ingestDocument.getFieldValue("target.second", List.class), Arrays.asList("world", "universe"));
-        assertEquals(ingestDocument.getFieldValue("target.third", String.class), "foo");
-        assertEquals(ingestDocument.getFieldValue("target.fourth", String.class), "bar");
-        assertEquals(ingestDocument.getFieldValue("target.fifth", String.class), "last");
+        assertThat(ingestDocument.getFieldValue("target.first", String.class), equalTo("hello"));
+        assertThat(ingestDocument.getFieldValue("target.second", List.class), equalTo(Arrays.asList("world", "universe")));
+        assertThat(ingestDocument.getFieldValue("target.third", String.class), equalTo("foo"));
+        assertThat(ingestDocument.getFieldValue("target.fourth", String.class), equalTo("bar"));
+        assertThat(ingestDocument.getFieldValue("target.fifth", String.class), equalTo("last"));
     }
 
     public void testAddPrefix() throws Exception {
@@ -216,8 +217,8 @@ public class KeyValueProcessorTests extends OpenSearchTestCase {
         String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, "first=hello&second=world&second=universe");
         Processor processor = createKvProcessor(fieldName, "&", "=", null, null, "target", false, null, null, false, "arg_");
         processor.execute(ingestDocument);
-        assertEquals(ingestDocument.getFieldValue("target.arg_first", String.class), "hello");
-        assertEquals(ingestDocument.getFieldValue("target.arg_second", List.class), Arrays.asList("world", "universe"));
+        assertThat(ingestDocument.getFieldValue("target.arg_first", String.class), equalTo("hello"));
+        assertThat(ingestDocument.getFieldValue("target.arg_second", List.class), equalTo(Arrays.asList("world", "universe")));
     }
 
     private static KeyValueProcessor createKvProcessor(
