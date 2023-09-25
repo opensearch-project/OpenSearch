@@ -112,7 +112,12 @@ public final class IndexSettings {
                     return policy;
                 }
             }
-            return null;
+            throw new IllegalArgumentException(
+                "The setting has unsupported policy specified: "
+                    + text
+                    + ". Please use one of: "
+                    + String.join(", ", Arrays.stream(IndexMergePolicy.values()).map(IndexMergePolicy::getValue).toArray(String[]::new))
+            );
         }
     }
 
@@ -601,34 +606,17 @@ public final class IndexSettings {
         Property.Dynamic
     );
 
-    public static final Setting<String> INDEX_MERGE_POLICY = Setting.simpleString("index.merge.policy", DEFAULT_POLICY, policy -> {
-        if (IndexMergePolicy.fromString(policy) == null) {
-            throw new IllegalArgumentException(
-                "The "
-                    + IndexSettings.INDEX_MERGE_POLICY.getKey()
-                    + " has unsupported policy specified: "
-                    + policy
-                    + ". Please use one of: "
-                    + String.join(", ", Arrays.stream(IndexMergePolicy.values()).map(IndexMergePolicy::getValue).toArray(String[]::new))
-            );
-        }
-    }, Property.IndexScope);
+    public static final Setting<String> INDEX_MERGE_POLICY = Setting.simpleString(
+        "index.merge.policy",
+        DEFAULT_POLICY,
+        IndexMergePolicy::fromString,
+        Property.IndexScope
+    );
 
     public static final Setting<String> TIME_INDEX_MERGE_POLICY = Setting.simpleString(
         "indices.time_index.default_index_merge_policy",
         DEFAULT_POLICY,
-        policy -> {
-            if (IndexMergePolicy.fromString(policy) == null) {
-                throw new IllegalArgumentException(
-                    "The "
-                        + IndexSettings.TIME_INDEX_MERGE_POLICY.getKey()
-                        + " has unsupported policy specified: "
-                        + policy
-                        + ". Please use one of: "
-                        + String.join(", ", Arrays.stream(IndexMergePolicy.values()).map(IndexMergePolicy::getValue).toArray(String[]::new))
-                );
-            }
-        },
+        IndexMergePolicy::fromString,
         Property.NodeScope
     );
 

@@ -188,31 +188,25 @@ public class MergePolicySettingsTests extends OpenSearchTestCase {
             IllegalArgumentException.class,
             () -> IndexSettings.INDEX_MERGE_POLICY.get(invalidSettings)
         );
-        assertThat(exc1.getMessage(), containsString(IndexSettings.INDEX_MERGE_POLICY.getKey() + " has unsupported policy specified: "));
+        assertThat(exc1.getMessage(), containsString(" has unsupported policy specified: "));
         IllegalArgumentException exc2 = expectThrows(
             IllegalArgumentException.class,
             () -> indexSettings(invalidSettings).getMergePolicy(false)
         );
-        assertThat(exc2.getMessage(), containsString(IndexSettings.INDEX_MERGE_POLICY.getKey() + " has unsupported policy specified: "));
+        assertThat(exc2.getMessage(), containsString(" has unsupported policy specified: "));
 
         final Settings invalidSettings2 = Settings.builder().put(IndexSettings.TIME_INDEX_MERGE_POLICY.getKey(), "invalid").build();
         IllegalArgumentException exc3 = expectThrows(
             IllegalArgumentException.class,
             () -> IndexSettings.TIME_INDEX_MERGE_POLICY.get(invalidSettings2)
         );
-        assertThat(
-            exc3.getMessage(),
-            containsString(IndexSettings.TIME_INDEX_MERGE_POLICY.getKey() + " has unsupported policy specified: ")
-        );
+        assertThat(exc3.getMessage(), containsString(" has unsupported policy specified: "));
 
         IllegalArgumentException exc4 = expectThrows(
             IllegalArgumentException.class,
             () -> new IndexSettings(newIndexMeta("test", Settings.EMPTY), invalidSettings2).getMergePolicy(true)
         );
-        assertThat(
-            exc4.getMessage(),
-            containsString(IndexSettings.TIME_INDEX_MERGE_POLICY.getKey() + " has unsupported policy specified: ")
-        );
+        assertThat(exc4.getMessage(), containsString(" has unsupported policy specified: "));
     }
 
     public void testUpdateSettingsForLogByteSizeMergePolicy() throws IOException {
