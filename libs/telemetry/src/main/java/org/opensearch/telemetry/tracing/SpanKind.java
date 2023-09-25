@@ -8,9 +8,12 @@
 
 package org.opensearch.telemetry.tracing;
 
+import org.opensearch.common.annotation.PublicApi;
+
 /**
  * Type of Span.
  */
+@PublicApi(since = "2.11.0")
 public enum SpanKind {
     /**
      * Span represents the client side code.

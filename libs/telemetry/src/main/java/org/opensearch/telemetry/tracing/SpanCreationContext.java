@@ -26,14 +26,6 @@ public final class SpanCreationContext {
     private SpanContext parent;
 
     /**
-     * Factory method to create {@link SpanCreationContext}
-     * @return spanCreationContext
-     */
-    public static SpanCreationContext create() {
-        return new SpanCreationContext();
-    }
-
-    /**
      * Constructor.
      */
     private SpanCreationContext() {}
@@ -42,27 +34,30 @@ public final class SpanCreationContext {
      * Sets the span type to server.
      * @return spanCreationContext
      */
-    public SpanCreationContext server() {
-        this.spanKind = SpanKind.SERVER;
-        return this;
+    public static SpanCreationContext server() {
+        SpanCreationContext spanCreationContext = new SpanCreationContext();
+        spanCreationContext.spanKind = SpanKind.SERVER;
+        return spanCreationContext;
     }
 
     /**
      * Sets the span type to client.
      * @return spanCreationContext
      */
-    public SpanCreationContext client() {
-        this.spanKind = SpanKind.CLIENT;
-        return this;
+    public static SpanCreationContext client() {
+        SpanCreationContext spanCreationContext = new SpanCreationContext();
+        spanCreationContext.spanKind = SpanKind.CLIENT;
+        return spanCreationContext;
     }
 
     /**
      * Sets the span type to internal.
      * @return spanCreationContext
      */
-    public SpanCreationContext internal() {
-        this.spanKind = SpanKind.INTERNAL;
-        return this;
+    public static SpanCreationContext internal() {
+        SpanCreationContext spanCreationContext = new SpanCreationContext();
+        spanCreationContext.spanKind = SpanKind.INTERNAL;
+        return spanCreationContext;
     }
 
     /**

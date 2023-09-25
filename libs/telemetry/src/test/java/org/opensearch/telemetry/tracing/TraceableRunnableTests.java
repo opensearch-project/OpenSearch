@@ -34,7 +34,7 @@ public class TraceableRunnableTests extends OpenSearchTestCase {
         final AtomicReference<String> attributeValue = new AtomicReference<>();
         TraceableRunnable traceableRunnable = new TraceableRunnable(
             defaultTracer,
-            SpanCreationContext.create().name(spanName).attributes(Attributes.create().addAttribute("name", "value")),
+            SpanCreationContext.internal().name(spanName).attributes(Attributes.create().addAttribute("name", "value")),
             () -> {
                 spanNameCaptured.set(defaultTracer.getCurrentSpan().getSpan().getSpanName());
                 attributeValue.set((String) ((MockSpan) defaultTracer.getCurrentSpan().getSpan()).getAttribute("name"));
@@ -54,14 +54,14 @@ public class TraceableRunnableTests extends OpenSearchTestCase {
         String parentSpanName = "parentSpan";
         DefaultTracer defaultTracer = new DefaultTracer(new MockTracingTelemetry(), contextStorage);
         ScopedSpan scopedSpan = defaultTracer.startScopedSpan(
-            SpanCreationContext.create().name(parentSpanName).attributes(Attributes.EMPTY)
+            SpanCreationContext.internal().name(parentSpanName).attributes(Attributes.EMPTY)
         );
         SpanContext parentSpanContext = defaultTracer.getCurrentSpan();
         AtomicReference<SpanContext> currentSpan = new AtomicReference<>();
         final AtomicBoolean isRunnableCompleted = new AtomicBoolean(false);
         TraceableRunnable traceableRunnable = new TraceableRunnable(
             defaultTracer,
-            SpanCreationContext.create()
+            SpanCreationContext.internal()
                 .name(spanName)
                 .attributes(Attributes.create().addAttribute("name", "value"))
                 .parent(parentSpanContext),

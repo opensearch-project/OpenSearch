@@ -45,7 +45,7 @@ public final class SpanBuilder {
      * @return context.
      */
     public static SpanCreationContext from(HttpRequest request) {
-        return SpanCreationContext.create().server().name(createSpanName(request)).attributes(buildSpanAttributes(request));
+        return SpanCreationContext.server().name(createSpanName(request)).attributes(buildSpanAttributes(request));
     }
 
     /**
@@ -54,7 +54,7 @@ public final class SpanBuilder {
      * @return context
      */
     public static SpanCreationContext from(RestRequest request) {
-        return SpanCreationContext.create().client().name(createSpanName(request)).attributes(buildSpanAttributes(request));
+        return SpanCreationContext.client().name(createSpanName(request)).attributes(buildSpanAttributes(request));
     }
 
     /**
@@ -64,10 +64,7 @@ public final class SpanBuilder {
      * @return context
      */
     public static SpanCreationContext from(String action, Transport.Connection connection) {
-        return SpanCreationContext.create()
-            .server()
-            .name(createSpanName(action, connection))
-            .attributes(buildSpanAttributes(action, connection));
+        return SpanCreationContext.server().name(createSpanName(action, connection)).attributes(buildSpanAttributes(action, connection));
     }
 
     private static String createSpanName(HttpRequest httpRequest) {

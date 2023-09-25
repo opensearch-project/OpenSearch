@@ -415,7 +415,7 @@ public class DefaultTracerTests extends OpenSearchTestCase {
     }
 
     private SpanCreationContext buildSpanCreationContext(String spanName, Attributes attributes, Span parentSpan) {
-        SpanCreationContext spanCreationContext = SpanCreationContext.create().internal().name(spanName).attributes(attributes);
+        SpanCreationContext spanCreationContext = SpanCreationContext.internal().name(spanName).attributes(attributes);
         if (parentSpan != null) {
             spanCreationContext.parent(new SpanContext(parentSpan));
         }

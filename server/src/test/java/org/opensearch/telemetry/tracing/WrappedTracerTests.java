@@ -35,10 +35,10 @@ public class WrappedTracerTests extends OpenSearchTestCase {
         DefaultTracer mockDefaultTracer = mock(DefaultTracer.class);
 
         try (WrappedTracer wrappedTracer = new WrappedTracer(telemetrySettings, mockDefaultTracer)) {
-            SpanCreationContext spanCreationContext = SpanCreationContext.create().name("foo");
+            SpanCreationContext spanCreationContext = SpanCreationContext.internal().name("foo");
             wrappedTracer.startSpan(spanCreationContext);
             assertTrue(wrappedTracer.getDelegateTracer() instanceof NoopTracer);
-            verify(mockDefaultTracer, never()).startSpan(SpanCreationContext.create().name("foo"));
+            verify(mockDefaultTracer, never()).startSpan(SpanCreationContext.internal().name("foo"));
         }
     }
 
@@ -48,7 +48,7 @@ public class WrappedTracerTests extends OpenSearchTestCase {
         DefaultTracer mockDefaultTracer = mock(DefaultTracer.class);
 
         try (WrappedTracer wrappedTracer = new WrappedTracer(telemetrySettings, mockDefaultTracer)) {
-            SpanCreationContext spanCreationContext = SpanCreationContext.create().name("foo");
+            SpanCreationContext spanCreationContext = SpanCreationContext.internal().name("foo");
             wrappedTracer.startSpan(spanCreationContext);
 
             assertTrue(wrappedTracer.getDelegateTracer() instanceof DefaultTracer);
@@ -62,7 +62,7 @@ public class WrappedTracerTests extends OpenSearchTestCase {
         DefaultTracer mockDefaultTracer = mock(DefaultTracer.class);
         Attributes attributes = Attributes.create().addAttribute("key", "value");
         try (WrappedTracer wrappedTracer = new WrappedTracer(telemetrySettings, mockDefaultTracer)) {
-            SpanCreationContext spanCreationContext = SpanCreationContext.create().name("foo");
+            SpanCreationContext spanCreationContext = SpanCreationContext.internal().name("foo");
             wrappedTracer.startSpan(spanCreationContext);
 
             assertTrue(wrappedTracer.getDelegateTracer() instanceof DefaultTracer);
