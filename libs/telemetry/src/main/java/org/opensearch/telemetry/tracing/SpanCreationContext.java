@@ -11,8 +11,6 @@ package org.opensearch.telemetry.tracing;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.telemetry.tracing.attributes.Attributes;
 
-import java.util.Objects;
-
 /**
  * Context for span details.
  *
@@ -120,21 +118,5 @@ public final class SpanCreationContext {
      */
     public SpanContext getParent() {
         return parent;
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (!(o instanceof SpanCreationContext)) return false;
-        SpanCreationContext that = (SpanCreationContext) o;
-        return spanName.equals(that.spanName)
-            && attributes.equals(that.attributes)
-            && spanKind == that.spanKind
-            && parent.equals(that.parent);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(spanName, attributes, spanKind, parent);
     }
 }

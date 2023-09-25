@@ -38,6 +38,7 @@ public class DefaultTracerTests extends OpenSearchTestCase {
     private SpanScope mockSpanScope;
     private ThreadPool threadPool;
     private ExecutorService executorService;
+    private SpanCreationContext spanCreationContext;
 
     @Override
     public void setUp() throws Exception {
@@ -57,7 +58,7 @@ public class DefaultTracerTests extends OpenSearchTestCase {
     public void testCreateSpan() {
         DefaultTracer defaultTracer = new DefaultTracer(mockTracingTelemetry, mockTracerContextStorage);
 
-        defaultTracer.startSpan(buildSpanCreationContext("span_name", Attributes.EMPTY, mockParentSpan));
+        defaultTracer.startSpan(spanCreationContext);
 
         String spanName = defaultTracer.getCurrentSpan().getSpan().getSpanName();
         assertEquals("span_name", spanName);
@@ -409,8 +410,8 @@ public class DefaultTracerTests extends OpenSearchTestCase {
         when(mockSpan.getParentSpan()).thenReturn(mockParentSpan);
         when(mockParentSpan.getSpanId()).thenReturn("parent_span_id");
         when(mockParentSpan.getTraceId()).thenReturn("trace_id");
+        spanCreationContext = buildSpanCreationContext("span_name", Attributes.EMPTY, mockParentSpan);
         when(mockTracerContextStorage.get(TracerContextStorage.CURRENT_SPAN)).thenReturn(mockSpan, mockParentSpan);
-        SpanCreationContext spanCreationContext = buildSpanCreationContext("span_name", Attributes.EMPTY, mockParentSpan);
         when(mockTracingTelemetry.createSpan(eq(spanCreationContext), eq(mockParentSpan))).thenReturn(mockSpan);
     }
 
