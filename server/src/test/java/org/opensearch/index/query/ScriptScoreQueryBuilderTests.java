@@ -32,8 +32,6 @@
 
 package org.opensearch.index.query;
 
-import java.util.ArrayList;
-import java.util.List;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.opensearch.OpenSearchException;
@@ -45,7 +43,9 @@ import org.opensearch.script.ScriptType;
 import org.opensearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
 import static org.hamcrest.CoreMatchers.instanceOf;
