@@ -59,7 +59,11 @@ import org.opensearch.tasks.RawTaskStatus;
 import org.opensearch.tasks.Task;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.transport.*;
+import org.opensearch.transport.Transport;
+import org.opensearch.transport.TransportInterceptor;
+import org.opensearch.transport.TransportInterceptorRegistry;
+import org.opensearch.transport.TransportRequest;
+import org.opensearch.transport.TransportRequestHandler;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -128,7 +132,7 @@ public final class NetworkModule {
 
     private final Map<String, Supplier<Transport>> transportFactories = new HashMap<>();
     private final Map<String, Supplier<HttpServerTransport>> transportHttpFactories = new HashMap<>();
-    private final List<TransportInterceptor> transportIntercetors = new ArrayList<>();
+    private final List<TransportInterceptor> transportInterceptors = new ArrayList<>();
 
     /**
      * Creates a network module that custom networking classes can be plugged into.
@@ -150,6 +154,11 @@ public final class NetworkModule {
         TransportInterceptorRegistry transportInterceptorRegistry
     ) {
         this.settings = settings;
+        // Adding core interceptors first and other plugin interceptor will follow
+        List<TransportInterceptor> coreTransportInterceptors = transportInterceptorRegistry.getTransportInterceptors();
+        for (TransportInterceptor interceptor : coreTransportInterceptors) {
+            registerTransportInterceptor(interceptor);
+        }
         for (NetworkPlugin plugin : plugins) {
             Map<String, Supplier<HttpServerTransport>> httpTransportFactory = plugin.getHttpTransports(
                 settings,
@@ -185,10 +194,6 @@ public final class NetworkModule {
             for (TransportInterceptor interceptor : transportInterceptors) {
                 registerTransportInterceptor(interceptor);
             }
-        }
-        List<TransportInterceptor> coreTransportInterceptors = transportInterceptorRegistry.getTransportInterceptors();
-        for (TransportInterceptor interceptor : coreTransportInterceptors) {
-            registerTransportInterceptor(interceptor);
         }
     }
 
@@ -266,7 +271,7 @@ public final class NetworkModule {
      * Registers a new {@link TransportInterceptor}
      */
     private void registerTransportInterceptor(TransportInterceptor interceptor) {
-        this.transportIntercetors.add(Objects.requireNonNull(interceptor, "interceptor must not be null"));
+        this.transportInterceptors.add(Objects.requireNonNull(interceptor, "interceptor must not be null"));
     }
 
     /**
@@ -274,7 +279,7 @@ public final class NetworkModule {
      * @see #registerTransportInterceptor(TransportInterceptor)
      */
     public TransportInterceptor getTransportInterceptor() {
-        return new CompositeTransportInterceptor(this.transportIntercetors);
+        return new CompositeTransportInterceptor(this.transportInterceptors);
     }
 
     static final class CompositeTransportInterceptor implements TransportInterceptor {
