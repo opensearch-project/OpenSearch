@@ -620,6 +620,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
 
         translog.setMinSeqNoToKeep(2);
 
+        assertBusy(() -> assertTrue(translog.isRemoteGenerationDeletionPermitsAvailable()));
         translog.trimUnreferencedReaders();
         assertEquals(1, translog.readers.size());
         assertEquals(1, translog.stats().estimatedNumberOfOperations());
