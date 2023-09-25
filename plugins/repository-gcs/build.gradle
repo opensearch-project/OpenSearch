@@ -60,7 +60,7 @@ dependencies {
 
   api 'com.google.api-client:google-api-client:2.2.0'
 
-  api 'com.google.api.grpc:proto-google-common-protos:2.10.0'
+  api 'com.google.api.grpc:proto-google-common-protos:2.25.0'
   api 'com.google.api.grpc:proto-google-iam-v1:0.12.0'
 
   api "com.google.auth:google-auth-library-credentials:${versions.google_auth}"
