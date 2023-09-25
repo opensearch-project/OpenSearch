@@ -32,6 +32,7 @@
 
 package org.opensearch.index.merge;
 
+import org.opensearch.Version;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -65,8 +66,10 @@ public class MergeStats implements Writeable, ToXContentFragment {
 
     private long totalBytesPerSecAutoThrottle;
 
-    public MergeStats() {
+    private final UnreferencedFileCleanUpStats cleanUpStats;
 
+    public MergeStats() {
+        cleanUpStats = new UnreferencedFileCleanUpStats();
     }
 
     public MergeStats(StreamInput in) throws IOException {
@@ -81,6 +84,12 @@ public class MergeStats implements Writeable, ToXContentFragment {
         totalStoppedTimeInMillis = in.readVLong();
         totalThrottledTimeInMillis = in.readVLong();
         totalBytesPerSecAutoThrottle = in.readVLong();
+
+        if (in.getVersion().onOrAfter(Version.CURRENT)) {
+            cleanUpStats = in.readOptionalWriteable(UnreferencedFileCleanUpStats::new);
+        } else {
+            cleanUpStats = new UnreferencedFileCleanUpStats();
+        }
     }
 
     public void add(
@@ -133,6 +142,7 @@ public class MergeStats implements Writeable, ToXContentFragment {
         this.totalSizeInBytes += mergeStats.totalSizeInBytes;
         this.totalStoppedTimeInMillis += mergeStats.totalStoppedTimeInMillis;
         this.totalThrottledTimeInMillis += mergeStats.totalThrottledTimeInMillis;
+        addTotalCleanUpStats(mergeStats.cleanUpStats);
         if (this.totalBytesPerSecAutoThrottle == Long.MAX_VALUE || mergeStats.totalBytesPerSecAutoThrottle == Long.MAX_VALUE) {
             this.totalBytesPerSecAutoThrottle = Long.MAX_VALUE;
         } else {
@@ -224,6 +234,10 @@ public class MergeStats implements Writeable, ToXContentFragment {
         return new ByteSizeValue(currentSizeInBytes);
     }
 
+    public void addTotalCleanUpStats(UnreferencedFileCleanUpStats cleanUpStats) {
+        this.cleanUpStats.add(cleanUpStats);
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.MERGES);
@@ -240,6 +254,7 @@ public class MergeStats implements Writeable, ToXContentFragment {
             builder.field(Fields.TOTAL_THROTTLE_BYTES_PER_SEC).value(new ByteSizeValue(totalBytesPerSecAutoThrottle).toString());
         }
         builder.field(Fields.TOTAL_THROTTLE_BYTES_PER_SEC_IN_BYTES, totalBytesPerSecAutoThrottle);
+        cleanUpStats.toXContent(builder, params);
         builder.endObject();
         return builder;
     }
@@ -282,5 +297,8 @@ public class MergeStats implements Writeable, ToXContentFragment {
         out.writeVLong(totalStoppedTimeInMillis);
         out.writeVLong(totalThrottledTimeInMillis);
         out.writeVLong(totalBytesPerSecAutoThrottle);
+        if (out.getVersion().onOrAfter(Version.CURRENT)) {
+            out.writeOptionalWriteable(cleanUpStats);
+        }
     }
 }

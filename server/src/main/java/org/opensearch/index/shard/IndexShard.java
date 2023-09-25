@@ -146,6 +146,7 @@ import org.opensearch.index.mapper.RootObjectMapper;
 import org.opensearch.index.mapper.SourceToParse;
 import org.opensearch.index.mapper.Uid;
 import org.opensearch.index.merge.MergeStats;
+import org.opensearch.index.merge.UnreferencedFileCleanUpStats;
 import org.opensearch.index.recovery.RecoveryStats;
 import org.opensearch.index.refresh.RefreshStats;
 import org.opensearch.index.remote.RemoteSegmentStats;
@@ -1329,6 +1330,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return getEngine().docStats();
     }
 
+    public UnreferencedFileCleanUpStats unreferencedFileCleanupStats() {
+        final Engine engine = getEngineOrNull();
+        if (engine == null) {
+            return new UnreferencedFileCleanUpStats();
+        }
+
+        return engine.unreferencedFileCleanupStats();
+    }
+
     /**
      * @return {@link CommitStats}
      * @throws AlreadyClosedException if shard is closed
@@ -1383,7 +1393,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (engine == null) {
             return new MergeStats();
         }
-        return engine.getMergeStats();
+
+        final MergeStats mergeStats = engine.getMergeStats();
+        if (indexSettings.shouldCleanupUnreferencedFiles()) {
+            mergeStats.addTotalCleanUpStats(engine.unreferencedFileCleanupStats());
+        }
+
+        return mergeStats;
     }
 
     public SegmentsStats segmentStats(boolean includeSegmentFileSizes, boolean includeUnloadedSegments) {
