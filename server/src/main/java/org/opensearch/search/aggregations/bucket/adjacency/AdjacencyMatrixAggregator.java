@@ -36,7 +36,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 import org.opensearch.common.lucene.Lucene;
-import org.opensearch.core.ParseField;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -251,7 +250,7 @@ public class AdjacencyMatrixAggregator extends BucketsAggregator {
                 for (int j = i + 1; j < keys.length; j++) {
                     long bucketOrd = bucketOrd(owningBucketOrds[owningBucketOrdIdx], pos);
                     long docCount = bucketDocCount(bucketOrd);
-                    // Empty buckets are not returned due to poteantial for very sparse matrices
+                    // Empty buckets are not returned due to potential for very sparse matrices
                     if (docCount > 0) {
                         String intersectKey = keys[i] + separator + keys[j];
                         InternalAdjacencyMatrix.InternalBucket bucket = new InternalAdjacencyMatrix.InternalBucket(
