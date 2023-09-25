@@ -52,6 +52,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 /**
  * Transport action for fetching the batch of shard stores Metadata from a list of transport nodes
@@ -110,7 +111,7 @@ public class TransportNodesListShardStoreMetadataBatch extends TransportNodesAct
         Map<ShardId, String> shardIdsWithCustomDataPath,
         ActionListener<NodesStoreFilesMetadataBatch> listener
     ) {
-        execute(new TransportNodesListShardStoreMetadataBatch.Request(shardIdsWithCustomDataPath, nodes), listener);
+        execute(new TransportNodesListShardStoreMetadataBatch.Request(shardIdsWithCustomDataPath.entrySet().stream().map(entry -> new ShardAttributes(entry.getKey(), entry.getValue())).collect(Collectors.toList()), nodes), listener);
     }
 
     @Override
@@ -137,7 +138,7 @@ public class TransportNodesListShardStoreMetadataBatch extends TransportNodesAct
         try {
             return new NodeStoreFilesMetadataBatch(clusterService.localNode(), listStoreMetadata(request));
         } catch (IOException e) {
-            throw new OpenSearchException("Failed to list store metadata for shards [" + request.getShardIdsWithCustomDataPath() + "]", e);
+            throw new OpenSearchException("Failed to list store metadata for shards [" + request.getShardAttributes().stream().map(ShardAttributes::getShardId) + "]", e);
         }
     }
 
@@ -150,8 +151,8 @@ public class TransportNodesListShardStoreMetadataBatch extends TransportNodesAct
      */
     private Map<ShardId, NodeStoreFilesMetadata> listStoreMetadata(NodeRequest request) throws IOException {
         Map<ShardId, NodeStoreFilesMetadata> shardStoreMetadataMap = new HashMap<ShardId, NodeStoreFilesMetadata>();
-        for (Map.Entry<ShardId, String> shardToCustomDataPathEntry : request.getShardIdsWithCustomDataPath().entrySet()) {
-            final ShardId shardId = shardToCustomDataPathEntry.getKey();
+        for (ShardAttributes  shardAttributes : request.getShardAttributes()) {
+            final ShardId shardId = shardAttributes.getShardId();
             logger.trace("listing store meta data for {}", shardId);
             long startTimeNS = System.nanoTime();
             boolean exists = false;
@@ -193,8 +194,8 @@ public class TransportNodesListShardStoreMetadataBatch extends TransportNodesAct
                     }
                 }
                 final String customDataPath;
-                if (shardToCustomDataPathEntry.getValue() != null) {
-                    customDataPath = shardToCustomDataPathEntry.getValue();
+                if (shardAttributes.getCustomDataPath() != null) {
+                    customDataPath = shardAttributes.getCustomDataPath();
                 } else {
                     // TODO: Fallback for BWC with older predecessor (ES) versions.
                     // Remove this once request.getCustomDataPath() always returns non-null
@@ -269,98 +270,6 @@ public class TransportNodesListShardStoreMetadataBatch extends TransportNodesAct
     }
 
     /**
-     * Metadata for store files
-     *
-     * @opensearch.internal
-     */
-    public static class StoreFilesMetadata implements Iterable<StoreFileMetadata>, Writeable {
-        private final ShardId shardId;
-        private final Store.MetadataSnapshot metadataSnapshot;
-        private final List<RetentionLease> peerRecoveryRetentionLeases;
-
-        public StoreFilesMetadata(
-            ShardId shardId,
-            Store.MetadataSnapshot metadataSnapshot,
-            List<RetentionLease> peerRecoveryRetentionLeases
-        ) {
-            this.shardId = shardId;
-            this.metadataSnapshot = metadataSnapshot;
-            this.peerRecoveryRetentionLeases = peerRecoveryRetentionLeases;
-        }
-
-        public StoreFilesMetadata(StreamInput in) throws IOException {
-            this.shardId = new ShardId(in);
-            this.metadataSnapshot = new Store.MetadataSnapshot(in);
-            this.peerRecoveryRetentionLeases = in.readList(RetentionLease::new);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            shardId.writeTo(out);
-            metadataSnapshot.writeTo(out);
-            out.writeList(peerRecoveryRetentionLeases);
-        }
-
-        public ShardId shardId() {
-            return this.shardId;
-        }
-
-        public boolean isEmpty() {
-            return metadataSnapshot.size() == 0;
-        }
-
-        @Override
-        public Iterator<StoreFileMetadata> iterator() {
-            return metadataSnapshot.iterator();
-        }
-
-        public boolean fileExists(String name) {
-            return metadataSnapshot.asMap().containsKey(name);
-        }
-
-        public StoreFileMetadata file(String name) {
-            return metadataSnapshot.asMap().get(name);
-        }
-
-        /**
-         * Returns the retaining sequence number of the peer recovery retention lease for a given node if exists; otherwise, returns -1.
-         */
-        public long getPeerRecoveryRetentionLeaseRetainingSeqNo(DiscoveryNode node) {
-            assert node != null;
-            final String retentionLeaseId = ReplicationTracker.getPeerRecoveryRetentionLeaseId(node.getId());
-            return peerRecoveryRetentionLeases.stream()
-                .filter(lease -> lease.id().equals(retentionLeaseId))
-                .mapToLong(RetentionLease::retainingSequenceNumber)
-                .findFirst()
-                .orElse(-1L);
-        }
-
-        public List<RetentionLease> peerRecoveryRetentionLeases() {
-            return peerRecoveryRetentionLeases;
-        }
-
-        /**
-         * @return commit sync id if exists, else null
-         */
-        public String syncId() {
-            return metadataSnapshot.getSyncId();
-        }
-
-        @Override
-        public String toString() {
-            return "StoreFilesMetadata{"
-                + ", shardId="
-                + shardId
-                + ", metadataSnapshot{size="
-                + metadataSnapshot.size()
-                + ", syncId="
-                + metadataSnapshot.getSyncId()
-                + "}"
-                + '}';
-        }
-    }
-
-    /**
      * Request is used in constructing the request for making the transport request to set of other node.
      * Refer {@link TransportNodesAction} class start method.
      *
@@ -368,26 +277,26 @@ public class TransportNodesListShardStoreMetadataBatch extends TransportNodesAct
      */
     public static class Request extends BaseNodesRequest<Request> {
 
-        private final Map<ShardId, String> shardIdsWithCustomDataPath;
+        private final List<ShardAttributes> shardAttributes;
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            shardIdsWithCustomDataPath = in.readMap(ShardId::new, StreamInput::readString);
+            shardAttributes = in.readList(ShardAttributes::new);
         }
 
-        public Request(Map<ShardId, String> shardIdsWithCustomDataPath, DiscoveryNode[] nodes) {
+        public Request(List<ShardAttributes> shardAttributes, DiscoveryNode[] nodes) {
             super(nodes);
-            this.shardIdsWithCustomDataPath = Objects.requireNonNull(shardIdsWithCustomDataPath);
+            this.shardAttributes = Objects.requireNonNull(shardAttributes);
         }
 
-        public Map<ShardId, String> getShardIdsWithCustomDataPath() {
-            return shardIdsWithCustomDataPath;
+        public List<ShardAttributes> getShardAttributes() {
+            return shardAttributes;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeMap(shardIdsWithCustomDataPath, (o, k) -> k.writeTo(o), StreamOutput::writeString);
+            out.writeList(shardAttributes);
         }
     }
 
@@ -485,25 +394,25 @@ public class TransportNodesListShardStoreMetadataBatch extends TransportNodesAct
      */
     public static class NodeRequest extends TransportRequest {
 
-        private final Map<ShardId, String> shardIdsWithCustomDataPath;
+        private final List<ShardAttributes> shardAttributes;
 
         public NodeRequest(StreamInput in) throws IOException {
             super(in);
-            shardIdsWithCustomDataPath = in.readMap(ShardId::new, StreamInput::readString);
+            shardAttributes = in.readList(ShardAttributes::new);
         }
 
         public NodeRequest(Request request) {
-            this.shardIdsWithCustomDataPath = Objects.requireNonNull(request.getShardIdsWithCustomDataPath());
+            this.shardAttributes = Objects.requireNonNull(request.getShardAttributes());
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeMap(shardIdsWithCustomDataPath, (o, k) -> k.writeTo(o), StreamOutput::writeString);
+            out.writeList(shardAttributes);
         }
 
-        public Map<ShardId, String> getShardIdsWithCustomDataPath() {
-            return shardIdsWithCustomDataPath;
+        public List<ShardAttributes> getShardAttributes() {
+            return shardAttributes;
         }
     }
 
