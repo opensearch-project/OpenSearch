@@ -37,6 +37,7 @@ import org.opensearch.index.shard.ShardStateMetadata;
 import org.opensearch.index.store.Store;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
+import org.opensearch.indices.store.ShardAttributes;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportService;
@@ -46,6 +47,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * This transport action is used to fetch batch of unassigned shard version from each node during primary allocation in {@link GatewayAllocator}.
@@ -141,8 +143,8 @@ public class TransportNodesListGatewayStartedShardsBatch extends TransportNodesA
     @Override
     protected NodeGatewayStartedShardsBatch nodeOperation(NodeRequest request) {
         Map<ShardId, NodeGatewayStartedShards> shardsOnNode = new HashMap<>();
-        for (Map.Entry<ShardId, String> shardToCustomDataPathEntry : request.shardIdsWithCustomDataPath.entrySet()) {
-            final ShardId shardId = shardToCustomDataPathEntry.getKey();
+        for (ShardAttributes shardAttr: request.shardAttributes) {
+            final ShardId shardId = shardAttr.getShardId();
             try {
                 logger.trace("{} loading local shard state info", shardId);
                 ShardStateMetadata shardStateMetadata = ShardStateMetadata.FORMAT.loadLatestState(
@@ -154,8 +156,8 @@ public class TransportNodesListGatewayStartedShardsBatch extends TransportNodesA
                     if (indicesService.getShardOrNull(shardId) == null
                         && shardStateMetadata.indexDataLocation == ShardStateMetadata.IndexDataLocation.LOCAL) {
                         final String customDataPath;
-                        if (shardToCustomDataPathEntry.getValue() != null) {
-                            customDataPath = shardToCustomDataPathEntry.getValue();
+                        if (shardAttr.getCustomDataPath() != null) {
+                            customDataPath = shardAttr.getCustomDataPath();
                         } else {
                             // TODO: Fallback for BWC with older OpenSearch versions.
                             // Remove once request.getCustomDataPath() always returns non-null
@@ -227,26 +229,27 @@ public class TransportNodesListGatewayStartedShardsBatch extends TransportNodesA
      * @opensearch.internal
      */
     public static class Request extends BaseNodesRequest<Request> {
-        private final Map<ShardId, String> shardIdsWithCustomDataPath;
+        private final List<ShardAttributes> shardAttributes;
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            shardIdsWithCustomDataPath = in.readMap(ShardId::new, StreamInput::readString);
+            shardAttributes = in.readList(ShardAttributes::new);
         }
 
         public Request(DiscoveryNode[] nodes, Map<ShardId, String> shardIdStringMap) {
             super(nodes);
-            this.shardIdsWithCustomDataPath = Objects.requireNonNull(shardIdStringMap);
+            this.shardAttributes = Objects.requireNonNull(shardIdStringMap).entrySet().stream().map(entry ->
+                new ShardAttributes(entry.getKey(), entry.getValue())).collect(Collectors.toList());
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeMap(shardIdsWithCustomDataPath, (o, k) -> k.writeTo(o), StreamOutput::writeString);
+            out.writeList(shardAttributes);
         }
 
-        public Map<ShardId, String> getShardIdsMap() {
-            return shardIdsWithCustomDataPath;
+        public List<ShardAttributes> getShardAttributes() {
+            return shardAttributes;
         }
     }
 
@@ -288,23 +291,22 @@ public class TransportNodesListGatewayStartedShardsBatch extends TransportNodesA
      * @opensearch.internal
      */
     public static class NodeRequest extends TransportRequest {
-        private final Map<ShardId, String> shardIdsWithCustomDataPath;
+        private final List<ShardAttributes> shardAttributes;
 
         public NodeRequest(StreamInput in) throws IOException {
             super(in);
-            shardIdsWithCustomDataPath = in.readMap(ShardId::new, StreamInput::readString);
+            shardAttributes = in.readList(ShardAttributes::new);
         }
 
         public NodeRequest(Request request) {
-            this.shardIdsWithCustomDataPath = Objects.requireNonNull(request.getShardIdsMap());
+            this.shardAttributes = Objects.requireNonNull(request.getShardAttributes());
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeMap(shardIdsWithCustomDataPath, (o, k) -> k.writeTo(o), StreamOutput::writeString);
+            out.writeList(shardAttributes);
         }
-
     }
 
     /**
