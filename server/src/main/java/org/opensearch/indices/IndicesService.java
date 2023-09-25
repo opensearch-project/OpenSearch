@@ -47,6 +47,7 @@ import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags.Flag;
 import org.opensearch.action.admin.indices.stats.IndexShardStats;
 import org.opensearch.action.admin.indices.stats.ShardStats;
+import org.opensearch.action.search.SearchRequestStats;
 import org.opensearch.action.search.SearchType;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.ClusterState;
@@ -333,6 +334,8 @@ public class IndicesService extends AbstractLifecycleComponent
     private volatile TimeValue clusterRemoteTranslogBufferInterval;
     private final FileCacheCleaner fileCacheCleaner;
 
+    private final SearchRequestStats searchRequestStats;
+
     @Override
     protected void doStart() {
         // Start thread that will manage cleaning the field data cache periodically
@@ -363,6 +366,7 @@ public class IndicesService extends AbstractLifecycleComponent
         IndexStorePlugin.DirectoryFactory remoteDirectoryFactory,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         FileCacheCleaner fileCacheCleaner,
+        SearchRequestStats searchRequestStats,
         @Nullable RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory
     ) {
         this.settings = settings;
@@ -453,6 +457,7 @@ public class IndicesService extends AbstractLifecycleComponent
         clusterService.getClusterSettings().addSettingsUpdateConsumer(ALLOW_EXPENSIVE_QUERIES, this::setAllowExpensiveQueries);
         this.remoteDirectoryFactory = remoteDirectoryFactory;
         this.translogFactorySupplier = getTranslogFactorySupplier(repositoriesServiceSupplier, threadPool, remoteStoreStatsTrackerFactory);
+        this.searchRequestStats = searchRequestStats;
         this.clusterDefaultRefreshInterval = CLUSTER_DEFAULT_INDEX_REFRESH_INTERVAL_SETTING.get(clusterService.getSettings());
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(CLUSTER_DEFAULT_INDEX_REFRESH_INTERVAL_SETTING, this::onRefreshIntervalUpdate);
@@ -576,7 +581,7 @@ public class IndicesService extends AbstractLifecycleComponent
             }
         }
 
-        return new NodeIndicesStats(commonStats, statsByShard(this, flags));
+        return new NodeIndicesStats(commonStats, statsByShard(this, flags), searchRequestStats);
     }
 
     Map<Index, List<IndexShardStats>> statsByShard(final IndicesService indicesService, final CommonStatsFlags flags) {

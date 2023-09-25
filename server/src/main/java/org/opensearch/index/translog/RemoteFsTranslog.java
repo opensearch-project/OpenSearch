@@ -11,7 +11,6 @@ package org.opensearch.index.translog;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.lease.Releasable;
-import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.util.concurrent.ReleasableLock;
 import org.opensearch.common.util.io.IOUtils;
@@ -237,7 +236,7 @@ public class RemoteFsTranslog extends Translog {
 
     @Override
     public boolean ensureSynced(Location location) throws IOException {
-        try (ReleasableLock ignored = writeLock.acquire()) {
+        try {
             assert location.generation <= current.getGeneration();
             if (location.generation == current.getGeneration()) {
                 ensureOpen();
@@ -270,6 +269,11 @@ public class RemoteFsTranslog extends Translog {
                         logger.trace("Creating new writer for gen: [{}]", current.getGeneration() + 1);
                         current = createWriter(current.getGeneration() + 1);
                     }
+                    assert writeLock.isHeldByCurrentThread() : "Write lock must be held before we acquire the read lock";
+                    // Here we are downgrading the write lock by acquiring the read lock and releasing the write lock
+                    // This ensures that other threads can still acquire the read locks while also protecting the
+                    // readers and writer to not be mutated any further.
+                    readLock.acquire();
                 } catch (final Exception e) {
                     tragedy.setTragicException(e);
                     closeOnTragicEvent(e);
@@ -278,7 +282,10 @@ public class RemoteFsTranslog extends Translog {
             } else if (generation < current.getGeneration()) {
                 return false;
             }
+        }
 
+        assert readLock.isHeldByCurrentThread() == true;
+        try (Releasable ignored = readLock; Releasable ignoredGenLock = deletionPolicy.acquireTranslogGen(getMinFileGeneration())) {
             // Do we need remote writes in sync fashion ?
             // If we don't , we should swallow FileAlreadyExistsException while writing to remote store
             // and also verify for same during primary-primary relocation
@@ -317,10 +324,9 @@ public class RemoteFsTranslog extends Translog {
                 Translog::getCommitCheckpointFileName
             ).build()
         ) {
-            Releasable transferReleasable = Releasables.wrap(deletionPolicy.acquireTranslogGen(getMinFileGeneration()));
             return translogTransferManager.transferSnapshot(
                 transferSnapshotProvider,
-                new RemoteFsTranslogTransferListener(transferReleasable, generation, primaryTerm)
+                new RemoteFsTranslogTransferListener(generation, primaryTerm)
             );
         }
 
@@ -499,16 +505,17 @@ public class RemoteFsTranslog extends Translog {
         translogTransferManager.delete();
     }
 
+    // Visible for testing
+    boolean isRemoteGenerationDeletionPermitsAvailable() {
+        return remoteGenerationDeletionPermits.availablePermits() == REMOTE_DELETION_PERMITS;
+    }
+
     /**
      * TranslogTransferListener implementation for RemoteFsTranslog
      *
      * @opensearch.internal
      */
     private class RemoteFsTranslogTransferListener implements TranslogTransferListener {
-        /**
-         * Releasable instance for the translog
-         */
-        private final Releasable transferReleasable;
 
         /**
          * Generation for the translog
@@ -520,16 +527,13 @@ public class RemoteFsTranslog extends Translog {
          */
         private final Long primaryTerm;
 
-        RemoteFsTranslogTransferListener(Releasable transferReleasable, Long generation, Long primaryTerm) {
-            this.transferReleasable = transferReleasable;
+        RemoteFsTranslogTransferListener(Long generation, Long primaryTerm) {
             this.generation = generation;
             this.primaryTerm = primaryTerm;
         }
 
         @Override
         public void onUploadComplete(TransferSnapshot transferSnapshot) throws IOException {
-            transferReleasable.close();
-            closeFilesIfNoPendingRetentionLocks();
             maxRemoteTranslogGenerationUploaded = generation;
             minRemoteGenReferenced = getMinFileGeneration();
             logger.trace("uploaded translog for {} {} ", primaryTerm, generation);
@@ -537,8 +541,6 @@ public class RemoteFsTranslog extends Translog {
 
         @Override
         public void onUploadFailed(TransferSnapshot transferSnapshot, Exception ex) throws IOException {
-            transferReleasable.close();
-            closeFilesIfNoPendingRetentionLocks();
             if (ex instanceof IOException) {
                 throw (IOException) ex;
             } else {

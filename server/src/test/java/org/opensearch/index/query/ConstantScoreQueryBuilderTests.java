@@ -39,6 +39,8 @@ import org.opensearch.core.common.ParsingException;
 import org.opensearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.nullValue;
@@ -132,5 +134,13 @@ public class ConstantScoreQueryBuilderTests extends AbstractQueryTestCase<Consta
         ConstantScoreQueryBuilder queryBuilder = new ConstantScoreQueryBuilder(new TermQueryBuilder("unmapped_field", "foo"));
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> queryBuilder.toQuery(context));
         assertEquals("Rewrite first", e.getMessage());
+    }
+
+    public void testVisit() {
+        ConstantScoreQueryBuilder queryBuilder = new ConstantScoreQueryBuilder(new TermQueryBuilder("unmapped_field", "foo"));
+        List<QueryBuilder> visitorQueries = new ArrayList<>();
+        queryBuilder.visit(createTestVisitor(visitorQueries));
+
+        assertEquals(2, visitorQueries.size());
     }
 }

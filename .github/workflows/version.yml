@@ -13,7 +13,7 @@ jobs:
     steps:
       - name: GitHub App token
         id: github_app_token
-        uses: tibdex/github-app-token@v1.5.0
+        uses: tibdex/github-app-token@v2.1.0
         with:
           app_id: ${{ secrets.APP_ID }}
           private_key: ${{ secrets.APP_PRIVATE_KEY }}

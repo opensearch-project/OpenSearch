@@ -50,7 +50,7 @@ public class EncryptedBlobContainer<T, U> implements BlobContainer {
         return cryptoHandler.createDecryptingStream(inputStream);
     }
 
-    private EncryptedHeaderContentSupplier getEncryptedHeaderContentSupplier(String blobName) {
+    EncryptedHeaderContentSupplier getEncryptedHeaderContentSupplier(String blobName) {
         return (start, end) -> {
             byte[] buffer;
             int length = (int) (end - start + 1);
