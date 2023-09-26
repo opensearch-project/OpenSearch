@@ -10,8 +10,11 @@ package org.opensearch.remotestore;
 
 import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStoreRequest;
 import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStoreResponse;
+import org.opensearch.action.admin.indices.get.GetIndexRequest;
+import org.opensearch.action.admin.indices.get.GetIndexResponse;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.health.ClusterHealthStatus;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
@@ -19,10 +22,12 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
+import org.opensearch.test.CorruptionUtils;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Locale;
@@ -30,6 +35,7 @@ import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
@@ -459,6 +465,31 @@ public class RemoteStoreRestoreIT extends BaseRemoteStoreRestoreIT {
             Repository segmentRepo = repositoriesService.repository(REPOSITORY_NAME);
             assertNull(segmentRepo.getMetadata().settings().get("max_remote_download_bytes_per_sec"));
         }
+    }
+
+    public void testRestoreCorruptSegmentShouldFail() throws IOException, ExecutionException, InterruptedException {
+        prepareCluster(1, 3, INDEX_NAME, 0, 1);
+        indexData(randomIntBetween(3, 4), true, INDEX_NAME);
+
+        GetIndexResponse getIndexResponse = client().admin().indices().getIndex(new GetIndexRequest()).get();
+        String indexUUID = getIndexResponse.getSettings().get(INDEX_NAME).get(IndexMetadata.SETTING_INDEX_UUID);
+
+        logger.info("--> Corrupting segment files in remote segment store");
+        Path path = segmentRepoPath.resolve(indexUUID).resolve("0").resolve("segments").resolve("data");
+        try (Stream<Path> dataPath = Files.list(path)) {
+            CorruptionUtils.corruptFile(random(), dataPath.toArray(Path[]::new));
+        }
+
+        logger.info("--> Stop primary");
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primaryNodeName(INDEX_NAME)));
+
+        logger.info("--> Close and restore the index");
+        client().admin()
+            .cluster()
+            .restoreRemoteStore(new RestoreRemoteStoreRequest().indices(INDEX_NAME).waitForCompletion(true), PlainActionFuture.newFuture());
+
+        logger.info("--> Check for index status, should be red due to corruption");
+        ensureRed(INDEX_NAME);
     }
 
     // TODO: Restore flow - index aliases
