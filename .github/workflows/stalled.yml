@@ -1,4 +1,4 @@
-name: Close Stalled PRs
+name: Label Stalled PRs
 on:
   schedule:
     - cron: '15 15 * * *' # Run every day at 15:15 UTC / 7:15 PST / 8:15 PDT
@@ -24,3 +24,5 @@ jobs:
           stale-pr-message: 'This PR is stalled because it has been open for 30 days with no activity.'
           days-before-pr-stale: 30
           days-before-issue-stale: -1
+          days-before-pr-close: -1
+          days-before-issue-close: -1
