@@ -156,6 +156,7 @@
               - type: word_delimiter
                 split_on_numerics: false
                 type_table:
+                  - "# This is a comment"
                   - "# => ALPHANUM"
     - length: { tokens: 2 }
     - match: { tokens.0.token: text1 }
@@ -176,6 +177,7 @@
               - type: word_delimiter
                 split_on_numerics: false
                 type_table:
+                  - "# This is a comment"
                   - "# => ALPHANUM"
                   - "@ => ALPHANUM"
     - length: { tokens: 2 }
@@ -321,6 +323,7 @@
               - type: word_delimiter_graph
                 split_on_numerics: false
                 type_table:
+                  - "# This is a comment"
                   - "# => ALPHANUM"
     - length: { tokens: 2 }
     - match: { tokens.0.token: text1 }
@@ -341,6 +344,7 @@
               - type: word_delimiter_graph
                 split_on_numerics: false
                 type_table:
+                  - "# This is a comment"
                   - "# => ALPHANUM"
                   - "@ => ALPHANUM"
     - length: { tokens: 2 }

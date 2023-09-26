@@ -100,7 +100,7 @@ public class Analysis {
     private static final Logger LOGGER = LogManager.getLogger(Analysis.class);
 
     // Regular expression to support hashtag tokenization
-    private static Pattern hashTagRulePattern = Pattern.compile("^\\s*#\\s*=>");
+    private static final Pattern HASH_TAG_RULE_PATTERN = Pattern.compile("^\\s*#\\s*=>");
 
     public static CharArraySet parseStemExclusion(Settings settings, CharArraySet defaultStemExclusion) {
         String value = settings.get("stem_exclusion");
@@ -249,7 +249,7 @@ public class Analysis {
         int lineNum = 0;
         for (String word : words) {
             lineNum++;
-            if (word.startsWith("#") == false || hashTagRulePattern.matcher(word).find()) {
+            if (word.startsWith("#") == false || HASH_TAG_RULE_PATTERN.matcher(word).find() == true) {
                 try {
                     rules.add(parser.apply(word));
                 } catch (RuntimeException ex) {
