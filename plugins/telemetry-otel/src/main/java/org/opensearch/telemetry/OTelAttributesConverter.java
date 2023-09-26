@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.telemetry.tracing;
+package org.opensearch.telemetry;
 
 import java.util.Locale;
 
@@ -16,7 +16,7 @@ import io.opentelemetry.api.common.AttributesBuilder;
 /**
  * Converts {@link org.opensearch.telemetry.tracing.attributes.Attributes} to OTel {@link Attributes}
  */
-final class OTelAttributesConverter {
+public final class OTelAttributesConverter {
 
     /**
      * Constructor.
@@ -28,7 +28,7 @@ final class OTelAttributesConverter {
      * @param attributes attributes
      * @return otel attributes.
      */
-    static Attributes convert(org.opensearch.telemetry.tracing.attributes.Attributes attributes) {
+    public static Attributes convert(org.opensearch.telemetry.tracing.attributes.Attributes attributes) {
         AttributesBuilder attributesBuilder = Attributes.builder();
         if (attributes != null) {
             attributes.getAttributesMap().forEach((x, y) -> addSpanAttribute(x, y, attributesBuilder));

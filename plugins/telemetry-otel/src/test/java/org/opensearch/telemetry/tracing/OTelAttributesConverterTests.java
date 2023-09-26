@@ -8,6 +8,7 @@
 
 package org.opensearch.telemetry.tracing;
 
+import org.opensearch.telemetry.OTelAttributesConverter;
 import org.opensearch.telemetry.tracing.attributes.Attributes;
 import org.opensearch.test.OpenSearchTestCase;
 

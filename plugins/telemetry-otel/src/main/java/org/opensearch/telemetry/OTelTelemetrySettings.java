@@ -61,6 +61,16 @@ public final class OTelTelemetrySettings {
     );
 
     /**
+     * metrics publish interval in seconds.
+     */
+    public static final Setting<TimeValue> METRICS_PUBLISH_INTERVAL_SETTING = Setting.timeSetting(
+        "telemetry.otel.metrics.publish.interval",
+        TimeValue.timeValueSeconds(60),
+        Setting.Property.NodeScope,
+        Setting.Property.Final
+    );
+
+    /**
      * Span Exporter type setting.
      */
     @SuppressWarnings("unchecked")

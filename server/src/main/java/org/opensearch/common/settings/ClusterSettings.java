@@ -694,6 +694,10 @@ public final class ClusterSettings extends AbstractScopedSettings {
             SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING
         ),
         List.of(FeatureFlags.TELEMETRY),
-        List.of(TelemetrySettings.TRACER_ENABLED_SETTING, TelemetrySettings.TRACER_SAMPLER_PROBABILITY)
+        List.of(
+            TelemetrySettings.TRACER_ENABLED_SETTING,
+            TelemetrySettings.TRACER_SAMPLER_PROBABILITY,
+            TelemetrySettings.METRICS_ENABLED_SETTING
+        )
     );
 }

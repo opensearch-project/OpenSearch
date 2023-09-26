@@ -1,0 +1,35 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+package org.opensearch.telemetry.metrics.noop;
+
+import org.opensearch.telemetry.metrics.Counter;
+import org.opensearch.telemetry.tracing.attributes.Attributes;
+
+/**
+ * No-op {@link Counter}
+ */
+public class NoopCounter implements Counter {
+
+    /**
+     * No-op Counter instance
+     */
+    public final static NoopCounter INSTANCE = new NoopCounter();
+
+    private NoopCounter() {}
+
+    @Override
+    public void add(double value) {
+
+    }
+
+    @Override
+    public void add(double value, Attributes attributes) {
+
+    }
+}

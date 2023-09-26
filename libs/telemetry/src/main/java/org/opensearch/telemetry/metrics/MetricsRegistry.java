@@ -8,24 +8,19 @@
 
 package org.opensearch.telemetry.metrics;
 
-import org.opensearch.common.annotation.ExperimentalApi;
-
 import java.io.Closeable;
 
 /**
- * Interface for metrics telemetry providers
-  *
- * @opensearch.experimental
+ * MetricsRegistry helps in creating the metric instruments.
  */
-@ExperimentalApi
-public interface MetricsTelemetry extends Closeable {
+public interface MetricsRegistry extends Closeable {
 
     /**
      * Creates the counter.
      * @param name name of the counter.
      * @param description any description about the metric.
      * @param unit unit of the metric.
-     * @return counter
+     * @return counter.
      */
     Counter createCounter(String name, String description, String unit);
 
@@ -34,7 +29,7 @@ public interface MetricsTelemetry extends Closeable {
      * @param name name of the upDown counter.
      * @param description any description about the metric.
      * @param unit unit of the metric.
-     * @return upDownCounter.
+     * @return counter.
      */
     Counter createUpDownCounter(String name, String description, String unit);
 }
