@@ -31,7 +31,7 @@ import static org.opensearch.test.OpenSearchIntegTestCase.client;
 import static org.opensearch.test.OpenSearchIntegTestCase.internalCluster;
 import static org.opensearch.test.OpenSearchIntegTestCase.resolveIndex;
 
-public class AsyncShardFetchBatchTestUtils {
+public class AsyncShardFetchTestUtils {
 
     public static DiscoveryNode[] getDiscoveryNodes() throws ExecutionException, InterruptedException {
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();

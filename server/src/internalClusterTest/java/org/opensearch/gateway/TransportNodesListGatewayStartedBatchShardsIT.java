@@ -24,11 +24,11 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
-import static org.opensearch.gateway.AsyncShardFetchBatchTestUtils.corruptShard;
-import static org.opensearch.gateway.AsyncShardFetchBatchTestUtils.getDiscoveryNodes;
-import static org.opensearch.gateway.AsyncShardFetchBatchTestUtils.prepareRequestMap;
+import static org.opensearch.gateway.AsyncShardFetchTestUtils.corruptShard;
+import static org.opensearch.gateway.AsyncShardFetchTestUtils.getDiscoveryNodes;
+import static org.opensearch.gateway.AsyncShardFetchTestUtils.prepareRequestMap;
 
-public class TransportNodesListGatewayStartedShardsBatchIT extends OpenSearchIntegTestCase {
+public class TransportNodesListGatewayStartedBatchShardsIT extends OpenSearchIntegTestCase {
 
     public void testSingleShardFetch() throws Exception {
         String indexName = "test";
