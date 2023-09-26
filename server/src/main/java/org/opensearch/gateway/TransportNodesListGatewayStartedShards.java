@@ -68,6 +68,7 @@ import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -124,7 +125,10 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
     }
 
     @Override
-    public void list(ShardId shardId, String customDataPath, DiscoveryNode[] nodes, ActionListener<NodesGatewayStartedShards> listener) {
+    public void list(Map<ShardId, String> shardIdsWithCustomDataPath, DiscoveryNode[] nodes, ActionListener<NodesGatewayStartedShards> listener) {
+        assert shardIdsWithCustomDataPath.size() == 1 : "only one shard should be specified";
+        final ShardId shardId = shardIdsWithCustomDataPath.keySet().iterator().next();
+        final String customDataPath = shardIdsWithCustomDataPath.get(shardId);
         execute(new Request(shardId, customDataPath, nodes), listener);
     }
 

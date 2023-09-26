@@ -62,7 +62,7 @@ public class TransportNodesListGatewayStartedShardsBatch extends TransportNodesA
     TransportNodesListGatewayStartedShardsBatch.NodeRequest,
     TransportNodesListGatewayStartedShardsBatch.NodeGatewayStartedShardsBatch>
     implements
-        AsyncBatchShardFetch.Lister<
+        AsyncShardFetch.Lister<
             TransportNodesListGatewayStartedShardsBatch.NodesGatewayStartedShardsBatch,
             TransportNodesListGatewayStartedShardsBatch.NodeGatewayStartedShardsBatch> {
 
@@ -107,8 +107,8 @@ public class TransportNodesListGatewayStartedShardsBatch extends TransportNodesA
 
     @Override
     public void list(
-        DiscoveryNode[] nodes,
         Map<ShardId, String> shardIdsWithCustomDataPath,
+        DiscoveryNode[] nodes,
         ActionListener<NodesGatewayStartedShardsBatch> listener
     ) {
         execute(new Request(nodes, shardIdsWithCustomDataPath), listener);
