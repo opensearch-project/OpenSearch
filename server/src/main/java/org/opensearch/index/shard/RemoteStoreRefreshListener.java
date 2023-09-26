@@ -301,6 +301,7 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
         indexShard.getEngine().translogManager().setMinSeqNoToKeep(lastRefreshedCheckpoint + 1);
         // Publishing the new checkpoint which is used for remote store + segrep indexes
         checkpointPublisher.publish(indexShard, checkpoint);
+        logger.debug("onSuccessfulSegmentsSync lastRefreshedCheckpoint={} checkpoint={}", lastRefreshedCheckpoint, checkpoint);
     }
 
     /**
