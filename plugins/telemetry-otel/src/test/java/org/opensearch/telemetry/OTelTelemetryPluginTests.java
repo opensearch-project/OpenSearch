@@ -13,7 +13,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.telemetry.metrics.MetricsTelemetry;
-import org.opensearch.telemetry.metrics.OTelMetricsTelemetryTests;
+import org.opensearch.telemetry.metrics.OTelMetricsTelemetry;
 import org.opensearch.telemetry.tracing.OTelTracingTelemetry;
 import org.opensearch.telemetry.tracing.TracingTelemetry;
 import org.opensearch.test.OpenSearchTestCase;
@@ -65,7 +65,7 @@ public class OTelTelemetryPluginTests extends OpenSearchTestCase {
         ClusterSettings.FEATURE_FLAGGED_CLUSTER_SETTINGS.get(List.of(FeatureFlags.TELEMETRY)).stream().forEach((allTracerSettings::add));
         assertEquals(OTEL_TRACER_NAME, oTelTelemetryModulePlugin.getName());
         assertTrue(tracingTelemetry instanceof OTelTracingTelemetry);
-        assertTrue(metricsTelemetry instanceof OTelMetricsTelemetryTests);
+        assertTrue(metricsTelemetry instanceof OTelMetricsTelemetry);
         assertEquals(
             Arrays.asList(
                 TRACER_EXPORTER_BATCH_SIZE_SETTING,

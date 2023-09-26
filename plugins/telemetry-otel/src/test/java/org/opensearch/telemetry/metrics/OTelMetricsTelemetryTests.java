@@ -73,7 +73,7 @@ public class OTelMetricsTelemetryTests extends OpenSearchTestCase {
 
         Counter counter = metricsTelemetry.createCounter(counterName, description, unit);
         counter.add(-1.0);
-        verify(mockOTelDoubleCounter).add(1.0);
+        verify(mockOTelDoubleCounter).add(-1.0);
     }
 
     public void testUpDownCounter() {
@@ -99,6 +99,6 @@ public class OTelMetricsTelemetryTests extends OpenSearchTestCase {
         verify(mockOTelUpDownDoubleCounter).add(1.0);
         Attributes attributes = Attributes.create().addAttribute("test", "test");
         counter.add(-2.0, attributes);
-        verify(mockOTelUpDownDoubleCounter).add(-2.0, OTelAttributesConverter.convert(attributes));
+        verify(mockOTelUpDownDoubleCounter).add((-2.0), OTelAttributesConverter.convert(attributes));
     }
 }
