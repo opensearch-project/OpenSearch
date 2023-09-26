@@ -18,17 +18,74 @@ import org.opensearch.telemetry.tracing.attributes.Attributes;
  */
 @ExperimentalApi
 public final class SpanCreationContext {
-    private final String spanName;
-    private final Attributes attributes;
+    private String spanName;
+    private Attributes attributes;
+    private SpanKind spanKind = SpanKind.INTERNAL;
+    private SpanContext parent;
 
     /**
      * Constructor.
-     * @param spanName span name.
-     * @param attributes attributes.
      */
-    public SpanCreationContext(String spanName, Attributes attributes) {
+    private SpanCreationContext() {}
+
+    /**
+     * Sets the span type to server.
+     * @return spanCreationContext
+     */
+    public static SpanCreationContext server() {
+        SpanCreationContext spanCreationContext = new SpanCreationContext();
+        spanCreationContext.spanKind = SpanKind.SERVER;
+        return spanCreationContext;
+    }
+
+    /**
+     * Sets the span type to client.
+     * @return spanCreationContext
+     */
+    public static SpanCreationContext client() {
+        SpanCreationContext spanCreationContext = new SpanCreationContext();
+        spanCreationContext.spanKind = SpanKind.CLIENT;
+        return spanCreationContext;
+    }
+
+    /**
+     * Sets the span type to internal.
+     * @return spanCreationContext
+     */
+    public static SpanCreationContext internal() {
+        SpanCreationContext spanCreationContext = new SpanCreationContext();
+        spanCreationContext.spanKind = SpanKind.INTERNAL;
+        return spanCreationContext;
+    }
+
+    /**
+     * Sets the span name.
+     * @param spanName span name.
+     * @return spanCreationContext
+     */
+    public SpanCreationContext name(String spanName) {
         this.spanName = spanName;
+        return this;
+    }
+
+    /**
+     * Sets the span attributes.
+     * @param attributes attributes.
+     * @return spanCreationContext
+     */
+    public SpanCreationContext attributes(Attributes attributes) {
         this.attributes = attributes;
+        return this;
+    }
+
+    /**
+     * Sets the parent for spann
+     * @param parent parent
+     * @return spanCreationContext
+     */
+    public SpanCreationContext parent(SpanContext parent) {
+        this.parent = parent;
+        return this;
     }
 
     /**
@@ -45,5 +102,21 @@ public final class SpanCreationContext {
      */
     public Attributes getAttributes() {
         return attributes;
+    }
+
+    /**
+     * Returns the span kind.
+     * @return spankind.
+     */
+    public SpanKind getSpanKind() {
+        return spanKind;
+    }
+
+    /**
+     * Returns the parent span
+     * @return parent.
+     */
+    public SpanContext getParent() {
+        return parent;
     }
 }

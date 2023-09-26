@@ -9,9 +9,9 @@
 package org.opensearch.test.telemetry.tracing;
 
 import org.opensearch.telemetry.tracing.Span;
+import org.opensearch.telemetry.tracing.SpanCreationContext;
 import org.opensearch.telemetry.tracing.TracingContextPropagator;
 import org.opensearch.telemetry.tracing.TracingTelemetry;
-import org.opensearch.telemetry.tracing.attributes.Attributes;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -29,8 +29,8 @@ public class MockTracingTelemetry implements TracingTelemetry {
     public MockTracingTelemetry() {}
 
     @Override
-    public Span createSpan(String spanName, Span parentSpan, Attributes attributes) {
-        Span span = new MockSpan(spanName, parentSpan, spanProcessor, attributes);
+    public Span createSpan(SpanCreationContext spanCreationContext, Span parentSpan) {
+        Span span = new MockSpan(spanCreationContext, parentSpan, spanProcessor);
         if (shutdown.get() == false) {
             spanProcessor.onStart(span);
         }
