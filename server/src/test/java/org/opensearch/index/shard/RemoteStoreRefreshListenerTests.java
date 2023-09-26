@@ -139,7 +139,8 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
                 return Collections.singletonList("dummy string");
             }
             throw new IOException();
-        }).when(remoteMetadataDirectory).listFilesByPrefixInLexicographicOrder(MetadataFilenameUtils.METADATA_PREFIX, METADATA_FILES_TO_FETCH);
+        }).when(remoteMetadataDirectory)
+            .listFilesByPrefixInLexicographicOrder(MetadataFilenameUtils.METADATA_PREFIX, METADATA_FILES_TO_FETCH);
 
         SegmentInfos segmentInfos;
         try (Store indexShardStore = indexShard.store()) {
@@ -167,7 +168,10 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         // Validate that the stream of metadata file of remoteMetadataDirectory has been opened only once and the
         // listFilesByPrefixInLexicographicOrder has been called twice.
         verify(remoteMetadataDirectory, times(1)).getBlobStream(any());
-        verify(remoteMetadataDirectory, times(2)).listFilesByPrefixInLexicographicOrder(MetadataFilenameUtils.METADATA_PREFIX, METADATA_FILES_TO_FETCH);
+        verify(remoteMetadataDirectory, times(2)).listFilesByPrefixInLexicographicOrder(
+            MetadataFilenameUtils.METADATA_PREFIX,
+            METADATA_FILES_TO_FETCH
+        );
     }
 
     public void testAfterRefresh() throws IOException {
