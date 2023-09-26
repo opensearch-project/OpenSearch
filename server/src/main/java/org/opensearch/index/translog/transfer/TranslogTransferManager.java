@@ -227,7 +227,7 @@ public class TranslogTransferManager {
     }
 
     public boolean downloadTranslog(String primaryTerm, String generation, Path location) throws IOException {
-        logger.info(
+        logger.trace(
             "Downloading translog files with: Primary Term = {}, Generation = {}, Location = {}",
             primaryTerm,
             generation,
@@ -289,6 +289,7 @@ public class TranslogTransferManager {
                     exceptionSetOnce.set(e);
                 } finally {
                     remoteTranslogTransferTracker.addDownloadTimeInMillis((System.nanoTime() - downloadStartTime) / 1_000_000L);
+                    logger.debug("translogMetadataDownloadStatus={}", downloadStatus);
                     if (downloadStatus) {
                         remoteTranslogTransferTracker.addDownloadBytesSucceeded(bytesToRead);
                     }

@@ -8,6 +8,8 @@
 
 package org.opensearch.index.store;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
@@ -77,6 +79,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
+    private static final Logger logger = LogManager.getLogger(RemoteSegmentStoreDirectoryTests.class);
     private RemoteDirectory remoteDataDirectory;
     private RemoteDirectory remoteMetadataDirectory;
     private RemoteStoreMetadataLockManager mdLockManager;
@@ -97,13 +100,6 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         remoteMetadataDirectory = mock(RemoteDirectory.class);
         mdLockManager = mock(RemoteStoreMetadataLockManager.class);
         threadPool = mock(ThreadPool.class);
-
-        remoteSegmentStoreDirectory = new RemoteSegmentStoreDirectory(
-            remoteDataDirectory,
-            remoteMetadataDirectory,
-            mdLockManager,
-            threadPool
-        );
         testUploadTracker = new TestUploadListener();
 
         Settings indexSettings = Settings.builder()
@@ -113,6 +109,13 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         ExecutorService executorService = OpenSearchExecutors.newDirectExecutorService();
 
         indexShard = newStartedShard(false, indexSettings, new NRTReplicationEngineFactory());
+        remoteSegmentStoreDirectory = new RemoteSegmentStoreDirectory(
+            remoteDataDirectory,
+            remoteMetadataDirectory,
+            mdLockManager,
+            threadPool,
+            indexShard.shardId()
+        );
         try (Store store = indexShard.store()) {
             segmentInfos = store.readLastCommittedSegmentsInfo();
         }
@@ -636,7 +639,8 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
             remoteDataDirectory,
             remoteMetadataDirectory,
             mdLockManager,
-            threadPool
+            threadPool,
+            indexShard.shardId()
         );
 
         populateMetadata();

@@ -208,7 +208,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
      * @param replicaShard       replica shard on which checkpoint is received
      */
     public synchronized void onNewCheckpoint(final ReplicationCheckpoint receivedCheckpoint, final IndexShard replicaShard) {
-        logger.trace(() -> new ParameterizedMessage("Replica received new replication checkpoint from primary [{}]", receivedCheckpoint));
+        logger.debug(() -> new ParameterizedMessage("Replica received new replication checkpoint from primary [{}]", receivedCheckpoint));
         // if the shard is in any state
         if (replicaShard.state().equals(IndexShardState.CLOSED)) {
             // ignore if shard is closed
@@ -224,7 +224,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
             SegmentReplicationTarget ongoingReplicationTarget = onGoingReplications.getOngoingReplicationTarget(replicaShard.shardId());
             if (ongoingReplicationTarget != null) {
                 if (ongoingReplicationTarget.getCheckpoint().getPrimaryTerm() < receivedCheckpoint.getPrimaryTerm()) {
-                    logger.trace(
+                    logger.debug(
                         () -> new ParameterizedMessage(
                             "Cancelling ongoing replication {} from old primary with primary term {}",
                             ongoingReplicationTarget.description(),
@@ -233,7 +233,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
                     );
                     ongoingReplicationTarget.cancel("Cancelling stuck target after new primary");
                 } else {
-                    logger.trace(
+                    logger.debug(
                         () -> new ParameterizedMessage(
                             "Ignoring new replication checkpoint - shard is currently replicating to checkpoint {}",
                             ongoingReplicationTarget.getCheckpoint()
@@ -247,7 +247,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
                 startReplication(replicaShard, receivedCheckpoint, new SegmentReplicationListener() {
                     @Override
                     public void onReplicationDone(SegmentReplicationState state) {
-                        logger.trace(
+                        logger.debug(
                             () -> new ParameterizedMessage(
                                 "[shardId {}] [replication id {}] Replication complete to {}, timing data: {}",
                                 replicaShard.shardId().getId(),
@@ -512,7 +512,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
         target.startReplication(new ActionListener<>() {
             @Override
             public void onResponse(Void o) {
-                logger.trace(() -> new ParameterizedMessage("Finished replicating {} marking as done.", target.description()));
+                logger.debug(() -> new ParameterizedMessage("Finished replicating {} marking as done.", target.description()));
                 onGoingReplications.markAsDone(replicationId);
                 if (target.state().getIndex().recoveredFileCount() != 0 && target.state().getIndex().recoveredBytes() != 0) {
                     completedReplications.put(target.shardId(), target);
@@ -521,6 +521,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
 
             @Override
             public void onFailure(Exception e) {
+                logger.debug("Replication failed {}", target.description());
                 if (e instanceof OpenSearchCorruptionException) {
                     onGoingReplications.fail(replicationId, new ReplicationFailedException("Store corruption during replication", e), true);
                     return;
