@@ -923,9 +923,7 @@ public class MetadataCreateIndexService {
         validateTranslogRetentionSettings(indexSettings);
         validateStoreTypeSettings(indexSettings);
         validateRefreshIntervalSettings(request.settings(), clusterSettings);
-        if (isRemoteStoreAttributePresent(settings)) {
-            validateTranslogDurabilitySettings(request.settings(), clusterSettings);
-        }
+        validateTranslogDurabilitySettings(request.settings(), clusterSettings, settings);
 
         return indexSettings;
     }
@@ -1521,8 +1519,9 @@ public class MetadataCreateIndexService {
      * @param requestSettings settings passed in during index create/update request
      * @param clusterSettings cluster setting
      */
-    static void validateTranslogDurabilitySettings(Settings requestSettings, ClusterSettings clusterSettings) {
-        if (IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.exists(requestSettings) == false
+    static void validateTranslogDurabilitySettings(Settings requestSettings, ClusterSettings clusterSettings, Settings settings) {
+        if (isRemoteStoreAttributePresent(settings) == false
+            || IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.exists(requestSettings) == false
             || clusterSettings.get(IndicesService.CLUSTER_REMOTE_INDEX_RESTRICT_ASYNC_DURABILITY_SETTING) == false) {
             return;
         }

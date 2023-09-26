@@ -24,7 +24,7 @@ import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.IndexShard;
-import org.opensearch.index.translog.Translog;
+import org.opensearch.index.translog.Translog.Durability;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.plugins.Plugin;
@@ -324,9 +324,29 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         );
     }
 
-    public void testAnyTranslogDurabilityWhenRestrictSettingFalse() throws ExecutionException, InterruptedException {
+    public void testRequestDurabilityWhenRestrictSettingExplicitFalse() throws ExecutionException, InterruptedException {
+        // Explicit node settings and request durability
+        testRestrictSettingFalse(true, Durability.REQUEST);
+    }
+
+    public void testAsyncDurabilityWhenRestrictSettingExplicitFalse() throws ExecutionException, InterruptedException {
+        // Explicit node settings and async durability
+        testRestrictSettingFalse(true, Durability.ASYNC);
+    }
+
+    public void testRequestDurabilityWhenRestrictSettingImplicitFalse() throws ExecutionException, InterruptedException {
+        // No node settings and request durability
+        testRestrictSettingFalse(false, Durability.REQUEST);
+    }
+
+    public void testAsyncDurabilityWhenRestrictSettingImplicitFalse() throws ExecutionException, InterruptedException {
+        // No node settings and async durability
+        testRestrictSettingFalse(false, Durability.ASYNC);
+    }
+
+    private void testRestrictSettingFalse(boolean setRestrictFalse, Durability durability) throws ExecutionException, InterruptedException {
         String clusterManagerName;
-        if (randomBoolean()) {
+        if (setRestrictFalse) {
             clusterManagerName = internalCluster().startClusterManagerOnlyNode(
                 Settings.builder().put(IndicesService.CLUSTER_REMOTE_INDEX_RESTRICT_ASYNC_DURABILITY_SETTING.getKey(), false).build()
             );
@@ -334,7 +354,6 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
             clusterManagerName = internalCluster().startClusterManagerOnlyNode();
         }
         String dataNode = internalCluster().startDataOnlyNodes(1).get(0);
-        Translog.Durability durability = randomFrom(Translog.Durability.values());
         Settings indexSettings = Settings.builder()
             .put(indexSettings())
             .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), durability)
@@ -343,7 +362,7 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         IndexShard indexShard = getIndexShard(dataNode);
         assertEquals(durability, indexShard.indexSettings().getTranslogDurability());
 
-        durability = randomFrom(Translog.Durability.values());
+        durability = randomFrom(Durability.values());
         client(clusterManagerName).admin()
             .indices()
             .updateSettings(
@@ -366,7 +385,7 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         // Case 1 - Test create index fails
         Settings indexSettings = Settings.builder()
             .put(indexSettings())
-            .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.ASYNC)
+            .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Durability.ASYNC)
             .build();
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> createIndex(INDEX_NAME, indexSettings));
         assertEquals(expectedExceptionMsg, exception.getMessage());
@@ -374,7 +393,7 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         // Case 2 - Test update index fails
         createIndex(INDEX_NAME);
         IndexShard indexShard = getIndexShard(dataNode);
-        assertEquals(Translog.Durability.REQUEST, indexShard.indexSettings().getTranslogDurability());
+        assertEquals(Durability.REQUEST, indexShard.indexSettings().getTranslogDurability());
         exception = assertThrows(
             IllegalArgumentException.class,
             () -> client(clusterManagerName).admin()

@@ -77,7 +77,6 @@ import static org.opensearch.cluster.metadata.MetadataCreateIndexService.validat
 import static org.opensearch.cluster.metadata.MetadataCreateIndexService.validateTranslogDurabilitySettings;
 import static org.opensearch.common.settings.AbstractScopedSettings.ARCHIVED_SETTINGS_PREFIX;
 import static org.opensearch.index.IndexSettings.same;
-import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteStoreAttributePresent;
 
 /**
  * Service responsible for submitting update index settings requests
@@ -131,9 +130,7 @@ public class MetadataUpdateSettingsService {
             .build();
 
         validateRefreshIntervalSettings(normalizedSettings, clusterService.getClusterSettings());
-        if (isRemoteStoreAttributePresent(clusterService.getSettings())) {
-            validateTranslogDurabilitySettings(normalizedSettings, clusterService.getClusterSettings());
-        }
+        validateTranslogDurabilitySettings(normalizedSettings, clusterService.getClusterSettings(), clusterService.getSettings());
 
         Settings.Builder settingsForClosedIndices = Settings.builder();
         Settings.Builder settingsForOpenIndices = Settings.builder();
