@@ -105,8 +105,8 @@ public class TranslogTransferMetadata {
                 RemoteStoreUtils.invertLong(primaryTerm),
                 RemoteStoreUtils.invertLong(generation),
                 RemoteStoreUtils.invertLong(createdAt),
-                String.valueOf(CURRENT_VERSION),
-                nodeId
+                nodeId,
+                String.valueOf(CURRENT_VERSION)
             )
         );
     }
@@ -117,7 +117,7 @@ public class TranslogTransferMetadata {
             // For versions < 2.11, we don't have node id
             return null;
         }
-        return new Tuple<>(new Tuple<>(RemoteStoreUtils.invertLong(tokens[1]), RemoteStoreUtils.invertLong(tokens[2])), tokens[5]);
+        return new Tuple<>(new Tuple<>(RemoteStoreUtils.invertLong(tokens[1]), RemoteStoreUtils.invertLong(tokens[2])), tokens[4]);
     }
 
     @Override

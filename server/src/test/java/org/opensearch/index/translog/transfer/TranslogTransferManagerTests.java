@@ -16,6 +16,7 @@ import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.blobstore.support.PlainBlobMetadata;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
@@ -502,8 +503,8 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
     }
 
     public void testGetPrimaryTermAndGeneration() {
-        String tm = new TranslogTransferMetadata(1, 2, 1, 2).getFileName();
-        assertEquals(null, TranslogTransferMetadata.getNodeIdByPrimaryTermAndGeneration(tm));
+        String tm = new TranslogTransferMetadata(1, 2, 1, 2, "node-1").getFileName();
+        assertEquals(new Tuple<>(new Tuple<>(1L, 2L), "node-1"), TranslogTransferMetadata.getNodeIdByPrimaryTermAndGeneration(tm));
     }
 
     public void testMetadataConflict() throws InterruptedException {
