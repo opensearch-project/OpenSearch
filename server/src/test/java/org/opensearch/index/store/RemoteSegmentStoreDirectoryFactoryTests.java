@@ -9,6 +9,8 @@
 package org.opensearch.index.store;
 
 import org.apache.lucene.store.Directory;
+import org.junit.Before;
+import org.mockito.ArgumentCaptor;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.blobstore.BlobContainer;
@@ -26,14 +28,11 @@ import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.function.Supplier;
-
-import org.mockito.ArgumentCaptor;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -42,6 +41,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.opensearch.index.store.RemoteSegmentStoreDirectory.METADATA_FILES_TO_FETCH;
 
 public class RemoteSegmentStoreDirectoryFactoryTests extends OpenSearchTestCase {
 
@@ -78,7 +78,7 @@ public class RemoteSegmentStoreDirectoryFactoryTests extends OpenSearchTestCase 
             latchedActionListener.onResponse(List.of());
             return null;
         }).when(blobContainer)
-            .listBlobsByPrefixInSortedOrder(any(), eq(1), eq(BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC), any(ActionListener.class));
+            .listBlobsByPrefixInSortedOrder(any(), eq(METADATA_FILES_TO_FETCH), eq(BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC), any(ActionListener.class));
 
         when(repositoriesService.repository("remote_store_repository")).thenReturn(repository);
 
@@ -93,7 +93,7 @@ public class RemoteSegmentStoreDirectoryFactoryTests extends OpenSearchTestCase 
 
             verify(blobContainer).listBlobsByPrefixInSortedOrder(
                 eq(RemoteSegmentStoreDirectory.MetadataFilenameUtils.METADATA_PREFIX),
-                eq(1),
+                eq(METADATA_FILES_TO_FETCH),
                 eq(BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC),
                 any()
             );

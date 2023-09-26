@@ -113,11 +113,11 @@ public class TranslogTransferMetadata {
 
     public static Tuple<Tuple<Long, Long>, String> getNodeIdByPrimaryTermAndGeneration(String filename) {
         String[] tokens = filename.split(METADATA_SEPARATOR);
-        if (tokens.length < 5) {
+        if (tokens.length < 6) {
             // For versions < 2.11, we don't have node id
             return null;
         }
-        return new Tuple<>(new Tuple<>(RemoteStoreUtils.invertLong(tokens[1]), RemoteStoreUtils.invertLong(tokens[2])), tokens[4]);
+        return new Tuple<>(new Tuple<>(RemoteStoreUtils.invertLong(tokens[1]), RemoteStoreUtils.invertLong(tokens[2])), tokens[5]);
     }
 
     @Override
