@@ -340,7 +340,9 @@ public class ExtensionsManager {
      */
     public void initialize() {
         for (DiscoveryExtensionNode extension : extensionIdMap.values()) {
-            initializeExtension(extension);
+            if (! initializedExtensions.containsKey(extension)) {
+                initializeExtension(extension);
+            }
         }
     }
 
@@ -384,6 +386,7 @@ public class ExtensionsManager {
         transportService.getThreadPool().generic().execute(new AbstractRunnable() {
             @Override
             public void onFailure(Exception e) {
+                logger.warn(String.format("Error registering extension: %s", extension.getId()), e);
                 extensionIdMap.remove(extension.getId());
                 if (e.getCause() instanceof ConnectTransportException) {
                     logger.info("No response from extension to request.", e);
