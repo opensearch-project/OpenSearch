@@ -131,37 +131,37 @@ public final class AllowlistLoader {
      * must be specified with Painless type names (def, fully-qualified, or short) as described earlier.
      * <p>
      * The following example is used to create a single allowlist text file:
-     * <p>
-     * {@code
+     *
+     * <pre>
      * # primitive types
-     * <p>
+     *
      * class int -> int {
      * }
-     * <p>
+     *
      * # complex types
-     * <p>
+     *
      * class my.package.Example @no_import {
      *   # constructors
      *   ()
      *   (int)
      *   (def, def)
      *   (Example, def)
-     * <p>
+     *
      *   # method
      *   Example add(int, def)
      *   int add(Example, Example)
      *   void example() @deprecated[use example 2 instead]
      *   void example2()
-     * <p>
+     *
      *   # augmented
      *   Example some.other.Class sub(Example, int, def)
-     * <p>
+     *
      *   # fields
      *   int value0
      *   int value1
      *   def value2
      * }
-     * }
+     * </pre>
      */
     public static Allowlist loadFromResourceFiles(Class<?> resource, Map<String, AllowlistAnnotationParser> parsers, String... filepaths) {
         List<AllowlistClass> allowlistClasses = new ArrayList<>();
