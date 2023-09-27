@@ -80,12 +80,14 @@ public class RemoteStorePeerRecoverySourceHandler extends RecoverySourceHandler 
         assert startingSeqNo >= 0 : "startingSeqNo must be non negative. got: " + startingSeqNo;
 
         sendFileStep.whenComplete(r -> {
+            logger.debug("sendFileStep completed");
             assert Transports.assertNotTransportThread(this + "[prepareTargetForTranslog]");
             // For a sequence based recovery, the target can keep its local translog
             prepareTargetForTranslog(0, prepareEngineStep);
         }, onFailure);
 
         prepareEngineStep.whenComplete(prepareEngineTime -> {
+            logger.debug("prepareEngineStep completed");
             assert Transports.assertNotTransportThread(this + "[phase2]");
             RunUnderPrimaryPermit.run(
                 () -> shard.initiateTracking(request.targetAllocationId()),

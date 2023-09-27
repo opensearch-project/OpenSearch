@@ -265,7 +265,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                     actionName = PeerRecoverySourceService.Actions.START_RECOVERY;
                 } catch (final Exception e) {
                     // this will be logged as warning later on...
-                    logger.trace("unexpected error while preparing shard for peer recovery, failing recovery", e);
+                    logger.debug("unexpected error while preparing shard for peer recovery, failing recovery", e);
                     onGoingRecoveries.fail(
                         recoveryId,
                         new RecoveryFailedException(recoveryTarget.state(), "failed to prepare shard for recovery", e),
@@ -273,12 +273,12 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                     );
                     return;
                 }
-                logger.trace("{} starting recovery from {}", startRequest.shardId(), startRequest.sourceNode());
+                logger.debug("{} starting recovery from {}", startRequest.shardId(), startRequest.sourceNode());
             } else {
                 startRequest = preExistingRequest;
                 requestToSend = new ReestablishRecoveryRequest(recoveryId, startRequest.shardId(), startRequest.targetAllocationId());
                 actionName = PeerRecoverySourceService.Actions.REESTABLISH_RECOVERY;
-                logger.trace("{} reestablishing recovery from {}", startRequest.shardId(), startRequest.sourceNode());
+                logger.debug("{} reestablishing recovery from {}", startRequest.shardId(), startRequest.sourceNode());
             }
         }
         transportService.sendRequest(
