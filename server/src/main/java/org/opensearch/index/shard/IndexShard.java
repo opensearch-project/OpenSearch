@@ -4930,7 +4930,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         });
 
         final Path indexPath = store.shardPath() == null ? null : store.shardPath().resolveIndex();
-        toDownloadSegments.forEach(file -> sourceRemoteDirectory.copyTo(file, storeDirectory, indexPath, segmentsDownloadListener));
+        toDownloadSegments.forEach(file -> { sourceRemoteDirectory.copyTo(file, storeDirectory, indexPath, segmentsDownloadListener); });
         completionListener.actionGet();
     }
 
