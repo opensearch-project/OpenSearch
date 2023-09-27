@@ -135,7 +135,7 @@ public final class AllowlistLoader {
      * <pre>
      * # primitive types
      *
-     * class int -> int {
+     * class int -&gt; int {
      * }
      *
      * # complex types
