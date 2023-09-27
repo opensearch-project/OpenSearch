@@ -794,9 +794,9 @@ public class Node implements Closeable {
                 remoteStoreStatsTrackerFactory
             );
 
-            final PerformanceCollectorService performanceCollectorService = new PerformanceCollectorService(clusterService);
+            final PerfStatsCollectorService perfStatsCollectorService = new PerfStatsCollectorService(clusterService);
             final NodePerformanceTracker nodePerformanceTracker = new NodePerformanceTracker(
-                performanceCollectorService,
+                perfStatsCollectorService,
                 threadPool,
                 settings,
                 clusterService.getClusterSettings()
@@ -1089,7 +1089,7 @@ public class Node implements Closeable {
                 searchPipelineService,
                 fileCache,
                 taskCancellationMonitoringService,
-                performanceCollectorService
+                perfStatsCollectorService
             );
 
             final SearchService searchService = newSearchService(
@@ -1210,7 +1210,7 @@ public class Node implements Closeable {
                 b.bind(RerouteService.class).toInstance(rerouteService);
                 b.bind(ShardLimitValidator.class).toInstance(shardLimitValidator);
                 b.bind(FsHealthService.class).toInstance(fsHealthService);
-                b.bind(PerformanceCollectorService.class).toInstance(performanceCollectorService);
+                b.bind(PerfStatsCollectorService.class).toInstance(perfStatsCollectorService);
                 b.bind(NodePerformanceTracker.class).toInstance(nodePerformanceTracker);
                 b.bind(SystemIndices.class).toInstance(systemIndices);
                 b.bind(IdentityService.class).toInstance(identityService);

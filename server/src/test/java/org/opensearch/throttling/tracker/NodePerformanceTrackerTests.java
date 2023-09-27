@@ -12,7 +12,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.node.NodePerformanceStatistics;
-import org.opensearch.node.PerformanceCollectorService;
+import org.opensearch.node.PerfStatsCollectorService;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
@@ -46,10 +46,10 @@ public class NodePerformanceTrackerTests extends OpenSearchTestCase {
     }
 
     public void testStats() throws InterruptedException {
-        PerformanceCollectorService performanceCollectorService = new PerformanceCollectorService(mockClusterService());
+        PerfStatsCollectorService perfStatsCollectorService = new PerfStatsCollectorService(mockClusterService());
 
         NodePerformanceTracker tracker = new NodePerformanceTracker(
-            performanceCollectorService,
+            perfStatsCollectorService,
             threadPool,
             Settings.EMPTY,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
@@ -60,9 +60,9 @@ public class NodePerformanceTrackerTests extends OpenSearchTestCase {
         assertThat(tracker.getMemoryUtilizationPercent(), greaterThan(0.0));
         // cpu percent used is mostly 0, so skipping assertion for that
         tracker.stop();
-        assertTrue(performanceCollectorService.getNodeStatistics(NodePerformanceTracker.LOCAL_NODE).isPresent());
-        NodePerformanceStatistics perfStats = performanceCollectorService.getNodeStatistics(NodePerformanceTracker.LOCAL_NODE).get();
+        assertTrue(perfStatsCollectorService.getNodeStatistics(NodePerformanceTracker.LOCAL_NODE).isPresent());
+        NodePerformanceStatistics perfStats = perfStatsCollectorService.getNodeStatistics(NodePerformanceTracker.LOCAL_NODE).get();
         assertEquals(memory, perfStats.getMemoryUtilizationPercent(), 0.0);
-        assertTrue(performanceCollectorService.getNodeStatistics("Invalid").isEmpty());
+        assertTrue(perfStatsCollectorService.getNodeStatistics("Invalid").isEmpty());
     }
 }

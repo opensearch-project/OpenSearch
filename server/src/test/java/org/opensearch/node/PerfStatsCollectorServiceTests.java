@@ -29,10 +29,10 @@ import java.util.concurrent.CountDownLatch;
 
 import static org.hamcrest.Matchers.greaterThan;
 
-public class PerformanceCollectorServiceTests extends OpenSearchTestCase {
+public class PerfStatsCollectorServiceTests extends OpenSearchTestCase {
 
     private ClusterService clusterService;
-    private PerformanceCollectorService collector;
+    private PerfStatsCollectorService collector;
     private ThreadPool threadpool;
 
     @Before
@@ -44,7 +44,7 @@ public class PerformanceCollectorServiceTests extends OpenSearchTestCase {
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             threadpool
         );
-        collector = new PerformanceCollectorService(clusterService);
+        collector = new PerfStatsCollectorService(clusterService);
     }
 
     @After
@@ -54,7 +54,7 @@ public class PerformanceCollectorServiceTests extends OpenSearchTestCase {
     }
 
     public void testNodePerformanceStats() {
-        collector.addNodePerfStatistics("node1", 99, 97, System.currentTimeMillis());
+        collector.collectNodePerfStatistics("node1", 99, 97, System.currentTimeMillis());
         Map<String, NodePerformanceStatistics> nodeStats = collector.getAllNodeStatistics();
         assertTrue(nodeStats.containsKey("node1"));
         assertEquals(99.0, nodeStats.get("node1").cpuUtilizationPercent, 0.0);
@@ -89,7 +89,7 @@ public class PerformanceCollectorServiceTests extends OpenSearchTestCase {
                 if (randomBoolean()) {
                     collector.removeNode(randomFrom(nodes));
                 }
-                collector.addNodePerfStatistics(
+                collector.collectNodePerfStatistics(
                     randomFrom(nodes),
                     randomIntBetween(1, 100),
                     randomIntBetween(1, 100),
@@ -124,8 +124,8 @@ public class PerformanceCollectorServiceTests extends OpenSearchTestCase {
     }
 
     public void testNodeRemoval() throws Exception {
-        collector.addNodePerfStatistics("node1", randomIntBetween(1, 100), randomIntBetween(1, 100), System.currentTimeMillis());
-        collector.addNodePerfStatistics("node2", randomIntBetween(1, 100), randomIntBetween(1, 100), System.currentTimeMillis());
+        collector.collectNodePerfStatistics("node1", randomIntBetween(1, 100), randomIntBetween(1, 100), System.currentTimeMillis());
+        collector.collectNodePerfStatistics("node2", randomIntBetween(1, 100), randomIntBetween(1, 100), System.currentTimeMillis());
 
         ClusterState previousState = ClusterState.builder(new ClusterName("cluster"))
             .nodes(

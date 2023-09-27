@@ -27,6 +27,7 @@ public abstract class AbstractAverageUsageTracker extends AbstractLifecycleCompo
 
     private final ThreadPool threadPool;
     private final TimeValue pollingInterval;
+    private TimeValue windowDuration;
     private final AtomicReference<MovingAverage> observations = new AtomicReference<>();
 
     private volatile Scheduler.Cancellable scheduledFuture;
@@ -34,7 +35,8 @@ public abstract class AbstractAverageUsageTracker extends AbstractLifecycleCompo
     public AbstractAverageUsageTracker(ThreadPool threadPool, TimeValue pollingInterval, TimeValue windowDuration) {
         this.threadPool = threadPool;
         this.pollingInterval = pollingInterval;
-        this.setWindowDuration(windowDuration);
+        this.windowDuration = windowDuration;
+        this.setWindowSize(windowDuration);
     }
 
     public abstract long getUsage();
@@ -43,10 +45,28 @@ public abstract class AbstractAverageUsageTracker extends AbstractLifecycleCompo
         return observations.get().getAverage();
     }
 
-    public void setWindowDuration(TimeValue windowDuration) {
+    public void setWindowSize(TimeValue windowDuration) {
+        this.windowDuration = windowDuration;
         int windowSize = (int) (windowDuration.nanos() / pollingInterval.nanos());
         LOGGER.debug("updated window size: {}", windowSize);
         observations.set(new MovingAverage(windowSize));
+    }
+
+    public TimeValue getPollingInterval() {
+        return pollingInterval;
+    }
+
+    public TimeValue getWindowDuration() {
+        return windowDuration;
+    }
+
+    public long getWindowSize() {
+        return observations.get().getCount();
+    }
+
+    /** For testing **/
+    public void recordUsage(long usage) {
+        observations.get().record(usage);
     }
 
     @Override

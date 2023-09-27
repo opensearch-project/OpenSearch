@@ -14,43 +14,55 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 
 /**
- * Settings related to node performance trackers
+ * Settings related to node performance trackers such as polling interval, window duration etc
  */
 public class PerformanceTrackerSettings {
 
     private static class Defaults {
-        private static final long POLLING_INTERVAL = 500;
-        private static final long WINDOW_DURATION = 30;
-        private static final long REFRESH_INTERVAL = 1000;
+        /**
+         * This is the default polling interval of usage trackers to get the resource utilization data
+         */
+        private static final long POLLING_INTERVAL_IN_MILLIS = 500;
+        /**
+         * This is the default window duration on which the average resource utilization values will be calculated
+         */
+        private static final long WINDOW_DURATION_IN_MILLIS = 30;
+        /**
+         * Defines interval to refresh performance stats
+         */
+        private static final long REFRESH_INTERVAL_IN_MILLIS = 1000;
     }
 
+    /**
+     * This setting sets the polling interval of node performance tracker to refresh the performance stats
+     */
     public static final Setting<Long> REFRESH_INTERVAL_MILLIS = Setting.longSetting(
-        "node.performance_tracker.interval_millis",
-        Defaults.REFRESH_INTERVAL,
+        "node.performance_tracker.refresh_interval_millis",
+        Defaults.REFRESH_INTERVAL_IN_MILLIS,
         1,
         Setting.Property.NodeScope
     );
     public static final Setting<TimeValue> GLOBAL_CPU_USAGE_AC_POLLING_INTERVAL_SETTING = Setting.positiveTimeSetting(
         "node.perf_tracker.global_cpu_usage.polling_interval",
-        TimeValue.timeValueMillis(Defaults.POLLING_INTERVAL),
+        TimeValue.timeValueMillis(Defaults.POLLING_INTERVAL_IN_MILLIS),
         Setting.Property.NodeScope
     );
     public static final Setting<TimeValue> GLOBAL_CPU_USAGE_AC_WINDOW_DURATION_SETTING = Setting.positiveTimeSetting(
         "node.perf_tracker.global_cpu_usage.window_duration",
-        TimeValue.timeValueSeconds(Defaults.WINDOW_DURATION),
+        TimeValue.timeValueSeconds(Defaults.WINDOW_DURATION_IN_MILLIS),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
 
     public static final Setting<TimeValue> GLOBAL_JVM_USAGE_AC_POLLING_INTERVAL_SETTING = Setting.positiveTimeSetting(
         "node.perf_tracker.global_jvmmp.polling_interval",
-        TimeValue.timeValueMillis(Defaults.POLLING_INTERVAL),
+        TimeValue.timeValueMillis(Defaults.POLLING_INTERVAL_IN_MILLIS),
         Setting.Property.NodeScope
     );
 
     public static final Setting<TimeValue> GLOBAL_JVM_USAGE_AC_WINDOW_DURATION_SETTING = Setting.positiveTimeSetting(
         "node.perf_tracker.global_jvmmp.window_duration",
-        TimeValue.timeValueSeconds(Defaults.WINDOW_DURATION),
+        TimeValue.timeValueSeconds(Defaults.WINDOW_DURATION_IN_MILLIS),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );

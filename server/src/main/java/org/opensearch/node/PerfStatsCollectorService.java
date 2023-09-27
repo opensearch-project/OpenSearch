@@ -23,10 +23,10 @@ import java.util.concurrent.ConcurrentMap;
  * This collects node level performance statistics such as cpu, memory, IO of each node and makes it available for
  * coordinator node to aid in throttling, ranking etc
  */
-public class PerformanceCollectorService implements ClusterStateListener {
+public class PerfStatsCollectorService implements ClusterStateListener {
     private final ConcurrentMap<String, NodePerformanceStatistics> nodeIdToPerfStats = ConcurrentCollections.newConcurrentMap();
 
-    public PerformanceCollectorService(ClusterService clusterService) {
+    public PerfStatsCollectorService(ClusterService clusterService) {
         clusterService.addListener(this);
     }
 
@@ -43,7 +43,10 @@ public class PerformanceCollectorService implements ClusterStateListener {
         nodeIdToPerfStats.remove(nodeId);
     }
 
-    public void addNodePerfStatistics(String nodeId, double cpuUtilizationPercent, double memoryUtilizationPercent, long timestamp) {
+    /**
+     * Collect node performance statistics along with the timestamp
+     */
+    public void collectNodePerfStatistics(String nodeId, double cpuUtilizationPercent, double memoryUtilizationPercent, long timestamp) {
         nodeIdToPerfStats.compute(nodeId, (id, nodePerfStats) -> {
             if (nodePerfStats == null) {
                 return new NodePerformanceStatistics(nodeId, cpuUtilizationPercent, memoryUtilizationPercent, timestamp);
@@ -74,6 +77,10 @@ public class PerformanceCollectorService implements ClusterStateListener {
         return Optional.ofNullable(nodeIdToPerfStats.get(nodeId)).map(perfStats -> new NodePerformanceStatistics(perfStats));
     }
 
+    /**
+     * Returns collected performance statistics of all nodes
+     * @return
+     */
     public GlobalPerformanceStats stats() {
         return new GlobalPerformanceStats(getAllNodeStatistics());
     }

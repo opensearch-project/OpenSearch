@@ -14,7 +14,7 @@ import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.node.PerformanceCollectorService;
+import org.opensearch.node.PerfStatsCollectorService;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -31,7 +31,7 @@ public class NodePerformanceTracker extends AbstractLifecycleComponent {
     private final ClusterSettings clusterSettings;
     private AverageCpuUsageTracker cpuUsageTracker;
     private AverageMemoryUsageTracker memoryUsageTracker;
-    private PerformanceCollectorService performanceCollectorService;
+    private PerfStatsCollectorService perfStatsCollectorService;
 
     private PerformanceTrackerSettings performanceTrackerSettings;
     private static final Logger logger = LogManager.getLogger(NodePerformanceTracker.class);
@@ -40,12 +40,12 @@ public class NodePerformanceTracker extends AbstractLifecycleComponent {
     public static final String LOCAL_NODE = "LOCAL";
 
     public NodePerformanceTracker(
-        PerformanceCollectorService performanceCollectorService,
+        PerfStatsCollectorService perfStatsCollectorService,
         ThreadPool threadPool,
         Settings settings,
         ClusterSettings clusterSettings
     ) {
-        this.performanceCollectorService = performanceCollectorService;
+        this.perfStatsCollectorService = perfStatsCollectorService;
         this.threadPool = threadPool;
         this.clusterSettings = clusterSettings;
         this.performanceTrackerSettings = new PerformanceTrackerSettings(settings, clusterSettings);
@@ -80,7 +80,7 @@ public class NodePerformanceTracker extends AbstractLifecycleComponent {
     void doRun() {
         setCpuUtilizationPercent(getAverageCpuUsed());
         setMemoryUtilizationPercent(getAverageMemoryUsed());
-        performanceCollectorService.addNodePerfStatistics(
+        perfStatsCollectorService.collectNodePerfStatistics(
             LOCAL_NODE,
             getCpuUtilizationPercent(),
             getMemoryUtilizationPercent(),
@@ -97,7 +97,7 @@ public class NodePerformanceTracker extends AbstractLifecycleComponent {
 
         clusterSettings.addSettingsUpdateConsumer(
             PerformanceTrackerSettings.GLOBAL_CPU_USAGE_AC_WINDOW_DURATION_SETTING,
-            cpuUsageTracker::setWindowDuration
+            cpuUsageTracker::setWindowSize
         );
 
         memoryUsageTracker = new AverageMemoryUsageTracker(
@@ -107,7 +107,7 @@ public class NodePerformanceTracker extends AbstractLifecycleComponent {
         );
         clusterSettings.addSettingsUpdateConsumer(
             PerformanceTrackerSettings.GLOBAL_JVM_USAGE_AC_WINDOW_DURATION_SETTING,
-            memoryUsageTracker::setWindowDuration
+            memoryUsageTracker::setWindowSize
         );
     }
 
