@@ -46,7 +46,7 @@ public class Netty4HttpResponse extends DefaultFullHttpResponse implements HttpR
 
     private final HttpHeaders requestHeaders;
 
-    Netty4HttpResponse(HttpHeaders requestHeaders, HttpVersion version, RestStatus status, BytesReference content) {
+    public Netty4HttpResponse(HttpHeaders requestHeaders, HttpVersion version, RestStatus status, BytesReference content) {
         super(version, HttpResponseStatus.valueOf(status.getStatus()), Netty4Utils.toByteBuf(content));
         this.requestHeaders = requestHeaders;
     }
