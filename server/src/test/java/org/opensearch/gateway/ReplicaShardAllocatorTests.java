@@ -65,6 +65,7 @@ import org.opensearch.index.seqno.RetentionLease;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
+import org.opensearch.indices.store.StoreFilesMetadata;
 import org.opensearch.indices.store.TransportNodesListShardStoreMetadata;
 import org.opensearch.cluster.OpenSearchAllocationTestCase;
 import org.opensearch.snapshots.SnapshotShardSizeInfo;
@@ -664,7 +665,7 @@ public class ReplicaShardAllocatorTests extends OpenSearchAllocationTestCase {
 
     class TestAllocator extends ReplicaShardAllocator {
 
-        private Map<DiscoveryNode, TransportNodesListShardStoreMetadata.StoreFilesMetadata> data = null;
+        private Map<DiscoveryNode, StoreFilesMetadata> data = null;
         private AtomicBoolean fetchDataCalled = new AtomicBoolean(false);
 
         public void clean() {
@@ -702,7 +703,7 @@ public class ReplicaShardAllocatorTests extends OpenSearchAllocationTestCase {
             }
             data.put(
                 node,
-                new TransportNodesListShardStoreMetadata.StoreFilesMetadata(
+                new StoreFilesMetadata(
                     shardId,
                     new Store.MetadataSnapshot(unmodifiableMap(filesAsMap), unmodifiableMap(commitData), randomInt()),
                     peerRecoveryRetentionLeases
@@ -720,7 +721,7 @@ public class ReplicaShardAllocatorTests extends OpenSearchAllocationTestCase {
             Map<DiscoveryNode, TransportNodesListShardStoreMetadata.NodeStoreFilesMetadata> tData = null;
             if (data != null) {
                 tData = new HashMap<>();
-                for (Map.Entry<DiscoveryNode, TransportNodesListShardStoreMetadata.StoreFilesMetadata> entry : data.entrySet()) {
+                for (Map.Entry<DiscoveryNode, StoreFilesMetadata> entry : data.entrySet()) {
                     tData.put(
                         entry.getKey(),
                         new TransportNodesListShardStoreMetadata.NodeStoreFilesMetadata(entry.getKey(), entry.getValue())
