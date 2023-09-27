@@ -127,6 +127,69 @@
     - match:  { tokens.2.token: brown }
     - match:  { tokens.3.token: fox }
 
+    - do:
+        indices.analyze:
+          body:
+            text: 'text1 #text2'
+            tokenizer: whitespace
+            filter:
+              - type: word_delimiter
+                split_on_numerics: false
+                type_table:
+                  - "\\u0023 => ALPHANUM"
+    - length: { tokens: 2 }
+    - match: { tokens.0.token: text1 }
+    - match: { tokens.0.start_offset: 0 }
+    - match: { tokens.0.end_offset: 5 }
+    - match: { tokens.0.position: 0 }
+    - match: { tokens.1.token: "#text2" }
+    - match: { tokens.1.start_offset: 6 }
+    - match: { tokens.1.end_offset: 12 }
+    - match: { tokens.1.position: 1 }
+
+    - do:
+        indices.analyze:
+          body:
+            text: 'text1 #text2'
+            tokenizer: whitespace
+            filter:
+              - type: word_delimiter
+                split_on_numerics: false
+                type_table:
+                  - "# This is a comment"
+                  - "# => ALPHANUM"
+    - length: { tokens: 2 }
+    - match: { tokens.0.token: text1 }
+    - match: { tokens.0.start_offset: 0 }
+    - match: { tokens.0.end_offset: 5 }
+    - match: { tokens.0.position: 0 }
+    - match: { tokens.1.token: "#text2" }
+    - match: { tokens.1.start_offset: 6 }
+    - match: { tokens.1.end_offset: 12 }
+    - match: { tokens.1.position: 1 }
+
+    - do:
+        indices.analyze:
+          body:
+            text: 'text1 #text2'
+            tokenizer: whitespace
+            filter:
+              - type: word_delimiter
+                split_on_numerics: false
+                type_table:
+                  - "# This is a comment"
+                  - "# => ALPHANUM"
+                  - "@ => ALPHANUM"
+    - length: { tokens: 2 }
+    - match: { tokens.0.token: text1 }
+    - match: { tokens.0.start_offset: 0 }
+    - match: { tokens.0.end_offset: 5 }
+    - match: { tokens.0.position: 0 }
+    - match: { tokens.1.token: "#text2" }
+    - match: { tokens.1.start_offset: 6 }
+    - match: { tokens.1.end_offset: 12 }
+    - match: { tokens.1.position: 1 }
+
 ---
 "word_delimiter_graph":
     - do:
@@ -230,6 +293,69 @@
     - match:  { detail.tokenfilters.0.tokens.5.start_offset: 16 }
     - match:  { detail.tokenfilters.0.tokens.5.end_offset: 19 }
     - match:  { detail.tokenfilters.0.tokens.5.position: 5 }
+
+    - do:
+        indices.analyze:
+          body:
+            text: 'text1 #text2'
+            tokenizer: whitespace
+            filter:
+              - type: word_delimiter_graph
+                split_on_numerics: false
+                type_table:
+                  - "\\u0023 => ALPHANUM"
+    - length: { tokens: 2 }
+    - match: { tokens.0.token: text1 }
+    - match: { tokens.0.start_offset: 0 }
+    - match: { tokens.0.end_offset: 5 }
+    - match: { tokens.0.position: 0 }
+    - match: { tokens.1.token: "#text2" }
+    - match: { tokens.1.start_offset: 6 }
+    - match: { tokens.1.end_offset: 12 }
+    - match: { tokens.1.position: 1 }
+
+    - do:
+        indices.analyze:
+          body:
+            text: 'text1 #text2'
+            tokenizer: whitespace
+            filter:
+              - type: word_delimiter_graph
+                split_on_numerics: false
+                type_table:
+                  - "# This is a comment"
+                  - "# => ALPHANUM"
+    - length: { tokens: 2 }
+    - match: { tokens.0.token: text1 }
+    - match: { tokens.0.start_offset: 0 }
+    - match: { tokens.0.end_offset: 5 }
+    - match: { tokens.0.position: 0 }
+    - match: { tokens.1.token: "#text2" }
+    - match: { tokens.1.start_offset: 6 }
+    - match: { tokens.1.end_offset: 12 }
+    - match: { tokens.1.position: 1 }
+
+    - do:
+        indices.analyze:
+          body:
+            text: 'text1 #text2'
+            tokenizer: whitespace
+            filter:
+              - type: word_delimiter_graph
+                split_on_numerics: false
+                type_table:
+                  - "# This is a comment"
+                  - "# => ALPHANUM"
+                  - "@ => ALPHANUM"
+    - length: { tokens: 2 }
+    - match: { tokens.0.token: text1 }
+    - match: { tokens.0.start_offset: 0 }
+    - match: { tokens.0.end_offset: 5 }
+    - match: { tokens.0.position: 0 }
+    - match: { tokens.1.token: "#text2" }
+    - match: { tokens.1.start_offset: 6 }
+    - match: { tokens.1.end_offset: 12 }
+    - match: { tokens.1.position: 1 }
 
 ---
 "unique":
