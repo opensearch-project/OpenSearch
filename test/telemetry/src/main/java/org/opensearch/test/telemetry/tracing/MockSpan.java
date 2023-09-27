@@ -10,6 +10,8 @@ package org.opensearch.test.telemetry.tracing;
 
 import org.opensearch.telemetry.tracing.AbstractSpan;
 import org.opensearch.telemetry.tracing.Span;
+import org.opensearch.telemetry.tracing.SpanCreationContext;
+import org.opensearch.telemetry.tracing.SpanKind;
 import org.opensearch.telemetry.tracing.attributes.Attributes;
 
 import java.util.HashMap;
@@ -29,6 +31,7 @@ public class MockSpan extends AbstractSpan {
     private boolean hasEnded;
     private final Long startTime;
     private Long endTime;
+    private final SpanKind spanKind;
 
     private final Object lock = new Object();
 
@@ -36,49 +39,43 @@ public class MockSpan extends AbstractSpan {
 
     /**
      * Base Constructor.
-     * @param spanName  Span Name
-     * @param parentSpan  Parent Span
-     * @param spanProcessor  Span Processor
-     * @param attributes attributes
+     *
+     * @param spanCreationContext      Span Creation context.
+     * @param parentSpan    Parent Span
+     * @param spanProcessor Span Processor
      */
-    public MockSpan(String spanName, Span parentSpan, SpanProcessor spanProcessor, Attributes attributes) {
+    public MockSpan(SpanCreationContext spanCreationContext, Span parentSpan, SpanProcessor spanProcessor) {
         this(
-            spanName,
+            spanCreationContext.getSpanName(),
             parentSpan,
             parentSpan != null ? parentSpan.getTraceId() : IdGenerator.generateTraceId(),
             IdGenerator.generateSpanId(),
             spanProcessor,
-            attributes
-        );
-    }
-
-    /**
-     * Constructor.
-     * @param spanName span name.
-     * @param parentSpan parent span name
-     * @param spanProcessor span processor.
-     */
-    public MockSpan(String spanName, Span parentSpan, SpanProcessor spanProcessor) {
-        this(
-            spanName,
-            parentSpan,
-            parentSpan != null ? parentSpan.getTraceId() : IdGenerator.generateTraceId(),
-            IdGenerator.generateSpanId(),
-            spanProcessor,
-            Attributes.EMPTY
+            spanCreationContext.getAttributes(),
+            SpanKind.INTERNAL
         );
     }
 
     /**
      * Constructor with traceId and SpanIds
-     * @param spanName  Span Name
-     * @param parentSpan  Parent Span
-     * @param traceId  Trace ID
-     * @param spanId  Span ID
-     * @param spanProcessor  Span Processor
-     * @param attributes attributes
+     *
+     * @param spanName      Span Name
+     * @param parentSpan    Parent Span
+     * @param traceId       Trace ID
+     * @param spanId        Span ID
+     * @param spanProcessor Span Processor
+     * @param attributes    attributes
+     * @param spanKind      type of span.
      */
-    public MockSpan(String spanName, Span parentSpan, String traceId, String spanId, SpanProcessor spanProcessor, Attributes attributes) {
+    public MockSpan(
+        String spanName,
+        Span parentSpan,
+        String traceId,
+        String spanId,
+        SpanProcessor spanProcessor,
+        Attributes attributes,
+        SpanKind spanKind
+    ) {
         super(spanName, parentSpan);
         this.spanProcessor = spanProcessor;
         this.metadata = new HashMap<>();
@@ -88,6 +85,7 @@ public class MockSpan extends AbstractSpan {
         if (attributes != null) {
             this.metadata.putAll(attributes.getAttributesMap());
         }
+        this.spanKind = spanKind;
     }
 
     @Override

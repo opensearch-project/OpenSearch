@@ -127,6 +127,7 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
             segmentTracker.updateLocalRefreshTimeAndSeqNo();
             try {
                 if (this.primaryTerm != indexShard.getOperationPrimaryTerm()) {
+                    logger.debug("primaryTerm update from={} to={}", primaryTerm, indexShard.getOperationPrimaryTerm());
                     this.primaryTerm = indexShard.getOperationPrimaryTerm();
                     this.remoteDirectory.init();
                 }
@@ -150,8 +151,6 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
     @Override
     protected boolean performAfterRefreshWithPermit(boolean didRefresh) {
         boolean successful;
-        // The third condition exists for uploading the zero state segments where the refresh has not changed the reader reference, but it
-        // is important to upload the zero state segments so that the restore does not break.
         if (shouldSync(didRefresh)) {
             successful = syncSegments();
         } else {
@@ -161,6 +160,8 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
     }
 
     private boolean shouldSync(boolean didRefresh) {
+        // The third condition exists for uploading the zero state segments where the refresh has not changed the reader reference, but it
+        // is important to upload the zero state segments so that the restore does not break.
         return this.primaryTerm != indexShard.getOperationPrimaryTerm()
             || didRefresh
             || remoteDirectory.getSegmentsUploadedToRemoteStore().isEmpty();
@@ -168,7 +169,7 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
 
     private boolean syncSegments() {
         if (indexShard.getReplicationTracker().isPrimaryMode() == false || indexShard.state() == IndexShardState.CLOSED) {
-            logger.trace(
+            logger.debug(
                 "Skipped syncing segments with primaryMode={} indexShardState={}",
                 indexShard.getReplicationTracker().isPrimaryMode(),
                 indexShard.state()
@@ -178,10 +179,7 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
             // primaryMode to true. Due to this, the refresh that is triggered post replay of translog will not go through
             // if following condition does not exist. The segments created as part of translog replay will not be present
             // in the remote store.
-            if (indexShard.state() == IndexShardState.STARTED && indexShard.getEngine() instanceof InternalEngine) {
-                return false;
-            }
-            return true;
+            return indexShard.state() != IndexShardState.STARTED || !(indexShard.getEngine() instanceof InternalEngine);
         }
         ReplicationCheckpoint checkpoint = indexShard.getLatestReplicationCheckpoint();
         beforeSegmentsSync();
@@ -217,8 +215,10 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
                         @Override
                         public void onResponse(Void unused) {
                             try {
+                                logger.debug("New segments upload successful");
                                 // Start metadata file upload
                                 uploadMetadata(localSegmentsPostRefresh, segmentInfos, checkpoint);
+                                logger.debug("Metadata upload successful");
                                 clearStaleFilesFromLocalSegmentChecksumMap(localSegmentsPostRefresh);
                                 onSuccessfulSegmentsSync(
                                     refreshTimeMs,
@@ -262,6 +262,7 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
         updateFinalStatusInSegmentTracker(successful.get(), bytesBeforeUpload, startTimeInNS);
         // If there are failures in uploading segments, then we should retry as search idle can lead to
         // refresh not occurring until write happens.
+        logger.debug("syncSegments runStatus={}", successful.get());
         return successful.get();
     }
 
@@ -300,6 +301,7 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
         indexShard.getEngine().translogManager().setMinSeqNoToKeep(lastRefreshedCheckpoint + 1);
         // Publishing the new checkpoint which is used for remote store + segrep indexes
         checkpointPublisher.publish(indexShard, checkpoint);
+        logger.debug("onSuccessfulSegmentsSync lastRefreshedCheckpoint={} checkpoint={}", lastRefreshedCheckpoint, checkpoint);
     }
 
     /**
@@ -352,10 +354,12 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
     private void uploadNewSegments(Collection<String> localSegmentsPostRefresh, ActionListener<Void> listener) {
         Collection<String> filteredFiles = localSegmentsPostRefresh.stream().filter(file -> !skipUpload(file)).collect(Collectors.toList());
         if (filteredFiles.size() == 0) {
+            logger.debug("No new segments to upload in uploadNewSegments");
             listener.onResponse(null);
             return;
         }
 
+        logger.debug("Effective new segments files to upload {}", filteredFiles);
         ActionListener<Collection<Void>> mappedListener = ActionListener.map(listener, resp -> null);
         GroupedActionListener<Void> batchUploadListener = new GroupedActionListener<>(mappedListener, filteredFiles.size());
 

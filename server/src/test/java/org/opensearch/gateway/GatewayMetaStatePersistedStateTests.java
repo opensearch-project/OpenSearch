@@ -716,10 +716,11 @@ public class GatewayMetaStatePersistedStateTests extends OpenSearchTestCase {
     public void testRemotePersistedState() throws IOException {
         final RemoteClusterStateService remoteClusterStateService = Mockito.mock(RemoteClusterStateService.class);
         final ClusterMetadataManifest manifest = ClusterMetadataManifest.builder().clusterTerm(1L).stateVersion(5L).build();
-        Mockito.when(remoteClusterStateService.writeFullMetadata(Mockito.any())).thenReturn(manifest);
+        final String previousClusterUUID = "prev-cluster-uuid";
+        Mockito.when(remoteClusterStateService.writeFullMetadata(Mockito.any(), Mockito.any())).thenReturn(manifest);
 
         Mockito.when(remoteClusterStateService.writeIncrementalMetadata(Mockito.any(), Mockito.any(), Mockito.any())).thenReturn(manifest);
-        CoordinationState.PersistedState remotePersistedState = new RemotePersistedState(remoteClusterStateService);
+        CoordinationState.PersistedState remotePersistedState = new RemotePersistedState(remoteClusterStateService, previousClusterUUID);
 
         assertThat(remotePersistedState.getLastAcceptedState(), nullValue());
         assertThat(remotePersistedState.getCurrentTerm(), equalTo(0L));
@@ -731,7 +732,7 @@ public class GatewayMetaStatePersistedStateTests extends OpenSearchTestCase {
         );
 
         remotePersistedState.setLastAcceptedState(clusterState);
-        Mockito.verify(remoteClusterStateService).writeFullMetadata(clusterState);
+        Mockito.verify(remoteClusterStateService).writeFullMetadata(clusterState, previousClusterUUID);
 
         assertThat(remotePersistedState.getLastAcceptedState(), equalTo(clusterState));
         assertThat(remotePersistedState.getCurrentTerm(), equalTo(clusterTerm));
@@ -742,7 +743,7 @@ public class GatewayMetaStatePersistedStateTests extends OpenSearchTestCase {
         );
 
         remotePersistedState.setLastAcceptedState(secondClusterState);
-        Mockito.verify(remoteClusterStateService, times(1)).writeFullMetadata(secondClusterState);
+        Mockito.verify(remoteClusterStateService, times(1)).writeFullMetadata(secondClusterState, previousClusterUUID);
 
         assertThat(remotePersistedState.getLastAcceptedState(), equalTo(secondClusterState));
         assertThat(remotePersistedState.getCurrentTerm(), equalTo(clusterTerm));
@@ -752,14 +753,22 @@ public class GatewayMetaStatePersistedStateTests extends OpenSearchTestCase {
 
         assertThat(remotePersistedState.getLastAcceptedState(), equalTo(secondClusterState));
         assertThat(remotePersistedState.getCurrentTerm(), equalTo(clusterTerm));
+        assertThat(remotePersistedState.getLastAcceptedState().metadata().clusterUUIDCommitted(), equalTo(false));
 
+        final ClusterState thirdClusterState = ClusterState.builder(secondClusterState)
+            .metadata(Metadata.builder(secondClusterState.getMetadata()).clusterUUID(randomAlphaOfLength(10)).build())
+            .build();
+        remotePersistedState.setLastAcceptedState(thirdClusterState);
+        remotePersistedState.markLastAcceptedStateAsCommitted();
+        assertThat(remotePersistedState.getLastAcceptedState().metadata().clusterUUIDCommitted(), equalTo(true));
     }
 
     public void testRemotePersistedStateExceptionOnFullStateUpload() throws IOException {
         final RemoteClusterStateService remoteClusterStateService = Mockito.mock(RemoteClusterStateService.class);
-        Mockito.doThrow(IOException.class).when(remoteClusterStateService).writeFullMetadata(Mockito.any());
+        final String previousClusterUUID = "prev-cluster-uuid";
+        Mockito.doThrow(IOException.class).when(remoteClusterStateService).writeFullMetadata(Mockito.any(), Mockito.any());
 
-        CoordinationState.PersistedState remotePersistedState = new RemotePersistedState(remoteClusterStateService);
+        CoordinationState.PersistedState remotePersistedState = new RemotePersistedState(remoteClusterStateService, previousClusterUUID);
 
         final long clusterTerm = randomNonNegativeLong();
         final ClusterState clusterState = createClusterState(

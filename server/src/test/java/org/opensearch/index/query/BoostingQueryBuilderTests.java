@@ -38,6 +38,8 @@ import org.apache.lucene.search.Query;
 import org.opensearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.nullValue;
@@ -152,5 +154,17 @@ public class BoostingQueryBuilderTests extends AbstractQueryTestCase<BoostingQue
         );
         e = expectThrows(IllegalStateException.class, () -> queryBuilder2.toQuery(context));
         assertEquals("Rewrite first", e.getMessage());
+    }
+
+    public void testVisit() {
+        BoostingQueryBuilder builder = new BoostingQueryBuilder(
+            new TermQueryBuilder("unmapped_field", "value"),
+            new TermQueryBuilder(KEYWORD_FIELD_NAME, "other_value")
+        );
+
+        List<QueryBuilder> visitedQueries = new ArrayList<>();
+        builder.visit(createTestVisitor(visitedQueries));
+
+        assertEquals(3, visitedQueries.size());
     }
 }

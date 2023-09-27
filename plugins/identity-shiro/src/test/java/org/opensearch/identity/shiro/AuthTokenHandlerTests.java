@@ -167,6 +167,18 @@ public class AuthTokenHandlerTests extends OpenSearchTestCase {
         Subject subject = new NoopSubject();
         AuthToken token = tokenManager.issueOnBehalfOfToken(subject, claims);
         assertTrue(token instanceof AuthToken);
+        AuthToken serviceAccountToken = tokenManager.issueServiceAccountToken("test");
+        assertTrue(serviceAccountToken instanceof AuthToken);
+        assertEquals(serviceAccountToken.asAuthHeaderValue(), "noopToken");
     }
 
+    public void testShouldSucceedIssueServiceAccountToken() {
+        String audience = "testExtensionName";
+        BasicAuthToken authToken = (BasicAuthToken) shiroAuthTokenHandler.issueServiceAccountToken(audience);
+        assertTrue(authToken instanceof BasicAuthToken);
+        UsernamePasswordToken translatedToken = (UsernamePasswordToken) shiroAuthTokenHandler.translateAuthToken(authToken).get();
+        assertEquals(authToken.getPassword(), new String(translatedToken.getPassword()));
+        assertTrue(shiroAuthTokenHandler.getShiroTokenPasswordMap().containsKey(authToken));
+        assertEquals(shiroAuthTokenHandler.getShiroTokenPasswordMap().get(authToken), new String(translatedToken.getPassword()));
+    }
 }
