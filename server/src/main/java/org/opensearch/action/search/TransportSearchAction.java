@@ -32,6 +32,7 @@
 
 package org.opensearch.action.search;
 
+import org.apache.lucene.search.BooleanClause;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
@@ -72,6 +73,8 @@ import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.core.tasks.TaskId;
+import org.opensearch.index.query.QueryBuilder;
+import org.opensearch.index.query.QueryBuilderVisitor;
 import org.opensearch.index.query.Rewriteable;
 import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.SearchService;
@@ -488,6 +491,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             originalListener.onFailure(e);
             return;
         }
+
+        SearchQueryCategorizor.categorize(searchRequest.source());
 
         ActionListener<SearchSourceBuilder> rewriteListener = ActionListener.wrap(source -> {
             if (source != searchRequest.source()) {
