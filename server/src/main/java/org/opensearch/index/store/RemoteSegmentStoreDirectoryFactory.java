@@ -10,6 +10,7 @@ package org.opensearch.index.store;
 
 import org.apache.lucene.store.Directory;
 import org.opensearch.common.blobstore.BlobPath;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManager;
@@ -45,17 +46,15 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Dire
     public Directory newDirectory(IndexSettings indexSettings, ShardPath path) throws IOException {
         String repositoryName = indexSettings.getRemoteStoreRepository();
         String indexUUID = indexSettings.getIndex().getUUID();
-        String shardId = String.valueOf(path.getShardId().getId());
-
-        return newDirectory(repositoryName, indexUUID, shardId);
+        return newDirectory(repositoryName, indexUUID, path.getShardId());
     }
 
-    public Directory newDirectory(String repositoryName, String indexUUID, String shardId) throws IOException {
+    public Directory newDirectory(String repositoryName, String indexUUID, ShardId shardId) throws IOException {
         try (Repository repository = repositoriesService.get().repository(repositoryName)) {
             assert repository instanceof BlobStoreRepository : "repository should be instance of BlobStoreRepository";
             BlobStoreRepository blobStoreRepository = ((BlobStoreRepository) repository);
             BlobPath commonBlobPath = blobStoreRepository.basePath();
-            commonBlobPath = commonBlobPath.add(indexUUID).add(shardId).add(SEGMENTS);
+            commonBlobPath = commonBlobPath.add(indexUUID).add(String.valueOf(shardId.id())).add(SEGMENTS);
 
             RemoteDirectory dataDirectory = new RemoteDirectory(
                 blobStoreRepository.blobStore().blobContainer(commonBlobPath.add("data")),
@@ -69,10 +68,10 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Dire
                 repositoriesService.get(),
                 repositoryName,
                 indexUUID,
-                shardId
+                String.valueOf(shardId.id())
             );
 
-            return new RemoteSegmentStoreDirectory(dataDirectory, metadataDirectory, mdLockManager, threadPool);
+            return new RemoteSegmentStoreDirectory(dataDirectory, metadataDirectory, mdLockManager, threadPool, shardId);
         } catch (RepositoryMissingException e) {
             throw new IllegalArgumentException("Repository should be created before creating index with remote_store enabled setting", e);
         }

@@ -46,8 +46,26 @@ public class RemoteStoreMultipartIT extends RemoteStoreIT {
         return Stream.concat(super.nodePlugins().stream(), Stream.of(MockFsRepositoryPlugin.class)).collect(Collectors.toList());
     }
 
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal))
+            .put(
+                remoteStoreClusterSettings(
+                    REPOSITORY_NAME,
+                    segmentRepoPath,
+                    MockFsRepositoryPlugin.TYPE,
+                    REPOSITORY_2_NAME,
+                    translogRepoPath,
+                    MockFsRepositoryPlugin.TYPE
+                )
+            )
+            .build();
+    }
+
     @Before
     public void setup() {
+        clusterSettingsSuppliedByTest = true;
         overrideBuildRepositoryMetadata = false;
         repositoryLocation = randomRepoPath();
         compress = randomBoolean();
@@ -86,6 +104,7 @@ public class RemoteStoreMultipartIT extends RemoteStoreIT {
         } else {
             return super.buildRepositoryMetadata(node, name);
         }
+
     }
 
     public void testRateLimitedRemoteUploads() throws Exception {

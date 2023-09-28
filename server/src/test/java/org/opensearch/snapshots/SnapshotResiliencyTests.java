@@ -2069,6 +2069,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     new RemoteSegmentStoreDirectoryFactory(() -> repositoriesService, threadPool),
                     repositoriesServiceReference::get,
                     fileCacheCleaner,
+                    null,
                     new RemoteStoreStatsTrackerFactory(clusterService, settings)
                 );
                 final RecoverySettings recoverySettings = new RecoverySettings(settings, clusterSettings);
@@ -2209,6 +2210,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         indexNameExpressionResolver,
                         new AutoCreateIndex(settings, clusterSettings, indexNameExpressionResolver, new SystemIndices(emptyMap())),
                         new IndexingPressureService(settings, clusterService),
+                        mock(IndicesService.class),
                         new SystemIndices(emptyMap())
                     )
                 );
@@ -2297,7 +2299,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                             namedWriteableRegistry,
                             List.of(),
                             client
-                        )
+                        ),
+                        null
                     )
                 );
                 actions.put(

@@ -100,6 +100,7 @@ import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.compress.Compressor;
 import org.opensearch.core.compress.CompressorRegistry;
 import org.opensearch.core.compress.NotXContentException;
+import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.index.snapshots.IndexShardSnapshotFailedException;
 import org.opensearch.core.util.BytesRefUtils;
@@ -1125,7 +1126,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                     new RemoteSegmentStoreDirectoryFactory(
                                         remoteStoreLockManagerFactory.getRepositoriesService(),
                                         threadPool
-                                    ).newDirectory(remoteStoreRepoForIndex, indexUUID, shardId).close();
+                                    ).newDirectory(
+                                        remoteStoreRepoForIndex,
+                                        indexUUID,
+                                        new ShardId(Index.UNKNOWN_INDEX_NAME, indexUUID, Integer.valueOf(shardId))
+                                    ).close();
                                 }
                             }
                         }
@@ -1591,7 +1596,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                             new RemoteSegmentStoreDirectoryFactory(
                                                 remoteStoreLockManagerFactory.getRepositoriesService(),
                                                 threadPool
-                                            ).newDirectory(remoteStoreRepoForIndex, indexUUID, shardBlob.getKey()).close();
+                                            ).newDirectory(
+                                                remoteStoreRepoForIndex,
+                                                indexUUID,
+                                                new ShardId(Index.UNKNOWN_INDEX_NAME, indexUUID, Integer.valueOf(shardBlob.getKey()))
+                                            ).close();
                                         }
                                     }
                                 }

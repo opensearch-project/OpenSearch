@@ -373,6 +373,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 SearchService.DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS,
                 TransportSearchAction.SHARD_COUNT_LIMIT_SETTING,
                 TransportSearchAction.SEARCH_CANCEL_AFTER_TIME_INTERVAL_SETTING,
+                TransportSearchAction.SEARCH_REQUEST_STATS_ENABLED,
                 RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE,
                 SniffConnectionStrategy.REMOTE_CONNECTIONS_PER_CLUSTER,
                 RemoteClusterService.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING,
@@ -671,7 +672,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 // Remote cluster state settings
                 RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING,
                 RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING,
-                IndicesService.CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING
+                IndicesService.CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING,
+                IndicesService.CLUSTER_REMOTE_INDEX_RESTRICT_ASYNC_DURABILITY_SETTING
             )
         )
     );

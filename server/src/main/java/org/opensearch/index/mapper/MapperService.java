@@ -172,9 +172,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     );
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(MapperService.class);
-    static final String DEFAULT_MAPPING_ERROR_MESSAGE = "[_default_] mappings are not allowed on new indices and should no "
-        + "longer be used. See [https://www.elastic.co/guide/en/elasticsearch/reference/current/breaking-changes-7.0.html"
-        + "#default-mapping-not-allowed] for more information.";
 
     private final IndexAnalyzers indexAnalyzers;
 

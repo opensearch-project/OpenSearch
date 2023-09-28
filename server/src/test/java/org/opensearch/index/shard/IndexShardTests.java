@@ -1780,7 +1780,7 @@ public class IndexShardTests extends IndexShardTestCase {
             }
         };
 
-        try (Store store = createStore(shardId, new IndexSettings(metadata, Settings.EMPTY), directory)) {
+        try (Store store = createStore(shardId, new IndexSettings(metadata, Settings.EMPTY), directory, shardPath)) {
             IndexShard shard = newShard(
                 shardRouting,
                 shardPath,

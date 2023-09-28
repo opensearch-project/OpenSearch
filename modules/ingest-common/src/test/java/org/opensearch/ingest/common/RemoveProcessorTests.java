@@ -42,7 +42,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class RemoveProcessorTests extends OpenSearchTestCase {
@@ -67,12 +66,44 @@ public class RemoveProcessorTests extends OpenSearchTestCase {
         config.put("field", fieldName);
         String processorTag = randomAlphaOfLength(10);
         Processor processor = new RemoveProcessor.Factory(TestTemplateService.instance()).create(null, processorTag, null, config);
-        try {
-            processor.execute(ingestDocument);
-            fail("remove field should have failed");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("not present as part of path [" + fieldName + "]"));
-        }
+        assertThrows(
+            "field [" + fieldName + "] doesn't exist",
+            IllegalArgumentException.class,
+            () -> { processor.execute(ingestDocument); }
+        );
+
+        Map<String, Object> configWithEmptyField = new HashMap<>();
+        configWithEmptyField.put("field", "");
+        processorTag = randomAlphaOfLength(10);
+        Processor removeProcessorWithEmptyField = new RemoveProcessor.Factory(TestTemplateService.instance()).create(
+            null,
+            processorTag,
+            null,
+            configWithEmptyField
+        );
+        assertThrows(
+            "field path cannot be null nor empty",
+            IllegalArgumentException.class,
+            () -> removeProcessorWithEmptyField.execute(ingestDocument)
+        );
+    }
+
+    public void testRemoveEmptyField() throws Exception {
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "");
+        String processorTag = randomAlphaOfLength(10);
+        Processor removeProcessorWithEmptyField = new RemoveProcessor.Factory(TestTemplateService.instance()).create(
+            null,
+            processorTag,
+            null,
+            config
+        );
+        assertThrows(
+            "field path cannot be null nor empty",
+            IllegalArgumentException.class,
+            () -> removeProcessorWithEmptyField.execute(ingestDocument)
+        );
     }
 
     public void testIgnoreMissing() throws Exception {
@@ -83,6 +114,14 @@ public class RemoveProcessorTests extends OpenSearchTestCase {
         config.put("ignore_missing", true);
         String processorTag = randomAlphaOfLength(10);
         Processor processor = new RemoveProcessor.Factory(TestTemplateService.instance()).create(null, processorTag, null, config);
+        processor.execute(ingestDocument);
+
+        // when using template snippet, the resolved field path maybe empty
+        Map<String, Object> configWithEmptyField = new HashMap<>();
+        configWithEmptyField.put("field", "");
+        configWithEmptyField.put("ignore_missing", true);
+        processorTag = randomAlphaOfLength(10);
+        processor = new RemoveProcessor.Factory(TestTemplateService.instance()).create(null, processorTag, null, configWithEmptyField);
         processor.execute(ingestDocument);
     }
 }

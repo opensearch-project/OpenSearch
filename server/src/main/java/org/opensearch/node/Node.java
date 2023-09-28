@@ -46,6 +46,7 @@ import org.opensearch.action.ActionType;
 import org.opensearch.action.admin.cluster.snapshots.status.TransportNodesSnapshotsStatus;
 import org.opensearch.action.search.SearchExecutionStatsCollector;
 import org.opensearch.action.search.SearchPhaseController;
+import org.opensearch.action.search.SearchRequestStats;
 import org.opensearch.action.search.SearchTransportService;
 import org.opensearch.action.support.TransportAction;
 import org.opensearch.action.update.UpdateHelper;
@@ -494,7 +495,7 @@ public class Node implements Closeable {
                 for (ExtensionAwarePlugin extAwarePlugin : extensionAwarePlugins) {
                     additionalSettings.addAll(extAwarePlugin.getExtensionSettings());
                 }
-                this.extensionsManager = new ExtensionsManager(additionalSettings);
+                this.extensionsManager = new ExtensionsManager(additionalSettings, identityService);
             } else {
                 this.extensionsManager = new NoopExtensionsManager();
             }
@@ -761,6 +762,8 @@ public class Node implements Closeable {
                 threadPool
             );
 
+            final SearchRequestStats searchRequestStats = new SearchRequestStats();
+
             remoteStoreStatsTrackerFactory = new RemoteStoreStatsTrackerFactory(clusterService, settings);
             final IndicesService indicesService = new IndicesService(
                 settings,
@@ -786,6 +789,7 @@ public class Node implements Closeable {
                 remoteDirectoryFactory,
                 repositoriesServiceReference::get,
                 fileCacheCleaner,
+                searchRequestStats,
                 remoteStoreStatsTrackerFactory
             );
 
@@ -1199,6 +1203,7 @@ public class Node implements Closeable {
                 b.bind(SystemIndices.class).toInstance(systemIndices);
                 b.bind(IdentityService.class).toInstance(identityService);
                 b.bind(Tracer.class).toInstance(tracer);
+                b.bind(SearchRequestStats.class).toInstance(searchRequestStats);
                 b.bind(RemoteClusterStateService.class).toProvider(() -> remoteClusterStateService);
                 b.bind(PersistedStateRegistry.class).toInstance(persistedStateRegistry);
             });

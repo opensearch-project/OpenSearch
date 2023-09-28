@@ -122,7 +122,7 @@ public class RestSendToExtensionActionTests extends OpenSearchTestCase {
             usageService,
             null,
             new IdentityService(Settings.EMPTY, new ArrayList<>()),
-            new ExtensionsManager(Set.of())
+            new ExtensionsManager(Set.of(), new IdentityService(Settings.EMPTY, List.of()))
         );
         identityService = new IdentityService(Settings.EMPTY, new ArrayList<>());
         dynamicActionRegistry = actionModule.getDynamicActionRegistry();
