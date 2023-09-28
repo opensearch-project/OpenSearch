@@ -539,7 +539,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         return new HttpContentDecompressor();
     }
 
-    protected ChannelInboundHandlerAdapter creategetHeaderVerifier() {
+    protected ChannelInboundHandlerAdapter createHeaderVerifier() {
         // pass-through
         return new ChannelInboundHandlerAdapter();
     }
