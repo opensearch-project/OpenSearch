@@ -77,7 +77,6 @@ public class ReadContextListenerTests extends OpenSearchTestCase {
         assertEquals(NUMBER_OF_PARTS * PART_SIZE, Files.size(fileLocation));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/9776")
     public void testReadContextListenerFailure() throws Exception {
         Path fileLocation = path.resolve(UUID.randomUUID().toString());
         List<InputStreamContainer> blobPartStreams = initializeBlobPartStreams();

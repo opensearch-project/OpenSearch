@@ -239,7 +239,6 @@ public class RestSendToExtensionAction extends BaseRestHandler {
         };
 
         try {
-
             // Will be replaced with ExtensionTokenProcessor and PrincipalIdentifierToken classes from feature/identity
 
             Map<String, List<String>> filteredHeaders = filterHeaders(headers, allowList, denyList);

@@ -119,7 +119,7 @@ public class ExtensionsManager {
      * @param additionalSettings  Additional settings to read in from extension initialization request
      * @throws IOException  If the extensions discovery file is not properly retrieved.
      */
-    public ExtensionsManager(Set<Setting<?>> additionalSettings, IdentityService identityService) throws IOException {
+    public ExtensionsManager(Set<Setting<?>> additionalSettings) throws IOException {
         logger.info("ExtensionsManager initialized");
         this.initializedExtensions = new HashMap<String, DiscoveryExtensionNode>();
         this.extensionIdMap = new HashMap<String, DiscoveryExtensionNode>();
@@ -134,7 +134,6 @@ public class ExtensionsManager {
         }
         this.client = null;
         this.extensionTransportActionsHandler = null;
-        this.identityService = identityService;
     }
 
     /**
@@ -157,6 +156,7 @@ public class ExtensionsManager {
         NodeClient client,
         IdentityService identityService
     ) {
+        this.identityService = identityService;
         this.restActionsRequestHandler = new RestActionsRequestHandler(
             actionModule.getRestController(),
             extensionIdMap,
