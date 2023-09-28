@@ -52,7 +52,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -216,21 +215,15 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
 
     // Visible for testing
     public static void verifyNoMultipleWriters(List<String> mdFiles) {
-        Map<Tuple<Long, Long>, String> nodesByPrimaryTermAndGeneration = new HashMap<>();
+        Map<String, List<String>> nodesByPrimaryTermAndGen = new HashMap<>();
         mdFiles.forEach(mdFile -> {
-            Tuple<Tuple<Long, Long>, String> nodeIdByPrimaryTermAndGeneration = MetadataFilenameUtils.getNodeIdByPrimaryTermAndGeneration(
-                mdFile
-            );
-            if (nodeIdByPrimaryTermAndGeneration != null
-                && nodesByPrimaryTermAndGeneration.get(nodeIdByPrimaryTermAndGeneration.v1()) != null
-                && !Objects.equals(
-                    nodesByPrimaryTermAndGeneration.get(nodeIdByPrimaryTermAndGeneration.v1()),
-                    nodeIdByPrimaryTermAndGeneration.v2()
-                )) {
-                throw new IllegalStateException("Multiple metadata files having same primary term and generations detected");
-            }
-            if (nodeIdByPrimaryTermAndGeneration != null) {
-                nodesByPrimaryTermAndGeneration.put(nodeIdByPrimaryTermAndGeneration.v1(), nodeIdByPrimaryTermAndGeneration.v2());
+            Tuple<String, String> nodeIdByPrimaryTermAndGen = MetadataFilenameUtils.getNodeIdByPrimaryTermAndGen(mdFile);
+            if (nodeIdByPrimaryTermAndGen != null) {
+                nodesByPrimaryTermAndGen.computeIfAbsent(nodeIdByPrimaryTermAndGen.v1(), k -> new ArrayList<>());
+                nodesByPrimaryTermAndGen.get(nodeIdByPrimaryTermAndGen.v1()).add(nodeIdByPrimaryTermAndGen.v2());
+                if (nodesByPrimaryTermAndGen.get(nodeIdByPrimaryTermAndGen.v1()).size() > 1) {
+                    throw new IllegalStateException("Multiple metadata files having same primary term and generations detected");
+                }
             }
         });
     }
@@ -372,6 +365,19 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
             }
             return new Tuple<>(new Tuple<>(RemoteStoreUtils.invertLong(tokens[1]), RemoteStoreUtils.invertLong(tokens[2])), tokens[5]);
         }
+
+        public static Tuple<String, String> getNodeIdByPrimaryTermAndGen(String filename) {
+            String[] tokens = filename.split(SEPARATOR);
+            if (tokens.length < 8) {
+                // For versions < 2.11, we don't have node id.
+                return null;
+            }
+            String primaryTermAndGen = String.join(SEPARATOR, tokens[2], tokens[3]);
+
+            String nodeId = tokens[5];
+            return new Tuple<>(primaryTermAndGen, nodeId);
+        }
+
     }
 
     /**
@@ -776,6 +782,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
             MetadataFilenameUtils.METADATA_PREFIX,
             Integer.MAX_VALUE
         );
+        verifyNoMultipleWriters(sortedMetadataFileList);
         if (sortedMetadataFileList.size() <= lastNMetadataFilesToKeep) {
             logger.debug(
                 "Number of commits in remote segment store={}, lastNMetadataFilesToKeep={}",

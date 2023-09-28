@@ -39,7 +39,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -273,20 +272,17 @@ public class TranslogTransferManager {
     }
 
     static public void verifyNoMultipleWriters(List<BlobMetadata> mdFiles) {
-        Map<Tuple<Long, Long>, String> nodesByPrimaryTermAndGeneration = new HashMap<>();
         mdFiles.forEach(blobMetadata -> {
-            Tuple<Tuple<Long, Long>, String> nodeIdByPrimaryTermAndGeneration = TranslogTransferMetadata
-                .getNodeIdByPrimaryTermAndGeneration(blobMetadata.toString());
-            if (nodeIdByPrimaryTermAndGeneration != null
-                && nodesByPrimaryTermAndGeneration.get(nodeIdByPrimaryTermAndGeneration.v1()) != null
-                && !Objects.equals(
-                    nodesByPrimaryTermAndGeneration.get(nodeIdByPrimaryTermAndGeneration.v1()),
-                    nodeIdByPrimaryTermAndGeneration.v2()
-                )) {
-                throw new IllegalStateException("Multiple metadata files having same primary term and generation");
-            }
-            if (nodeIdByPrimaryTermAndGeneration != null) {
-                nodesByPrimaryTermAndGeneration.put(nodeIdByPrimaryTermAndGeneration.v1(), nodeIdByPrimaryTermAndGeneration.v2());
+            Map<String, List<String>> nodesByPrimaryTermAndGen = new HashMap<>();
+            Tuple<String, String> nodeIdByPrimaryTermAndGen = TranslogTransferMetadata.getNodeIdByPrimaryTermAndGen(
+                blobMetadata.toString()
+            );
+            if (nodeIdByPrimaryTermAndGen != null) {
+                nodesByPrimaryTermAndGen.computeIfAbsent(nodeIdByPrimaryTermAndGen.v1(), k -> new ArrayList<>());
+                nodesByPrimaryTermAndGen.get(nodeIdByPrimaryTermAndGen.v1()).add(nodeIdByPrimaryTermAndGen.v2());
+                if (nodesByPrimaryTermAndGen.get(nodeIdByPrimaryTermAndGen.v1()).size() > 1) {
+                    throw new IllegalStateException("Multiple metadata files having same primary term and generations detected");
+                }
             }
         });
     }

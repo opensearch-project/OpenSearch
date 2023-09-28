@@ -120,6 +120,18 @@ public class TranslogTransferMetadata {
         return new Tuple<>(new Tuple<>(RemoteStoreUtils.invertLong(tokens[1]), RemoteStoreUtils.invertLong(tokens[2])), tokens[4]);
     }
 
+    public static Tuple<String, String> getNodeIdByPrimaryTermAndGen(String filename) {
+        String[] tokens = filename.split(METADATA_SEPARATOR);
+        if (tokens.length < 6) {
+            // For versions < 2.11, we don't have node id.
+            return null;
+        }
+        String primaryTermAndGen = String.join(METADATA_SEPARATOR, tokens[1], tokens[2]);
+
+        String nodeId = tokens[4];
+        return new Tuple<>(primaryTermAndGen, nodeId);
+    }
+
     @Override
     public int hashCode() {
         return Objects.hash(primaryTerm, generation);
