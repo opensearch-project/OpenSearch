@@ -325,6 +325,7 @@ public class TermsDocCountErrorIT extends ParameterizedOpenSearchIntegTestCase {
     public void testStringValueField() throws Exception {
         int size = randomIntBetween(1, 20);
         int shardSize = randomIntBetween(size, size * 2);
+        indexRandomForConcurrentSearch("idx");
         SearchResponse accurateResponse = client().prepareSearch("idx")
             .addAggregation(
                 terms("terms").executionHint(randomExecutionHint())
@@ -584,6 +585,7 @@ public class TermsDocCountErrorIT extends ParameterizedOpenSearchIntegTestCase {
     public void testLongValueField() throws Exception {
         int size = randomIntBetween(1, 20);
         int shardSize = randomIntBetween(size, size * 2);
+        indexRandomForConcurrentSearch("idx");
         SearchResponse accurateResponse = client().prepareSearch("idx")
             .addAggregation(
                 terms("terms").executionHint(randomExecutionHint())

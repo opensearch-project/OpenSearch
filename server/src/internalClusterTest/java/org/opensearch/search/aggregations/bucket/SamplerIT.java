@@ -145,6 +145,7 @@ public class SamplerIT extends ParameterizedOpenSearchIntegTestCase {
         // Tests that we can refer to nested elements under a sample in a path
         // statement
         boolean asc = randomBoolean();
+        indexRandomForConcurrentSearch("test");
         SearchResponse response = client().prepareSearch("test")
             .setSearchType(SearchType.QUERY_THEN_FETCH)
             .addAggregation(
@@ -176,6 +177,7 @@ public class SamplerIT extends ParameterizedOpenSearchIntegTestCase {
     public void testSimpleSampler() throws Exception {
         SamplerAggregationBuilder sampleAgg = sampler("sample").shardSize(100);
         sampleAgg.subAggregation(terms("authors").field("author"));
+        indexRandomForConcurrentSearch("test");
         SearchResponse response = client().prepareSearch("test")
             .setSearchType(SearchType.QUERY_THEN_FETCH)
             .setQuery(new TermQueryBuilder("genre", "fantasy"))
@@ -233,6 +235,7 @@ public class SamplerIT extends ParameterizedOpenSearchIntegTestCase {
     public void testRidiculousShardSizeSampler() throws Exception {
         SamplerAggregationBuilder sampleAgg = sampler("sample").shardSize(Integer.MAX_VALUE);
         sampleAgg.subAggregation(terms("authors").field("author"));
+        indexRandomForConcurrentSearch("test");
         SearchResponse response = client().prepareSearch("test")
             .setSearchType(SearchType.QUERY_THEN_FETCH)
             .setQuery(new TermQueryBuilder("genre", "fantasy"))
