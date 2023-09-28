@@ -173,13 +173,14 @@ public class RestInitializeExtensionAction extends BaseRestHandler {
 
             Map<String, Object> additionalSettingsMap = extensionMap.entrySet()
                 .stream()
-                    .filter(kv -> additionalSettingsKeys.stream().anyMatch(k -> {
-                        if (k.endsWith(".")) {
-                            return kv.getKey().startsWith(k);
-                        } else {
-                            return kv.getKey().equals(k);
-                        }
-                    })).collect(Collectors.toMap(map -> map.getKey(), map -> map.getValue()));
+                .filter(kv -> additionalSettingsKeys.stream().anyMatch(k -> {
+                    if (k.endsWith(".")) {
+                        return kv.getKey().startsWith(k);
+                    } else {
+                        return kv.getKey().equals(k);
+                    }
+                }))
+                .collect(Collectors.toMap(map -> map.getKey(), map -> map.getValue()));
 
             Settings.Builder output = Settings.builder();
             Map<String, Object> unflattenedMap = unflattenMap(additionalSettingsMap);

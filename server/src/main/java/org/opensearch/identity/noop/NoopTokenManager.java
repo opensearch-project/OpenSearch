@@ -51,8 +51,6 @@ public class NoopTokenManager implements TokenManager {
         };
     }
 
-
-
     @Override
     public Subject authenticateToken(AuthToken authToken) {
         return null;

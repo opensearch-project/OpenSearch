@@ -45,44 +45,44 @@ import java.util.Objects;
  * @opensearch.internal
  */
 public class InitializeExtensionSecurityResponse extends TransportResponse {
-	private String name;
+    private String name;
 
-	public InitializeExtensionSecurityResponse(String name) {
-		this.name = name;
-	}
+    public InitializeExtensionSecurityResponse(String name) {
+        this.name = name;
+    }
 
-	public InitializeExtensionSecurityResponse(StreamInput in) throws IOException {
-		name = in.readString();
-	}
+    public InitializeExtensionSecurityResponse(StreamInput in) throws IOException {
+        name = in.readString();
+    }
 
-	@Override
-	public void writeTo(StreamOutput out) throws IOException {
-		out.writeString(name);
-	}
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(name);
+    }
 
-	/**
-	 * @return the node that is currently leading, according to the responding node.
-	 */
+    /**
+     * @return the node that is currently leading, according to the responding node.
+     */
 
-	public String getName() {
-		return this.name;
-	}
+    public String getName() {
+        return this.name;
+    }
 
-	@Override
-	public String toString() {
-		return "InitializeExtensionResponse{" + "name = " + name + "}";
-	}
+    @Override
+    public String toString() {
+        return "InitializeExtensionResponse{" + "name = " + name + "}";
+    }
 
-	@Override
-	public boolean equals(Object o) {
-		if (this == o) return true;
-		if (o == null || getClass() != o.getClass()) return false;
-		InitializeExtensionSecurityResponse that = (InitializeExtensionSecurityResponse) o;
-		return Objects.equals(name, that.name);
-	}
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        InitializeExtensionSecurityResponse that = (InitializeExtensionSecurityResponse) o;
+        return Objects.equals(name, that.name);
+    }
 
-	@Override
-	public int hashCode() {
-		return Objects.hash(name);
-	}
+    @Override
+    public int hashCode() {
+        return Objects.hash(name);
+    }
 }

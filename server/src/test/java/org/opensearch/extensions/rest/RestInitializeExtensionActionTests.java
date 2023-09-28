@@ -153,7 +153,10 @@ public class RestInitializeExtensionActionTests extends OpenSearchTestCase {
             Function.identity(),
             Setting.Property.ExtensionScope
         );
-        ExtensionsManager extensionsManager = new ExtensionsManager(Set.of(boolSetting, stringSetting, intSetting, listSetting), new IdentityService(Settings.EMPTY, List.of()));
+        ExtensionsManager extensionsManager = new ExtensionsManager(
+            Set.of(boolSetting, stringSetting, intSetting, listSetting),
+            new IdentityService(Settings.EMPTY, List.of())
+        );
         ExtensionsManager spy = spy(extensionsManager);
 
         // optionally, you can stub out some methods:
@@ -201,7 +204,10 @@ public class RestInitializeExtensionActionTests extends OpenSearchTestCase {
             Function.identity(),
             Setting.Property.ExtensionScope
         );
-        ExtensionsManager extensionsManager = new ExtensionsManager(Set.of(boolSetting, stringSetting, intSetting, listSetting), new IdentityService(Settings.EMPTY, List.of()));
+        ExtensionsManager extensionsManager = new ExtensionsManager(
+            Set.of(boolSetting, stringSetting, intSetting, listSetting),
+            new IdentityService(Settings.EMPTY, List.of())
+        );
         ExtensionsManager spy = spy(extensionsManager);
 
         // optionally, you can stub out some methods:

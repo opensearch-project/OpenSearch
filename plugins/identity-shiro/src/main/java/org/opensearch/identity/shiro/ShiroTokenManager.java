@@ -98,7 +98,7 @@ class ShiroTokenManager implements TokenManager {
         if (token instanceof BasicAuthToken) {
             final BasicAuthToken basicAuthToken = (BasicAuthToken) token;
             return basicAuthToken.getUser().equals(SecurityUtils.getSubject().toString())
-                    && basicAuthToken.getPassword().equals(shiroTokenPasswordMap.get(basicAuthToken));
+                && basicAuthToken.getPassword().equals(shiroTokenPasswordMap.get(basicAuthToken));
         }
         return false;
     }
@@ -140,10 +140,10 @@ class ShiroTokenManager implements TokenManager {
         CharacterRule specialCharacterRule = new CharacterRule(EnglishCharacterData.Special, 1);
 
         List<CharacterRule> rules = Arrays.asList(
-                lowercaseCharacterRule,
-                uppercaseCharacterRule,
-                numericCharacterRule,
-                specialCharacterRule
+            lowercaseCharacterRule,
+            uppercaseCharacterRule,
+            numericCharacterRule,
+            specialCharacterRule
         );
         PasswordGenerator passwordGenerator = new PasswordGenerator();
 

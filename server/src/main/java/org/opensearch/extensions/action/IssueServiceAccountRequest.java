@@ -20,50 +20,50 @@ import java.util.Objects;
  */
 public class IssueServiceAccountRequest extends TransportRequest {
 
-	private final String serviceAccountToken;
+    private final String serviceAccountToken;
 
-	/**
-	 * This takes a string representing a service account token
-	 * @param serviceAccountToken The string making up the service account token
-	 */
-	public IssueServiceAccountRequest(String serviceAccountToken) {
-		this.serviceAccountToken = serviceAccountToken;
-	}
+    /**
+     * This takes a string representing a service account token
+     * @param serviceAccountToken The string making up the service account token
+     */
+    public IssueServiceAccountRequest(String serviceAccountToken) {
+        this.serviceAccountToken = serviceAccountToken;
+    }
 
-	/**
-	 * This takes a stream representing a service account token
-	 * @param in The stream passing the token
-	 */
-	public IssueServiceAccountRequest(StreamInput in) throws IOException {
-		super(in);
-		this.serviceAccountToken = in.readString();
-	}
+    /**
+     * This takes a stream representing a service account token
+     * @param in The stream passing the token
+     */
+    public IssueServiceAccountRequest(StreamInput in) throws IOException {
+        super(in);
+        this.serviceAccountToken = in.readString();
+    }
 
-	@Override
-	public void writeTo(StreamOutput out) throws IOException {
-		super.writeTo(out);
-		out.writeString(serviceAccountToken);
-	}
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeString(serviceAccountToken);
+    }
 
-	public String getServiceAccountToken() {
-		return this.serviceAccountToken;
-	}
+    public String getServiceAccountToken() {
+        return this.serviceAccountToken;
+    }
 
-	@Override
-	public String toString() {
-		return "IssueServiceAccountRequest {" + "serviceAccountToken=" + serviceAccountToken + "}";
-	}
+    @Override
+    public String toString() {
+        return "IssueServiceAccountRequest {" + "serviceAccountToken=" + serviceAccountToken + "}";
+    }
 
-	@Override
-	public boolean equals(Object o) {
-		if (this == o) return true;
-		if (o == null || getClass() != o.getClass()) return false;
-		IssueServiceAccountRequest that = (IssueServiceAccountRequest) o;
-		return Objects.equals(serviceAccountToken, that.serviceAccountToken);
-	}
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        IssueServiceAccountRequest that = (IssueServiceAccountRequest) o;
+        return Objects.equals(serviceAccountToken, that.serviceAccountToken);
+    }
 
-	@Override
-	public int hashCode() {
-		return Objects.hash(serviceAccountToken);
-	}
+    @Override
+    public int hashCode() {
+        return Objects.hash(serviceAccountToken);
+    }
 }

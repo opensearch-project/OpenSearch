@@ -8,9 +8,6 @@
 
 package org.opensearch.extensions;
 
-import java.util.concurrent.CompletionException;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -38,6 +35,8 @@ import org.opensearch.extensions.ExtensionsSettings.Extension;
 import org.opensearch.extensions.action.ExtensionActionRequest;
 import org.opensearch.extensions.action.ExtensionActionResponse;
 import org.opensearch.extensions.action.ExtensionTransportActionsHandler;
+import org.opensearch.extensions.action.IssueServiceAccountRequest;
+import org.opensearch.extensions.action.IssueServiceAccountResponse;
 import org.opensearch.extensions.action.RegisterTransportActionsRequest;
 import org.opensearch.extensions.action.RemoteExtensionActionResponse;
 import org.opensearch.extensions.action.TransportActionRequestFromExtension;
@@ -52,8 +51,6 @@ import org.opensearch.transport.ConnectTransportException;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
-import org.opensearch.extensions.action.IssueServiceAccountRequest;
-import org.opensearch.extensions.action.IssueServiceAccountResponse;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -63,6 +60,9 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
 /**
@@ -98,7 +98,6 @@ public class ExtensionsManager {
     public static enum OpenSearchRequestType {
         REQUEST_OPENSEARCH_NAMED_WRITEABLE_REGISTRY
     }
-
 
     private ExtensionTransportActionsHandler extensionTransportActionsHandler;
     private Map<String, Extension> extensionSettingsMap;
@@ -423,38 +422,38 @@ public class ExtensionsManager {
     private void initializeExtensionSecurity(DiscoveryExtensionNode extension) {
         final CompletableFuture<InitializeExtensionSecurityResponse> inProgressFuture = new CompletableFuture<>();
         final TransportResponseHandler<InitializeExtensionSecurityResponse> initializeExtensionSecurityResponseHandler =
-                new TransportResponseHandler<InitializeExtensionSecurityResponse>() {
+            new TransportResponseHandler<InitializeExtensionSecurityResponse>() {
 
-                    @Override
-                    public InitializeExtensionSecurityResponse read(StreamInput in) throws IOException {
-                        return new InitializeExtensionSecurityResponse(in);
-                    }
+                @Override
+                public InitializeExtensionSecurityResponse read(StreamInput in) throws IOException {
+                    return new InitializeExtensionSecurityResponse(in);
+                }
 
-                    @Override
-                    public void handleResponse(InitializeExtensionSecurityResponse response) {
-                        System.out.println("Registered security settings for " + response.getName());
-                        inProgressFuture.complete(response);
-                    }
+                @Override
+                public void handleResponse(InitializeExtensionSecurityResponse response) {
+                    logger.info("Registered security settings for " + response.getName());
+                    inProgressFuture.complete(response);
+                }
 
-                    @Override
-                    public void handleException(TransportException exp) {
-                        logger.error(new ParameterizedMessage("Extension initialization failed"), exp);
-                        inProgressFuture.completeExceptionally(exp);
-                    }
+                @Override
+                public void handleException(TransportException exp) {
+                    logger.error(new ParameterizedMessage("Extension initialization failed"), exp);
+                    inProgressFuture.completeExceptionally(exp);
+                }
 
-                    @Override
-                    public String executor() {
-                        return ThreadPool.Names.GENERIC;
-                    }
-                };
+                @Override
+                public String executor() {
+                    return ThreadPool.Names.GENERIC;
+                }
+            };
         try {
             logger.info("Sending extension request type: " + REQUEST_EXTENSION_REGISTER_SECURITY_SETTINGS);
             AuthToken serviceAccountToken = identityService.getTokenManager().issueServiceAccountToken(extension.getId());
             transportService.sendRequest(
-                    extension,
-                    REQUEST_EXTENSION_REGISTER_SECURITY_SETTINGS,
-                    new InitializeExtensionSecurityRequest(serviceAccountToken.asAuthHeaderValue()),
-                    initializeExtensionSecurityResponseHandler
+                extension,
+                REQUEST_EXTENSION_REGISTER_SECURITY_SETTINGS,
+                new InitializeExtensionSecurityRequest(serviceAccountToken.asAuthHeaderValue()),
+                initializeExtensionSecurityResponseHandler
             );
 
             inProgressFuture.orTimeout(EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS).join();
@@ -517,7 +516,7 @@ public class ExtensionsManager {
         String authTokenAsString = serviceAccountToken.asAuthHeaderValue();
         final CompletableFuture<IssueServiceAccountResponse> inProgressFuture = new CompletableFuture<>();
         final TransportResponseHandler<IssueServiceAccountResponse> issueServiceAccountResponseHandler = new TransportResponseHandler<
-                IssueServiceAccountResponse>() {
+            IssueServiceAccountResponse>() {
 
             @Override
             public IssueServiceAccountResponse read(StreamInput in) throws IOException {
@@ -528,7 +527,7 @@ public class ExtensionsManager {
             public void handleResponse(IssueServiceAccountResponse response) {
                 for (DiscoveryExtensionNode extension : extensionIdMap.values()) {
                     if (extension.getName().equals(response.getName())
-                            && (serviceAccountToken.equals(response.getServiceAccountString()))) {
+                        && (serviceAccountToken.equals(response.getServiceAccountString()))) {
                         logger.info("Successfully issued service account token to extension: " + extension.getName());
                         break;
                     }
@@ -549,14 +548,12 @@ public class ExtensionsManager {
         };
 
         transportService.sendRequest(
-                discoveryExtensionNode,
-                REQUEST_EXTENSION_ISSUE_SERVICE_ACCOUNT,
-                new IssueServiceAccountRequest(authTokenAsString),
-                issueServiceAccountResponseHandler
+            discoveryExtensionNode,
+            REQUEST_EXTENSION_ISSUE_SERVICE_ACCOUNT,
+            new IssueServiceAccountRequest(authTokenAsString),
+            issueServiceAccountResponseHandler
         );
     }
-
-
 
     static String getRequestExtensionActionName() {
         return REQUEST_EXTENSION_ACTION_NAME;
@@ -613,7 +610,6 @@ public class ExtensionsManager {
     void setCustomSettingsRequestHandler(CustomSettingsRequestHandler customSettingsRequestHandler) {
         this.customSettingsRequestHandler = customSettingsRequestHandler;
     }
-
 
     public void setIdentityService(IdentityService identityService) {
         this.identityService = identityService;

@@ -284,7 +284,6 @@ public final class Settings implements ToXContentFragment {
         return (List<Settings>) settings.get(key);
     }
 
-
     /**
      * Returns the setting value (as float) associated with the setting key. If it does not exists,
      * returns the default value provided.
@@ -691,18 +690,18 @@ public final class Settings implements ToXContentFragment {
                         list.add(String.valueOf(parser.text()));
                     } else {
                         listOfObjects.add(fromXContent(parser, true, false));
-                        //throw new IllegalStateException("only value lists are allowed in serialized settings");
+                        // throw new IllegalStateException("only value lists are allowed in serialized settings");
                     }
                 }
                 String key = keyBuilder.toString();
                 validateValue(key, list, parser, allowNullValues);
                 builder.putList(key, list);
-            if (!listOfObjects.isEmpty()) {
-                builder.putListOfObjects(key, listOfObjects);
-            }
-            if (!list.isEmpty() && !listOfObjects.isEmpty()) {
-                throw new IllegalStateException("list cannot contain both values and objects");
-            }
+                if (!listOfObjects.isEmpty()) {
+                    builder.putListOfObjects(key, listOfObjects);
+                }
+                if (!list.isEmpty() && !listOfObjects.isEmpty()) {
+                    throw new IllegalStateException("list cannot contain both values and objects");
+                }
             } else if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
                 String key = keyBuilder.toString();
                 validateValue(key, null, parser, allowNullValues);

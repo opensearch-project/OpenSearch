@@ -38,5 +38,4 @@ public interface TokenManager {
      */
     public Subject authenticateToken(AuthToken authToken);
 
-
 }
