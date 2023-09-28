@@ -118,6 +118,7 @@ public class QueryRescorerIT extends ParameterizedOpenSearchIntegTestCase {
             client().prepareIndex("test").setId(Integer.toString(i)).setSource("f", Integer.toString(i)).get();
         }
         refresh();
+        indexRandomForConcurrentSearch(3, "test");
 
         int numShards = getNumShards("test").numPrimaries;
         for (int j = 0; j < iters; j++) {
@@ -169,6 +170,7 @@ public class QueryRescorerIT extends ParameterizedOpenSearchIntegTestCase {
             .setSource("field1", "quick huge brown", "field2", "the quick lazy huge brown fox jumps over the tree")
             .get();
         refresh();
+        indexRandomForConcurrentSearch(3, "test");
         SearchResponse searchResponse = client().prepareSearch()
             .setQuery(QueryBuilders.matchQuery("field1", "the quick brown").operator(Operator.OR))
             .setRescorer(
@@ -545,6 +547,7 @@ public class QueryRescorerIT extends ParameterizedOpenSearchIntegTestCase {
             .setSource("field1", "quick huge brown", "field2", "the quick lazy huge brown fox jumps over the tree")
             .get();
         refresh();
+        indexRandomForConcurrentSearch(3, "test");
 
         {
             SearchResponse searchResponse = client().prepareSearch()
@@ -816,6 +819,7 @@ public class QueryRescorerIT extends ParameterizedOpenSearchIntegTestCase {
             client().prepareIndex("test").setId("" + i).setSource("text", "hello world").get();
         }
         refresh();
+        indexRandomForConcurrentSearch(3, "test");
 
         SearchRequestBuilder request = client().prepareSearch();
         request.setQuery(QueryBuilders.termQuery("text", "hello"));

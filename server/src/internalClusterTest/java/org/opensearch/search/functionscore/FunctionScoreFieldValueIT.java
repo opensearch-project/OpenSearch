@@ -210,6 +210,7 @@ public class FunctionScoreFieldValueIT extends ParameterizedOpenSearchIntegTestC
         client().prepareIndex("test").setId("3").setSource("body", "bar").get();
 
         refresh();
+        indexRandomForConcurrentSearch(3, "test");
 
         // document 2 scores higher because 17 > 5
         final String functionName = "func1";

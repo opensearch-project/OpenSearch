@@ -482,6 +482,7 @@ public class DecayFunctionScoreIT extends ParameterizedOpenSearchIntegTestCase {
             constantScoreQuery(termQuery("test", "value")),
             ScoreFunctionBuilders.weightFactorFunction(randomIntBetween(1, 10))
         );
+        indexRandomForConcurrentSearch(3, "test");
         GeoPoint point = new GeoPoint(20, 11);
         ActionFuture<SearchResponse> response = client().search(
             searchRequest().searchType(SearchType.QUERY_THEN_FETCH)
@@ -535,6 +536,7 @@ public class DecayFunctionScoreIT extends ParameterizedOpenSearchIntegTestCase {
             .setRefreshPolicy(IMMEDIATE)
             .setSource(jsonBuilder().startObject().field("test", "value value").field("num", 1.0).endObject())
             .get();
+        indexRandomForConcurrentSearch(3, "test");
         FunctionScoreQueryBuilder baseQuery = functionScoreQuery(
             constantScoreQuery(termQuery("test", "value")),
             ScoreFunctionBuilders.weightFactorFunction(2)
@@ -654,6 +656,7 @@ public class DecayFunctionScoreIT extends ParameterizedOpenSearchIntegTestCase {
             constantScoreQuery(termQuery("test", "value")).queryName("query1"),
             ScoreFunctionBuilders.weightFactorFunction(2, "weight1")
         );
+        indexRandomForConcurrentSearch(3, "test");
         // decay score should return 0.5 for this function and baseQuery should return 2.0f as it's score
         ActionFuture<SearchResponse> response = client().search(
             searchRequest().searchType(SearchType.QUERY_THEN_FETCH)
@@ -762,6 +765,7 @@ public class DecayFunctionScoreIT extends ParameterizedOpenSearchIntegTestCase {
         ).actionGet();
         refresh();
 
+        indexRandomForConcurrentSearch(3, "test");
         SearchResponse sr = client().search(
             searchRequest().source(
                 searchSource().query(functionScoreQuery(termQuery("test", "value"), gaussDecayFunction("num1", "now", "2d")))
@@ -817,6 +821,7 @@ public class DecayFunctionScoreIT extends ParameterizedOpenSearchIntegTestCase {
         ).actionGet();
 
         refresh();
+        indexRandomForConcurrentSearch(3, "test");
 
         ActionFuture<SearchResponse> response = client().search(
             searchRequest().searchType(SearchType.QUERY_THEN_FETCH)
@@ -974,6 +979,7 @@ public class DecayFunctionScoreIT extends ParameterizedOpenSearchIntegTestCase {
         List<Float> lonlat = new ArrayList<>();
         lonlat.add(100f);
         lonlat.add(110f);
+        indexRandomForConcurrentSearch(3, "test");
         ActionFuture<SearchResponse> response = client().search(
             searchRequest().searchType(SearchType.QUERY_THEN_FETCH)
                 .source(
@@ -1107,6 +1113,7 @@ public class DecayFunctionScoreIT extends ParameterizedOpenSearchIntegTestCase {
         client().index(indexRequest("test").source(jsonBuilder().startObject().field("test", "value").field("num", 1.0).endObject()))
             .actionGet();
         refresh();
+        indexRandomForConcurrentSearch(3, "test");
         // so, we indexed a string field, but now we try to score a num field
         ActionFuture<SearchResponse> response = client().search(
             searchRequest().searchType(SearchType.QUERY_THEN_FETCH)
@@ -1171,6 +1178,7 @@ public class DecayFunctionScoreIT extends ParameterizedOpenSearchIntegTestCase {
             );
 
         indexRandom(true, doc1, doc2);
+        indexRandomForConcurrentSearch(3, "test");
 
         ActionFuture<SearchResponse> response = client().search(searchRequest().source(searchSource().query(baseQuery)));
         SearchResponse sr = response.actionGet();

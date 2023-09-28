@@ -100,6 +100,7 @@ public class CardinalityWithRequestBreakerIT extends ParameterizedOpenSearchInte
             )
             .get();
 
+        indexRandomForConcurrentSearch(3, "test");
         try {
             client().prepareSearch("test")
                 .addAggregation(

@@ -632,6 +632,7 @@ public class SearchFieldsIT extends ParameterizedOpenSearchIntegTestCase {
             )
             .get();
         client().admin().indices().refresh(refreshRequest()).actionGet();
+        indexRandomForConcurrentSearch(3, "test");
 
         SearchResponse response = client().prepareSearch()
             .setQuery(matchAllQuery())
@@ -674,6 +675,7 @@ public class SearchFieldsIT extends ParameterizedOpenSearchIntegTestCase {
     public void testScriptFieldsForNullReturn() throws Exception {
         client().prepareIndex("test").setId("1").setSource("foo", "bar").setRefreshPolicy("true").get();
 
+        indexRandomForConcurrentSearch(3, "test");
         SearchResponse response = client().prepareSearch()
             .setQuery(matchAllQuery())
             .addScriptField("test_script_1", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "return null", Collections.emptyMap()))
@@ -1271,6 +1273,7 @@ public class SearchFieldsIT extends ParameterizedOpenSearchIntegTestCase {
             );
         }
         indexRandom(true, reqs);
+        indexRandomForConcurrentSearch("index");
         ensureSearchable();
         SearchRequestBuilder req = client().prepareSearch("index");
         for (String field : Arrays.asList("s", "ms", "l", "ml", "d", "md")) {
@@ -1326,6 +1329,7 @@ public class SearchFieldsIT extends ParameterizedOpenSearchIntegTestCase {
 
         index("test", MapperService.SINGLE_MAPPING_NAME, "1", "text_field", "foo", "date_field", formatter.print(date));
         refresh("test");
+        indexRandomForConcurrentSearch("test");
 
         SearchRequestBuilder builder = client().prepareSearch()
             .setQuery(matchAllQuery())
@@ -1440,6 +1444,7 @@ public class SearchFieldsIT extends ParameterizedOpenSearchIntegTestCase {
 
         index("test", MapperService.SINGLE_MAPPING_NAME, "1", "field1", "value1", "field2", "value2");
         refresh("test");
+        indexRandomForConcurrentSearch(3, "test");
 
         SearchResponse searchResponse = client().prepareSearch()
             .setQuery(matchAllQuery())

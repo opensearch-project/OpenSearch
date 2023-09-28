@@ -130,6 +130,7 @@ public class FunctionScoreIT extends ParameterizedOpenSearchIntegTestCase {
         createIndex(INDEX);
         index(INDEX, TYPE, "1", jsonBuilder().startObject().field("dummy_field", 1).endObject());
         refresh();
+        indexRandomForConcurrentSearch(3, INDEX);
 
         Script scriptOne = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "1", Collections.emptyMap());
         Script scriptTwo = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "get score value", Collections.emptyMap());
