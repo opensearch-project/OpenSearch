@@ -138,6 +138,35 @@
   - is_false:  nodes.$node_id.indices.translog
   - is_false:  nodes.$node_id.indices.recovery
 
+---
+"Metric - indexing doc_status":
+  - skip:
+      version: " - 2.99.99"
+      reason: "To be introduced in future release :: TODO: change if/when we backport to 2.x"
+  - do:
+      nodes.info: {}
+  - set:
+      nodes._arbitrary_key_: node_id
+
+  - do:
+      nodes.stats: { metric: indices, index_metric: indexing }
+
+  - is_false: nodes.$node_id.indices.docs
+  - is_false: nodes.$node_id.indices.store
+  - is_true: nodes.$node_id.indices.indexing
+  - is_true: nodes.$node_id.indices.indexing.doc_status
+  - is_false: nodes.$node_id.indices.get
+  - is_false: nodes.$node_id.indices.search
+  - is_false: nodes.$node_id.indices.merges
+  - is_false: nodes.$node_id.indices.refresh
+  - is_false: nodes.$node_id.indices.flush
+  - is_false: nodes.$node_id.indices.warmer
+  - is_false: nodes.$node_id.indices.query_cache
+  - is_false: nodes.$node_id.indices.fielddata
+  - is_false: nodes.$node_id.indices.completion
+  - is_false: nodes.$node_id.indices.segments
+  - is_false: nodes.$node_id.indices.translog
+  - is_false: nodes.$node_id.indices.recovery
 
 ---
 "Metric - recovery":
