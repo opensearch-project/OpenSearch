@@ -56,7 +56,6 @@ public final class TranslogConfig {
     private final ShardId shardId;
     private final Path translogPath;
     private final ByteSizeValue bufferSize;
-
     private final String nodeId;
 
     /**

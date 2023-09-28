@@ -1145,10 +1145,10 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         List<String> mdFiles = new ArrayList<>();
         mdFiles.add(metadataFilename);
         mdFiles.add(metadataFilename2);
-        RemoteSegmentStoreDirectory.verifyMultipleWriters(mdFiles);
+        RemoteSegmentStoreDirectory.verifyNoMultipleWriters(mdFiles);
 
         mdFiles.add(metadataFilenameDup);
-        assertThrows(IllegalStateException.class, () -> RemoteSegmentStoreDirectory.verifyMultipleWriters(mdFiles));
+        assertThrows(IllegalStateException.class, () -> RemoteSegmentStoreDirectory.verifyNoMultipleWriters(mdFiles));
     }
 
     public void testVerifyOld() {

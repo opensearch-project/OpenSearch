@@ -194,7 +194,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
             METADATA_FILES_TO_FETCH
         );
 
-        verifyMultipleWriters(metadataFiles);
+        verifyNoMultipleWriters(metadataFiles);
 
         if (metadataFiles.isEmpty() == false) {
             String latestMetadataFile = metadataFiles.get(0);
@@ -208,7 +208,6 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
     }
 
     private RemoteSegmentMetadata readMetadataFile(String metadataFilename) throws IOException {
-
         try (InputStream inputStream = remoteMetadataDirectory.getBlobStream(metadataFilename)) {
             byte[] metadataBytes = inputStream.readAllBytes();
             return metadataStreamWrapper.readStream(new ByteArrayIndexInput(metadataFilename, metadataBytes));
@@ -216,7 +215,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
     }
 
     // Visible for testing
-    public static void verifyMultipleWriters(List<String> mdFiles) {
+    public static void verifyNoMultipleWriters(List<String> mdFiles) {
         Map<Tuple<Long, Long>, String> nodesByPrimaryTermAndGeneration = new HashMap<>();
         mdFiles.forEach(mdFile -> {
             Tuple<Tuple<Long, Long>, String> nodeIdByPrimaryTermAndGeneration = MetadataFilenameUtils.getNodeIdByPrimaryTermAndGeneration(
@@ -351,8 +350,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
                 RemoteStoreUtils.invertLong(uploadCounter),
                 nodeId,
                 RemoteStoreUtils.invertLong(System.currentTimeMillis()),
-                String.valueOf(metadataVersion),
-                UUIDs.base64UUID()
+                String.valueOf(metadataVersion)
             );
         }
 
@@ -368,7 +366,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
 
         public static Tuple<Tuple<Long, Long>, String> getNodeIdByPrimaryTermAndGeneration(String filename) {
             String[] tokens = filename.split(SEPARATOR);
-            if (tokens.length < 9) {
+            if (tokens.length < 8) {
                 // For versions < 2.11, we don't have node id.
                 return null;
             }

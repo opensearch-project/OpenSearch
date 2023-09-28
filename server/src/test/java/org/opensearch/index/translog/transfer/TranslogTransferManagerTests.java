@@ -543,6 +543,6 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         List<BlobMetadata> bmList = new LinkedList<>();
         bmList.add(new PlainBlobMetadata(mdFilename, 1));
         bmList.add(new PlainBlobMetadata(mdFilename2, 1));
-        TranslogTransferManager.verifyMultipleWriters(bmList);
+        TranslogTransferManager.verifyNoMultipleWriters(bmList);
     }
 }

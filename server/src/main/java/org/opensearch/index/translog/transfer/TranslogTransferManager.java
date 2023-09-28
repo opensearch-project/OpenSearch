@@ -272,7 +272,7 @@ public class TranslogTransferManager {
         fileTransferTracker.add(fileName, true);
     }
 
-    static public void verifyMultipleWriters(List<BlobMetadata> mdFiles) {
+    static public void verifyNoMultipleWriters(List<BlobMetadata> mdFiles) {
         Map<Tuple<Long, Long>, String> nodesByPrimaryTermAndGeneration = new HashMap<>();
         mdFiles.forEach(blobMetadata -> {
             Tuple<Tuple<Long, Long>, String> nodeIdByPrimaryTermAndGeneration = TranslogTransferMetadata
@@ -298,7 +298,7 @@ public class TranslogTransferManager {
         LatchedActionListener<List<BlobMetadata>> latchedActionListener = new LatchedActionListener<>(
             ActionListener.wrap(blobMetadataList -> {
                 if (blobMetadataList.isEmpty()) return;
-                verifyMultipleWriters(blobMetadataList);
+                verifyNoMultipleWriters(blobMetadataList);
                 String filename = blobMetadataList.get(0).name();
                 boolean downloadStatus = false;
                 long downloadStartTime = System.nanoTime(), bytesToRead = 0;
