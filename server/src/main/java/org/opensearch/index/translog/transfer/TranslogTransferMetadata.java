@@ -62,12 +62,7 @@ public class TranslogTransferMetadata {
     Used only at the time of download . Since details are read from content , nodeId is not available
      */
     public TranslogTransferMetadata(long primaryTerm, long generation, long minTranslogGeneration, int count) {
-        this.primaryTerm = primaryTerm;
-        this.generation = generation;
-        this.minTranslogGeneration = minTranslogGeneration;
-        this.count = count;
-        this.createdAt = System.currentTimeMillis();
-        this.nodeId = "";
+        this(primaryTerm, generation, minTranslogGeneration, count, "");
     }
 
     public long getPrimaryTerm() {
