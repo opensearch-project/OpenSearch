@@ -37,6 +37,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -44,6 +45,7 @@ import org.opensearch.index.mapper.MapperService;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Tracks indexing statistics
@@ -59,6 +61,89 @@ public class IndexingStats implements Writeable, ToXContentFragment {
      */
     public static class Stats implements Writeable, ToXContentFragment {
 
+        /**
+         * Tracks item level rest category class codes during indexing
+         *
+         * @opensearch.internal
+         */
+        public static class DocStatusStats implements Writeable, ToXContentFragment {
+
+            final AtomicLong[] docStatusCounter;
+
+            public DocStatusStats() {
+                docStatusCounter = new AtomicLong[5];
+                for (int i = 0; i < docStatusCounter.length; ++i) {
+                    docStatusCounter[i] = new AtomicLong(0);
+                }
+            }
+
+            public DocStatusStats(StreamInput in) throws IOException {
+                docStatusCounter = in.readArray(i -> new AtomicLong(i.readLong()), AtomicLong[]::new);
+
+                assert docStatusCounter.length == 5 : "Length of incoming array should be 5! Got " + docStatusCounter.length;
+            }
+
+            /**
+             * Increment counter for status
+             *
+             * @param status {@link RestStatus}
+             */
+            public void inc(final RestStatus status) {
+                add(status, 1L);
+            }
+
+            /**
+             * Increment counter for status by count
+             *
+             * @param status {@link RestStatus}
+             * @param delta The value to add
+             */
+            void add(final RestStatus status, final long delta) {
+                docStatusCounter[status.getStatusFamilyCode() - 1].addAndGet(delta);
+            }
+
+            /**
+             * Accumulate stats from the passed Object
+             *
+             * @param stats Instance storing {@link DocStatusStats}
+             */
+            public void add(final DocStatusStats stats) {
+                if (null == stats) {
+                    return;
+                }
+
+                for (int i = 0; i < docStatusCounter.length; ++i) {
+                    docStatusCounter[i].addAndGet(stats.docStatusCounter[i].longValue());
+                }
+            }
+
+            public AtomicLong[] getDocStatusCounter() {
+                return docStatusCounter;
+            }
+
+            @Override
+            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                builder.startObject(Fields.DOC_STATUS);
+
+                for (int i = 0; i < docStatusCounter.length; ++i) {
+                    long value = docStatusCounter[i].longValue();
+
+                    if (value > 0) {
+                        String key = i + 1 + "xx";
+                        builder.field(key, value);
+                    }
+                }
+
+                return builder.endObject();
+            }
+
+            @Override
+            public void writeTo(StreamOutput out) throws IOException {
+                out.writeArray((o, v) -> o.writeLong(v.longValue()), docStatusCounter);
+            }
+
+        }
+
         private long indexCount;
         private long indexTimeInMillis;
         private long indexCurrent;
@@ -69,8 +154,11 @@ public class IndexingStats implements Writeable, ToXContentFragment {
         private long noopUpdateCount;
         private long throttleTimeInMillis;
         private boolean isThrottled;
+        private final DocStatusStats docStatusStats;
 
-        Stats() {}
+        Stats() {
+            docStatusStats = new DocStatusStats();
+        }
 
         public Stats(StreamInput in) throws IOException {
             indexCount = in.readVLong();
@@ -83,6 +171,12 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             noopUpdateCount = in.readVLong();
             isThrottled = in.readBoolean();
             throttleTimeInMillis = in.readLong();
+
+            if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+                docStatusStats = in.readOptionalWriteable(DocStatusStats::new);
+            } else {
+                docStatusStats = null;
+            }
         }
 
         public Stats(
@@ -95,7 +189,8 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             long deleteCurrent,
             long noopUpdateCount,
             boolean isThrottled,
-            long throttleTimeInMillis
+            long throttleTimeInMillis,
+            DocStatusStats docStatusStats
         ) {
             this.indexCount = indexCount;
             this.indexTimeInMillis = indexTimeInMillis;
@@ -107,6 +202,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             this.noopUpdateCount = noopUpdateCount;
             this.isThrottled = isThrottled;
             this.throttleTimeInMillis = throttleTimeInMillis;
+            this.docStatusStats = docStatusStats;
         }
 
         public void add(Stats stats) {
@@ -121,8 +217,10 @@ public class IndexingStats implements Writeable, ToXContentFragment {
 
             noopUpdateCount += stats.noopUpdateCount;
             throttleTimeInMillis += stats.throttleTimeInMillis;
-            if (isThrottled != stats.isThrottled) {
-                isThrottled = true; // When combining if one is throttled set result to throttled.
+            isThrottled |= stats.isThrottled; // When combining if one is throttled set result to throttled.
+
+            if (getDocStatusStats() != null) {
+                getDocStatusStats().add(stats.getDocStatusStats());
             }
         }
 
@@ -193,6 +291,10 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             return noopUpdateCount;
         }
 
+        public DocStatusStats getDocStatusStats() {
+            return docStatusStats;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVLong(indexCount);
@@ -206,6 +308,9 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             out.writeBoolean(isThrottled);
             out.writeLong(throttleTimeInMillis);
 
+            if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+                out.writeOptionalWriteable(docStatusStats);
+            }
         }
 
         @Override
@@ -223,8 +328,14 @@ public class IndexingStats implements Writeable, ToXContentFragment {
 
             builder.field(Fields.IS_THROTTLED, isThrottled);
             builder.humanReadableField(Fields.THROTTLED_TIME_IN_MILLIS, Fields.THROTTLED_TIME, getThrottleTime());
+
+            if (getDocStatusStats() != null) {
+                getDocStatusStats().toXContent(builder, params);
+            }
+
             return builder;
         }
+
     }
 
     private final Stats totalStats;
@@ -279,7 +390,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
      *
      * @opensearch.internal
      */
-    static final class Fields {
+    private static final class Fields {
         static final String INDEXING = "indexing";
         static final String INDEX_TOTAL = "index_total";
         static final String INDEX_TIME = "index_time";
@@ -294,6 +405,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
         static final String IS_THROTTLED = "is_throttled";
         static final String THROTTLED_TIME_IN_MILLIS = "throttle_time_in_millis";
         static final String THROTTLED_TIME = "throttle_time";
+        static final String DOC_STATUS = "doc_status";
     }
 
     @Override
@@ -303,4 +415,5 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             out.writeBoolean(false);
         }
     }
+
 }
