@@ -35,6 +35,7 @@ package org.opensearch.cluster.routing.allocation;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.Version;
 import org.opensearch.cluster.ClusterInfoService;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.RestoreInProgress;
@@ -55,6 +56,7 @@ import org.opensearch.cluster.routing.allocation.command.AllocationCommands;
 import org.opensearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.opensearch.cluster.routing.allocation.decider.Decision;
 import org.opensearch.common.collect.ImmutableOpenMap;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.gateway.GatewayAllocator;
 import org.opensearch.gateway.PriorityComparator;
 import org.opensearch.snapshots.SnapshotsInfoService;
@@ -73,6 +75,7 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.opensearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
+import static org.opensearch.cluster.routing.allocation.ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_BATCH_MODE_ENABLED;
 
 /**
  * This service manages the node allocation of a cluster. For this reason the
@@ -87,6 +90,7 @@ public class AllocationService {
     private static final Logger logger = LogManager.getLogger(AllocationService.class);
 
     private final AllocationDeciders allocationDeciders;
+    private Settings settings;
     private Map<String, ExistingShardsAllocator> existingShardsAllocators;
     private final ShardsAllocator shardsAllocator;
     private final ClusterInfoService clusterInfoService;
@@ -114,6 +118,22 @@ public class AllocationService {
         this.shardsAllocator = shardsAllocator;
         this.clusterInfoService = clusterInfoService;
         this.snapshotsInfoService = snapshotsInfoService;
+        this.settings = Settings.EMPTY;
+    }
+
+    public AllocationService(
+        AllocationDeciders allocationDeciders,
+        ShardsAllocator shardsAllocator,
+        ClusterInfoService clusterInfoService,
+        SnapshotsInfoService snapshotsInfoService,
+        Settings settings
+
+    ) {
+        this.allocationDeciders = allocationDeciders;
+        this.shardsAllocator = shardsAllocator;
+        this.clusterInfoService = clusterInfoService;
+        this.snapshotsInfoService = snapshotsInfoService;
+        this.settings = settings;
     }
 
     /**
@@ -547,12 +567,13 @@ public class AllocationService {
         for (final ExistingShardsAllocator existingShardsAllocator : existingShardsAllocators.values()) {
             existingShardsAllocator.beforeAllocation(allocation);
         }
-        // batch Mode enabled setting to be added
-        boolean batchModeEnabled = true;
-        if (batchModeEnabled) {
+
+        Boolean batchModeEnabled = EXISTING_SHARDS_ALLOCATOR_BATCH_MODE_ENABLED.get(settings);
+
+        if (batchModeEnabled && allocation.nodes().getMinNodeVersion().onOrAfter(Version.CURRENT)) {
             // since allocators is per index setting, to have batch assignment verify allocators same for all shards
             // if not fallback to single assignment
-            ExistingShardsAllocator allocator = verifySameAllocatorForAllShards(allocation);
+            ExistingShardsAllocator allocator = verifySameAllocatorForAllUnassignedShards(allocation);
             if (allocator != null) {
                 allocator.allocateUnassignedBatch(allocation, true);
                 for (final ExistingShardsAllocator existingShardsAllocator : existingShardsAllocators.values()) {
@@ -562,7 +583,6 @@ public class AllocationService {
                 return;
             }
         }
-
 
         final RoutingNodes.UnassignedShards.UnassignedIterator primaryIterator = allocation.routingNodes().unassigned().iterator();
         while (primaryIterator.hasNext()) {
@@ -585,20 +605,26 @@ public class AllocationService {
         }
     }
 
-    private ExistingShardsAllocator verifySameAllocatorForAllShards(RoutingAllocation allocation) {
+    /**
+     * Verify if all unassigned shards are allocated by the same allocator, if yes then return the allocator, else
+     * return null
+     * @param allocation {@link RoutingAllocation}
+     * @return {@link ExistingShardsAllocator} or null
+     */
+    private ExistingShardsAllocator verifySameAllocatorForAllUnassignedShards(RoutingAllocation allocation) {
         // if there is a single Allocator set in Allocation Service then use it for all shards
         if (existingShardsAllocators.size() == 1) {
             return existingShardsAllocators.values().iterator().next();
         }
         RoutingNodes.UnassignedShards unassignedShards = allocation.routingNodes().unassigned();
         RoutingNodes.UnassignedShards.UnassignedIterator iterator = unassignedShards.iterator();
-        ExistingShardsAllocator currentAllocatorForShard =null;
+        ExistingShardsAllocator currentAllocatorForShard = null;
         if (unassignedShards.size() > 0) {
             ShardRouting shard = iterator.next();
-            currentAllocatorForShard= getAllocatorForShard(shard, allocation);
-            while (iterator.hasNext()){
+            currentAllocatorForShard = getAllocatorForShard(shard, allocation);
+            while (iterator.hasNext()) {
                 ExistingShardsAllocator allocatorForShard = getAllocatorForShard(iterator.next(), allocation);
-                if (currentAllocatorForShard.getClass().getName().equals(allocatorForShard.getClass().getName())==false){
+                if (currentAllocatorForShard.getClass().getName().equals(allocatorForShard.getClass().getName()) == false) {
                     return null;
                 }
             }
