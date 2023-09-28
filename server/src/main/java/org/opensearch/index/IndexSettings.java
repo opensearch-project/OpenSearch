@@ -58,7 +58,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -613,8 +612,8 @@ public final class IndexSettings {
         Property.IndexScope
     );
 
-    public static final Setting<String> TIME_INDEX_MERGE_POLICY = Setting.simpleString(
-        "indices.time_index.default_index_merge_policy",
+    public static final Setting<String> TIME_SERIES_INDEX_MERGE_POLICY = Setting.simpleString(
+        "indices.time_series_index.default_index_merge_policy",
         DEFAULT_POLICY,
         IndexMergePolicy::fromString,
         Property.NodeScope
@@ -1516,13 +1515,13 @@ public final class IndexSettings {
 
     /**
      * Returns the merge policy that should be used for this index.
-     * @param isTimeIndex true if index contains @timestamp field
+     * @param isTimeSeriesIndex true if index contains @timestamp field
      */
-    public MergePolicy getMergePolicy(boolean isTimeIndex) {
+    public MergePolicy getMergePolicy(boolean isTimeSeriesIndex) {
         String indexScopedPolicy = scopedSettings.get(INDEX_MERGE_POLICY);
         MergePolicyProvider mergePolicyProvider = null;
         IndexMergePolicy indexMergePolicy = IndexMergePolicy.fromString(indexScopedPolicy);
-        switch (Objects.requireNonNull(indexMergePolicy)) {
+        switch (indexMergePolicy) {
             case TIERED:
                 mergePolicyProvider = tieredMergePolicyProvider;
                 break;
@@ -1530,10 +1529,10 @@ public final class IndexSettings {
                 mergePolicyProvider = logByteSizeMergePolicyProvider;
                 break;
             case DEFAULT_POLICY:
-                if (isTimeIndex) {
-                    String nodeScopedTimeIndexPolicy = TIME_INDEX_MERGE_POLICY.get(nodeSettings);
-                    IndexMergePolicy nodeMergePolicy = IndexMergePolicy.fromString(nodeScopedTimeIndexPolicy);
-                    switch (Objects.requireNonNull(nodeMergePolicy)) {
+                if (isTimeSeriesIndex) {
+                    String nodeScopedTimeSeriesIndexPolicy = TIME_SERIES_INDEX_MERGE_POLICY.get(nodeSettings);
+                    IndexMergePolicy nodeMergePolicy = IndexMergePolicy.fromString(nodeScopedTimeSeriesIndexPolicy);
+                    switch (nodeMergePolicy) {
                         case TIERED:
                         case DEFAULT_POLICY:
                             mergePolicyProvider = tieredMergePolicyProvider;

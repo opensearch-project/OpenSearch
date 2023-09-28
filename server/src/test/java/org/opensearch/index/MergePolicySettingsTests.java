@@ -111,36 +111,36 @@ public class MergePolicySettingsTests extends OpenSearchTestCase {
         assertTrue(indexSettings.getMergePolicy(false) instanceof OpenSearchTieredMergePolicy);
         assertTrue(indexSettings.getMergePolicy(true) instanceof OpenSearchTieredMergePolicy);
 
-        // 1.1 node setting TIME_INDEX_MERGE_POLICY is set as log_byte_size
-        // assert index policy is tiered whereas time index policy is log_byte_size
+        // 1.1 node setting TIME_SERIES_INDEX_MERGE_POLICY is set as log_byte_size
+        // assert index policy is tiered whereas time series index policy is log_byte_size
         Settings nodeSettings = Settings.builder()
-            .put(IndexSettings.TIME_INDEX_MERGE_POLICY.getKey(), IndexSettings.IndexMergePolicy.LOG_BYTE_SIZE.getValue())
+            .put(IndexSettings.TIME_SERIES_INDEX_MERGE_POLICY.getKey(), IndexSettings.IndexMergePolicy.LOG_BYTE_SIZE.getValue())
             .build();
         indexSettings = new IndexSettings(newIndexMeta("test", Settings.EMPTY), nodeSettings);
         assertTrue(indexSettings.getMergePolicy(false) instanceof OpenSearchTieredMergePolicy);
         assertTrue(indexSettings.getMergePolicy(true) instanceof LogByteSizeMergePolicy);
 
-        // 1.2 node setting TIME_INDEX_MERGE_POLICY is set as tiered
-        // assert both index and time index policy is tiered
+        // 1.2 node setting TIME_SERIES_INDEX_MERGE_POLICY is set as tiered
+        // assert both index and time series index policy is tiered
         nodeSettings = Settings.builder()
-            .put(IndexSettings.TIME_INDEX_MERGE_POLICY.getKey(), IndexSettings.IndexMergePolicy.TIERED.getValue())
+            .put(IndexSettings.TIME_SERIES_INDEX_MERGE_POLICY.getKey(), IndexSettings.IndexMergePolicy.TIERED.getValue())
             .build();
         indexSettings = new IndexSettings(newIndexMeta("test", Settings.EMPTY), nodeSettings);
         assertTrue(indexSettings.getMergePolicy(false) instanceof OpenSearchTieredMergePolicy);
         assertTrue(indexSettings.getMergePolicy(true) instanceof OpenSearchTieredMergePolicy);
 
         // 2. INDEX_MERGE_POLICY set as tiered
-        // assert both index and time-index merge policy is set as tiered
+        // assert both index and time-series-index merge policy is set as tiered
         indexSettings = indexSettings(
             Settings.builder().put(IndexSettings.INDEX_MERGE_POLICY.getKey(), IndexSettings.IndexMergePolicy.TIERED.getValue()).build()
         );
         assertTrue(indexSettings.getMergePolicy(false) instanceof OpenSearchTieredMergePolicy);
         assertTrue(indexSettings.getMergePolicy(true) instanceof OpenSearchTieredMergePolicy);
 
-        // 2.1 node setting TIME_INDEX_MERGE_POLICY is set as log_byte_size
-        // assert both index and time-index merge policy is set as tiered
+        // 2.1 node setting TIME_SERIES_INDEX_MERGE_POLICY is set as log_byte_size
+        // assert both index and time-series-index merge policy is set as tiered
         nodeSettings = Settings.builder()
-            .put(IndexSettings.TIME_INDEX_MERGE_POLICY.getKey(), IndexSettings.IndexMergePolicy.LOG_BYTE_SIZE.getValue())
+            .put(IndexSettings.TIME_SERIES_INDEX_MERGE_POLICY.getKey(), IndexSettings.IndexMergePolicy.LOG_BYTE_SIZE.getValue())
             .build();
         indexSettings = new IndexSettings(
             newIndexMeta(
@@ -153,7 +153,7 @@ public class MergePolicySettingsTests extends OpenSearchTestCase {
         assertTrue(indexSettings.getMergePolicy(true) instanceof OpenSearchTieredMergePolicy);
 
         // 3. INDEX_MERGE_POLICY set as log_byte_size
-        // assert both index and time-index merge policy is set as log_byte_size
+        // assert both index and time-series-index merge policy is set as log_byte_size
         indexSettings = indexSettings(
             Settings.builder()
                 .put(IndexSettings.INDEX_MERGE_POLICY.getKey(), IndexSettings.IndexMergePolicy.LOG_BYTE_SIZE.getValue())
@@ -162,10 +162,10 @@ public class MergePolicySettingsTests extends OpenSearchTestCase {
         assertTrue(indexSettings.getMergePolicy(false) instanceof LogByteSizeMergePolicy);
         assertTrue(indexSettings.getMergePolicy(true) instanceof LogByteSizeMergePolicy);
 
-        // 3.1 node setting TIME_INDEX_MERGE_POLICY is set as tiered
-        // assert both index and time-index merge policy is set as log_byte_size
+        // 3.1 node setting TIME_SERIES_INDEX_MERGE_POLICY is set as tiered
+        // assert both index and time-series-index merge policy is set as log_byte_size
         nodeSettings = Settings.builder()
-            .put(IndexSettings.TIME_INDEX_MERGE_POLICY.getKey(), IndexSettings.IndexMergePolicy.TIERED.getValue())
+            .put(IndexSettings.TIME_SERIES_INDEX_MERGE_POLICY.getKey(), IndexSettings.IndexMergePolicy.TIERED.getValue())
             .build();
         indexSettings = new IndexSettings(
             newIndexMeta(
@@ -195,10 +195,10 @@ public class MergePolicySettingsTests extends OpenSearchTestCase {
         );
         assertThat(exc2.getMessage(), containsString(" has unsupported policy specified: "));
 
-        final Settings invalidSettings2 = Settings.builder().put(IndexSettings.TIME_INDEX_MERGE_POLICY.getKey(), "invalid").build();
+        final Settings invalidSettings2 = Settings.builder().put(IndexSettings.TIME_SERIES_INDEX_MERGE_POLICY.getKey(), "invalid").build();
         IllegalArgumentException exc3 = expectThrows(
             IllegalArgumentException.class,
-            () -> IndexSettings.TIME_INDEX_MERGE_POLICY.get(invalidSettings2)
+            () -> IndexSettings.TIME_SERIES_INDEX_MERGE_POLICY.get(invalidSettings2)
         );
         assertThat(exc3.getMessage(), containsString(" has unsupported policy specified: "));
 

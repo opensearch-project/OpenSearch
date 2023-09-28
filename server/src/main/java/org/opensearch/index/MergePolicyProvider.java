@@ -9,10 +9,15 @@
 package org.opensearch.index;
 
 import org.apache.lucene.index.MergePolicy;
+import org.opensearch.common.annotation.InternalApi;
 
 /**
  * A provider for obtaining merge policies used by OpenSearch indexes.
+ *
+ * @opensearch.internal
  */
+
+@InternalApi
 public interface MergePolicyProvider {
     // don't convert to Setting<> and register... we only set this in tests and register via a plugin
     String INDEX_MERGE_ENABLED = "index.merge.enabled";
