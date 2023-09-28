@@ -481,7 +481,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             Store remoteStore = null;
             if (this.indexSettings.isRemoteStoreEnabled()) {
                 Directory remoteDirectory = remoteDirectoryFactory.newDirectory(this.indexSettings, path);
-                remoteStore = new Store(shardId, this.indexSettings, remoteDirectory, lock, Store.OnClose.EMPTY);
+                remoteStore = new Store(shardId, this.indexSettings, remoteDirectory, lock, Store.OnClose.EMPTY, path);
             }
 
             Directory directory = directoryFactory.newDirectory(this.indexSettings, path);
@@ -490,7 +490,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 this.indexSettings,
                 directory,
                 lock,
-                new StoreCloseListener(shardId, () -> eventListener.onStoreClosed(shardId))
+                new StoreCloseListener(shardId, () -> eventListener.onStoreClosed(shardId)),
+                path
             );
             eventListener.onStoreCreated(shardId);
             indexShard = new IndexShard(

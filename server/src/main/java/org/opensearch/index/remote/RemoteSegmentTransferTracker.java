@@ -294,6 +294,11 @@ public class RemoteSegmentTransferTracker extends RemoteTransferTracker {
         Collection<String> segmentFiles,
         CheckedFunction<String, Long, IOException> fileSizeFunction
     ) {
+        logger.debug(
+            "segmentFilesPostRefresh={} latestLocalFileNamesBeforeMapUpdate={}",
+            segmentFiles,
+            latestLocalFileNameLengthMap.keySet()
+        );
         // Update the map
         segmentFiles.stream()
             .filter(file -> EXCLUDE_FILES.contains(file) == false)
