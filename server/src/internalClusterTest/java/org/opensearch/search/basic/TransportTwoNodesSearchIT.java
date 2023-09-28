@@ -165,6 +165,7 @@ public class TransportTwoNodesSearchIT extends ParameterizedOpenSearchIntegTestC
             index(Integer.toString(i - 1048), "test", i);
         }
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         int total = 0;
         SearchResponse searchResponse = client().prepareSearch("test")
@@ -206,6 +207,7 @@ public class TransportTwoNodesSearchIT extends ParameterizedOpenSearchIntegTestC
 
     public void testDfsQueryThenFetchWithSort() throws Exception {
         prepareData();
+        indexRandomForConcurrentSearch("test");
 
         int total = 0;
         SearchResponse searchResponse = client().prepareSearch("test")
@@ -244,6 +246,7 @@ public class TransportTwoNodesSearchIT extends ParameterizedOpenSearchIntegTestC
 
     public void testQueryThenFetch() throws Exception {
         prepareData();
+        indexRandomForConcurrentSearch("test");
 
         int total = 0;
         SearchResponse searchResponse = client().prepareSearch("test")
@@ -275,6 +278,7 @@ public class TransportTwoNodesSearchIT extends ParameterizedOpenSearchIntegTestC
 
     public void testQueryThenFetchWithFrom() throws Exception {
         Set<String> fullExpectedIds = prepareData();
+        indexRandomForConcurrentSearch("test");
 
         SearchSourceBuilder source = searchSource().query(matchAllQuery()).explain(true);
 
@@ -302,6 +306,7 @@ public class TransportTwoNodesSearchIT extends ParameterizedOpenSearchIntegTestC
 
     public void testQueryThenFetchWithSort() throws Exception {
         prepareData();
+        indexRandomForConcurrentSearch("test");
 
         int total = 0;
         SearchResponse searchResponse = client().prepareSearch("test")
@@ -332,6 +337,7 @@ public class TransportTwoNodesSearchIT extends ParameterizedOpenSearchIntegTestC
 
     public void testSimpleFacets() throws Exception {
         prepareData();
+        indexRandomForConcurrentSearch("test");
 
         SearchSourceBuilder sourceBuilder = searchSource().query(termQuery("multi", "test"))
             .from(0)
@@ -374,6 +380,7 @@ public class TransportTwoNodesSearchIT extends ParameterizedOpenSearchIntegTestC
 
     public void testFailedSearchWithWrongFrom() throws Exception {
         prepareData();
+        indexRandomForConcurrentSearch("test");
 
         NumShards test = getNumShards("test");
 
@@ -402,6 +409,7 @@ public class TransportTwoNodesSearchIT extends ParameterizedOpenSearchIntegTestC
 
     public void testFailedMultiSearchWithWrongQuery() throws Exception {
         prepareData();
+        indexRandomForConcurrentSearch("test");
 
         logger.info("Start Testing failed multi search with a wrong query");
 
@@ -424,6 +432,7 @@ public class TransportTwoNodesSearchIT extends ParameterizedOpenSearchIntegTestC
 
     public void testFailedMultiSearchWithWrongQueryWithFunctionScore() throws Exception {
         prepareData();
+        indexRandomForConcurrentSearch("test");
 
         logger.info("Start Testing failed multi search with a wrong query");
 
