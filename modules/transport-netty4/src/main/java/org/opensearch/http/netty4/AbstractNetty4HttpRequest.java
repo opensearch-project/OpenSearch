@@ -22,7 +22,7 @@ import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpRequest;
 
-public class AbstractNetty4HttpRequest {
+public abstract class AbstractNetty4HttpRequest {
 
     protected HttpHeadersMap headers;
     protected Exception inboundException;
