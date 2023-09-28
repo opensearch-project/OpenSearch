@@ -102,7 +102,7 @@ public class HttpReadWriteHandlerTests extends OpenSearchTestCase {
         doAnswer(invocation -> {
             ((HttpRequest) invocation.getArguments()[0]).releaseAndCopy();
             return null;
-        }).when(transport).incomingRequest(any(HttpRequest.class), any(HttpChannel.class), RestHandlerContext.EMPTY);
+        }).when(transport).incomingRequest(any(HttpRequest.class), any(HttpChannel.class), any(RestHandlerContext.class));
         Settings settings = Settings.builder().put(SETTING_HTTP_MAX_CONTENT_LENGTH.getKey(), new ByteSizeValue(1024)).build();
         HttpHandlingSettings httpHandlingSettings = HttpHandlingSettings.fromSettings(settings);
         channel = mock(NioHttpChannel.class);
@@ -123,12 +123,12 @@ public class HttpReadWriteHandlerTests extends OpenSearchTestCase {
         try {
             handler.consumeReads(toChannelBuffer(slicedBuf));
 
-            verify(transport, times(0)).incomingRequest(any(HttpRequest.class), any(NioHttpChannel.class), RestHandlerContext.EMPTY);
+            verify(transport, times(0)).incomingRequest(any(HttpRequest.class), any(NioHttpChannel.class), any(RestHandlerContext.class));
 
             handler.consumeReads(toChannelBuffer(slicedBuf2));
 
             ArgumentCaptor<HttpRequest> requestCaptor = ArgumentCaptor.forClass(HttpRequest.class);
-            verify(transport).incomingRequest(requestCaptor.capture(), any(NioHttpChannel.class), RestHandlerContext.EMPTY);
+            verify(transport).incomingRequest(requestCaptor.capture(), any(NioHttpChannel.class), any(RestHandlerContext.class));
 
             HttpRequest nioHttpRequest = requestCaptor.getValue();
             assertEquals(HttpRequest.HttpVersion.HTTP_1_1, nioHttpRequest.protocolVersion());
@@ -154,7 +154,7 @@ public class HttpReadWriteHandlerTests extends OpenSearchTestCase {
             handler.consumeReads(toChannelBuffer(buf));
 
             ArgumentCaptor<HttpRequest> requestCaptor = ArgumentCaptor.forClass(HttpRequest.class);
-            verify(transport).incomingRequest(requestCaptor.capture(), any(NioHttpChannel.class), RestHandlerContext.EMPTY);
+            verify(transport).incomingRequest(requestCaptor.capture(), any(NioHttpChannel.class), any(RestHandlerContext.class));
 
             assertNotNull(requestCaptor.getValue().getInboundException());
             assertTrue(requestCaptor.getValue().getInboundException() instanceof IllegalArgumentException);
@@ -175,7 +175,7 @@ public class HttpReadWriteHandlerTests extends OpenSearchTestCase {
         } finally {
             buf.release();
         }
-        verify(transport, times(0)).incomingRequest(any(), any(), RestHandlerContext.EMPTY);
+        verify(transport, times(0)).incomingRequest(any(), any(), any(RestHandlerContext.class));
 
         List<FlushOperation> flushOperations = handler.pollFlushOperations();
         assertFalse(flushOperations.isEmpty());
@@ -281,7 +281,7 @@ public class HttpReadWriteHandlerTests extends OpenSearchTestCase {
         }
 
         ArgumentCaptor<HttpPipelinedRequest> requestCaptor = ArgumentCaptor.forClass(HttpPipelinedRequest.class);
-        verify(transport, atLeastOnce()).incomingRequest(requestCaptor.capture(), any(HttpChannel.class), RestHandlerContext.EMPTY);
+        verify(transport, atLeastOnce()).incomingRequest(requestCaptor.capture(), any(HttpChannel.class), any(RestHandlerContext.class));
 
         HttpRequest httpRequest = requestCaptor.getValue();
         assertNotNull(httpRequest);
