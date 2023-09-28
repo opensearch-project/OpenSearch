@@ -426,7 +426,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                     // If this handler is hit then no upgrade has been attempted and the client is just talking HTTP
                     final ChannelPipeline pipeline = ctx.pipeline();
                     pipeline.addAfter(ctx.name(), "handler", getRequestHandler());
-                    pipeline.replace(this, "header_verifier", transport.creategetHeaderVerifier());
+                    pipeline.replace(this, "header_verifier", transport.createHeaderVerifier());
                     pipeline.addAfter("header_verifier", "decompress", transport.createDecompressor());
                     pipeline.addAfter("decompress", "aggregator", aggregator);
                     if (handlingSettings.isCompression()) {
@@ -449,7 +449,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             );
             decoder.setCumulator(ByteToMessageDecoder.COMPOSITE_CUMULATOR);
             pipeline.addLast("decoder", decoder);
-            pipeline.addLast("header_verifier", transport.creategetHeaderVerifier());
+            pipeline.addLast("header_verifier", transport.createHeaderVerifier());
             pipeline.addLast("decompress", transport.createDecompressor());
             pipeline.addLast("encoder", new HttpResponseEncoder());
             final HttpObjectAggregator aggregator = new HttpObjectAggregator(handlingSettings.getMaxContentLength());
@@ -496,7 +496,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                         .addLast(new Http2StreamFrameToHttpObjectCodec(true))
                         .addLast("byte_buf_sizer", byteBufSizer)
                         .addLast("read_timeout", new ReadTimeoutHandler(transport.readTimeoutMillis, TimeUnit.MILLISECONDS))
-                        .addLast("header_verifier", transport.creategetHeaderVerifier())
+                        .addLast("header_verifier", transport.createHeaderVerifier())
                         .addLast("decompress", transport.createDecompressor());
 
                     if (handlingSettings.isCompression()) {
