@@ -32,6 +32,7 @@
 
 package org.opensearch.action.update;
 
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.ResourceAlreadyExistsException;
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.DocWriteRequest;
@@ -62,11 +63,13 @@ import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.NotSerializableExceptionWrapper;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.engine.VersionConflictEngineException;
 import org.opensearch.index.shard.IndexShard;
+import org.opensearch.index.shard.IndexingStats.Stats.DocStatusStats;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
@@ -154,10 +157,13 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
     @Override
     protected void doExecute(Task task, final UpdateRequest request, final ActionListener<UpdateResponse> listener) {
         if (request.isRequireAlias() && (clusterService.state().getMetadata().hasAlias(request.index()) == false)) {
-            throw new IndexNotFoundException(
+            IndexNotFoundException e = new IndexNotFoundException(
                 "[" + DocWriteRequest.REQUIRE_ALIAS + "] request flag is [true] and [" + request.index() + "] is not an alias",
                 request.index()
             );
+
+            incDocStatusStats(e);
+            throw e;
         }
         // if we don't have a master, we don't have metadata, that's fine, let it find a cluster-manager using create index API
         if (autoCreateIndex.shouldAutoCreate(request.index(), clusterService.state())) {
@@ -193,7 +199,10 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
     }
 
     private void innerExecute(final Task task, final UpdateRequest request, final ActionListener<UpdateResponse> listener) {
-        super.doExecute(task, request, listener);
+        super.doExecute(task, request, ActionListener.wrap(listener::onResponse, e -> {
+            incDocStatusStats(e);
+            listener.onFailure(e);
+        }));
     }
 
     @Override
@@ -330,7 +339,13 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                         shard.noopUpdate();
                     }
                 }
+
+                DocStatusStats stats = new DocStatusStats();
+                stats.inc(RestStatus.OK);
+
+                indicesService.addDocStatusStats(stats);
                 listener.onResponse(update);
+
                 break;
             default:
                 throw new IllegalStateException("Illegal result " + result.getResponseResult());
@@ -360,5 +375,11 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
             }
         }
         listener.onFailure(cause instanceof Exception ? (Exception) cause : new NotSerializableExceptionWrapper(cause));
+    }
+
+    private void incDocStatusStats(final Exception e) {
+        DocStatusStats stats = new DocStatusStats();
+        stats.inc(ExceptionsHelper.status(e));
+        indicesService.addDocStatusStats(stats);
     }
 }
