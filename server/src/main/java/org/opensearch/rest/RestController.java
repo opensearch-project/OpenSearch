@@ -131,7 +131,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         this.headersToCopy = headersToCopy;
         this.usageService = usageService;
         if (handlerWrapper == null) {
-            handlerWrapper = (delegate) -> new DelegatingRestHandler(delegate);
+            handlerWrapper = h -> h; // passthrough if no wrapper set
         }
         this.handlerWrapper = handlerWrapper;
         this.client = client;

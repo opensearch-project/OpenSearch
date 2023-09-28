@@ -42,7 +42,6 @@ import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
-import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.common.util.net.NetUtils;
 import org.opensearch.core.common.unit.ByteSizeUnit;
@@ -53,7 +52,6 @@ import org.opensearch.http.HttpChannel;
 import org.opensearch.http.HttpHandlingSettings;
 import org.opensearch.http.HttpReadTimeoutException;
 import org.opensearch.http.HttpServerChannel;
-import org.opensearch.rest.RestResponse;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.NettyAllocator;
@@ -336,14 +334,9 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         return new HttpChannelHandler(this, handlingSettings);
     }
 
-    public static final AttributeKey<Netty4HttpChannel> HTTP_CHANNEL_KEY = AttributeKey.newInstance("opensearch-http-channel");
+    protected static final AttributeKey<Netty4HttpChannel> HTTP_CHANNEL_KEY = AttributeKey.newInstance("opensearch-http-channel");
     protected static final AttributeKey<Netty4HttpServerChannel> HTTP_SERVER_CHANNEL_KEY = AttributeKey.newInstance(
         "opensearch-http-server-channel"
-    );
-
-    public static final AttributeKey<RestResponse> EARLY_RESPONSE = AttributeKey.newInstance("opensearch-http-early-response");
-    public static final AttributeKey<ThreadContext.StoredContext> CONTEXT_TO_RESTORE = AttributeKey.newInstance(
-        "opensearch-http-request-thread-context"
     );
 
     protected static class HttpChannelHandler extends ChannelInitializer<Channel> {
@@ -427,10 +420,14 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                     final ChannelPipeline pipeline = ctx.pipeline();
                     pipeline.addAfter(ctx.name(), "handler", getRequestHandler());
                     pipeline.replace(this, "header_verifier", transport.createHeaderVerifier());
-                    pipeline.addAfter("header_verifier", "decompress", transport.createDecompressor());
-                    pipeline.addAfter("decompress", "aggregator", aggregator);
+                    pipeline.addAfter("header_verifier", "decoder_compress", new HttpContentDecompressor());
+                    pipeline.addAfter("decoder_compress", "aggregator", aggregator);
                     if (handlingSettings.isCompression()) {
-                        pipeline.addAfter("aggregator", "compress", new HttpContentCompressor(handlingSettings.getCompressionLevel()));
+                        pipeline.addAfter(
+                            "aggregator",
+                            "encoder_compress",
+                            new HttpContentCompressor(handlingSettings.getCompressionLevel())
+                        );
                     }
                     pipeline.addBefore("handler", "request_creator", requestCreator);
                     pipeline.addBefore("handler", "response_creator", responseCreator);
@@ -450,13 +447,13 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             decoder.setCumulator(ByteToMessageDecoder.COMPOSITE_CUMULATOR);
             pipeline.addLast("decoder", decoder);
             pipeline.addLast("header_verifier", transport.createHeaderVerifier());
-            pipeline.addLast("decompress", transport.createDecompressor());
+            pipeline.addLast("decoder_compress", new HttpContentDecompressor());
             pipeline.addLast("encoder", new HttpResponseEncoder());
             final HttpObjectAggregator aggregator = new HttpObjectAggregator(handlingSettings.getMaxContentLength());
             aggregator.setMaxCumulationBufferComponents(transport.maxCompositeBufferComponents);
             pipeline.addLast("aggregator", aggregator);
             if (handlingSettings.isCompression()) {
-                pipeline.addLast("compress", new HttpContentCompressor(handlingSettings.getCompressionLevel()));
+                pipeline.addLast("encoder_compress", new HttpContentCompressor(handlingSettings.getCompressionLevel()));
             }
             pipeline.addLast("request_creator", requestCreator);
             pipeline.addLast("response_creator", responseCreator);
@@ -491,16 +488,18 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
 
                     final HttpObjectAggregator aggregator = new HttpObjectAggregator(handlingSettings.getMaxContentLength());
                     aggregator.setMaxCumulationBufferComponents(transport.maxCompositeBufferComponents);
+
                     childChannel.pipeline()
                         .addLast(new LoggingHandler(LogLevel.DEBUG))
                         .addLast(new Http2StreamFrameToHttpObjectCodec(true))
                         .addLast("byte_buf_sizer", byteBufSizer)
                         .addLast("read_timeout", new ReadTimeoutHandler(transport.readTimeoutMillis, TimeUnit.MILLISECONDS))
                         .addLast("header_verifier", transport.createHeaderVerifier())
-                        .addLast("decompress", transport.createDecompressor());
+                        .addLast("decoder_decompress", new HttpContentDecompressor());
 
                     if (handlingSettings.isCompression()) {
-                        childChannel.pipeline().addLast("compress", new HttpContentCompressor(handlingSettings.getCompressionLevel()));
+                        childChannel.pipeline()
+                            .addLast("encoder_compress", new HttpContentCompressor(handlingSettings.getCompressionLevel()));
                     }
 
                     childChannel.pipeline()
@@ -535,12 +534,9 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         }
     }
 
-    protected HttpContentDecompressor createDecompressor() {
-        return new HttpContentDecompressor();
-    }
-
     protected ChannelInboundHandlerAdapter createHeaderVerifier() {
+        return new Netty4HeaderVerifier();
         // pass-through
-        return new ChannelInboundHandlerAdapter();
+//        return new ChannelInboundHandlerAdapter();
     }
 }

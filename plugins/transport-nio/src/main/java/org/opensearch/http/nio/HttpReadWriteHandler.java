@@ -43,7 +43,6 @@ import org.opensearch.nio.NioChannelHandler;
 import org.opensearch.nio.SocketChannelContext;
 import org.opensearch.nio.TaskScheduler;
 import org.opensearch.nio.WriteOperation;
-import org.opensearch.rest.RestHandlerContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -173,7 +172,7 @@ public class HttpReadWriteHandler implements NioChannelHandler {
         final HttpPipelinedRequest pipelinedRequest = (HttpPipelinedRequest) msg;
         boolean success = false;
         try {
-            transport.incomingRequest(pipelinedRequest, nioHttpChannel, RestHandlerContext.EMPTY);
+            transport.incomingRequest(pipelinedRequest, nioHttpChannel);
             success = true;
         } finally {
             if (success == false) {
