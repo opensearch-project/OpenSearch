@@ -60,6 +60,13 @@ public interface ExistingShardsAllocator {
         Setting.Property.PrivateIndex
     );
 
+    public static final Setting<Boolean> EXISTING_SHARDS_ALLOCATOR_BATCH_MODE_ENABLED = Setting.boolSetting(
+        "cluster.allocator.existing_shards_allocator.batch_enable",
+        true,
+        Setting.Property.NodeScope
+    );
+
+
     /**
      * Called before starting a round of allocation, allowing the allocator to invalidate some caches if appropriate.
      */
