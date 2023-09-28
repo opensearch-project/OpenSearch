@@ -83,16 +83,18 @@ public class GatewayAllocator implements ExistingShardsAllocator {
     public static final String ALLOCATOR_NAME = "gateway_allocator";
 
     private static final Logger logger = LogManager.getLogger(GatewayAllocator.class);
-    private long maxBatchSize;
+    private final long maxBatchSize;
+
+    private static final short DEFAULT_BATCH_SIZE = 2000;
 
     private final RerouteService rerouteService;
 
     private final PrimaryShardAllocator primaryShardAllocator;
     private final ReplicaShardAllocator replicaShardAllocator;
 
-    private final PrimaryShardAllocator primaryBatchShardAllocator;
-    private final ReplicaShardAllocator replicaBatchShardAllocator;
-    private final TransportNodesListGatewayStartedShardsBatch batchStartedAction;
+    private final PrimaryShardBatchAllocator primaryBatchShardAllocator;
+    private final ReplicaShardBatchAllocator replicaBatchShardAllocator;
+    private final TransportNodesListGatewayStartedBatchShards batchStartedAction;
     private final TransportNodesListShardStoreMetadataBatch batchStoreAction;
 
     private final ConcurrentMap<
@@ -102,13 +104,17 @@ public class GatewayAllocator implements ExistingShardsAllocator {
     private final ConcurrentMap<ShardId, AsyncShardFetch<TransportNodesListShardStoreMetadata.NodeStoreFilesMetadata>> asyncFetchStore =
         ConcurrentCollections.newConcurrentMap();
     private Set<String> lastSeenEphemeralIds = Collections.emptySet();
-    private final ConcurrentMap<String, ShardsBatch> batchIdToStartedShardBatch = ConcurrentCollections.newConcurrentMap();
-    private final ConcurrentMap<String, ShardsBatch> batchIdToStoreShardBatch = ConcurrentCollections.newConcurrentMap();
+
+    // visble for testing
+    protected final ConcurrentMap<String, ShardsBatch> batchIdToStartedShardBatch = ConcurrentCollections.newConcurrentMap();
+
+    // visible for testing
+    protected final ConcurrentMap<String, ShardsBatch> batchIdToStoreShardBatch = ConcurrentCollections.newConcurrentMap();
 
     // Number of shards we send in one batch to data nodes for fetching metadata
     public static final Setting<Long> GATEWAY_ALLOCATOR_BATCH_SIZE = Setting.longSetting(
         "cluster.allocator.gateway.batch_size",
-        2000,
+        DEFAULT_BATCH_SIZE,
         1,
         10000,
         Setting.Property.NodeScope
@@ -119,7 +125,7 @@ public class GatewayAllocator implements ExistingShardsAllocator {
         RerouteService rerouteService,
         TransportNodesListGatewayStartedShards startedAction,
         TransportNodesListShardStoreMetadata storeAction,
-        TransportNodesListGatewayStartedShardsBatch batchStartedAction,
+        TransportNodesListGatewayStartedBatchShards batchStartedAction,
         TransportNodesListShardStoreMetadataBatch batchStoreAction,
         Settings settings
     ) {
@@ -158,6 +164,7 @@ public class GatewayAllocator implements ExistingShardsAllocator {
         this.primaryBatchShardAllocator = null;
         this.batchStoreAction = null;
         this.replicaBatchShardAllocator = null;
+        this.maxBatchSize = DEFAULT_BATCH_SIZE;
     }
 
     @Override
@@ -202,6 +209,8 @@ public class GatewayAllocator implements ExistingShardsAllocator {
     public void beforeAllocation(final RoutingAllocation allocation) {
         assert primaryShardAllocator != null;
         assert replicaShardAllocator != null;
+        assert primaryBatchShardAllocator != null;
+        assert replicaBatchShardAllocator != null;
         ensureAsyncFetchStorePrimaryRecency(allocation);
     }
 
@@ -227,11 +236,23 @@ public class GatewayAllocator implements ExistingShardsAllocator {
 
     @Override
     public void allocateUnassignedBatch(final RoutingAllocation allocation, boolean primary) {
-        // create batches for unassigned shards
-        Set<String> batchesToAssign = createAndUpdateBatches(allocation, primary);
 
         assert primaryBatchShardAllocator != null;
         assert replicaBatchShardAllocator != null;
+        innerAllocateUnassignedBatch(allocation, primaryBatchShardAllocator, replicaBatchShardAllocator, primary);
+    }
+
+    protected void innerAllocateUnassignedBatch(
+        RoutingAllocation allocation,
+        PrimaryShardBatchAllocator primaryBatchShardAllocator,
+        ReplicaShardBatchAllocator replicaBatchShardAllocator,
+        boolean primary
+    ) {
+        // create batches for unassigned shards
+        Set<String> batchesToAssign = createAndUpdateBatches(allocation, primary);
+        if (batchesToAssign.isEmpty()) {
+            return;
+        }
         if (primary) {
             batchIdToStartedShardBatch.values()
                 .stream()
@@ -247,7 +268,8 @@ public class GatewayAllocator implements ExistingShardsAllocator {
         }
     }
 
-    private Set<String> createAndUpdateBatches(RoutingAllocation allocation, boolean primary) {
+    // visible for testing
+    protected Set<String> createAndUpdateBatches(RoutingAllocation allocation, boolean primary) {
         Set<String> batchesToBeAssigned = new HashSet<>();
         RoutingNodes.UnassignedShards unassigned = allocation.routingNodes().unassigned();
         ConcurrentMap<String, ShardsBatch> currentBatches = primary ? batchIdToStartedShardBatch : batchIdToStoreShardBatch;
@@ -265,7 +287,7 @@ public class GatewayAllocator implements ExistingShardsAllocator {
                 assert shardRouting.unassigned();
                 shardsToBatch.add(shardRouting);
             }
-            // if shard is already batched, update to latest shardRouting information in the batches
+            // if shard is already batched update to latest shardRouting information in the batches
             else if (shardRouting.primary() == primary) {
                 String batchId = getBatchId(shardRouting, shardRouting.primary());
                 batchesToBeAssigned.add(batchId);
@@ -273,12 +295,14 @@ public class GatewayAllocator implements ExistingShardsAllocator {
             }
         });
         Iterator<ShardRouting> iterator = shardsToBatch.iterator();
+        assert maxBatchSize > 0 : "Shards batch size must be greater than 0";
+
         long batchSize = maxBatchSize;
-        Map<ShardId, SharEntry> addToCurrentBatch = new HashMap<>();
+        Map<ShardId, ShardEntry> addToCurrentBatch = new HashMap<>();
         while (iterator.hasNext()) {
             ShardRouting currentShard = iterator.next();
             if (batchSize > 0) {
-                SharEntry sharEntry = new SharEntry(
+                ShardEntry sharEntry = new ShardEntry(
                     IndexMetadata.INDEX_DATA_PATH_SETTING.get(allocation.metadata().index(currentShard.index()).getSettings()),
                     currentShard
                 );
@@ -317,7 +341,7 @@ public class GatewayAllocator implements ExistingShardsAllocator {
      *
      * @param shardRouting shard to be removed
      */
-    private void safelyRemoveShardFromBatch(ShardRouting shardRouting) {
+    protected void safelyRemoveShardFromBatch(ShardRouting shardRouting) {
         String batchId = shardRouting.primary() ? getBatchId(shardRouting, true) : getBatchId(shardRouting, false);
         if (batchId == null) {
             return;
@@ -325,11 +349,7 @@ public class GatewayAllocator implements ExistingShardsAllocator {
         ConcurrentMap<String, ShardsBatch> batches = shardRouting.primary() ? batchIdToStartedShardBatch : batchIdToStoreShardBatch;
         ShardsBatch batch = batches.get(batchId);
         batch.removeFromBatch(shardRouting);
-        // remove the batch if it is empty
-        if (batch.getBatchedShards().isEmpty()) {
-            Releasables.close(batch.getAsyncFetcher());
-            batches.remove(batchId);
-        }
+        deleteBatchIfEmpty(batches, batchId);
     }
 
     /**
@@ -338,7 +358,7 @@ public class GatewayAllocator implements ExistingShardsAllocator {
      * after removing the shard
      * @param shardRouting shard to remove
      */
-    private void safelyRemoveShardFromBothBatch(ShardRouting shardRouting) {
+    protected void safelyRemoveShardFromBothBatch(ShardRouting shardRouting) {
         String primaryBatchId = getBatchId(shardRouting, true);
         String replicaBatchId = getBatchId(shardRouting, false);
         if (primaryBatchId == null && replicaBatchId == null) {
@@ -347,24 +367,26 @@ public class GatewayAllocator implements ExistingShardsAllocator {
         if (primaryBatchId != null) {
             ShardsBatch batch = batchIdToStartedShardBatch.get(primaryBatchId);
             batch.removeFromBatch(shardRouting);
-            // remove the batch if it is empty
-            if (batch.getBatchedShards().isEmpty()) {
-                Releasables.close(batch.getAsyncFetcher());
-                batchIdToStartedShardBatch.remove(primaryBatchId);
-            }
+            deleteBatchIfEmpty(batchIdToStartedShardBatch, primaryBatchId);
         }
         if (replicaBatchId != null) {
             ShardsBatch batch = batchIdToStoreShardBatch.get(replicaBatchId);
             batch.removeFromBatch(shardRouting);
-            // remove the batch if it is empty
+            deleteBatchIfEmpty(batchIdToStoreShardBatch, replicaBatchId);
+        }
+    }
+
+    private void deleteBatchIfEmpty(ConcurrentMap<String, ShardsBatch> batches, String batchId) {
+        if (batches.containsKey(batchId)) {
+            ShardsBatch batch = batches.get(batchId);
             if (batch.getBatchedShards().isEmpty()) {
                 Releasables.close(batch.getAsyncFetcher());
-                batchIdToStoreShardBatch.remove(replicaBatchId);
+                batches.remove(batchId);
             }
         }
     }
 
-    private String getBatchId(ShardRouting shardRouting, boolean primary) {
+    protected String getBatchId(ShardRouting shardRouting, boolean primary) {
         ConcurrentMap<String, ShardsBatch> batches = primary ? batchIdToStartedShardBatch : batchIdToStoreShardBatch;
 
         return batches.entrySet()
@@ -461,15 +483,15 @@ public class GatewayAllocator implements ExistingShardsAllocator {
         }
 
         @Override
-        protected void reroute(ShardId shardId, String reason) {
-            logger.trace("{} scheduling reroute for {}", shardId, reason);
+        protected void reroute(String logKey, String reason) {
+            logger.trace("{} scheduling reroute for {}", logKey, reason);
             assert rerouteService != null;
             rerouteService.reroute(
                 "async_shard_fetch",
                 Priority.HIGH,
                 ActionListener.wrap(
-                    r -> logger.trace("{} scheduled reroute completed for {}", shardId, reason),
-                    e -> logger.debug(new ParameterizedMessage("{} scheduled reroute failed for {}", shardId, reason), e)
+                    r -> logger.trace("{} scheduled reroute completed for {}", logKey, reason),
+                    e -> logger.debug(new ParameterizedMessage("{} scheduled reroute failed for {}", logKey, reason), e)
                 )
             );
         }
@@ -618,16 +640,18 @@ public class GatewayAllocator implements ExistingShardsAllocator {
     /**
      * Holds information about a batch of shards to be allocated.
      * Async fetcher is used to fetch the data for the batch.
+     *
+     * Visible for testing
      */
-    private class ShardsBatch {
+    public class ShardsBatch {
         private final String batchId;
         private final boolean primary;
 
         private final AsyncShardFetch<? extends BaseNodeResponse> asyncBatch;
 
-        private final Map<ShardId, SharEntry> batchInfo;
+        private final Map<ShardId, ShardEntry> batchInfo;
 
-        public ShardsBatch(String batchId, Map<ShardId, SharEntry> shardsWithInfo, boolean primary) {
+        public ShardsBatch(String batchId, Map<ShardId, ShardEntry> shardsWithInfo, boolean primary) {
             this.batchId = batchId;
             this.batchInfo = new HashMap<>(shardsWithInfo);
             // create a ShardId -> customDataPath map for async fetch
@@ -643,18 +667,18 @@ public class GatewayAllocator implements ExistingShardsAllocator {
             }
         }
 
-        public void removeFromBatch(ShardRouting shard) {
+        private void removeFromBatch(ShardRouting shard) {
             batchInfo.remove(shard.shardId());
             asyncBatch.shardToCustomDataPath.remove(shard.shardId());
             // assert that fetcher and shards are the same as batched shards
             assert batchInfo.size() == asyncBatch.shardToCustomDataPath.size() : "Shards size is not equal to fetcher size";
         }
 
-        Set<ShardRouting> getBatchedShardRoutings() {
-            return batchInfo.values().stream().map(SharEntry::getShardRouting).collect(Collectors.toSet());
+        public Set<ShardRouting> getBatchedShardRoutings() {
+            return batchInfo.values().stream().map(ShardEntry::getShardRouting).collect(Collectors.toSet());
         }
 
-        Set<ShardId> getBatchedShards() {
+        public Set<ShardId> getBatchedShards() {
             return batchInfo.keySet();
         }
 
@@ -662,7 +686,7 @@ public class GatewayAllocator implements ExistingShardsAllocator {
             return batchId;
         }
 
-        AsyncShardFetch<? extends BaseNodeResponse> getAsyncFetcher() {
+        public AsyncShardFetch<? extends BaseNodeResponse> getAsyncFetcher() {
             return asyncBatch;
         }
 
@@ -697,18 +721,18 @@ public class GatewayAllocator implements ExistingShardsAllocator {
     /**
      * Holds information about a shard to be allocated in a batch.
      */
-    private class SharEntry {
+    private class ShardEntry {
 
         private final String customDataPath;
 
-        public SharEntry setShardRouting(ShardRouting shardRouting) {
+        public ShardEntry setShardRouting(ShardRouting shardRouting) {
             this.shardRouting = shardRouting;
             return this;
         }
 
         private ShardRouting shardRouting;
 
-        public SharEntry(String customDataPath, ShardRouting shardRouting) {
+        public ShardEntry(String customDataPath, ShardRouting shardRouting) {
             this.customDataPath = customDataPath;
             this.shardRouting = shardRouting;
         }
@@ -722,4 +746,11 @@ public class GatewayAllocator implements ExistingShardsAllocator {
         }
     }
 
+    public int getNumberOfStartedShardBatches() {
+        return batchIdToStoreShardBatch.size();
+    }
+
+    public int getNumberOfStoreShardBatches() {
+        return batchIdToStoreShardBatch.size();
+    }
 }
