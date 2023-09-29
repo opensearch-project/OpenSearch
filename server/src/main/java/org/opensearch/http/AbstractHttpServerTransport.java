@@ -490,7 +490,6 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         final HttpRequest httpRequest,
         final HttpChannel httpChannel
     ) {
-        // TODO Figure out how to only generate one request ID for each request in the pipeline.
         Exception badRequestCause = httpRequest.getInboundException();
 
         /*
