@@ -250,6 +250,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         this.scriptStats = scriptStats;
         this.discoveryStats = discoveryStats;
         this.ingestStats = ingestStats;
+        this.adaptiveSelectionStats = adaptiveSelectionStats;
         this.globalPerformanceStats = globalPerformanceStats;
         this.scriptCacheStats = scriptCacheStats;
         this.indexingPressureStats = indexingPressureStats;
@@ -260,7 +261,6 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         this.fileCacheStats = fileCacheStats;
         this.taskCancellationStats = taskCancellationStats;
         this.searchPipelineStats = searchPipelineStats;
-        this.adaptiveSelectionStats = adaptiveSelectionStats;
     }
 
     public long getTimestamp() {

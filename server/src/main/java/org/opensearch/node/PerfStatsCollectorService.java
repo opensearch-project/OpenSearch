@@ -34,12 +34,12 @@ public class PerfStatsCollectorService implements ClusterStateListener {
     public void clusterChanged(ClusterChangedEvent event) {
         if (event.nodesRemoved()) {
             for (DiscoveryNode removedNode : event.nodesDelta().removedNodes()) {
-                removeNode(removedNode.getId());
+                removeNodePerfStatistics(removedNode.getId());
             }
         }
     }
 
-    void removeNode(String nodeId) {
+    void removeNodePerfStatistics(String nodeId) {
         nodeIdToPerfStats.remove(nodeId);
     }
 

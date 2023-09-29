@@ -64,7 +64,6 @@ public abstract class AbstractAverageUsageTracker extends AbstractLifecycleCompo
         return observations.get().getCount();
     }
 
-    /** For testing **/
     public void recordUsage(long usage) {
         observations.get().record(usage);
     }
@@ -73,7 +72,7 @@ public abstract class AbstractAverageUsageTracker extends AbstractLifecycleCompo
     protected void doStart() {
         scheduledFuture = threadPool.scheduleWithFixedDelay(() -> {
             long usage = getUsage();
-            observations.get().record(usage);
+            recordUsage(usage);
         }, pollingInterval, ThreadPool.Names.GENERIC);
     }
 

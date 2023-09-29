@@ -87,7 +87,7 @@ public class PerfStatsCollectorServiceTests extends OpenSearchTestCase {
             }
             for (int i = 0; i < randomIntBetween(100, 200); i++) {
                 if (randomBoolean()) {
-                    collector.removeNode(randomFrom(nodes));
+                    collector.removeNodePerfStatistics(randomFrom(nodes));
                 }
                 collector.collectNodePerfStatistics(
                     randomFrom(nodes),
