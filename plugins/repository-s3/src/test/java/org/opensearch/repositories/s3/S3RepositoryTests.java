@@ -140,7 +140,7 @@ public class S3RepositoryTests extends OpenSearchTestCase implements ConfigPathS
         final RepositoryMetadata metadata = new RepositoryMetadata("dummy-repo", "mock", Settings.EMPTY);
         try (S3Repository s3repo = createS3Repo(metadata)) {
             List<Setting<?>> restrictedSettings = s3repo.getRestrictedSystemRepositorySettings();
-            assertThat(restrictedSettings.size(), is(4));
+            assertThat(restrictedSettings.size(), is(5));
             assertTrue(restrictedSettings.contains(BlobStoreRepository.SYSTEM_REPOSITORY_SETTING));
             assertTrue(restrictedSettings.contains(BlobStoreRepository.READONLY_SETTING));
             assertTrue(restrictedSettings.contains(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY));
