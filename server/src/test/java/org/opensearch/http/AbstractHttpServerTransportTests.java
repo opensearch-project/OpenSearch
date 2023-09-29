@@ -49,6 +49,7 @@ import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.rest.RestChannel;
+import org.opensearch.rest.RestHandlerContext;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.tasks.Task;
@@ -64,6 +65,7 @@ import org.junit.Before;
 
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -149,6 +151,21 @@ public class AbstractHttpServerTransportTests extends OpenSearchTestCase {
         }
     }
 
+    public void testCreateRestRequestDoesNotGenerateRequestID() {
+        FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(
+            new BytesArray("bar".getBytes(StandardCharsets.UTF_8)),
+            null
+        ).withPath("/foo").withHeaders(Collections.singletonMap("Content-Type", Collections.singletonList("text/plain"))).build();
+
+        RestRequest request = AbstractHttpServerTransport.createRestRequest(
+            xContentRegistry(),
+            fakeRestRequest.getHttpRequest(),
+            fakeRestRequest.getHttpChannel()
+        );
+
+        assertEquals("request should not generate id", -1, request.getRequestId());
+    }
+
     public void testDispatchDoesNotModifyThreadContext() {
         final HttpServerTransport.Dispatcher dispatcher = new HttpServerTransport.Dispatcher() {
 
@@ -200,11 +217,11 @@ public class AbstractHttpServerTransportTests extends OpenSearchTestCase {
             }
         ) {
 
-            transport.dispatchRequest(null, null, null);
+            transport.dispatchRequest(null, null, null, null);
             assertNull(threadPool.getThreadContext().getHeader("foo"));
             assertNull(threadPool.getThreadContext().getTransient("bar"));
 
-            transport.dispatchRequest(null, null, new Exception());
+            transport.dispatchRequest(null, null, new Exception(), null);
             assertNull(threadPool.getThreadContext().getHeader("foo_bad"));
             assertNull(threadPool.getThreadContext().getTransient("bar_bad"));
         }
@@ -321,7 +338,7 @@ public class AbstractHttpServerTransportTests extends OpenSearchTestCase {
                     .withInboundException(inboundException)
                     .build();
 
-                transport.incomingRequest(fakeRestRequest.getHttpRequest(), fakeRestRequest.getHttpChannel());
+                transport.incomingRequest(fakeRestRequest.getHttpRequest(), fakeRestRequest.getHttpChannel(), RestHandlerContext.EMPTY);
 
                 final Exception inboundExceptionExcludedPath;
                 if (randomBoolean()) {
@@ -338,7 +355,11 @@ public class AbstractHttpServerTransportTests extends OpenSearchTestCase {
                     .withInboundException(inboundExceptionExcludedPath)
                     .build();
 
-                transport.incomingRequest(fakeRestRequestExcludedPath.getHttpRequest(), fakeRestRequestExcludedPath.getHttpChannel());
+                transport.incomingRequest(
+                    fakeRestRequestExcludedPath.getHttpRequest(),
+                    fakeRestRequestExcludedPath.getHttpChannel(),
+                    RestHandlerContext.EMPTY
+                );
                 appender.assertAllExpectationsMatched();
             }
         }

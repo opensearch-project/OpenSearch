@@ -35,6 +35,7 @@ package org.opensearch.http.netty4;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.http.HttpPipelinedRequest;
+import org.opensearch.rest.RestHandlerContext;
 import org.opensearch.rest.RestResponse;
 
 import io.netty.channel.ChannelHandler;
@@ -53,9 +54,12 @@ class Netty4HttpRequestHandler extends SimpleChannelInboundHandler<HttpPipelined
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, HttpPipelinedRequest httpRequest) {
         final Netty4HttpChannel channel = ctx.channel().attr(Netty4HttpServerTransport.HTTP_CHANNEL_KEY).get();
+        final RestResponse earlyResponse = ctx.channel().attr(Netty4HttpServerTransport.EARLY_RESPONSE).get();
+        final ThreadContext.StoredContext contextToRestore = ctx.channel().attr(Netty4HttpServerTransport.CONTEXT_TO_RESTORE).get();
+        final RestHandlerContext requestContext = new RestHandlerContext(earlyResponse, contextToRestore);
         boolean success = false;
         try {
-            serverTransport.incomingRequest(httpRequest, channel);
+            serverTransport.incomingRequest(httpRequest, channel, requestContext);
             success = true;
         } finally {
             if (success == false) {
