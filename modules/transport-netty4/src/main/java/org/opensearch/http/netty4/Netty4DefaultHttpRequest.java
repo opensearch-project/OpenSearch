@@ -51,7 +51,6 @@ public class Netty4DefaultHttpRequest extends AbstractNetty4HttpRequest implemen
 
     @Override
     public BytesReference content() {
-        // throw new RuntimeException("Not implemented");
         return BytesArray.EMPTY;
     }
 

@@ -504,7 +504,8 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                         .addLast("decoder_compress", new Netty4ConditionalDecompressor());
 
                     if (handlingSettings.isCompression()) {
-                        childChannel.pipeline().addLast("compress", new HttpContentCompressor(handlingSettings.getCompressionLevel()));
+                        childChannel.pipeline()
+                            .addLast("encoder_compress", new HttpContentCompressor(handlingSettings.getCompressionLevel()));
                     }
 
                     childChannel.pipeline()
