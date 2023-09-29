@@ -198,7 +198,7 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
      *
      * @opensearch.internal
      */
-    protected static class Loader implements CacheLoader<Key, BytesReference> {
+    private static class Loader implements CacheLoader<Key, BytesReference> {
 
         private final CacheEntity entity;
         private final CheckedSupplier<BytesReference, IOException> loader;
