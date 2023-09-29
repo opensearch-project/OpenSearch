@@ -59,8 +59,6 @@ public class Netty4HeaderVerifierIT extends OpenSearchNetty4IntegTestCase {
                 FullHttpResponse blockedResponse = nettyHttpClient.send(transportAddress.address(), blockedRequest);
                 responses.add(blockedResponse);
                 assertThat(blockedResponse.status().code(), equalTo(401));
-            } catch (Exception e) {
-                e.printStackTrace();
             } finally {
                 responses.forEach(ReferenceCounted::release);
             }
