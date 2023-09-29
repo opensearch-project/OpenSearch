@@ -83,6 +83,10 @@ import org.opensearch.indices.IndexClosedException;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.node.NodeClosedException;
 import org.opensearch.tasks.Task;
+import org.opensearch.telemetry.tracing.Span;
+import org.opensearch.telemetry.tracing.SpanBuilder;
+import org.opensearch.telemetry.tracing.SpanScope;
+import org.opensearch.telemetry.tracing.listener.TraceableActionListener;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.ConnectTransportException;
 import org.opensearch.transport.TransportChannel;
@@ -412,8 +416,9 @@ public abstract class TransportReplicationAction<
             releasable::close
         );
 
-        try {
-            new AsyncPrimaryAction(request, listener, (ReplicationTask) task).run();
+        final Span span = getTracer().startSpan(SpanBuilder.from("shardPrimaryWrite", clusterService.localNode().getId(), request.getRequest().shardId()));
+        try(SpanScope spanScope = getTracer().withSpanInScope(span)) {
+            new AsyncPrimaryAction(request, TraceableActionListener.create(listener, span, getTracer()), (ReplicationTask) task).run();
         } catch (RuntimeException e) {
             listener.onFailure(e);
         }
@@ -693,8 +698,10 @@ public abstract class TransportReplicationAction<
             releasable::close
         );
 
-        try {
-            new AsyncReplicaAction(replicaRequest, listener, (ReplicationTask) task).run();
+        final Span span = getTracer().startSpan(SpanBuilder.from(
+            "shardReplicaWrite", clusterService.localNode().getId(), replicaRequest.getRequest().shardId()));
+        try(SpanScope spanScope = getTracer().withSpanInScope(span)) {
+            new AsyncReplicaAction(replicaRequest, TraceableActionListener.create(listener, span, getTracer()), (ReplicationTask) task).run();
         } catch (RuntimeException e) {
             listener.onFailure(e);
         }

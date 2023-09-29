@@ -99,6 +99,7 @@ import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.SystemIndices;
 import org.opensearch.node.NodeClosedException;
 import org.opensearch.tasks.Task;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.threadpool.ThreadPool.Names;
 import org.opensearch.transport.TransportChannel;
@@ -146,6 +147,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
      * term validation in presence of a new primary.
      */
     private final String transportPrimaryTermValidationAction;
+    private final Tracer tracer;
 
     @Inject
     public TransportShardBulkAction(
@@ -161,7 +163,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         IndexingPressureService indexingPressureService,
         SegmentReplicationPressureService segmentReplicationPressureService,
         RemoteStorePressureService remoteStorePressureService,
-        SystemIndices systemIndices
+        SystemIndices systemIndices,
+        Tracer tracer
     ) {
         super(
             settings,
@@ -183,6 +186,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         this.mappingUpdatedAction = mappingUpdatedAction;
         this.segmentReplicationPressureService = segmentReplicationPressureService;
         this.remoteStorePressureService = remoteStorePressureService;
+        this.tracer = tracer;
 
         this.transportPrimaryTermValidationAction = ACTION_NAME + "[validate_primary_term]";
 
@@ -194,6 +198,11 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             PrimaryTermValidationRequest::new,
             this::handlePrimaryTermValidationRequest
         );
+    }
+
+    @Override
+    protected Tracer getTracer() {
+        return tracer;
     }
 
     protected void handlePrimaryTermValidationRequest(

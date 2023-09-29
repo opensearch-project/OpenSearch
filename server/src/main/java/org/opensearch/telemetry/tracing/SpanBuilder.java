@@ -8,8 +8,10 @@
 
 package org.opensearch.telemetry.tracing;
 
+import org.opensearch.action.bulk.BulkShardRequest;
 import org.opensearch.common.annotation.InternalApi;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.http.HttpRequest;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.telemetry.tracing.attributes.Attributes;
@@ -66,6 +68,14 @@ public final class SpanBuilder {
      */
     public static SpanCreationContext from(String action, Transport.Connection connection) {
         return SpanCreationContext.server().name(createSpanName(action, connection)).attributes(buildSpanAttributes(action, connection));
+    }
+
+    public static SpanCreationContext from(String spanName, String nodeId, BulkShardRequest bulkShardRequest) {
+        return SpanCreationContext.server().name(spanName).attributes(buildSpanAttributes(nodeId, bulkShardRequest));
+    }
+
+    public static SpanCreationContext from(String spanName, String nodeId, ShardId shardId) {
+        return SpanCreationContext.server().name(spanName).attributes(buildSpanAttributes(nodeId, shardId));
     }
 
     private static String createSpanName(HttpRequest httpRequest) {
@@ -128,6 +138,7 @@ public final class SpanBuilder {
         return attributes;
     }
 
+<<<<<<< HEAD
     /**
      * Creates {@link SpanCreationContext} from Inbound Handler.
      * @param action action.
@@ -147,6 +158,20 @@ public final class SpanBuilder {
     private static Attributes buildSpanAttributes(String action, TcpChannel tcpChannel) {
         Attributes attributes = Attributes.create().addAttribute(AttributeNames.TRANSPORT_ACTION, action);
         attributes.addAttribute(AttributeNames.TRANSPORT_HOST, tcpChannel.getLocalAddress().getHostString());
+        return attributes;
+    }
+
+    private static Attributes buildSpanAttributes(String nodeId, BulkShardRequest bulkShardRequest) {
+        Attributes attributes = buildSpanAttributes(nodeId, bulkShardRequest.shardId());
+        attributes.addAttribute(AttributeNames.NUM_REQUEST_ITEMS, bulkShardRequest.items().length);
+        return attributes;
+    }
+
+    private static Attributes buildSpanAttributes(String nodeId, ShardId shardId) {
+        Attributes attributes = Attributes.create()
+            .addAttribute(AttributeNames.NODE_ID, nodeId)
+            .addAttribute(AttributeNames.INDEX, (shardId!=null)?shardId.getIndexName():"NULL")
+            .addAttribute(AttributeNames.SHARD_ID, (shardId!=null)?shardId.getId():-1);
         return attributes;
     }
 
