@@ -706,7 +706,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                 repositoryName,
                 "setting "
                     + SYSTEM_REPOSITORY_SETTING.getKey()
-                    + " cannot be enabled, as put repository doesn't support creation of system repository."
+                    + " cannot provide system repository setting; this setting is managed by OpenSearch"
             );
         }
     }
