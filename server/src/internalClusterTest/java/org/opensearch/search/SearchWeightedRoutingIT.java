@@ -16,6 +16,7 @@ import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPu
 import org.opensearch.action.get.MultiGetRequest;
 import org.opensearch.action.get.MultiGetResponse;
 import org.opensearch.action.index.IndexRequestBuilder;
+import org.opensearch.action.search.SearchPhaseName;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
@@ -56,9 +57,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.opensearch.action.search.TransportSearchAction.SEARCH_REQUEST_STATS_ENABLED_KEY;
 import static org.opensearch.search.aggregations.AggregationBuilders.terms;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0, minNumDataNodes = 3)
@@ -74,6 +77,7 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
             .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING.getKey() + "zone" + ".values", "a,b,c")
             .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey(), "zone")
             .put("cluster.routing.weighted.fail_open", false)
+            .put(SEARCH_REQUEST_STATS_ENABLED_KEY, true)
             .build();
 
         logger.info("--> starting 6 nodes on different zones");
@@ -180,12 +184,39 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
             assertFalse(!hitNodes.contains(nodeId));
         }
         nodeStats = client().admin().cluster().prepareNodesStats().execute().actionGet();
+        int num = 0;
+        int coordNumber = 0;
 
         for (NodeStats stat : nodeStats.getNodes()) {
             SearchStats.Stats searchStats = stat.getIndices().getSearch().getTotal();
+            if (searchStats.getRequestStatsLongHolder()
+                .getRequestStatsHolder()
+                .get(SearchPhaseName.QUERY.getName())
+                .getTimeInMillis() > 0) {
+                assertThat(
+                    searchStats.getRequestStatsLongHolder().getRequestStatsHolder().get(SearchPhaseName.QUERY.getName()).getTotal(),
+                    greaterThan(0L)
+                );
+                assertThat(
+                    searchStats.getRequestStatsLongHolder().getRequestStatsHolder().get(SearchPhaseName.FETCH.getName()).getTimeInMillis(),
+                    greaterThan(0L)
+                );
+                assertThat(
+                    searchStats.getRequestStatsLongHolder().getRequestStatsHolder().get(SearchPhaseName.FETCH.getName()).getTotal(),
+                    greaterThan(0L)
+                );
+                assertThat(
+                    searchStats.getRequestStatsLongHolder().getRequestStatsHolder().get(SearchPhaseName.EXPAND.getName()).getTotal(),
+                    greaterThan(0L)
+                );
+                coordNumber += 1;
+            }
             Assert.assertTrue(searchStats.getQueryCount() > 0L);
             Assert.assertTrue(searchStats.getFetchCount() > 0L);
+            num++;
         }
+        assertThat(coordNumber, greaterThan(0));
+        assertThat(num, greaterThan(0));
     }
 
     private Map<String, List<String>> setupCluster(int nodeCountPerAZ, Settings commonSettings) {

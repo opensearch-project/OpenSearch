@@ -33,6 +33,8 @@
 package org.opensearch.index.search.stats;
 
 import org.opensearch.Version;
+import org.opensearch.action.search.SearchPhaseName;
+import org.opensearch.action.search.SearchRequestStats;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
@@ -58,10 +60,79 @@ import java.util.Map;
 public class SearchStats implements Writeable, ToXContentFragment {
 
     /**
-     * Statistics for search
+     * Holds statistic values for a particular phase.
      *
      * @opensearch.internal
      */
+    public static class PhaseStatsLongHolder implements Writeable {
+
+        long current;
+        long total;
+        long timeInMillis;
+
+        public long getCurrent() {
+            return current;
+        }
+
+        public long getTotal() {
+            return total;
+        }
+
+        public long getTimeInMillis() {
+            return timeInMillis;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeVLong(current);
+            out.writeVLong(total);
+            out.writeVLong(timeInMillis);
+        }
+
+        PhaseStatsLongHolder() {
+            this(0, 0, 0);
+        }
+
+        PhaseStatsLongHolder(long current, long total, long timeInMillis) {
+            this.current = current;
+            this.total = total;
+            this.timeInMillis = timeInMillis;
+        }
+
+        PhaseStatsLongHolder(StreamInput in) throws IOException {
+            this.current = in.readVLong();
+            this.total = in.readVLong();
+            this.timeInMillis = in.readVLong();
+        }
+
+    }
+
+    /**
+     * Holds requests stats for different phases.
+     *
+     * @opensearch.internal
+     */
+    public static class RequestStatsLongHolder {
+
+        Map<String, PhaseStatsLongHolder> requestStatsHolder = new HashMap<>();
+
+        public Map<String, PhaseStatsLongHolder> getRequestStatsHolder() {
+            return requestStatsHolder;
+        }
+
+        RequestStatsLongHolder() {
+            for (SearchPhaseName searchPhaseName : SearchPhaseName.values()) {
+                requestStatsHolder.put(searchPhaseName.getName(), new PhaseStatsLongHolder());
+            }
+        }
+    }
+
+    /**
+     * Holder of statistics values
+     *
+     * @opensearch.internal
+     */
+
     public static class Stats implements Writeable, ToXContentFragment {
 
         private long queryCount;
@@ -89,6 +160,13 @@ public class SearchStats implements Writeable, ToXContentFragment {
         private long pitTimeInMillis;
         private long pitCurrent;
 
+        @Nullable
+        private RequestStatsLongHolder requestStatsLongHolder;
+
+        public RequestStatsLongHolder getRequestStatsLongHolder() {
+            return requestStatsLongHolder;
+        }
+
         private Stats() {
             // for internal use, initializes all counts to 0
         }
@@ -114,6 +192,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
             long suggestTimeInMillis,
             long suggestCurrent
         ) {
+            this.requestStatsLongHolder = new RequestStatsLongHolder();
             this.queryCount = queryCount;
             this.queryTimeInMillis = queryTimeInMillis;
             this.queryCurrent = queryCurrent;
@@ -163,6 +242,10 @@ public class SearchStats implements Writeable, ToXContentFragment {
                 pitCurrent = in.readVLong();
             }
 
+            if (in.getVersion().onOrAfter(Version.V_2_11_0)) {
+                this.requestStatsLongHolder = new RequestStatsLongHolder();
+                requestStatsLongHolder.requestStatsHolder = in.readMap(StreamInput::readString, PhaseStatsLongHolder::new);
+            }
             if (in.getVersion().onOrAfter(Version.V_2_10_0)) {
                 concurrentQueryCount = in.readVLong();
                 concurrentQueryTimeInMillis = in.readVLong();
@@ -354,6 +437,17 @@ public class SearchStats implements Writeable, ToXContentFragment {
                 out.writeVLong(pitCurrent);
             }
 
+            if (out.getVersion().onOrAfter(Version.V_2_11_0)) {
+                if (requestStatsLongHolder == null) {
+                    requestStatsLongHolder = new RequestStatsLongHolder();
+                }
+                out.writeMap(
+                    requestStatsLongHolder.getRequestStatsHolder(),
+                    StreamOutput::writeString,
+                    (stream, stats) -> stats.writeTo(stream)
+                );
+            }
+
             if (out.getVersion().onOrAfter(Version.V_2_10_0)) {
                 out.writeVLong(concurrentQueryCount);
                 out.writeVLong(concurrentQueryTimeInMillis);
@@ -391,6 +485,22 @@ public class SearchStats implements Writeable, ToXContentFragment {
             builder.humanReadableField(Fields.SUGGEST_TIME_IN_MILLIS, Fields.SUGGEST_TIME, getSuggestTime());
             builder.field(Fields.SUGGEST_CURRENT, suggestCurrent);
 
+            if (requestStatsLongHolder != null) {
+                builder.startObject(Fields.REQUEST);
+
+                for (SearchPhaseName searchPhaseName : SearchPhaseName.values()) {
+                    PhaseStatsLongHolder statsLongHolder = requestStatsLongHolder.requestStatsHolder.get(searchPhaseName.getName());
+                    if (statsLongHolder == null) {
+                        continue;
+                    }
+                    builder.startObject(searchPhaseName.getName());
+                    builder.humanReadableField(Fields.TIME_IN_MILLIS, Fields.TIME, new TimeValue(statsLongHolder.timeInMillis));
+                    builder.field(Fields.CURRENT, statsLongHolder.current);
+                    builder.field(Fields.TOTAL, statsLongHolder.total);
+                    builder.endObject();
+                }
+                builder.endObject();
+            }
             return builder;
         }
     }
@@ -403,6 +513,24 @@ public class SearchStats implements Writeable, ToXContentFragment {
 
     public SearchStats() {
         totalStats = new Stats();
+    }
+
+    // Set the different Request Stats fields in here
+    public void setSearchRequestStats(SearchRequestStats searchRequestStats) {
+        if (totalStats.requestStatsLongHolder == null) {
+            totalStats.requestStatsLongHolder = new RequestStatsLongHolder();
+        }
+
+        for (SearchPhaseName searchPhaseName : SearchPhaseName.values()) {
+            totalStats.requestStatsLongHolder.requestStatsHolder.put(
+                searchPhaseName.getName(),
+                new PhaseStatsLongHolder(
+                    searchRequestStats.getPhaseCurrent(searchPhaseName),
+                    searchRequestStats.getPhaseTotal(searchPhaseName),
+                    searchRequestStats.getPhaseMetric(searchPhaseName)
+                )
+            );
+        }
     }
 
     public SearchStats(Stats totalStats, long openContexts, @Nullable Map<String, Stats> groupStats) {
@@ -520,6 +648,12 @@ public class SearchStats implements Writeable, ToXContentFragment {
         static final String SUGGEST_TIME = "suggest_time";
         static final String SUGGEST_TIME_IN_MILLIS = "suggest_time_in_millis";
         static final String SUGGEST_CURRENT = "suggest_current";
+        static final String REQUEST = "request";
+        static final String TIME_IN_MILLIS = "time_in_millis";
+        static final String TIME = "time";
+        static final String CURRENT = "current";
+        static final String TOTAL = "total";
+
     }
 
     @Override
