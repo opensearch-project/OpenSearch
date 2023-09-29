@@ -60,7 +60,6 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.TreeMap;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -143,14 +142,14 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
         List<NodeShardState> nodeShardStates = new ArrayList();
         shardsState.getData().forEach((node, nodeGatewayStartedShard) -> {
             nodeShardStates.add(
-                    new NodeShardState(
-                        node,
-                        nodeGatewayStartedShard.allocationId(),
-                        nodeGatewayStartedShard.primary(),
-                        nodeGatewayStartedShard.replicationCheckpoint(),
-                        nodeGatewayStartedShard.storeException()
-                    )
-                );
+                new NodeShardState(
+                    node,
+                    nodeGatewayStartedShard.allocationId(),
+                    nodeGatewayStartedShard.primary(),
+                    nodeGatewayStartedShard.replicationCheckpoint(),
+                    nodeGatewayStartedShard.storeException()
+                )
+            );
         });
         return nodeShardStates;
     }
@@ -516,11 +515,7 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
         final List<DecidedNode> throttleNodeShards;
         final List<DecidedNode> noNodeShards;
 
-        NodesToAllocate(
-            List<DecidedNode> yesNodeShards,
-            List<DecidedNode> throttleNodeShards,
-            List<DecidedNode> noNodeShards
-        ) {
+        NodesToAllocate(List<DecidedNode> yesNodeShards, List<DecidedNode> throttleNodeShards, List<DecidedNode> noNodeShards) {
             this.yesNodeShards = yesNodeShards;
             this.throttleNodeShards = throttleNodeShards;
             this.noNodeShards = noNodeShards;
