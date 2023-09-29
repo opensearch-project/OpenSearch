@@ -32,14 +32,9 @@ import io.netty.handler.codec.http.DefaultFullHttpResponse;
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponseStatus;
-import io.netty.handler.codec.http.HttpVersion;
 import io.netty.util.ReferenceCountUtil;
 
 public class Netty4BlockingPlugin extends Netty4ModulePlugin {
-
-    public Netty4BlockingPlugin() {
-        super();
-    }
 
     public class Netty4BlockingHttpServerTransport extends Netty4HttpServerTransport {
 
@@ -109,11 +104,12 @@ public class Netty4BlockingPlugin extends Netty4ModulePlugin {
         public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
             if (!(msg instanceof HttpRequest)) {
                 ctx.fireChannelRead(msg);
+                return;
             }
 
             HttpRequest request = (HttpRequest) msg;
             if (!isAuthenticated(request)) {
-                final FullHttpResponse response = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.UNAUTHORIZED);
+                final FullHttpResponse response = new DefaultFullHttpResponse(request.protocolVersion(), HttpResponseStatus.UNAUTHORIZED);
                 ctx.writeAndFlush(response).addListener(ChannelFutureListener.CLOSE);
                 ReferenceCountUtil.release(msg);
             } else {
