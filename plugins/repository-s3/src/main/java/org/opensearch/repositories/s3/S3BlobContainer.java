@@ -228,35 +228,50 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
         try (AmazonAsyncS3Reference amazonS3Reference = SocketAccess.doPrivileged(blobStore::asyncClientReference)) {
             final S3AsyncClient s3AsyncClient = amazonS3Reference.get().client();
             final String bucketName = blobStore.bucket();
+            final String blobKey = buildKey(blobName);
 
-            final GetObjectAttributesResponse blobMetadata = getBlobMetadata(s3AsyncClient, bucketName, blobName).get();
+            final CompletableFuture<GetObjectAttributesResponse> blobMetadataFuture = getBlobMetadata(s3AsyncClient, bucketName, blobKey);
 
-            final long blobSize = blobMetadata.objectSize();
-            final int numberOfParts = blobMetadata.objectParts().totalPartsCount();
-            final String blobChecksum = blobMetadata.checksum().checksumCRC32();
-
-            final List<InputStreamContainer> blobPartStreams = new ArrayList<>();
-            final List<CompletableFuture<InputStreamContainer>> blobPartInputStreamFutures = new ArrayList<>();
-            // S3 multipart files use 1 to n indexing
-            for (int partNumber = 1; partNumber <= numberOfParts; partNumber++) {
-                blobPartInputStreamFutures.add(getBlobPartInputStreamContainer(s3AsyncClient, bucketName, blobName, partNumber));
-            }
-
-            CompletableFuture.allOf(blobPartInputStreamFutures.toArray(CompletableFuture[]::new)).whenComplete((unused, throwable) -> {
-                if (throwable == null) {
-                    listener.onResponse(
-                        new ReadContext(
-                            blobSize,
-                            blobPartInputStreamFutures.stream().map(CompletableFuture::join).collect(Collectors.toList()),
-                            blobChecksum
-                        )
-                    );
-                } else {
+            blobMetadataFuture.whenComplete((blobMetadata, throwable) -> {
+                if (throwable != null) {
                     Exception ex = throwable.getCause() instanceof Exception
                         ? (Exception) throwable.getCause()
                         : new Exception(throwable.getCause());
                     listener.onFailure(ex);
+                    return;
                 }
+
+                final List<CompletableFuture<InputStreamContainer>> blobPartInputStreamFutures = new ArrayList<>();
+                final long blobSize = blobMetadata.objectSize();
+                final Integer numberOfParts = blobMetadata.objectParts() == null ? null : blobMetadata.objectParts().totalPartsCount();
+                final String blobChecksum = blobMetadata.checksum().checksumCRC32();
+
+                if (numberOfParts == null) {
+                    blobPartInputStreamFutures.add(getBlobPartInputStreamContainer(s3AsyncClient, bucketName, blobKey, null));
+                } else {
+                    // S3 multipart files use 1 to n indexing
+                    for (int partNumber = 1; partNumber <= numberOfParts; partNumber++) {
+                        blobPartInputStreamFutures.add(getBlobPartInputStreamContainer(s3AsyncClient, bucketName, blobKey, partNumber));
+                    }
+                }
+
+                CompletableFuture.allOf(blobPartInputStreamFutures.toArray(CompletableFuture[]::new))
+                    .whenComplete((unused, partThrowable) -> {
+                        if (partThrowable == null) {
+                            listener.onResponse(
+                                new ReadContext(
+                                    blobSize,
+                                    blobPartInputStreamFutures.stream().map(CompletableFuture::join).collect(Collectors.toList()),
+                                    blobChecksum
+                                )
+                            );
+                        } else {
+                            Exception ex = partThrowable.getCause() instanceof Exception
+                                ? (Exception) partThrowable.getCause()
+                                : new Exception(partThrowable.getCause());
+                            listener.onFailure(ex);
+                        }
+                    });
             });
         } catch (Exception ex) {
             listener.onFailure(SdkException.create("Error occurred while fetching blob parts from the repository", ex));
@@ -685,41 +700,47 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
      * the stream and its related metadata.
      * @param s3AsyncClient Async client to be utilized to fetch the object part
      * @param bucketName Name of the S3 bucket
-     * @param blobName Identifier of the blob for which the parts will be fetched
-     * @param partNumber Part number for the blob to be retrieved
+     * @param blobKey Identifier of the blob for which the parts will be fetched
+     * @param partNumber Optional part number for the blob to be retrieved
      * @return A future of {@link InputStreamContainer} containing the stream and stream metadata.
      */
     CompletableFuture<InputStreamContainer> getBlobPartInputStreamContainer(
         S3AsyncClient s3AsyncClient,
         String bucketName,
-        String blobName,
-        int partNumber
+        String blobKey,
+        @Nullable Integer partNumber
     ) {
-        final GetObjectRequest.Builder getObjectRequestBuilder = GetObjectRequest.builder()
-            .bucket(bucketName)
-            .key(blobName)
-            .partNumber(partNumber);
+        final boolean isMultipartObject = partNumber != null;
+        final GetObjectRequest.Builder getObjectRequestBuilder = GetObjectRequest.builder().bucket(bucketName).key(blobKey);
+
+        if (isMultipartObject) {
+            getObjectRequestBuilder.partNumber(partNumber);
+        }
 
         return SocketAccess.doPrivileged(
             () -> s3AsyncClient.getObject(getObjectRequestBuilder.build(), AsyncResponseTransformer.toBlockingInputStream())
-                .thenApply(S3BlobContainer::transformResponseToInputStreamContainer)
+                .thenApply(response -> transformResponseToInputStreamContainer(response, isMultipartObject))
         );
     }
 
     /**
      * Transforms the stream response object from S3 into an {@link InputStreamContainer}
      * @param streamResponse Response stream object from S3
+     * @param isMultipartObject Flag to denote a multipart object response
      * @return {@link InputStreamContainer} containing the stream and stream metadata
      */
     // Package-Private for testing.
-    static InputStreamContainer transformResponseToInputStreamContainer(ResponseInputStream<GetObjectResponse> streamResponse) {
+    static InputStreamContainer transformResponseToInputStreamContainer(
+        ResponseInputStream<GetObjectResponse> streamResponse,
+        boolean isMultipartObject
+    ) {
         final GetObjectResponse getObjectResponse = streamResponse.response();
         final String contentRange = getObjectResponse.contentRange();
         final Long contentLength = getObjectResponse.contentLength();
-        if (contentRange == null || contentLength == null) {
+        if ((isMultipartObject && contentRange == null) || contentLength == null) {
             throw SdkException.builder().message("Failed to fetch required metadata for blob part").build();
         }
-        final Long offset = HttpRangeUtils.getStartOffsetFromRangeHeader(getObjectResponse.contentRange());
+        final long offset = isMultipartObject ? HttpRangeUtils.getStartOffsetFromRangeHeader(getObjectResponse.contentRange()) : 0L;
         return new InputStreamContainer(streamResponse, getObjectResponse.contentLength(), offset);
     }
 
