@@ -28,6 +28,11 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class RemoteIndexRecoveryIT extends IndexRecoveryIT {
 
+    @Override
+    protected boolean useSegmentReplication() {
+        return false;
+    }
+
     protected static final String REPOSITORY_NAME = "test-remote-store-repo";
 
     protected Path repositoryPath;

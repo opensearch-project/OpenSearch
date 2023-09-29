@@ -59,6 +59,12 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class ExplainActionIT extends OpenSearchIntegTestCase {
+
+    @Override
+    protected boolean useSegmentReplication() {
+        return false;
+    }
+
     public void testSimple() throws Exception {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias")).setSettings(Settings.builder().put("index.refresh_interval", -1)));
         ensureGreen("test");

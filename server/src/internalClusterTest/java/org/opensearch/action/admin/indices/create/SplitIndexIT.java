@@ -95,6 +95,11 @@ public class SplitIndexIT extends OpenSearchIntegTestCase {
         return false;
     }
 
+    @Override
+    protected boolean useSegmentReplication() {
+        return false;
+    }
+
     public void testCreateSplitIndexToN() throws IOException {
         int[][] possibleShardSplits = new int[][] { { 2, 4, 8 }, { 3, 6, 12 }, { 1, 2, 4 } };
         int[] shardSplits = randomFrom(possibleShardSplits);

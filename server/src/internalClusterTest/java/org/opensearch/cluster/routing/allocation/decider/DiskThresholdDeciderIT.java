@@ -113,6 +113,11 @@ public class DiskThresholdDeciderIT extends OpenSearchIntegTestCase {
 
     private FileSystem defaultFileSystem;
 
+    @Override
+    protected boolean useSegmentReplication() {
+        return false;
+    }
+
     @Before
     public void installFilesystemProvider() {
         assertNull(defaultFileSystem);

@@ -109,6 +109,11 @@ public class PrimaryAllocationIT extends OpenSearchIntegTestCase {
         return false;
     }
 
+    @Override
+    protected boolean useSegmentReplication() {
+        return false;
+    }
+
     public void testBulkWeirdScenario() throws Exception {
         String clusterManager = internalCluster().startClusterManagerOnlyNode(Settings.EMPTY);
         internalCluster().startDataOnlyNodes(2);

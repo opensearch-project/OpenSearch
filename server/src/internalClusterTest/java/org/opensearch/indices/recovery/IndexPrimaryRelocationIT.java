@@ -54,6 +54,11 @@ import java.util.stream.Collectors;
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST)
 public class IndexPrimaryRelocationIT extends OpenSearchIntegTestCase {
 
+    @Override
+    protected boolean addMockNRTReplicationEngine() {
+        return false;
+    }
+
     private static final int RELOCATION_COUNT = 15;
 
     public Settings indexSettings() {

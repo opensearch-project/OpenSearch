@@ -79,6 +79,11 @@ import static org.hamcrest.Matchers.not;
 public class ReplicaShardAllocatorIT extends OpenSearchIntegTestCase {
 
     @Override
+    protected boolean useSegmentReplication() {
+        return false;
+    }
+
+    @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(MockTransportService.TestPlugin.class, InternalSettingsPlugin.class);
     }
