@@ -13,7 +13,6 @@ import org.opensearch.common.blobstore.stream.read.ReadContext;
 import org.opensearch.common.blobstore.stream.read.listener.ReadContextListener;
 import org.opensearch.common.blobstore.stream.write.WriteContext;
 import org.opensearch.core.action.ActionListener;
-import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -49,12 +48,11 @@ public interface AsyncMultiStreamBlobContainer extends BlobContainer {
      * Asynchronously downloads the blob to the specified location using an executor from the thread pool.
      * @param blobName The name of the blob for which needs to be downloaded.
      * @param fileLocation The path on local disk where the blob needs to be downloaded.
-     * @param threadPool The threadpool instance which will provide the executor for performing a multipart download.
      * @param completionListener Listener which will be notified when the download is complete.
      */
     @ExperimentalApi
-    default void asyncBlobDownload(String blobName, Path fileLocation, ThreadPool threadPool, ActionListener<String> completionListener) {
-        ReadContextListener readContextListener = new ReadContextListener(blobName, fileLocation, threadPool, completionListener);
+    default void asyncBlobDownload(String blobName, Path fileLocation, ActionListener<String> completionListener) {
+        ReadContextListener readContextListener = new ReadContextListener(blobName, fileLocation, completionListener);
         readBlobAsync(blobName, readContextListener);
     }
 

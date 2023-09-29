@@ -254,24 +254,7 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
                         blobPartInputStreamFutures.add(getBlobPartInputStreamContainer(s3AsyncClient, bucketName, blobKey, partNumber));
                     }
                 }
-
-                CompletableFuture.allOf(blobPartInputStreamFutures.toArray(CompletableFuture[]::new))
-                    .whenComplete((unused, partThrowable) -> {
-                        if (partThrowable == null) {
-                            listener.onResponse(
-                                new ReadContext(
-                                    blobSize,
-                                    blobPartInputStreamFutures.stream().map(CompletableFuture::join).collect(Collectors.toList()),
-                                    blobChecksum
-                                )
-                            );
-                        } else {
-                            Exception ex = partThrowable.getCause() instanceof Exception
-                                ? (Exception) partThrowable.getCause()
-                                : new Exception(partThrowable.getCause());
-                            listener.onFailure(ex);
-                        }
-                    });
+                listener.onResponse(new ReadContext(blobSize, blobPartInputStreamFutures, blobChecksum));
             });
         } catch (Exception ex) {
             listener.onFailure(SdkException.create("Error occurred while fetching blob parts from the repository", ex));

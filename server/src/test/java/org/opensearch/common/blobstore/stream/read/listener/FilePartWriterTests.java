@@ -40,14 +40,8 @@ public class FilePartWriterTests extends OpenSearchTestCase {
         AtomicBoolean anyStreamFailed = new AtomicBoolean();
         CountingCompletionListener<Integer> fileCompletionListener = new CountingCompletionListener<>();
 
-        FilePartWriter filePartWriter = new FilePartWriter(
-            partNumber,
-            inputStreamContainer,
-            segmentFilePath,
-            anyStreamFailed,
-            fileCompletionListener
-        );
-        filePartWriter.run();
+        FilePartWriter filePartWriter = new FilePartWriter(partNumber, segmentFilePath, anyStreamFailed, fileCompletionListener);
+        filePartWriter.accept(inputStreamContainer, null);
 
         assertTrue(Files.exists(segmentFilePath));
         assertEquals(contentLength, Files.size(segmentFilePath));
@@ -65,14 +59,8 @@ public class FilePartWriterTests extends OpenSearchTestCase {
         AtomicBoolean anyStreamFailed = new AtomicBoolean();
         CountingCompletionListener<Integer> fileCompletionListener = new CountingCompletionListener<>();
 
-        FilePartWriter filePartWriter = new FilePartWriter(
-            partNumber,
-            inputStreamContainer,
-            segmentFilePath,
-            anyStreamFailed,
-            fileCompletionListener
-        );
-        filePartWriter.run();
+        FilePartWriter filePartWriter = new FilePartWriter(partNumber, segmentFilePath, anyStreamFailed, fileCompletionListener);
+        filePartWriter.accept(inputStreamContainer, null);
 
         assertTrue(Files.exists(segmentFilePath));
         assertEquals(contentLength + offset, Files.size(segmentFilePath));
@@ -89,14 +77,8 @@ public class FilePartWriterTests extends OpenSearchTestCase {
         AtomicBoolean anyStreamFailed = new AtomicBoolean();
         CountingCompletionListener<Integer> fileCompletionListener = new CountingCompletionListener<>();
 
-        FilePartWriter filePartWriter = new FilePartWriter(
-            partNumber,
-            inputStreamContainer,
-            segmentFilePath,
-            anyStreamFailed,
-            fileCompletionListener
-        );
-        filePartWriter.run();
+        FilePartWriter filePartWriter = new FilePartWriter(partNumber, segmentFilePath, anyStreamFailed, fileCompletionListener);
+        filePartWriter.accept(inputStreamContainer, null);
 
         assertTrue(Files.exists(segmentFilePath));
         assertEquals(contentLength, Files.size(segmentFilePath));
@@ -107,21 +89,12 @@ public class FilePartWriterTests extends OpenSearchTestCase {
 
     public void testFilePartWriterException() throws Exception {
         Path segmentFilePath = path.resolve(UUID.randomUUID().toString());
-        int contentLength = 100;
         int partNumber = 1;
-        InputStream inputStream = new ByteArrayInputStream(randomByteArrayOfLength(contentLength));
-        InputStreamContainer inputStreamContainer = new InputStreamContainer(inputStream, contentLength, 0);
         AtomicBoolean anyStreamFailed = new AtomicBoolean();
         CountingCompletionListener<Integer> fileCompletionListener = new CountingCompletionListener<>();
 
         IOException ioException = new IOException();
-        FilePartWriter filePartWriter = new FilePartWriter(
-            partNumber,
-            inputStreamContainer,
-            segmentFilePath,
-            anyStreamFailed,
-            fileCompletionListener
-        );
+        FilePartWriter filePartWriter = new FilePartWriter(partNumber, segmentFilePath, anyStreamFailed, fileCompletionListener);
         assertFalse(anyStreamFailed.get());
         filePartWriter.processFailure(ioException);
 
@@ -148,14 +121,8 @@ public class FilePartWriterTests extends OpenSearchTestCase {
         AtomicBoolean anyStreamFailed = new AtomicBoolean(true);
         CountingCompletionListener<Integer> fileCompletionListener = new CountingCompletionListener<>();
 
-        FilePartWriter filePartWriter = new FilePartWriter(
-            partNumber,
-            inputStreamContainer,
-            segmentFilePath,
-            anyStreamFailed,
-            fileCompletionListener
-        );
-        filePartWriter.run();
+        FilePartWriter filePartWriter = new FilePartWriter(partNumber, segmentFilePath, anyStreamFailed, fileCompletionListener);
+        filePartWriter.accept(inputStreamContainer, null);
 
         assertFalse(Files.exists(segmentFilePath));
         assertEquals(0, fileCompletionListener.getResponseCount());

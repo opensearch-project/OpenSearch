@@ -536,10 +536,10 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         when(remoteDataDirectory.getBlobContainer()).thenReturn(blobContainer);
 
         Mockito.doAnswer(invocation -> {
-            ActionListener<String> completionListener = invocation.getArgument(3);
+            ActionListener<String> completionListener = invocation.getArgument(2);
             completionListener.onResponse(invocation.getArgument(0));
             return null;
-        }).when(blobContainer).asyncBlobDownload(any(), any(), any(), any());
+        }).when(blobContainer).asyncBlobDownload(any(), any(), any());
 
         CountDownLatch downloadLatch = new CountDownLatch(1);
         ActionListener<String> completionListener = new ActionListener<String>() {
@@ -554,7 +554,7 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         Path path = createTempDir();
         remoteSegmentStoreDirectory.copyTo(filename, storeDirectory, path, completionListener);
         assertTrue(downloadLatch.await(5000, TimeUnit.SECONDS));
-        verify(blobContainer, times(1)).asyncBlobDownload(contains(filename), eq(path.resolve(filename)), any(), any());
+        verify(blobContainer, times(1)).asyncBlobDownload(contains(filename), eq(path.resolve(filename)), any());
         verify(storeDirectory, times(0)).copyFrom(any(), any(), any(), any());
     }
 

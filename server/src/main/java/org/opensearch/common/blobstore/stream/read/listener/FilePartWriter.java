@@ -22,16 +22,16 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiConsumer;
 
 /**
  * FilePartWriter transfers the provided stream into the specified file path using a {@link FileChannel}
  * instance. It performs offset based writes to the file and notifies the {@link FileCompletionListener} on completion.
  */
 @InternalApi
-class FilePartWriter implements Runnable {
+class FilePartWriter implements BiConsumer<InputStreamContainer, Throwable> {
 
     private final int partNumber;
-    private final InputStreamContainer blobPartStreamContainer;
     private final Path fileLocation;
     private final AtomicBoolean anyPartStreamFailed;
     private final ActionListener<Integer> fileCompletionListener;
@@ -42,20 +42,26 @@ class FilePartWriter implements Runnable {
 
     public FilePartWriter(
         int partNumber,
-        InputStreamContainer blobPartStreamContainer,
         Path fileLocation,
         AtomicBoolean anyPartStreamFailed,
         ActionListener<Integer> fileCompletionListener
     ) {
         this.partNumber = partNumber;
-        this.blobPartStreamContainer = blobPartStreamContainer;
         this.fileLocation = fileLocation;
         this.anyPartStreamFailed = anyPartStreamFailed;
         this.fileCompletionListener = fileCompletionListener;
     }
 
     @Override
-    public void run() {
+    public void accept(InputStreamContainer blobPartStreamContainer, Throwable throwable) {
+        if (throwable != null) {
+            if (throwable instanceof Exception) {
+                processFailure((Exception) throwable);
+            } else {
+                processFailure(new Exception(throwable));
+            }
+            return;
+        }
         // Ensures no writes to the file if any stream fails.
         if (anyPartStreamFailed.get() == false) {
             try (FileChannel outputFileChannel = FileChannel.open(fileLocation, StandardOpenOption.WRITE, StandardOpenOption.CREATE)) {
