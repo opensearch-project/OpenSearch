@@ -142,7 +142,7 @@ public class Netty4ModulePlugin extends Plugin implements NetworkPlugin {
         );
     }
 
-    private SharedGroupFactory getSharedGroupFactory(Settings settings) {
+    protected SharedGroupFactory getSharedGroupFactory(Settings settings) {
         SharedGroupFactory groupFactory = this.groupFactory.get();
         if (groupFactory != null) {
             assert groupFactory.getSettings().equals(settings) : "Different settings than originally provided";
