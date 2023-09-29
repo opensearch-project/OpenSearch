@@ -391,7 +391,7 @@ public class IndicesService extends AbstractLifecycleComponent
         this.shardsClosedTimeout = settings.getAsTime(INDICES_SHARDS_CLOSED_TIMEOUT, new TimeValue(1, TimeUnit.DAYS));
         this.analysisRegistry = analysisRegistry;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
-        this.indicesRequestCache = new IndicesRequestCache(settings);
+        this.indicesRequestCache = new IndicesRequestCache(settings, this);
         this.indicesQueryCache = new IndicesQueryCache(settings);
         this.mapperRegistry = mapperRegistry;
         this.namedWriteableRegistry = namedWriteableRegistry;
@@ -1746,12 +1746,19 @@ public class IndicesService extends AbstractLifecycleComponent
      *
      * @opensearch.internal
      */
-    static final class IndexShardCacheEntity extends AbstractIndexShardCacheEntity {
-        private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(IndexShardCacheEntity.class);
+    public final class IndexShardCacheEntity extends AbstractIndexShardCacheEntity {
+        private final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(IndexShardCacheEntity.class);
         private final IndexShard indexShard;
 
-        protected IndexShardCacheEntity(IndexShard indexShard) {
+        public IndexShardCacheEntity(IndexShard indexShard) {
             this.indexShard = indexShard;
+        }
+
+        public IndexShardCacheEntity(StreamInput in) throws IOException {
+            Index index = in.readOptionalWriteable(Index::new);
+            int shardId = in.readVInt();
+            IndexService indexService = indices.get(index.getUUID());
+            this.indexShard = Optional.ofNullable(indexService).map(indexService1 -> indexService1.getShard(shardId)).orElse(null);
         }
 
         @Override
@@ -1774,6 +1781,12 @@ public class IndicesService extends AbstractLifecycleComponent
             // No need to take the IndexShard into account since it is shared
             // across many entities
             return BASE_RAM_BYTES_USED;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeOptionalWriteable(indexShard.shardId().getIndex());
+            out.writeVInt(indexShard.shardId().id());
         }
     }
 

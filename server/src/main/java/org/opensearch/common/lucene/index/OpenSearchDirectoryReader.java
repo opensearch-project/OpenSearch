@@ -39,6 +39,7 @@ import org.opensearch.common.SuppressForbidden;
 import org.opensearch.core.index.shard.ShardId;
 
 import java.io.IOException;
+import java.util.UUID;
 
 /**
  * A {@link org.apache.lucene.index.FilterDirectoryReader} that exposes
@@ -51,11 +52,14 @@ public final class OpenSearchDirectoryReader extends FilterDirectoryReader {
     private final ShardId shardId;
     private final FilterDirectoryReader.SubReaderWrapper wrapper;
 
+    private DelegatingCacheHelper delegatingCacheHelper;
+
     private OpenSearchDirectoryReader(DirectoryReader in, FilterDirectoryReader.SubReaderWrapper wrapper, ShardId shardId)
         throws IOException {
         super(in, wrapper);
         this.wrapper = wrapper;
         this.shardId = shardId;
+        this.delegatingCacheHelper = new DelegatingCacheHelper(in.getReaderCacheHelper());
     }
 
     /**
@@ -68,7 +72,53 @@ public final class OpenSearchDirectoryReader extends FilterDirectoryReader {
     @Override
     public CacheHelper getReaderCacheHelper() {
         // safe to delegate since this reader does not alter the index
-        return in.getReaderCacheHelper();
+        return this.delegatingCacheHelper;
+    }
+
+    public DelegatingCacheHelper getDelegatingCacheHelper() {
+        return this.delegatingCacheHelper;
+    }
+
+    public class DelegatingCacheHelper implements CacheHelper {
+        CacheHelper cacheHelper;
+        DelegatingCacheKey serializableCacheKey;
+
+        DelegatingCacheHelper(CacheHelper cacheHelper) {
+            this.cacheHelper = cacheHelper;
+            this.serializableCacheKey = new DelegatingCacheKey(cacheHelper.getKey());
+        }
+
+        @Override
+        public CacheKey getKey() {
+            return this.cacheHelper.getKey();
+        }
+
+        public DelegatingCacheKey getDelegatingCacheKey() {
+            return this.serializableCacheKey;
+        }
+
+        @Override
+        public void addClosedListener(ClosedListener listener) {
+            this.cacheHelper.addClosedListener(listener);
+        }
+    }
+
+    public class DelegatingCacheKey {
+        CacheKey cacheKey;
+        private final UUID uniqueId;
+
+        DelegatingCacheKey(CacheKey cacheKey) {
+            this.cacheKey = cacheKey;
+            this.uniqueId = UUID.randomUUID();
+        }
+
+        public CacheKey getCacheKey() {
+            return this.cacheKey;
+        }
+
+        public UUID getId() {
+            return uniqueId;
+        }
     }
 
     @Override
