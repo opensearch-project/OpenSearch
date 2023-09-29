@@ -62,7 +62,6 @@ import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.opensearch.action.admin.indices.upgrade.post.UpgradeRequest;
-import org.opensearch.action.support.GroupedActionListener;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.action.support.replication.PendingReplicationActions;
 import org.opensearch.action.support.replication.ReplicationResponse;
@@ -4921,24 +4920,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         RemoteSegmentStoreDirectory targetRemoteDirectory,
         Set<String> toDownloadSegments,
         final Runnable onFileSync
-    ) {
-        final PlainActionFuture<Void> completionListener = PlainActionFuture.newFuture();
-        final GroupedActionListener<Void> batchDownloadListener = new GroupedActionListener<>(
-            ActionListener.map(completionListener, v -> null),
-            toDownloadSegments.size()
-        );
-
-        final ActionListener<String> segmentsDownloadListener = ActionListener.map(batchDownloadListener, fileName -> {
+    ) throws IOException {
+        final Path indexPath = store.shardPath() == null ? null : store.shardPath().resolveIndex();
+        for (String segment : toDownloadSegments) {
+            final PlainActionFuture<String> segmentListener = PlainActionFuture.newFuture();
+            sourceRemoteDirectory.copyTo(segment, storeDirectory, indexPath, segmentListener);
+            segmentListener.actionGet();
             onFileSync.run();
             if (targetRemoteDirectory != null) {
-                targetRemoteDirectory.copyFrom(storeDirectory, fileName, fileName, IOContext.DEFAULT);
+                targetRemoteDirectory.copyFrom(storeDirectory, segment, segment, IOContext.DEFAULT);
             }
-            return null;
-        });
-
-        final Path indexPath = store.shardPath() == null ? null : store.shardPath().resolveIndex();
-        toDownloadSegments.forEach(file -> { sourceRemoteDirectory.copyTo(file, storeDirectory, indexPath, segmentsDownloadListener); });
-        completionListener.actionGet();
+        }
     }
 
     private boolean localDirectoryContains(Directory localDirectory, String file, long checksum) {

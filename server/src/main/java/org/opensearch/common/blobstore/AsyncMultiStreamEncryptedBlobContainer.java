@@ -19,6 +19,7 @@ import org.opensearch.core.action.ActionListener;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 /**
@@ -144,8 +145,10 @@ public class AsyncMultiStreamEncryptedBlobContainer<T, U> extends EncryptedBlobC
         }
 
         @Override
-        public List<InputStreamContainer> getPartStreams() {
-            return super.getPartStreams().stream().map(this::decryptInputStreamContainer).collect(Collectors.toList());
+        public List<CompletableFuture<InputStreamContainer>> getPartStreams() {
+            return super.getPartStreams().stream()
+                .map(cf -> cf.thenApply(this::decryptInputStreamContainer))
+                .collect(Collectors.toUnmodifiableList());
         }
 
         /**
