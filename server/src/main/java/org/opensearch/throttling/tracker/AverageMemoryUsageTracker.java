@@ -30,6 +30,9 @@ public class AverageMemoryUsageTracker extends AbstractAverageUsageTracker {
         super(threadPool, pollingInterval, windowDuration);
     }
 
+    /**
+     * Get current memory usage percentage calculated against max heap memory
+     */
     @Override
     public long getUsage() {
         long usage = MEMORY_MX_BEAN.getHeapMemoryUsage().getUsed() * 100 / MEMORY_MX_BEAN.getHeapMemoryUsage().getMax();

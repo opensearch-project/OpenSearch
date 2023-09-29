@@ -53,22 +53,6 @@ public class NodePerformanceTracker extends AbstractLifecycleComponent {
         initialize();
     }
 
-    private double getAverageCpuPercentUsed() {
-        return cpuUsageTracker.getAverage();
-    }
-
-    private double getAverageMemoryPercentUsed() {
-        return memoryUsageTracker.getAverage();
-    }
-
-    private void setCpuUtilizationPercent(double cpuUtilizationPercent) {
-        this.cpuUtilizationPercent = cpuUtilizationPercent;
-    }
-
-    private void setMemoryUtilizationPercent(double memoryUtilizationPercent) {
-        this.memoryUtilizationPercent = memoryUtilizationPercent;
-    }
-
     public double getCpuUtilizationPercent() {
         return cpuUtilizationPercent;
     }
@@ -78,8 +62,8 @@ public class NodePerformanceTracker extends AbstractLifecycleComponent {
     }
 
     void doRun() {
-        setCpuUtilizationPercent(getAverageCpuPercentUsed());
-        setMemoryUtilizationPercent(getAverageMemoryPercentUsed());
+        this.cpuUtilizationPercent = cpuUsageTracker.getAverage();
+        this.memoryUtilizationPercent = memoryUsageTracker.getAverage();
         perfStatsCollectorService.collectNodePerfStatistics(
             LOCAL_NODE,
             getCpuUtilizationPercent(),

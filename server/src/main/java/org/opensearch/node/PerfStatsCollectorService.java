@@ -79,7 +79,6 @@ public class PerfStatsCollectorService implements ClusterStateListener {
 
     /**
      * Returns collected performance statistics of all nodes
-     * @return
      */
     public GlobalPerformanceStats stats() {
         return new GlobalPerformanceStats(getAllNodeStatistics());

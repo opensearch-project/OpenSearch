@@ -25,6 +25,9 @@ public class AverageCpuUsageTracker extends AbstractAverageUsageTracker {
         super(threadPool, pollingInterval, windowDuration);
     }
 
+    /**
+     * Returns the process CPU usage in percent
+     */
     @Override
     public long getUsage() {
         long usage = ProcessProbe.getInstance().getProcessCpuPercent();
