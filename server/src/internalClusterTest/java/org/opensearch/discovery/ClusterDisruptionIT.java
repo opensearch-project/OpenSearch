@@ -98,6 +98,11 @@ import static org.hamcrest.Matchers.oneOf;
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
 
+    @Override
+    protected boolean useSegmentReplication() {
+        return false;
+    }
+
     private enum ConflictMode {
         none,
         external,

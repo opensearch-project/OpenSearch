@@ -96,6 +96,11 @@ public class ShrinkIndexIT extends OpenSearchIntegTestCase {
         return false;
     }
 
+    @Override
+    protected boolean useSegmentReplication() {
+        return false;
+    }
+
     public void testCreateShrinkIndexToN() throws Exception {
 
         assumeFalse("https://github.com/elastic/elasticsearch/issues/34080", Constants.WINDOWS);

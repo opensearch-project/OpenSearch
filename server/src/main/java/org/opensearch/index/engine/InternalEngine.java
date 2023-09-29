@@ -137,6 +137,9 @@ import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.opensearch.index.seqno.SequenceNumbers.LOCAL_CHECKPOINT_KEY;
+import static org.opensearch.index.seqno.SequenceNumbers.MAX_SEQ_NO;
+
 /**
  * The default internal engine (can be overridden by plugins)
  *
@@ -382,7 +385,7 @@ public class InternalEngine extends Engine {
         if (commitUserData.containsKey(Engine.MIN_RETAINED_SEQNO)) {
             lastMinRetainedSeqNo = Long.parseLong(commitUserData.get(Engine.MIN_RETAINED_SEQNO));
         } else {
-            lastMinRetainedSeqNo = Long.parseLong(commitUserData.get(SequenceNumbers.MAX_SEQ_NO)) + 1;
+            lastMinRetainedSeqNo = Long.parseLong(commitUserData.get(MAX_SEQ_NO)) + 1;
         }
         return new SoftDeletesPolicy(
             translogManager::getLastSyncedGlobalCheckpoint,
@@ -1815,9 +1818,7 @@ public class InternalEngine extends Engine {
         if (shouldPeriodicallyFlushAfterBigMerge.get()) {
             return true;
         }
-        final long localCheckpointOfLastCommit = Long.parseLong(
-            lastCommittedSegmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)
-        );
+        final long localCheckpointOfLastCommit = Long.parseLong(lastCommittedSegmentInfos.userData.get(LOCAL_CHECKPOINT_KEY));
         return translogManager.shouldPeriodicallyFlush(
             localCheckpointOfLastCommit,
             config().getIndexSettings().getFlushThresholdSize().getBytes()
@@ -1855,9 +1856,7 @@ public class InternalEngine extends Engine {
                 if (hasUncommittedChanges
                     || force
                     || shouldPeriodicallyFlush
-                    || getProcessedLocalCheckpoint() > Long.parseLong(
-                        lastCommittedSegmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)
-                    )) {
+                    || getProcessedLocalCheckpoint() > Long.parseLong(lastCommittedSegmentInfos.userData.get(LOCAL_CHECKPOINT_KEY))) {
                     translogManager.ensureCanFlush();
                     try {
                         translogManager.rollTranslogGeneration();
@@ -2516,8 +2515,8 @@ public class InternalEngine extends Engine {
                  */
                 final Map<String, String> commitData = new HashMap<>(7);
                 commitData.put(Translog.TRANSLOG_UUID_KEY, translogUUID);
-                commitData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(localCheckpoint));
-                commitData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(localCheckpointTracker.getMaxSeqNo()));
+                commitData.put(LOCAL_CHECKPOINT_KEY, Long.toString(localCheckpoint));
+                commitData.put(MAX_SEQ_NO, Long.toString(localCheckpointTracker.getMaxSeqNo()));
                 commitData.put(MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID, Long.toString(maxUnsafeAutoIdTimestamp.get()));
                 commitData.put(HISTORY_UUID_KEY, historyUUID);
                 commitData.put(Engine.MIN_RETAINED_SEQNO, Long.toString(softDeletesPolicy.getMinRetainedSeqNo()));

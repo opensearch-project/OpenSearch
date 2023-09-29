@@ -83,6 +83,11 @@ public class NoClusterManagerNodeIT extends OpenSearchIntegTestCase {
     }
 
     @Override
+    protected boolean useSegmentReplication() {
+        return false;
+    }
+
+    @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singletonList(MockTransportService.TestPlugin.class);
     }

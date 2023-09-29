@@ -127,6 +127,11 @@ public class IndexStatsIT extends ParameterizedOpenSearchIntegTestCase {
         super(settings);
     }
 
+    @Override
+    protected boolean useSegmentReplication() {
+        return false;
+    }
+
     @ParametersFactory
     public static Collection<Object[]> parameters() {
         return Arrays.asList(

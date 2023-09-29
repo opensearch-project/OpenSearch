@@ -1697,7 +1697,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
     public static void waitForCurrentReplicas(Collection<IndexShard> shards) throws Exception {
         assertBusy(() -> {
             for (IndexShard indexShard : shards) {
-                indexShard.getReplicationEngine().ifPresent((engine) -> assertFalse(engine.hasRefreshPending()));
+                indexShard.getReplicationEngineForTests().ifPresent((engine) -> assertFalse(engine.hasRefreshPending()));
             }
         });
     }

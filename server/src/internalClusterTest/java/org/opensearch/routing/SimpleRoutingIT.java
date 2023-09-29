@@ -67,6 +67,11 @@ import static org.hamcrest.Matchers.nullValue;
 public class SimpleRoutingIT extends OpenSearchIntegTestCase {
 
     @Override
+    protected boolean useSegmentReplication() {
+        return false;
+    }
+
+    @Override
     protected int minimumNumberOfShards() {
         return 2;
     }
