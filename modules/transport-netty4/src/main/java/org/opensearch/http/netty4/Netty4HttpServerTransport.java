@@ -501,7 +501,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                         .addLast("byte_buf_sizer", byteBufSizer)
                         .addLast("read_timeout", new ReadTimeoutHandler(transport.readTimeoutMillis, TimeUnit.MILLISECONDS))
                         .addLast("header_verifier", transport.createHeaderVerifier())
-                        .addLast("decoder_compress", new Netty4ConditionalDecompressor());
+                        .addLast("decoder_decompress", new Netty4ConditionalDecompressor());
 
                     if (handlingSettings.isCompression()) {
                         childChannel.pipeline()
