@@ -115,6 +115,7 @@ public class QueryShardContext extends QueryRewriteContext {
     private boolean mapUnmappedFieldAsString;
     private NestedScope nestedScope;
     private final ValuesSourceRegistry valuesSourceRegistry;
+    private BitSetProducer parentFilter;
 
     public QueryShardContext(
         int shardId,
@@ -621,5 +622,13 @@ public class QueryShardContext extends QueryRewriteContext {
 
     public AggregationUsageService getUsageService() {
         return valuesSourceRegistry.getUsageService();
+    }
+
+    public BitSetProducer getParentFilter() {
+        return parentFilter;
+    }
+
+    public void setParentFilter(BitSetProducer parentFilter) {
+        this.parentFilter = parentFilter;
     }
 }
