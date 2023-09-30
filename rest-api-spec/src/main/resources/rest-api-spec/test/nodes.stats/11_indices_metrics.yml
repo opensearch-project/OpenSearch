@@ -141,8 +141,8 @@
 ---
 "Metric - indexing doc_status":
   - skip:
-      version: " - 2.99.99"
-      reason: "To be introduced in future release :: TODO: change if/when we backport to 2.x"
+      version: " - 2.10.99"
+      reason: "Doc Status Stats were introduced in v2.11.0"
   - do:
       nodes.info: {}
   - set:
