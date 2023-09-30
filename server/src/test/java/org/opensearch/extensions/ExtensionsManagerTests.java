@@ -36,6 +36,7 @@ import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.core.transport.TransportResponse;
+import org.opensearch.discovery.InitializeExtensionRequest;
 import org.opensearch.env.Environment;
 import org.opensearch.env.EnvironmentSettingsResponse;
 import org.opensearch.extensions.ExtensionsSettings.Extension;
@@ -67,7 +68,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -78,6 +78,7 @@ import static org.opensearch.test.ClusterServiceUtils.createClusterService;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
@@ -410,36 +411,37 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
                 )
             );
 
-            // Test needs to be changed to mock the connection between the local node and an extension. Assert statment is commented out for
-            // now.
+            // Test needs to be changed to mock the connection between the local node and an extension.
             // Link to issue: https://github.com/opensearch-project/OpenSearch/issues/4045
             // mockLogAppender.assertAllExpectationsMatched();
         }
     }
 
-    public void testInitializeExtensionTwice() throws Exception {
+    public void testInitializeExtension() throws Exception {
         ExtensionsManager extensionsManager = new ExtensionsManager(Set.of(), identityService);
-        initialize(extensionsManager);
 
-        ThreadPool mockThreadPool = spy(threadPool);
-        ExecutorService mockExecutorService = mock(ExecutorService.class);
-        when(mockThreadPool.generic()).thenReturn(mockExecutorService);
-
-        TransportService transportService = new TransportService(
-            Settings.EMPTY,
-            mock(Transport.class),
-            mockThreadPool,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-            x -> null,
-            null,
-            Collections.emptySet(),
-            NoopTracer.INSTANCE
+        TransportService mockTransportService = spy(
+            new TransportService(
+                Settings.EMPTY,
+                mock(Transport.class),
+                threadPool,
+                TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+                x -> null,
+                null,
+                Collections.emptySet(),
+                NoopTracer.INSTANCE
+            )
         );
+
+        doNothing().when(mockTransportService).connectToExtensionNode(any(DiscoveryExtensionNode.class));
+
+        doNothing().when(mockTransportService)
+            .sendRequest(any(DiscoveryExtensionNode.class), anyString(), any(InitializeExtensionRequest.class), any());
 
         extensionsManager.initializeServicesAndRestHandler(
             actionModule,
             settingsModule,
-            transportService,
+            mockTransportService,
             clusterService,
             settings,
             client,
@@ -458,8 +460,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             null
         );
 
-        extensionsManager.loadExtension(firstExtension);
-        extensionsManager.initialize();
+        extensionsManager.initializeExtension(firstExtension);
 
         Extension secondExtension = new Extension(
             "secondExtension",
@@ -473,12 +474,18 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             null
         );
 
-        extensionsManager.loadExtension(secondExtension);
-        extensionsManager.initialize();
+        extensionsManager.initializeExtension(secondExtension);
 
-        // When execution is mocked, the successful registration callback is not called and the extension is never added to
-        // registered extensions.
-        // verify(mockExecutorService, times(2)).execute(any());
+        ThreadPool.terminate(threadPool, 3, TimeUnit.SECONDS);
+
+        verify(mockTransportService, times(2)).connectToExtensionNode(any(DiscoveryExtensionNode.class));
+
+        verify(mockTransportService, times(2)).sendRequest(
+            any(DiscoveryExtensionNode.class),
+            anyString(),
+            any(InitializeExtensionRequest.class),
+            any()
+        );
     }
 
     public void testHandleRegisterRestActionsRequest() throws Exception {
@@ -515,7 +522,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         );
     }
 
-    public void testHandleRegisterTwoRestActionsRequest() throws Exception {
+    public void testHandleRegisterRestActionsRequestMultiple() throws Exception {
 
         ExtensionsManager extensionsManager = new ExtensionsManager(Set.of(), identityService);
         initialize(extensionsManager);
@@ -523,12 +530,12 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         List<String> actionsList = List.of("GET /foo foo", "PUT /bar bar", "POST /baz baz");
         List<String> deprecatedActionsList = List.of("GET /deprecated/foo foo_deprecated", "It's deprecated!");
         for (int i = 0; i < 2; i++) {
-            String uniqueIdStr = String.format("uniqueid-%d", i);
+            String uniqueIdStr = "uniqueid-%d" + i;
 
             Set<Setting<?>> additionalSettings = extAwarePlugin.getExtensionSettings().stream().collect(Collectors.toSet());
             ExtensionScopedSettings extensionScopedSettings = new ExtensionScopedSettings(additionalSettings);
             Extension firstExtension = new Extension(
-                String.format("Extension %s", i),
+                "Extension %s" + i,
                 uniqueIdStr,
                 "127.0.0.0",
                 "9300",

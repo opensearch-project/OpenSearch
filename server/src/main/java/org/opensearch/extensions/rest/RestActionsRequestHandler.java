@@ -63,7 +63,7 @@ public class RestActionsRequestHandler {
     ) throws Exception {
         DiscoveryExtensionNode discoveryExtensionNode = extensionIdMap.get(restActionsRequest.getUniqueId());
         if (discoveryExtensionNode == null) {
-            throw new IllegalStateException(String.format("Missing extension node for %s", restActionsRequest.getUniqueId()));
+            throw new IllegalStateException("Missing extension node for " + restActionsRequest.getUniqueId());
         }
         RestHandler handler = new RestSendToExtensionAction(
             restActionsRequest,
