@@ -510,6 +510,9 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
         }
     }
 
+    /**
+     * This class encapsulates the result of a call to {@link #buildNodesToAllocate}
+     */
     protected static class NodesToAllocate {
         final List<DecidedNode> yesNodeShards;
         final List<DecidedNode> throttleNodeShards;
