@@ -242,7 +242,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
                 pitCurrent = in.readVLong();
             }
 
-            if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+            if (in.getVersion().onOrAfter(Version.V_2_11_0)) {
                 this.requestStatsLongHolder = new RequestStatsLongHolder();
                 requestStatsLongHolder.requestStatsHolder = in.readMap(StreamInput::readString, PhaseStatsLongHolder::new);
             }
@@ -437,7 +437,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
                 out.writeVLong(pitCurrent);
             }
 
-            if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+            if (out.getVersion().onOrAfter(Version.V_2_11_0)) {
                 if (requestStatsLongHolder == null) {
                     requestStatsLongHolder = new RequestStatsLongHolder();
                 }
