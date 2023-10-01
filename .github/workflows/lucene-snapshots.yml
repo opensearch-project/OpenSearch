@@ -38,7 +38,7 @@ jobs:
       - name: Set hash
         working-directory: ./lucene
         run: |
-          echo "::set-output name=REVISION::$(git rev-parse --short HEAD)"
+          echo "REVISION=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
         id: version
 
       - name: Initialize gradle settings
