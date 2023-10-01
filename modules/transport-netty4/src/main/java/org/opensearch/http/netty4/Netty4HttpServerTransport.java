@@ -419,8 +419,8 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                     // If this handler is hit then no upgrade has been attempted and the client is just talking HTTP
                     final ChannelPipeline pipeline = ctx.pipeline();
                     pipeline.addAfter(ctx.name(), "handler", getRequestHandler());
-                    pipeline.replace(this, "decoder_compress", new HttpContentDecompressor());
-
+                    pipeline.replace(this, "header_verifier", transport.createHeaderVerifier());
+                    pipeline.addAfter("header_verifier", "decoder_compress", new HttpContentDecompressor());
                     pipeline.addAfter("decoder_compress", "aggregator", aggregator);
                     if (handlingSettings.isCompression()) {
                         pipeline.addAfter(
@@ -446,6 +446,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             );
             decoder.setCumulator(ByteToMessageDecoder.COMPOSITE_CUMULATOR);
             pipeline.addLast("decoder", decoder);
+            pipeline.addLast("header_verifier", transport.createHeaderVerifier());
             pipeline.addLast("decoder_compress", new HttpContentDecompressor());
             pipeline.addLast("encoder", new HttpResponseEncoder());
             final HttpObjectAggregator aggregator = new HttpObjectAggregator(handlingSettings.getMaxContentLength());
@@ -493,6 +494,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                         .addLast(new Http2StreamFrameToHttpObjectCodec(true))
                         .addLast("byte_buf_sizer", byteBufSizer)
                         .addLast("read_timeout", new ReadTimeoutHandler(transport.readTimeoutMillis, TimeUnit.MILLISECONDS))
+                        .addLast("header_verifier", transport.createHeaderVerifier())
                         .addLast("decoder_decompress", new HttpContentDecompressor());
 
                     if (handlingSettings.isCompression()) {
@@ -530,5 +532,11 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                 transport.onServerException(httpServerChannel, (Exception) cause);
             }
         }
+    }
+
+    protected ChannelInboundHandlerAdapter createHeaderVerifier() {
+        return new Netty4HeaderVerifier();
+        // pass-through
+        // return new ChannelInboundHandlerAdapter();
     }
 }
