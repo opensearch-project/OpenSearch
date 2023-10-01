@@ -21,9 +21,9 @@ import java.io.IOException;
 import java.util.Optional;
 
 /**
- * {@link MetricsRegistryFactory} represents a single global class that is used to access meters.
+ * {@link MetricsRegistryFactory} represents a single global class that is used to access {@link MetricsRegistry}s.
  * <p>
- * The {@link MetricsRegistry} singleton object can be retrieved using MetricsRegistryFactory::getMeterRegistry. The MeterFactroy object
+ * The {@link MetricsRegistry} singleton object can be retrieved using MetricsRegistryFactory::getMetricsRegistry. The {@link MetricsRegistryFactory} object
  * is created during class initialization and cannot subsequently be changed.
  *
  * @opensearch.internal
@@ -42,11 +42,11 @@ public class MetricsRegistryFactory implements Closeable {
     }
 
     /**
-     * Returns the meter instance
+     * Returns the {@link MetricsRegistry} instance
      *
-     * @return meter instance
+     * @return MetricsRegistry instance
      */
-    public MetricsRegistry getMeterRegistry() {
+    public MetricsRegistry getMetricsRegistry() {
         return metricsRegistry;
     }
 
@@ -58,24 +58,24 @@ public class MetricsRegistryFactory implements Closeable {
         try {
             metricsRegistry.close();
         } catch (IOException e) {
-            logger.warn("Error closing meter", e);
+            logger.warn("Error closing MetricsRegistry", e);
         }
     }
 
     private MetricsRegistry metricsRegistry(Optional<Telemetry> telemetry) {
-        MetricsRegistry meter = telemetry.map(Telemetry::getMetricsTelemetry)
-            .map(metricsTelemetry -> createDefaultMeter(metricsTelemetry))
-            .map(defaultTracer -> createWrappedMeterRegistry(defaultTracer))
+        MetricsRegistry metricsRegistry = telemetry.map(Telemetry::getMetricsTelemetry)
+            .map(metricsTelemetry -> createDefaultMetricsRegistry(metricsTelemetry))
+            .map(defaultTracer -> createWrappedMetricsRegistry(defaultTracer))
             .orElse(NoopMetricsRegistry.INSTANCE);
-        return meter;
+        return metricsRegistry;
     }
 
-    private MetricsRegistry createDefaultMeter(MetricsTelemetry metricsTelemetry) {
+    private MetricsRegistry createDefaultMetricsRegistry(MetricsTelemetry metricsTelemetry) {
         return new DefaultMetricsRegistry(metricsTelemetry);
     }
 
-    private MetricsRegistry createWrappedMeterRegistry(MetricsRegistry defaultMeter) {
-        return new WrappedMetricsRegistry(telemetrySettings, defaultMeter);
+    private MetricsRegistry createWrappedMetricsRegistry(MetricsRegistry metricsRegistry) {
+        return new WrappedMetricsRegistry(telemetrySettings, metricsRegistry);
     }
 
 }

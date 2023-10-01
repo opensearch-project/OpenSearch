@@ -609,7 +609,7 @@ public class Node implements Closeable {
             }
 
             tracer = tracerFactory.getTracer();
-            metricsRegistry = metricsRegistryFactory.getMeterRegistry();
+            metricsRegistry = metricsRegistryFactory.getMetricsRegistry();
             resourcesToClose.add(tracer::close);
             resourcesToClose.add(metricsRegistry::close);
             final IngestService ingestService = new IngestService(

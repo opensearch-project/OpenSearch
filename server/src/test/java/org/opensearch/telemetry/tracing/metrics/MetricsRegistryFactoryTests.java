@@ -48,7 +48,7 @@ public class MetricsRegistryFactoryTests extends OpenSearchTestCase {
         when(mockTelemetry.getTracingTelemetry()).thenReturn(mock(TracingTelemetry.class));
         metricsRegistryFactory = new MetricsRegistryFactory(telemetrySettings, Optional.empty());
 
-        MetricsRegistry metricsRegistry = metricsRegistryFactory.getMeterRegistry();
+        MetricsRegistry metricsRegistry = metricsRegistryFactory.getMetricsRegistry();
 
         assertTrue(metricsRegistry instanceof NoopMetricsRegistry);
         assertTrue(metricsRegistry.createCounter("test", "test", "test") == NoopCounter.INSTANCE);
@@ -62,7 +62,7 @@ public class MetricsRegistryFactoryTests extends OpenSearchTestCase {
         when(mockTelemetry.getMetricsTelemetry()).thenReturn(mock(MetricsTelemetry.class));
         metricsRegistryFactory = new MetricsRegistryFactory(telemetrySettings, Optional.of(mockTelemetry));
 
-        MetricsRegistry metricsRegistry = metricsRegistryFactory.getMeterRegistry();
+        MetricsRegistry metricsRegistry = metricsRegistryFactory.getMetricsRegistry();
         assertTrue(metricsRegistry instanceof WrappedMetricsRegistry);
 
     }

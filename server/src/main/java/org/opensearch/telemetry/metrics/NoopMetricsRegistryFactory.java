@@ -25,7 +25,7 @@ public class NoopMetricsRegistryFactory extends MetricsRegistryFactory {
     }
 
     @Override
-    public MetricsRegistry getMeterRegistry() {
+    public MetricsRegistry getMetricsRegistry() {
         return NoopMetricsRegistry.INSTANCE;
     }
 
