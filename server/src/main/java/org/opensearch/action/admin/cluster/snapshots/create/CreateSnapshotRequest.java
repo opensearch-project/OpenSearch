@@ -261,7 +261,7 @@ public class CreateSnapshotRequest extends ClusterManagerNodeRequest<CreateSnaps
     /**
      * Returns a list of indices that should be included into the snapshot
      *
-     * @return string array of indices
+     * @return array of index names
      */
     @Override
     public String[] indices() {
