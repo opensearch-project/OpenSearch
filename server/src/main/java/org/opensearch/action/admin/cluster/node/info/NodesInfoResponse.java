@@ -152,6 +152,9 @@ public class NodesInfoResponse extends BaseNodesResponse<NodeInfo> implements To
             if (nodeInfo.getInfo(SearchPipelineInfo.class) != null) {
                 nodeInfo.getInfo(SearchPipelineInfo.class).toXContent(builder, params);
             }
+            if (nodeInfo.getInfo(NodeAnalysisComponents.class) != null) {
+                nodeInfo.getInfo(NodeAnalysisComponents.class).toXContent(builder, params);
+            }
 
             builder.endObject();
         }

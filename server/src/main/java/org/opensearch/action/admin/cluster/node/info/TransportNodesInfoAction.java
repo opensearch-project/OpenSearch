@@ -118,7 +118,8 @@ public class TransportNodesInfoAction extends TransportNodesAction<
             metrics.contains(NodesInfoRequest.Metric.INGEST.metricName()),
             metrics.contains(NodesInfoRequest.Metric.AGGREGATIONS.metricName()),
             metrics.contains(NodesInfoRequest.Metric.INDICES.metricName()),
-            metrics.contains(NodesInfoRequest.Metric.SEARCH_PIPELINES.metricName())
+            metrics.contains(NodesInfoRequest.Metric.SEARCH_PIPELINES.metricName()),
+            metrics.contains(NodesInfoRequest.Metric.ANALYSIS_COMPONENTS.metricName())
         );
     }
 

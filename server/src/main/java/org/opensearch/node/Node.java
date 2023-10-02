@@ -1157,7 +1157,8 @@ public class Node implements Closeable {
                 resourceUsageCollectorService,
                 segmentReplicationStatsTracker,
                 repositoryService,
-                admissionControlService
+                admissionControlService,
+                analysisModule.getAnalysisRegistry()
             );
 
             final SearchService searchService = newSearchService(

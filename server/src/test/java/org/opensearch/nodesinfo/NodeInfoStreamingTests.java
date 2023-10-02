@@ -33,6 +33,7 @@
 package org.opensearch.nodesinfo;
 
 import org.opensearch.Build;
+import org.opensearch.action.admin.cluster.node.info.NodeAnalysisComponents;
 import org.opensearch.action.admin.cluster.node.info.NodeInfo;
 import org.opensearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -64,8 +65,11 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.Supplier;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -81,6 +85,34 @@ public class NodeInfoStreamingTests extends OpenSearchTestCase {
             try (StreamInput in = out.bytes().streamInput()) {
                 NodeInfo readNodeInfo = new NodeInfo(in);
                 assertExpectedUnchanged(nodeInfo, readNodeInfo);
+            }
+        }
+    }
+
+    public void testNodeInfoPluginComponentsNaturalOrder() throws IOException {
+        NodeAnalysisComponents nodeAnalysisComponents = createNodeAnalyzers();
+        assertOrdered(nodeAnalysisComponents.getAnalyzersIds());
+        assertOrdered(nodeAnalysisComponents.getTokenizersIds());
+        assertOrdered(nodeAnalysisComponents.getTokenFiltersIds());
+        assertOrdered(nodeAnalysisComponents.getCharFiltersIds());
+        assertOrdered(nodeAnalysisComponents.getNormalizersIds());
+
+        for (NodeAnalysisComponents.AnalysisPluginComponents nodeAnalysisPlugin : nodeAnalysisComponents.getNodeAnalysisPlugins()) {
+            assertOrdered(nodeAnalysisPlugin.getAnalyzersIds());
+            assertOrdered(nodeAnalysisPlugin.getTokenizersIds());
+            assertOrdered(nodeAnalysisPlugin.getTokenFiltersIds());
+            assertOrdered(nodeAnalysisPlugin.getCharFiltersIds());
+            assertOrdered(nodeAnalysisPlugin.getHunspellDictionaries());
+        }
+    }
+
+    private void assertOrdered(Set<String> set) {
+        Iterator<String> it = set.iterator();
+        if (it.hasNext()) {
+            String prev = it.next();
+            while (it.hasNext()) {
+                String curr = it.next();
+                assertTrue("Elements not naturally ordered", prev.compareTo(curr) < 0);
             }
         }
     }
@@ -101,6 +133,7 @@ public class NodeInfoStreamingTests extends OpenSearchTestCase {
         compareJsonOutput(nodeInfo.getInfo(OsInfo.class), readNodeInfo.getInfo(OsInfo.class));
         compareJsonOutput(nodeInfo.getInfo(PluginsAndModules.class), readNodeInfo.getInfo(PluginsAndModules.class));
         compareJsonOutput(nodeInfo.getInfo(IngestInfo.class), readNodeInfo.getInfo(IngestInfo.class));
+        compareJsonOutput(nodeInfo.getInfo(NodeAnalysisComponents.class), readNodeInfo.getInfo(NodeAnalysisComponents.class));
     }
 
     private void compareJsonOutput(ToXContent param1, ToXContent param2) throws IOException {
@@ -253,6 +286,11 @@ public class NodeInfoStreamingTests extends OpenSearchTestCase {
             searchPipelineInfo = new SearchPipelineInfo(Map.of(randomAlphaOfLengthBetween(3, 10), processors));
         }
 
+        NodeAnalysisComponents nodeAnalysisComponents = null;
+        if (randomBoolean()) {
+            nodeAnalysisComponents = createNodeAnalyzers();
+        }
+
         return new NodeInfo(
             VersionUtils.randomVersion(random()),
             build,
@@ -268,7 +306,93 @@ public class NodeInfoStreamingTests extends OpenSearchTestCase {
             ingestInfo,
             aggregationInfo,
             indexingBuffer,
-            searchPipelineInfo
+            searchPipelineInfo,
+            nodeAnalysisComponents
         );
+    }
+
+    private static NodeAnalysisComponents createNodeAnalyzers() {
+        List<NodeAnalysisComponents.AnalysisPluginComponents> nodeAnalysisPlugins = generateAnalysisPlugins(randomInt(5));
+
+        return new NodeAnalysisComponents(
+            generateCodes(),
+            generateCodes(),
+            generateCodes(),
+            generateCodes(),
+            generateCodes(),
+            nodeAnalysisPlugins
+        );
+    }
+
+    private static List<NodeAnalysisComponents.AnalysisPluginComponents> generateAnalysisPlugins(int numberOfPlugins) {
+        assert numberOfPlugins > -1;
+        List<NodeAnalysisComponents.AnalysisPluginComponents> plugins = new ArrayList<>();
+        for (int i = 0; i < numberOfPlugins; i++) {
+            NodeAnalysisComponents.AnalysisPluginComponents plugin = new NodeAnalysisComponents.AnalysisPluginComponents(
+                generateRandomStringArray(1, 10, false, false)[0], // plugin name
+                generateRandomStringArray(1, 10, false, false)[0], // plugin classname
+                generateCodes(),
+                generateCodes(),
+                generateCodes(),
+                generateCodes(),
+                generateCodes()
+            );
+            plugins.add(plugin);
+        }
+        return plugins;
+    }
+
+    private static Set<String> generateCodes() {
+        return randomUnique(CODES_SUPPLIER, NodeInfoStreamingTests.StringSetSupplier.RECOMMENDED_SIZE);
+    }
+
+    private static NodeInfoStreamingTests.StringSetSupplier CODES_SUPPLIER = new NodeInfoStreamingTests.StringSetSupplier();
+
+    private static class StringSetSupplier implements Supplier<String> {
+
+        private static List<String> CODES = List.of(
+            "aaa1",
+            "bbb1",
+            "ccc1",
+            "ddd1",
+            "eee1",
+            "fff1",
+            "ggg1",
+            "hhh1",
+            "iii1",
+            "jjj1",
+            "aaa2",
+            "bbb2",
+            "ccc2",
+            "ddd2",
+            "eee2",
+            "fff2",
+            "ggg2",
+            "hhh2",
+            "iii2",
+            "jjj2",
+            "aaa3",
+            "bbb3",
+            "ccc3",
+            "ddd3",
+            "eee3",
+            "fff3",
+            "ggg3",
+            "hhh3",
+            "iii3",
+            "jjj3"
+        );
+
+        /**
+         *  This supplier is used to generate UNIQUE tokens (see {@link #generateCodes()})
+         *  thus we return smaller size in order to increase the chance of yielding more unique tokens.
+         *  As a result, this supplier will produce set of 10 or less unique tokens.
+         */
+        private static int RECOMMENDED_SIZE = CODES.size() / 3;
+
+        @Override
+        public String get() {
+            return CODES.get(randomInt(CODES.size() - 1));
+        }
     }
 }

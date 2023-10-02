@@ -1,0 +1,24 @@
+---
+"node_info test analysis_components":
+  - skip:
+      version: " - 2.99.99"
+      reason: "analysis_components metric was introduced in 3.0.0"
+      features: [arbitrary_key]
+
+  - do:
+      nodes.info:
+        metric: [ analysis_components ]
+
+  # Note: It will only stash the first node_id in the api response.
+  - set:
+      nodes._arbitrary_key_: node_id
+
+  - is_true: nodes
+  - is_true: cluster_name
+
+  - is_true: nodes.$node_id.analysis_components.analyzers
+  - is_true: nodes.$node_id.analysis_components.tokenizers
+  - is_true: nodes.$node_id.analysis_components.tokenFilters
+  - is_true: nodes.$node_id.analysis_components.charFilters
+  - is_true: nodes.$node_id.analysis_components.normalizers
+  - is_true: nodes.$node_id.analysis_components.plugins
