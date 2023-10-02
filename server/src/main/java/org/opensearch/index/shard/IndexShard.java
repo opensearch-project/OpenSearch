@@ -3508,6 +3508,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // }
         // }}
         // }
+        logger.debug("startRecovery type={}", recoveryState.getRecoverySource().getType());
         assert recoveryState.getRecoverySource().equals(shardRouting.recoverySource());
         switch (recoveryState.getRecoverySource().getType()) {
             case EMPTY_STORE:
@@ -4725,11 +4726,21 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Downloads segments from remote segment store.
-     * @param overrideLocal flag to override local segment files with those in remote store
-     * @throws IOException if exception occurs while reading segments from remote store
+     * Downloads segments from remote segment store
+     * @param overrideLocal flag to override local segment files with those in remote store.
+     * @throws IOException if exception occurs while reading segments from remote store.
      */
     public void syncSegmentsFromRemoteSegmentStore(boolean overrideLocal) throws IOException {
+        syncSegmentsFromRemoteSegmentStore(overrideLocal, () -> {});
+    }
+
+    /**
+     * Downloads segments from remote segment store along with updating the access time of the recovery target.
+     * @param overrideLocal flag to override local segment files with those in remote store.
+     * @param onFileSync runnable that updates the access time when run.
+     * @throws IOException if exception occurs while reading segments from remote store.
+     */
+    public void syncSegmentsFromRemoteSegmentStore(boolean overrideLocal, final Runnable onFileSync) throws IOException {
         assert indexSettings.isRemoteStoreEnabled();
         logger.trace("Downloading segments from remote segment store");
         RemoteSegmentStoreDirectory remoteDirectory = getRemoteDirectory();
@@ -4760,7 +4771,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             } else {
                 storeDirectory = store.directory();
             }
-            copySegmentFiles(storeDirectory, remoteDirectory, null, uploadedSegments, overrideLocal);
+            copySegmentFiles(storeDirectory, remoteDirectory, null, uploadedSegments, overrideLocal, onFileSync);
 
             if (remoteSegmentMetadata != null) {
                 final SegmentInfos infosSnapshot = store.buildSegmentInfos(
@@ -4820,7 +4831,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 sourceRemoteDirectory,
                 remoteDirectory,
                 uploadedSegments,
-                overrideLocal
+                overrideLocal,
+                () -> {}
             );
             if (segmentsNFile != null) {
                 try (
@@ -4853,7 +4865,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         RemoteSegmentStoreDirectory sourceRemoteDirectory,
         RemoteSegmentStoreDirectory targetRemoteDirectory,
         Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> uploadedSegments,
-        boolean overrideLocal
+        boolean overrideLocal,
+        final Runnable onFileSync
     ) throws IOException {
         Set<String> toDownloadSegments = new HashSet<>();
         Set<String> skippedSegments = new HashSet<>();
@@ -4882,9 +4895,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
             if (toDownloadSegments.isEmpty() == false) {
                 try {
-                    final PlainActionFuture<Void> completionListener = PlainActionFuture.newFuture();
-                    downloadSegments(storeDirectory, sourceRemoteDirectory, targetRemoteDirectory, toDownloadSegments, completionListener);
-                    completionListener.actionGet();
+                    downloadSegments(storeDirectory, sourceRemoteDirectory, targetRemoteDirectory, toDownloadSegments, onFileSync);
                 } catch (Exception e) {
                     throw new IOException("Error occurred when downloading segments from remote store", e);
                 }
@@ -4902,22 +4913,25 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         RemoteSegmentStoreDirectory sourceRemoteDirectory,
         RemoteSegmentStoreDirectory targetRemoteDirectory,
         Set<String> toDownloadSegments,
-        ActionListener<Void> completionListener
+        final Runnable onFileSync
     ) {
-        final Path indexPath = store.shardPath() == null ? null : store.shardPath().resolveIndex();
+        final PlainActionFuture<Void> completionListener = PlainActionFuture.newFuture();
         final GroupedActionListener<Void> batchDownloadListener = new GroupedActionListener<>(
             ActionListener.map(completionListener, v -> null),
             toDownloadSegments.size()
         );
 
         final ActionListener<String> segmentsDownloadListener = ActionListener.map(batchDownloadListener, fileName -> {
+            onFileSync.run();
             if (targetRemoteDirectory != null) {
                 targetRemoteDirectory.copyFrom(storeDirectory, fileName, fileName, IOContext.DEFAULT);
             }
             return null;
         });
 
-        toDownloadSegments.forEach(file -> sourceRemoteDirectory.copyTo(file, storeDirectory, indexPath, segmentsDownloadListener));
+        final Path indexPath = store.shardPath() == null ? null : store.shardPath().resolveIndex();
+        toDownloadSegments.forEach(file -> { sourceRemoteDirectory.copyTo(file, storeDirectory, indexPath, segmentsDownloadListener); });
+        completionListener.actionGet();
     }
 
     private boolean localDirectoryContains(Directory localDirectory, String file, long checksum) {

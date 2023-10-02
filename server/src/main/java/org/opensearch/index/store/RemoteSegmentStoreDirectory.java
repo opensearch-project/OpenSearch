@@ -26,8 +26,10 @@ import org.apache.lucene.util.Version;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.blobstore.AsyncMultiStreamBlobContainer;
 import org.opensearch.common.io.VersionedCodecStreamWrapper;
+import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.store.lockmanager.FileLockInfo;
 import org.opensearch.index.store.lockmanager.RemoteStoreCommitLevelLockManager;
@@ -42,6 +44,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -99,7 +102,9 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         RemoteSegmentMetadata.METADATA_CODEC
     );
 
-    private static final Logger logger = LogManager.getLogger(RemoteSegmentStoreDirectory.class);
+    private static final Logger staticLogger = LogManager.getLogger(RemoteSegmentStoreDirectory.class);
+
+    private final Logger logger;
 
     /**
      * AtomicBoolean that ensures only one staleCommitDeletion activity is scheduled at a time.
@@ -113,13 +118,15 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         RemoteDirectory remoteDataDirectory,
         RemoteDirectory remoteMetadataDirectory,
         RemoteStoreLockManager mdLockManager,
-        ThreadPool threadPool
+        ThreadPool threadPool,
+        ShardId shardId
     ) throws IOException {
         super(remoteDataDirectory);
         this.remoteDataDirectory = remoteDataDirectory;
         this.remoteMetadataDirectory = remoteMetadataDirectory;
         this.mdLockManager = mdLockManager;
         this.threadPool = threadPool;
+        this.logger = Loggers.getLogger(getClass(), shardId);
         init();
     }
 
@@ -132,12 +139,14 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
      * @throws IOException if there were any failures in reading the metadata file
      */
     public RemoteSegmentMetadata init() throws IOException {
+        logger.debug("Start initialisation of remote segment metadata");
         RemoteSegmentMetadata remoteSegmentMetadata = readLatestMetadataFile();
         if (remoteSegmentMetadata != null) {
             this.segmentsUploadedToRemoteStore = new ConcurrentHashMap<>(remoteSegmentMetadata.getMetadata());
         } else {
             this.segmentsUploadedToRemoteStore = new ConcurrentHashMap<>();
         }
+        logger.debug("Initialisation of remote segment metadata completed");
         return remoteSegmentMetadata;
     }
 
@@ -250,7 +259,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
             String[] values = uploadedFilename.split(SEPARATOR);
             UploadedSegmentMetadata metadata = new UploadedSegmentMetadata(values[0], values[1], values[2], Long.parseLong(values[3]));
             if (values.length < 5) {
-                logger.error("Lucene version is missing for UploadedSegmentMetadata: " + uploadedFilename);
+                staticLogger.error("Lucene version is missing for UploadedSegmentMetadata: " + uploadedFilename);
             }
 
             metadata.setWrittenByMajor(Integer.parseInt(values[4]));
@@ -678,7 +687,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
      */
     private void tryAndDeleteLocalFile(String filename, Directory directory) {
         try {
-            logger.trace("Deleting file: " + filename);
+            logger.debug("Deleting file: " + filename);
             directory.deleteFile(filename);
         } catch (NoSuchFileException | FileNotFoundException e) {
             logger.trace("Exception while deleting. Missing file : " + filename, e);
@@ -728,7 +737,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
             Integer.MAX_VALUE
         );
         if (sortedMetadataFileList.size() <= lastNMetadataFilesToKeep) {
-            logger.trace(
+            logger.debug(
                 "Number of commits in remote segment store={}, lastNMetadataFilesToKeep={}",
                 sortedMetadataFileList.size(),
                 lastNMetadataFilesToKeep
@@ -756,6 +765,11 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         }).collect(Collectors.toList());
 
         sortedMetadataFileList.removeAll(metadataFilesToBeDeleted);
+        logger.debug(
+            "metadataFilesEligibleToDelete={} metadataFilesToBeDeleted={}",
+            metadataFilesEligibleToDelete,
+            metadataFilesEligibleToDelete
+        );
 
         Map<String, UploadedSegmentMetadata> activeSegmentFilesMetadataMap = new HashMap<>();
         Set<String> activeSegmentRemoteFilenames = new HashSet<>();
@@ -773,9 +787,11 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
                 .map(metadata -> metadata.uploadedFilename)
                 .collect(Collectors.toSet());
             AtomicBoolean deletionSuccessful = new AtomicBoolean(true);
+            List<String> nonActiveDeletedSegmentFiles = new ArrayList<>();
             staleSegmentRemoteFilenames.stream().filter(file -> !activeSegmentRemoteFilenames.contains(file)).forEach(file -> {
                 try {
                     remoteDataDirectory.deleteFile(file);
+                    nonActiveDeletedSegmentFiles.add(file);
                     if (!activeSegmentFilesMetadataMap.containsKey(getLocalSegmentFilename(file))) {
                         segmentsUploadedToRemoteStore.remove(getLocalSegmentFilename(file));
                     }
@@ -790,8 +806,9 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
                     );
                 }
             });
+            logger.debug("nonActiveDeletedSegmentFiles={}", nonActiveDeletedSegmentFiles);
             if (deletionSuccessful.get()) {
-                logger.trace("Deleting stale metadata file {} from remote segment store", metadataFile);
+                logger.debug("Deleting stale metadata file {} from remote segment store", metadataFile);
                 remoteMetadataDirectory.deleteFile(metadataFile);
             }
         }
@@ -842,7 +859,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
             1
         );
         if (metadataFiles.size() != 0) {
-            logger.info("Remote directory still has files , not deleting the path");
+            logger.info("Remote directory still has files, not deleting the path");
             return false;
         }
 
@@ -858,6 +875,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         return true;
     }
 
+    @Override
     public void close() throws IOException {
         deleteStaleSegmentsAsync(0, ActionListener.wrap(r -> deleteIfEmpty(), e -> logger.error("Failed to cleanup remote directory")));
     }

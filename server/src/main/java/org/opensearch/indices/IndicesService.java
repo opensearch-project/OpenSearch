@@ -133,6 +133,7 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardState;
 import org.opensearch.index.shard.IndexingOperationListener;
 import org.opensearch.index.shard.IndexingStats;
+import org.opensearch.index.shard.IndexingStats.Stats.DocStatusStats;
 import org.opensearch.index.store.remote.filecache.FileCacheCleaner;
 import org.opensearch.index.translog.InternalTranslogFactory;
 import org.opensearch.index.translog.RemoteBlobStoreInternalTranslogFactory;
@@ -283,6 +284,18 @@ public class IndicesService extends AbstractLifecycleComponent
         new ClusterMinimumRefreshIntervalValidator(),
         Property.NodeScope,
         Property.Dynamic
+    );
+
+    /**
+     * This setting is used to restrict creation or updation of index where the `index.translog.durability` index setting
+     * is set as ASYNC if enabled. If disabled, any of the durability mode can be used and switched at any later time from
+     * one to another.
+     */
+    public static final Setting<Boolean> CLUSTER_REMOTE_INDEX_RESTRICT_ASYNC_DURABILITY_SETTING = Setting.boolSetting(
+        "cluster.remote_store.index.restrict.async-durability",
+        false,
+        Property.NodeScope,
+        Property.Final
     );
 
     /**
@@ -1044,6 +1057,15 @@ public class IndicesService extends AbstractLifecycleComponent
 
     public IndicesQueryCache getIndicesQueryCache() {
         return indicesQueryCache;
+    }
+
+    /**
+     * Accumulate stats from the passed Object
+     *
+     * @param stats Instance storing {@link DocStatusStats}
+     */
+    public void addDocStatusStats(final DocStatusStats stats) {
+        oldShardsStats.indexingStats.getTotal().getDocStatusStats().add(stats);
     }
 
     /**

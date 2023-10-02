@@ -105,7 +105,7 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
                 listener.onResponse(new GetSegmentFilesResponse(Collections.emptyList()));
                 return;
             }
-            logger.trace("Downloading segments files from remote store {}", filesToFetch);
+            logger.debug("Downloading segment files from remote store {}", filesToFetch);
 
             RemoteSegmentMetadata remoteSegmentMetadata = remoteDirectory.readLatestMetadataFile();
             List<StoreFileMetadata> toDownloadSegments = new ArrayList<>();
@@ -122,7 +122,7 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
                         toDownloadSegments.add(fileMetadata);
                     }
                     downloadSegments(storeDirectory, remoteDirectory, toDownloadSegments, shardPath, listener);
-                    logger.trace("Downloaded segments from remote store {}", toDownloadSegments);
+                    logger.debug("Downloaded segment files from remote store {}", toDownloadSegments);
                 } finally {
                     indexShard.store().decRef();
                     indexShard.remoteStore().decRef();

@@ -181,11 +181,12 @@ public class RemoteFsTranslog extends Translog {
                 ex = e;
             }
         }
+        logger.debug("Exhausted all download retries during translog/checkpoint file download");
         throw ex;
     }
 
     static private void downloadOnce(TranslogTransferManager translogTransferManager, Path location, Logger logger) throws IOException {
-        logger.trace("Downloading translog files from remote");
+        logger.debug("Downloading translog files from remote");
         RemoteTranslogTransferTracker statsTracker = translogTransferManager.getRemoteTranslogTransferTracker();
         long prevDownloadBytesSucceeded = statsTracker.getDownloadBytesSucceeded();
         long prevDownloadTimeInMillis = statsTracker.getTotalDownloadTimeInMillis();
@@ -205,6 +206,11 @@ public class RemoteFsTranslog extends Translog {
                 String generation = Long.toString(i);
                 translogTransferManager.downloadTranslog(generationToPrimaryTermMapper.get(generation), generation, location);
             }
+            logger.info(
+                "Downloaded translog and checkpoint files from={} to={}",
+                translogMetadata.getMinTranslogGeneration(),
+                translogMetadata.getGeneration()
+            );
 
             statsTracker.recordDownloadStats(prevDownloadBytesSucceeded, prevDownloadTimeInMillis);
 
@@ -215,7 +221,7 @@ public class RemoteFsTranslog extends Translog {
                 location.resolve(Translog.CHECKPOINT_FILE_NAME)
             );
         }
-        logger.trace("Downloaded translog files from remote");
+        logger.debug("downloadOnce execution completed");
     }
 
     public static TranslogTransferManager buildTranslogTransferManager(
@@ -310,7 +316,7 @@ public class RemoteFsTranslog extends Translog {
         // primary, the engine is reset to InternalEngine which also initialises the RemoteFsTranslog which in turns
         // downloads all the translogs from remote store and does a flush before the relocation finishes.
         if (primaryModeSupplier.getAsBoolean() == false) {
-            logger.trace("skipped uploading translog for {} {}", primaryTerm, generation);
+            logger.debug("skipped uploading translog for {} {}", primaryTerm, generation);
             // NO-OP
             return true;
         }
