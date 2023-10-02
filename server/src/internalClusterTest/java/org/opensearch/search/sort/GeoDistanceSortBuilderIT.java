@@ -255,7 +255,8 @@ public class GeoDistanceSortBuilderIT extends ParameterizedOpenSearchIntegTestCa
     }
 
     public void testManyToManyGeoPointsWithDifferentFormats() throws ExecutionException, InterruptedException, IOException {
-        /*   q     d1       d2
+        /*
+           q     d1       d2
           |4  o|   x    |   x
           |    |        |
           |3  o|  x     |  x
