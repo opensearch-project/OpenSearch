@@ -16,7 +16,6 @@ import org.opensearch.telemetry.TelemetrySettings;
 import org.opensearch.telemetry.metrics.Counter;
 import org.opensearch.telemetry.metrics.WrappedCounter;
 import org.opensearch.telemetry.metrics.tags.Tags;
-import org.opensearch.telemetry.tracing.attributes.Attributes;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.HashSet;
