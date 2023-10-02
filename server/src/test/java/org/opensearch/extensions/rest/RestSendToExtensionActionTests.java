@@ -150,7 +150,7 @@ public class RestSendToExtensionActionTests extends OpenSearchTestCase {
             identityService
         );
 
-        assertEquals("send_to_extension_action", restSendToExtensionAction.getName());
+        assertEquals("uniqueid1:send_to_extension_action", restSendToExtensionAction.getName());
         List<Route> expected = new ArrayList<>();
         String uriPrefix = "/_extensions/_uniqueid1";
         expected.add(new Route(Method.GET, uriPrefix + "/foo"));
@@ -183,7 +183,7 @@ public class RestSendToExtensionActionTests extends OpenSearchTestCase {
             identityService
         );
 
-        assertEquals("send_to_extension_action", restSendToExtensionAction.getName());
+        assertEquals("uniqueid1:send_to_extension_action", restSendToExtensionAction.getName());
         List<NamedRoute> expected = new ArrayList<>();
         String uriPrefix = "/_extensions/_uniqueid1";
         NamedRoute nr1 = new NamedRoute.Builder().method(Method.GET).path(uriPrefix + "/foo").uniqueName("foo").build();
@@ -229,7 +229,7 @@ public class RestSendToExtensionActionTests extends OpenSearchTestCase {
             identityService
         );
 
-        assertEquals("send_to_extension_action", restSendToExtensionAction.getName());
+        assertEquals("uniqueid1:send_to_extension_action", restSendToExtensionAction.getName());
         List<NamedRoute> expected = new ArrayList<>();
         String uriPrefix = "/_extensions/_uniqueid1";
         NamedRoute nr1 = new NamedRoute.Builder().method(Method.GET)
