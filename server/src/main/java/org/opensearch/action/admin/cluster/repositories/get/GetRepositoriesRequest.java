@@ -88,7 +88,7 @@ public class GetRepositoriesRequest extends ClusterManagerNodeReadRequest<GetRep
     /**
      * The names of the repositories.
      *
-     * @return string array of repositories
+     * @return  array of repository names
      */
     public String[] repositories() {
         return this.repositories;
