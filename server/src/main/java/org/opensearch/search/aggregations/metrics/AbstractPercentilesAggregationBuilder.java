@@ -89,7 +89,7 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
          *
          *  - args[0]: values
          *  - args[1]: tdigest config options
-         *  - args[2]: hdr config options<
+         *  - args[2]: hdr config options
          *
          *  If `args` is null or empty, it means all were omitted.  This is usually an anti-pattern for
          *  ConstructingObjectParser, but we're allowing it because of the above-mentioned reasons
