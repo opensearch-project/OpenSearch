@@ -39,6 +39,8 @@ testClusters {
     testDistribution = 'archive'
     if (numZones > 1) numberOfZones = numZones
     if (numNodes > 1) numberOfNodes = numNodes
+
+    systemProperty 'opensearch.experimental.feature.extensions.enabled', 'true'
   }
 }
 
