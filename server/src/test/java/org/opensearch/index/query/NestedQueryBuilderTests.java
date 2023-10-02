@@ -66,6 +66,8 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBuilder> {
@@ -406,5 +408,23 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
         NestedQueryBuilder queryBuilder = new NestedQueryBuilder("path", new MatchAllQueryBuilder(), ScoreMode.None);
         OpenSearchException e = expectThrows(OpenSearchException.class, () -> queryBuilder.toQuery(queryShardContext));
         assertEquals("[joining] queries cannot be executed when 'search.allow_expensive_queries' is set to false.", e.getMessage());
+    }
+
+    public void testSetParentFilterInContext() throws Exception {
+        QueryShardContext queryShardContext = createShardContext();
+        QueryBuilder innerQueryBuilder = spy(new MatchAllQueryBuilderTests().createTestQueryBuilder());
+        when(innerQueryBuilder.toQuery(queryShardContext)).thenAnswer(invoke -> {
+            QueryShardContext context = invoke.getArgument(0);
+            if (context.getParentFilter() == null) {
+                throw new Exception("Expect parent filter to be non-null");
+            }
+            return invoke.callRealMethod();
+        });
+        NestedQueryBuilder nqb = new NestedQueryBuilder("nested1", innerQueryBuilder, RandomPicks.randomFrom(random(), ScoreMode.values()));
+
+        assertNull(queryShardContext.getParentFilter());
+        nqb.rewrite(queryShardContext).toQuery(queryShardContext);
+        assertNull(queryShardContext.getParentFilter());
+        verify(innerQueryBuilder).toQuery(queryShardContext);
     }
 }
