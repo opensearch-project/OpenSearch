@@ -202,7 +202,7 @@ public class PublishTests extends GradleUnitTestCase {
         GradleRunner runner = prepareGradleRunnerFromTemplate("useDefaultValues.gradle", "build", ZIP_PUBLISH_TASK);
         BuildResult result = runner.build();
 
-        /* Check if build and {@value ZIP_PUBLISH_TASK} tasks have run well */
+        /* Check if build and ZIP_PUBLISH_TASK tasks have run well */
         assertEquals(SUCCESS, result.task(":" + "build").getOutcome());
         assertEquals(SUCCESS, result.task(":" + ZIP_PUBLISH_TASK).getOutcome());
 

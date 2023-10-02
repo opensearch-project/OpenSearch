@@ -122,7 +122,6 @@ public class XContentMapValues {
      * can be returned.
      *
      * @param path the value's path in the map.
-     *
      * @return the value associated with the path in the map or 'null' if the path does not exist.
      */
     public static Object extractValue(String path, Map<?, ?> map) {

@@ -71,10 +71,7 @@ public interface DiscoveryPlugin {
      * <p>
      * For example: you could call a third party service (an API) to resolve _mycard_.
      * Then you could define in opensearch.yml settings like:
-     *
-     * <pre>{@code
-     * network.host: _mycard_
-     * }</pre>
+     * {@code network.host: _mycard_ }
      */
     default NetworkService.CustomNameResolver getCustomNameResolver(Settings settings) {
         return null;

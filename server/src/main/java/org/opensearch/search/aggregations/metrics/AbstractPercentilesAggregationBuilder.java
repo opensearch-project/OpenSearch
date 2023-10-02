@@ -73,23 +73,24 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
         ParseField valuesField
     ) {
 
-        /**
+        /*
          * This is a non-ideal ConstructingObjectParser, because it is a compromise between Percentiles and Ranks.
          * Ranks requires an array of values because there is no sane default, and we want to keep that in the ctor.
          * Percentiles has defaults, which means the API allows the user to either use the default or configure
          * their own.
-         * <p>
+         *
          * The mutability of Percentiles keeps us from having a strict ConstructingObjectParser, while the ctor
          * of Ranks keeps us from using a regular ObjectParser.
-         * <p>
+         *
          * This is a compromise, in that it is a ConstructingOP which accepts all optional arguments, and then we sort
          * out the behavior from there
-         * <p>
+         *
          * `args` are provided from the ConstructingObjectParser in-order they are defined in the parser.  So:
+         *
          *  - args[0]: values
          *  - args[1]: tdigest config options
-         *  - args[2]: hdr config options
-         * <p>
+         *  - args[2]: hdr config options<
+         *
          *  If `args` is null or empty, it means all were omitted.  This is usually an anti-pattern for
          *  ConstructingObjectParser, but we're allowing it because of the above-mentioned reasons
          */

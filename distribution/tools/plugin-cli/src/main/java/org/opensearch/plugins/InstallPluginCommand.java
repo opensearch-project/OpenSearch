@@ -698,7 +698,6 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
 
     /**
      * Creates a URL and opens a connection.
-     * <p>
      * If the URL returns a 404, {@code null} is returned, otherwise the open URL opject is returned.
      */
     // pkg private for tests

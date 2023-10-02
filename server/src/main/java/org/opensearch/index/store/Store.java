@@ -306,7 +306,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * {@link #readMetadataSnapshot(Path, ShardId, NodeEnvironment.ShardLocker, Logger)} to read a meta data while locking
      * {@link IndexShard#snapshotStoreMetadata()} to safely read from an existing shard
      * {@link IndexShard#acquireLastIndexCommit(boolean)} to get an {@link IndexCommit} which is safe to use but has to be freed
-     * @param commit the index commit to read the snapshot from or <code>null</code> if the latest snapshot should be read from the
+     *
+     * @param commit the index commit to read the snapshot from or {@code null} if the latest snapshot should be read from the
      *               directory
      * @throws CorruptIndexException      if the lucene index is corrupted. This can be caused by a checksum mismatch or an
      *                                    unexpected exception when opening the index reading the segments file.

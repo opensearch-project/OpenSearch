@@ -53,7 +53,6 @@ public class CustomSuggestion extends Suggest.Suggestion<CustomSuggestion.Entry>
 
     /**
      * An integer representing the type of the suggestion formerly used for internal serialization over the network.
-     * <p>
      * This class is now serialized as a NamedWriteable and this value only remains for backwards compatibility
      */
     public static final int TYPE = 999;

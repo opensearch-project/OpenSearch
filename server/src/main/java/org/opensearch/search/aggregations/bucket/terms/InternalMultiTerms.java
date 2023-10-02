@@ -408,7 +408,7 @@ public class InternalMultiTerms extends InternalTerms<InternalMultiTerms, Intern
     /**
      * Copy from InternalComposite
      * <p>
-     * Format <code>obj</code> using the provided {@link DocValueFormat}.
+     * Format {@code obj} using the provided {@link DocValueFormat}.
      * If the format is equals to {@link DocValueFormat#RAW}, the object is returned as is
      * for numbers and a string for {@link BytesRef}s.
      */

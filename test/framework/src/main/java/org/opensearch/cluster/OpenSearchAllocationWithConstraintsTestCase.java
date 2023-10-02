@@ -215,7 +215,7 @@ public abstract class OpenSearchAllocationWithConstraintsTestCase extends OpenSe
                   SameShardAllocationDecider, causing it to breach allocation constraint on
                   another node. We need to differentiate between such hot spots v/s actual hot
                   spots.
-                  <p>
+
                   A simple check could be to ensure there is no node with shards less than
                   allocation limit, that can accept current shard. However, in current
                   allocation algorithm, when nodes get throttled, shards are added to
@@ -224,7 +224,7 @@ public abstract class OpenSearchAllocationWithConstraintsTestCase extends OpenSe
                   weight function in balancer. RoutingNodes with {@link count} < {@link limit}
                   may not have had the same count in the corresponding ModelNode seen by weight
                   function. We hence use the following alternate check --
-                  <p>
+
                   Given the way {@link limit} is defined, we should not have hot spots if *all*
                   nodes are eligible to accept the shard. A hot spot is acceptable, if either
                   all peer nodes have {@link count} > {@link limit}, or if even one node is

@@ -61,10 +61,11 @@ public class MergingBucketsDeferringCollector extends BestBucketsDeferringCollec
      * the value is set to -1 it is removed entirely.
      * <p>
      * For example, if the mergeMap [1,1,3,-1,3] is provided:
-     *  - Buckets `0` and `1` will be merged to bucket ordinal `1`
-     *  - Bucket `2` and `4` will be merged to ordinal `3`
-     *  - Bucket `3` will be removed entirely
-     * <p>
+     * <ul>
+     *  <li> Buckets `0` and `1` will be merged to bucket ordinal `1`</li>
+     *  <li> Bucket `2` and `4` will be merged to ordinal `3`</li>
+     *  <li> Bucket `3` will be removed entirely</li>
+     * </ul>
      *  This process rebuilds the ordinals and docDeltas according to the mergeMap, so it should
      *  not be called unless there are actually changes to be made, to avoid unnecessary work.
      *

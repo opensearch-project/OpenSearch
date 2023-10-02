@@ -118,7 +118,8 @@ public class PrioritizedOpenSearchThreadPoolExecutor extends OpenSearchThreadPoo
                 TieBreakingPrioritizedRunnable t = (TieBreakingPrioritizedRunnable) runnable;
                 Runnable innerRunnable = t.runnable;
                 if (innerRunnable != null) {
-                    /* innerRunnable can be null if task is finished but not removed from executor yet,
+                    /*
+                      innerRunnable can be null if task is finished but not removed from executor yet,
                       see {@link TieBreakingPrioritizedRunnable#run} and {@link TieBreakingPrioritizedRunnable#runAndClean}
                      */
                     pending.add(new Pending(super.unwrap(innerRunnable), t.priority(), t.insertionOrder, executing));

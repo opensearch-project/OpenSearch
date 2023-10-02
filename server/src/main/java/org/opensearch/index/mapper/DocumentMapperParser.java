@@ -205,7 +205,6 @@ public class DocumentMapperParser {
      *
      * @param type An optional type name.
      * @param root The mapping definition.
-     *
      * @return A tuple of the form (type, normalized mappings).
      */
     @SuppressWarnings({ "unchecked" })

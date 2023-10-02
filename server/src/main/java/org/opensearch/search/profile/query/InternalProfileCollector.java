@@ -44,11 +44,12 @@ import java.util.List;
 
 /**
  * This class wraps a Lucene Collector and times the execution of:
- * - setScorer()
- * - collect()
- * - doSetNextReader()
- * - needsScores()
- * <p>
+ * <ul>
+ * <li> setScorer()</li>
+ * <li> collect()</li>
+ * <li> doSetNextReader()</li>
+ * <li> needsScores()</li>
+ * </ul>
  * InternalProfiler facilitates the linking of the Collector graph
  *
  * @opensearch.internal

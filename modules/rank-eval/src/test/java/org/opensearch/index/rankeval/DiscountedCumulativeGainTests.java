@@ -103,7 +103,7 @@ public class DiscountedCumulativeGainTests extends OpenSearchTestCase {
           4 | 2 | 3.0 | 2.321928094887362 | 1.2920296742201793
           5 | 1 | 1.0 | 2.584962500721156  | 0.38685280723454163
           6 | 0 | 0.0 | 2.807354922057604  | 0.0
-          <p>
+
           idcg = 14.595390756454922 (sum of last column)
          */
         dcg = new DiscountedCumulativeGain(true, null, 10);
@@ -155,7 +155,7 @@ public class DiscountedCumulativeGainTests extends OpenSearchTestCase {
           4 | 1 | 1.0 | 2.321928094887362   | 0.43067655807339
           5 | n.a | n.a | n.a.  | n.a.
           6 | n.a | n.a | n.a  | n.a
-          <p>
+
           idcg = 13.347184833073591 (sum of last column)
          */
         dcg = new DiscountedCumulativeGain(true, null, 10);
@@ -213,7 +213,7 @@ public class DiscountedCumulativeGainTests extends OpenSearchTestCase {
           ---------------------------------------------------------------------------------------
           5 | n.a | n.a | n.a.  | n.a.
           6 | n.a | n.a | n.a  | n.a
-          <p>
+
           idcg = 13.347184833073591 (sum of last column)
          */
         dcg = new DiscountedCumulativeGain(true, null, 10);

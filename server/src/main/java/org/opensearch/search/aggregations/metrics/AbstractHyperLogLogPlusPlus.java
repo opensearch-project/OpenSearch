@@ -46,7 +46,6 @@ import java.util.Set;
 
 /**
  * Base class for HLL++ algorithms.
- * <p>
  * It contains methods for cloning and serializing the data structure.
  *
  * @opensearch.internal
